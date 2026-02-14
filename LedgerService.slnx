@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/LedgerService.Api/LedgerService.Api.csproj" />
+    <Project Path="src/LedgerService.Application/LedgerService.Application.csproj" />
+    <Project Path="src/LedgerService.Domain/LedgerService.Domain.csproj" />
+    <Project Path="src/LedgerService.Infrastructure/LedgerService.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/LedgerService.Tests/LedgerService.Tests.csproj" />
+  </Folder>
+</Solution>
