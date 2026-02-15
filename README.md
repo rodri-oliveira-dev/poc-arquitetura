@@ -82,7 +82,20 @@ dotnet run --project src\\LedgerService.Api\\LedgerService.Api.csproj
 ```
 
 - Swagger UI: `http://localhost:5226/`
-- OpenAPI JSON: `http://localhost:5226/swagger/v1/swagger.json`
+- OpenAPI JSON:
+  - `http://localhost:5226/swagger/v1/swagger.json`
+
+## 4.5 Versionamento da API
+
+Esta API usa **Asp.Versioning** com estratégia de **URL segment**.
+
+- Formato: `api/v{version}/...`
+- Versão padrão: `v1` (quando a versão não for especificada explicitamente)
+- O Swagger UI lista automaticamente todas as versões disponíveis.
+
+Exemplo:
+
+- `POST /api/v1/lancamentos`
 
 ## 5. Como rodar testes
 

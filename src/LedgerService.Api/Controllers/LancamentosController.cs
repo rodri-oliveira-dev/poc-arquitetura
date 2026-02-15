@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using LedgerService.Api.Contracts;
 using LedgerService.Api.Controllers.Binds;
 using LedgerService.Api.Middlewares;
@@ -11,7 +12,8 @@ namespace LedgerService.Api.Controllers;
 /// Endpoints para criação de lançamentos no ledger.
 /// </summary>
 [ApiController]
-[Route("api/v1/lancamentos")]
+[ApiVersion("1.0")]
+[Route("api/v{version:apiVersion}/lancamentos")]
 public sealed class LancamentosController : ControllerBase
 {
     private readonly CreateLancamentoService _createLancamentoService;
