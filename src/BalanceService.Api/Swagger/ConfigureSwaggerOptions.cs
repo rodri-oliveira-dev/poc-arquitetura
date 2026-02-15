@@ -23,7 +23,7 @@ public sealed class ConfigureSwaggerOptions : IConfigureOptions<SwaggerGenOption
         {
             options.SwaggerDoc(description.GroupName, new OpenApiInfo
             {
-                Title = "Poc Arquitetura API",
+                Title = "Poc Arquitetura Balance API",
                 Version = description.ApiVersion.ToString(),
                 Description = description.IsDeprecated
                     ? "API em Clean Architecture com foco em DDD (DEPRECATED)"
