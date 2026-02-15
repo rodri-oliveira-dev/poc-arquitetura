@@ -1,5 +1,12 @@
 <Solution>
-  <Folder Name="/src/">
+  <Folder Name="/src/" />
+  <Folder Name="/src/Balance/">
+    <Project Path="src/BalanceService.Api/BalanceService.Api.csproj" />
+    <Project Path="src/BalanceService.Application/BalanceService.Application.csproj" />
+    <Project Path="src/BalanceService.Domain/BalanceService.Domain.csproj" />
+    <Project Path="src/BalanceService.Infrastructure/BalanceService.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/Ledger/">
     <Project Path="src/LedgerService.Api/LedgerService.Api.csproj" />
     <Project Path="src/LedgerService.Application/LedgerService.Application.csproj" />
     <Project Path="src/LedgerService.Domain/LedgerService.Domain.csproj" />
