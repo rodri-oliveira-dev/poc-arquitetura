@@ -1,20 +1,152 @@
-# poc-arquitetura
+# poc-arquitetura (LedgerService)
 
-## Outbox Publisher (Kafka) - LedgerService
+## 1. Visão geral do projeto
 
-O LedgerService usa o padrão **Outbox** para publicar eventos no Kafka com entrega **at-least-once**.
-O endpoint (ex.: criação de lançamento) **não publica diretamente no Kafka**: ele grava o evento em `outbox_messages` com status `PENDING` e o **BackgroundService** publica em background.
+Este repositório é uma POC de **Clean Architecture** com foco em **DDD**, demonstrando:
 
-### Configurar Kafka (local)
+- **API HTTP** para criação de lançamentos (`lancamentos`).
+- Persistência com **Entity Framework Core + PostgreSQL**.
+- Publicação de eventos via **Kafka** usando o padrão **Outbox** (entrega *at-least-once*).
+- Base para **rastreabilidade** via *correlation id* (e, na fase de observabilidade, tracing distribuído).
 
-1. Suba um Kafka local em `localhost:9092` (ex.: via Docker Compose).
-2. Configure no `src/LedgerService.Api/appsettings.json` (ou via variáveis de ambiente):
+> Importante: o endpoint **não publica diretamente no Kafka**. Ele grava o evento em `outbox_messages` (status `Pending`) e um `BackgroundService` publica em background.
+
+## 2. Arquitetura e principais componentes
+
+- `src/LedgerService.Api`:
+  - ASP.NET Core Controllers + Swagger
+  - Middlewares: `CorrelationIdMiddleware`, `GlobalExceptionHandler`, `SecurityHeadersMiddleware`
+- `src/LedgerService.Application`:
+  - Casos de uso/Services (ex.: `CreateLancamentoService`)
+  - FluentValidation (validators de inputs)
+- `src/LedgerService.Domain`:
+  - Entidades e regras de domínio (`LedgerEntry`, `OutboxMessage`, etc.)
+- `src/LedgerService.Infrastructure`:
+  - EF Core (`AppDbContext`) + migrations
+  - Outbox publisher e integração Kafka (`OutboxKafkaPublisherService`, `OutboxKafkaProducer`)
+- `tests/LedgerService.Tests`:
+  - Testes unitários e de repositório
+
+## 3. Pré-requisitos
+
+- .NET SDK (recomendado: **.NET 10**)
+- PostgreSQL acessível localmente
+- Kafka acessível localmente (caso queira validar publicação)
+
+## 4. Como executar localmente (passo a passo)
+
+### 4.1 Restaurar tools locais
+
+O repositório versiona o `dotnet-ef` via `dotnet-tools.json`.
+
+```bash
+dotnet tool restore
+```
+
+### 4.2 Configurar variáveis de ambiente / appsettings
+
+Configurações ficam em:
+
+- `src/LedgerService.Api/appsettings.json`
+- `src/LedgerService.Api/appsettings.Development.json`
+
+**Não coloque segredos no repositório.** Para execução local, use variáveis de ambiente.
+
+Exemplos (Windows PowerShell):
+
+```powershell
+$env:ConnectionStrings__DefaultConnection = "Host=127.0.0.1;Port=5432;Database=appdb;Username=appuser;Password=__REDACTED__"
+$env:Kafka__Producer__BootstrapServers = "127.0.0.1:9092"
+```
+
+> Observação: o formato `__` representa o separador de seções do .NET Configuration.
+
+### 4.3 Aplicar migrations
+
+As migrations ficam no projeto `LedgerService.Infrastructure` (onde está o `AppDbContext`).
+
+```bash
+dotnet tool run dotnet-ef -- database update \
+  -p src\\LedgerService.Infrastructure\\LedgerService.Infrastructure.csproj \
+  -s src\\LedgerService.Api\\LedgerService.Api.csproj \
+  -c AppDbContext \
+  -- --environment Development
+```
+
+> O `-- --environment Development` é repassado para a aplicação (startup project) para ela carregar `appsettings.Development.json`.
+
+### 4.4 Subir a API
+
+```bash
+dotnet run --project src\\LedgerService.Api\\LedgerService.Api.csproj
+```
+
+- Swagger UI: `http://localhost:5226/`
+- OpenAPI JSON: `http://localhost:5226/swagger/v1/swagger.json`
+
+## 5. Como rodar testes
+
+```bash
+dotnet test
+```
+
+## 6. Banco de dados e migrations
+
+### 6.1 Listar migrations
+
+```bash
+dotnet tool run dotnet-ef -- migrations list \
+  -p src\\LedgerService.Infrastructure\\LedgerService.Infrastructure.csproj \
+  -s src\\LedgerService.Api\\LedgerService.Api.csproj \
+  -c AppDbContext
+```
+
+### 6.2 Criar nova migration
+
+```bash
+dotnet tool run dotnet-ef -- migrations add NomeDaMigration \
+  -p src\\LedgerService.Infrastructure\\LedgerService.Infrastructure.csproj \
+  -s src\\LedgerService.Api\\LedgerService.Api.csproj \
+  -c AppDbContext \
+  -o Persistence\\Migrations
+```
+
+### 6.3 Aplicar migration
+
+```bash
+dotnet tool run dotnet-ef -- database update \
+  -p src\\LedgerService.Infrastructure\\LedgerService.Infrastructure.csproj \
+  -s src\\LedgerService.Api\\LedgerService.Api.csproj \
+  -c AppDbContext \
+  -- --environment Development
+```
+
+### 6.4 Reverter migration (quando aplicável)
+
+O EF Core permite voltar para uma migration específica (inclusive `0`).
+
+```bash
+dotnet tool run dotnet-ef -- database update NomeDaMigrationAnteriorOu0 \
+  -p src\\LedgerService.Infrastructure\\LedgerService.Infrastructure.csproj \
+  -s src\\LedgerService.Api\\LedgerService.Api.csproj \
+  -c AppDbContext \
+  -- --environment Development
+```
+
+## 7. Kafka (se aplicável)
+
+### 7.1 Onde ficam as configurações
+
+- Producer: `Kafka:Producer` (`src/LedgerService.Api/appsettings.json`)
+- Outbox publisher: `Outbox:Publisher` (`src/LedgerService.Api/appsettings.json`)
+
+**Exemplo (sem segredos):**
 
 ```json
 {
   "Kafka": {
     "Producer": {
-      "BootstrapServers": "localhost:9092",
+      "BootstrapServers": "127.0.0.1:9092",
       "ClientId": "ledger-service",
       "Acks": "all",
       "EnableIdempotence": true,
@@ -37,50 +169,59 @@ O endpoint (ex.: criação de lançamento) **não publica diretamente no Kafka**
 }
 ```
 
-### Como validar (PENDING -> SENT)
+### 7.2 Tópicos publicados
 
-1. Aplique as migrations no PostgreSQL.
-2. Suba a API (`dotnet run` no projeto `LedgerService.Api`).
-3. Crie um lançamento via endpoint.
-4. Verifique no banco:
+- Evento: `LedgerEntryCreated`
+- Tópico (por padrão): `ledger-events`
+- Mapeamento atual em `TopicMap`: `LedgerEntryCreated` -> `ledger.ledgerentry.created`
+
+### 7.3 Headers publicados
+
+Ao publicar, o producer inclui headers:
+
+- `event_id`
+- `event_type`
+- `correlation_id` (quando existir)
+
+> Observação: a propagação de headers W3C (`traceparent`, `baggage`) depende da configuração de observabilidade (ver seção 8 e `docs/observability.md`).
+
+### 7.4 Como validar (PENDING -> SENT)
+
+1. Aplicar migrations no PostgreSQL.
+2. Subir a API.
+3. Criar um lançamento via `POST /api/v1/lancamentos`.
+4. Verificar no banco:
    - ao criar, surge uma linha em `outbox_messages` com `status = 'Pending'`
    - após alguns segundos, o publisher marca como `status = 'Sent'` (após confirmação do publish no Kafka)
 
-> Observação: em caso de falha no Kafka, o serviço não cai: ele registra erro, incrementa tentativas e agenda `next_attempt_at` com backoff.
+Em caso de falha no Kafka, o serviço não cai: ele registra erro, incrementa tentativas e agenda `next_attempt_at` com backoff.
 
-## Migrations (Entity Framework Core)
+## 8. Observabilidade e rastreabilidade
 
-### Pré-requisitos
+### 8.1 Correlação (estado atual)
 
-- PostgreSQL rodando e acessível (veja `src/LedgerService.Api/appsettings*.json`).
-- Tool local `dotnet-ef` (já versionada via `dotnet-tools.json`).
+- A API usa o header `X-Correlation-Id`:
+  - se ausente/inválido, gera um novo UUID;
+  - retorna o mesmo header no response;
+  - adiciona `CorrelationId` nos logs via logging scope.
 
-Para restaurar as tools locais:
+### 8.2 Traces e métricas
 
-```bash
-dotnet tool restore
-```
+Consulte `docs/observability.md` para:
 
-### Criar uma nova migration
+- arquitetura de telemetria;
+- campos de correlação adotados (`CorrelationId`, `traceId/spanId`);
+- como validar localmente.
 
-As migrations ficam no projeto `LedgerService.Infrastructure` (onde está o `AppDbContext`).
+> TODO: documento será criado/atualizado na etapa de observabilidade.
 
-```bash
-dotnet tool run dotnet-ef -- migrations add NomeDaMigration \
-  -p src\\LedgerService.Infrastructure\\LedgerService.Infrastructure.csproj \
-  -s src\\LedgerService.Api\\LedgerService.Api.csproj \
-  -c AppDbContext \
-  -o Persistence\\Migrations
-```
+## 9. Troubleshooting básico
 
-### Aplicar migrations no banco
+- **Erro ao aplicar migrations**: confirme a connection string e se o PostgreSQL está acessível.
+- **Swagger não abre**: confirme que a aplicação está rodando e acessível na URL configurada (`launchSettings.json`).
+- **Outbox publisher logando queries repetidas**: comportamento esperado (polling). Ajuste `Outbox:Publisher:PollingIntervalSeconds`.
 
-```bash
-dotnet tool run dotnet-ef -- database update \
-  -p src\\LedgerService.Infrastructure\\LedgerService.Infrastructure.csproj \
-  -s src\\LedgerService.Api\\LedgerService.Api.csproj \
-  -c AppDbContext \
-  -- --environment Development
-```
+## 10. Limitações conhecidas
 
-> Observação: o `-- --environment Development` é repassado para a aplicação (startup project) para ela carregar `appsettings.Development.json`.
+- Não há autenticação/autorização configurada (não identificado no código).
+- Consumidores Kafka não estão implementados (apenas producer/outbox publisher).

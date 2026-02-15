@@ -3,6 +3,7 @@ using Confluent.Kafka;
 using LedgerService.Domain.Entities;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System.Diagnostics;
 
 namespace LedgerService.Infrastructure.Messaging.Kafka;
 
@@ -44,6 +45,26 @@ public sealed class OutboxKafkaProducer : IOutboxEventProducer, IDisposable
         headers.Add("event_type", Encoding.UTF8.GetBytes(message.EventType));
         if (message.CorrelationId is not null)
             headers.Add("correlation_id", Encoding.UTF8.GetBytes(message.CorrelationId.Value.ToString()));
+
+        // Propagação de contexto de trace (W3C) quando houver Activity atual.
+        // - Não altera payload e é compatível com consumidores que ignoram headers desconhecidos.
+        // - Quando não houver tracing habilitado, não adiciona headers.
+        var activity = Activity.Current;
+        if (activity is not null)
+        {
+            // 'traceparent' é o header W3C obrigatório.
+            if (!string.IsNullOrWhiteSpace(activity.Id))
+                headers.Add("traceparent", Encoding.UTF8.GetBytes(activity.Id));
+
+            // 'tracestate' é opcional.
+            if (!string.IsNullOrWhiteSpace(activity.TraceStateString))
+                headers.Add("tracestate", Encoding.UTF8.GetBytes(activity.TraceStateString));
+
+            // 'baggage' é opcional.
+            var baggage = string.Join(",", activity.Baggage.Select(kv => $"{kv.Key}={kv.Value}"));
+            if (!string.IsNullOrWhiteSpace(baggage))
+                headers.Add("baggage", Encoding.UTF8.GetBytes(baggage));
+        }
 
         var kafkaMessage = new Message<string, string>
         {

@@ -19,26 +19,21 @@ public sealed class CreateLancamentoService
     private readonly IIdempotencyRecordRepository _idempotencyRecordRepository;
     private readonly IOutboxMessageRepository _outboxMessageRepository;
     private readonly IUnitOfWork _unitOfWork;
-    private readonly IValidator<CreateLancamentoInput> _validator;
 
     public CreateLancamentoService(
         ILedgerEntryRepository ledgerEntryRepository,
         IIdempotencyRecordRepository idempotencyRecordRepository,
         IOutboxMessageRepository outboxMessageRepository,
-        IUnitOfWork unitOfWork,
-        IValidator<CreateLancamentoInput> validator)
+        IUnitOfWork unitOfWork)
     {
         _ledgerEntryRepository = ledgerEntryRepository;
         _idempotencyRecordRepository = idempotencyRecordRepository;
         _outboxMessageRepository = outboxMessageRepository;
         _unitOfWork = unitOfWork;
-        _validator = validator;
     }
 
     public async Task<LancamentoDto> ExecuteAsync(CreateLancamentoInput request, CancellationToken cancellationToken)
     {
-        await _validator.ValidateAndThrowAsync(request, cancellationToken);
-
         var requestHash = GenerateRequestHash(request);
 
         await using var transaction = await _unitOfWork.BeginTransactionAsync(cancellationToken);
@@ -66,14 +61,13 @@ public sealed class CreateLancamentoService
             : LedgerEntryType.Debit;
 
         var amount = decimal.Parse(request.Amount, NumberStyles.Number, CultureInfo.InvariantCulture);
-        var occurredAt = DateTime.Parse(request.OccurredAt, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
+        var occurredAt = DateTime.Now;
         var correlationId = Guid.Parse(request.CorrelationId);
 
         var ledgerEntry = new LedgerEntry(
             request.MerchantId,
             parsedType,
             amount,
-            request.Currency,
             occurredAt,
             request.Description,
             request.ExternalReference,
@@ -101,12 +95,11 @@ public sealed class CreateLancamentoService
             response.MerchantId,
             response.Type,
             response.Amount,
-            response.Currency,
             response.OccurredAt,
             response.Description,
             response.ExternalReference,
             response.CreatedAt,
-            CorrelationId = request.CorrelationId
+            request.CorrelationId
         }, JsonOptions);
 
         var outboxMessage = new OutboxMessage(
@@ -131,7 +124,6 @@ public sealed class CreateLancamentoService
             MerchantId: ledgerEntry.MerchantId,
             Type: ledgerEntry.Type == LedgerEntryType.Credit ? "CREDIT" : "DEBIT",
             Amount: ledgerEntry.Amount.ToString("0.00", CultureInfo.InvariantCulture),
-            Currency: ledgerEntry.Currency,
             OccurredAt: ledgerEntry.OccurredAt.ToString("o"),
             Description: ledgerEntry.Description,
             ExternalReference: ledgerEntry.ExternalReference,
@@ -143,11 +135,7 @@ public sealed class CreateLancamentoService
         {
             request.MerchantId,
             Type = request.Type.ToUpperInvariant(),
-            request.Amount,
-            Currency = request.Currency.ToUpperInvariant(),
-            request.OccurredAt,
-            request.Description,
-            request.ExternalReference
+            request.Amount
         }, JsonOptions);
 
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(canonical));

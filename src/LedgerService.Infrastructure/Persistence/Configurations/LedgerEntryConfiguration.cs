@@ -10,8 +10,10 @@ public sealed class LedgerEntryConfiguration : IEntityTypeConfiguration<LedgerEn
     {
         builder.ToTable("ledger_entries", table =>
         {
-            table.HasCheckConstraint("ck_ledger_entries_amount_positive", "amount > 0");
-            table.HasCheckConstraint("ck_ledger_entries_currency_length", "char_length(currency) = 3");
+            table.HasCheckConstraint(
+                "ck_ledger_entries_amount_credit_debit",
+                "(type = 'Credit' AND amount > 0) OR (type = 'Debit' AND amount < 0)"
+            );
         });
 
         builder.HasKey(x => x.Id);
@@ -32,11 +34,6 @@ public sealed class LedgerEntryConfiguration : IEntityTypeConfiguration<LedgerEn
         builder.Property(x => x.Amount)
             .HasColumnName("amount")
             .HasPrecision(18, 2)
-            .IsRequired();
-
-        builder.Property(x => x.Currency)
-            .HasColumnName("currency")
-            .HasColumnType("char(3)")
             .IsRequired();
 
         builder.Property(x => x.OccurredAt)

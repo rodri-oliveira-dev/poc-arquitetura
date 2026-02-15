@@ -1,8 +1,10 @@
 using FluentValidation;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
+using LedgerService.Api.Contracts;
 using LedgerService.Application.Common.Exceptions;
 using LedgerService.Domain.Exceptions;
+using LedgerService.Api.Middlewares;
 
 namespace LedgerService.Api.Middlewares;
 
@@ -27,16 +29,12 @@ public sealed class GlobalExceptionHandler : IExceptionHandler
                 .GroupBy(e => ToCamelCase(e.PropertyName))
                 .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray());
 
-            var correlationId = httpContext.Request.Headers["X-Correlation-Id"].FirstOrDefault();
+            var correlationId = httpContext.Request.Headers[CorrelationIdMiddleware.HeaderName].FirstOrDefault();
 
-            var validationResponse = new
+            var validationResponse = new ValidationErrorResponse
             {
-                type = "https://httpstatuses.com/400",
-                title = "Invalid request",
-                status = 400,
-                detail = "One or more validation errors occurred.",
-                errors,
-                correlationId
+                Errors = errors,
+                CorrelationId = correlationId
             };
 
             httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;

@@ -8,7 +8,6 @@ public sealed class LedgerEntry : Entity, IAggregateRoot
     public string MerchantId { get; private set; }
     public LedgerEntryType Type { get; private set; }
     public decimal Amount { get; private set; }
-    public string Currency { get; private set; }
     public DateTime OccurredAt { get; private set; }
     public string? Description { get; private set; }
     public string? ExternalReference { get; private set; }
@@ -18,14 +17,12 @@ public sealed class LedgerEntry : Entity, IAggregateRoot
     private LedgerEntry()
     {
         MerchantId = string.Empty;
-        Currency = string.Empty;
     }
 
     public LedgerEntry(
         string merchantId,
         LedgerEntryType type,
         decimal amount,
-        string currency,
         DateTime occurredAt,
         string? description,
         string? externalReference,
@@ -35,19 +32,26 @@ public sealed class LedgerEntry : Entity, IAggregateRoot
             ? throw new DomainException("MerchantId é obrigatório.")
             : merchantId.Trim();
 
-        if (amount <= 0)
-            throw new DomainException("Amount deve ser maior que zero.");
-
-        if (string.IsNullOrWhiteSpace(currency) || currency.Trim().Length != 3)
-            throw new DomainException("Currency deve possuir 3 caracteres.");
+        EnsureValidAmount(type, amount);
 
         Type = type;
         Amount = amount;
-        Currency = currency.Trim().ToUpperInvariant();
         OccurredAt = occurredAt;
         Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
         ExternalReference = string.IsNullOrWhiteSpace(externalReference) ? null : externalReference.Trim();
         CorrelationId = correlationId;
         CreatedAt = DateTime.Now;
+    }
+
+    private static void EnsureValidAmount(LedgerEntryType type, decimal amount)
+    {
+        if (amount == 0)
+            throw new DomainException("Amount não pode ser zero.");
+
+        if (type == LedgerEntryType.Credit && amount < 0)
+            throw new DomainException("Para Type=CREDIT, Amount deve ser positivo.");
+
+        if (type == LedgerEntryType.Debit && amount > 0)
+            throw new DomainException("Para Type=DEBIT, Amount deve ser negativo.");
     }
 }

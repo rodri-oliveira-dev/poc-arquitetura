@@ -1,6 +1,5 @@
 using FluentValidation;
 using System.Globalization;
-
 namespace LedgerService.Application.Lancamentos.Inputs.CreateLancamento;
 
 public sealed class CreateLancamentoInputValidator : AbstractValidator<CreateLancamentoInput>
@@ -19,18 +18,8 @@ public sealed class CreateLancamentoInputValidator : AbstractValidator<CreateLan
 
         RuleFor(x => x.Amount)
             .NotEmpty()
-            .Must(BeValidPositiveAmount)
-            .WithMessage("Must be greater than zero.");
-
-        RuleFor(x => x.Currency)
-            .NotEmpty()
-            .Length(3)
-            .WithMessage("Currency must have 3 characters.");
-
-        RuleFor(x => x.OccurredAt)
-            .NotEmpty()
-            .Must(BeValidDateTime)
-            .WithMessage("OccurredAt must be a valid ISO date-time.");
+            .Must((input, amount) => BeValidAmountForType(input.Type, amount))
+            .WithMessage("Amount não respeita a regra do Type (CREDIT > 0, DEBIT < 0 e nunca 0). ");
 
         RuleFor(x => x.Description)
             .MaximumLength(500);
@@ -49,8 +38,22 @@ public sealed class CreateLancamentoInputValidator : AbstractValidator<CreateLan
             .WithMessage("X-Correlation-Id must be a valid UUID.");
     }
 
-    private static bool BeValidPositiveAmount(string amount)
-        => decimal.TryParse(amount, NumberStyles.Number, CultureInfo.InvariantCulture, out var value) && value > 0;
+    private static bool BeValidAmountForType(string type, string amount)
+    {
+        if (!decimal.TryParse(amount, NumberStyles.Number, CultureInfo.InvariantCulture, out var value))
+            return false;
+
+        if (value == 0)
+            return false;
+
+        // type já deve ter sido normalizado (Bind) para canônico.
+        return type switch
+        {
+            "CREDIT" => value > 0,
+            "DEBIT" => value < 0,
+            _ => false
+        };
+    }
 
     private static bool BeValidDateTime(string occurredAt)
         => DateTime.TryParse(occurredAt, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out _);

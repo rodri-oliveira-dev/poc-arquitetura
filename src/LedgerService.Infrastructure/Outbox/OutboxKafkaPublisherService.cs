@@ -6,11 +6,13 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System.Diagnostics;
 
 namespace LedgerService.Infrastructure.Outbox;
 
 public sealed class OutboxKafkaPublisherService : BackgroundService
 {
+    private static readonly ActivitySource ActivitySource = new("LedgerService.OutboxPublisher");
     private readonly IServiceProvider _serviceProvider;
     private readonly IOptions<OutboxPublisherOptions> _options;
     private readonly ILogger<OutboxKafkaPublisherService> _logger;
@@ -153,6 +155,19 @@ public sealed class OutboxKafkaPublisherService : BackgroundService
             ["EventType"] = message.EventType,
             ["AggregateId"] = message.AggregateId
         });
+
+        using var activity = ActivitySource.StartActivity(
+            "outbox.publish",
+            ActivityKind.Producer);
+
+        activity?.SetTag("messaging.system", "kafka");
+        activity?.SetTag("messaging.destination", "kafka");
+        activity?.SetTag("messaging.operation", "publish");
+        activity?.SetTag("ledger.outbox.id", message.Id.ToString());
+        activity?.SetTag("ledger.outbox.event_type", message.EventType);
+        activity?.SetTag("ledger.outbox.aggregate_id", message.AggregateId.ToString());
+        if (message.CorrelationId is not null)
+            activity?.SetTag("correlation_id", message.CorrelationId.ToString());
 
         try
         {
