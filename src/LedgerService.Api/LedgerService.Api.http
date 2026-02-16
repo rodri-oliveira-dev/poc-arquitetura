@@ -1,10 +1,16 @@
-@LedgerService.Api_HostAddress = http://localhost:5226
+@env = local
+
+# Para usar variáveis por ambiente com REST Client (VS Code):
+# - Instale a extensão "REST Client" (humao.rest-client)
+# - O arquivo `.vscode/rest-client.env.json` define `ledgerBaseUrl` e `balanceBaseUrl`
+# - Selecione o ambiente via status bar (REST Client: Environment)
+@LedgerService.Api_HostAddress = {{$shared ledgerBaseUrl}}
 
 POST {{LedgerService.Api_HostAddress}}/api/v1/lancamentos
 Accept: application/json
 Content-Type: application/json
-Idempotency-Key: 11111111-1111-1111-1111-111111111111
-X-Correlation-Id: 22222222-2222-2222-2222-222222222222
+Idempotency-Key: {{$shared idempotencyKey}}
+X-Correlation-Id: {{$shared correlationId}}
 
 {
   "merchantId": "m_123",

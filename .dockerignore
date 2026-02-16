@@ -1,0 +1,15 @@
+# Build context (compose aponta context: .)
+**/bin/
+**/obj/
+**/.vs/
+**/.vscode/
+**/TestResults/
+**/*.user
+
+# Git
+.git/
+.gitignore
+
+# Docs/artefatos opcionais
+docs/
+README.md

@@ -27,13 +27,143 @@ Este repositório é uma POC de **Clean Architecture** com foco em **DDD**, demo
 - `tests/LedgerService.Tests`:
   - Testes unitários e de repositório
 
+### BalanceService (consolidado)
+
+- `src/BalanceService.Api`:
+  - API HTTP (somente leitura do consolidado)
+  - Swagger multi-versão
+  - Middlewares: `CorrelationIdMiddleware`, `GlobalExceptionHandler`, `SecurityHeadersMiddleware`
+- `src/BalanceService.Application`:
+  - Handlers de queries para consulta do consolidado (diário e por período)
+- `src/BalanceService.Infrastructure`:
+  - EF Core (`BalanceDbContext`) + migrations
+  - Consumer Kafka (`LedgerEventsConsumer`) que alimenta a tabela `daily_balances`
+
 ## 3. Pré-requisitos
 
 - .NET SDK (recomendado: **.NET 10**)
 - PostgreSQL acessível localmente
 - Kafka acessível localmente (caso queira validar publicação)
 
+## 3.1 VS Code (workspace + extensões recomendadas)
+
+Este repositório inclui configuração para facilitar a execução no **VS Code** (com .NET 10, HTTP client e Mermaid no Markdown).
+
+### Arquivos adicionados
+
+- `poc-arquitetura.code-workspace`
+  - define a solução padrão (`LedgerService.slnx`)
+  - ajusta excludes (`bin/`, `obj/`, `.vs/`)
+  - habilita Mermaid no preview de Markdown
+- `.vscode/extensions.json`
+  - recomenda extensões para C#/.NET, REST Client, Docker/K8s, YAML e Markdown/Mermaid
+- `.vscode/settings.json`
+  - configurações locais do workspace (format on save, excludes, Mermaid)
+- `.vscode/launch.json` + `.vscode/tasks.json`
+  - perfis de execução/debug para `LedgerService.Api` e `BalanceService.Api`
+- `.vscode/rest-client.env.json`
+  - variáveis por ambiente para o **REST Client** (sem segredos)
+
+### Como abrir
+
+No VS Code:
+
+1. **File > Open Workspace from File...**
+2. Selecione `poc-arquitetura.code-workspace`
+3. Instale as extensões sugeridas quando o VS Code perguntar.
+
+### Como chamar a API pelo VS Code
+
+O projeto já tem um arquivo `src/LedgerService.Api/LedgerService.Api.http` (REST Client).
+
+- Abra o arquivo `.http` e clique em **Send Request**.
+- Para alternar ambientes, use a seleção de environment do REST Client.
+- Variáveis ficam em `.vscode/rest-client.env.json` (ex.: `ledgerBaseUrl`, `balanceBaseUrl`).
+
+> Importante: **não versionar segredos** nesse arquivo. Use somente URLs e valores de exemplo.
+
 ## 4. Como executar localmente (passo a passo)
+
+### 4.0 Subir dependências e microserviços via nerdctl compose
+
+Este repositório inclui um `compose.yaml` preparado para **nerdctl compose** (containerd), com:
+
+- 2 bancos **PostgreSQL** (um por microserviço)
+- 1 **Kafka** (single node / KRaft)
+- 1 job de init para criar tópico(s) necessários
+- 2 microserviços (**LedgerService.Api** e **BalanceService.Api**) na **mesma rede**
+
+> Importante: no `BalanceService`, o consumer está com `AllowAutoCreateTopics=false`. Por isso o compose cria o tópico `ledger.ledgerentry.created` no startup.
+
+#### Subir stack
+
+```bash
+nerdctl compose up -d --build
+```
+
+#### Parar stack
+
+```bash
+nerdctl compose down
+```
+
+#### Portas expostas (host)
+
+- LedgerService.Api: `http://localhost:5226/`
+- BalanceService.Api: `http://localhost:5228/`
+- PostgreSQL Ledger: `localhost:15432` (container: `ledger-db:5432`)
+- PostgreSQL Balance: `localhost:15433` (container: `balance-db:5432`)
+- Kafka: `localhost:19092` (container: `kafka:9092`)
+
+#### Observação sobre appsettings em container
+
+Os `appsettings.json` usam `127.0.0.1` por padrão (para execução fora de container). No compose eu faço override por variáveis de ambiente:
+
+- `ConnectionStrings__DefaultConnection`
+- `Kafka__Producer__BootstrapServers`
+- `Kafka__Consumer__BootstrapServers`
+
+Assim, **dentro da rede do compose** os serviços usam `ledger-db`, `balance-db` e `kafka` como hosts.
+
+#### Migrations (quando rodando via compose)
+
+O compose **não aplica migrations automaticamente** (para evitar comportamento implícito em infraestrutura).
+
+Você pode aplicar migrations a partir do host usando as portas expostas dos Postgres:
+
+**LedgerService (AppDbContext):**
+
+```powershell
+$env:ConnectionStrings__DefaultConnection = "Host=127.0.0.1;Port=15432;Database=appdb;Username=appuser;Password=app123"
+dotnet tool restore
+dotnet tool run dotnet-ef -- database update `
+  -p src\LedgerService.Infrastructure\LedgerService.Infrastructure.csproj `
+  -s src\LedgerService.Api\LedgerService.Api.csproj `
+  -c AppDbContext
+```
+
+**BalanceService (BalanceDbContext):**
+
+```powershell
+$env:ConnectionStrings__DefaultConnection = "Host=127.0.0.1;Port=15433;Database=dbBalance;Username=userBalance;Password=Balance123"
+dotnet tool restore
+dotnet tool run dotnet-ef -- database update `
+  -p src\BalanceService.Infrastructure\BalanceService.Infrastructure.csproj `
+  -s src\BalanceService.Api\BalanceService.Api.csproj `
+  -c BalanceDbContext
+```
+
+> TODO: se quiser automatizar migrations no startup do compose, criar um job/sidecar explícito para isso.
+
+#### Como validar rapidamente
+
+```bash
+# Ver status dos containers
+nerdctl compose ps
+
+# Ver logs (exemplo)
+nerdctl compose logs -f ledger-service
+```
 
 ### 4.1 Restaurar tools locais
 
@@ -81,9 +211,26 @@ dotnet tool run dotnet-ef -- database update \
 dotnet run --project src\\LedgerService.Api\\LedgerService.Api.csproj
 ```
 
-- Swagger UI: `http://localhost:5226/`
+ - Swagger UI: `http://localhost:5226/`
 - OpenAPI JSON:
   - `http://localhost:5226/swagger/v1/swagger.json`
+
+### 4.4.1 Subir o BalanceService.Api
+
+```bash
+dotnet run --project src\\BalanceService.Api\\BalanceService.Api.csproj
+```
+
+- Swagger UI: `http://localhost:5227/`
+- OpenAPI JSON:
+  - `http://localhost:5227/swagger/v1/swagger.json`
+
+#### Rotas de consulta (BalanceService)
+
+- `GET /v1/consolidados/diario/{date}?merchantId={merchantId}`
+- `GET /v1/consolidados/periodo?from=YYYY-MM-DD&to=YYYY-MM-DD&merchantId={merchantId}`
+
+> Observação: padrão adotado quando não há dados é **200 com zeros** (documentado no Swagger).
 
 ## 4.5 Versionamento da API
 

@@ -1,5 +1,4 @@
 using Asp.Versioning;
-using Asp.Versioning.ApiExplorer;
 using BalanceService.Api.Middlewares;
 using BalanceService.Api.Observability;
 using BalanceService.Api.Swagger;
@@ -108,14 +107,6 @@ public static class ServiceCollectionExtensions
             }
 
             // Headers comuns da API (correlação e idempotência)
-            options.AddSecurityDefinition("Idempotency-Key", new OpenApiSecurityScheme
-            {
-                Name = "Idempotency-Key",
-                Type = SecuritySchemeType.ApiKey,
-                In = ParameterLocation.Header,
-                Description = "Chave de idempotência (UUID). Requisições com a mesma chave e mesmo payload podem ser reprocessadas com replay da resposta. Se a mesma chave for usada com payload diferente, a API retorna 409."
-            });
-
             options.AddSecurityDefinition(CorrelationIdMiddleware.HeaderName, new OpenApiSecurityScheme
             {
                 Name = CorrelationIdMiddleware.HeaderName,
