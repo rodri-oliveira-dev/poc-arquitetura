@@ -154,3 +154,22 @@ services:
       - "5228:8080"
     networks:
       - poc-net
+
+  auth-api:
+    build:
+      context: .
+      dockerfile: src/auth-api/Auth.Api/Dockerfile
+    container_name: poc-auth-api
+    environment:
+      ASPNETCORE_URLS: "http://+:8080"
+      ASPNETCORE_ENVIRONMENT: "Development"
+      # Persistência da chave dentro do volume
+      Auth__KeyPath: "/data/keys/auth-rsa-key.json"
+      # Habilita Swagger no container para facilitar testes
+      Swagger__Enabled: "true"
+    ports:
+      - "5030:8080"
+    volumes:
+      - ./data/auth-api:/data
+    networks:
+      - poc-net

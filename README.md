@@ -9,6 +9,92 @@ Este repositório é uma POC de **Clean Architecture** com foco em **DDD**, demo
 - Publicação de eventos via **Kafka** usando o padrão **Outbox** (entrega *at-least-once*).
 - Base para **rastreabilidade** via *correlation id* (e, na fase de observabilidade, tracing distribuído).
 
+## Auth.Api (auth-api)
+
+Este repositório também inclui o microserviço **Auth.Api** (Minimal API) com responsabilidade única de:
+
+- Emitir **JWT (RS256)** via `POST /auth/login`
+- Expor **JWKS público** via `GET /.well-known/jwks.json` para validação offline por outros serviços
+
+### Portas
+
+- Auth.Api: `http://localhost:5030/` (Swagger na raiz quando habilitado)
+
+### Como executar (host)
+
+```bash
+dotnet run --project src\\auth-api\\Auth.Api\\Auth.Api.csproj
+```
+
+### Como executar via compose
+
+```bash
+nerdctl compose up -d --build
+```
+
+> Observação: o `compose.yaml` monta `./data/auth-api` no container para persistir a chave RSA e evitar invalidar tokens entre reinícios.
+
+### Endpoints
+
+#### POST /auth/login (emissão de token)
+
+- Usuário/senha fixos (PoC):
+  - `username`: `poc-usuario`
+  - `password`: `Poc#123`
+
+Request:
+
+```json
+{
+  "username": "poc-usuario",
+  "password": "Poc#123",
+  "scope": "ledger.write balance.read"
+}
+```
+
+- Scopes válidos: `ledger.write` e `balance.read`
+- Se `scope` vier vazio/nulo: concede todos os scopes válidos
+- Se `scope` vier com scope inválido: retorna `400` com payload padronizado
+
+Erros padronizados:
+
+- 401:
+
+```json
+{ "error": "invalid_credentials", "message": "Usuário ou senha inválidos." }
+```
+
+- 400 (scope inválido):
+
+```json
+{ "error": "invalid_scope", "message": "Scopes inválidos: x y. Scopes válidos: ledger.write balance.read" }
+```
+
+#### GET /.well-known/jwks.json
+
+Retorna JWKS com a chave pública RSA atual. Inclui `Cache-Control: public, max-age=3600`.
+
+#### GET /health
+
+Retorna `200` com body `ok`.
+
+### Configurações (appsettings.json)
+
+Seção `Auth`:
+
+```json
+{
+  "Auth": {
+    "Issuer": "https://auth-api",
+    "Audiences": [ "ledger-api", "balance-api" ],
+    "TokenLifetimeMinutes": 10,
+    "KeyPath": "./data/keys/auth-rsa-key.json"
+  }
+}
+```
+
+> Importante: **não versionar segredos**. Esta PoC persiste a chave RSA em arquivo local apenas para manter tokens válidos entre reinícios.
+
 > Importante: o endpoint **não publica diretamente no Kafka**. Ele grava o evento em `outbox_messages` (status `Pending`) e um `BackgroundService` publica em background.
 
 ## 2. Arquitetura e principais componentes

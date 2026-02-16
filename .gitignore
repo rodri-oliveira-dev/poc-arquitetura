@@ -23,6 +23,10 @@ bld/
 [Ll]og/
 [Ll]ogs/
 
+# Auth.Api (POC) - chave RSA persistida localmente (NÃO versionar)
+src/auth-api/Auth.Api/data/
+data/auth-api/
+
 # .NET Core
 project.lock.json
 project.fragment.lock.json
