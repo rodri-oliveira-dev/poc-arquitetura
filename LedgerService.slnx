@@ -1,5 +1,8 @@
 <Solution>
   <Folder Name="/src/" />
+  <Folder Name="/src/Auth/">
+    <Project Path="src/Auth.Api/Auth.Api.csproj" />
+  </Folder>
   <Folder Name="/src/Balance/">
     <Project Path="src/BalanceService.Api/BalanceService.Api.csproj" />
     <Project Path="src/BalanceService.Application/BalanceService.Application.csproj" />
