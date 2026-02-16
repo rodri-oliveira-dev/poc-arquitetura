@@ -1,6 +1,7 @@
 using Asp.Versioning;
 using BalanceService.Api.Middlewares;
 using BalanceService.Api.Observability;
+using BalanceService.Api.Security;
 using BalanceService.Api.Swagger;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
@@ -114,6 +115,19 @@ public static class ServiceCollectionExtensions
                 In = ParameterLocation.Header,
                 Description = "Identificador de correlação (UUID). Se não for enviado, a API gera um novo e o retorna no header de response."
             });
+
+            // JWT Bearer
+            options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+            {
+                Name = "Authorization",
+                Type = SecuritySchemeType.Http,
+                Scheme = "bearer",
+                BearerFormat = "JWT",
+                In = ParameterLocation.Header,
+                Description = $"Autenticação via JWT Bearer. Obtenha um token no Auth.Api (POST /auth/login) e informe: Bearer {{token}}.\n\nScopes relevantes nesta API: {ScopePolicies.BalanceRead} (leitura) / {ScopePolicies.BalanceWrite} (escrita - TODO se/when existirem endpoints de escrita)."
+            });
+
+            options.OperationFilter<AuthorizeOperationFilter>();
         });
 
         return services;

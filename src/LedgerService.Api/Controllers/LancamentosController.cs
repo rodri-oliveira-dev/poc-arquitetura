@@ -2,8 +2,10 @@ using Asp.Versioning;
 using LedgerService.Api.Contracts;
 using LedgerService.Api.Controllers.Binds;
 using LedgerService.Api.Middlewares;
+using LedgerService.Api.Security;
 using LedgerService.Application.Common.Models;
 using LedgerService.Application.Lancamentos.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace LedgerService.Api.Controllers;
@@ -35,12 +37,15 @@ public sealed class LancamentosController : ControllerBase
     /// - <b>Rate limit</b>: o endpoint está sujeito a rate limiting (HTTP 429).
     /// </remarks>
     [HttpPost]
+    [Authorize(Policy = ScopePolicies.LedgerWritePolicy)]
     [ProducesResponseType(typeof(LancamentoDto), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ValidationErrorResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status422UnprocessableEntity)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
     [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<ActionResult<LancamentoDto>> Create(
         [FromHeader(Name = "Idempotency-Key")] string idempotencyKey,
         [FromHeader(Name = CorrelationIdMiddleware.HeaderName)] string? correlationId,

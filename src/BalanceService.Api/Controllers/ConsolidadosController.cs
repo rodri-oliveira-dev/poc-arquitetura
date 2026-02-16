@@ -1,9 +1,11 @@
 using Asp.Versioning;
 using BalanceService.Api.Contracts;
 using BalanceService.Api.Middlewares;
+using BalanceService.Api.Security;
 using BalanceService.Application.Balances.Queries;
 using BalanceService.Application.Balances.Services;
 using FluentValidation;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Diagnostics;
 using System.Globalization;
@@ -73,6 +75,7 @@ public sealed class ConsolidadosController : ControllerBase
     /// <response code="403">Sem permissão (não configurado nesta POC, mas documentado para compatibilidade).</response>
     /// <response code="500">Erro interno.</response>
     [HttpGet("diario/{date}")]
+    [Authorize(Policy = ScopePolicies.BalanceReadPolicy)]
     [ProducesResponseType(typeof(DailyBalanceResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationErrorResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
@@ -158,6 +161,7 @@ public sealed class ConsolidadosController : ControllerBase
     /// <response code="403">Sem permissão (não configurado nesta POC, mas documentado para compatibilidade).</response>
     /// <response code="500">Erro interno.</response>
     [HttpGet("periodo")]
+    [Authorize(Policy = ScopePolicies.BalanceReadPolicy)]
     [ProducesResponseType(typeof(PeriodBalanceResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationErrorResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]

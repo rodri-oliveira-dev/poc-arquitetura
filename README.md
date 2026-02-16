@@ -1,13 +1,46 @@
-# poc-arquitetura (LedgerService)
+# poc-arquitetura
 
 ## 1. Visão geral do projeto
 
 Este repositório é uma POC de **Clean Architecture** com foco em **DDD**, demonstrando:
 
-- **API HTTP** para criação de lançamentos (`lancamentos`).
-- Persistência com **Entity Framework Core + PostgreSQL**.
-- Publicação de eventos via **Kafka** usando o padrão **Outbox** (entrega *at-least-once*).
-- Base para **rastreabilidade** via *correlation id* (e, na fase de observabilidade, tracing distribuído).
+- **LedgerService.Api**: API HTTP para criação de lançamentos (`lancamentos`).
+- **BalanceService.Api**: API HTTP de leitura do consolidado (diário e por período), alimentada por eventos do Ledger.
+- Persistência com **Entity Framework Core + PostgreSQL** (um banco por microserviço).
+- Integração assíncrona via **Kafka**:
+  - Ledger publica eventos via **Outbox** (entrega *at-least-once*).
+  - Balance consome eventos e atualiza a projeção `daily_balances`.
+- Base para **rastreabilidade** via *correlation id* + (opcionalmente) tracing distribuído.
+
+## 1.1 Diagrama (Mermaid C4)
+
+```mermaid
+C4Context
+title poc-arquitetura - Contexto
+
+Person(user, "Cliente", "Usuário/Sistema chamando as APIs")
+
+System(auth, "Auth.Api", "Emite JWT (RS256) e expõe JWKS")
+System(ledgerApi, "LedgerService.Api", "Cria lançamentos e registra Outbox")
+System(balanceApi, "BalanceService.Api", "Consulta consolidado e consome eventos")
+
+SystemDb(ledgerDb, "PostgreSQL (ledger)", "appdb")
+SystemDb(balanceDb, "PostgreSQL (balance)", "dbBalance")
+SystemQueue(kafka, "Kafka", "Tópicos de eventos")
+
+Rel(user, auth, "Login", "HTTP")
+Rel(user, ledgerApi, "Cria lançamentos", "HTTP (JWT)")
+Rel(user, balanceApi, "Consulta consolidado", "HTTP (JWT)")
+
+Rel(ledgerApi, auth, "Busca JWKS", "HTTP")
+Rel(balanceApi, auth, "Busca JWKS", "HTTP")
+
+Rel(ledgerApi, ledgerDb, "Persistência + Outbox", "EF Core")
+Rel(ledgerApi, kafka, "Publica LedgerEntryCreated", "Kafka (via Outbox)")
+
+Rel(balanceApi, kafka, "Consome LedgerEntryCreated", "Kafka")
+Rel(balanceApi, balanceDb, "Atualiza projeção daily_balances", "EF Core")
+```
 
 ## Auth.Api (auth-api)
 
@@ -23,7 +56,7 @@ Este repositório também inclui o microserviço **Auth.Api** (Minimal API) com 
 ### Como executar (host)
 
 ```bash
-dotnet run --project src\\auth-api\\Auth.Api\\Auth.Api.csproj
+dotnet run --project src\\Auth.Api\\Auth.Api.csproj
 ```
 
 ### Como executar via compose
@@ -78,6 +111,8 @@ Retorna JWKS com a chave pública RSA atual. Inclui `Cache-Control: public, max-
 
 Retorna `200` com body `ok`.
 
+> Observação: os outros microserviços também expõem `GET /health` (público) para liveness.
+
 ### Configurações (appsettings.json)
 
 Seção `Auth`:
@@ -130,6 +165,60 @@ Seção `Auth`:
 - .NET SDK (recomendado: **.NET 10**)
 - PostgreSQL acessível localmente
 - Kafka acessível localmente (caso queira validar publicação)
+
+## 3.2 Padronização do repositório (Git + build + estilo)
+
+Este repositório adota alguns arquivos na raiz para garantir **consistência** entre máquinas (Windows/Linux), IDEs e CI.
+
+### `.gitattributes`
+
+Usamos `.gitattributes` para:
+
+- **Normalizar EOL (line endings)** por tipo de arquivo (ex.: `*.cs` com `LF`, scripts Windows com `CRLF`).
+- **Reduzir ruído em diffs e PRs** (mudanças de `CRLF/LF` deixam de poluir o histórico).
+- Melhorar a experiência em **Docker/CI**, onde `LF` é o padrão.
+
+Vantagens principais:
+
+- Menos conflitos de merge.
+- Builds/testes mais previsíveis em pipelines.
+- Diferenças reais de código aparecem com clareza no git.
+
+### `Directory.Packages.props` (Central Package Management)
+
+Usamos `Directory.Packages.props` para habilitar **Central Package Management (CPM)** e manter as versões dos pacotes NuGet em um único lugar.
+
+Vantagens principais:
+
+- **Atualizações de dependências mais fáceis** (um arquivo para alterar versões).
+- **Menos drift** entre projetos da solução (evita cada `.csproj` ter uma versão diferente do mesmo pacote).
+- `.csproj` mais enxutos (referenciam pacotes sem `Version=`).
+
+### `Directory.Build.props`
+
+Usamos `Directory.Build.props` para centralizar configurações MSBuild que devem valer para todos os projetos.
+
+Exemplos do que fica nele:
+
+- `Nullable` e `ImplicitUsings` como defaults.
+- `Deterministic`/`ContinuousIntegrationBuild` para builds mais reprodutíveis.
+- Documentação XML por padrão (com supressão do warning `1591` para reduzir ruído).
+
+Vantagens principais:
+
+- Configuração consistente em todos os projetos.
+- Evita repetição em cada `.csproj`.
+- Menos chance de “um projeto estar diferente” e quebrar a solução/CI.
+
+### `.editorconfig`
+
+Usamos `.editorconfig` para padronizar formatação e regras de estilo entre editores/IDEs.
+
+Vantagens principais:
+
+- **Formatação consistente** (indentação, EOL, whitespace).
+- Integração com IDEs e analisadores do .NET (regras de C# como sugestão).
+- Reduz diffs apenas de formatação.
 
 ## 3.1 VS Code (workspace + extensões recomendadas)
 
@@ -197,6 +286,7 @@ nerdctl compose down
 
 - LedgerService.Api: `http://localhost:5226/`
 - BalanceService.Api: `http://localhost:5228/`
+- Auth.Api: `http://localhost:5030/`
 - PostgreSQL Ledger: `localhost:15432` (container: `ledger-db:5432`)
 - PostgreSQL Balance: `localhost:15433` (container: `balance-db:5432`)
 - Kafka: `localhost:19092` (container: `kafka:9092`)
@@ -307,9 +397,9 @@ dotnet run --project src\\LedgerService.Api\\LedgerService.Api.csproj
 dotnet run --project src\\BalanceService.Api\\BalanceService.Api.csproj
 ```
 
-- Swagger UI: `http://localhost:5227/`
+- Swagger UI: `http://localhost:5228/`
 - OpenAPI JSON:
-  - `http://localhost:5227/swagger/v1/swagger.json`
+  - `http://localhost:5228/swagger/v1/swagger.json`
 
 #### Rotas de consulta (BalanceService)
 
@@ -317,6 +407,53 @@ dotnet run --project src\\BalanceService.Api\\BalanceService.Api.csproj
 - `GET /v1/consolidados/periodo?from=YYYY-MM-DD&to=YYYY-MM-DD&merchantId={merchantId}`
 
 > Observação: padrão adotado quando não há dados é **200 com zeros** (documentado no Swagger).
+
+## 4.6 Autenticação e autorização (JWT Bearer via JWKS)
+
+Os serviços **LedgerService.Api** e **BalanceService.Api** exigem **JWT Bearer** por padrão nas rotas de negócio.
+
+- Validação de assinatura: **RS256** com chaves obtidas do **JWKS do Auth.Api** (`GET /.well-known/jwks.json`).
+- Sem introspecção: as APIs **não chamam o Auth.Api por request**; a configuração de chaves é feita via `ConfigurationManager` (cache com refresh).
+- Claim de scopes: **`scope`** (string com scopes separados por espaço). **Não** usamos `scp`.
+- Validação estrita:
+  - `iss` deve bater com o `Jwt:Issuer` configurado.
+  - `aud` deve conter a audience do serviço:
+    - LedgerService.Api: `ledger-api`
+    - BalanceService.Api: `balance-api`
+  - Observação: nesta PoC, o Auth.Api emite `aud` como **uma string** com audiences separadas por espaço (ex.: `"ledger-api balance-api"`). As APIs tratam isso tokenizando por espaço.
+
+### Como obter token (Auth.Api)
+
+1) Suba o `Auth.Api` (via compose ou `dotnet run`).
+2) Solicite um token:
+
+```bash
+curl -s -X POST http://localhost:5030/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "poc-usuario",
+    "password": "Poc#123",
+    "scope": "ledger.write balance.read"
+  }'
+```
+
+3) Copie `accessToken` do response e use nas chamadas:
+
+```bash
+curl -i http://localhost:5226/api/v1/lancamentos \
+  -H "Authorization: Bearer <TOKEN>" \
+  -H "Idempotency-Key: 00000000-0000-0000-0000-000000000001" \
+  -H "Content-Type: application/json" \
+  -d '{"type":"CREDIT","merchantId":"tese","amount":"10.00","currency":"BRL"}'
+```
+
+### Scopes por endpoint
+
+- LedgerService.Api
+  - `POST /api/v1/lancamentos`: requer `ledger.write`
+- BalanceService.Api
+  - `GET /v1/consolidados/diario/{date}`: requer `balance.read`
+  - `GET /v1/consolidados/periodo`: requer `balance.read`
 
 ## 4.5 Versionamento da API
 
@@ -469,5 +606,5 @@ Consulte `docs/observability.md` para:
 
 ## 10. Limitações conhecidas
 
-- Não há autenticação/autorização configurada (não identificado no código).
-- Consumidores Kafka não estão implementados (apenas producer/outbox publisher).
+- Implementação de autenticação/autorização via JWT Bearer foi adicionada, porém a política de scopes do Auth.Api ainda é simplificada para a PoC.
+- TODO: detalhar estratégia de readiness (ex.: verificar DB/Kafka) se necessário. Atualmente `/health` é um liveness simples.

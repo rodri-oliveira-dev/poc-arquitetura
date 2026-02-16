@@ -2,6 +2,7 @@ using Asp.Versioning;
 using Asp.Versioning.ApiExplorer;
 using LedgerService.Api.Middlewares;
 using LedgerService.Api.Observability;
+using LedgerService.Api.Security;
 using LedgerService.Api.Swagger;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
@@ -123,6 +124,20 @@ public static class ServiceCollectionExtensions
                 In = ParameterLocation.Header,
                 Description = "Identificador de correlação (UUID). Se não for enviado, a API gera um novo e o retorna no header de response."
             });
+
+            // JWT Bearer
+            options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+            {
+                Name = "Authorization",
+                Type = SecuritySchemeType.Http,
+                Scheme = "bearer",
+                BearerFormat = "JWT",
+                In = ParameterLocation.Header,
+                Description = $"Autenticação via JWT Bearer. Obtenha um token no Auth.Api (POST /auth/login) e informe: Bearer {{token}}.\n\nScopes relevantes nesta API: {ScopePolicies.LedgerWrite} (escrita) / {ScopePolicies.LedgerRead} (leitura - TODO se/when existirem endpoints de leitura)."
+            });
+
+            // Aplica requirement + descrição de scopes por endpoint com [Authorize]
+            options.OperationFilter<AuthorizeOperationFilter>();
         });
 
         return services;
