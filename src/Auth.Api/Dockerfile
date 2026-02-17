@@ -8,9 +8,7 @@ COPY Directory.Packages.props ./
 COPY Directory.Build.props ./
 COPY src/Auth.Api/Auth.Api.csproj src/Auth.Api/
 
-RUN dotnet restore src/Auth.Api/Auth.Api.csproj --disable-parallel \
-    || dotnet restore src/Auth.Api/Auth.Api.csproj --disable-parallel \
-    || dotnet restore src/Auth.Api/Auth.Api.csproj --disable-parallel
+RUN dotnet restore src/Auth.Api/Auth.Api.csproj --disable-parallel
 
 # Agora copia o restante
 COPY src/ ./src/

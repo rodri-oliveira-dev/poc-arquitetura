@@ -13,22 +13,20 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 
 ## Índice de ADRs (da mais nova para a mais antiga)
 
-| ADR                                                        | Status   | Resumo                                                                                          |
-| ---------------------------------------------------------- | -------- | ----------------------------------------------------------------------------------------------- |
-| [ADR-0101](./0101-readiness-healthchecks-db-kafka.md)      | Proposto | Separar liveness/readiness e checar dependências (DB/Kafka) para operação robusta.              |
-| [ADR-0100](./0100-keycloak-replace-auth-api.md)            | Proposto | Substituir o Auth.Api por Keycloak (OIDC) como provedor de identidade padrão.                   |
-| [ADR-0014](./0014-health-liveness-public.md)               | Aceito   | Expor `/health` público como liveness simples para indicar processo ativo.                      |
-| [ADR-0013](./0013-repo-standardization.md)                 | Aceito   | Padronizar repositório com `.gitattributes`, `Directory.*` e `.editorconfig` para consistência. |
-| [ADR-0012](./0012-no-auto-migrations-startup.md)           | Aceito   | Não aplicar migrations automaticamente no startup, mantendo execução explícita via `dotnet-ef`. |
-| [ADR-0011](./0011-nerdctl-compose-local-stack.md)          | Aceito   | Executar stack local via `nerdctl compose` com overrides por variáveis de ambiente.             |
-| [ADR-0010](./0010-api-versioning-url-segment.md)           | Aceito   | Versionar API via URL segment (`api/v{version}`) com Swagger multi-versão.                      |
-| [ADR-0009](./0009-correlation-id.md)                       | Aceito   | Propagar `X-Correlation-Id` em HTTP/logs e headers Kafka para rastreabilidade mínima.           |
-| [ADR-0008](./0008-scopes-per-endpoint.md)                  | Aceito   | Implementar autorização por scopes por endpoint usando claim `scope`.                           |
-| [ADR-0007](./0007-jwt-rs256-jwks-offline-validation.md)    | Aceito   | Validar JWT RS256 offline via JWKS com cache/refresh, sem introspecção por request.             |
-| [ADR-0006](./0006-balance-read-model-daily-balances.md)    | Aceito   | Construir projeção de leitura `daily_balances` no Balance e expor queries diárias/período.      |
-| [ADR-0005](./0005-outbox-at-least-once.md)                 | Aceito   | Publicar eventos com Outbox + BackgroundService garantindo entrega at-least-once.               |
-| [ADR-0004](./0004-kafka-event-driven-integration.md)       | Aceito   | Integrar serviços via Kafka usando evento `LedgerEntryCreated` e tópico explícito no compose.   |
-| [ADR-0003](./0003-database-per-service-postgres-efcore.md) | Aceito   | Manter um banco PostgreSQL por microserviço com EF Core e migrations no Infrastructure.         |
-| [ADR-0002](./0002-clean-architecture-ddd.md)               | Aceito   | Adotar Clean Architecture com DDD separando Api/Application/Domain/Infrastructure.              |
-| [ADR-0001](./0001-microservices-ledger-balance-auth.md)    | Aceito   | Decompor em três microserviços (Ledger, Balance, Auth) para separar responsabilidades.          |
-| [ADR-0000](./0000-use-adrs.md)                             | Aceito   | Registrar decisões arquiteturais usando ADRs em Markdown nesta pasta.                           |
+| ADR                                                                  | Status   | Resumo                                                                                           |
+| -------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------ |
+| [ADR-0014](./0014-readiness-healthchecks-db-kafka.md)                | Proposto | Ponto de melhoria: endpoint de readiness verificando DB e Kafka com timeouts.                    |
+| [ADR-0013](./0013-health-liveness-publico.md)                        | Aceito   | Health de liveness público (`GET /health`) sem dependências.                                     |
+| [ADR-0012](./0012-padronizacao-repo-cpm-build-props-editorconfig.md) | Aceito   | Padronização do repo (.gitattributes/.editorconfig, CPM e build props).                          |
+| [ADR-0011](./0011-migrations-nao-automaticas-no-startup.md)          | Aceito   | Migrations não são aplicadas automaticamente no startup.                                         |
+| [ADR-0010](./0010-stack-local-compose-nerdctl.md)                    | Aceito   | Stack local via compose (nerdctl) para Postgres/Kafka e microserviços.                           |
+| [ADR-0009](./0009-versionamento-api-url-segment.md)                  | Aceito   | Versionamento via URL segment usando Asp.Versioning.                                             |
+| [ADR-0008](./0008-scopes-por-endpoint-policy-based.md)               | Aceito   | Autorização por scopes por endpoint (policy-based).                                              |
+| [ADR-0007](./0007-banco-por-microservico-postgres-efcore.md)         | Aceito   | Banco por microserviço (PostgreSQL) com EF Core.                                                 |
+| [ADR-0006](./0006-migrar-auth-api-para-keycloak.md)                  | Proposto | Ponto de melhoria: substituir Auth.Api por Keycloak (OIDC) mantendo validação via JWKS.          |
+| [ADR-0005](./0005-observabilidade-correlationid-otel.md)             | Aceito   | Correlação via `X-Correlation-Id` e base para tracing/métricas (OpenTelemetry opcional).         |
+| [ADR-0004](./0004-autenticacao-jwt-rs256-via-jwks.md)                | Aceito   | JWT RS256 com validação offline via JWKS publicado pelo Auth.Api (sem introspecção por request). |
+| [ADR-0003](./0003-integracao-assincrona-kafka-com-outbox.md)         | Aceito   | Integração assíncrona via Kafka usando Outbox para entrega *at-least-once*.                      |
+| [ADR-0002](./0002-clean-architecture-ddd-por-servico.md)             | Aceito   | Clean Architecture + DDD (camadas Domain/Application/Infrastructure/Api) por microserviço.       |
+| [ADR-0001](./0001-separar-ledger-e-balance-com-projecao.md)          | Aceito   | Separar escrita (Ledger) e leitura (Balance) com projeção assíncrona (CQRS básico).              |
+| [ADR-0000](./0000-use-adrs.md)                                       | Aceito   | Registrar decisões arquiteturais usando ADRs em Markdown nesta pasta.                            |

@@ -1,18 +1,28 @@
 # poc-arquitetura
 
-## 1. Visão geral do projeto
+Este repositório é uma **POC (prova de conceito / laboratório de testes)** para validar decisões de arquitetura e práticas de engenharia.  
+O objetivo é demonstrar, de forma reprodutível, uma base de microserviços em **.NET** usando **Clean Architecture** + **DDD**, integração assíncrona via **Kafka** (com **Outbox**) e rastreabilidade (correlação + telemetria opcional).
 
-Este repositório é uma POC de **Clean Architecture** com foco em **DDD**, demonstrando:
+> Importante: por ser uma POC, alguns itens aparecem como **TODO/Proposto** (ver ADRs). Quando faltou evidência no código, foi mantido como TODO explícito.
 
-- **LedgerService.Api**: API HTTP para criação de lançamentos (`lancamentos`).
-- **BalanceService.Api**: API HTTP de leitura do consolidado (diário e por período), alimentada por eventos do Ledger.
-- Persistência com **Entity Framework Core + PostgreSQL** (um banco por microserviço).
-- Integração assíncrona via **Kafka**:
-  - Ledger publica eventos via **Outbox** (entrega *at-least-once*).
-  - Balance consome eventos e atualiza a projeção `daily_balances`.
-- Base para **rastreabilidade** via *correlation id* + (opcionalmente) tracing distribuído.
+## Serviços incluídos
 
-## 1.1 Diagrama (Mermaid C4)
+- **Auth.Api** (`src/Auth.Api`)
+  - Emite **JWT (RS256)** via `POST /auth/login`
+  - Publica **JWKS** via `GET /.well-known/jwks.json` para validação offline pelos demais serviços
+- **LedgerService.Api** (`src/LedgerService.Api`)
+  - API HTTP de **escrita** para criação de lançamentos (`POST /api/v1/lancamentos`)
+  - Publica eventos via **Outbox** (entrega *at-least-once*)
+- **BalanceService.Api** (`src/BalanceService.Api`)
+  - API HTTP de **leitura** (consolidado diário e por período)
+  - Consome eventos do Ledger e atualiza a projeção `daily_balances`
+
+Infra local (via compose):
+
+- **PostgreSQL** (um banco por microserviço)
+- **Kafka** (single node / KRaft)
+
+## Diagrama (Mermaid C4)
 
 ```mermaid
 C4Context
@@ -42,97 +52,7 @@ Rel(balanceApi, kafka, "Consome LedgerEntryCreated", "Kafka")
 Rel(balanceApi, balanceDb, "Atualiza projeção daily_balances", "EF Core")
 ```
 
-## Auth.Api (auth-api)
-
-Este repositório também inclui o microserviço **Auth.Api** (Minimal API) com responsabilidade única de:
-
-- Emitir **JWT (RS256)** via `POST /auth/login`
-- Expor **JWKS público** via `GET /.well-known/jwks.json` para validação offline por outros serviços
-
-### Portas
-
-- Auth.Api: `http://localhost:5030/` (Swagger na raiz quando habilitado)
-
-### Como executar (host)
-
-```bash
-dotnet run --project src\\Auth.Api\\Auth.Api.csproj
-```
-
-### Como executar via compose
-
-```bash
-nerdctl compose up -d --build
-```
-
-> Observação: o `compose.yaml` monta `./data/auth-api` no container para persistir a chave RSA e evitar invalidar tokens entre reinícios.
-
-### Endpoints
-
-#### POST /auth/login (emissão de token)
-
-- Usuário/senha fixos (PoC):
-  - `username`: `poc-usuario`
-  - `password`: `Poc#123`
-
-Request:
-
-```json
-{
-  "username": "poc-usuario",
-  "password": "Poc#123",
-  "scope": "ledger.write balance.read"
-}
-```
-
-- Scopes válidos: `ledger.write` e `balance.read`
-- Se `scope` vier vazio/nulo: concede todos os scopes válidos
-- Se `scope` vier com scope inválido: retorna `400` com payload padronizado
-
-Erros padronizados:
-
-- 401:
-
-```json
-{ "error": "invalid_credentials", "message": "Usuário ou senha inválidos." }
-```
-
-- 400 (scope inválido):
-
-```json
-{ "error": "invalid_scope", "message": "Scopes inválidos: x y. Scopes válidos: ledger.write balance.read" }
-```
-
-#### GET /.well-known/jwks.json
-
-Retorna JWKS com a chave pública RSA atual. Inclui `Cache-Control: public, max-age=3600`.
-
-#### GET /health
-
-Retorna `200` com body `ok`.
-
-> Observação: os outros microserviços também expõem `GET /health` (público) para liveness.
-
-### Configurações (appsettings.json)
-
-Seção `Auth`:
-
-```json
-{
-  "Auth": {
-    "Issuer": "https://auth-api",
-    "Audiences": [ "ledger-api", "balance-api" ],
-    "TokenLifetimeMinutes": 10,
-    "KeyPath": "./data/keys/auth-rsa-key.json"
-  }
-}
-```
-
-> Importante: **não versionar segredos**. Esta PoC persiste a chave RSA em arquivo local apenas para manter tokens válidos entre reinícios.
-
-> Importante: o endpoint **não publica diretamente no Kafka**. Ele grava o evento em `outbox_messages` (status `Pending`) e um `BackgroundService` publica em background.
-
-## 2. Arquitetura e principais componentes
+## Arquitetura e principais componentes (por serviço)
 
 - `src/LedgerService.Api`:
   - ASP.NET Core Controllers + Swagger
@@ -160,13 +80,31 @@ Seção `Auth`:
   - EF Core (`BalanceDbContext`) + migrations
   - Consumer Kafka (`LedgerEventsConsumer`) que alimenta a tabela `daily_balances`
 
-## 3. Pré-requisitos
+## Pré-requisitos
 
-- .NET SDK (recomendado: **.NET 10**)
-- PostgreSQL acessível localmente
-- Kafka acessível localmente (caso queira validar publicação)
+### Para executar a stack completa (recomendado)
 
-## 3.2 Padronização do repositório (Git + build + estilo)
+- **nerdctl** com suporte a `compose`
+  - O repo foi preparado para `nerdctl compose` (ADR-0010).
+  - Você deve ter um runtime compatível com containerd (ex.: Rancher Desktop, Lima/Colima, etc. — depende do SO).
+- Build de imagens/containers habilitado no seu runtime (para `--build`).
+
+### Para executar no host (sem containers)
+
+- **.NET SDK 10** (o repo fixa via `global.json`)
+  - Versão atual: `10.0.103`.
+
+### Para rodar testes
+
+- `dotnet test` (já coberto pelo SDK)
+- Para o script `test.sh`: **Python 3** (usado para ler o `Summary.json` do ReportGenerator)
+
+### Ferramentas úteis (opcionais)
+
+- `curl` (exemplos de chamadas HTTP)
+- VS Code (o repo inclui workspace e recomenda extensões)
+
+## Padronização do repositório (Git + build + estilo)
 
 Este repositório adota alguns arquivos na raiz para garantir **consistência** entre máquinas (Windows/Linux), IDEs e CI.
 
@@ -220,7 +158,7 @@ Vantagens principais:
 - Integração com IDEs e analisadores do .NET (regras de C# como sugestão).
 - Reduz diffs apenas de formatação.
 
-## 3.1 VS Code (workspace + extensões recomendadas)
+## VS Code (workspace + extensões recomendadas)
 
 Este repositório inclui configuração para facilitar a execução no **VS Code** (com .NET 10, HTTP client e Mermaid no Markdown).
 
@@ -257,9 +195,9 @@ O projeto já tem um arquivo `src/LedgerService.Api/LedgerService.Api.http` (RES
 
 > Importante: **não versionar segredos** nesse arquivo. Use somente URLs e valores de exemplo.
 
-## 4. Como executar localmente (passo a passo)
+## Como executar localmente (passo a passo)
 
-### 4.0 Subir dependências e microserviços via nerdctl compose
+### Subir dependências e microserviços via `nerdctl compose` (stack completa)
 
 Este repositório inclui um `compose.yaml` preparado para **nerdctl compose** (containerd), com:
 
@@ -341,7 +279,45 @@ nerdctl compose ps
 nerdctl compose logs -f ledger-service
 ```
 
-## 4.7 Load tests (k6) via compose network
+### Execução no host (sem containers)
+
+Use esse modo quando você já tiver Postgres/Kafka disponíveis localmente e quiser rodar/debugar as APIs no seu processo.
+
+#### Restaurar tools locais (dotnet-ef / reportgenerator)
+
+O repo versiona ferramentas via `dotnet-tools.json`:
+
+```bash
+dotnet tool restore
+```
+
+#### Subir as APIs
+
+Auth:
+
+```bash
+dotnet run --project src\Auth.Api\Auth.Api.csproj
+```
+
+Ledger:
+
+```bash
+dotnet run --project src\LedgerService.Api\LedgerService.Api.csproj
+```
+
+Balance:
+
+```bash
+dotnet run --project src\BalanceService.Api\BalanceService.Api.csproj
+```
+
+Portas (padrão do repo/launchSettings):
+
+- Auth.Api: `http://localhost:5030/`
+- LedgerService.Api: `http://localhost:5226/`
+- BalanceService.Api: `http://localhost:5228/`
+
+### Load tests (k6) via compose network
 
 Os testes de carga ficam em `./loadtests/k6` e rodam **dentro da rede do compose** (ou seja, acessam as APIs por `http://<service_name>:<internal_port>` e **não** por `localhost`).
 
@@ -353,7 +329,7 @@ Os testes de carga ficam em `./loadtests/k6` e rodam **dentro da rede do compose
 nerdctl compose -f compose.yaml up -d --build
 ```
 
-2) (Opcional) aplique migrations, se necessário (ver seção 4.0).
+2) (Opcional) aplique migrations, se necessário (ver seção **"Migrations (quando rodando via compose)"** acima).
 
 ### Execução reprodutível
 
@@ -400,15 +376,7 @@ chmod +x ./scripts/*.sh
 
 > Observação: `./artifacts/k6` e `.env.k6.auto` são gerados localmente e **não** são versionados.
 
-### 4.1 Restaurar tools locais
-
-O repositório versiona o `dotnet-ef` via `dotnet-tools.json`.
-
-```bash
-dotnet tool restore
-```
-
-### 4.2 Configurar variáveis de ambiente / appsettings
+### Configurar variáveis de ambiente / appsettings
 
 Configurações ficam em:
 
@@ -426,9 +394,12 @@ $env:Kafka__Producer__BootstrapServers = "127.0.0.1:9092"
 
 > Observação: o formato `__` representa o separador de seções do .NET Configuration.
 
-### 4.3 Aplicar migrations
+### Aplicar migrations
 
-As migrations ficam no projeto `LedgerService.Infrastructure` (onde está o `AppDbContext`).
+As migrations ficam nos projetos **Infrastructure** de cada serviço:
+
+- Ledger: `LedgerService.Infrastructure` (`AppDbContext`)
+- Balance: `BalanceService.Infrastructure` (`BalanceDbContext`)
 
 ```bash
 dotnet tool run dotnet-ef -- database update \
@@ -438,19 +409,29 @@ dotnet tool run dotnet-ef -- database update \
   -- --environment Development
 ```
 
+BalanceService (`BalanceDbContext`):
+
+```bash
+dotnet tool run dotnet-ef -- database update \
+  -p src\\BalanceService.Infrastructure\\BalanceService.Infrastructure.csproj \
+  -s src\\BalanceService.Api\\BalanceService.Api.csproj \
+  -c BalanceDbContext \
+  -- --environment Development
+```
+
 > O `-- --environment Development` é repassado para a aplicação (startup project) para ela carregar `appsettings.Development.json`.
 
-### 4.4 Subir a API
+### Subir o LedgerService.Api
 
 ```bash
 dotnet run --project src\\LedgerService.Api\\LedgerService.Api.csproj
 ```
 
- - Swagger UI: `http://localhost:5226/`
+- Swagger UI: `http://localhost:5226/`
 - OpenAPI JSON:
   - `http://localhost:5226/swagger/v1/swagger.json`
 
-### 4.4.1 Subir o BalanceService.Api
+### Subir o BalanceService.Api
 
 ```bash
 dotnet run --project src\\BalanceService.Api\\BalanceService.Api.csproj
@@ -467,7 +448,7 @@ dotnet run --project src\\BalanceService.Api\\BalanceService.Api.csproj
 
 > Observação: padrão adotado quando não há dados é **200 com zeros** (documentado no Swagger).
 
-## 4.6 Autenticação e autorização (JWT Bearer via JWKS)
+## Autenticação e autorização (JWT Bearer via JWKS)
 
 Os serviços **LedgerService.Api** e **BalanceService.Api** exigem **JWT Bearer** por padrão nas rotas de negócio.
 
@@ -496,7 +477,7 @@ curl -s -X POST http://localhost:5030/auth/login \
   }'
 ```
 
-3) Copie `accessToken` do response e use nas chamadas:
+3) Copie `access_token` do response e use nas chamadas:
 
 ```bash
 curl -i http://localhost:5226/api/v1/lancamentos \
@@ -506,6 +487,8 @@ curl -i http://localhost:5226/api/v1/lancamentos \
   -d '{"type":"CREDIT","merchantId":"tese","amount":"10.00","currency":"BRL"}'
 ```
 
+> Nota: o contrato do `Auth.Api` retorna `access_token` (snake_case). Por compatibilidade, alguns scripts aceitam `accessToken` como fallback.
+
 ### Scopes por endpoint
 
 - LedgerService.Api
@@ -514,7 +497,7 @@ curl -i http://localhost:5226/api/v1/lancamentos \
   - `GET /v1/consolidados/diario/{date}`: requer `balance.read`
   - `GET /v1/consolidados/periodo`: requer `balance.read`
 
-## 4.5 Versionamento da API
+## Versionamento da API
 
 Esta API usa **Asp.Versioning** com estratégia de **URL segment**.
 
@@ -526,13 +509,13 @@ Exemplo:
 
 - `POST /api/v1/lancamentos`
 
-## 5. Como rodar testes
+## Como rodar testes
 
 ```bash
 dotnet test
 ```
 
-### 5.1 Rodando todos os testes com gate de coverage (>= 85% line)
+### Rodando todos os testes com gate de coverage (>= 85% line)
 
 Windows (PowerShell):
 
@@ -559,9 +542,13 @@ Os resultados ficam em `./TestResults/` (ignorado no git).
 
 > Nota: internamente os scripts passam as exclusões via `/p:ExcludeByFile` (lista separada por vírgula).
 
-## 6. Banco de dados e migrations
+## Banco de dados e migrations
 
-### 6.1 Listar migrations
+> Nota: o exemplo abaixo usa `dotnet-ef` via `dotnet tool run` porque o repositório versiona as tools em `dotnet-tools.json`.
+
+### LedgerService (AppDbContext)
+
+#### Listar migrations
 
 ```bash
 dotnet tool run dotnet-ef -- migrations list \
@@ -570,7 +557,7 @@ dotnet tool run dotnet-ef -- migrations list \
   -c AppDbContext
 ```
 
-### 6.2 Criar nova migration
+#### Criar nova migration
 
 ```bash
 dotnet tool run dotnet-ef -- migrations add NomeDaMigration \
@@ -580,7 +567,7 @@ dotnet tool run dotnet-ef -- migrations add NomeDaMigration \
   -o Persistence\\Migrations
 ```
 
-### 6.3 Aplicar migration
+#### Aplicar migration
 
 ```bash
 dotnet tool run dotnet-ef -- database update \
@@ -590,7 +577,7 @@ dotnet tool run dotnet-ef -- database update \
   -- --environment Development
 ```
 
-### 6.4 Reverter migration (quando aplicável)
+#### Reverter migration (quando aplicável)
 
 O EF Core permite voltar para uma migration específica (inclusive `0`).
 
@@ -602,9 +589,50 @@ dotnet tool run dotnet-ef -- database update NomeDaMigrationAnteriorOu0 \
   -- --environment Development
 ```
 
-## 7. Kafka (se aplicável)
+### BalanceService (BalanceDbContext)
 
-### 7.1 Onde ficam as configurações
+#### Listar migrations
+
+```bash
+dotnet tool run dotnet-ef -- migrations list \
+  -p src\\BalanceService.Infrastructure\\BalanceService.Infrastructure.csproj \
+  -s src\\BalanceService.Api\\BalanceService.Api.csproj \
+  -c BalanceDbContext
+```
+
+#### Criar nova migration
+
+```bash
+dotnet tool run dotnet-ef -- migrations add NomeDaMigration \
+  -p src\\BalanceService.Infrastructure\\BalanceService.Infrastructure.csproj \
+  -s src\\BalanceService.Api\\BalanceService.Api.csproj \
+  -c BalanceDbContext \
+  -o Persistence\\Migrations
+```
+
+#### Aplicar migration
+
+```bash
+dotnet tool run dotnet-ef -- database update \
+  -p src\\BalanceService.Infrastructure\\BalanceService.Infrastructure.csproj \
+  -s src\\BalanceService.Api\\BalanceService.Api.csproj \
+  -c BalanceDbContext \
+  -- --environment Development
+```
+
+#### Reverter migration (quando aplicável)
+
+```bash
+dotnet tool run dotnet-ef -- database update NomeDaMigrationAnteriorOu0 \
+  -p src\\BalanceService.Infrastructure\\BalanceService.Infrastructure.csproj \
+  -s src\\BalanceService.Api\\BalanceService.Api.csproj \
+  -c BalanceDbContext \
+  -- --environment Development
+```
+
+## Kafka (se aplicável)
+
+### Onde ficam as configurações
 
 - Producer: `Kafka:Producer` (`src/LedgerService.Api/appsettings.json`)
 - Outbox publisher: `Outbox:Publisher` (`src/LedgerService.Api/appsettings.json`)
@@ -638,13 +666,13 @@ dotnet tool run dotnet-ef -- database update NomeDaMigrationAnteriorOu0 \
 }
 ```
 
-### 7.2 Tópicos publicados
+### Tópicos publicados
 
 - Evento: `LedgerEntryCreated`
 - Tópico (por padrão): `ledger-events`
 - Mapeamento atual em `TopicMap`: `LedgerEntryCreated` -> `ledger.ledgerentry.created`
 
-### 7.3 Headers publicados
+### Headers publicados
 
 Ao publicar, o producer inclui headers:
 
@@ -654,7 +682,7 @@ Ao publicar, o producer inclui headers:
 
 > Observação: a propagação de headers W3C (`traceparent`, `baggage`) depende da configuração de observabilidade (ver seção 8 e `docs/observability.md`).
 
-### 7.4 Como validar (PENDING -> SENT)
+### Como validar (PENDING -> SENT)
 
 1. Aplicar migrations no PostgreSQL.
 2. Subir a API.
@@ -665,16 +693,16 @@ Ao publicar, o producer inclui headers:
 
 Em caso de falha no Kafka, o serviço não cai: ele registra erro, incrementa tentativas e agenda `next_attempt_at` com backoff.
 
-## 8. Observabilidade e rastreabilidade
+## Observabilidade e rastreabilidade
 
-### 8.1 Correlação (estado atual)
+### Correlação (estado atual)
 
 - A API usa o header `X-Correlation-Id`:
   - se ausente/inválido, gera um novo UUID;
   - retorna o mesmo header no response;
   - adiciona `CorrelationId` nos logs via logging scope.
 
-### 8.2 Traces e métricas
+### Traces e métricas
 
 Consulte `docs/observability.md` para:
 
@@ -682,15 +710,21 @@ Consulte `docs/observability.md` para:
 - campos de correlação adotados (`CorrelationId`, `traceId/spanId`);
 - como validar localmente.
 
-> TODO: documento será criado/atualizado na etapa de observabilidade.
 
-## 9. Troubleshooting básico
+## ADRs (decisões arquiteturais)
+
+As decisões e pontos de melhoria do projeto estão documentados em **ADRs**:
+
+- Pasta: [`docs/adrs/`](./docs/adrs/)
+- Índice: [`docs/adrs/README.md`](./docs/adrs/README.md)
+
+## Troubleshooting básico
 
 - **Erro ao aplicar migrations**: confirme a connection string e se o PostgreSQL está acessível.
 - **Swagger não abre**: confirme que a aplicação está rodando e acessível na URL configurada (`launchSettings.json`).
 - **Outbox publisher logando queries repetidas**: comportamento esperado (polling). Ajuste `Outbox:Publisher:PollingIntervalSeconds`.
 
-## 10. Limitações conhecidas
+## Limitações conhecidas
 
 - Implementação de autenticação/autorização via JWT Bearer foi adicionada, porém a política de scopes do Auth.Api ainda é simplificada para a PoC.
 - TODO: detalhar estratégia de readiness (ex.: verificar DB/Kafka) se necessário. Atualmente `/health` é um liveness simples.
