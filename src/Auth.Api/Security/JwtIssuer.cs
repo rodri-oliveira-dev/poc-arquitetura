@@ -1,7 +1,9 @@
-using Auth.Api.Options;
-using Microsoft.Extensions.Options;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+
+using Auth.Api.Options;
+
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
 namespace Auth.Api.Security;

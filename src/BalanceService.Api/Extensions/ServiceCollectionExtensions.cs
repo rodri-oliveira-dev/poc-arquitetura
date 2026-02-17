@@ -1,17 +1,22 @@
+using System.Reflection;
+using System.Threading.RateLimiting;
+
 using Asp.Versioning;
+
 using BalanceService.Api.Middlewares;
 using BalanceService.Api.Observability;
 using BalanceService.Api.Security;
 using BalanceService.Api.Swagger;
+
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
+
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
+
 using Swashbuckle.AspNetCore.SwaggerGen;
-using System.Reflection;
-using System.Threading.RateLimiting;
 
 namespace BalanceService.Api.Extensions;
 

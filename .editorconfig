@@ -39,6 +39,10 @@ dotnet_diagnostic.IDE0040.severity = warning    # modificador de acesso explíci
 dotnet_diagnostic.IDE0055.severity = warning    # formatação
 dotnet_diagnostic.IDE0060.severity = suggestion # parâmetro não utilizado
 dotnet_diagnostic.IDE0160.severity = none       # não forçar block-scoped namespace
+dotnet_diagnostic.IDE0008.severity = none
+dotnet_diagnostic.IDE0007.severity = none
+dotnet_diagnostic.IDE0022.severity = none
+dotnet_diagnostic.IDE0058.severity = none
 dotnet_diagnostic.IDE0161.severity = warning    # preferir file-scoped namespace
 dotnet_diagnostic.IDE1006.severity = warning    # nomenclatura
 

@@ -1,6 +1,8 @@
 using Asp.Versioning.ApiExplorer;
+
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
+
 using Swashbuckle.AspNetCore.SwaggerGen;
 
 namespace LedgerService.Api.Swagger;
@@ -23,7 +25,7 @@ public sealed class ConfigureSwaggerOptions : IConfigureOptions<SwaggerGenOption
         {
             options.SwaggerDoc(description.GroupName, new OpenApiInfo
             {
-                Title = "Poc Arquitetura API",
+                Title = "Poc Arquitetura Ledger API",
                 Version = description.ApiVersion.ToString(),
                 Description = description.IsDeprecated
                     ? "API em Clean Architecture com foco em DDD (DEPRECATED)"

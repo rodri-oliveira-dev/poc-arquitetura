@@ -1,14 +1,18 @@
+using System.Diagnostics;
+using System.Globalization;
+
 using Asp.Versioning;
+
 using BalanceService.Api.Contracts;
 using BalanceService.Api.Middlewares;
 using BalanceService.Api.Security;
 using BalanceService.Application.Balances.Queries;
 using BalanceService.Application.Balances.Services;
+
 using FluentValidation;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.Diagnostics;
-using System.Globalization;
 
 namespace BalanceService.Api.Controllers;
 

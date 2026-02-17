@@ -1,8 +1,10 @@
-using Auth.Api.Options;
-using Microsoft.Extensions.Options;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+
+using Auth.Api.Options;
+
+using Microsoft.Extensions.Options;
 
 namespace Auth.Api.Security;
 

@@ -1,5 +1,6 @@
 using BalanceService.Api.Options;
 using BalanceService.Api.Security;
+
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Protocols;

@@ -1,6 +1,8 @@
-using Auth.Api.Middlewares;
-using Microsoft.OpenApi.Models;
 using System.Reflection;
+
+using Auth.Api.Middlewares;
+
+using Microsoft.OpenApi.Models;
 
 namespace Auth.Api.Swagger;
 
