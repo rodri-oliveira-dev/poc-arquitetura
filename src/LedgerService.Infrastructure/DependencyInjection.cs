@@ -24,18 +24,24 @@ public static class DependencyInjection
         services.AddScoped<IIdempotencyRecordRepository, IdempotencyRecordRepository>();
         services.AddScoped<IOutboxMessageRepository, OutboxMessageRepository>();
 
-        services.AddOptions<KafkaProducerOptions>()
-            .Bind(configuration.GetSection(KafkaProducerOptions.SectionName))
-            .Validate(o => !string.IsNullOrWhiteSpace(o.BootstrapServers), "Kafka BootstrapServers não configurado.")
-            .ValidateOnStart();
+        // Outbox/Kafka é opcional no ambiente de testes de integração/locais.
+        // Caso contrário, o ValidateOnStart + HostedService impedem a API de subir sem Kafka.
+        var kafkaEnabled = configuration.GetValue<bool>("Kafka:Enabled", defaultValue: true);
+        if (kafkaEnabled)
+        {
+            services.AddOptions<KafkaProducerOptions>()
+                .Bind(configuration.GetSection(KafkaProducerOptions.SectionName))
+                .Validate(o => !string.IsNullOrWhiteSpace(o.BootstrapServers), "Kafka BootstrapServers não configurado.")
+                .ValidateOnStart();
 
-        services.AddSingleton<IOutboxEventProducer, OutboxKafkaProducer>();
+            services.AddSingleton<IOutboxEventProducer, OutboxKafkaProducer>();
 
-        services.AddOptions<OutboxPublisherOptions>()
-            .Bind(configuration.GetSection(OutboxPublisherOptions.SectionName))
-            .ValidateOnStart();
+            services.AddOptions<OutboxPublisherOptions>()
+                .Bind(configuration.GetSection(OutboxPublisherOptions.SectionName))
+                .ValidateOnStart();
 
-        services.AddHostedService<OutboxKafkaPublisherService>();
+            services.AddHostedService<OutboxKafkaPublisherService>();
+        }
 
         return services;
     }

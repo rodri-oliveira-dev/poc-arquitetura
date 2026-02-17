@@ -17,5 +17,11 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/LedgerService.Tests/LedgerService.Tests.csproj" />
+    <Project Path="tests/LedgerService.UnitTests/LedgerService.UnitTests.csproj" />
+    <Project Path="tests/LedgerService.IntegrationTests/LedgerService.IntegrationTests.csproj" />
+    <Project Path="tests/BalanceService.UnitTests/BalanceService.UnitTests.csproj" />
+    <Project Path="tests/BalanceService.IntegrationTests/BalanceService.IntegrationTests.csproj" />
+    <Project Path="tests/Auth.UnitTests/Auth.UnitTests.csproj" />
+    <Project Path="tests/Auth.IntegrationTests/Auth.IntegrationTests.csproj" />
   </Folder>
 </Solution>

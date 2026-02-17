@@ -35,7 +35,11 @@ if (!app.Environment.IsDevelopment())
 
 app.UseExceptionHandler();
 app.UseStatusCodePages();
-app.UseHttpsRedirection();
+// Em testes de integração (WebApplicationFactory/TestServer), HTTPS redirection tende a atrapalhar.
+if (!app.Environment.IsEnvironment("Test"))
+{
+    app.UseHttpsRedirection();
+}
 app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseMiddleware<SecurityHeadersMiddleware>();
 app.UseCors("ApiCorsPolicy");
@@ -57,3 +61,6 @@ app.MapGet("/health", [AllowAnonymous] () => Results.Text("ok"))
 app.MapControllers().RequireRateLimiting("fixed");
 
 app.Run();
+
+// Necessário para WebApplicationFactory em testes de integração
+public partial class Program { }

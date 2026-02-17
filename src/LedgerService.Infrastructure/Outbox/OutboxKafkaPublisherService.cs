@@ -7,6 +7,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Diagnostics;
+using System.Security.Cryptography;
 
 namespace LedgerService.Infrastructure.Outbox;
 
@@ -194,7 +195,9 @@ public sealed class OutboxKafkaPublisherService : BackgroundService
         var baseDelay = TimeSpan.FromSeconds(Math.Max(1, baseBackoffSeconds));
         var exp = Math.Pow(2, Math.Min(10, Math.Max(0, attemptNumber - 1)));
         var delay = TimeSpan.FromMilliseconds(baseDelay.TotalMilliseconds * exp);
-        var jitterMs = Random.Shared.Next(0, 250);
+        // CA5394: Random não é considerado seguro. Aqui o valor é apenas "jitter" de retry,
+        // mas usamos RNG criptograficamente seguro para manter o build limpo com analyzers.
+        var jitterMs = RandomNumberGenerator.GetInt32(0, 250);
         return now.Add(delay).AddMilliseconds(jitterMs);
     }
 }

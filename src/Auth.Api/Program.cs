@@ -184,3 +184,6 @@ static string Base64Url(byte[] bytes)
         .TrimEnd('=')
         .Replace('+', '-')
         .Replace('/', '_');
+
+// Necessário para WebApplicationFactory em testes de integração
+public partial class Program { }

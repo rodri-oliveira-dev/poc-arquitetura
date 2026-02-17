@@ -473,6 +473,33 @@ Exemplo:
 dotnet test
 ```
 
+### 5.1 Rodando todos os testes com gate de coverage (>= 85% line)
+
+Windows (PowerShell):
+
+```powershell
+./test.ps1
+```
+
+Linux/Mac:
+
+```bash
+chmod +x ./test.sh
+./test.sh
+```
+
+O gate é aplicado via **coverlet** (MSBuild properties) e falha o comando caso a cobertura global da solução fique abaixo do threshold.
+
+Exclusões aplicadas (com parcimônia, sem “forçar” coverage):
+
+- `Program.cs` (minimal hosting)
+- migrations EF (`*/Migrations/*.cs`)
+- arquivos gerados (`*.g.cs`)
+
+Os resultados ficam em `./TestResults/` (ignorado no git).
+
+> Nota: internamente os scripts passam as exclusões via `/p:ExcludeByFile` (lista separada por vírgula).
+
 ## 6. Banco de dados e migrations
 
 ### 6.1 Listar migrations

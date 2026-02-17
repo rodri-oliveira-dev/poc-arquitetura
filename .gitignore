@@ -25,6 +25,9 @@ bld/
 
 # Visual Studio / VS Code
 .vs/
+
+# Test artifacts
+TestResults/
 *.user
 *.suo
 *.userosscache

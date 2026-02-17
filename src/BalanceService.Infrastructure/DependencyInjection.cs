@@ -9,6 +9,7 @@ using Microsoft.Extensions.Options;
 
 
 namespace BalanceService.Infrastructure;
+
 public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
@@ -24,14 +25,20 @@ public static class DependencyInjection
         services.AddScoped<IDailyBalanceReadRepository, DailyBalanceReadRepository>();
         services.AddScoped<IProcessedEventRepository, ProcessedEventRepository>();
 
-        services.AddOptions<KafkaConsumerOptions>()
-            .Bind(configuration.GetSection(KafkaConsumerOptions.SectionName))
-            .Validate(o => !string.IsNullOrWhiteSpace(o.BootstrapServers), "Kafka BootstrapServers não configurado.")
-            .Validate(o => !string.IsNullOrWhiteSpace(o.GroupId), "Kafka GroupId não configurado.")
-            .Validate(o => o.Topics is not null && o.Topics.Count > 0, "Kafka Topics não configurado.")
-            .ValidateOnStart();
+        // Kafka consumer é opcional no ambiente de testes de integração/locais.
+        // Caso contrário, o ValidateOnStart + HostedService impedem a API de subir sem Kafka.
+        var kafkaEnabled = configuration.GetValue<bool>("Kafka:Enabled", defaultValue: true);
+        if (kafkaEnabled)
+        {
+            services.AddOptions<KafkaConsumerOptions>()
+                .Bind(configuration.GetSection(KafkaConsumerOptions.SectionName))
+                .Validate(o => !string.IsNullOrWhiteSpace(o.BootstrapServers), "Kafka BootstrapServers não configurado.")
+                .Validate(o => !string.IsNullOrWhiteSpace(o.GroupId), "Kafka GroupId não configurado.")
+                .Validate(o => o.Topics is not null && o.Topics.Count > 0, "Kafka Topics não configurado.")
+                .ValidateOnStart();
 
-        services.AddHostedService<LedgerEventsConsumer>();
+            services.AddHostedService<LedgerEventsConsumer>();
+        }
         return services;
     }
 }
