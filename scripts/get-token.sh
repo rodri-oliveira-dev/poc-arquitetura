@@ -1,30 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Obtém TOKEN conforme README (Auth.Api Minimal API em POST /auth/login)
+# Obtém TOKEN chamando o Auth.Api em POST /auth/login
 # Output: imprime SOMENTE o token em stdout.
 # Overrides via env:
 #   AUTH_BASE_URL, TOKEN_URL, USERNAME, PASSWORD, SCOPE
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-README_PATH="${README_PATH:-$ROOT_DIR/README.md}"
-
-if [ ! -f "$README_PATH" ]; then
-  echo "README não encontrado em '$README_PATH'" 1>&2
-  exit 2
-fi
 
 AUTH_BASE_URL="${AUTH_BASE_URL:-http://localhost:5030}"
 TOKEN_URL="${TOKEN_URL:-/auth/login}"
 USERNAME="${USERNAME:-poc-usuario}"
 PASSWORD="${PASSWORD:-Poc#123}"
 SCOPE="${SCOPE:-ledger.write balance.read}"
-
-# Heurística mínima: confirma que o README cita /auth/login
-if ! grep -Eq "POST[[:space:]]+/auth/login|/auth/login" "$README_PATH"; then
-  echo "Nao foi possivel inferir como obter token. Verifique README e informe TOKEN manualmente via env TOKEN=..." 1>&2
-  exit 1
-fi
 
 URL="${AUTH_BASE_URL%/}/${TOKEN_URL#/}"
 

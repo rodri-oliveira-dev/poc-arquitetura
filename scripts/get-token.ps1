@@ -1,23 +1,10 @@
 [CmdletBinding()]
-param(
-  [string]$ReadmePath = ""
-)
+param()
 
 $ErrorActionPreference = "Stop"
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $root = (Resolve-Path (Join-Path $scriptDir ".."))
-
-if ([string]::IsNullOrWhiteSpace($ReadmePath)) {
-  $ReadmePath = (Join-Path $root "README.md")
-}
-
-if (!(Test-Path $ReadmePath)) {
-  Write-Error "README não encontrado em '$ReadmePath'"
-  exit 2
-}
-
-$readme = Get-Content -Raw -Path $ReadmePath
 
 function Read-EnvFile([string]$path) {
   $map = @{}
@@ -97,13 +84,6 @@ if ([string]::IsNullOrWhiteSpace($scope) -and $envFile.ContainsKey("SCOPE")) { $
 if ([string]::IsNullOrWhiteSpace($username)) { $username = "poc-usuario" }
 if ([string]::IsNullOrWhiteSpace($password)) { $password = "Poc#123" }
 if ([string]::IsNullOrWhiteSpace($scope)) { $scope = "ledger.write balance.read" }
-
-# Inferência simples: este repo documenta Auth.Api Minimal API em POST /auth/login
-$isMinimalApi = $readme -match "POST\s+/auth/login" -or $readme -match "curl[\s\S]*?/auth/login"
-
-if (-not $isMinimalApi) {
-  Fail "Nao foi possivel inferir como obter token. Verifique README e informe TOKEN manualmente via env TOKEN=..."
-}
 
 if ([string]::IsNullOrWhiteSpace($tokenUrl)) { $tokenUrl = "/auth/login" }
 

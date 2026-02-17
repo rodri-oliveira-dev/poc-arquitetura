@@ -360,7 +360,7 @@ nerdctl compose -f compose.yaml up -d --build
 Os runners fazem:
 
 1. Gerar `.env.k6.auto` a partir do `compose.yaml` (script `scripts/compose-env.*`)
-2. Obter `TOKEN` conforme README (script `scripts/get-token.*`)
+2. Obter `TOKEN` (script `scripts/get-token.*`)
 3. Rodar `k6` via `nerdctl compose` (compose override `compose.k6.yaml`)
 4. Exportar summary JSON em `./artifacts/k6`
 
