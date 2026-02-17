@@ -165,7 +165,7 @@ services:
   auth-api:
     build:
       context: .
-      dockerfile: src/auth-api/Auth.Api/Dockerfile
+      dockerfile: src/Auth.Api/Dockerfile
     container_name: poc-auth-api
     environment:
       ASPNETCORE_URLS: "http://+:8080"

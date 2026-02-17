@@ -4,14 +4,18 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 # Copia csproj primeiro para aproveitar cache
-COPY src/auth-api/Auth.Api/Auth.Api.csproj src/auth-api/Auth.Api/
+COPY Directory.Packages.props ./
+COPY Directory.Build.props ./
+COPY src/Auth.Api/Auth.Api.csproj src/Auth.Api/
 
-RUN dotnet restore src/auth-api/Auth.Api/Auth.Api.csproj
+RUN dotnet restore src/Auth.Api/Auth.Api.csproj --disable-parallel \
+    || dotnet restore src/Auth.Api/Auth.Api.csproj --disable-parallel \
+    || dotnet restore src/Auth.Api/Auth.Api.csproj --disable-parallel
 
 # Agora copia o restante
 COPY src/ ./src/
 
-RUN dotnet publish src/auth-api/Auth.Api/Auth.Api.csproj -c Release -o /app/publish --no-restore
+RUN dotnet publish src/Auth.Api/Auth.Api.csproj -c Release -o /app/publish --no-restore
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app

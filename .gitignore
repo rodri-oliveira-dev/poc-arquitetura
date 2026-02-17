@@ -86,3 +86,8 @@ nunit-*.xml
 
 # DotNet tools restore
 .dotnet/
+
+# k6 / load tests
+.env.k6.auto
+artifacts/k6/
+artifacts/k6/*

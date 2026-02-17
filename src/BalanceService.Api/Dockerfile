@@ -5,12 +5,16 @@ WORKDIR /src
 
 # Copia csproj primeiro para aproveitar cache
 COPY LedgerService.slnx ./
+COPY Directory.Packages.props ./
+COPY Directory.Build.props ./
 COPY src/BalanceService.Api/BalanceService.Api.csproj src/BalanceService.Api/
 COPY src/BalanceService.Application/BalanceService.Application.csproj src/BalanceService.Application/
 COPY src/BalanceService.Domain/BalanceService.Domain.csproj src/BalanceService.Domain/
 COPY src/BalanceService.Infrastructure/BalanceService.Infrastructure.csproj src/BalanceService.Infrastructure/
 
-RUN dotnet restore src/BalanceService.Api/BalanceService.Api.csproj
+RUN dotnet restore src/BalanceService.Api/BalanceService.Api.csproj --disable-parallel \
+    || dotnet restore src/BalanceService.Api/BalanceService.Api.csproj --disable-parallel \
+    || dotnet restore src/BalanceService.Api/BalanceService.Api.csproj --disable-parallel
 
 # Agora copia o restante
 COPY src/ ./src/

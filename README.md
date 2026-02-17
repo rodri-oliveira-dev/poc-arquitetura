@@ -341,6 +341,65 @@ nerdctl compose ps
 nerdctl compose logs -f ledger-service
 ```
 
+## 4.7 Load tests (k6) via compose network
+
+Os testes de carga ficam em `./loadtests/k6` e rodam **dentro da rede do compose** (ou seja, acessam as APIs por `http://<service_name>:<internal_port>` e **não** por `localhost`).
+
+### Pré-requisitos
+
+1) Suba a stack:
+
+```bash
+nerdctl compose -f compose.yaml up -d --build
+```
+
+2) (Opcional) aplique migrations, se necessário (ver seção 4.0).
+
+### Execução reprodutível
+
+Os runners fazem:
+
+1. Gerar `.env.k6.auto` a partir do `compose.yaml` (script `scripts/compose-env.*`)
+2. Obter `TOKEN` conforme README (script `scripts/get-token.*`)
+3. Rodar `k6` via `nerdctl compose` (compose override `compose.k6.yaml`)
+4. Exportar summary JSON em `./artifacts/k6`
+
+#### Windows (PowerShell)
+
+```powershell
+./scripts/run-loadtests.ps1 -Mode smoke
+./scripts/run-loadtests.ps1 -Mode balance50
+./scripts/run-loadtests.ps1 -Mode resilience
+```
+
+#### Linux/Mac (bash)
+
+```bash
+chmod +x ./scripts/*.sh
+./scripts/run-loadtests.sh smoke
+./scripts/run-loadtests.sh balance50
+./scripts/run-loadtests.sh resilience
+```
+
+### Overrides via variáveis de ambiente
+
+- `AUTH_BASE_URL`, `TOKEN_URL`, `USERNAME`, `PASSWORD`, `SCOPE`
+  - usados por `scripts/get-token.*`
+- `TOKEN`
+  - se você já tiver o JWT, pode pular o get-token e rodar k6 manualmente com `-e TOKEN=...`.
+- `ALLOW_ANON=true`
+  - permite rodar os scripts k6 sem token (útil para debug), mas os endpoints de negócio provavelmente vão retornar 401.
+
+### Critérios de “passar”
+
+- `balance_daily_50rps`:
+  - `http_req_failed <= 0.05`
+  - `dropped_iterations == 0`
+- `ledger_resilience` (com Balance parado):
+  - manter respostas `2xx/201` no Ledger
+
+> Observação: `./artifacts/k6` e `.env.k6.auto` são gerados localmente e **não** são versionados.
+
 ### 4.1 Restaurar tools locais
 
 O repositório versiona o `dotnet-ef` via `dotnet-tools.json`.
