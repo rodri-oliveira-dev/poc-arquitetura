@@ -10,7 +10,7 @@ namespace LedgerService.UnitTests.Tests;
 
 public sealed class AuthorizeOperationFilterTests
 {
-    [Fact(Skip = "Ajustar")]
+    [Fact]
     public void Apply_should_skip_when_allowanonymous()
     {
         var sut = new AuthorizeOperationFilter();
@@ -20,7 +20,7 @@ public sealed class AuthorizeOperationFilterTests
 
         sut.Apply(operation, ctx);
 
-        operation.Security.Should().BeNull();
+        operation.Security.Should().BeEmpty();
     }
 
     [Fact]

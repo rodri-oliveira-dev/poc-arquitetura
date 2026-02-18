@@ -1,13 +1,13 @@
-using FluentValidation;
+using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+
 using LedgerService.Application.Common.Exceptions;
 using LedgerService.Application.Common.Models;
 using LedgerService.Application.Lancamentos.Inputs.CreateLancamento;
 using LedgerService.Domain.Entities;
 using LedgerService.Domain.Repositories;
-using System.Globalization;
-using System.Security.Cryptography;
-using System.Text;
-using System.Text.Json;
 
 namespace LedgerService.Application.Lancamentos.Services;
 

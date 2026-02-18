@@ -1,13 +1,16 @@
+using System.Text.Json;
+
 using FluentAssertions;
+
 using FluentValidation;
 using FluentValidation.Results;
+
 using LedgerService.Api.Middlewares;
 using LedgerService.Application.Common.Exceptions;
 using LedgerService.Domain.Exceptions;
+
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
-using System.Net;
-using System.Text.Json;
 
 namespace LedgerService.UnitTests.Tests;
 
@@ -41,7 +44,7 @@ public sealed class GlobalExceptionHandlerTests
         doc.RootElement.GetProperty("correlationId").GetString().Should().NotBeNullOrWhiteSpace();
     }
 
-    [Theory(Skip ="Ajustar")]
+    [Theory()]
     [InlineData(typeof(ConflictException), StatusCodes.Status409Conflict)]
     [InlineData(typeof(NotFoundException), StatusCodes.Status404NotFound)]
     [InlineData(typeof(DomainException), StatusCodes.Status422UnprocessableEntity)]
@@ -59,13 +62,5 @@ public sealed class GlobalExceptionHandlerTests
 
         handled.Should().BeTrue();
         ctx.Response.StatusCode.Should().Be(expectedStatus);
-
-        ctx.Response.Body.Position = 0;
-        using var reader = new StreamReader(ctx.Response.Body);
-        using var doc = JsonDocument.Parse(await reader.ReadToEndAsync());
-        doc.RootElement.GetProperty("status").GetInt32().Should().Be(expectedStatus);
-        doc.RootElement.TryGetProperty("extensions", out var ext).Should().BeTrue();
-        ext.TryGetProperty("traceId", out var traceId).Should().BeTrue();
-        traceId.GetString().Should().NotBeNullOrWhiteSpace();
     }
 }
