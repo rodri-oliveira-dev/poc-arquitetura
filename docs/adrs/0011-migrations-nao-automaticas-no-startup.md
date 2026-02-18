@@ -1,7 +1,7 @@
 # ADR-0011: Não aplicar migrations automaticamente no startup
 
 ## Status
-Aceito
+Substituído (ver README.md)
 
 ## Data
 2026-02-17
@@ -42,3 +42,6 @@ Se houver necessidade de automação no futuro, preferimos:
 1) **Auto-migrate no startup**
    - Prós: menos passos manuais.
    - Contras: riscos de corrida e side effects; menos previsível.
+
+## Motivo da substituição
+Este é um guideline de **operabilidade e governança de schema**. O README já documenta com mais detalhe quando e como aplicar migrations (incluindo comandos para cada `DbContext`). Para reduzir ADRs aceitas de “processo”, este registro fica como histórico.

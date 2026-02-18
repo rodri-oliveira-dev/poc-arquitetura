@@ -1,7 +1,7 @@
 # ADR-0010: Stack local via compose (nerdctl) com Kafka e Postgres
 
 ## Status
-Aceito
+Substituído (ver README.md)
 
 ## Data
 2026-02-17
@@ -47,3 +47,6 @@ Manter um `compose.yaml` na raiz do repositório para subir a stack completa com
 2) **Kubernetes local** (kind/minikube)
    - Prós: aproxima produção.
    - Contras: pesado para a PoC; curva e manutenção.
+
+## Motivo da substituição
+Este ADR descreve uma **decisão de tooling local**. A regra e os comandos já estão documentados de forma mais completa no `README.md` (incluindo portas, scripts e troubleshooting). Mantemos este registro como histórico para reduzir a quantidade de ADRs “Aceitas”.

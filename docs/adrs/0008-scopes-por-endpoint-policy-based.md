@@ -1,7 +1,7 @@
 # ADR-0008: Autorização por scopes por endpoint (policy-based)
 
 ## Status
-Aceito
+Substituído (ver ADR-0004)
 
 ## Data
 2026-02-17
@@ -20,6 +20,11 @@ Adotar autorização **policy-based** no ASP.NET Core, onde cada endpoint de neg
 - A claim usada é `scope` (string com scopes separados por espaço).
 - Existe um catálogo local de scopes e helpers para registrar policies.
 - Swagger documenta os scopes requeridos por operação (derivado da policy aplicada).
+
+## Motivo da substituição
+No contexto desta PoC, a decisão de **como** expressar permissões (policies por scope) é um detalhe do desenho de segurança que já está coberto pela decisão maior de autenticação/claims do token (ADR-0004). Mantemos este ADR como histórico para não manter decisões “em excesso” como Aceitas.
+
+> TODO: se a migração para Keycloak (ADR-0006) exigir mudança de semântica (roles/grupos vs scopes), reabrir uma ADR específica com impactos em contratos, Swagger e testes.
 
 ## Consequências
 

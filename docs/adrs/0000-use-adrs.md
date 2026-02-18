@@ -1,7 +1,7 @@
 # ADR-0000: Registrar decisões arquiteturais com ADRs
 
 ## Status
-Aceito
+Substituído (consolidado em `docs/adrs/README.md`)
 
 ## Data
 2026-02-16
@@ -16,6 +16,9 @@ Adotar Architecture Decision Records (ADRs) em Markdown sob `docs/adrs/`, com nu
 - Contexto
 - Decisão
 - Consequências
+
+## Motivo da substituição
+O repositório já possui um **índice vivo** e regras de uso em `docs/adrs/README.md` (incluindo critérios de status e o propósito de ADRs vs pontos de melhoria). Para reduzir redundância, este ADR foi mantido apenas como histórico.
 
 ## Consequências
 - Facilita onboarding e manutenção do racional.

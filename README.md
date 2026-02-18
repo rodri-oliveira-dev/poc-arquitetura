@@ -25,31 +25,46 @@ Infra local (via compose):
 ## Diagrama (Mermaid C4)
 
 ```mermaid
-C4Context
-title poc-arquitetura - Contexto
+C4Container
+title poc-arquitetura - Containers
 
 Person(user, "Cliente", "Usuário/Sistema chamando as APIs")
 
-System(auth, "Auth.Api", "Emite JWT (RS256) e expõe JWKS")
-System(ledgerApi, "LedgerService.Api", "Cria lançamentos e registra Outbox")
-System(balanceApi, "BalanceService.Api", "Consulta consolidado e consome eventos")
+System_Boundary(authBoundary, "Auth") {
+  Container(authApi, "Auth.Api", "ASP.NET", "Emite JWT (RS256) e expõe JWKS")
+}
 
-SystemDb(ledgerDb, "PostgreSQL (ledger)", "appdb")
-SystemDb(balanceDb, "PostgreSQL (balance)", "dbBalance")
-SystemQueue(kafka, "Kafka", "Tópicos de eventos")
+System_Boundary(ledgerBoundary, "LedgerService") {
+  Container(ledgerApi, "LedgerService.Api", "ASP.NET", "Cria lançamentos e grava Outbox")
+  Container(outboxPublisher, "Ledger.OutboxPublisher", "Worker/HostedService", "Publica eventos do Outbox no Kafka")
+  ContainerDb(ledgerDb, "PostgreSQL (ledger)", "PostgreSQL", "appdb (lancamentos + outbox)")
+}
 
-Rel(user, auth, "Login", "HTTP")
+System_Boundary(balanceBoundary, "BalanceService") {
+  Container(balanceApi, "BalanceService.Api", "ASP.NET", "Consulta consolidado (projeção)")
+  Container(balanceConsumer, "Balance.Consumer", "Worker", "Consome eventos e atualiza projeção")
+  ContainerDb(balanceDb, "PostgreSQL (balance)", "PostgreSQL", "dbBalance (daily_balances)")
+}
+
+ContainerQueue(kafka, "Kafka", "Kafka", "Tópicos de eventos (ex.: ledger.ledgerentry.created)")
+
+Rel(user, authApi, "Login (obtém JWT)", "HTTP")
 Rel(user, ledgerApi, "Cria lançamentos", "HTTP (JWT)")
 Rel(user, balanceApi, "Consulta consolidado", "HTTP (JWT)")
 
-Rel(ledgerApi, auth, "Busca JWKS", "HTTP")
-Rel(balanceApi, auth, "Busca JWKS", "HTTP")
+Rel(ledgerApi, authApi, "Obtém JWKS para validar JWT", "HTTP")
+Rel(balanceApi, authApi, "Obtém JWKS para validar JWT", "HTTP")
+Rel(balanceConsumer, authApi, "Obtém JWKS para validar JWT (se necessário)", "HTTP")
 
-Rel(ledgerApi, ledgerDb, "Persistência + Outbox", "EF Core")
-Rel(ledgerApi, kafka, "Publica LedgerEntryCreated", "Kafka (via Outbox)")
+Rel(ledgerApi, ledgerDb, "Persistência + grava Outbox", "EF Core")
+Rel(outboxPublisher, ledgerDb, "Lê Outbox pendente e marca como publicado", "EF Core/SQL")
+Rel(outboxPublisher, kafka, "Publica LedgerEntryCreated", "Kafka")
 
-Rel(balanceApi, kafka, "Consome LedgerEntryCreated", "Kafka")
-Rel(balanceApi, balanceDb, "Atualiza projeção daily_balances", "EF Core")
+Rel(balanceConsumer, kafka, "Consome LedgerEntryCreated", "Kafka (consumer group)")
+Rel(balanceConsumer, balanceDb, "Atualiza projeção daily_balances", "EF Core")
+
+Rel(balanceApi, balanceDb, "Consulta projeção daily_balances", "EF Core")
+
 ```
 
 ## Arquitetura e principais componentes (por serviço)

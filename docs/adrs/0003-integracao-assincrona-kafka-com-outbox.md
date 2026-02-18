@@ -28,6 +28,30 @@ Detalhes relevantes (estado atual):
 - Tópico dedicado: `ledger.ledgerentry.created` (criado no compose por um init job).
 - Headers incluem `event_id`, `event_type`, `correlation_id` e (quando houver `Activity`) `traceparent`/`baggage`.
 
+## Justificativa: escolha de mensageria (Kafka) vs alternativas
+Nesta PoC, a escolha por **Kafka** (via `Confluent.Kafka`) é adequada porque:
+
+- **Delivery at-least-once** combina com Outbox + consumidor idempotente, modelo comum em arquiteturas orientadas a eventos.
+- **Retenção e reprocessamento**: Kafka facilita reprocessar eventos por offset (útil para “rebuild” de projeções como `daily_balances`).
+- **Ordenação por chave**: usamos `AggregateId` como key (particionamento), o que tende a preservar ordem por entidade/agregado.
+- **Ecossistema e didática**: é um padrão bem conhecido para PoCs e demonstração de integrações assíncronas.
+
+Alternativas típicas e por que não foram escolhidas aqui:
+
+1) **RabbitMQ/AMQP**
+   - Prós: excelente para filas e roteamento; operação simples em alguns cenários.
+   - Contras: retenção/replay não é nativo como Kafka (depende de desenho); para projeções/replay, Kafka costuma ser mais direto.
+
+2) **Service Bus gerenciado (cloud)**
+   - Prós: reduz esforço operacional.
+   - Contras: adiciona acoplamento com cloud e não é objetivo deste repo “rodar local via compose”.
+
+3) **CDC (Debezium/Postgres logical replication)**
+   - Prós: remove polling do app.
+   - Contras: infra extra e complexidade; a PoC prioriza mostrar o padrão Outbox no código.
+
+> TODO: se o objetivo evoluir de PoC para baseline de produção, reavaliar: particionamento/throughput, DLQ, schema registry/compatibilidade, e estratégia de reprocessamento controlado.
+
 ## Consequências
 
 ### Benefícios

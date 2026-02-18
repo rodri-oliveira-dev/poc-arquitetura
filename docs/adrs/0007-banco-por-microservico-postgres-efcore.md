@@ -26,6 +26,30 @@ Adotar o padrão **database-per-service**:
 
 No compose local, isso se materializa em dois Postgres separados (Ledger e Balance). O Auth mantém persistência apenas de chave RSA em arquivo/volume (PoC).
 
+## Justificativa: escolha de banco (PostgreSQL) vs alternativas
+A escolha por **PostgreSQL + EF Core** faz sentido para esta PoC por:
+
+- **Transações e consistência**: o Ledger precisa de garantias transacionais para gravar `ledger_entries` + `outbox_messages` na mesma transação.
+- **Funcionalidades específicas usadas**: o repositório implementa *claim* do outbox com `FOR UPDATE SKIP LOCKED` (vide `OutboxMessageRepository`), recurso suportado muito bem no Postgres.
+- **Custo operacional e previsibilidade**: Postgres é fácil de rodar em compose e é amplamente conhecido.
+- **Modelo relacional adequado** para projeções (`daily_balances`) e queries agregadas previsíveis.
+
+Alternativas típicas e por que não foram escolhidas aqui:
+
+1) **SQL Server**
+   - Prós: ecossistema .NET forte.
+   - Contras: equivalentes a `SKIP LOCKED` existem, mas exigiriam adaptação e aumentariam o escopo.
+
+2) **MySQL/MariaDB**
+   - Prós: popular.
+   - Contras: diferenças de locking/isolamento e suporte a padrões de concorrência do outbox variam; o repo já depende de Postgres.
+
+3) **NoSQL (MongoDB/DynamoDB)**
+   - Prós: flexibilidade de schema.
+   - Contras: transação + outbox e projeções agregadas ficariam mais complexas (ou exigiriam desenho diferente).
+
+> TODO: se a PoC evoluir para produção, documentar requisitos não-funcionais (RPO/RTO, HA, backups, particionamento, e estratégia de migração entre bancos).
+
 ## Consequências
 
 ### Benefícios

@@ -1,7 +1,7 @@
 # ADR-0013: Health endpoint público de liveness (`GET /health`)
 
 ## Status
-Aceito
+Substituído (ver ADR-0005 e ADR-0014)
 
 ## Data
 2026-02-17
@@ -23,6 +23,11 @@ Implementar `GET /health` em todos os microserviços de API:
 - não sofre rate limiting (se houver), para não impactar checks automatizados.
 
 Readiness (verificação de dependências) fica como melhoria futura separada.
+
+## Motivo da substituição
+O tema “health” neste repo é parte da **estratégia de observabilidade/operabilidade** (ver ADR-0005) e já tem um ponto de melhoria específico para readiness (ADR-0014). Para reduzir ADRs aceitas “micro-decisões”, este registro fica como histórico e o tema fica consolidado nas ADRs de observabilidade + readiness.
+
+> TODO: quando `/ready` for implementado, atualizar README com endpoints de health e exemplos de chamadas.
 
 ## Consequências
 

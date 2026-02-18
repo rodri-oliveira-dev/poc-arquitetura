@@ -1,7 +1,7 @@
 # ADR-0009: Versionamento de API via URL segment (Asp.Versioning)
 
 ## Status
-Aceito
+Substituído (ver ADR-0002)
 
 ## Data
 2026-02-17
@@ -22,6 +22,11 @@ Adotar **URL segment versioning**:
 - padrão: `/v{version}/...` (Balance)
 
 O Swagger deve expor (quando aplicável) as versões disponíveis e agrupar endpoints por versão.
+
+## Motivo da substituição
+O versionamento é uma **decisão de implementação de API** que já está implícita no código (`Asp.Versioning`) e tende a variar por serviço. Para reduzir a quantidade de ADRs aceitas “de baixo impacto arquitetural”, consolidamos esse tipo de decisão em ADRs mais amplas de arquitetura/entrega (ADR-0002) e na documentação de execução (README).
+
+> TODO: se o projeto precisar suportar múltiplas versões simultâneas (v1 + v2) por um período, reabrir uma ADR específica focada em estratégia de depreciação e compatibilidade.
 
 ## Consequências
 
