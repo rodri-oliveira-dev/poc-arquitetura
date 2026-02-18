@@ -229,6 +229,8 @@ Este repositório inclui um `compose.yaml` preparado para **nerdctl compose** (c
 nerdctl compose up -d --build
 ```
 
+> Importante: **na primeira execução (banco vazio)** — e **sempre que houver mudança de schema** — você precisa **aplicar migrations manualmente** (ver seção **"Migrations (quando rodando via compose)"** abaixo) **antes** de usar as APIs.
+
 #### Parar stack
 
 ```bash
@@ -258,7 +260,7 @@ Assim, **dentro da rede do compose** os serviços usam `ledger-db`, `balance-db`
 
 O compose **não aplica migrations automaticamente** (para evitar comportamento implícito em infraestrutura).
 
-Você pode aplicar migrations a partir do host usando as portas expostas dos Postgres:
+✅ Após subir o compose, aplique migrations a partir do host usando as portas expostas dos Postgres (**obrigatório na primeira execução/banco vazio** e sempre que houver alteração de schema):
 
 **LedgerService (AppDbContext):**
 
@@ -344,7 +346,9 @@ Os testes de carga ficam em `./loadtests/k6` e rodam **dentro da rede do compose
 nerdctl compose -f compose.yaml up -d --build
 ```
 
-2) (Opcional) aplique migrations, se necessário (ver seção **"Migrations (quando rodando via compose)"** acima).
+2) Aplique migrations (ver seção **"Migrations (quando rodando via compose)"** acima).
+
+> Nota: na prática isso é **necessário na primeira execução** (banco vazio) e sempre que o schema mudar. Se o banco já estiver migrado, este passo não altera nada.
 
 ### Execução reprodutível
 
@@ -739,7 +743,3 @@ As decisões e pontos de melhoria do projeto estão documentados em **ADRs**:
 - **Swagger não abre**: confirme que a aplicação está rodando e acessível na URL configurada (`launchSettings.json`).
 - **Outbox publisher logando queries repetidas**: comportamento esperado (polling). Ajuste `Outbox:Publisher:PollingIntervalSeconds`.
 
-## Limitações conhecidas
-
-- Implementação de autenticação/autorização via JWT Bearer foi adicionada, porém a política de scopes do Auth.Api ainda é simplificada para a PoC.
-- TODO: detalhar estratégia de readiness (ex.: verificar DB/Kafka) se necessário. Atualmente `/health` é um liveness simples.
