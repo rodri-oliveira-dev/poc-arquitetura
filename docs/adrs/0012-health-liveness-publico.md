@@ -1,4 +1,4 @@
-# ADR-0013: Health endpoint público de liveness (`GET /health`)
+# ADR-0012: Health endpoint público de liveness (`GET /health`)
 
 ## Status
 Substituído (ver ADR-0005 e ADR-0014)

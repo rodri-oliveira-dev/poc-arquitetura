@@ -1,4 +1,4 @@
-# ADR-0010: Stack local via compose (nerdctl) com Kafka e Postgres
+# ADR-0009: Stack local via compose (nerdctl) com Kafka e Postgres
 
 ## Status
 Substituído (ver README.md)

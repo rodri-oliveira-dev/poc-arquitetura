@@ -1,4 +1,4 @@
-# ADR-0011: Não aplicar migrations automaticamente no startup
+# ADR-0010: Não aplicar migrations automaticamente no startup
 
 ## Status
 Substituído (ver README.md)
