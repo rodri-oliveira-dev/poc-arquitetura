@@ -13,6 +13,10 @@ namespace BalanceService.IntegrationTests.Infrastructure;
 
 public sealed class BalanceApiFactory : WebApplicationFactory<Program>
 {
+    private static readonly IServiceProvider InMemoryEfProvider = new ServiceCollection()
+        .AddEntityFrameworkInMemoryDatabase()
+        .BuildServiceProvider();
+
     private readonly string _dbName = $"balance-it-{Guid.NewGuid():N}";
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -32,12 +36,37 @@ public sealed class BalanceApiFactory : WebApplicationFactory<Program>
 
         builder.ConfigureServices(services =>
         {
+            var db = services.SingleOrDefault(d => d.ServiceType == typeof(BalanceDbContext));
+            if (db is not null)
+                services.Remove(db);
+
             var dbDescriptor = services.SingleOrDefault(d => d.ServiceType == typeof(DbContextOptions<BalanceDbContext>));
             if (dbDescriptor is not null)
                 services.Remove(dbDescriptor);
 
+            // BalanceService.Infrastructure registra o provider Npgsql (UseNpgsql). Para usar EF InMemory nos testes,
+            // precisamos remover os serviços do provider Npgsql do container; caso contrário o EF detecta
+            // múltiplos providers registrados (Npgsql + InMemory) e lança InvalidOperationException.
+            var npgsqlProviderDescriptors = services
+                .Where(d =>
+                    (d.ServiceType.Assembly.GetName().Name?.StartsWith("Npgsql.EntityFrameworkCore.PostgreSQL", StringComparison.OrdinalIgnoreCase) ?? false)
+                    || (d.ImplementationType?.Assembly.GetName().Name?.StartsWith("Npgsql.EntityFrameworkCore.PostgreSQL", StringComparison.OrdinalIgnoreCase) ?? false)
+                    || (d.ImplementationInstance?.GetType().Assembly.GetName().Name?.StartsWith("Npgsql.EntityFrameworkCore.PostgreSQL", StringComparison.OrdinalIgnoreCase) ?? false))
+                .ToList();
+
+            foreach (var d in npgsqlProviderDescriptors)
+                services.Remove(d);
+
             // Nome único por factory para reduzir interferência entre testes.
-            services.AddDbContext<BalanceDbContext>(options => options.UseInMemoryDatabase(_dbName));
+            services.AddDbContext<BalanceDbContext>(options =>
+            {
+                options.UseInMemoryDatabase(_dbName);
+
+                // Importante: o container da aplicação possui Npgsql + InMemory no grafo de dependências.
+                // Para o EF não quebrar com "Only a single database provider can be registered",
+                // isolamos os serviços do provider em um service provider interno contendo apenas InMemory.
+                options.UseInternalServiceProvider(InMemoryEfProvider);
+            });
 
             var hostedServices = services.Where(d => d.ServiceType == typeof(IHostedService)).ToList();
             foreach (var d in hostedServices)
