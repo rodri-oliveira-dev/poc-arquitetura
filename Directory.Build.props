@@ -1,0 +1,19 @@
+<Project>
+  <!--
+    Configurações MSBuild compartilhadas por todos os projetos.
+    Mantém os .csproj mais enxutos e consistentes.
+  -->
+
+  <PropertyGroup>
+    <!-- Defaults de linguagem/SDK -->
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- Saída determinística (ajuda em builds de CI) -->
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+
+    <!-- Evita ruído de warning de doc em tipos públicos; docs ficam nos contratos/Swagger/README -->
+    <NoWarn>$(NoWarn);1591</NoWarn>
+  </PropertyGroup>
+</Project>

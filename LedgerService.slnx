@@ -1,0 +1,27 @@
+<Solution>
+  <Folder Name="/src/" />
+  <Folder Name="/src/Auth/">
+    <Project Path="src/Auth.Api/Auth.Api.csproj" />
+  </Folder>
+  <Folder Name="/src/Balance/">
+    <Project Path="src/BalanceService.Api/BalanceService.Api.csproj" />
+    <Project Path="src/BalanceService.Application/BalanceService.Application.csproj" />
+    <Project Path="src/BalanceService.Domain/BalanceService.Domain.csproj" />
+    <Project Path="src/BalanceService.Infrastructure/BalanceService.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/Ledger/">
+    <Project Path="src/LedgerService.Api/LedgerService.Api.csproj" />
+    <Project Path="src/LedgerService.Application/LedgerService.Application.csproj" />
+    <Project Path="src/LedgerService.Domain/LedgerService.Domain.csproj" />
+    <Project Path="src/LedgerService.Infrastructure/LedgerService.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/LedgerService.Tests/LedgerService.Tests.csproj" />
+    <Project Path="tests/LedgerService.UnitTests/LedgerService.UnitTests.csproj" />
+    <Project Path="tests/LedgerService.IntegrationTests/LedgerService.IntegrationTests.csproj" />
+    <Project Path="tests/BalanceService.UnitTests/BalanceService.UnitTests.csproj" />
+    <Project Path="tests/BalanceService.IntegrationTests/BalanceService.IntegrationTests.csproj" />
+    <Project Path="tests/Auth.UnitTests/Auth.UnitTests.csproj" />
+    <Project Path="tests/Auth.IntegrationTests/Auth.IntegrationTests.csproj" />
+  </Folder>
+</Solution>

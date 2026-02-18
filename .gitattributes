@@ -1,0 +1,35 @@
+# Normaliza atributos e reduz diffs "ruidosos" entre Windows/Linux/CI.
+
+# Default: detecta texto automaticamente e normaliza line endings no checkout conforme core.autocrlf,
+# mas fixa LF em arquivos que rodam em containers/CI para evitar churn.
+* text=auto
+
+# Arquivos de código/config .NET - manter LF (mais amigável para Docker/CI)
+*.cs            text eol=lf
+*.csproj        text eol=lf
+*.props         text eol=lf
+*.targets       text eol=lf
+*.sln           text eol=lf
+*.slnx          text eol=lf
+*.json          text eol=lf
+*.yaml          text eol=lf
+*.yml           text eol=lf
+*.md            text eol=lf
+*.http          text eol=lf
+*.editorconfig  text eol=lf
+*.gitignore     text eol=lf
+*.gitattributes text eol=lf
+
+# Scripts
+*.sh            text eol=lf
+*.ps1           text eol=crlf
+*.cmd           text eol=crlf
+*.bat           text eol=crlf
+
+# Binários
+*.png           binary
+*.jpg           binary
+*.jpeg          binary
+*.gif           binary
+*.ico           binary
+*.pdf           binary

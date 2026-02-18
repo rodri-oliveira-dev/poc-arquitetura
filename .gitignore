@@ -23,6 +23,37 @@ bld/
 [Ll]og/
 [Ll]ogs/
 
+# Visual Studio / VS Code
+.vs/
+
+# Test artifacts
+TestResults/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Rider/IntelliJ
+.idea/
+
+# OS / tooling
+Thumbs.db
+Desktop.ini
+
+# Testes
+**/TestResults/
+
+# Coverage
+coverage/
+coverage.*
+
+# Auth.Api (POC) - chave RSA persistida localmente (NÃO versionar)
+# (o caminho real do projeto é src/Auth.Api)
+src/Auth.Api/data/
+
+# Diretório local opcional usado pelo compose para persistir a chave (não versionar)
+data/
+
 # .NET Core
 project.lock.json
 project.fragment.lock.json
@@ -52,3 +83,11 @@ CodeCoverage/
 *.VisualState.xml
 TestResult.xml
 nunit-*.xml
+
+# DotNet tools restore
+.dotnet/
+
+# k6 / load tests
+.env.k6.auto
+artifacts/k6/
+artifacts/k6/*
