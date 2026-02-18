@@ -1,4 +1,4 @@
-# ADR-0012: Padronização do repositório (CPM, Build.props, EditorConfig, Gitattributes)
+# ADR-0011: Padronização do repositório (CPM, Build.props, EditorConfig, Gitattributes)
 
 ## Status
 Substituído (ver README.md)

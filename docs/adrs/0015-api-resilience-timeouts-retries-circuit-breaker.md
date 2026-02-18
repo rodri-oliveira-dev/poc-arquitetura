@@ -1,4 +1,4 @@
-# ADR-0016: (Ponto de melhoria) Resiliência de chamadas externas: timeouts, retries e circuit breaker
+# ADR-0015: (Ponto de melhoria) Resiliência de chamadas externas: timeouts, retries e circuit breaker
 
 ## Status
 Proposto
