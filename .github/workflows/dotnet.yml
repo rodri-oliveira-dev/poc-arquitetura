@@ -1,28 +1,54 @@
-# This workflow will build a .NET project
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-net
-
-name: .NET
+name: dotnet-ci
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build:
-
+  build-test:
     runs-on: ubuntu-latest
 
+    env:
+      BUILD_CONFIGURATION: Release
+      SOLUTION_PATH: ./SuaSolution.sln
+
     steps:
-    - uses: actions/checkout@v4
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: 8.0.x
-    - name: Restore dependencies
-      run: dotnet restore
-    - name: Build
-      run: dotnet build --no-restore
-    - name: Test
-      run: dotnet test --no-build --verbosity normal
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore $SOLUTION_PATH
+
+      - name: Build
+        run: dotnet build $SOLUTION_PATH --configuration $BUILD_CONFIGURATION --no-restore
+
+      - name: Test
+        run: >
+          dotnet test $SOLUTION_PATH
+          --configuration $BUILD_CONFIGURATION
+          --no-build
+          --logger "trx;LogFilePrefix=test-results"
+          --results-directory ./artifacts/test-results
+          --collect:"XPlat Code Coverage"
+
+      - name: Upload test results and coverage
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-and-coverage
+          path: ./artifacts/test-results
+          retention-days: 7
