@@ -5,6 +5,7 @@ on:
     branches: ["main"]
   pull_request:
     branches: ["main"]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -13,22 +14,39 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  CI: true
+  DOTNET_NOLOGO: true
+  BUILD_CONFIGURATION: Release
+  SOLUTION_PATH: ./LedgerService.slnx
+  NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+  TEST_RESULTS_DIR: ./artifacts/test-results
+  COVERAGE_THRESHOLD: "85"
+
 jobs:
   build-test:
     runs-on: ubuntu-latest
-
-    env:
-      BUILD_CONFIGURATION: Release
-      SOLUTION_PATH: ./SuaSolution.sln
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: 8.0.x
+          global-json-file: global.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', 'Directory.Packages.props', 'Directory.Build.props', 'global.json', 'dotnet-tools.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore .NET tools
+        run: dotnet tool restore
 
       - name: Restore dependencies
         run: dotnet restore $SOLUTION_PATH
@@ -36,19 +54,77 @@ jobs:
       - name: Build
         run: dotnet build $SOLUTION_PATH --configuration $BUILD_CONFIGURATION --no-restore
 
-      - name: Test
+      - name: Test with coverage
         run: >
           dotnet test $SOLUTION_PATH
           --configuration $BUILD_CONFIGURATION
           --no-build
           --logger "trx;LogFilePrefix=test-results"
-          --results-directory ./artifacts/test-results
+          --results-directory $TEST_RESULTS_DIR
           --collect:"XPlat Code Coverage"
+          --settings ./coverlet.runsettings
+
+      - name: Generate coverage report
+        if: ${{ always() }}
+        run: >
+          dotnet tool run reportgenerator
+          -reports:"${{ env.TEST_RESULTS_DIR }}/**/coverage.cobertura.xml"
+          -targetdir:"${{ env.TEST_RESULTS_DIR }}/coverage-report"
+          -reporttypes:"HtmlInline;JsonSummary;TextSummary"
+
+      - name: Enforce coverage threshold
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          import sys
+
+          path = "./artifacts/test-results/coverage-report/Summary.json"
+          with open(path, encoding="utf-8") as f:
+              data = json.load(f)
+
+          line = float(data["summary"]["linecoverage"])
+          threshold = float("${{ env.COVERAGE_THRESHOLD }}")
+
+          print(f"Line coverage: {line}%")
+          if line < threshold:
+              print(f"Coverage below threshold ({threshold}%).", file=sys.stderr)
+              sys.exit(1)
+          PY
+
+      - name: Write summary
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          import pathlib
+
+          path = pathlib.Path("./artifacts/test-results/coverage-report/Summary.json")
+          print("## CI summary")
+          print()
+
+          if not path.exists():
+              print("Coverage summary not found.")
+              raise SystemExit(0)
+
+          with path.open(encoding="utf-8") as f:
+              data = json.load(f)["summary"]
+
+          print(f"- Line coverage: {data['linecoverage']}%")
+          print(f"- Branch coverage: {data['branchcoverage']}%")
+          print(f"- Method coverage: {data['methodcoverage']}%")
+          PY
 
       - name: Upload test results and coverage
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: test-results-and-coverage
-          path: ./artifacts/test-results
+          path: |
+            ${{ env.TEST_RESULTS_DIR }}/**/*.trx
+            ${{ env.TEST_RESULTS_DIR }}/**/coverage.cobertura.xml
+            ${{ env.TEST_RESULTS_DIR }}/coverage-report/**
+          if-no-files-found: error
           retention-days: 7
