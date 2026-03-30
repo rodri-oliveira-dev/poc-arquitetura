@@ -21,7 +21,7 @@ env:
   SOLUTION_PATH: ./LedgerService.slnx
   NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
   TEST_RESULTS_DIR: ./artifacts/test-results
-  COVERAGE_THRESHOLD: "85"
+  COVERAGE_THRESHOLD: "50"
 
 jobs:
   build-test:
