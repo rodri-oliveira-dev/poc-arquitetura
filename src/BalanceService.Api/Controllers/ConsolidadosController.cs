@@ -1,15 +1,11 @@
 using System.Diagnostics;
-using System.Globalization;
 
 using Asp.Versioning;
 
 using BalanceService.Api.Contracts;
+using BalanceService.Api.Mappers;
 using BalanceService.Api.Middlewares;
 using BalanceService.Api.Security;
-using BalanceService.Application.Balances.Queries;
-
-using FluentValidation;
-using FluentValidation.Results;
 
 using MediatR;
 
@@ -54,31 +50,14 @@ public sealed class ConsolidadosController : ControllerBase
         [FromHeader(Name = CorrelationIdMiddleware.HeaderName)] string? correlationId,
         CancellationToken cancellationToken)
     {
-        var parsedDate = ParseDateOrThrow(date, nameof(date));
-
-        var query = new GetDailyBalanceQuery(merchantId, parsedDate);
+        var query = BalanceQueryMapper.ToDailyQuery(merchantId, date);
 
         using var activity = ActivitySource.StartActivity("balance.api.daily", ActivityKind.Server);
         activity?.SetTag("balance.merchant_id", merchantId);
-        activity?.SetTag("balance.date", parsedDate.ToString("yyyy-MM-dd"));
+        activity?.SetTag("balance.date", query.Date.ToString("yyyy-MM-dd"));
 
         var result = await _sender.Send(query, cancellationToken);
-
-        // Contract: CalculatedAt deve refletir o momento da resposta.
-        var calculatedAt = DateTimeOffset.UtcNow;
-        var response = new DailyBalanceResponse
-        {
-            MerchantId = result.MerchantId,
-            Date = result.Date.ToString("yyyy-MM-dd"),
-            Currency = result.Currency,
-            TotalCredits = result.TotalCredits.ToString("0.00", CultureInfo.InvariantCulture),
-            TotalDebits = result.TotalDebits.ToString("0.00", CultureInfo.InvariantCulture),
-            NetBalance = result.NetBalance.ToString("0.00", CultureInfo.InvariantCulture),
-            AsOf = result.AsOf == DateTimeOffset.MinValue ? null : result.AsOf.ToString("o"),
-            CalculatedAt = calculatedAt.ToString("o")
-        };
-
-        return Ok(response);
+        return Ok(BalanceResponseMapper.ToResponse(result, DateTimeOffset.UtcNow));
     }
 
     [HttpGet("periodo")]
@@ -102,56 +81,14 @@ public sealed class ConsolidadosController : ControllerBase
         [FromHeader(Name = CorrelationIdMiddleware.HeaderName)] string? correlationId,
         CancellationToken cancellationToken)
     {
-        var parsedFrom = ParseDateOrThrow(from, nameof(from));
-        var parsedTo = ParseDateOrThrow(to, nameof(to));
-
-        var query = new GetPeriodBalanceQuery(merchantId, parsedFrom, parsedTo);
+        var query = BalanceQueryMapper.ToPeriodQuery(merchantId, from, to);
 
         using var activity = ActivitySource.StartActivity("balance.api.period", ActivityKind.Server);
         activity?.SetTag("balance.merchant_id", merchantId);
-        activity?.SetTag("balance.from", parsedFrom.ToString("yyyy-MM-dd"));
-        activity?.SetTag("balance.to", parsedTo.ToString("yyyy-MM-dd"));
+        activity?.SetTag("balance.from", query.From.ToString("yyyy-MM-dd"));
+        activity?.SetTag("balance.to", query.To.ToString("yyyy-MM-dd"));
 
         var result = await _sender.Send(query, cancellationToken);
-
-        // Contract: CalculatedAt deve refletir o momento da resposta.
-        var calculatedAt = DateTimeOffset.UtcNow;
-
-        var items = result.Items
-            .Select(x => new PeriodBalanceItemResponse
-            {
-                Date = x.Date.ToString("yyyy-MM-dd"),
-                TotalCredits = x.TotalCredits.ToString("0.00", CultureInfo.InvariantCulture),
-                TotalDebits = x.TotalDebits.ToString("0.00", CultureInfo.InvariantCulture),
-                NetBalance = x.NetBalance.ToString("0.00", CultureInfo.InvariantCulture),
-                AsOf = x.AsOf == DateTimeOffset.MinValue ? null : x.AsOf.ToString("o")
-            })
-            .ToList();
-
-        var response = new PeriodBalanceResponse
-        {
-            MerchantId = result.MerchantId,
-            From = result.From.ToString("yyyy-MM-dd"),
-            To = result.To.ToString("yyyy-MM-dd"),
-            Currency = result.Currency,
-            TotalCredits = result.TotalCredits.ToString("0.00", CultureInfo.InvariantCulture),
-            TotalDebits = result.TotalDebits.ToString("0.00", CultureInfo.InvariantCulture),
-            NetBalance = result.NetBalance.ToString("0.00", CultureInfo.InvariantCulture),
-            Items = items,
-            CalculatedAt = calculatedAt.ToString("o")
-        };
-
-        return Ok(response);
-    }
-
-    private static DateOnly ParseDateOrThrow(string rawValue, string parameterName)
-    {
-        if (DateOnly.TryParseExact(rawValue, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedDate))
-            return parsedDate;
-
-        throw new ValidationException(new[]
-        {
-            new ValidationFailure(parameterName, $"{parameterName} must be in format YYYY-MM-DD.")
-        });
+        return Ok(BalanceResponseMapper.ToResponse(result, DateTimeOffset.UtcNow));
     }
 }
