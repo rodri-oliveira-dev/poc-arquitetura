@@ -1,6 +1,7 @@
 using BalanceService.Application.Balances.Commands;
 using BalanceService.Domain.Balances;
 using Confluent.Kafka;
+using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -144,9 +145,9 @@ public sealed class LedgerEventsConsumer : BackgroundService
     {
         // escopo por mensagem para evitar concorrência no DbContext
         using var scope = _serviceProvider.CreateScope();
-        var handler = scope.ServiceProvider.GetRequiredService<ApplyLedgerEntryCreatedHandler>();
+        var sender = scope.ServiceProvider.GetRequiredService<ISender>();
 
-        await handler.HandleAsync(new ApplyLedgerEntryCreatedCommand(evt), ct);
+        await sender.Send(new ApplyLedgerEntryCreatedCommand(evt), ct);
     }
 
     private static void ValidateOptions(KafkaConsumerOptions options)

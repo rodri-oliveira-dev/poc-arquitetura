@@ -27,7 +27,7 @@ public sealed class PeriodBalanceServiceTests
 
         var sut = new PeriodBalanceService(readRepo.Object, clock.Object, logger.Object);
 
-        var result = await sut.GetPeriodAsync(query, CancellationToken.None);
+        var result = await sut.GetPeriodAsync(query.MerchantId, query.From, query.To, CancellationToken.None);
 
         result.MerchantId.Should().Be("m1");
         result.TotalCredits.Should().Be(0m);
@@ -64,7 +64,7 @@ public sealed class PeriodBalanceServiceTests
 
         var sut = new PeriodBalanceService(readRepo.Object, clock.Object, logger.Object);
 
-        var result = await sut.GetPeriodAsync(query, CancellationToken.None);
+        var result = await sut.GetPeriodAsync(query.MerchantId, query.From, query.To, CancellationToken.None);
 
         result.TotalCredits.Should().Be(10m);
         result.TotalDebits.Should().Be(3m);

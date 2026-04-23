@@ -33,7 +33,7 @@ public sealed class ApplyLedgerEntryCreatedHandlerTests
 
         var sut = new ApplyLedgerEntryCreatedHandler(dailyRepo.Object, processedRepo.Object, uow.Object, clock.Object, logger.Object);
 
-        await sut.HandleAsync(new ApplyLedgerEntryCreatedCommand(evt), CancellationToken.None);
+        await sut.Handle(new ApplyLedgerEntryCreatedCommand(evt), CancellationToken.None);
 
         // Não chama repo/SaveChanges quando já processado.
         dailyRepo.VerifyNoOtherCalls();
@@ -71,7 +71,7 @@ public sealed class ApplyLedgerEntryCreatedHandlerTests
 
         var sut = new ApplyLedgerEntryCreatedHandler(dailyRepo.Object, processedRepo.Object, uow.Object, clock.Object, logger.Object);
 
-        await sut.HandleAsync(new ApplyLedgerEntryCreatedCommand(evt), CancellationToken.None);
+        await sut.Handle(new ApplyLedgerEntryCreatedCommand(evt), CancellationToken.None);
 
         created.Should().NotBeNull();
         created!.MerchantId.Should().Be(evt.MerchantId);

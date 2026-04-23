@@ -19,6 +19,7 @@
     <PackageVersion Include="FluentValidation" Version="11.11.0" />
     <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="11.11.0" />
     <PackageVersion Include="FluentValidation.AspNetCore" Version="11.3.0" />
+    <PackageVersion Include="MediatR" Version="14.0.0" />
 
     <!-- Observability -->
     <PackageVersion Include="OpenTelemetry" Version="1.10.0" />

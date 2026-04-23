@@ -1,14 +1,18 @@
 using BalanceService.Application.Abstractions.Persistence;
 using BalanceService.Application.Abstractions.Time;
 using BalanceService.Domain.Balances;
+
+using MediatR;
+
 using Microsoft.Extensions.Logging;
+
 using System.Diagnostics;
 
 namespace BalanceService.Application.Balances.Commands;
 
-public sealed class ApplyLedgerEntryCreatedHandler
+public sealed class ApplyLedgerEntryCreatedHandler : IRequestHandler<ApplyLedgerEntryCreatedCommand>
 {
-    private static readonly ActivitySource ActivitySource = new("BalanceService.Application");
+    private static readonly ActivitySource _activitySource = new("BalanceService.Application");
 
     // TODO: confirmar a origem/contrato de currency no evento. No payload atual não há currency.
     // Para não bloquear o processamento da POC, usamos um default conservador.
@@ -34,7 +38,7 @@ public sealed class ApplyLedgerEntryCreatedHandler
         _logger = logger;
     }
 
-    public async Task HandleAsync(ApplyLedgerEntryCreatedCommand command, CancellationToken cancellationToken)
+    public async Task Handle(ApplyLedgerEntryCreatedCommand command, CancellationToken cancellationToken)
     {
         var evt = command.Event;
 
@@ -64,7 +68,7 @@ public sealed class ApplyLedgerEntryCreatedHandler
             ["Currency"] = currency
         });
 
-        using var activity = ActivitySource.StartActivity("balance.apply", ActivityKind.Internal);
+        using var activity = _activitySource.StartActivity("balance.apply", ActivityKind.Internal);
         activity?.SetTag("messaging.system", "kafka");
         activity?.SetTag("balance.event_id", evt.Id);
         activity?.SetTag("balance.merchant_id", evt.MerchantId);

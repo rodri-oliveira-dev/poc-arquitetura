@@ -1,6 +1,5 @@
 using BalanceService.Application.Abstractions.Persistence;
 using BalanceService.Application.Abstractions.Time;
-using BalanceService.Application.Balances.Queries;
 using BalanceService.Application.Balances.Queries.Models;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
@@ -28,21 +27,21 @@ public sealed class PeriodBalanceService : IPeriodBalanceService
         _logger = logger;
     }
 
-    public async Task<PeriodBalanceReadModel> GetPeriodAsync(GetPeriodBalanceQuery query, CancellationToken cancellationToken)
+    public async Task<PeriodBalanceReadModel> GetPeriodAsync(string merchantId, DateOnly from, DateOnly to, CancellationToken cancellationToken)
     {
         using var logScope = _logger.BeginScope(new Dictionary<string, object?>
         {
-            ["MerchantId"] = query.MerchantId,
-            ["From"] = query.From.ToString("yyyy-MM-dd"),
-            ["To"] = query.To.ToString("yyyy-MM-dd")
+            ["MerchantId"] = merchantId,
+            ["From"] = from.ToString("yyyy-MM-dd"),
+            ["To"] = to.ToString("yyyy-MM-dd")
         });
 
         using var activity = ActivitySource.StartActivity("balance.query.period", ActivityKind.Internal);
-        activity?.SetTag("balance.merchant_id", query.MerchantId);
-        activity?.SetTag("balance.from", query.From.ToString("yyyy-MM-dd"));
-        activity?.SetTag("balance.to", query.To.ToString("yyyy-MM-dd"));
+        activity?.SetTag("balance.merchant_id", merchantId);
+        activity?.SetTag("balance.from", from.ToString("yyyy-MM-dd"));
+        activity?.SetTag("balance.to", to.ToString("yyyy-MM-dd"));
 
-        var items = await _readRepository.ListByPeriodAsync(query.MerchantId, query.From, query.To, cancellationToken);
+        var items = await _readRepository.ListByPeriodAsync(merchantId, from, to, cancellationToken);
 
         var totalCredits = items.Sum(x => x.TotalCredits);
         var totalDebits = items.Sum(x => x.TotalDebits);
@@ -53,9 +52,9 @@ public sealed class PeriodBalanceService : IPeriodBalanceService
         var currency = items.FirstOrDefault()?.Currency ?? DefaultCurrency;
 
         return new PeriodBalanceReadModel(
-            MerchantId: query.MerchantId,
-            From: query.From,
-            To: query.To,
+            MerchantId: merchantId,
+            From: from,
+            To: to,
             Currency: currency,
             TotalCredits: totalCredits,
             TotalDebits: totalDebits,

@@ -1,4 +1,3 @@
-using BalanceService.Application.Balances.Queries;
 using BalanceService.Application.Balances.Queries.Models;
 
 namespace BalanceService.Application.Balances.Services;
@@ -8,5 +7,5 @@ namespace BalanceService.Application.Balances.Services;
 /// </summary>
 public interface IDailyBalanceService
 {
-    Task<DailyBalanceReadModel> GetDailyAsync(GetDailyBalanceQuery query, CancellationToken cancellationToken);
+    Task<DailyBalanceReadModel> GetDailyAsync(string merchantId, DateOnly date, CancellationToken cancellationToken);
 }

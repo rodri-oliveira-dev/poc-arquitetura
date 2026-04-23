@@ -1,6 +1,5 @@
 using BalanceService.Application.Abstractions.Persistence;
 using BalanceService.Application.Abstractions.Time;
-using BalanceService.Application.Balances.Queries;
 using BalanceService.Application.Balances.Queries.Models;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
@@ -28,27 +27,27 @@ public sealed class DailyBalanceService : IDailyBalanceService
         _logger = logger;
     }
 
-    public async Task<DailyBalanceReadModel> GetDailyAsync(GetDailyBalanceQuery query, CancellationToken cancellationToken)
+    public async Task<DailyBalanceReadModel> GetDailyAsync(string merchantId, DateOnly date, CancellationToken cancellationToken)
     {
         using var logScope = _logger.BeginScope(new Dictionary<string, object?>
         {
-            ["MerchantId"] = query.MerchantId,
-            ["Date"] = query.Date.ToString("yyyy-MM-dd")
+            ["MerchantId"] = merchantId,
+            ["Date"] = date.ToString("yyyy-MM-dd")
         });
 
         using var activity = ActivitySource.StartActivity("balance.query.daily", ActivityKind.Internal);
-        activity?.SetTag("balance.merchant_id", query.MerchantId);
-        activity?.SetTag("balance.date", query.Date.ToString("yyyy-MM-dd"));
+        activity?.SetTag("balance.merchant_id", merchantId);
+        activity?.SetTag("balance.date", date.ToString("yyyy-MM-dd"));
 
-        var found = await _readRepository.GetDailyAsync(query.MerchantId, query.Date, cancellationToken);
+        var found = await _readRepository.GetDailyAsync(merchantId, date, cancellationToken);
         if (found is not null)
             return found;
 
         // Padrão escolhido: retornar 200 com zeros quando não houver dados.
         // Isso melhora a UX para consultas.
         return new DailyBalanceReadModel(
-            MerchantId: query.MerchantId,
-            Date: query.Date,
+            MerchantId: merchantId,
+            Date: date,
             Currency: DefaultCurrency,
             TotalCredits: 0m,
             TotalDebits: 0m,

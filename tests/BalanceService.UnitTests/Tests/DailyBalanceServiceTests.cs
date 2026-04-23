@@ -34,7 +34,7 @@ public sealed class DailyBalanceServiceTests
 
         var sut = new DailyBalanceService(repo.Object, clock.Object, NullLogger<DailyBalanceService>.Instance);
 
-        var result = await sut.GetDailyAsync(query, CancellationToken.None);
+        var result = await sut.GetDailyAsync(query.MerchantId, query.Date, CancellationToken.None);
 
         result.Should().Be(found);
         clock.VerifyNoOtherCalls();
@@ -57,7 +57,7 @@ public sealed class DailyBalanceServiceTests
 
         var sut = new DailyBalanceService(repo.Object, clock.Object, NullLogger<DailyBalanceService>.Instance);
 
-        var result = await sut.GetDailyAsync(query, CancellationToken.None);
+        var result = await sut.GetDailyAsync(query.MerchantId, query.Date, CancellationToken.None);
 
         result.MerchantId.Should().Be("m1");
         result.Date.Should().Be(query.Date);

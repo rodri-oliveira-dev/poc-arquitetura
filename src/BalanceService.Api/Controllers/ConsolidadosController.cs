@@ -7,9 +7,7 @@ using BalanceService.Api.Contracts;
 using BalanceService.Api.Middlewares;
 using BalanceService.Api.Security;
 using BalanceService.Application.Balances.Queries;
-using BalanceService.Application.Balances.Services;
-
-using FluentValidation;
+using MediatR;
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -26,23 +24,14 @@ public sealed class ConsolidadosController : ControllerBase
 {
     private static readonly ActivitySource ActivitySource = new("BalanceService.Api");
 
-    private readonly IDailyBalanceService _dailyBalanceService;
-    private readonly IPeriodBalanceService _periodBalanceService;
-    private readonly IValidator<GetDailyBalanceQuery> _dailyValidator;
-    private readonly IValidator<GetPeriodBalanceQuery> _periodValidator;
+    private readonly ISender _sender;
     private readonly ILogger<ConsolidadosController> _logger;
 
     public ConsolidadosController(
-        IDailyBalanceService dailyBalanceService,
-        IPeriodBalanceService periodBalanceService,
-        IValidator<GetDailyBalanceQuery> dailyValidator,
-        IValidator<GetPeriodBalanceQuery> periodValidator,
+        ISender sender,
         ILogger<ConsolidadosController> logger)
     {
-        _dailyBalanceService = dailyBalanceService;
-        _periodBalanceService = periodBalanceService;
-        _dailyValidator = dailyValidator;
-        _periodValidator = periodValidator;
+        _sender = sender;
         _logger = logger;
     }
 
@@ -92,10 +81,9 @@ public sealed class ConsolidadosController : ControllerBase
         CancellationToken cancellationToken)
     {
         if (!DateOnly.TryParseExact(date, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedDate))
-            throw new ValidationException("date must be in format YYYY-MM-DD.");
+            throw new FluentValidation.ValidationException("date must be in format YYYY-MM-DD.");
 
         var query = new GetDailyBalanceQuery(merchantId, parsedDate);
-        await _dailyValidator.ValidateAndThrowAsync(query, cancellationToken);
 
         using var logScope = _logger.BeginScope(new Dictionary<string, object?>
         {
@@ -108,7 +96,7 @@ public sealed class ConsolidadosController : ControllerBase
         activity?.SetTag("balance.merchant_id", merchantId);
         activity?.SetTag("balance.date", parsedDate.ToString("yyyy-MM-dd"));
 
-        var result = await _dailyBalanceService.GetDailyAsync(query, cancellationToken);
+        var result = await _sender.Send(query, cancellationToken);
 
         // Contract: CalculatedAt deve refletir o momento da resposta.
         var calculatedAt = DateTimeOffset.UtcNow;
@@ -179,13 +167,12 @@ public sealed class ConsolidadosController : ControllerBase
         CancellationToken cancellationToken)
     {
         if (!DateOnly.TryParseExact(from, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedFrom))
-            throw new ValidationException("from must be in format YYYY-MM-DD.");
+            throw new FluentValidation.ValidationException("from must be in format YYYY-MM-DD.");
 
         if (!DateOnly.TryParseExact(to, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedTo))
-            throw new ValidationException("to must be in format YYYY-MM-DD.");
+            throw new FluentValidation.ValidationException("to must be in format YYYY-MM-DD.");
 
         var query = new GetPeriodBalanceQuery(merchantId, parsedFrom, parsedTo);
-        await _periodValidator.ValidateAndThrowAsync(query, cancellationToken);
 
         using var logScope = _logger.BeginScope(new Dictionary<string, object?>
         {
@@ -200,7 +187,7 @@ public sealed class ConsolidadosController : ControllerBase
         activity?.SetTag("balance.from", parsedFrom.ToString("yyyy-MM-dd"));
         activity?.SetTag("balance.to", parsedTo.ToString("yyyy-MM-dd"));
 
-        var result = await _periodBalanceService.GetPeriodAsync(query, cancellationToken);
+        var result = await _sender.Send(query, cancellationToken);
 
         // Contract: CalculatedAt deve refletir o momento da resposta.
         var calculatedAt = DateTimeOffset.UtcNow;
