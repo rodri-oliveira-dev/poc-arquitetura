@@ -1,7 +1,6 @@
 using BalanceService.Application.Abstractions.Persistence;
 using BalanceService.Application.Abstractions.Time;
 using BalanceService.Application.Balances.Queries.Models;
-using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 
 namespace BalanceService.Application.Balances.Services;
@@ -15,27 +14,17 @@ public sealed class PeriodBalanceService : IPeriodBalanceService
 
     private readonly IDailyBalanceReadRepository _readRepository;
     private readonly IClock _clock;
-    private readonly ILogger<PeriodBalanceService> _logger;
 
     public PeriodBalanceService(
         IDailyBalanceReadRepository readRepository,
-        IClock clock,
-        ILogger<PeriodBalanceService> logger)
+        IClock clock)
     {
         _readRepository = readRepository;
         _clock = clock;
-        _logger = logger;
     }
 
     public async Task<PeriodBalanceReadModel> GetPeriodAsync(string merchantId, DateOnly from, DateOnly to, CancellationToken cancellationToken)
     {
-        using var logScope = _logger.BeginScope(new Dictionary<string, object?>
-        {
-            ["MerchantId"] = merchantId,
-            ["From"] = from.ToString("yyyy-MM-dd"),
-            ["To"] = to.ToString("yyyy-MM-dd")
-        });
-
         using var activity = ActivitySource.StartActivity("balance.query.period", ActivityKind.Internal);
         activity?.SetTag("balance.merchant_id", merchantId);
         activity?.SetTag("balance.from", from.ToString("yyyy-MM-dd"));

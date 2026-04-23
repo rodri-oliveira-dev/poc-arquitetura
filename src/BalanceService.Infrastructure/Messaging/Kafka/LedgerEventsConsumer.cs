@@ -106,7 +106,7 @@ public sealed class LedgerEventsConsumer : BackgroundService
                 await ProcessMessageAsync(evt, stoppingToken);
 
                 consumer.Commit(result);
-                _logger.LogInformation("Mensagem processada e offset commitado");
+                _logger.LogDebug("Mensagem processada e offset commitado");
             }
             catch (ConsumeException ex)
             {

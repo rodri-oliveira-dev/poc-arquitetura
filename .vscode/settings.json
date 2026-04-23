@@ -1,41 +1,44 @@
 {
-  // ---------------------------------------------------------------------------
-  // Performance / qualidade de vida
-  // ---------------------------------------------------------------------------
-  "files.exclude": {
-    "**/bin": true,
-    "**/obj": true,
-    "**/.vs": true
-  },
-  "search.exclude": {
-    "**/bin": true,
-    "**/obj": true,
-    "**/.vs": true
-  },
-
-  // ---------------------------------------------------------------------------
-  // .NET / C# (recomendado para .NET 10)
-  // ---------------------------------------------------------------------------
   "dotnet.defaultSolution": "LedgerService.slnx",
-
-  // O C# Dev Kit normalmente usa o servidor Roslyn (não OmniSharp)
   "dotnet.server.useOmnisharp": false,
-
-  // ---------------------------------------------------------------------------
-  // Editor
-  // ---------------------------------------------------------------------------
   "editor.formatOnSave": true,
   "editor.codeActionsOnSave": {
     "source.organizeImports": "explicit"
   },
-
   "files.associations": {
     "*.slnx": "xml"
   },
-
-  // ---------------------------------------------------------------------------
-  // Markdown / Mermaid
-  // ---------------------------------------------------------------------------
+  "files.exclude": {
+    "**/bin": true,
+    "**/obj": true,
+    "**/.vs": true,
+    "**/.git": true,
+    "**/TestResults": true,
+    "**/artifacts/test-results": true,
+    "**/artifacts/k6": true,
+    "**/coverage-report": true
+  },
+  "search.exclude": {
+    "**/bin": true,
+    "**/obj": true,
+    "**/.vs": true,
+    "**/.git": true,
+    "**/TestResults": true,
+    "**/artifacts/test-results": true,
+    "**/artifacts/k6": true,
+    "**/coverage-report": true
+  },
+  "files.watcherExclude": {
+    "**/bin/**": true,
+    "**/obj/**": true,
+    "**/.vs/**": true,
+    "**/TestResults/**": true,
+    "**/artifacts/test-results/**": true,
+    "**/artifacts/k6/**": true,
+    "**/coverage-report/**": true
+  },
+  "search.useIgnoreFiles": true,
+  "search.useGlobalIgnoreFiles": true,
   "markdown.preview.mermaid": true,
   "markdown.preview.experimental.useMermaid": true
 }

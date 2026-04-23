@@ -76,7 +76,7 @@ public sealed class OutboxKafkaProducer : IOutboxEventProducer, IDisposable
 
         var result = await _producer.ProduceAsync(topic, kafkaMessage, cancellationToken);
 
-        _logger.LogInformation(
+        _logger.LogDebug(
             "Kafka published outbox message {OutboxId} to {Topic} [partition={Partition}, offset={Offset}]",
             message.Id,
             topic,

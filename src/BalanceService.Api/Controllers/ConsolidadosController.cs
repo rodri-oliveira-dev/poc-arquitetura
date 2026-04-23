@@ -7,6 +7,8 @@ using BalanceService.Api.Contracts;
 using BalanceService.Api.Middlewares;
 using BalanceService.Api.Security;
 using BalanceService.Application.Balances.Queries;
+using FluentValidation;
+using FluentValidation.Results;
 using MediatR;
 
 using Microsoft.AspNetCore.Authorization;
@@ -25,14 +27,11 @@ public sealed class ConsolidadosController : ControllerBase
     private static readonly ActivitySource ActivitySource = new("BalanceService.Api");
 
     private readonly ISender _sender;
-    private readonly ILogger<ConsolidadosController> _logger;
 
     public ConsolidadosController(
-        ISender sender,
-        ILogger<ConsolidadosController> logger)
+        ISender sender)
     {
         _sender = sender;
-        _logger = logger;
     }
 
     /// <summary>
@@ -80,17 +79,9 @@ public sealed class ConsolidadosController : ControllerBase
         [FromHeader(Name = CorrelationIdMiddleware.HeaderName)] string? correlationId,
         CancellationToken cancellationToken)
     {
-        if (!DateOnly.TryParseExact(date, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedDate))
-            throw new FluentValidation.ValidationException("date must be in format YYYY-MM-DD.");
+        var parsedDate = ParseDateOrThrow(date, nameof(date));
 
         var query = new GetDailyBalanceQuery(merchantId, parsedDate);
-
-        using var logScope = _logger.BeginScope(new Dictionary<string, object?>
-        {
-            ["MerchantId"] = merchantId,
-            ["Date"] = parsedDate.ToString("yyyy-MM-dd"),
-            ["CorrelationId"] = HttpContext.Request.Headers[CorrelationIdMiddleware.HeaderName].ToString()
-        });
 
         using var activity = ActivitySource.StartActivity("balance.api.daily", ActivityKind.Server);
         activity?.SetTag("balance.merchant_id", merchantId);
@@ -166,21 +157,10 @@ public sealed class ConsolidadosController : ControllerBase
         [FromHeader(Name = CorrelationIdMiddleware.HeaderName)] string? correlationId,
         CancellationToken cancellationToken)
     {
-        if (!DateOnly.TryParseExact(from, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedFrom))
-            throw new FluentValidation.ValidationException("from must be in format YYYY-MM-DD.");
-
-        if (!DateOnly.TryParseExact(to, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedTo))
-            throw new FluentValidation.ValidationException("to must be in format YYYY-MM-DD.");
+        var parsedFrom = ParseDateOrThrow(from, nameof(from));
+        var parsedTo = ParseDateOrThrow(to, nameof(to));
 
         var query = new GetPeriodBalanceQuery(merchantId, parsedFrom, parsedTo);
-
-        using var logScope = _logger.BeginScope(new Dictionary<string, object?>
-        {
-            ["MerchantId"] = merchantId,
-            ["From"] = parsedFrom.ToString("yyyy-MM-dd"),
-            ["To"] = parsedTo.ToString("yyyy-MM-dd"),
-            ["CorrelationId"] = HttpContext.Request.Headers[CorrelationIdMiddleware.HeaderName].ToString()
-        });
 
         using var activity = ActivitySource.StartActivity("balance.api.period", ActivityKind.Server);
         activity?.SetTag("balance.merchant_id", merchantId);
@@ -217,5 +197,16 @@ public sealed class ConsolidadosController : ControllerBase
         };
 
         return Ok(response);
+    }
+
+    private static DateOnly ParseDateOrThrow(string rawValue, string parameterName)
+    {
+        if (DateOnly.TryParseExact(rawValue, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedDate))
+            return parsedDate;
+
+        throw new ValidationException(new[]
+        {
+            new ValidationFailure(parameterName, $"{parameterName} must be in format YYYY-MM-DD.")
+        });
     }
 }

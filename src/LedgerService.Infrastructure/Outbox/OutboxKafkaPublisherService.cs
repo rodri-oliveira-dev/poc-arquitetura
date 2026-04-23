@@ -91,7 +91,7 @@ public sealed class OutboxKafkaPublisherService : BackgroundService
         // Confirma o claim
         await uow.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation(
+        _logger.LogDebug(
             "Claimed {Count} outbox messages (owner={LockOwner}, parallelism={Parallelism})",
             claimed.Count,
             _lockOwner,
@@ -178,7 +178,7 @@ public sealed class OutboxKafkaPublisherService : BackgroundService
             await repo.MarkSentAsync(message.Id, DateTime.Now, ct);
             await uow.SaveChangesAsync(ct);
 
-            _logger.LogInformation("Outbox message marked as SENT");
+            _logger.LogDebug("Outbox message marked as SENT");
         }
         catch (Exception ex)
         {

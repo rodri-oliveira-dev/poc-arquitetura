@@ -18,7 +18,7 @@ public sealed class GlobalExceptionHandler : IExceptionHandler
 
     public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
     {
-        _logger.LogError(exception, "Erro não tratado. TraceId: {TraceId}", httpContext.TraceIdentifier);
+        LogHandledException(exception, httpContext.TraceIdentifier);
 
         var (statusCode, title, detail) = MapException(exception);
 
@@ -56,6 +56,17 @@ public sealed class GlobalExceptionHandler : IExceptionHandler
         await httpContext.Response.WriteAsJsonAsync(problemDetails, cancellationToken);
 
         return true;
+    }
+
+    private void LogHandledException(Exception exception, string traceId)
+    {
+        if (exception is ValidationException or ConflictException or NotFoundException or DomainException)
+        {
+            _logger.LogWarning(exception, "Exceção tratada. TraceId: {TraceId}", traceId);
+            return;
+        }
+
+        _logger.LogError(exception, "Erro não tratado. TraceId: {TraceId}", traceId);
     }
 
     private static (int statusCode, string title, string detail) MapException(Exception exception)

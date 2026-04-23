@@ -4,7 +4,6 @@ using BalanceService.Application.Balances.Queries;
 using BalanceService.Application.Balances.Queries.Models;
 using BalanceService.Application.Balances.Services;
 using FluentAssertions;
-using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
 namespace BalanceService.UnitTests.Tests;
@@ -32,7 +31,7 @@ public sealed class DailyBalanceServiceTests
         repo.Setup(x => x.GetDailyAsync(query.MerchantId, query.Date, It.IsAny<CancellationToken>()))
             .ReturnsAsync(found);
 
-        var sut = new DailyBalanceService(repo.Object, clock.Object, NullLogger<DailyBalanceService>.Instance);
+        var sut = new DailyBalanceService(repo.Object, clock.Object);
 
         var result = await sut.GetDailyAsync(query.MerchantId, query.Date, CancellationToken.None);
 
@@ -55,7 +54,7 @@ public sealed class DailyBalanceServiceTests
         var now = DateTimeOffset.Parse("2026-02-10T12:00:00Z");
         clock.SetupGet(x => x.UtcNow).Returns(now);
 
-        var sut = new DailyBalanceService(repo.Object, clock.Object, NullLogger<DailyBalanceService>.Instance);
+        var sut = new DailyBalanceService(repo.Object, clock.Object);
 
         var result = await sut.GetDailyAsync(query.MerchantId, query.Date, CancellationToken.None);
 

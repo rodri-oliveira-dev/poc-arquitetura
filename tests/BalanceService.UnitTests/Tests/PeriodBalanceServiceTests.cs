@@ -4,7 +4,6 @@ using BalanceService.Application.Balances.Queries;
 using BalanceService.Application.Balances.Queries.Models;
 using BalanceService.Application.Balances.Services;
 using FluentAssertions;
-using Microsoft.Extensions.Logging;
 using Moq;
 
 namespace BalanceService.UnitTests.Tests;
@@ -16,7 +15,6 @@ public sealed class PeriodBalanceServiceTests
     {
         var readRepo = new Mock<IDailyBalanceReadRepository>(MockBehavior.Strict);
         var clock = new Mock<IClock>(MockBehavior.Strict);
-        var logger = new Mock<ILogger<PeriodBalanceService>>();
 
         var now = DateTimeOffset.Parse("2026-02-16T03:00:00Z");
         clock.SetupGet(x => x.UtcNow).Returns(now);
@@ -25,7 +23,7 @@ public sealed class PeriodBalanceServiceTests
         readRepo.Setup(x => x.ListByPeriodAsync(query.MerchantId, query.From, query.To, It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<DailyBalanceReadModel>());
 
-        var sut = new PeriodBalanceService(readRepo.Object, clock.Object, logger.Object);
+        var sut = new PeriodBalanceService(readRepo.Object, clock.Object);
 
         var result = await sut.GetPeriodAsync(query.MerchantId, query.From, query.To, CancellationToken.None);
 
@@ -46,7 +44,6 @@ public sealed class PeriodBalanceServiceTests
     {
         var readRepo = new Mock<IDailyBalanceReadRepository>(MockBehavior.Strict);
         var clock = new Mock<IClock>(MockBehavior.Strict);
-        var logger = new Mock<ILogger<PeriodBalanceService>>();
 
         var now = DateTimeOffset.Parse("2026-02-16T03:00:00Z");
         clock.SetupGet(x => x.UtcNow).Returns(now);
@@ -62,7 +59,7 @@ public sealed class PeriodBalanceServiceTests
         readRepo.Setup(x => x.ListByPeriodAsync(query.MerchantId, query.From, query.To, It.IsAny<CancellationToken>()))
             .ReturnsAsync(items);
 
-        var sut = new PeriodBalanceService(readRepo.Object, clock.Object, logger.Object);
+        var sut = new PeriodBalanceService(readRepo.Object, clock.Object);
 
         var result = await sut.GetPeriodAsync(query.MerchantId, query.From, query.To, CancellationToken.None);
 

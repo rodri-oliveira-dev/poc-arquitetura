@@ -85,7 +85,7 @@ public sealed class ApplyLedgerEntryCreatedHandler : IRequestHandler<ApplyLedger
 
         if (!inserted)
         {
-            _logger.LogInformation("Evento já processado (idempotência). Nenhuma alteração aplicada.");
+            _logger.LogDebug("Evento já processado (idempotência). Nenhuma alteração aplicada.");
             await transaction.CommitAsync(cancellationToken);
             return;
         }
@@ -107,7 +107,7 @@ public sealed class ApplyLedgerEntryCreatedHandler : IRequestHandler<ApplyLedger
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
-        _logger.LogInformation(
+        _logger.LogDebug(
             "Saldo diário consolidado atualizado (credits={TotalCredits}, debits={TotalDebits}, net={Net})",
             dailyBalance.TotalCredits,
             dailyBalance.TotalDebits,

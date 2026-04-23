@@ -63,22 +63,14 @@ public sealed class CreateLancamentoInputValidatorTests
     }
 
     [Fact]
-    public void Should_be_invalid_when_idempotency_key_is_not_guid()
+    public void Should_ignore_transport_headers_in_request_validator()
     {
-        var input = LancamentoFixture.ValidInput(idempotencyKey: "not-a-guid");
+        var input = LancamentoFixture.ValidInput(
+            idempotencyKey: "not-a-guid",
+            correlationId: "not-a-guid");
+
         var result = _validator.Validate(input);
 
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == nameof(CreateLancamentoInput.IdempotencyKey));
-    }
-
-    [Fact]
-    public void Should_be_invalid_when_correlation_id_is_not_guid()
-    {
-        var input = LancamentoFixture.ValidInput(correlationId: "not-a-guid");
-        var result = _validator.Validate(input);
-
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == nameof(CreateLancamentoInput.CorrelationId));
+        result.IsValid.Should().BeTrue();
     }
 }

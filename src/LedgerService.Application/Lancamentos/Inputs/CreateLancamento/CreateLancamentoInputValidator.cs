@@ -1,5 +1,6 @@
 using FluentValidation;
 using System.Globalization;
+
 namespace LedgerService.Application.Lancamentos.Inputs.CreateLancamento;
 
 public sealed class CreateLancamentoInputValidator : AbstractValidator<CreateLancamentoInput>
@@ -27,15 +28,6 @@ public sealed class CreateLancamentoInputValidator : AbstractValidator<CreateLan
         RuleFor(x => x.ExternalReference)
             .MaximumLength(150);
 
-        RuleFor(x => x.IdempotencyKey)
-            .NotEmpty()
-            .Must(BeValidGuid)
-            .WithMessage("Idempotency-Key must be a valid UUID.");
-
-        RuleFor(x => x.CorrelationId)
-            .NotEmpty()
-            .Must(BeValidGuid)
-            .WithMessage("X-Correlation-Id must be a valid UUID.");
     }
 
     private static bool BeValidAmountForType(string type, string amount)
@@ -55,9 +47,4 @@ public sealed class CreateLancamentoInputValidator : AbstractValidator<CreateLan
         };
     }
 
-    private static bool BeValidDateTime(string occurredAt)
-        => DateTime.TryParse(occurredAt, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out _);
-
-    private static bool BeValidGuid(string value)
-        => Guid.TryParse(value, out _);
 }
