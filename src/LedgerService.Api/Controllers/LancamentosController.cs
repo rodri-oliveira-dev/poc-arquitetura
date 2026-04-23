@@ -7,12 +7,10 @@ using LedgerService.Application.Common.Models;
 using LedgerService.Application.Lancamentos.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Swashbuckle.AspNetCore.Annotations;
 
 namespace LedgerService.Api.Controllers;
 
-/// <summary>
-/// Endpoints para criação de lançamentos no ledger.
-/// </summary>
 [ApiController]
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/lancamentos")]
@@ -25,29 +23,23 @@ public sealed class LancamentosController : ControllerBase
         _createLancamentoService = createLancamentoService;
     }
 
-    /// <summary>
-    /// Cria um lançamento (CREDIT ou DEBIT) com idempotência e correlação.
-    /// </summary>
-    /// <remarks>
-    /// Regras (comprovadas no código):
-    /// - <b>Idempotência</b>: o header <c>Idempotency-Key</c> deve ser um UUID.
-    ///   - Se a mesma chave for usada com payload diferente, retorna 409 (Conflict).
-    ///   - Se existir resposta armazenada para a mesma chave/payload, a API pode retornar replay da resposta.
-    /// - <b>CorrelationId</b>: o header <c>X-Correlation-Id</c> é opcional; se ausente, a API gera um UUID e o retorna no response.
-    /// - <b>Rate limit</b>: o endpoint está sujeito a rate limiting (HTTP 429).
-    /// </remarks>
     [HttpPost]
     [Authorize(Policy = ScopePolicies.LedgerWritePolicy)]
-    [ProducesResponseType(typeof(LancamentoDto), StatusCodes.Status201Created)]
-    [ProducesResponseType(typeof(ValidationErrorResponse), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status422UnprocessableEntity)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
-    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [SwaggerOperation(
+        Summary = "Cria um lançamento no ledger.",
+        Description = "Registra um lançamento CREDIT ou DEBIT. O endpoint exige `Idempotency-Key`, aceita `X-Correlation-Id` opcional e retorna `409` quando a mesma chave de idempotência é reutilizada com payload diferente.")]
+    [SwaggerResponse(StatusCodes.Status201Created, "Lançamento criado com sucesso.", typeof(LancamentoDto))]
+    [SwaggerResponse(StatusCodes.Status400BadRequest, "Request inválido.", typeof(ValidationErrorResponse))]
+    [SwaggerResponse(StatusCodes.Status409Conflict, "Conflito de idempotência.", typeof(ProblemDetails))]
+    [SwaggerResponse(StatusCodes.Status422UnprocessableEntity, "Violação de regra de domínio.", typeof(ProblemDetails))]
+    [SwaggerResponse(StatusCodes.Status429TooManyRequests, "Limite de requisições excedido.")]
+    [SwaggerResponse(StatusCodes.Status401Unauthorized, "Token ausente ou inválido.")]
+    [SwaggerResponse(StatusCodes.Status403Forbidden, "Scope insuficiente para criar lançamentos.")]
+    [SwaggerResponse(StatusCodes.Status500InternalServerError, "Erro interno.", typeof(ProblemDetails))]
     public async Task<ActionResult<LancamentoDto>> Create(
+        [SwaggerParameter(Description = "Chave de idempotência em formato UUID. Deve ser única por operação lógica.")]
         [FromHeader(Name = "Idempotency-Key")] string idempotencyKey,
+        [SwaggerParameter(Description = "Correlation id opcional em formato UUID. Se ausente, a API gera e devolve um valor no response header.")]
         [FromHeader(Name = CorrelationIdMiddleware.HeaderName)] string? correlationId,
         [FromBody] CreateLancamentoRequest request,
         CancellationToken cancellationToken)

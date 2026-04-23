@@ -11,7 +11,6 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Swashbuckle.AspNetCore.SwaggerGen;
-using System.Reflection;
 using System.Threading.RateLimiting;
 
 namespace LedgerService.Api.Extensions;
@@ -96,17 +95,20 @@ public static class ServiceCollectionExtensions
 
         services.AddSwaggerGen(options =>
         {
+            options.EnableAnnotations();
             // Inclui endpoints apenas no documento da respectiva versão.
             options.DocInclusionPredicate((docName, apiDesc) =>
                 string.Equals(apiDesc.GroupName, docName, StringComparison.OrdinalIgnoreCase));
 
             // XML comments para enriquecer Swagger/OpenAPI com summary/remarks de controllers e DTOs.
-            var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+            var xmlFile = $"{typeof(Program).Assembly.GetName().Name}.xml";
             var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
             if (File.Exists(xmlPath))
             {
-                options.IncludeXmlComments(xmlPath);
+                options.IncludeXmlComments(xmlPath, includeControllerXmlComments: false);
             }
+
+            options.OperationFilter<LancamentosExamplesOperationFilter>();
 
             // Headers comuns da API (correlação e idempotência)
             options.AddSecurityDefinition("Idempotency-Key", new OpenApiSecurityScheme

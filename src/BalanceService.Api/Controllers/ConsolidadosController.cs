@@ -7,18 +7,19 @@ using BalanceService.Api.Contracts;
 using BalanceService.Api.Middlewares;
 using BalanceService.Api.Security;
 using BalanceService.Application.Balances.Queries;
+
 using FluentValidation;
 using FluentValidation.Results;
+
 using MediatR;
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
+using Swashbuckle.AspNetCore.Annotations;
+
 namespace BalanceService.Api.Controllers;
 
-/// <summary>
-/// Endpoints de consulta do banco consolidado (derivados da tabela <c>daily_balances</c>).
-/// </summary>
 [ApiController]
 [ApiVersion("1.0")]
 [Route("v{version:apiVersion}/consolidados")]
@@ -34,48 +35,22 @@ public sealed class ConsolidadosController : ControllerBase
         _sender = sender;
     }
 
-    /// <summary>
-    /// Retorna o consolidado diário para um <c>merchantId</c> e uma data.
-    /// </summary>
-    /// <remarks>
-    /// Fonte: tabela <c>daily_balances</c>.
-    /// 
-    /// <para><b>Padrão quando não há dados</b>: retorna <b>200</b> com totais zerados.</para>
-    /// </remarks>
-    /// <param name="date">Data no path (formato <c>YYYY-MM-DD</c>).</param>
-    /// <param name="merchantId">Identificador do merchant/lojista (obrigatório).</param>
-    /// <param name="correlationId">Header opcional para correlação (<c>X-Correlation-Id</c>). Se ausente, a API gera.</param>
-    /// <param name="cancellationToken">Token de cancelamento da requisição.</param>
-    /// <response code="200">
-    /// Consolidado diário encontrado (ou zeros quando não houver dados).
-    /// Exemplo:
-    /// <code>
-    /// {
-    ///   "merchantId": "tese",
-    ///   "date": "2026-02-14",
-    ///   "currency": "BRL",
-    ///   "totalCredits": "150.00",
-    ///   "totalDebits": "0.00",
-    ///   "netBalance": "150.00",
-    ///   "asOf": "2026-02-14T21:56:03.8825245-03:00",
-    ///   "calculatedAt": "2026-02-15T10:00:00-03:00"
-    /// }
-    /// </code>
-    /// </response>
-    /// <response code="400">Parâmetros inválidos (ex.: data fora do formato, merchantId vazio, etc.).</response>
-    /// <response code="401">Não autenticado (não configurado nesta POC, mas documentado para compatibilidade).</response>
-    /// <response code="403">Sem permissão (não configurado nesta POC, mas documentado para compatibilidade).</response>
-    /// <response code="500">Erro interno.</response>
     [HttpGet("diario/{date}")]
     [Authorize(Policy = ScopePolicies.BalanceReadPolicy)]
-    [ProducesResponseType(typeof(DailyBalanceResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ValidationErrorResponse), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [SwaggerOperation(
+        Summary = "Consulta o consolidado diário.",
+        Description = "Retorna o consolidado diário derivado de `daily_balances` para um `merchantId` e uma data. Quando não há dados, a API responde `200` com totais zerados.")]
+    [SwaggerResponse(StatusCodes.Status200OK, "Consolidado diário encontrado.", typeof(DailyBalanceResponse))]
+    [SwaggerResponse(StatusCodes.Status400BadRequest, "Parâmetros inválidos.", typeof(ValidationErrorResponse))]
+    [SwaggerResponse(StatusCodes.Status401Unauthorized, "Token ausente ou inválido.")]
+    [SwaggerResponse(StatusCodes.Status403Forbidden, "Scope insuficiente para consultar o consolidado.")]
+    [SwaggerResponse(StatusCodes.Status500InternalServerError, "Erro interno.", typeof(ProblemDetails))]
     public async Task<ActionResult<DailyBalanceResponse>> GetDaily(
+        [SwaggerParameter(Description = "Data no path no formato `YYYY-MM-DD`.")]
         [FromRoute] string date,
+        [SwaggerParameter(Description = "Identificador do merchant/lojista.")]
         [FromQuery] string merchantId,
+        [SwaggerParameter(Description = "Correlation id opcional em formato UUID. Se ausente, a API gera e devolve um valor no response header.")]
         [FromHeader(Name = CorrelationIdMiddleware.HeaderName)] string? correlationId,
         CancellationToken cancellationToken)
     {
@@ -106,54 +81,24 @@ public sealed class ConsolidadosController : ControllerBase
         return Ok(response);
     }
 
-    /// <summary>
-    /// Retorna o consolidado por período (totais + itens diários) para um <c>merchantId</c>.
-    /// </summary>
-    /// <remarks>
-    /// Fonte: tabela <c>daily_balances</c>.
-    /// 
-    /// <para><b>Padrão quando não há dados</b>: retorna <b>200</b> com totais zerados e lista vazia.</para>
-    /// </remarks>
-    /// <param name="from">Data inicial (formato <c>YYYY-MM-DD</c>).</param>
-    /// <param name="to">Data final (formato <c>YYYY-MM-DD</c>).</param>
-    /// <param name="merchantId">Identificador do merchant/lojista (obrigatório).</param>
-    /// <param name="correlationId">Header opcional para correlação (<c>X-Correlation-Id</c>). Se ausente, a API gera.</param>
-    /// <param name="cancellationToken">Token de cancelamento da requisição.</param>
-    /// <response code="200">
-    /// Consolidado por período encontrado (ou zeros/lista vazia quando não houver dados).
-    /// Exemplo:
-    /// <code>
-    /// {
-    ///   "merchantId": "tese",
-    ///   "from": "2026-02-10",
-    ///   "to": "2026-02-14",
-    ///   "currency": "BRL",
-    ///   "totalCredits": "150.00",
-    ///   "totalDebits": "20.00",
-    ///   "netBalance": "130.00",
-    ///   "items": [
-    ///     { "date": "2026-02-10", "totalCredits": "0.00", "totalDebits": "20.00", "netBalance": "-20.00", "asOf": "2026-02-10T20:00:00-03:00" },
-    ///     { "date": "2026-02-14", "totalCredits": "150.00", "totalDebits": "0.00", "netBalance": "150.00", "asOf": "2026-02-14T21:56:03.8825245-03:00" }
-    ///   ],
-    ///   "calculatedAt": "2026-02-15T10:00:00-03:00"
-    /// }
-    /// </code>
-    /// </response>
-    /// <response code="400">Parâmetros inválidos (ex.: from/to fora do formato, from &gt; to, merchantId vazio, etc.).</response>
-    /// <response code="401">Não autenticado (não configurado nesta POC, mas documentado para compatibilidade).</response>
-    /// <response code="403">Sem permissão (não configurado nesta POC, mas documentado para compatibilidade).</response>
-    /// <response code="500">Erro interno.</response>
     [HttpGet("periodo")]
     [Authorize(Policy = ScopePolicies.BalanceReadPolicy)]
-    [ProducesResponseType(typeof(PeriodBalanceResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ValidationErrorResponse), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [SwaggerOperation(
+        Summary = "Consulta o consolidado por período.",
+        Description = "Retorna o agregado do período e os itens diários derivados de `daily_balances`. Quando não há dados, a API responde `200` com totais zerados e lista vazia.")]
+    [SwaggerResponse(StatusCodes.Status200OK, "Consolidado por período encontrado.", typeof(PeriodBalanceResponse))]
+    [SwaggerResponse(StatusCodes.Status400BadRequest, "Parâmetros inválidos.", typeof(ValidationErrorResponse))]
+    [SwaggerResponse(StatusCodes.Status401Unauthorized, "Token ausente ou inválido.")]
+    [SwaggerResponse(StatusCodes.Status403Forbidden, "Scope insuficiente para consultar o consolidado.")]
+    [SwaggerResponse(StatusCodes.Status500InternalServerError, "Erro interno.", typeof(ProblemDetails))]
     public async Task<ActionResult<PeriodBalanceResponse>> GetPeriod(
+        [SwaggerParameter(Description = "Data inicial no formato `YYYY-MM-DD`.")]
         [FromQuery] string from,
+        [SwaggerParameter(Description = "Data final no formato `YYYY-MM-DD`.")]
         [FromQuery] string to,
+        [SwaggerParameter(Description = "Identificador do merchant/lojista.")]
         [FromQuery] string merchantId,
+        [SwaggerParameter(Description = "Correlation id opcional em formato UUID. Se ausente, a API gera e devolve um valor no response header.")]
         [FromHeader(Name = CorrelationIdMiddleware.HeaderName)] string? correlationId,
         CancellationToken cancellationToken)
     {
