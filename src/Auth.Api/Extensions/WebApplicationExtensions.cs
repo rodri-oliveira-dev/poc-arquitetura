@@ -3,6 +3,8 @@ using Auth.Api.Middlewares;
 using Auth.Api.Options;
 using Auth.Api.Security;
 
+using Microsoft.Extensions.Options;
+
 namespace Auth.Api.Extensions;
 
 public static class WebApplicationExtensions
@@ -13,6 +15,7 @@ public static class WebApplicationExtensions
     public static WebApplication UseAuthApiPipeline(this WebApplication app)
     {
         app.UseMiddleware<CorrelationIdMiddleware>();
+        app.UseMiddleware<LoginRateLimitMiddleware>();
         return app;
     }
 
@@ -72,9 +75,10 @@ public static class WebApplicationExtensions
             .WithSummary("JWKS público para validação offline de JWT")
             .WithDescription("Retorna a chave pública RSA atual em formato JWKS (kty,use,alg,kid,n,e). Não requer autenticação.");
 
-        app.MapPost("/auth/login", (HttpContext httpContext, LoginRequest request, IJwtIssuer issuer, ILoggerFactory loggerFactory) =>
+        app.MapPost("/auth/login", (LoginRequest request, IJwtIssuer issuer, IOptions<AuthOptions> authOptionsAccessor, ILoggerFactory loggerFactory) =>
             {
                 var logger = loggerFactory.CreateLogger("Auth.Login");
+                var authOptions = authOptionsAccessor.Value;
 
                 // Validações mínimas
                 if (string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.Password))
@@ -87,9 +91,9 @@ public static class WebApplicationExtensions
                     }, statusCode: StatusCodes.Status401Unauthorized);
                 }
 
-                // Usuário fixo (POC)
-                const string validUser = "poc-usuario";
-                const string validPass = "Poc#123";
+                // Usuario configurado localmente para a POC.
+                var validUser = authOptions.DevelopmentUser.Username;
+                var validPass = authOptions.DevelopmentUser.Password;
 
                 if (!string.Equals(request.Username, validUser, StringComparison.Ordinal) ||
                     !string.Equals(request.Password, validPass, StringComparison.Ordinal))
@@ -113,7 +117,12 @@ public static class WebApplicationExtensions
 
                 if (requested.Length == 0)
                 {
-                    grantedScopes = ScopeCatalog.ValidScopesAsString();
+                    logger.LogWarning("Tentativa de login sem scope explicito para username={Username}", request.Username);
+                    return Results.Json(new ErrorResponse
+                    {
+                        Error = "invalid_scope",
+                        Message = $"Informe ao menos um scope explicito. Scopes validos: {ScopeCatalog.ValidScopesAsString()}"
+                    }, statusCode: StatusCodes.Status400BadRequest);
                 }
                 else
                 {
@@ -131,14 +140,15 @@ public static class WebApplicationExtensions
                 }
 
                 var jwt = issuer.IssueAccessToken(
-                    subject: validUser,
-                    preferredUsername: validUser,
+                    subject: validUser!,
+                    preferredUsername: validUser!,
                     scopes: grantedScopes,
                     out var expiresAtUtc);
 
+                logger.LogInformation("Login bem-sucedido para username={Username} scopes={Scopes}", validUser, grantedScopes);
+
                 // Requisito: expira em 10 minutos (600s) por padrão.
                 // Retornamos o tempo configurado, e não o delta calculado, para manter o contrato estável.
-                var authOptions = httpContext.RequestServices.GetRequiredService<Microsoft.Extensions.Options.IOptions<AuthOptions>>().Value;
                 var lifetimeMinutes = authOptions.TokenLifetimeMinutes <= 0 ? 10 : authOptions.TokenLifetimeMinutes;
                 var expiresInSeconds = lifetimeMinutes * 60;
 
@@ -152,11 +162,12 @@ public static class WebApplicationExtensions
             })
             .WithName("Login")
             .WithSummary("Login (PoC) - Emite JWT RS256 e retorna access_token")
-            .WithDescription($"Usuário/senha fixos para PoC: username=poc-usuario, password=Poc#123.\n\nScopes válidos: {ScopeCatalog.ValidScopesAsString()}.\n\nEnvie `scope` (string com scopes separados por espaço). Se `scope` vier vazio/nulo, o serviço concede TODOS os scopes suportados.\n\nO token inclui `merchant_id` com os merchants configurados em Auth:AuthorizedMerchants.\n\nO token expira em 10 minutos (configurável) e não há refresh token/revogação/logout.")
+            .WithDescription($"Usuario/senha de POC configurados via `Auth:DevelopmentUser`, sem fallback em producao.\n\nScopes validos: {ScopeCatalog.ValidScopesAsString()}.\n\nEnvie `scope` (string com scopes separados por espaco). `scope` vazio/nulo e rejeitado.\n\nO token inclui `merchant_id` com os merchants configurados em Auth:AuthorizedMerchants.\n\nO token expira em 10 minutos (configuravel) e nao ha refresh token/revogacao/logout.")
             .Accepts<LoginRequest>("application/json")
             .Produces<LoginResponse>(StatusCodes.Status200OK, "application/json")
             .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized, "application/json")
-            .Produces<ErrorResponse>(StatusCodes.Status400BadRequest, "application/json");
+            .Produces<ErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
+            .Produces<ErrorResponse>(StatusCodes.Status429TooManyRequests, "application/json");
 
         return app;
     }

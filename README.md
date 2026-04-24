@@ -495,7 +495,8 @@ Os serviços **LedgerService.Api** e **BalanceService.Api** exigem **JWT Bearer*
 ### Como obter token (Auth.Api)
 
 1) Suba o `Auth.Api` (via compose ou `dotnet run`).
-2) Solicite um token:
+2) Configure as credenciais locais de POC por ambiente. Em `Development`, o repo traz valores de exemplo em `src/Auth.Api/appsettings.Development.json`; em outros ambientes use variaveis de ambiente/secret store, por exemplo `Auth__DevelopmentUser__Username` e `Auth__DevelopmentUser__Password`.
+3) Solicite um token:
 
 ```bash
 curl -s -X POST http://localhost:5030/auth/login \
@@ -507,9 +508,11 @@ curl -s -X POST http://localhost:5030/auth/login \
   }'
 ```
 
-Nesta PoC, o usuario fixo do Auth.Api recebe a claim `merchant_id` conforme `Auth:AuthorizedMerchants`.
+Nesta PoC, o usuario configurado em `Auth:DevelopmentUser` recebe a claim `merchant_id` conforme `Auth:AuthorizedMerchants`.
 
-3) Copie `access_token` do response e use nas chamadas:
+O campo `scope` e obrigatorio: o Auth.Api nao concede scopes implicitamente quando `scope` vem vazio/nulo. O endpoint `POST /auth/login` tambem possui rate limit especifico e pode retornar `429 Too Many Requests`.
+
+4) Copie `access_token` do response e use nas chamadas:
 
 ```bash
 curl -i http://localhost:5226/api/v1/lancamentos \

@@ -9,14 +9,14 @@ namespace Auth.Api.Contracts;
 public sealed class LoginRequest
 {
     /// <summary>
-    /// Nome de usuário fixo da PoC: <c>poc-usuario</c>.
+    /// Nome de usuario local da PoC, configurado via <c>Auth:DevelopmentUser:Username</c>.
     /// </summary>
     [Required]
     [JsonPropertyName("username")]
     public string? Username { get; init; }
 
     /// <summary>
-    /// Senha fixa da PoC: <c>Poc#123</c>.
+    /// Senha local da PoC, configurada via <c>Auth:DevelopmentUser:Password</c>.
     /// </summary>
     [Required]
     [JsonPropertyName("password")]
@@ -24,7 +24,7 @@ public sealed class LoginRequest
 
     /// <summary>
     /// Scopes desejados separados por espaço.
-    /// - Se nulo/vazio: concede TODOS os scopes suportados.
+    /// - Se nulo/vazio: rejeita a solicitacao.
     /// - Se preenchido: valida contra a lista fixa de scopes válidos.
     /// </summary>
     [JsonPropertyName("scope")]

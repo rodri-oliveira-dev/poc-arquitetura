@@ -33,4 +33,29 @@ public sealed class AuthOptions
     /// Caminho do arquivo para persistência da chave RSA (evita invalidar tokens entre reinícios).
     /// </summary>
     public string KeyPath { get; init; } = "./data/keys/auth-rsa-key.json";
+
+    /// <summary>
+    /// Credencial local da POC usada pelo endpoint de login.
+    /// Deve ser configurada por ambiente; nao ha fallback seguro para producao.
+    /// </summary>
+    public AuthDevelopmentUserOptions DevelopmentUser { get; init; } = new();
+
+    /// <summary>
+    /// Rate limit aplicado ao endpoint de login.
+    /// </summary>
+    public AuthLoginRateLimitOptions LoginRateLimit { get; init; } = new();
+}
+
+public sealed class AuthDevelopmentUserOptions
+{
+    public string? Username { get; init; }
+
+    public string? Password { get; init; }
+}
+
+public sealed class AuthLoginRateLimitOptions
+{
+    public int PermitLimit { get; init; } = 10;
+
+    public int WindowSeconds { get; init; } = 60;
 }

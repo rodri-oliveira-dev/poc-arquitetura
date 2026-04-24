@@ -25,8 +25,8 @@ public sealed class LoginOperationFilter : IOperationFilter
         {
             reqMedia.Example = new OpenApiObject
             {
-                ["username"] = new OpenApiString("poc-usuario"),
-                ["password"] = new OpenApiString("Poc#123"),
+                ["username"] = new OpenApiString("<configure Auth:DevelopmentUser:Username>"),
+                ["password"] = new OpenApiString("<configure Auth:DevelopmentUser:Password>"),
                 ["scope"] = new OpenApiString("ledger.write balance.read")
             };
         }
@@ -57,7 +57,7 @@ public sealed class LoginOperationFilter : IOperationFilter
             m400.Example = new OpenApiObject
             {
                 ["error"] = new OpenApiString("invalid_scope"),
-                ["message"] = new OpenApiString($"Scopes inválidos: x y. Scopes válidos: {ScopeCatalog.ValidScopesAsString()}")
+                ["message"] = new OpenApiString($"Informe ao menos um scope explicito. Scopes validos: {ScopeCatalog.ValidScopesAsString()}")
             };
         }
 

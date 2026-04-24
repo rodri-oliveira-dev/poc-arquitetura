@@ -27,7 +27,10 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddAuthApiOptions(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddOptions<AuthOptions>()
-            .Bind(configuration.GetSection(AuthOptions.SectionName));
+            .Bind(configuration.GetSection(AuthOptions.SectionName))
+            .Validate(options => !string.IsNullOrWhiteSpace(options.DevelopmentUser.Username), "Auth:DevelopmentUser:Username deve ser configurado.")
+            .Validate(options => !string.IsNullOrWhiteSpace(options.DevelopmentUser.Password), "Auth:DevelopmentUser:Password deve ser configurado.")
+            .ValidateOnStart();
 
         return services;
     }

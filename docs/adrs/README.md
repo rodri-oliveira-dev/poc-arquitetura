@@ -15,6 +15,7 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 
 | ADR                                                                   | Status      | Resumo                                                                                           |
 | --------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------ |
+| [ADR-0024](./0024-politica-autenticacao-auth-api-poc.md)              | Aceito      | Endurece Auth.Api da POC com credenciais configuradas, scopes explicitos e rate limit no login.  |
 | [ADR-0023](./0023-autorizacao-por-merchant.md)                        | Aceito      | Define autorizacao explicita por merchant via claim `merchant_id` para evitar BOLA.              |
 | [ADR-0022](./0022-padronizar-higiene-de-dependencias-e-containers.md) | Proposto    | Padroniza verificacao de vulnerabilidades NuGet, imagens e hardening de containers.              |
 | [ADR-0021](./0021-padronizar-exposicao-operacional-swagger-cors-health.md) | Proposto    | Define politica por ambiente para Swagger, CORS, health e readiness.                             |

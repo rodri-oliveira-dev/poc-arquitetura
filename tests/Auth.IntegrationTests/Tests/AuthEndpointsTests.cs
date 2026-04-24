@@ -61,6 +61,23 @@ public sealed class AuthEndpointsTests : IClassFixture<AuthApiFactory>
     }
 
     [Fact]
+    public async Task Login_should_return_400_when_scope_is_empty()
+    {
+        var res = await _client.PostAsJsonAsync("/auth/login", new LoginRequest
+        {
+            Username = "poc-usuario",
+            Password = "Poc#123",
+            Scope = string.Empty
+        });
+
+        res.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var body = await res.Content.ReadFromJsonAsync<ErrorResponse>();
+        body.Should().NotBeNull();
+        body!.Error.Should().Be("invalid_scope");
+    }
+
+    [Fact]
     public async Task Login_should_return_401_for_invalid_credentials()
     {
         var res = await _client.PostAsJsonAsync("/auth/login", new LoginRequest
@@ -84,5 +101,31 @@ public sealed class AuthEndpointsTests : IClassFixture<AuthApiFactory>
         });
 
         res.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task Login_should_return_429_when_rate_limit_is_exceeded()
+    {
+        using var factory = AuthApiFactory.WithConfigurationOverrides(new Dictionary<string, string?>
+        {
+            ["Auth:LoginRateLimit:PermitLimit"] = "2",
+            ["Auth:LoginRateLimit:WindowSeconds"] = "60"
+        });
+
+        using var client = factory.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        var request = new LoginRequest
+        {
+            Username = "poc-usuario",
+            Password = "Poc#123",
+            Scope = "ledger.write"
+        };
+
+        (await client.PostAsJsonAsync("/auth/login", request)).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await client.PostAsJsonAsync("/auth/login", request)).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await client.PostAsJsonAsync("/auth/login", request)).StatusCode.Should().Be((HttpStatusCode)429);
     }
 }
