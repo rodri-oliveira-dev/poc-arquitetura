@@ -10,6 +10,7 @@ public static class TestJwtTokenFactory
         string issuer,
         string audiences,
         string scopes,
+        string? merchantIds = "m1",
         DateTimeOffset? now = null,
         int lifetimeMinutes = 10)
     {
@@ -25,6 +26,9 @@ public static class TestJwtTokenFactory
             new("scope", scopes),
             new(JwtRegisteredClaimNames.Aud, audiences),
         };
+
+        if (!string.IsNullOrWhiteSpace(merchantIds))
+            claims.Add(new Claim("merchant_id", merchantIds));
 
         using var rsa = TestJwtKeys.CreateRsa();
         var key = new RsaSecurityKey(rsa)

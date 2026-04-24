@@ -152,7 +152,7 @@ public static class WebApplicationExtensions
             })
             .WithName("Login")
             .WithSummary("Login (PoC) - Emite JWT RS256 e retorna access_token")
-            .WithDescription($"Usuário/senha fixos para PoC: username=poc-usuario, password=Poc#123.\n\nScopes válidos: {ScopeCatalog.ValidScopesAsString()}.\n\nEnvie `scope` (string com scopes separados por espaço). Se `scope` vier vazio/nulo, o serviço concede TODOS os scopes suportados.\n\nO token expira em 10 minutos (configurável) e não há refresh token/revogação/logout.")
+            .WithDescription($"Usuário/senha fixos para PoC: username=poc-usuario, password=Poc#123.\n\nScopes válidos: {ScopeCatalog.ValidScopesAsString()}.\n\nEnvie `scope` (string com scopes separados por espaço). Se `scope` vier vazio/nulo, o serviço concede TODOS os scopes suportados.\n\nO token inclui `merchant_id` com os merchants configurados em Auth:AuthorizedMerchants.\n\nO token expira em 10 minutos (configurável) e não há refresh token/revogação/logout.")
             .Accepts<LoginRequest>("application/json")
             .Produces<LoginResponse>(StatusCodes.Status200OK, "application/json")
             .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized, "application/json")

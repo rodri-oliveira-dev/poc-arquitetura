@@ -79,7 +79,8 @@ public sealed class ConsolidadosEndpointsTests : IClassFixture<BalanceApiFactory
         var token = TestJwtTokenFactory.CreateToken(
             issuer: "https://auth-api",
             audiences: "balance-api",
-            scopes: "balance.read");
+            scopes: "balance.read",
+            merchantIds: "m-success-daily");
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
@@ -94,7 +95,8 @@ public sealed class ConsolidadosEndpointsTests : IClassFixture<BalanceApiFactory
         var token = TestJwtTokenFactory.CreateToken(
             issuer: "https://auth-api",
             audiences: "balance-api",
-            scopes: "balance.read");
+            scopes: "balance.read",
+            merchantIds: "m-success-daily");
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
@@ -162,7 +164,8 @@ public sealed class ConsolidadosEndpointsTests : IClassFixture<BalanceApiFactory
         var token = TestJwtTokenFactory.CreateToken(
             issuer: "https://auth-api",
             audiences: "balance-api",
-            scopes: "balance.read");
+            scopes: "balance.read",
+            merchantIds: "m-success-period");
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 

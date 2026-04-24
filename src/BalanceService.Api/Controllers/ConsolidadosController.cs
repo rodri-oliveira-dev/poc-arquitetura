@@ -24,11 +24,14 @@ public sealed class ConsolidadosController : ControllerBase
     private static readonly ActivitySource ActivitySource = new("BalanceService.Api");
 
     private readonly ISender _sender;
+    private readonly IMerchantAuthorizationService _merchantAuthorizationService;
 
     public ConsolidadosController(
-        ISender sender)
+        ISender sender,
+        IMerchantAuthorizationService merchantAuthorizationService)
     {
         _sender = sender;
+        _merchantAuthorizationService = merchantAuthorizationService;
     }
 
     [HttpGet("diario/{date}")]
@@ -39,7 +42,7 @@ public sealed class ConsolidadosController : ControllerBase
     [SwaggerResponse(StatusCodes.Status200OK, "Consolidado diário encontrado.", typeof(DailyBalanceResponse))]
     [SwaggerResponse(StatusCodes.Status400BadRequest, "Parâmetros inválidos.", typeof(ValidationErrorResponse))]
     [SwaggerResponse(StatusCodes.Status401Unauthorized, "Token ausente ou inválido.")]
-    [SwaggerResponse(StatusCodes.Status403Forbidden, "Scope insuficiente para consultar o consolidado.")]
+    [SwaggerResponse(StatusCodes.Status403Forbidden, "Scope insuficiente ou token sem autorizacao para o merchant informado.")]
     [SwaggerResponse(StatusCodes.Status500InternalServerError, "Erro interno.", typeof(ProblemDetails))]
     public async Task<ActionResult<DailyBalanceResponse>> GetDaily(
         [SwaggerParameter(Description = "Data no path no formato `YYYY-MM-DD`.")]
@@ -51,6 +54,9 @@ public sealed class ConsolidadosController : ControllerBase
         CancellationToken cancellationToken)
     {
         var query = BalanceQueryMapper.ToDailyQuery(merchantId, date);
+
+        if (!_merchantAuthorizationService.IsAuthorized(User, query.MerchantId))
+            return Forbid();
 
         using var activity = ActivitySource.StartActivity("balance.api.daily", ActivityKind.Server);
         activity?.SetTag("balance.merchant_id", merchantId);
@@ -68,7 +74,7 @@ public sealed class ConsolidadosController : ControllerBase
     [SwaggerResponse(StatusCodes.Status200OK, "Consolidado por período encontrado.", typeof(PeriodBalanceResponse))]
     [SwaggerResponse(StatusCodes.Status400BadRequest, "Parâmetros inválidos.", typeof(ValidationErrorResponse))]
     [SwaggerResponse(StatusCodes.Status401Unauthorized, "Token ausente ou inválido.")]
-    [SwaggerResponse(StatusCodes.Status403Forbidden, "Scope insuficiente para consultar o consolidado.")]
+    [SwaggerResponse(StatusCodes.Status403Forbidden, "Scope insuficiente ou token sem autorizacao para o merchant informado.")]
     [SwaggerResponse(StatusCodes.Status500InternalServerError, "Erro interno.", typeof(ProblemDetails))]
     public async Task<ActionResult<PeriodBalanceResponse>> GetPeriod(
         [SwaggerParameter(Description = "Data inicial no formato `YYYY-MM-DD`.")]
@@ -82,6 +88,9 @@ public sealed class ConsolidadosController : ControllerBase
         CancellationToken cancellationToken)
     {
         var query = BalanceQueryMapper.ToPeriodQuery(merchantId, from, to);
+
+        if (!_merchantAuthorizationService.IsAuthorized(User, query.MerchantId))
+            return Forbid();
 
         using var activity = ActivitySource.StartActivity("balance.api.period", ActivityKind.Server);
         activity?.SetTag("balance.merchant_id", merchantId);

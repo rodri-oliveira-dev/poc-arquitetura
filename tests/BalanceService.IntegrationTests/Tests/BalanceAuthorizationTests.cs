@@ -57,4 +57,34 @@ public sealed class BalanceAuthorizationTests : IClassFixture<BalanceApiFactory>
         var res = await _client.GetAsync("/v1/consolidados/periodo?merchantId=m1&from=2026-02-10&to=2026-02-12");
         res.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
+
+    [Fact]
+    public async Task Period_endpoint_should_return_403_when_token_is_not_authorized_for_requested_merchant()
+    {
+        var token = TestJwtTokenFactory.CreateToken(
+            issuer: "https://auth-api",
+            audiences: "balance-api",
+            scopes: "balance.read",
+            merchantIds: "m2");
+
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var res = await _client.GetAsync("/v1/consolidados/periodo?merchantId=m1&from=2026-02-10&to=2026-02-12");
+        res.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task Daily_endpoint_should_return_403_when_token_has_no_merchant_claim()
+    {
+        var token = TestJwtTokenFactory.CreateToken(
+            issuer: "https://auth-api",
+            audiences: "balance-api",
+            scopes: "balance.read",
+            merchantIds: null);
+
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var res = await _client.GetAsync("/v1/consolidados/diario/2026-02-10?merchantId=m1");
+        res.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
 }

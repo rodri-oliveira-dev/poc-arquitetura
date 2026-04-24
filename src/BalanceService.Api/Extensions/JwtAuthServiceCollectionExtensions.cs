@@ -15,6 +15,7 @@ public static class JwtAuthServiceCollectionExtensions
     {
         services.AddOptions<JwtAuthOptions>()
             .Bind(configuration.GetSection(JwtAuthOptions.SectionName));
+        services.AddSingleton<IMerchantAuthorizationService, MerchantAuthorizationService>();
 
         var jwtOptions = configuration.GetSection(JwtAuthOptions.SectionName).Get<JwtAuthOptions>()
             ?? new JwtAuthOptions();

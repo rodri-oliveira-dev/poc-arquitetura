@@ -479,6 +479,8 @@ Os serviços **LedgerService.Api** e **BalanceService.Api** exigem **JWT Bearer*
 - Validação de assinatura: **RS256** com chaves obtidas do **JWKS do Auth.Api** (`GET /.well-known/jwks.json`).
 - Sem introspecção: as APIs **não chamam o Auth.Api por request**; a configuração de chaves é feita via `ConfigurationManager` (cache com refresh).
 - Claim de scopes: **`scope`** (string com scopes separados por espaço). **Não** usamos `scp`.
+- Claim de tenancy: **`merchant_id`** (string com um ou mais merchants separados por espaço).
+- Endpoints que recebem `merchantId` no body/query exigem que o valor solicitado exista na claim `merchant_id`; caso contrario retornam **403**.
 - Validação estrita:
   - `iss` deve bater com o `Jwt:Issuer` configurado.
   - `aud` deve conter a audience do serviço:
@@ -504,6 +506,8 @@ curl -s -X POST http://localhost:5030/auth/login \
     "scope": "ledger.write balance.read"
   }'
 ```
+
+Nesta PoC, o usuario fixo do Auth.Api recebe a claim `merchant_id` conforme `Auth:AuthorizedMerchants`.
 
 3) Copie `access_token` do response e use nas chamadas:
 

@@ -19,6 +19,7 @@ public sealed class JwtIssuerTests
         {
             Issuer = "https://auth-api",
             Audiences = ["ledger-api", "balance-api"],
+            AuthorizedMerchants = ["m1", "tese"],
             TokenLifetimeMinutes = 10,
             KeyPath = ".\\TestKeys\\ignored.json"
         });
@@ -45,6 +46,7 @@ public sealed class JwtIssuerTests
         token.Claims.Should().Contain(c => c.Type == JwtRegisteredClaimNames.Sub && c.Value == "poc-usuario");
         token.Claims.Should().Contain(c => c.Type == "preferred_username" && c.Value == "poc-usuario");
         token.Claims.Should().Contain(c => c.Type == "scope" && c.Value == "ledger.write balance.read");
+        token.Claims.Should().Contain(c => c.Type == "merchant_id" && c.Value == "m1 tese");
 
         // aud é emitido como string única com audiences separadas por espaço
         token.Claims.Should().Contain(c => c.Type == JwtRegisteredClaimNames.Aud && c.Value == "ledger-api balance-api");

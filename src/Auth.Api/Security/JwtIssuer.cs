@@ -53,6 +53,17 @@ public sealed class JwtIssuer : IJwtIssuer
             claims.Add(new Claim(JwtRegisteredClaimNames.Aud, string.Join(' ', audiences)));
         }
 
+        var authorizedMerchants = (_options.AuthorizedMerchants ?? [])
+            .Where(m => !string.IsNullOrWhiteSpace(m))
+            .Select(m => m.Trim())
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        if (authorizedMerchants.Length > 0)
+        {
+            claims.Add(new Claim("merchant_id", string.Join(' ', authorizedMerchants)));
+        }
+
         var credentials = new SigningCredentials(new RsaSecurityKey(_keys.GetPrivateKey())
         {
             KeyId = _keys.GetKeyId()

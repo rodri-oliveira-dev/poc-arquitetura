@@ -17,10 +17,14 @@ namespace LedgerService.Api.Controllers;
 public sealed class LancamentosController : ControllerBase
 {
     private readonly CreateLancamentoService _createLancamentoService;
+    private readonly IMerchantAuthorizationService _merchantAuthorizationService;
 
-    public LancamentosController(CreateLancamentoService createLancamentoService)
+    public LancamentosController(
+        CreateLancamentoService createLancamentoService,
+        IMerchantAuthorizationService merchantAuthorizationService)
     {
         _createLancamentoService = createLancamentoService;
+        _merchantAuthorizationService = merchantAuthorizationService;
     }
 
     [HttpPost]
@@ -34,7 +38,7 @@ public sealed class LancamentosController : ControllerBase
     [SwaggerResponse(StatusCodes.Status422UnprocessableEntity, "Violação de regra de domínio.", typeof(ProblemDetails))]
     [SwaggerResponse(StatusCodes.Status429TooManyRequests, "Limite de requisições excedido.")]
     [SwaggerResponse(StatusCodes.Status401Unauthorized, "Token ausente ou inválido.")]
-    [SwaggerResponse(StatusCodes.Status403Forbidden, "Scope insuficiente para criar lançamentos.")]
+    [SwaggerResponse(StatusCodes.Status403Forbidden, "Scope insuficiente ou token sem autorizacao para o merchant informado.")]
     [SwaggerResponse(StatusCodes.Status500InternalServerError, "Erro interno.", typeof(ProblemDetails))]
     public async Task<ActionResult<LancamentoDto>> Create(
         [SwaggerParameter(Description = "Chave de idempotência em formato UUID. Deve ser única por operação lógica.")]
@@ -50,6 +54,9 @@ public sealed class LancamentosController : ControllerBase
             correlationId,
             request,
             cancellationToken);
+
+        if (!_merchantAuthorizationService.IsAuthorized(User, validRequest.MerchantId))
+            return Forbid();
 
         var created = await _createLancamentoService.ExecuteAsync(validRequest, cancellationToken);
 

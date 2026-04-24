@@ -20,6 +20,11 @@ public sealed class AuthOptions
     public string[] Audiences { get; init; } = [];
 
     /// <summary>
+    /// Merchants autorizados para o usuario fixo desta POC. Emitidos na claim merchant_id.
+    /// </summary>
+    public string[] AuthorizedMerchants { get; init; } = [];
+
+    /// <summary>
     /// Tempo de vida do access token em minutos.
     /// </summary>
     public int TokenLifetimeMinutes { get; init; } = 10;
