@@ -69,6 +69,40 @@ Use esta skill quando a tarefa envolver qualquer um dos itens abaixo:
 - Não crie drift entre código, README, workflow, arquivos de VS Code e configuração local.
 - Atualize documentação quando a mudança alterar comportamento, contrato, fluxo arquitetural ou execução local.
 
+## Avaliação de ADR
+
+Antes de alterar código, avaliar se o ajuste exige uma ADR.
+
+Uma ADR deve ser criada quando o ajuste envolver pelo menos um dos pontos abaixo:
+
+- mudança de arquitetura ou organização entre camadas;
+- introdução, remoção ou alteração de padrão arquitetural;
+- mudança em contrato HTTP, eventos, mensagens, DTOs públicos ou integração entre serviços;
+- decisão sobre persistência, transação, idempotência, outbox, DLQ, retry, re-drive ou consistência;
+- decisão de segurança, autenticação, autorização, headers, OWASP ou exposição de endpoint;
+- mudança em observabilidade, logs, tracing, correlation id, métricas ou auditoria;
+- alteração relevante de dependência, biblioteca, framework ou infraestrutura;
+- alteração que afete manutenção futura, testabilidade, escalabilidade, resiliência ou operação.
+
+Não criar ADR para:
+
+- correção pequena e localizada;
+- ajuste de nome sem impacto arquitetural;
+- formatação;
+- pequenas refatorações internas sem mudança de decisão técnica;
+- ajuste de teste sem decisão arquitetural nova;
+- documentação simples de comportamento já existente.
+
+Quando uma ADR for necessária:
+
+1. Identificar o próximo número sequencial em `docs/adrs`.
+2. Criar o arquivo no formato `ADR-XXXX-titulo-curto-em-kebab-case.md`, se esse for o padrão do repositório.
+3. Seguir o modelo abaixo.
+4. Referenciar os arquivos/projetos afetados na seção "Decisão".
+5. Registrar benefícios, trade-offs e alternativas consideradas.
+6. Manter o texto objetivo, técnico e compatível com o escopo real do ajuste.
+7. Não inventar decisões que não foram implementadas.
+
 # Fluxo recomendado
 
 ## 1. Entender o impacto
@@ -88,6 +122,24 @@ Use esta skill quando a tarefa envolver qualquer um dos itens abaixo:
 - revisar documentação afetada
 
 # Validações padrão
+
+## Finalização do ajuste
+
+Ao concluir uma alteração no serviço .NET:
+
+1. Revisar o diff.
+2. Executar restore, build e testes relevantes.
+3. Criar ou atualizar ADR em `docs/adrs` quando a mudança envolver decisão arquitetural.
+4. Se o usuário pediu commit, criar commit semântico usando Conventional Commits.
+5. A mensagem do commit deve refletir o tipo predominante da alteração.
+
+Exemplos:
+
+- `feat: adicionar fluxo de re-drive para outbox failed`
+- `fix: corrigir propagação de correlation id`
+- `refactor: isolar lógica de dispatcher`
+- `test: adicionar cobertura para retry policy`
+- `docs: registrar ADR sobre uso de outbox`
 
 ## restore e build
 ```bash
