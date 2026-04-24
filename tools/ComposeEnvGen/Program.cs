@@ -130,6 +130,7 @@ internal static class Program
             "USERNAME=poc-usuario",
             "PASSWORD=Poc#123",
             "SCOPE=ledger.write balance.read",
+            "MERCHANT_ID=tese",
         };
 
         try

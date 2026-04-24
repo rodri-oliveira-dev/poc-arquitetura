@@ -35,8 +35,35 @@ if ([string]::IsNullOrWhiteSpace($token)) {
 New-Item -ItemType Directory -Force -Path $ArtifactsDir | Out-Null
 $ts = Get-Date -Format "yyyyMMdd-HHmmss"
 
-function Run-K6([string]$scriptPath, [hashtable]$envVars) {
-  $summary = "/artifacts/summary-$Mode-$ts.json"
+function Assert-K6Summary([string]$summaryPath) {
+  if (-not (Test-Path $summaryPath)) {
+    throw "Summary k6 nao encontrado: $summaryPath"
+  }
+
+  $summary = Get-Content -Raw -Path $summaryPath | ConvertFrom-Json
+  $checksFailed = 0
+  $httpFailedRate = 0.0
+  $droppedIterations = 0
+
+  if ($summary.metrics.checks -and $null -ne $summary.metrics.checks.fails) {
+    $checksFailed = [int]$summary.metrics.checks.fails
+  }
+  if ($summary.metrics.http_req_failed -and $null -ne $summary.metrics.http_req_failed.value) {
+    $httpFailedRate = [double]$summary.metrics.http_req_failed.value
+  }
+  if ($summary.metrics.dropped_iterations -and $null -ne $summary.metrics.dropped_iterations.count) {
+    $droppedIterations = [int]$summary.metrics.dropped_iterations.count
+  }
+
+  if ($checksFailed -gt 0 -or $httpFailedRate -gt 0.05 -or $droppedIterations -gt 0) {
+    throw "k6 falhou: checks_failed=$checksFailed; http_req_failed=$httpFailedRate; dropped_iterations=$droppedIterations"
+  }
+}
+
+function Run-K6([string]$scenarioName, [string]$scriptPath, [hashtable]$envVars) {
+  $summaryFile = "summary-$Mode-$scenarioName-$ts.json"
+  $summary = "/artifacts/$summaryFile"
+  $hostSummary = Join-Path $ArtifactsDir $summaryFile
 
   $args = @(
     "compose",
@@ -60,18 +87,20 @@ function Run-K6([string]$scriptPath, [hashtable]$envVars) {
 
   & nerdctl @args
   if ($LASTEXITCODE -ne 0) { throw "k6 falhou: $LASTEXITCODE" }
+
+  Assert-K6Summary $hostSummary
 }
 
 switch ($Mode) {
   "smoke" {
-    Run-K6 "scenarios/ledger_resilience.js" @{ TOKEN = $token; VUS = "1"; DURATION = "10s" }
-    Run-K6 "scenarios/balance_daily_50rps.js" @{ TOKEN = $token; RATE = "1"; DURATION = "10s"; PREALLOCATED_VUS = "2"; MAX_VUS = "10" }
+    Run-K6 "ledger_resilience" "scenarios/ledger_resilience.js" @{ TOKEN = $token; VUS = "1"; DURATION = "10s" }
+    Run-K6 "balance_daily_50rps" "scenarios/balance_daily_50rps.js" @{ TOKEN = $token; RATE = "1"; DURATION = "10s"; PREALLOCATED_VUS = "2"; MAX_VUS = "10" }
   }
   "balance50" {
-    Run-K6 "scenarios/balance_daily_50rps.js" @{ TOKEN = $token; RATE = "50"; DURATION = "1m" }
+    Run-K6 "balance_daily_50rps" "scenarios/balance_daily_50rps.js" @{ TOKEN = $token; RATE = "50"; DURATION = "1m" }
   }
   "resilience" {
-    Run-K6 "scenarios/ledger_resilience.js" @{ TOKEN = $token; VUS = "5"; DURATION = "1m" }
+    Run-K6 "ledger_resilience" "scenarios/ledger_resilience.js" @{ TOKEN = $token; VUS = "5"; DURATION = "1m" }
   }
 }
 
