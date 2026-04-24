@@ -15,6 +15,12 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 
 | ADR                                                                   | Status      | Resumo                                                                                           |
 | --------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------ |
+| [ADR-0022](./0022-padronizar-higiene-de-dependencias-e-containers.md) | Proposto    | Padroniza verificacao de vulnerabilidades NuGet, imagens e hardening de containers.              |
+| [ADR-0021](./0021-padronizar-exposicao-operacional-swagger-cors-health.md) | Proposto    | Define politica por ambiente para Swagger, CORS, health e readiness.                             |
+| [ADR-0020](./0020-padronizar-configuracao-segura-de-secrets-e-ambientes.md) | Proposto    | Padroniza secrets, placeholders, `.env` local e configuracao por ambiente.                       |
+| [ADR-0019](./0019-endurecer-seguranca-de-apis-conforme-owasp.md)      | Proposto    | Endurece APIs conforme OWASP, incluindo Auth.Api, Swagger e autorizacao por merchant.            |
+| [ADR-0018](./0018-avaliar-adocao-incremental-dotnet-aspire.md)        | Proposto    | Avalia adocao incremental do .NET Aspire com AppHost e ServiceDefaults para desenvolvimento.     |
+| [ADR-0017](./0017-implementar-dlq-versionamento-eventos-readiness-operacional.md) | Aceito      | Implementa DLQ real, `LedgerEntryCreated.v1`, headers Kafka e readiness operacional.             |
 | [ADR-0016](./0016-contrato-http-explicito-swagger-e-controllers-magros.md) | Aceito      | Contrato HTTP explícito com Swagger e controllers magros com bind/map em componentes dedicados. |
 | [ADR-0015](./0015-api-resilience-timeouts-retries-circuit-breaker.md) | Proposto    | Ponto de melhoria: timeouts/retries/circuit breaker padronizados (HTTP/JWKS e readiness).        |
 | [ADR-0014](./0014-contratos-eventos-kafka-versionamento-e-dlq.md)     | Proposto    | Ponto de melhoria: versionamento/compatibilidade de eventos e DLQ para poison messages no Kafka. |

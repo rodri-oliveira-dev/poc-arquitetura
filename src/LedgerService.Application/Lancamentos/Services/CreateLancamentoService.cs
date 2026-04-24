@@ -5,6 +5,7 @@ using System.Text.Json;
 
 using LedgerService.Application.Common.Exceptions;
 using LedgerService.Application.Common.Models;
+using LedgerService.Application.Lancamentos.Events;
 using LedgerService.Application.Lancamentos.Inputs.CreateLancamento;
 using LedgerService.Domain.Entities;
 using LedgerService.Domain.Repositories;
@@ -89,23 +90,23 @@ public sealed class CreateLancamentoService
 
         await _idempotencyRecordRepository.AddAsync(idempotencyRecord, cancellationToken);
 
-        var outboxPayload = JsonSerializer.Serialize(new
-        {
-            response.Id,
-            response.MerchantId,
-            response.Type,
-            response.Amount,
-            response.OccurredAt,
-            response.Description,
-            response.ExternalReference,
-            response.CreatedAt,
-            request.CorrelationId
-        }, JsonOptions);
+        var outboxPayload = JsonSerializer.Serialize(
+            new LedgerEntryCreatedV1(
+                response.Id,
+                response.Type,
+                response.Amount,
+                response.CreatedAt,
+                response.MerchantId,
+                response.OccurredAt,
+                response.Description,
+                request.CorrelationId,
+                response.ExternalReference),
+            JsonOptions);
 
         var outboxMessage = new OutboxMessage(
             "LedgerEntry",
             ledgerEntry.Id,
-            "LedgerEntryCreated",
+            LedgerEntryCreatedV1.EventType,
             outboxPayload,
             DateTime.Now,
             correlationId);

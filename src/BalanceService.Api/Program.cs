@@ -2,7 +2,13 @@ using BalanceService.Api.Extensions;
 using BalanceService.Api.Middlewares;
 using BalanceService.Application;
 using BalanceService.Infrastructure;
+using BalanceService.Infrastructure.Messaging.Kafka;
+using BalanceService.Infrastructure.Persistence;
+
+using Confluent.Kafka;
+
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -35,7 +41,6 @@ if (!app.Environment.IsDevelopment())
 
 app.UseExceptionHandler();
 app.UseStatusCodePages();
-// Em testes de integração (WebApplicationFactory/TestServer), HTTPS redirection tende a atrapalhar.
 if (!app.Environment.IsEnvironment("Test"))
 {
     app.UseHttpsRedirection();
@@ -47,20 +52,74 @@ app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Health check simples (público)
-// - Não depende de DB/Kafka (liveness básico)
-// - Mantém consistência com Auth.Api
 app.MapGet("/health", [AllowAnonymous] () => Results.Text("ok"))
     .WithGroupName("v1")
     .WithName("Health")
     .WithSummary("Health check simples")
-    .WithDescription("Retorna 200 com body 'ok'. Endpoint público para liveness/readiness simplificado.")
+    .WithDescription("Retorna 200 com body 'ok'. Endpoint público para liveness simples.")
     .Produces(StatusCodes.Status200OK, contentType: "text/plain")
+    .DisableRateLimiting();
+
+app.MapGet("/ready", [AllowAnonymous] async (
+    BalanceDbContext db,
+    IConfiguration configuration,
+    CancellationToken cancellationToken) =>
+{
+    var checks = new Dictionary<string, string>
+    {
+        ["db"] = await db.Database.CanConnectAsync(cancellationToken) ? "ok" : "unavailable"
+    };
+
+    var kafkaEnabled = configuration.GetValue<bool>("Kafka:Enabled", defaultValue: true);
+    checks["kafka"] = kafkaEnabled ? CheckKafkaConsumerReadiness(configuration) : "disabled";
+
+    var ready = checks.Values.All(v => v is "ok" or "disabled");
+    return ready
+        ? Results.Ok(new { status = "ready", checks })
+        : Results.Json(new { status = "not_ready", checks }, statusCode: StatusCodes.Status503ServiceUnavailable);
+})
+    .WithGroupName("v1")
+    .WithName("Ready")
+    .WithSummary("Readiness check")
+    .WithDescription("Valida dependências necessárias para aceitar tráfego: banco e Kafka quando habilitado.")
+    .Produces(StatusCodes.Status200OK)
+    .Produces(StatusCodes.Status503ServiceUnavailable)
     .DisableRateLimiting();
 
 app.MapControllers().RequireRateLimiting("fixed");
 
 app.Run();
 
-// Necessário para WebApplicationFactory em testes de integração
+static string CheckKafkaConsumerReadiness(IConfiguration configuration)
+{
+    var options = configuration.GetSection(KafkaConsumerOptions.SectionName).Get<KafkaConsumerOptions>()
+        ?? new KafkaConsumerOptions();
+
+    if (string.IsNullOrWhiteSpace(options.BootstrapServers) || options.Topics.Count == 0)
+        return "unconfigured";
+
+    try
+    {
+        using var admin = new AdminClientBuilder(new AdminClientConfig
+        {
+            BootstrapServers = options.BootstrapServers,
+            ClientId = $"{options.ClientId}-readiness"
+        }).Build();
+
+        var topics = options.Topics
+            .Append(options.DeadLetterTopic)
+            .Where(t => !string.IsNullOrWhiteSpace(t))
+            .Distinct(StringComparer.Ordinal);
+
+        foreach (var topic in topics)
+            admin.GetMetadata(topic, TimeSpan.FromSeconds(3));
+
+        return "ok";
+    }
+    catch
+    {
+        return "unavailable";
+    }
+}
+
 public partial class Program { }

@@ -1,12 +1,11 @@
+using BalanceService.Application.Abstractions.Persistence;
+using BalanceService.Infrastructure.Messaging.Kafka;
+using BalanceService.Infrastructure.Persistence;
+using BalanceService.Infrastructure.Persistence.Repositories;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using BalanceService.Application.Abstractions.Persistence;
-using BalanceService.Infrastructure.Persistence;
-using BalanceService.Infrastructure.Persistence.Repositories;
-using BalanceService.Infrastructure.Messaging.Kafka;
-using Microsoft.Extensions.Options;
-
 
 namespace BalanceService.Infrastructure;
 
@@ -35,13 +34,17 @@ public static class DependencyInjection
                 .Validate(o => !string.IsNullOrWhiteSpace(o.BootstrapServers), "Kafka BootstrapServers não configurado.")
                 .Validate(o => !string.IsNullOrWhiteSpace(o.GroupId), "Kafka GroupId não configurado.")
                 .Validate(o => o.Topics is not null && o.Topics.Count > 0, "Kafka Topics não configurado.")
+                .Validate(o => !string.IsNullOrWhiteSpace(o.DeadLetterTopic), "Kafka DeadLetterTopic não configurado.")
                 .Validate(o => o.InvalidMessageRetryDelay > TimeSpan.Zero, "Kafka InvalidMessageRetryDelay deve ser maior que zero.")
                 .Validate(o => o.ConsumeErrorRetryDelay > TimeSpan.Zero, "Kafka ConsumeErrorRetryDelay deve ser maior que zero.")
                 .Validate(o => o.ProcessingErrorRetryDelay > TimeSpan.Zero, "Kafka ProcessingErrorRetryDelay deve ser maior que zero.")
                 .ValidateOnStart();
 
+            services.AddSingleton<IKafkaDeadLetterProducer, KafkaDeadLetterProducer>();
+            services.AddSingleton<LedgerKafkaMessageProcessor>();
             services.AddHostedService<LedgerEventsConsumer>();
         }
+
         return services;
     }
 }

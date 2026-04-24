@@ -32,7 +32,7 @@ public static class JwtAuthServiceCollectionExtensions
         var jwksManager = new ConfigurationManager<OpenIdConnectConfiguration>(
             metadataAddress: jwtOptions.JwksUrl,
             configRetriever: new JwksOnlyConfigurationRetriever(),
-            docRetriever: new HttpDocumentRetriever { RequireHttps = false });
+            docRetriever: new ResilientJwksDocumentRetriever(jwtOptions));
 
         services
             .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -123,6 +123,45 @@ public static class JwtAuthServiceCollectionExtensions
                 config.SigningKeys.Add(key);
 
             return config;
+        }
+    }
+
+    private sealed class ResilientJwksDocumentRetriever : IDocumentRetriever
+    {
+        private readonly HttpClient _client;
+        private readonly int _retryCount;
+        private readonly TimeSpan _retryBaseDelay;
+
+        public ResilientJwksDocumentRetriever(JwtAuthOptions options)
+        {
+            _client = new HttpClient
+            {
+                Timeout = TimeSpan.FromSeconds(Math.Max(1, options.JwksTimeoutSeconds))
+            };
+            _retryCount = Math.Max(0, options.JwksRetryCount);
+            _retryBaseDelay = TimeSpan.FromMilliseconds(Math.Max(1, options.JwksRetryBaseDelayMilliseconds));
+        }
+
+        public async Task<string> GetDocumentAsync(string address, CancellationToken cancel)
+        {
+            for (var attempt = 0; ; attempt++)
+            {
+                try
+                {
+                    using var response = await _client.GetAsync(address, cancel);
+                    response.EnsureSuccessStatusCode();
+                    return await response.Content.ReadAsStringAsync(cancel);
+                }
+                catch (Exception ex) when (attempt < _retryCount && !cancel.IsCancellationRequested)
+                {
+                    System.Diagnostics.Trace.TraceWarning(
+                        "JWKS fetch failed. Retrying attempt {0}/{1}. Error: {2}",
+                        attempt + 1,
+                        _retryCount + 1,
+                        ex.Message);
+                    await Task.Delay(TimeSpan.FromMilliseconds(_retryBaseDelay.TotalMilliseconds * Math.Pow(2, attempt)), cancel);
+                }
+            }
         }
     }
 }

@@ -24,4 +24,8 @@ public sealed class JwtAuthOptions
     /// Ex.: http://localhost:5030/.well-known/jwks.json
     /// </summary>
     public string JwksUrl { get; init; } = string.Empty;
+
+    public int JwksTimeoutSeconds { get; init; } = 5;
+    public int JwksRetryCount { get; init; } = 2;
+    public int JwksRetryBaseDelayMilliseconds { get; init; } = 200;
 }

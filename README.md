@@ -246,6 +246,11 @@ nerdctl compose down
 - PostgreSQL Balance: `localhost:15433` (container: `balance-db:5432`)
 - Kafka: `localhost:19092` (container: `kafka:9092`)
 
+#### Endpoints operacionais
+
+- `GET /health`: liveness simples, publico, retorna `ok` e nao depende de DB/Kafka.
+- `GET /ready`: readiness operacional, publico nesta PoC, valida DB e Kafka quando `Kafka:Enabled=true`.
+
 #### Observação sobre appsettings em container
 
 Os `appsettings.json` usam `127.0.0.1` por padrão (para execução fora de container). No compose eu faço override por variáveis de ambiente:
@@ -480,6 +485,10 @@ Os serviços **LedgerService.Api** e **BalanceService.Api** exigem **JWT Bearer*
     - LedgerService.Api: `ledger-api`
     - BalanceService.Api: `balance-api`
   - Observação: nesta PoC, o Auth.Api emite `aud` como **uma string** com audiences separadas por espaço (ex.: `"ledger-api balance-api"`). As APIs tratam isso tokenizando por espaço.
+- Resiliência do fetch de JWKS:
+  - `Jwt:JwksTimeoutSeconds` define timeout por tentativa;
+  - `Jwt:JwksRetryCount` define a quantidade de retries;
+  - `Jwt:JwksRetryBaseDelayMilliseconds` define o backoff inicial.
 
 ### Como obter token (Auth.Api)
 
@@ -668,7 +677,7 @@ dotnet tool run dotnet-ef -- database update NomeDaMigrationAnteriorOu0 \
       "EnableIdempotence": true,
       "DefaultTopic": "ledger-events",
       "TopicMap": {
-        "LedgerEntryCreated": "ledger.ledgerentry.created"
+        "LedgerEntryCreated.v1": "ledger.ledgerentry.created"
       }
     }
   },
@@ -687,9 +696,10 @@ dotnet tool run dotnet-ef -- database update NomeDaMigrationAnteriorOu0 \
 
 ### Tópicos publicados
 
-- Evento: `LedgerEntryCreated`
-- Tópico (por padrão): `ledger-events`
-- Mapeamento atual em `TopicMap`: `LedgerEntryCreated` -> `ledger.ledgerentry.created`
+- Evento: `LedgerEntryCreated.v1`
+- Tópico principal: `ledger.ledgerentry.created`
+- DLQ do Balance: `ledger.ledgerentry.created.dlq`
+- Mapeamento atual em `TopicMap`: `LedgerEntryCreated.v1` -> `ledger.ledgerentry.created`
 
 ### Headers publicados
 
@@ -698,8 +708,21 @@ Ao publicar, o producer inclui headers:
 - `event_id`
 - `event_type`
 - `correlation_id` (quando existir)
+- `traceparent` e `baggage` (quando houver `Activity`)
 
-> Observação: a propagação de headers W3C (`traceparent`, `baggage`) depende da configuração de observabilidade (ver seção 8 e `docs/observability.md`).
+O `BalanceService` exige `event_type=LedgerEntryCreated.v1`, usa `event_id` para rastreabilidade/idempotência quando presente e preserva headers relevantes ao enviar mensagens para a DLQ.
+
+### DLQ do consumer Balance
+
+Mensagens com falha de desserialização, falha de validação de contrato/payload ou falha não recuperável de processamento são publicadas em `ledger.ledgerentry.created.dlq`.
+
+Política de commit:
+
+- se o processamento normal terminar com sucesso, o offset original é commitado;
+- se a mensagem for publicada com sucesso na DLQ, o offset original é commitado;
+- se a publicação na DLQ falhar, o offset original não é commitado.
+
+O envelope da DLQ preserva payload original quando disponível, tópico/partição/offset originais, headers relevantes, motivo, tipo da exceção e timestamp.
 
 ### Como validar (PENDING -> SENT)
 
@@ -742,4 +765,3 @@ As decisões e pontos de melhoria do projeto estão documentados em **ADRs**:
 - **Erro ao aplicar migrations**: confirme a connection string e se o PostgreSQL está acessível.
 - **Swagger não abre**: confirme que a aplicação está rodando e acessível na URL configurada (`launchSettings.json`).
 - **Outbox publisher logando queries repetidas**: comportamento esperado (polling). Ajuste `Outbox:Publisher:PollingIntervalSeconds`.
-

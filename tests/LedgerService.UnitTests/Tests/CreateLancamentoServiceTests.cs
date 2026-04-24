@@ -1,4 +1,5 @@
 using FluentAssertions;
+using LedgerService.Application.Lancamentos.Events;
 using LedgerService.Application.Common.Exceptions;
 using LedgerService.Application.Lancamentos.Services;
 using LedgerService.Domain.Entities;
@@ -71,7 +72,7 @@ public sealed class CreateLancamentoServiceTests
         createdOutbox.Should().NotBeNull();
         createdOutbox!.AggregateType.Should().Be("LedgerEntry");
         createdOutbox!.AggregateId.Should().Be(createdEntry!.Id);
-        createdOutbox!.EventType.Should().Be("LedgerEntryCreated");
+        createdOutbox!.EventType.Should().Be(LedgerEntryCreatedV1.EventType);
         createdOutbox!.Payload.Should().Contain("\"merchantId\"");
         createdOutbox!.CorrelationId.Should().Be(Guid.Parse(input.CorrelationId));
 

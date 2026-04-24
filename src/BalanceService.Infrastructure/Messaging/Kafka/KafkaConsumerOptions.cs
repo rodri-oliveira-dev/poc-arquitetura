@@ -14,6 +14,8 @@ public sealed class KafkaConsumerOptions
     public bool AllowAutoCreateTopics { get; init; } = false;
 
     public List<string> Topics { get; init; } = new();
+    public string DeadLetterTopic { get; init; } = string.Empty;
+    public int DeadLetterMessageTimeoutMs { get; init; } = 30000;
 
     public TimeSpan InvalidMessageRetryDelay { get; init; } = TimeSpan.FromSeconds(2);
     public TimeSpan ConsumeErrorRetryDelay { get; init; } = TimeSpan.FromSeconds(2);

@@ -26,4 +26,16 @@ public sealed class HealthEndpointTests : IClassFixture<LedgerApiFactory>
         // CorrelationId middleware sempre propaga o header
         res.Headers.Contains("X-Correlation-Id").Should().BeTrue();
     }
+
+    [Fact]
+    public async Task Ready_should_return_200_when_db_is_available_and_kafka_is_disabled()
+    {
+        var res = await _client.GetAsync("/ready");
+
+        res.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
+        var body = await res.Content.ReadAsStringAsync();
+        body.Should().Contain("\"status\":\"ready\"");
+        body.Should().Contain("\"db\":\"ok\"");
+        body.Should().Contain("\"kafka\":\"disabled\"");
+    }
 }

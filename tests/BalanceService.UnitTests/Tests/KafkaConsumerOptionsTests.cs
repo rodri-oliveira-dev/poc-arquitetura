@@ -14,6 +14,7 @@ public sealed class KafkaConsumerOptionsTests
         options.InvalidMessageRetryDelay.Should().Be(TimeSpan.FromSeconds(2));
         options.ConsumeErrorRetryDelay.Should().Be(TimeSpan.FromSeconds(2));
         options.ProcessingErrorRetryDelay.Should().Be(TimeSpan.FromSeconds(5));
+        options.DeadLetterMessageTimeoutMs.Should().Be(30000);
     }
 
     [Fact]
@@ -24,7 +25,8 @@ public sealed class KafkaConsumerOptionsTests
             {
                 ["Kafka:Consumer:InvalidMessageRetryDelay"] = "00:00:03",
                 ["Kafka:Consumer:ConsumeErrorRetryDelay"] = "00:00:04",
-                ["Kafka:Consumer:ProcessingErrorRetryDelay"] = "00:00:06"
+                ["Kafka:Consumer:ProcessingErrorRetryDelay"] = "00:00:06",
+                ["Kafka:Consumer:DeadLetterTopic"] = "ledger.ledgerentry.created.dlq"
             })
             .Build();
 
@@ -36,5 +38,6 @@ public sealed class KafkaConsumerOptionsTests
         options!.InvalidMessageRetryDelay.Should().Be(TimeSpan.FromSeconds(3));
         options.ConsumeErrorRetryDelay.Should().Be(TimeSpan.FromSeconds(4));
         options.ProcessingErrorRetryDelay.Should().Be(TimeSpan.FromSeconds(6));
+        options.DeadLetterTopic.Should().Be("ledger.ledgerentry.created.dlq");
     }
 }

@@ -26,6 +26,18 @@ public sealed class BalanceAuthorizationTests : IClassFixture<BalanceApiFactory>
     }
 
     [Fact]
+    public async Task Ready_should_return_200_without_token_when_db_is_available_and_kafka_is_disabled()
+    {
+        var res = await _client.GetAsync("/ready");
+
+        res.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await res.Content.ReadAsStringAsync();
+        body.Should().Contain("\"status\":\"ready\"");
+        body.Should().Contain("\"db\":\"ok\"");
+        body.Should().Contain("\"kafka\":\"disabled\"");
+    }
+
+    [Fact]
     public async Task Period_endpoint_should_return_401_without_token()
     {
         var res = await _client.GetAsync("/v1/consolidados/periodo?merchantId=m1&from=2026-02-10&to=2026-02-12");

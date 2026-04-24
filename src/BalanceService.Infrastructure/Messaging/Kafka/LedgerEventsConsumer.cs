@@ -1,32 +1,24 @@
-using BalanceService.Application.Balances.Commands;
-using BalanceService.Domain.Balances;
 using Confluent.Kafka;
-using MediatR;
-using Microsoft.Extensions.DependencyInjection;
+
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using System.Diagnostics;
-using System.Text.Json;
 
 namespace BalanceService.Infrastructure.Messaging.Kafka;
 
 public sealed class LedgerEventsConsumer : BackgroundService
 {
-    private static readonly ActivitySource ActivitySource = new("BalanceService.KafkaConsumer");
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
-
-    private readonly IServiceProvider _serviceProvider;
     private readonly KafkaConsumerOptions _options;
+    private readonly LedgerKafkaMessageProcessor _messageProcessor;
     private readonly ILogger<LedgerEventsConsumer> _logger;
 
     public LedgerEventsConsumer(
-        IServiceProvider serviceProvider,
         IOptions<KafkaConsumerOptions> options,
+        LedgerKafkaMessageProcessor messageProcessor,
         ILogger<LedgerEventsConsumer> logger)
     {
-        _serviceProvider = serviceProvider;
         _options = options.Value;
+        _messageProcessor = messageProcessor;
         _logger = logger;
     }
 
@@ -69,44 +61,11 @@ public sealed class LedgerEventsConsumer : BackgroundService
                 if (result?.Message?.Value is null)
                     continue;
 
-                var evt = JsonSerializer.Deserialize<LedgerEntryCreatedEvent>(result.Message.Value, JsonOptions);
-                if (evt is null)
+                if (await _messageProcessor.ProcessAsync(result, stoppingToken))
                 {
-                    _logger.LogWarning(
-                        "Mensagem inválida (não foi possível desserializar). topic={Topic} partition={Partition} offset={Offset}",
-                        result.Topic,
-                        result.Partition.Value,
-                        result.Offset.Value);
-                    // não commitamos para retry; mas pode causar loop. Backoff reduz tight loop.
-                    await Task.Delay(_options.InvalidMessageRetryDelay, stoppingToken);
-                    continue;
+                    consumer.Commit(result);
+                    _logger.LogDebug("Mensagem processada/DLQ confirmada e offset commitado");
                 }
-
-                using var logScope = _logger.BeginScope(new Dictionary<string, object?>
-                {
-                    ["CorrelationId"] = evt.CorrelationId,
-                    ["EventId"] = evt.Id,
-                    ["MerchantId"] = evt.MerchantId,
-                    ["OccurredAt"] = evt.OccurredAt,
-                    ["KafkaTopic"] = result.Topic,
-                    ["KafkaPartition"] = result.Partition.Value,
-                    ["KafkaOffset"] = result.Offset.Value
-                });
-
-                using var activity = ActivitySource.StartActivity("kafka.consume", ActivityKind.Consumer);
-                activity?.SetTag("messaging.system", "kafka");
-                activity?.SetTag("messaging.operation", "consume");
-                activity?.SetTag("messaging.destination", result.Topic);
-                activity?.SetTag("messaging.kafka.partition", result.Partition.Value);
-                activity?.SetTag("messaging.kafka.offset", result.Offset.Value);
-                activity?.SetTag("correlation_id", evt.CorrelationId);
-                activity?.AddBaggage("correlation_id", evt.CorrelationId);
-                activity?.SetTag("event_id", evt.Id);
-
-                await ProcessMessageAsync(evt, stoppingToken);
-
-                consumer.Commit(result);
-                _logger.LogDebug("Mensagem processada e offset commitado");
             }
             catch (ConsumeException ex)
             {
@@ -141,15 +100,6 @@ public sealed class LedgerEventsConsumer : BackgroundService
         _logger.LogInformation("LedgerEventsConsumer stopped");
     }
 
-    private async Task ProcessMessageAsync(LedgerEntryCreatedEvent evt, CancellationToken ct)
-    {
-        // escopo por mensagem para evitar concorrência no DbContext
-        using var scope = _serviceProvider.CreateScope();
-        var sender = scope.ServiceProvider.GetRequiredService<ISender>();
-
-        await sender.Send(new ApplyLedgerEntryCreatedCommand(evt), ct);
-    }
-
     private static void ValidateOptions(KafkaConsumerOptions options)
     {
         if (string.IsNullOrWhiteSpace(options.BootstrapServers))
@@ -160,6 +110,10 @@ public sealed class LedgerEventsConsumer : BackgroundService
 
         if (options.Topics is null || options.Topics.Count == 0)
             throw new InvalidOperationException("Kafka Topics não configurado.");
+
+        if (string.IsNullOrWhiteSpace(options.DeadLetterTopic))
+            throw new InvalidOperationException("Kafka DeadLetterTopic não configurado.");
+
         if (options.InvalidMessageRetryDelay <= TimeSpan.Zero)
             throw new InvalidOperationException("Kafka InvalidMessageRetryDelay deve ser maior que zero.");
 
