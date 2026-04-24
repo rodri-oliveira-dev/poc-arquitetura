@@ -48,6 +48,9 @@
     <!-- Messaging -->
     <PackageVersion Include="Confluent.Kafka" Version="2.8.0" />
 
+    <!-- Security overrides -->
+    <PackageVersion Include="System.Security.Cryptography.Xml" Version="10.0.7" />
+
     <!-- Tests -->
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageVersion Include="Moq" Version="4.20.72" />

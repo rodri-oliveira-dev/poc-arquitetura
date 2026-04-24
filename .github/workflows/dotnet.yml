@@ -51,6 +51,51 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore $SOLUTION_PATH
 
+      - name: Check NuGet vulnerabilities
+        shell: bash
+        run: |
+          dotnet list $SOLUTION_PATH package --vulnerable --include-transitive --no-restore --format json > nuget-vulnerabilities.json
+
+          python - <<'PY'
+          import json
+          import sys
+
+          blocked_severities = {"high", "critical"}
+
+          with open("nuget-vulnerabilities.json", encoding="utf-8") as f:
+              data = json.load(f)
+
+          findings = []
+          for project in data.get("projects", []):
+              project_path = project.get("path", "")
+              for framework in project.get("frameworks", []):
+                  packages = []
+                  packages.extend(framework.get("topLevelPackages", []))
+                  packages.extend(framework.get("transitivePackages", []))
+
+                  for package in packages:
+                      for vulnerability in package.get("vulnerabilities", []):
+                          severity = vulnerability.get("severity", "").lower()
+                          if severity in blocked_severities:
+                              findings.append(
+                                  (
+                                      project_path,
+                                      package.get("id", ""),
+                                      package.get("resolvedVersion", ""),
+                                      vulnerability.get("severity", ""),
+                                      vulnerability.get("advisoryurl", ""),
+                                  )
+                              )
+
+          if findings:
+              print("High/Critical NuGet vulnerabilities found:", file=sys.stderr)
+              for project_path, package_id, version, severity, advisory in findings:
+                  print(f"- {project_path}: {package_id} {version} ({severity}) {advisory}", file=sys.stderr)
+              sys.exit(1)
+
+          print("No High/Critical NuGet vulnerabilities found.")
+          PY
+
       - name: Build
         run: dotnet build $SOLUTION_PATH --configuration $BUILD_CONFIGURATION --no-restore
 
