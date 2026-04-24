@@ -43,6 +43,23 @@ public sealed class ConsolidadosEndpointsTests : IClassFixture<BalanceApiFactory
     }
 
     [Fact]
+    public async Task Options_preflight_should_allow_contract_headers()
+    {
+        using var req = new HttpRequestMessage(HttpMethod.Options, "/v1/consolidados/periodo");
+        req.Headers.Add("Origin", "http://localhost:5173");
+        req.Headers.Add("Access-Control-Request-Method", "GET");
+        req.Headers.Add("Access-Control-Request-Headers", "Idempotency-Key, X-Correlation-Id");
+
+        var res = await _client.SendAsync(req);
+
+        res.StatusCode.Should().Be(HttpStatusCode.NoContent);
+        res.Headers.TryGetValues("Access-Control-Allow-Headers", out var values).Should().BeTrue();
+        var allowedHeaders = string.Join(",", values!).ToLowerInvariant();
+        allowedHeaders.Should().Contain("idempotency-key");
+        allowedHeaders.Should().Contain("x-correlation-id");
+    }
+
+    [Fact]
     public async Task Period_should_return_400_when_from_greater_than_to()
     {
         var token = TestJwtTokenFactory.CreateToken(

@@ -27,10 +27,13 @@ public static class TestJwtTokenFactory
             new(JwtRegisteredClaimNames.Aud, audiences),
         };
 
-        var credentials = new SigningCredentials(new RsaSecurityKey(TestJwtKeys.Rsa)
+        using var rsa = TestJwtKeys.CreateRsa();
+        var key = new RsaSecurityKey(rsa)
         {
-            KeyId = TestJwtKeys.Kid
-        }, SecurityAlgorithms.RsaSha256);
+            KeyId = TestJwtKeys.Kid,
+            CryptoProviderFactory = new CryptoProviderFactory { CacheSignatureProviders = false }
+        };
+        var credentials = new SigningCredentials(key, SecurityAlgorithms.RsaSha256);
 
         var token = new JwtSecurityToken(
             issuer: issuer,

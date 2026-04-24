@@ -23,6 +23,8 @@ bld/
 [Ll]og/
 [Ll]ogs/
 
+
+
 # Visual Studio / VS Code
 .vs/
 
@@ -64,6 +66,7 @@ ScaffoldingReadMe.txt
 
 # NuGet Packages
 *.nupkg
+.nuget/
 # NuGet Symbol Packages
 *.snupkg
 
@@ -86,6 +89,7 @@ nunit-*.xml
 
 # DotNet tools restore
 .dotnet/
+.dotnet-home/
 
 # k6 / load tests
 .env.k6.auto

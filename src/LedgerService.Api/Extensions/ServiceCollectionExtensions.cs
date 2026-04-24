@@ -55,7 +55,7 @@ public static class ServiceCollectionExtensions
                         "https://localhost:3001",
                         "https://localhost:5173")
                     .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE")
-                    .WithHeaders("Content-Type", "Authorization")
+                    .WithHeaders("Content-Type", "Authorization", "Idempotency-Key", CorrelationIdMiddleware.HeaderName)
                     .SetPreflightMaxAge(TimeSpan.FromMinutes(10));
             });
         });

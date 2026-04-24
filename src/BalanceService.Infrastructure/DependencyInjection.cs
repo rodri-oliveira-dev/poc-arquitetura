@@ -35,6 +35,9 @@ public static class DependencyInjection
                 .Validate(o => !string.IsNullOrWhiteSpace(o.BootstrapServers), "Kafka BootstrapServers não configurado.")
                 .Validate(o => !string.IsNullOrWhiteSpace(o.GroupId), "Kafka GroupId não configurado.")
                 .Validate(o => o.Topics is not null && o.Topics.Count > 0, "Kafka Topics não configurado.")
+                .Validate(o => o.InvalidMessageRetryDelay > TimeSpan.Zero, "Kafka InvalidMessageRetryDelay deve ser maior que zero.")
+                .Validate(o => o.ConsumeErrorRetryDelay > TimeSpan.Zero, "Kafka ConsumeErrorRetryDelay deve ser maior que zero.")
+                .Validate(o => o.ProcessingErrorRetryDelay > TimeSpan.Zero, "Kafka ProcessingErrorRetryDelay deve ser maior que zero.")
                 .ValidateOnStart();
 
             services.AddHostedService<LedgerEventsConsumer>();

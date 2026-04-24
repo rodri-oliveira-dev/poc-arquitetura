@@ -86,6 +86,7 @@ public sealed class LancamentosAuthorizationTests : IClassFixture<LedgerApiFacto
         body.Should().NotBeNull();
         body!.Id.Should().StartWith("lan_");
         body.Id.Should().HaveLength("lan_".Length + 8);
+        res.Headers.Location?.ToString().Should().Be($"/api/v1/lancamentos/{body.Id}");
         body.MerchantId.Should().Be("m1");
         body.Type.Should().Be("CREDIT");
         body.Amount.Should().Be("10.00");
@@ -103,9 +104,76 @@ public sealed class LancamentosAuthorizationTests : IClassFixture<LedgerApiFacto
 
         var replayRes = await _client.SendAsync(replayReq);
         replayRes.StatusCode.Should().Be(HttpStatusCode.Created);
+        replayRes.Headers.Location.Should().Be(res.Headers.Location);
 
         var replayBody = await replayRes.Content.ReadFromJsonAsync<LancamentoDto>();
         replayBody.Should().NotBeNull();
         replayBody!.Should().BeEquivalentTo(body);
+    }
+
+    [Theory]
+    [InlineData("desc changed", "ext")]
+    [InlineData("desc", "ext changed")]
+    public async Task Post_should_return_409_when_same_idempotency_key_is_reused_with_changed_description_or_external_reference(
+        string description,
+        string externalReference)
+    {
+        var token = TestJwtTokenFactory.CreateToken(
+            issuer: "https://auth-api",
+            audiences: "ledger-api",
+            scopes: "ledger.write");
+
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var idempotencyKey = Guid.NewGuid().ToString();
+
+        using var firstReq = new HttpRequestMessage(HttpMethod.Post, "/api/v1/lancamentos")
+        {
+            Content = JsonContent.Create(new
+            {
+                merchantId = "m1",
+                type = "CREDIT",
+                amount = 10.0,
+                description = "desc",
+                externalReference = "ext"
+            })
+        };
+        firstReq.Headers.Add("Idempotency-Key", idempotencyKey);
+
+        var firstRes = await _client.SendAsync(firstReq);
+        firstRes.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        using var replayReq = new HttpRequestMessage(HttpMethod.Post, "/api/v1/lancamentos")
+        {
+            Content = JsonContent.Create(new
+            {
+                merchantId = "m1",
+                type = "CREDIT",
+                amount = 10.0,
+                description,
+                externalReference
+            })
+        };
+        replayReq.Headers.Add("Idempotency-Key", idempotencyKey);
+
+        var replayRes = await _client.SendAsync(replayReq);
+        replayRes.StatusCode.Should().Be(HttpStatusCode.Conflict);
+    }
+
+    [Fact]
+    public async Task Options_preflight_should_allow_contract_headers()
+    {
+        using var req = new HttpRequestMessage(HttpMethod.Options, "/api/v1/lancamentos");
+        req.Headers.Add("Origin", "http://localhost:5173");
+        req.Headers.Add("Access-Control-Request-Method", "POST");
+        req.Headers.Add("Access-Control-Request-Headers", "Idempotency-Key, X-Correlation-Id");
+
+        var res = await _client.SendAsync(req);
+
+        res.StatusCode.Should().Be(HttpStatusCode.NoContent);
+        res.Headers.TryGetValues("Access-Control-Allow-Headers", out var values).Should().BeTrue();
+        var allowedHeaders = string.Join(",", values!).ToLowerInvariant();
+        allowedHeaders.Should().Contain("idempotency-key");
+        allowedHeaders.Should().Contain("x-correlation-id");
     }
 }

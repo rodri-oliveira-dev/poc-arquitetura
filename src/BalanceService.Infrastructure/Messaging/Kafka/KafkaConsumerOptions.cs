@@ -15,5 +15,9 @@ public sealed class KafkaConsumerOptions
 
     public List<string> Topics { get; init; } = new();
 
+    public TimeSpan InvalidMessageRetryDelay { get; init; } = TimeSpan.FromSeconds(2);
+    public TimeSpan ConsumeErrorRetryDelay { get; init; } = TimeSpan.FromSeconds(2);
+    public TimeSpan ProcessingErrorRetryDelay { get; init; } = TimeSpan.FromSeconds(5);
+
     // TODO: se o projeto passar a usar autenticação (SASL/SSL), incluir campos aqui e mapear no ConsumerConfig.
 }

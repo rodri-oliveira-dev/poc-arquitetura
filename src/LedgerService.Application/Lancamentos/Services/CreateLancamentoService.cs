@@ -135,10 +135,15 @@ public sealed class CreateLancamentoService
         {
             request.MerchantId,
             Type = request.Type.ToUpperInvariant(),
-            request.Amount
+            request.Amount,
+            Description = NormalizeOptionalText(request.Description),
+            ExternalReference = NormalizeOptionalText(request.ExternalReference)
         }, JsonOptions);
 
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(canonical));
         return Convert.ToHexString(bytes).ToLowerInvariant();
     }
+
+    private static string? NormalizeOptionalText(string? value)
+        => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

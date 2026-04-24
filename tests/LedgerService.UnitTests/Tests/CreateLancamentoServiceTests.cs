@@ -10,6 +10,8 @@ namespace LedgerService.UnitTests.Tests;
 
 public sealed class CreateLancamentoServiceTests
 {
+    private static readonly System.Text.Json.JsonSerializerOptions JsonOptions = new(System.Text.Json.JsonSerializerDefaults.Web);
+
     [Fact]
     public async Task Should_create_ledger_entry_and_outbox_and_idempotency_record()
     {
@@ -117,6 +119,51 @@ public sealed class CreateLancamentoServiceTests
             .WithMessage("*Idempotency-Key already used with a different payload*");
     }
 
+    [Theory]
+    [InlineData("desc changed", "ext")]
+    [InlineData("desc", "ext changed")]
+    public async Task Should_throw_conflict_when_idempotency_key_reused_after_description_or_external_reference_changes(
+        string description,
+        string externalReference)
+    {
+        var ledgerRepo = new Mock<ILedgerEntryRepository>(MockBehavior.Strict);
+        var idemRepo = new Mock<IIdempotencyRecordRepository>(MockBehavior.Strict);
+        var outboxRepo = new Mock<IOutboxMessageRepository>(MockBehavior.Strict);
+        var uow = new Mock<IUnitOfWork>(MockBehavior.Strict);
+        var tx = new Mock<IAppTransaction>(MockBehavior.Strict);
+
+        var originalInput = LancamentoFixture.ValidInput(type: "CREDIT", amount: "10.00");
+        var changedInput = originalInput with
+        {
+            Description = description,
+            ExternalReference = externalReference
+        };
+
+        uow.Setup(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(tx.Object);
+
+        var existing = new IdempotencyRecord(
+            merchantId: originalInput.MerchantId,
+            idempotencyKey: originalInput.IdempotencyKey,
+            requestHash: ComputeRequestHash(originalInput),
+            ledgerEntryId: Guid.NewGuid(),
+            responseStatusCode: 201,
+            responseBody: "{}",
+            expiresAt: DateTime.Now.AddDays(7));
+
+        idemRepo.Setup(x => x.GetByMerchantAndKeyAsync(changedInput.MerchantId, changedInput.IdempotencyKey, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(existing);
+
+        tx.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask);
+
+        var sut = new CreateLancamentoService(ledgerRepo.Object, idemRepo.Object, outboxRepo.Object, uow.Object);
+
+        var act = async () => await sut.ExecuteAsync(changedInput, CancellationToken.None);
+
+        await act.Should().ThrowAsync<ConflictException>()
+            .WithMessage("*Idempotency-Key already used with a different payload*");
+    }
+
     [Fact]
     public async Task Should_replay_response_when_idempotency_record_has_response_body()
     {
@@ -131,16 +178,7 @@ public sealed class CreateLancamentoServiceTests
         uow.Setup(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(tx.Object);
 
-        // Precisamos que o requestHash seja o mesmo do service.
-        // Como é SHA-256 sobre JSON canônico, replicamos o mesmo cenário: merchantId + Type upper + amount.
-        // O hash exato não é crítico para o teste; o que importa é que seja igual ao calculado.
-        // Para isso, usamos o próprio service com reflection? (evitar) -> alternativa: setar RequestHash após execução? (não dá).
-        // Então, optamos por cenário: existing is not null com RequestHash igual ao esperado calculado manualmente.
-
-        // Manualmente, reproduzimos o mesmo algoritmo (ver CreateLancamentoService.GenerateRequestHash).
-        var canonical = "{\"merchantId\":\"" + input.MerchantId + "\",\"type\":\"" + input.Type.ToUpperInvariant() + "\",\"amount\":\"" + input.Amount + "\"}";
-        var bytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(canonical));
-        var expectedHash = Convert.ToHexString(bytes).ToLowerInvariant();
+        var expectedHash = ComputeRequestHash(input);
 
         var replayJson = "{\"id\":\"lan_12345678\",\"merchantId\":\"m1\",\"type\":\"CREDIT\",\"amount\":\"10.00\",\"occurredAt\":\"2026-02-16T00:00:00.0000000Z\",\"description\":null,\"externalReference\":null,\"createdAt\":\"2026-02-16T00:00:00.0000000Z\"}";
 
@@ -166,4 +204,22 @@ public sealed class CreateLancamentoServiceTests
         result.Type.Should().Be("CREDIT");
         result.Amount.Should().Be("10.00");
     }
+
+    private static string ComputeRequestHash(LedgerService.Application.Lancamentos.Inputs.CreateLancamento.CreateLancamentoInput input)
+    {
+        var canonical = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            input.MerchantId,
+            Type = input.Type.ToUpperInvariant(),
+            input.Amount,
+            Description = NormalizeOptionalText(input.Description),
+            ExternalReference = NormalizeOptionalText(input.ExternalReference)
+        }, JsonOptions);
+
+        var bytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(canonical));
+        return Convert.ToHexString(bytes).ToLowerInvariant();
+    }
+
+    private static string? NormalizeOptionalText(string? value)
+        => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

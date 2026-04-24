@@ -78,7 +78,7 @@ public sealed class LedgerEventsConsumer : BackgroundService
                         result.Partition.Value,
                         result.Offset.Value);
                     // não commitamos para retry; mas pode causar loop. Backoff reduz tight loop.
-                    await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken);
+                    await Task.Delay(_options.InvalidMessageRetryDelay, stoppingToken);
                     continue;
                 }
 
@@ -111,7 +111,7 @@ public sealed class LedgerEventsConsumer : BackgroundService
             catch (ConsumeException ex)
             {
                 _logger.LogError(ex, "Erro ao consumir do Kafka. Vai retentar.");
-                await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken);
+                await Task.Delay(_options.ConsumeErrorRetryDelay, stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -125,7 +125,7 @@ public sealed class LedgerEventsConsumer : BackgroundService
                     result?.Partition.Value,
                     result?.Offset.Value);
 
-                await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
+                await Task.Delay(_options.ProcessingErrorRetryDelay, stoppingToken);
             }
         }
 
@@ -160,6 +160,14 @@ public sealed class LedgerEventsConsumer : BackgroundService
 
         if (options.Topics is null || options.Topics.Count == 0)
             throw new InvalidOperationException("Kafka Topics não configurado.");
+        if (options.InvalidMessageRetryDelay <= TimeSpan.Zero)
+            throw new InvalidOperationException("Kafka InvalidMessageRetryDelay deve ser maior que zero.");
+
+        if (options.ConsumeErrorRetryDelay <= TimeSpan.Zero)
+            throw new InvalidOperationException("Kafka ConsumeErrorRetryDelay deve ser maior que zero.");
+
+        if (options.ProcessingErrorRetryDelay <= TimeSpan.Zero)
+            throw new InvalidOperationException("Kafka ProcessingErrorRetryDelay deve ser maior que zero.");
     }
 
     private static AutoOffsetReset ParseAutoOffsetReset(string value)

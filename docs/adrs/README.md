@@ -15,6 +15,7 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 
 | ADR                                                                   | Status      | Resumo                                                                                           |
 | --------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------ |
+| [ADR-0016](./0016-contrato-http-explicito-swagger-e-controllers-magros.md) | Aceito      | Contrato HTTP explícito com Swagger e controllers magros com bind/map em componentes dedicados. |
 | [ADR-0015](./0015-api-resilience-timeouts-retries-circuit-breaker.md) | Proposto    | Ponto de melhoria: timeouts/retries/circuit breaker padronizados (HTTP/JWKS e readiness).        |
 | [ADR-0014](./0014-contratos-eventos-kafka-versionamento-e-dlq.md)     | Proposto    | Ponto de melhoria: versionamento/compatibilidade de eventos e DLQ para poison messages no Kafka. |
 | [ADR-0013](./0013-readiness-healthchecks-db-kafka.md)                 | Proposto    | Ponto de melhoria: endpoint de readiness verificando DB e Kafka com timeouts.                    |
