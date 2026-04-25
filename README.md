@@ -264,8 +264,11 @@ Os `appsettings.json` usam `127.0.0.1` por padrão (para execução fora de cont
 - `ConnectionStrings__DefaultConnection`
 - `Kafka__Producer__BootstrapServers`
 - `Kafka__Consumer__BootstrapServers`
+- `Kafka__Producer__SecurityProtocol=Plaintext`
+- `Kafka__Consumer__SecurityProtocol=Plaintext`
+- `Jwt__RequireHttpsMetadata=false`
 
-Assim, **dentro da rede do compose** os serviços usam `ledger-db`, `balance-db` e `kafka` como hosts.
+Assim, **dentro da rede do compose** os serviços usam `ledger-db`, `balance-db` e `kafka` como hosts. O compose local executa os servicos em `Development`; por isso HTTP para JWKS e Kafka `Plaintext` sao aceitos somente nesse modo local.
 
 #### Migrations (quando rodando via compose)
 
@@ -497,6 +500,11 @@ Os serviços **LedgerService.Api** e **BalanceService.Api** exigem **JWT Bearer*
   - `Jwt:JwksTimeoutSeconds` define timeout por tentativa;
   - `Jwt:JwksRetryCount` define a quantidade de retries;
   - `Jwt:JwksRetryBaseDelayMilliseconds` define o backoff inicial.
+- Transporte seguro:
+  - fora de `Development`/`Local`, `Jwt:JwksUrl` deve usar `https://`;
+  - `Jwt:RequireHttpsMetadata=false` e JWKS via `http://` sao aceitos apenas para execucao local;
+  - o ambiente `Test` e aceito somente para `WebApplicationFactory`/testes automatizados;
+  - ambientes compartilhados/produtivos devem configurar JWKS HTTPS por variaveis de ambiente ou secret/config store.
 
 ### Como obter token (Auth.Api)
 
@@ -686,6 +694,7 @@ dotnet tool run dotnet-ef -- database update NomeDaMigrationAnteriorOu0 \
     "Producer": {
       "BootstrapServers": "127.0.0.1:9092",
       "ClientId": "ledger-service",
+      "SecurityProtocol": "Plaintext",
       "Acks": "all",
       "EnableIdempotence": true,
       "DefaultTopic": "ledger-events",
@@ -706,6 +715,8 @@ dotnet tool run dotnet-ef -- database update NomeDaMigrationAnteriorOu0 \
   }
 }
 ```
+
+`SecurityProtocol=Plaintext` existe apenas para execucao local (`Development`/`Local`) e para o ambiente `Test` dos testes automatizados. Em ambientes compartilhados ou produtivos, configure `Kafka:Producer:SecurityProtocol` e `Kafka:Consumer:SecurityProtocol` como `SSL` ou `SASL_SSL` e forneca os parametros operacionais necessarios (`SslCaLocation`, `SaslMechanism`, `SaslUsername`, `SaslPassword`) via variaveis de ambiente/secret store. O projeto apenas mapeia essas opcoes para o cliente Kafka; ele nao provisiona certificados.
 
 ### Tópicos publicados
 

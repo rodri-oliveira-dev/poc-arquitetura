@@ -6,6 +6,11 @@ public sealed class KafkaProducerOptions
 
     public string BootstrapServers { get; init; } = string.Empty;
     public string ClientId { get; init; } = "ledger-service";
+    public string SecurityProtocol { get; init; } = "Plaintext";
+    public string SaslMechanism { get; init; } = string.Empty;
+    public string SaslUsername { get; init; } = string.Empty;
+    public string SaslPassword { get; init; } = string.Empty;
+    public string SslCaLocation { get; init; } = string.Empty;
 
     /// <summary>
     /// Kafka acks: 0, 1, all

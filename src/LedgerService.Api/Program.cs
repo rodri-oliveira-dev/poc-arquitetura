@@ -22,10 +22,10 @@ builder.Services
     .AddApiSwagger()
     .AddApiObservability(builder.Configuration);
 
-builder.Services.AddApiJwtAuth(builder.Configuration);
+builder.Services.AddApiJwtAuth(builder.Configuration, builder.Environment);
 
 builder.Services.AddApplication();
-builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddInfrastructure(builder.Configuration, builder.Environment);
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -100,11 +100,14 @@ static string CheckKafkaProducerReadiness(IConfiguration configuration)
 
     try
     {
-        using var admin = new AdminClientBuilder(new AdminClientConfig
+        var adminConfig = new AdminClientConfig
         {
             BootstrapServers = options.BootstrapServers,
             ClientId = $"{options.ClientId}-readiness"
-        }).Build();
+        };
+        adminConfig.ApplySecurity(options);
+
+        using var admin = new AdminClientBuilder(adminConfig).Build();
 
         var topics = options.TopicMap.Values
             .Where(v => !string.IsNullOrWhiteSpace(v))

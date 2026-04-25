@@ -26,6 +26,7 @@ public sealed class OutboxKafkaProducer : IOutboxEventProducer, IDisposable
             EnableIdempotence = _options.EnableIdempotence,
             MessageTimeoutMs = _options.MessageTimeoutMs
         };
+        config.ApplySecurity(_options);
 
         _producer = new ProducerBuilder<string, string>(config)
             .SetErrorHandler((_, e) =>

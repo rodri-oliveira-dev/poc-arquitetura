@@ -129,11 +129,14 @@ services:
 
       # Auth (JWT Bearer via JWKS)
       # Dentro do compose, localhost aponta para o próprio container, então usamos o nome do service.
+      # HTTP/JWKS é aceito somente porque o compose local roda em Development.
       Jwt__JwksUrl: "http://auth-api:8080/.well-known/jwks.json"
+      Jwt__RequireHttpsMetadata: "false"
 
       # Overrides dos appsettings (no container, 127.0.0.1 aponta para ele mesmo)
       ConnectionStrings__DefaultConnection: "Host=ledger-db;Port=5432;Database=appdb;Username=appuser;Password=app123"
       Kafka__Producer__BootstrapServers: "kafka:9092"
+      Kafka__Producer__SecurityProtocol: "Plaintext"
     ports:
       # Mantém a mesma porta do launchSettings para facilitar uso local
       - "5226:8080"
@@ -154,11 +157,14 @@ services:
       ASPNETCORE_ENVIRONMENT: "Development"
 
       # Auth (JWT Bearer via JWKS)
+      # HTTP/JWKS é aceito somente porque o compose local roda em Development.
       Jwt__JwksUrl: "http://auth-api:8080/.well-known/jwks.json"
+      Jwt__RequireHttpsMetadata: "false"
 
       # Overrides dos appsettings
       ConnectionStrings__DefaultConnection: "Host=balance-db;Port=5432;Database=dbBalance;Username=userBalance;Password=Balance123"
       Kafka__Consumer__BootstrapServers: "kafka:9092"
+      Kafka__Consumer__SecurityProtocol: "Plaintext"
     ports:
       - "5228:8080"
     networks:

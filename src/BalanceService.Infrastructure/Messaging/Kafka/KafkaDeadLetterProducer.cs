@@ -29,6 +29,7 @@ public sealed class KafkaDeadLetterProducer : IKafkaDeadLetterProducer, IDisposa
             EnableIdempotence = true,
             MessageTimeoutMs = _options.DeadLetterMessageTimeoutMs
         };
+        config.ApplySecurity(_options);
 
         _producer = new ProducerBuilder<string, string>(config)
             .SetErrorHandler((_, e) =>

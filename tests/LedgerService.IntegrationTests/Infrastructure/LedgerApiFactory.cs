@@ -43,7 +43,7 @@ public sealed class LedgerApiFactory : WebApplicationFactory<Program>
                 // então os valores aqui são apenas placeholders.
                 ["Jwt:Issuer"] = "https://auth-api",
                 ["Jwt:Audience"] = "ledger-api",
-                ["Jwt:JwksUrl"] = "http://localhost/jwks.json",
+                ["Jwt:JwksUrl"] = "https://localhost/jwks.json",
 
                 // DB placeholder (não será usada neste conjunto mínimo de integração)
                 ["ConnectionStrings:DefaultConnection"] = "Host=localhost;Database=ignore;Username=ignore;Password=ignore"

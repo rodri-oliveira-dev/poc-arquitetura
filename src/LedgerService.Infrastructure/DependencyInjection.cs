@@ -6,12 +6,16 @@ using LedgerService.Infrastructure.Persistence;
 using LedgerService.Infrastructure.Repositories;
 using LedgerService.Infrastructure.Messaging.Kafka;
 using LedgerService.Infrastructure.Outbox;
+using Microsoft.Extensions.Hosting;
 
 namespace LedgerService.Infrastructure;
 
 public static class DependencyInjection
 {
-    public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddInfrastructure(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        IHostEnvironment environment)
     {
         var connectionString = configuration.GetConnectionString("DefaultConnection")
             ?? throw new InvalidOperationException("Connection string 'DefaultConnection' não foi configurada.");
@@ -32,6 +36,7 @@ public static class DependencyInjection
             services.AddOptions<KafkaProducerOptions>()
                 .Bind(configuration.GetSection(KafkaProducerOptions.SectionName))
                 .Validate(o => !string.IsNullOrWhiteSpace(o.BootstrapServers), "Kafka BootstrapServers não configurado.")
+                .Validate(o => IsLocalEnvironment(environment) || !KafkaClientConfigExtensions.IsPlaintext(o), "Kafka PLAINTEXT é permitido apenas em Development/Local.")
                 .ValidateOnStart();
 
             services.AddSingleton<IOutboxEventProducer, OutboxKafkaProducer>();
@@ -45,4 +50,9 @@ public static class DependencyInjection
 
         return services;
     }
+
+    private static bool IsLocalEnvironment(IHostEnvironment environment)
+        => environment.IsDevelopment()
+            || environment.IsEnvironment("Local")
+            || environment.IsEnvironment("Test");
 }

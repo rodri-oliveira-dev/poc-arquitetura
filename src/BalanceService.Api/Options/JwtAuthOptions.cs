@@ -25,6 +25,8 @@ public sealed class JwtAuthOptions
     /// </summary>
     public string JwksUrl { get; init; } = string.Empty;
 
+    public bool RequireHttpsMetadata { get; init; } = true;
+
     public int JwksTimeoutSeconds { get; init; } = 5;
     public int JwksRetryCount { get; init; } = 2;
     public int JwksRetryBaseDelayMilliseconds { get; init; } = 200;

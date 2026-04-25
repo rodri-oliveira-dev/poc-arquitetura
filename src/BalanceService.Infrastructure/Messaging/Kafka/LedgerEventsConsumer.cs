@@ -36,6 +36,7 @@ public sealed class LedgerEventsConsumer : BackgroundService
             AllowAutoCreateTopics = _options.AllowAutoCreateTopics,
             AutoOffsetReset = ParseAutoOffsetReset(_options.AutoOffsetReset)
         };
+        config.ApplySecurity(_options);
 
         using var consumer = new ConsumerBuilder<string, string>(config)
             .SetErrorHandler((_, e) =>

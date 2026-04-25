@@ -36,7 +36,7 @@ public sealed class BalanceApiFactory : WebApplicationFactory<Program>
                 ["Kafka:Enabled"] = "false",
                 ["Jwt:Issuer"] = "https://auth-api",
                 ["Jwt:Audience"] = "balance-api",
-                ["Jwt:JwksUrl"] = "http://localhost/jwks.json",
+                ["Jwt:JwksUrl"] = "https://localhost/jwks.json",
                 ["ConnectionStrings:DefaultConnection"] = "Host=localhost;Database=ignore;Username=ignore;Password=ignore"
             });
         });

@@ -11,7 +11,10 @@ namespace BalanceService.Api.Extensions;
 
 public static class JwtAuthServiceCollectionExtensions
 {
-    public static IServiceCollection AddApiJwtAuth(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddApiJwtAuth(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        IHostEnvironment environment)
     {
         services.AddOptions<JwtAuthOptions>()
             .Bind(configuration.GetSection(JwtAuthOptions.SectionName));
@@ -29,6 +32,8 @@ public static class JwtAuthServiceCollectionExtensions
         if (string.IsNullOrWhiteSpace(jwtOptions.JwksUrl))
             throw new InvalidOperationException($"{JwtAuthOptions.SectionName}:JwksUrl é obrigatório.");
 
+        ValidateTransportSecurity(jwtOptions, environment);
+
         var jwksManager = new ConfigurationManager<OpenIdConnectConfiguration>(
             metadataAddress: jwtOptions.JwksUrl,
             configRetriever: new JwksOnlyConfigurationRetriever(),
@@ -38,7 +43,7 @@ public static class JwtAuthServiceCollectionExtensions
             .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(options =>
             {
-                options.RequireHttpsMetadata = false;
+                options.RequireHttpsMetadata = jwtOptions.RequireHttpsMetadata;
 
                 options.TokenValidationParameters = new TokenValidationParameters
                 {
@@ -92,6 +97,24 @@ public static class JwtAuthServiceCollectionExtensions
 
         return services;
     }
+
+    private static void ValidateTransportSecurity(JwtAuthOptions options, IHostEnvironment environment)
+    {
+        if (IsLocalEnvironment(environment))
+            return;
+
+        if (!options.RequireHttpsMetadata)
+            throw new InvalidOperationException($"{JwtAuthOptions.SectionName}:RequireHttpsMetadata=false é permitido apenas em Development/Local.");
+
+        if (!Uri.TryCreate(options.JwksUrl, UriKind.Absolute, out var jwksUri)
+            || !string.Equals(jwksUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException($"{JwtAuthOptions.SectionName}:JwksUrl deve usar HTTPS fora de Development/Local.");
+    }
+
+    private static bool IsLocalEnvironment(IHostEnvironment environment)
+        => environment.IsDevelopment()
+            || environment.IsEnvironment("Local")
+            || environment.IsEnvironment("Test");
 
     private sealed class JwksOnlyConfigurationRetriever : IConfigurationRetriever<OpenIdConnectConfiguration>
     {
