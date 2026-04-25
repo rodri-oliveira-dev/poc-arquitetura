@@ -15,7 +15,8 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 
 | ADR                                                                   | Status      | Resumo                                                                                           |
 | --------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------ |
-| [ADR-0025](./0025-gestao-de-dependencias-vulneraveis.md)              | Aceito      | Define politica NuGet para vulnerabilidades high/critical, overrides centralizados e gate no CI. |
+| [ADR-0026](./0026-atualizar-opentelemetry-api-vulneravel.md)          | Aceito      | Atualiza `OpenTelemetry.Api` vulneravel e bloqueia vulnerabilidades NuGet moderadas ou superiores no CI. |
+| [ADR-0025](./0025-gestao-de-dependencias-vulneraveis.md)              | Parcialmente substituido | Define politica NuGet inicial para vulnerabilidades high/critical, ajustada pela ADR-0026. |
 | [ADR-0024](./0024-politica-autenticacao-auth-api-poc.md)              | Aceito      | Endurece Auth.Api da POC com credenciais configuradas, scopes explicitos e rate limit no login.  |
 | [ADR-0023](./0023-autorizacao-por-merchant.md)                        | Aceito      | Define autorizacao explicita por merchant via claim `merchant_id` para evitar BOLA.              |
 | [ADR-0022](./0022-padronizar-higiene-de-dependencias-e-containers.md) | Proposto    | Padroniza verificacao de vulnerabilidades NuGet, imagens e hardening de containers.              |

@@ -1,7 +1,7 @@
 # ADR-0025: Gestao de dependencias vulneraveis
 
 ## Status
-Aceito
+Aceito, parcialmente substituido pela ADR-0026
 
 ## Contexto
 
@@ -19,6 +19,8 @@ Adotar a seguinte politica para vulnerabilidades NuGet:
 - quando a vulnerabilidade for transitiva e o pacote raiz nao puder ser atualizado isoladamente sem ampliar o escopo, a versao corrigida pode ser promovida por `PackageReference` explicito sem `Version=`, usando a versao central;
 - excecoes temporarias para `High` ou `Critical` devem ter ADR ou issue vinculada, justificativa, dono e prazo maximo de 30 dias;
 - o CI deve executar `dotnet list ... package --vulnerable --include-transitive --format json` e falhar quando encontrar severidade `High` ou `Critical`.
+
+A ADR-0026 substitui o criterio de bloqueio acima e passa a falhar o CI para vulnerabilidades NuGet `Moderate`, `High` ou `Critical`.
 
 Para corrigir o caso atual, `System.Security.Cryptography.Xml` foi fixado centralmente em versao corrigida e referenciado explicitamente apenas nos projetos Infrastructure afetados, com `PrivateAssets="all"`, preservando Central Package Management e evitando `Version=` nos `.csproj`.
 

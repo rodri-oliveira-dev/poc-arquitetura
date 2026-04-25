@@ -60,7 +60,7 @@ jobs:
           import json
           import sys
 
-          blocked_severities = {"high", "critical"}
+          blocked_severities = {"moderate", "high", "critical"}
 
           with open("nuget-vulnerabilities.json", encoding="utf-8") as f:
               data = json.load(f)
@@ -88,12 +88,12 @@ jobs:
                               )
 
           if findings:
-              print("High/Critical NuGet vulnerabilities found:", file=sys.stderr)
+              print("Moderate/High/Critical NuGet vulnerabilities found:", file=sys.stderr)
               for project_path, package_id, version, severity, advisory in findings:
                   print(f"- {project_path}: {package_id} {version} ({severity}) {advisory}", file=sys.stderr)
               sys.exit(1)
 
-          print("No High/Critical NuGet vulnerabilities found.")
+          print("No Moderate/High/Critical NuGet vulnerabilities found.")
           PY
 
       - name: Build
