@@ -251,6 +251,12 @@ nerdctl compose down
 - `GET /health`: liveness simples, publico, retorna `ok` e nao depende de DB/Kafka.
 - `GET /ready`: readiness operacional, publico nesta PoC, valida DB e Kafka quando `Kafka:Enabled=true`.
 
+#### Swagger/OpenAPI por ambiente
+
+Swagger/OpenAPI fica habilitado por padrao somente em `Development`, incluindo a execucao local via compose deste repositorio. Em qualquer outro ambiente, a exposicao exige configuracao explicita com `Swagger:Enabled=true` (ou `Swagger__Enabled=true` via variavel de ambiente).
+
+Nao habilite Swagger em ambientes compartilhados ou produtivos sem uma excecao operacional deliberada, temporaria e protegida por controles de rede ou borda.
+
 #### Observação sobre appsettings em container
 
 Os `appsettings.json` usam `127.0.0.1` por padrão (para execução fora de container). No compose eu faço override por variáveis de ambiente:
@@ -451,7 +457,7 @@ dotnet tool run dotnet-ef -- database update \
 dotnet run --project src\\LedgerService.Api\\LedgerService.Api.csproj
 ```
 
-- Swagger UI: `http://localhost:5226/`
+- Swagger UI (quando habilitado pela politica de ambiente): `http://localhost:5226/`
 - OpenAPI JSON:
   - `http://localhost:5226/swagger/v1/swagger.json`
 
@@ -461,7 +467,7 @@ dotnet run --project src\\LedgerService.Api\\LedgerService.Api.csproj
 dotnet run --project src\\BalanceService.Api\\BalanceService.Api.csproj
 ```
 
-- Swagger UI: `http://localhost:5228/`
+- Swagger UI (quando habilitado pela politica de ambiente): `http://localhost:5228/`
 - OpenAPI JSON:
   - `http://localhost:5228/swagger/v1/swagger.json`
 

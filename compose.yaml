@@ -177,8 +177,6 @@ services:
       # Credenciais locais de POC. Nao ha fallback em appsettings.json/producao.
       Auth__DevelopmentUser__Username: "poc-usuario"
       Auth__DevelopmentUser__Password: "Poc#123"
-      # Habilita Swagger no container para facilitar testes
-      Swagger__Enabled: "true"
     ports:
       - "5030:8080"
     volumes:

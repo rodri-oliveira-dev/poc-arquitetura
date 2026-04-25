@@ -32,7 +32,7 @@ builder.Services.AddEndpointsApiExplorer();
 
 var app = builder.Build();
 
-app.UseApiSwagger();
+app.UseApiSwagger(builder.Configuration);
 
 if (!app.Environment.IsDevelopment())
 {

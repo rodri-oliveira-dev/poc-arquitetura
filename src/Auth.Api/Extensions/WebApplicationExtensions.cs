@@ -21,8 +21,10 @@ public static class WebApplicationExtensions
 
     public static WebApplication UseAuthApiSwagger(this WebApplication app, IConfiguration configuration)
     {
-        var swaggerEnabled = app.Environment.IsDevelopment() || configuration.GetValue<bool>("Swagger:Enabled");
-        if (!swaggerEnabled)
+        ArgumentNullException.ThrowIfNull(app);
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        if (!IsSwaggerEnabled(app.Environment, configuration))
             return app;
 
         app.UseSwagger();
@@ -33,6 +35,14 @@ public static class WebApplicationExtensions
         });
 
         return app;
+    }
+
+    public static bool IsSwaggerEnabled(IHostEnvironment environment, IConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(environment);
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        return environment.IsDevelopment() || configuration.GetValue<bool>("Swagger:Enabled");
     }
 
     /// <summary>
