@@ -283,6 +283,27 @@ Os `appsettings.json` usam `127.0.0.1` por padrão (para execução fora de cont
 
 Assim, **dentro da rede do compose** os serviços usam `ledger-db`, `balance-db` e `kafka` como hosts. O compose local executa os servicos em `Development`; por isso HTTP para JWKS e Kafka `Plaintext` sao aceitos somente nesse modo local.
 
+#### Seguranca de containers e imagens
+
+As imagens finais de `Auth.Api`, `LedgerService.Api` e `BalanceService.Api` rodam com usuario non-root (`APP_UID`) e os artefatos publicados sao copiados com ownership desse usuario. O `Auth.Api` usa volume nomeado em `/data` para persistir a chave RSA sem depender de permissao de bind mount do host.
+
+O compose local define limites basicos por servico com `deploy.resources.limits` para CPU, memoria e processos. Esses limites existem para reduzir consumo acidental de recursos na execucao local; cenarios de carga podem exigir ajustes temporarios.
+
+Politica de imagens:
+
+- Compose local usa tags versionadas para manter ergonomia multi-plataforma na POC.
+- Nao usar `latest` em imagens versionaveis.
+- Ambientes compartilhados/produtivos ou pipelines de publicacao devem fixar imagens por digest, mantendo uma lista/lock por plataforma.
+- Antes de promover imagens, execute scan com a ferramenta disponivel no ambiente, por exemplo:
+
+```bash
+trivy image poc-arquitetura-ledger-service:latest
+trivy image poc-arquitetura-balance-service:latest
+trivy image poc-arquitetura-auth-api:latest
+```
+
+Se o runtime local gerar nomes diferentes para as imagens buildadas pelo compose, liste as imagens primeiro com `nerdctl images` e use os nomes correspondentes no scan.
+
 #### Migrations (quando rodando via compose)
 
 O compose **não aplica migrations automaticamente** (para evitar comportamento implícito em infraestrutura).

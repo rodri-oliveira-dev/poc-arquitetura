@@ -21,6 +21,11 @@ WORKDIR /app
 # Porta interna do container
 EXPOSE 8080
 
-COPY --from=build /app/publish ./
+RUN mkdir -p /data \
+    && chown -R $APP_UID:0 /app /data
+
+COPY --from=build --chown=$APP_UID:0 /app/publish ./
+
+USER $APP_UID
 
 ENTRYPOINT ["dotnet", "Auth.Api.dll"]

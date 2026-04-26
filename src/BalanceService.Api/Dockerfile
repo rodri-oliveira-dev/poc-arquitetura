@@ -25,6 +25,10 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
 EXPOSE 8080
 
-COPY --from=build /app/publish ./
+RUN chown -R $APP_UID:0 /app
+
+COPY --from=build --chown=$APP_UID:0 /app/publish ./
+
+USER $APP_UID
 
 ENTRYPOINT ["dotnet", "BalanceService.Api.dll"]

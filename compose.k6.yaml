@@ -1,9 +1,15 @@
 services:
   k6:
-    image: docker.io/grafana/k6:latest
+    image: docker.io/grafana/k6:1.7.1
     container_name: poc-k6
     working_dir: /scripts
     entrypoint: [ "k6" ]
+    deploy:
+      resources:
+        limits:
+          cpus: "1.00"
+          memory: 512m
+          pids: 256
     volumes:
       - ./loadtests/k6:/scripts:ro
       - ./artifacts/k6:/artifacts

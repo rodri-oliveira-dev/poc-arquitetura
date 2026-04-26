@@ -15,6 +15,7 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 
 | ADR                                                                   | Status      | Resumo                                                                                           |
 | --------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------ |
+| [ADR-0032](./0032-baseline-seguranca-containers.md)                   | Aceito      | Define usuario non-root, politica de tags/digests, scan de imagem e limites locais de recursos.  |
 | [ADR-0031](./0031-baseline-observabilidade.md)                        | Aceito      | Padroniza logs, traces, metricas, OTLP opcional e operacao minima por ambiente.                  |
 | [ADR-0030](./0030-baseline-minimo-hardening-auth-api.md)              | Aceito      | Aplica baseline minimo de hardening ao Auth.Api preservando diferencas da API de autenticacao.   |
 | [ADR-0029](./0029-limites-operacionais-de-api.md)                     | Aceito      | Define limites configuraveis de body, periodo do Balance e rate limit por ambiente.              |

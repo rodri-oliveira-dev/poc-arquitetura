@@ -7,6 +7,7 @@ networks:
 volumes:
   ledger-postgres-data:
   balance-postgres-data:
+  auth-api-data:
 
 
 services:
@@ -22,6 +23,12 @@ services:
       # Porta exposta para uso local (psql, migrations, etc.)
       # Obs: pode conflitar com um Postgres já rodando no host.
       - "15432:5432"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512m
+          pids: 256
     volumes:
       - ledger-postgres-data:/var/lib/postgresql/data
     networks:
@@ -43,6 +50,12 @@ services:
       # Mantém a porta 5433 no host, como no appsettings original (apenas para conveniência local)
       # Obs: pode conflitar com um Postgres já rodando no host.
       - "15433:5432"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512m
+          pids: 256
     volumes:
       - balance-postgres-data:/var/lib/postgresql/data
     networks:
@@ -82,6 +95,12 @@ services:
     ports:
       # Obs: pode conflitar com um Kafka já rodando no host.
       - "19092:9092"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.00"
+          memory: 1g
+          pids: 512
     networks:
       - poc-net
     healthcheck:
@@ -96,6 +115,12 @@ services:
     container_name: poc-kafka-init-topics
     depends_on:
       - kafka
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256m
+          pids: 128
     networks:
       - poc-net
     entrypoint:
@@ -140,6 +165,12 @@ services:
     ports:
       # Mantém a mesma porta do launchSettings para facilitar uso local
       - "5226:8080"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512m
+          pids: 256
     networks:
       - poc-net
 
@@ -167,6 +198,12 @@ services:
       Kafka__Consumer__SecurityProtocol: "Plaintext"
     ports:
       - "5228:8080"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512m
+          pids: 256
     networks:
       - poc-net
 
@@ -185,7 +222,13 @@ services:
       Auth__DevelopmentUser__Password: "Poc#123"
     ports:
       - "5030:8080"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512m
+          pids: 256
     volumes:
-      - ./data/auth-api:/data
+      - auth-api-data:/data
     networks:
       - poc-net
