@@ -36,4 +36,14 @@
     <NoWarn>$(NoWarn);1591</NoWarn>
   </PropertyGroup>
 
+  <Target Name="ConfigureLocalGitHooks" AfterTargets="Build" Condition="'$(CI)' != 'true'">
+    <Exec Command="git rev-parse --is-inside-work-tree" WorkingDirectory="$(MSBuildProjectDirectory)" IgnoreExitCode="true" ConsoleToMSBuild="true">
+      <Output TaskParameter="ExitCode" PropertyName="GitWorkTreeExitCode" />
+    </Exec>
+    <Exec Command="git config core.hooksPath .githooks" WorkingDirectory="$(MSBuildProjectDirectory)" Condition="'$(GitWorkTreeExitCode)' == '0'" IgnoreExitCode="true">
+      <Output TaskParameter="ExitCode" PropertyName="GitHooksConfigExitCode" />
+    </Exec>
+    <Message Text="Git hooks locais configurados em .githooks." Importance="high" Condition="'$(GitWorkTreeExitCode)' == '0' and '$(GitHooksConfigExitCode)' == '0'" />
+  </Target>
+
 </Project>

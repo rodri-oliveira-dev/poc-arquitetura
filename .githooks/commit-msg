@@ -1,0 +1,40 @@
+#!/usr/bin/env sh
+set -eu
+
+commit_msg_file="${1:-}"
+
+if [ -z "$commit_msg_file" ] || [ ! -f "$commit_msg_file" ]; then
+  echo "commit-msg: arquivo de mensagem nao encontrado." >&2
+  exit 1
+fi
+
+first_line="$(sed -n '1p' "$commit_msg_file")"
+
+case "$first_line" in
+  Merge\ *|Revert\ *)
+    exit 0
+    ;;
+esac
+
+if printf '%s\n' "$first_line" | grep -Eq '^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([A-Za-z0-9._-]+\))?: .+'; then
+  exit 0
+fi
+
+cat >&2 <<'EOF'
+Mensagem de commit invalida.
+
+Use Conventional Commits no formato:
+  type(scope opcional): descricao
+
+Tipos aceitos:
+  feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert
+
+Exemplos:
+  feat: add ledger endpoint
+  fix(balance): correct retry configuration
+  docs: update architecture notes
+
+Commits de merge e revert sao permitidos.
+EOF
+
+exit 1

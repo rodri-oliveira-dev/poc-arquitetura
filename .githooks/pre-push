@@ -1,0 +1,73 @@
+#!/usr/bin/env sh
+set -eu
+
+CONFIGURATION="${CONFIGURATION:-Release}"
+THRESHOLD="${COVERAGE_THRESHOLD:-80}"
+
+if command -v git >/dev/null 2>&1; then
+  repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+else
+  repo_root="$(pwd)"
+fi
+
+cd "$repo_root"
+
+results_dir="$repo_root/TestResults/pre-push"
+
+echo "==> pre-push: restaurando dependencias"
+dotnet restore ./LedgerService.slnx
+
+echo "==> pre-push: executando build ($CONFIGURATION)"
+dotnet build ./LedgerService.slnx --configuration "$CONFIGURATION" --no-restore
+
+echo "==> pre-push: executando testes com cobertura"
+rm -rf "$results_dir"
+mkdir -p "$results_dir"
+
+dotnet test ./LedgerService.slnx \
+  --configuration "$CONFIGURATION" \
+  --no-build \
+  --collect:"XPlat Code Coverage" \
+  --settings ./coverlet.runsettings \
+  --results-directory "$results_dir"
+
+coverage_files="$results_dir/coverage-files.txt"
+find "$results_dir" -name coverage.cobertura.xml > "$coverage_files"
+
+if [ ! -s "$coverage_files" ]; then
+  echo "pre-push: nenhum coverage.cobertura.xml foi encontrado." >&2
+  exit 1
+fi
+
+covered=0
+valid=0
+
+while IFS= read -r coverage_file; do
+  file_covered="$(sed -n 's/.*lines-covered="\([0-9][0-9]*\)".*/\1/p' "$coverage_file" | head -n 1)"
+  file_valid="$(sed -n 's/.*lines-valid="\([0-9][0-9]*\)".*/\1/p' "$coverage_file" | head -n 1)"
+
+  if [ -z "$file_covered" ] || [ -z "$file_valid" ]; then
+    echo "pre-push: nao foi possivel ler cobertura em $coverage_file." >&2
+    exit 1
+  fi
+
+  covered=$((covered + file_covered))
+  valid=$((valid + file_valid))
+done < "$coverage_files"
+
+if [ "$valid" -eq 0 ]; then
+  echo "pre-push: nenhuma linha valida encontrada nos relatorios de cobertura." >&2
+  exit 1
+fi
+
+coverage="$(awk -v covered="$covered" -v valid="$valid" 'BEGIN { printf "%.2f", (covered / valid) * 100 }')"
+
+echo "==> pre-push: cobertura total de linhas: $coverage%"
+
+if ! awk -v coverage="$coverage" -v threshold="$THRESHOLD" 'BEGIN { exit (coverage + 0 >= threshold + 0 ? 0 : 1) }'; then
+  echo "pre-push: cobertura abaixo do minimo. Atual=$coverage% Minimo=$THRESHOLD%" >&2
+  echo "Corrija os testes ou revise a necessidade da mudanca antes de enviar o push." >&2
+  exit 1
+fi
+
+echo "==> pre-push: build, testes e cobertura aprovados"
