@@ -7,6 +7,7 @@ using MediatR;
 using Microsoft.Extensions.Logging;
 
 using System.Diagnostics;
+using System.Globalization;
 
 namespace BalanceService.Application.Balances.Commands;
 
@@ -64,7 +65,7 @@ public sealed class ApplyLedgerEntryCreatedHandler : IRequestHandler<ApplyLedger
             ["MerchantId"] = evt.MerchantId,
             ["OccurredAt"] = evt.OccurredAt,
             ["CorrelationId"] = evt.CorrelationId,
-            ["BalanceDate"] = date.ToString("yyyy-MM-dd"),
+            ["BalanceDate"] = date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
             ["Currency"] = currency
         });
 
@@ -72,9 +73,9 @@ public sealed class ApplyLedgerEntryCreatedHandler : IRequestHandler<ApplyLedger
         activity?.SetTag("messaging.system", "kafka");
         activity?.SetTag("balance.event_id", evt.Id);
         activity?.SetTag("balance.merchant_id", evt.MerchantId);
-        activity?.SetTag("balance.occurred_at", evt.OccurredAt.ToString("o"));
+        activity?.SetTag("balance.occurred_at", evt.OccurredAt.ToString("o", CultureInfo.InvariantCulture));
         activity?.SetTag("correlation_id", evt.CorrelationId);
-        activity?.SetTag("balance.date", date.ToString("yyyy-MM-dd"));
+        activity?.SetTag("balance.date", date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
         activity?.SetTag("balance.currency", currency);
         activity?.AddBaggage("correlation_id", evt.CorrelationId);
 

@@ -86,7 +86,7 @@ public sealed class KafkaDeadLetterProducer : IKafkaDeadLetterProducer, IDisposa
         {
             _producer.Flush(TimeSpan.FromSeconds(5));
         }
-        catch
+        catch (KafkaException)
         {
             // ignore
         }

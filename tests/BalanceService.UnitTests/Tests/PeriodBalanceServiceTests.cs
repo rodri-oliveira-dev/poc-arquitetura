@@ -1,3 +1,5 @@
+using System.Globalization;
+
 using BalanceService.Application.Abstractions.Persistence;
 using BalanceService.Application.Abstractions.Time;
 using BalanceService.Application.Balances.Queries;
@@ -16,7 +18,7 @@ public sealed class PeriodBalanceServiceTests
         var readRepo = new Mock<IDailyBalanceReadRepository>(MockBehavior.Strict);
         var clock = new Mock<IClock>(MockBehavior.Strict);
 
-        var now = DateTimeOffset.Parse("2026-02-16T03:00:00Z");
+        var now = DateTimeOffset.Parse("2026-02-16T03:00:00Z", CultureInfo.InvariantCulture);
         clock.SetupGet(x => x.UtcNow).Returns(now);
 
         var query = new GetPeriodBalanceQuery("m1", new DateOnly(2026, 2, 10), new DateOnly(2026, 2, 12));
@@ -45,7 +47,7 @@ public sealed class PeriodBalanceServiceTests
         var readRepo = new Mock<IDailyBalanceReadRepository>(MockBehavior.Strict);
         var clock = new Mock<IClock>(MockBehavior.Strict);
 
-        var now = DateTimeOffset.Parse("2026-02-16T03:00:00Z");
+        var now = DateTimeOffset.Parse("2026-02-16T03:00:00Z", CultureInfo.InvariantCulture);
         clock.SetupGet(x => x.UtcNow).Returns(now);
 
         var query = new GetPeriodBalanceQuery("m1", new DateOnly(2026, 2, 10), new DateOnly(2026, 2, 12));

@@ -1,3 +1,5 @@
+using System.Globalization;
+
 using BalanceService.Application.Abstractions.Persistence;
 using BalanceService.Application.Abstractions.Time;
 using BalanceService.Application.Balances.Commands;
@@ -22,7 +24,7 @@ public sealed class ApplyLedgerEntryCreatedHandlerTests
         var tx = new Mock<IAppTransaction>(MockBehavior.Strict);
 
         var evt = BalanceFixture.Event(id: "e1");
-        var now = DateTimeOffset.Parse("2026-02-16T03:00:00Z");
+        var now = DateTimeOffset.Parse("2026-02-16T03:00:00Z", CultureInfo.InvariantCulture);
         clock.SetupGet(x => x.UtcNow).Returns(now);
 
         uow.Setup(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>())).ReturnsAsync(tx.Object);
@@ -50,8 +52,8 @@ public sealed class ApplyLedgerEntryCreatedHandlerTests
         var logger = new Mock<ILogger<ApplyLedgerEntryCreatedHandler>>();
         var tx = new Mock<IAppTransaction>(MockBehavior.Strict);
 
-        var evt = BalanceFixture.Event(id: "e1", type: "CREDIT", amount: "10.00", occurredAt: DateTimeOffset.Parse("2026-02-16T10:00:00-03:00"));
-        var now = DateTimeOffset.Parse("2026-02-16T03:00:00Z");
+        var evt = BalanceFixture.Event(id: "e1", type: "CREDIT", amount: "10.00", occurredAt: DateTimeOffset.Parse("2026-02-16T10:00:00-03:00", CultureInfo.InvariantCulture));
+        var now = DateTimeOffset.Parse("2026-02-16T03:00:00Z", CultureInfo.InvariantCulture);
         clock.SetupGet(x => x.UtcNow).Returns(now);
 
         uow.Setup(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>())).ReturnsAsync(tx.Object);

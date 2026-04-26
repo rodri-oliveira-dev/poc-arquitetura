@@ -1,5 +1,6 @@
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
+using System.Globalization;
 using System.Security.Claims;
 
 namespace BalanceService.IntegrationTests.Infrastructure.Security;
@@ -22,7 +23,7 @@ public static class TestJwtTokenFactory
             new(JwtRegisteredClaimNames.Sub, "poc-usuario"),
             new("preferred_username", "poc-usuario"),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-            new(JwtRegisteredClaimNames.Iat, n.ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64),
+            new(JwtRegisteredClaimNames.Iat, n.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture), ClaimValueTypes.Integer64),
             new("scope", scopes),
             new(JwtRegisteredClaimNames.Aud, audiences),
         };

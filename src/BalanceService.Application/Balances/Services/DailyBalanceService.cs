@@ -2,6 +2,7 @@ using BalanceService.Application.Abstractions.Persistence;
 using BalanceService.Application.Abstractions.Time;
 using BalanceService.Application.Balances.Queries.Models;
 using System.Diagnostics;
+using System.Globalization;
 
 namespace BalanceService.Application.Balances.Services;
 
@@ -27,7 +28,7 @@ public sealed class DailyBalanceService : IDailyBalanceService
     {
         using var activity = ActivitySource.StartActivity("balance.query.daily", ActivityKind.Internal);
         activity?.SetTag("balance.merchant_id", merchantId);
-        activity?.SetTag("balance.date", date.ToString("yyyy-MM-dd"));
+        activity?.SetTag("balance.date", date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
 
         var found = await _readRepository.GetDailyAsync(merchantId, date, cancellationToken);
         if (found is not null)

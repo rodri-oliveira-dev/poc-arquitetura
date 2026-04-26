@@ -1,3 +1,5 @@
+using System.Globalization;
+
 using BalanceService.Domain.Balances;
 
 namespace BalanceService.UnitTests.Fixtures;
@@ -16,9 +18,9 @@ public static class BalanceFixture
             Id: id ?? "evt_1",
             Type: type ?? "CREDIT",
             Amount: amount ?? "10.00",
-            CreatedAt: createdAt ?? DateTimeOffset.Parse("2026-02-16T00:01:00Z"),
+            CreatedAt: createdAt ?? DateTimeOffset.Parse("2026-02-16T00:01:00Z", CultureInfo.InvariantCulture),
             MerchantId: merchantId ?? "m1",
-            OccurredAt: occurredAt ?? DateTimeOffset.Parse("2026-02-16T00:00:00-03:00"),
+            OccurredAt: occurredAt ?? DateTimeOffset.Parse("2026-02-16T00:00:00-03:00", CultureInfo.InvariantCulture),
             Description: null,
             CorrelationId: correlationId ?? Guid.NewGuid().ToString(),
             ExternalReference: null);

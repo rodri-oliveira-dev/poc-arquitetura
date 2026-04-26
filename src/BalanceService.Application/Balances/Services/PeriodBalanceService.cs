@@ -2,6 +2,7 @@ using BalanceService.Application.Abstractions.Persistence;
 using BalanceService.Application.Abstractions.Time;
 using BalanceService.Application.Balances.Queries.Models;
 using System.Diagnostics;
+using System.Globalization;
 
 namespace BalanceService.Application.Balances.Services;
 
@@ -27,8 +28,8 @@ public sealed class PeriodBalanceService : IPeriodBalanceService
     {
         using var activity = ActivitySource.StartActivity("balance.query.period", ActivityKind.Internal);
         activity?.SetTag("balance.merchant_id", merchantId);
-        activity?.SetTag("balance.from", from.ToString("yyyy-MM-dd"));
-        activity?.SetTag("balance.to", to.ToString("yyyy-MM-dd"));
+        activity?.SetTag("balance.from", from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+        activity?.SetTag("balance.to", to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
 
         var items = await _readRepository.ListByPeriodAsync(merchantId, from, to, cancellationToken);
 

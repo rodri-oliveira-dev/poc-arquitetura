@@ -110,7 +110,7 @@ public sealed class OutboxKafkaProducer : IOutboxEventProducer, IDisposable
         {
             _producer.Flush(TimeSpan.FromSeconds(5));
         }
-        catch
+        catch (KafkaException)
         {
             // ignore
         }

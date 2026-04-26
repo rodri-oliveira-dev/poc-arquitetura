@@ -1,4 +1,5 @@
 using System.IdentityModel.Tokens.Jwt;
+using System.Globalization;
 using System.Security.Claims;
 
 using Auth.Api.Options;
@@ -36,7 +37,7 @@ public sealed class JwtIssuer : IJwtIssuer
             new("preferred_username", preferredUsername),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
             // iat MUST be numeric date (seconds) in UTC
-            new(JwtRegisteredClaimNames.Iat, now.ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64),
+            new(JwtRegisteredClaimNames.Iat, now.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture), ClaimValueTypes.Integer64),
             new("scope", scopes),
         };
 

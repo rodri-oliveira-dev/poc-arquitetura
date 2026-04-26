@@ -1,3 +1,5 @@
+using System.Globalization;
+
 using BalanceService.Application.Abstractions.Persistence;
 using BalanceService.Application.Abstractions.Time;
 using BalanceService.Application.Balances.Queries;
@@ -25,8 +27,8 @@ public sealed class DailyBalanceServiceTests
             TotalCredits: 10m,
             TotalDebits: 2m,
             NetBalance: 8m,
-            AsOf: DateTimeOffset.Parse("2026-02-10T10:00:00Z"),
-            UpdatedAt: DateTimeOffset.Parse("2026-02-10T10:05:00Z"));
+            AsOf: DateTimeOffset.Parse("2026-02-10T10:00:00Z", CultureInfo.InvariantCulture),
+            UpdatedAt: DateTimeOffset.Parse("2026-02-10T10:05:00Z", CultureInfo.InvariantCulture));
 
         repo.Setup(x => x.GetDailyAsync(query.MerchantId, query.Date, It.IsAny<CancellationToken>()))
             .ReturnsAsync(found);
@@ -51,7 +53,7 @@ public sealed class DailyBalanceServiceTests
         repo.Setup(x => x.GetDailyAsync(query.MerchantId, query.Date, It.IsAny<CancellationToken>()))
             .ReturnsAsync((DailyBalanceReadModel?)null);
 
-        var now = DateTimeOffset.Parse("2026-02-10T12:00:00Z");
+        var now = DateTimeOffset.Parse("2026-02-10T12:00:00Z", CultureInfo.InvariantCulture);
         clock.SetupGet(x => x.UtcNow).Returns(now);
 
         var sut = new DailyBalanceService(repo.Object, clock.Object);

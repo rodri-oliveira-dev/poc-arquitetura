@@ -1,3 +1,5 @@
+using System.Globalization;
+
 using Microsoft.OpenApi.Any;
 using Microsoft.OpenApi.Models;
 
@@ -114,7 +116,9 @@ public sealed class ConsolidadosExamplesOperationFilter : IOperationFilter
     {
         mediaType = null!;
 
-        return operation.Responses.TryGetValue(statusCode.ToString(), out var response) &&
-               response.Content.TryGetValue("application/json", out mediaType);
+        if (!operation.Responses.TryGetValue(statusCode.ToString(CultureInfo.InvariantCulture), out var response))
+            return false;
+
+        return response.Content.TryGetValue("application/json", out mediaType!);
     }
 }

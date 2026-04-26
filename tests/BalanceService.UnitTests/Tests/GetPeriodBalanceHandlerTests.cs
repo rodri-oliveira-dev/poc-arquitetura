@@ -1,3 +1,5 @@
+using System.Globalization;
+
 using BalanceService.Application.Balances.Queries;
 using BalanceService.Application.Balances.Queries.Models;
 using BalanceService.Application.Balances.Services;
@@ -22,7 +24,7 @@ public sealed class GetPeriodBalanceHandlerTests
             TotalDebits: 3m,
             NetBalance: 7m,
             Items: Array.Empty<DailyBalanceReadModel>(),
-            CalculatedAt: DateTimeOffset.Parse("2026-02-12T10:00:00Z"));
+            CalculatedAt: DateTimeOffset.Parse("2026-02-12T10:00:00Z", CultureInfo.InvariantCulture));
 
         service
             .Setup(x => x.GetPeriodAsync(query.MerchantId, query.From, query.To, It.IsAny<CancellationToken>()))

@@ -1,6 +1,7 @@
 using LedgerService.Domain.Repositories;
 using LedgerService.Infrastructure.Messaging.Kafka;
 using LedgerService.Infrastructure.Persistence;
+using Confluent.Kafka;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -49,7 +50,15 @@ public sealed class OutboxKafkaPublisherService : BackgroundService
             {
                 // shutdown
             }
-            catch (Exception ex)
+            catch (DbUpdateException ex)
+            {
+                _logger.LogError(ex, "Erro persistente no OutboxKafkaPublisherService. Vai retentar no proximo ciclo.");
+            }
+            catch (TimeoutException ex)
+            {
+                _logger.LogError(ex, "Timeout no OutboxKafkaPublisherService. Vai retentar no proximo ciclo.");
+            }
+            catch (KafkaException ex)
             {
                 _logger.LogError(ex, "Erro não tratado no OutboxKafkaPublisherService. Vai retentar no próximo ciclo.");
             }
@@ -180,13 +189,29 @@ public sealed class OutboxKafkaPublisherService : BackgroundService
 
             _logger.LogDebug("Outbox message marked as SENT");
         }
-        catch (Exception ex)
+        catch (ProduceException<string, string> ex)
         {
             var nextAttemptAt = ComputeNextAttempt(DateTime.Now, message.Attempts + 1, options.BaseBackoffSeconds);
             await repo.MarkFailedAttemptAsync(message.Id, options.MaxAttempts, nextAttemptAt, ex.Message, ct);
             await uow.SaveChangesAsync(ct);
 
-            _logger.LogWarning(ex, "Falha ao publicar outbox message. Próxima tentativa em {NextAttemptAt}", nextAttemptAt);
+            _logger.LogWarning(ex, "Falha ao publicar outbox message. Proxima tentativa em {NextAttemptAt}", nextAttemptAt);
+        }
+        catch (KafkaException ex)
+        {
+            var nextAttemptAt = ComputeNextAttempt(DateTime.Now, message.Attempts + 1, options.BaseBackoffSeconds);
+            await repo.MarkFailedAttemptAsync(message.Id, options.MaxAttempts, nextAttemptAt, ex.Message, ct);
+            await uow.SaveChangesAsync(ct);
+
+            _logger.LogWarning(ex, "Falha ao publicar outbox message. Proxima tentativa em {NextAttemptAt}", nextAttemptAt);
+        }
+        catch (TimeoutException ex)
+        {
+            var nextAttemptAt = ComputeNextAttempt(DateTime.Now, message.Attempts + 1, options.BaseBackoffSeconds);
+            await repo.MarkFailedAttemptAsync(message.Id, options.MaxAttempts, nextAttemptAt, ex.Message, ct);
+            await uow.SaveChangesAsync(ct);
+
+            _logger.LogWarning(ex, "Falha ao publicar outbox message. Proxima tentativa em {NextAttemptAt}", nextAttemptAt);
         }
     }
 

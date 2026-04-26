@@ -125,10 +125,10 @@ public sealed class CreateLancamentoService
             MerchantId: ledgerEntry.MerchantId,
             Type: ledgerEntry.Type == LedgerEntryType.Credit ? "CREDIT" : "DEBIT",
             Amount: ledgerEntry.Amount.ToString("0.00", CultureInfo.InvariantCulture),
-            OccurredAt: ledgerEntry.OccurredAt.ToString("o"),
+            OccurredAt: ledgerEntry.OccurredAt.ToString("o", CultureInfo.InvariantCulture),
             Description: ledgerEntry.Description,
             ExternalReference: ledgerEntry.ExternalReference,
-            CreatedAt: ledgerEntry.CreatedAt.ToString("o"));
+            CreatedAt: ledgerEntry.CreatedAt.ToString("o", CultureInfo.InvariantCulture));
 
     private static string GenerateRequestHash(CreateLancamentoInput request)
     {

@@ -133,7 +133,7 @@ static string CheckKafkaProducerReadiness(IConfiguration configuration)
 
         return "ok";
     }
-    catch
+    catch (KafkaException)
     {
         return "unavailable";
     }

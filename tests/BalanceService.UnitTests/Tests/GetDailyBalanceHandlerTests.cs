@@ -1,3 +1,5 @@
+using System.Globalization;
+
 using BalanceService.Application.Balances.Queries;
 using BalanceService.Application.Balances.Queries.Models;
 using BalanceService.Application.Balances.Services;
@@ -20,8 +22,8 @@ public sealed class GetDailyBalanceHandlerTests
             TotalCredits: 10m,
             TotalDebits: 2m,
             NetBalance: 8m,
-            AsOf: DateTimeOffset.Parse("2026-02-10T10:00:00Z"),
-            UpdatedAt: DateTimeOffset.Parse("2026-02-10T10:05:00Z"));
+            AsOf: DateTimeOffset.Parse("2026-02-10T10:00:00Z", CultureInfo.InvariantCulture),
+            UpdatedAt: DateTimeOffset.Parse("2026-02-10T10:05:00Z", CultureInfo.InvariantCulture));
 
         service
             .Setup(x => x.GetDailyAsync(query.MerchantId, query.Date, It.IsAny<CancellationToken>()))

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 
 using Asp.Versioning;
 
@@ -65,7 +66,7 @@ public sealed class ConsolidadosController : ControllerBase
 
         using var activity = ActivitySource.StartActivity("balance.api.daily", ActivityKind.Server);
         activity?.SetTag("balance.merchant_id", merchantId);
-        activity?.SetTag("balance.date", query.Date.ToString("yyyy-MM-dd"));
+        activity?.SetTag("balance.date", query.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
 
         var result = await _sender.Send(query, cancellationToken);
         return Ok(BalanceResponseMapper.ToResponse(result, DateTimeOffset.UtcNow));
@@ -103,8 +104,8 @@ public sealed class ConsolidadosController : ControllerBase
 
         using var activity = ActivitySource.StartActivity("balance.api.period", ActivityKind.Server);
         activity?.SetTag("balance.merchant_id", merchantId);
-        activity?.SetTag("balance.from", query.From.ToString("yyyy-MM-dd"));
-        activity?.SetTag("balance.to", query.To.ToString("yyyy-MM-dd"));
+        activity?.SetTag("balance.from", query.From.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+        activity?.SetTag("balance.to", query.To.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
 
         var result = await _sender.Send(query, cancellationToken);
         return Ok(BalanceResponseMapper.ToResponse(result, DateTimeOffset.UtcNow));

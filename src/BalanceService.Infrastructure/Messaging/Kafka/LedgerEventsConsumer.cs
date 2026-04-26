@@ -1,5 +1,6 @@
 using Confluent.Kafka;
 
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -77,7 +78,27 @@ public sealed class LedgerEventsConsumer : BackgroundService
             {
                 break;
             }
-            catch (Exception ex)
+            catch (DbUpdateException ex)
+            {
+                _logger.LogError(ex,
+                    "Erro ao processar mensagem do Kafka. Offset nao sera commitado (retry). topic={Topic} partition={Partition} offset={Offset}",
+                    result?.Topic,
+                    result?.Partition.Value,
+                    result?.Offset.Value);
+
+                await Task.Delay(_options.ProcessingErrorRetryDelay, stoppingToken);
+            }
+            catch (TimeoutException ex)
+            {
+                _logger.LogError(ex,
+                    "Erro ao processar mensagem do Kafka. Offset nao sera commitado (retry). topic={Topic} partition={Partition} offset={Offset}",
+                    result?.Topic,
+                    result?.Partition.Value,
+                    result?.Offset.Value);
+
+                await Task.Delay(_options.ProcessingErrorRetryDelay, stoppingToken);
+            }
+            catch (KafkaException ex)
             {
                 _logger.LogError(ex,
                     "Erro ao processar mensagem do Kafka. Offset não será commitado (retry). topic={Topic} partition={Partition} offset={Offset}",
@@ -93,7 +114,7 @@ public sealed class LedgerEventsConsumer : BackgroundService
         {
             consumer.Close();
         }
-        catch
+        catch (KafkaException)
         {
             // ignore shutdown errors
         }

@@ -136,16 +136,14 @@ public static class JwtAuthServiceCollectionExtensions
 
     private sealed class ResilientJwksDocumentRetriever : IDocumentRetriever
     {
-        private readonly HttpClient _client;
+        private static readonly HttpClient Client = new();
+        private readonly TimeSpan _timeout;
         private readonly int _retryCount;
         private readonly TimeSpan _retryBaseDelay;
 
         public ResilientJwksDocumentRetriever(JwtAuthOptions options)
         {
-            _client = new HttpClient
-            {
-                Timeout = TimeSpan.FromSeconds(Math.Max(1, options.JwksTimeoutSeconds))
-            };
+            _timeout = TimeSpan.FromSeconds(Math.Max(1, options.JwksTimeoutSeconds));
             _retryCount = Math.Max(0, options.JwksRetryCount);
             _retryBaseDelay = TimeSpan.FromMilliseconds(Math.Max(1, options.JwksRetryBaseDelayMilliseconds));
         }
@@ -156,11 +154,22 @@ public static class JwtAuthServiceCollectionExtensions
             {
                 try
                 {
-                    using var response = await _client.GetAsync(address, cancel);
+                    using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancel);
+                    timeout.CancelAfter(_timeout);
+                    using var response = await Client.GetAsync(address, timeout.Token);
                     response.EnsureSuccessStatusCode();
-                    return await response.Content.ReadAsStringAsync(cancel);
+                    return await response.Content.ReadAsStringAsync(timeout.Token);
                 }
-                catch (Exception ex) when (attempt < _retryCount && !cancel.IsCancellationRequested)
+                catch (HttpRequestException ex) when (attempt < _retryCount && !cancel.IsCancellationRequested)
+                {
+                    System.Diagnostics.Trace.TraceWarning(
+                        "JWKS fetch failed. Retrying attempt {0}/{1}. Error: {2}",
+                        attempt + 1,
+                        _retryCount + 1,
+                        ex.Message);
+                    await Task.Delay(TimeSpan.FromMilliseconds(_retryBaseDelay.TotalMilliseconds * Math.Pow(2, attempt)), cancel);
+                }
+                catch (TaskCanceledException ex) when (attempt < _retryCount && !cancel.IsCancellationRequested)
                 {
                     System.Diagnostics.Trace.TraceWarning(
                         "JWKS fetch failed. Retrying attempt {0}/{1}. Error: {2}",

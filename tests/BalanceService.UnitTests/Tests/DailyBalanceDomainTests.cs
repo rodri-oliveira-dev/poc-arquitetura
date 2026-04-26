@@ -1,5 +1,7 @@
 using BalanceService.Domain.Balances;
 using BalanceService.Domain.Exceptions;
+using System.Globalization;
+
 using BalanceService.UnitTests.Fixtures;
 using FluentAssertions;
 
@@ -23,7 +25,7 @@ public sealed class DailyBalanceDomainTests
         var now = DateTimeOffset.UtcNow;
         var balance = new DailyBalance("m1", new DateOnly(2026, 2, 16), "brl", now);
 
-        var evt = BalanceFixture.Event(type: "CREDIT", amount: "10.50", occurredAt: DateTimeOffset.Parse("2026-02-16T10:00:00-03:00"));
+        var evt = BalanceFixture.Event(type: "CREDIT", amount: "10.50", occurredAt: DateTimeOffset.Parse("2026-02-16T10:00:00-03:00", CultureInfo.InvariantCulture));
         balance.Apply(evt, now);
 
         balance.TotalCredits.Should().Be(10.50m);

@@ -1,3 +1,5 @@
+using System.Globalization;
+
 using BalanceService.Domain.Balances;
 using BalanceService.Infrastructure.Persistence;
 using BalanceService.Infrastructure.Persistence.Repositories;
@@ -29,7 +31,7 @@ public sealed class DailyBalanceReadRepositoryTests
             .UseInMemoryDatabase($"balance-repo-{Guid.NewGuid():N}")
             .Options;
 
-        var now = DateTimeOffset.Parse("2026-02-10T12:00:00Z");
+        var now = DateTimeOffset.Parse("2026-02-10T12:00:00Z", CultureInfo.InvariantCulture);
         await using var db = new BalanceDbContext(options);
 
         var entity = new DailyBalance("m1", new DateOnly(2026, 2, 10), "BRL", now);
@@ -38,9 +40,9 @@ public sealed class DailyBalanceReadRepositoryTests
             Id: Guid.NewGuid().ToString(),
             Type: "CREDIT",
             Amount: "10.00",
-            CreatedAt: DateTimeOffset.Parse("2026-02-10T09:59:00Z"),
+            CreatedAt: DateTimeOffset.Parse("2026-02-10T09:59:00Z", CultureInfo.InvariantCulture),
             MerchantId: "m1",
-            OccurredAt: DateTimeOffset.Parse("2026-02-10T10:00:00Z"),
+            OccurredAt: DateTimeOffset.Parse("2026-02-10T10:00:00Z", CultureInfo.InvariantCulture),
             Description: null,
             CorrelationId: Guid.NewGuid().ToString(),
             ExternalReference: null), now);
@@ -65,7 +67,7 @@ public sealed class DailyBalanceReadRepositoryTests
             .UseInMemoryDatabase($"balance-repo-{Guid.NewGuid():N}")
             .Options;
 
-        var now = DateTimeOffset.Parse("2026-02-10T12:00:00Z");
+        var now = DateTimeOffset.Parse("2026-02-10T12:00:00Z", CultureInfo.InvariantCulture);
         await using var db = new BalanceDbContext(options);
 
         db.DailyBalances.Add(new DailyBalance("m1", new DateOnly(2026, 2, 11), "BRL", now));
