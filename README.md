@@ -113,7 +113,7 @@ Rel(balanceApi, balanceDb, "Consulta projeção daily_balances", "EF Core")
 ### Para rodar testes
 
 - `dotnet test` (já coberto pelo SDK)
-- Para o script `test.sh`: **Python 3** (usado para ler o `Summary.json` do ReportGenerator)
+- Para o script `test.sh`: shell compatível com `bash` e `awk` (usados para ler o `Summary.txt` do ReportGenerator)
 
 ### Ferramentas úteis (opcionais)
 

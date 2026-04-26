@@ -40,31 +40,17 @@ dotnet tool run reportgenerator \
   -targetdir:"$report_dir" \
   -reporttypes:"JsonSummary;TextSummary" >/dev/null
 
-summary_json="$report_dir/Summary.json"
-if [ ! -f "$summary_json" ]; then
-  echo "pre-push: Summary.json nao encontrado em $summary_json." >&2
+summary_txt="$report_dir/Summary.txt"
+if [ ! -f "$summary_txt" ]; then
+  echo "pre-push: Summary.txt nao encontrado em $summary_txt." >&2
   exit 1
 fi
 
-if command -v python3 >/dev/null 2>&1; then
-  python_cmd="python3"
-elif command -v python >/dev/null 2>&1; then
-  python_cmd="python"
-else
-  echo "pre-push: python nao encontrado para ler Summary.json." >&2
+coverage="$(awk -F'[:%]' '/^[[:space:]]*Line coverage:/ { gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2); print $2; exit }' "$summary_txt")"
+if [ -z "$coverage" ]; then
+  echo "pre-push: nao foi possivel ler a cobertura de linhas em $summary_txt." >&2
   exit 1
 fi
-
-coverage="$("$python_cmd" - "$summary_json" <<'PY'
-import json
-import sys
-
-with open(sys.argv[1], encoding="utf-8") as f:
-    data = json.load(f)
-
-print(data["summary"]["linecoverage"])
-PY
-)"
 
 echo "==> pre-push: cobertura total de linhas: $coverage%"
 
