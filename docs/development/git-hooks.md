@@ -64,14 +64,14 @@ Validar `pre-push`:
 .githooks/pre-push
 ```
 
-O `pre-push` usa `coverlet.runsettings`, grava resultados em `TestResults/pre-push` e calcula a cobertura a partir dos arquivos `coverage.cobertura.xml`.
+O `pre-push` usa `coverlet.runsettings`, grava resultados em `TestResults/pre-push`, consolida a cobertura com ReportGenerator e valida o `Summary.json`.
 
 ## Falhas comuns
 
 - Mensagem de commit invalida: ajuste a primeira linha para `type: descricao` ou `type(scope): descricao`.
 - Build ou testes falhando: corrija o erro local antes de enviar o push.
 - Cobertura abaixo de 80%: adicione ou ajuste testes para cobrir o comportamento alterado.
-- Ferramentas POSIX indisponiveis: execute os hooks em ambiente compativel com Git Bash no Windows ou shell POSIX no Linux/macOS.
+- Ferramentas POSIX ou Python indisponiveis: execute os hooks em ambiente compativel com Git Bash no Windows ou shell POSIX no Linux/macOS, com `python3` ou `python` disponivel para ler o resumo de cobertura.
 
 ## Desabilitacao excepcional
 

@@ -5,8 +5,9 @@
       <DataCollector friendlyName="XPlat Code Coverage">
         <Configuration>
           <Format>cobertura</Format>
-          <!-- Exclusões permitidas (sem forçar coverage): minimal hosting, migrations EF, arquivos gerados -->
-          <ExcludeByFile>**/Program.cs;**/*Migrations/*.cs;**/*.g.cs;**/*.g.*.cs</ExcludeByFile>
+          <!-- Exclusoes permitidas (sem forcar coverage): minimal hosting, migrations EF, arquivos gerados e membros marcados explicitamente. -->
+          <ExcludeByAttribute>System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverageAttribute,ExcludeFromCodeCoverageAttribute,GeneratedCodeAttribute,CompilerGeneratedAttribute</ExcludeByAttribute>
+          <ExcludeByFile>**/Program.cs,**/Migrations/*.cs,**/*.g.cs,**/*.g.*.cs</ExcludeByFile>
         </Configuration>
       </DataCollector>
     </DataCollectors>

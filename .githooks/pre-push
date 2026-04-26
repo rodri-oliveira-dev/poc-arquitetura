@@ -31,36 +31,40 @@ dotnet test ./LedgerService.slnx \
   --settings ./coverlet.runsettings \
   --results-directory "$results_dir"
 
-coverage_files="$results_dir/coverage-files.txt"
-find "$results_dir" -name coverage.cobertura.xml > "$coverage_files"
+echo "==> pre-push: consolidando cobertura"
+dotnet tool restore >/dev/null
 
-if [ ! -s "$coverage_files" ]; then
-  echo "pre-push: nenhum coverage.cobertura.xml foi encontrado." >&2
+report_dir="$results_dir/coverage-report"
+dotnet tool run reportgenerator \
+  -reports:"$results_dir/**/coverage.cobertura.xml" \
+  -targetdir:"$report_dir" \
+  -reporttypes:"JsonSummary;TextSummary" >/dev/null
+
+summary_json="$report_dir/Summary.json"
+if [ ! -f "$summary_json" ]; then
+  echo "pre-push: Summary.json nao encontrado em $summary_json." >&2
   exit 1
 fi
 
-covered=0
-valid=0
-
-while IFS= read -r coverage_file; do
-  file_covered="$(sed -n 's/.*lines-covered="\([0-9][0-9]*\)".*/\1/p' "$coverage_file" | head -n 1)"
-  file_valid="$(sed -n 's/.*lines-valid="\([0-9][0-9]*\)".*/\1/p' "$coverage_file" | head -n 1)"
-
-  if [ -z "$file_covered" ] || [ -z "$file_valid" ]; then
-    echo "pre-push: nao foi possivel ler cobertura em $coverage_file." >&2
-    exit 1
-  fi
-
-  covered=$((covered + file_covered))
-  valid=$((valid + file_valid))
-done < "$coverage_files"
-
-if [ "$valid" -eq 0 ]; then
-  echo "pre-push: nenhuma linha valida encontrada nos relatorios de cobertura." >&2
+if command -v python3 >/dev/null 2>&1; then
+  python_cmd="python3"
+elif command -v python >/dev/null 2>&1; then
+  python_cmd="python"
+else
+  echo "pre-push: python nao encontrado para ler Summary.json." >&2
   exit 1
 fi
 
-coverage="$(awk -v covered="$covered" -v valid="$valid" 'BEGIN { printf "%.2f", (covered / valid) * 100 }')"
+coverage="$("$python_cmd" - "$summary_json" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as f:
+    data = json.load(f)
+
+print(data["summary"]["linecoverage"])
+PY
+)"
 
 echo "==> pre-push: cobertura total de linhas: $coverage%"
 

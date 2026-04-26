@@ -598,7 +598,7 @@ Exemplo:
 dotnet test
 ```
 
-### Rodando todos os testes com gate de coverage (>= 85% line)
+### Rodando todos os testes com gate de coverage (>= 80% line)
 
 Windows (PowerShell):
 
@@ -613,17 +613,18 @@ chmod +x ./test.sh
 ./test.sh
 ```
 
-O gate é aplicado via **coverlet** (MSBuild properties) e falha o comando caso a cobertura global da solução fique abaixo do threshold.
+O gate e aplicado via **XPlat Code Coverage** com `coverlet.runsettings`, consolidado pelo **ReportGenerator** e falha caso a cobertura total de linhas da solution fique abaixo do threshold.
 
-Exclusões aplicadas (com parcimônia, sem “forçar” coverage):
+Exclusoes aplicadas com parcimonia, sem forcar coverage:
 
 - `Program.cs` (minimal hosting)
-- migrations EF (`*/Migrations/*.cs`)
+- migrations EF (`**/Migrations/*.cs`)
 - arquivos gerados (`*.g.cs`)
+- itens marcados com `ExcludeFromCodeCoverageAttribute`
+
+Detalhes da politica de cobertura: [`docs/development/test-coverage.md`](docs/development/test-coverage.md).
 
 Os resultados ficam em `./TestResults/` (ignorado no git).
-
-> Nota: internamente os scripts passam as exclusões via `/p:ExcludeByFile` (lista separada por vírgula).
 
 ## Banco de dados e migrations
 

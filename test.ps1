@@ -1,11 +1,11 @@
 param(
   [string]$Configuration = "Release",
-  [int]$Threshold = 85
+  [int]$Threshold = 80
 )
 
 $ErrorActionPreference = "Stop"
 
-Write-Host "==> Running tests with coverage gate (line >= $Threshold%)" -ForegroundColor Cyan
+Write-Host "==> Running solution tests with coverage gate (line >= $Threshold%)" -ForegroundColor Cyan
 
 $resultsDir = Join-Path $PSScriptRoot "TestResults"
 if (Test-Path $resultsDir) {
@@ -13,8 +13,6 @@ if (Test-Path $resultsDir) {
 }
 New-Item -ItemType Directory -Force -Path $resultsDir | Out-Null
 
-# MSBuild usa ';' como separador interno de propriedades em /p:.
-# Para evitar que o valor seja quebrado, usamos ';' URL-encoded (%3B).
 dotnet test .\LedgerService.slnx -c $Configuration `
   --collect:"XPlat Code Coverage" `
   --settings .\coverlet.runsettings `

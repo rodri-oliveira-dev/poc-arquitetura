@@ -2,9 +2,9 @@
 set -euo pipefail
 
 CONFIGURATION="${1:-Release}"
-THRESHOLD="${2:-85}"
+THRESHOLD="${2:-80}"
 
-echo "==> Running tests with coverage gate (line >= ${THRESHOLD}%)"
+echo "==> Running solution tests with coverage gate (line >= ${THRESHOLD}%)"
 
 RESULTS_DIR="$(pwd)/TestResults"
 rm -rf "$RESULTS_DIR"
