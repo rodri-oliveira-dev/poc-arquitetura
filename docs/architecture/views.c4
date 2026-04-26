@@ -1,0 +1,59 @@
+// LikeC4 views for poc-arquitetura.
+
+views {
+  view systemLandscape {
+    title "System Landscape - poc-arquitetura"
+    include *
+    autoLayout LeftRight
+  }
+
+  view containers {
+    title "Container View - APIs, bancos, Kafka e observabilidade"
+    include customer
+    include auth.authApi
+    include ledger.ledgerApi
+    include ledger.ledgerDb
+    include balance.balanceApi
+    include balance.balanceDb
+    include kafka.ledgerTopic
+    include kafka.ledgerDlq
+    include observability
+    autoLayout LeftRight
+  }
+
+  view ledgerComponents of ledger.ledgerApi {
+    title "Component View - LedgerService"
+    include ledger.ledgerApiLayer
+    include ledger.ledgerApplication
+    include ledger.ledgerDomain
+    include ledger.ledgerInfrastructure
+    include ledger.ledgerOutbox
+    include ledger.ledgerDb
+    include kafka.ledgerTopic
+    include auth.authApi
+    autoLayout LeftRight
+  }
+
+  view balanceComponents of balance.balanceApi {
+    title "Component View - BalanceService"
+    include balance.balanceApiLayer
+    include balance.balanceApplication
+    include balance.balanceDomain
+    include balance.balanceInfrastructure
+    include balance.balanceConsumer
+    include balance.balanceDb
+    include kafka.ledgerTopic
+    include kafka.ledgerDlq
+    include auth.authApi
+    autoLayout LeftRight
+  }
+
+  view authComponents of auth.authApi {
+    title "Component View - Auth.Api"
+    include auth.authEndpoints
+    include auth.authSecurity
+    include auth.authPipeline
+    include observability
+    autoLayout LeftRight
+  }
+}

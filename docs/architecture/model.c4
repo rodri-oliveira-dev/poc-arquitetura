@@ -1,0 +1,158 @@
+// LikeC4 architectural model for poc-arquitetura.
+// The model documents the current implementation. It intentionally avoids
+// artificial components that are not present in the repository.
+
+specification {
+  element actor {
+    style {
+      shape person
+    }
+  }
+  element softwareSystem
+  element container
+  element component
+}
+
+model {
+  customer = actor "Cliente / Sistema externo" {
+    description "Chama APIs HTTP para login, criacao de lancamentos e consulta de consolidados."
+  }
+
+  observability = softwareSystem "Observabilidade" {
+    description "Exportadores OpenTelemetry opcionais via console ou OTLP."
+  }
+
+  auth = softwareSystem "Auth.Api" {
+    description "API de autenticacao da POC. Emite JWT RS256 e publica JWKS."
+
+    authApi = container "Auth.Api" {
+      technology "ASP.NET Core"
+      description "Minimal API com login, JWKS, health, hardening basico, Swagger e OpenTelemetry opcional."
+
+      authEndpoints = component "HTTP endpoints" {
+        description "POST /auth/login, GET /.well-known/jwks.json e GET /health."
+      }
+
+      authSecurity = component "JWT issuer e RSA keys" {
+        description "Emite tokens RS256 e gerencia chave RSA persistida em arquivo/volume."
+      }
+
+      authPipeline = component "API pipeline" {
+        description "Correlation id, security headers, ProblemDetails, HTTPS/HSTS por ambiente e rate limit de login."
+      }
+    }
+  }
+
+  ledger = softwareSystem "LedgerService" {
+    description "Servico de escrita do ledger. Cria lancamentos, garante idempotencia e publica eventos via Outbox."
+
+    ledgerApi = container "LedgerService.Api" {
+      technology "ASP.NET Core"
+      description "HTTP API para criacao de lancamentos e composicao do processo."
+
+      ledgerApiLayer = component "API Layer" {
+        description "Controllers, contracts, binders, mappers, Swagger, JWT/JWKS, policies, correlation id e middlewares."
+      }
+
+      ledgerApplication = component "Application Layer" {
+        description "CreateLancamentoService, validacao de input, idempotencia, transacao, criacao do lancamento e registro de Outbox."
+      }
+
+      ledgerDomain = component "Domain Layer" {
+        description "LedgerEntry, IdempotencyRecord, OutboxMessage, invariantes de valor e contratos de repositorio."
+      }
+
+      ledgerInfrastructure = component "Infrastructure Layer" {
+        description "EF Core, AppDbContext, repositories concretos, migrations, produtor Kafka e hosted service de Outbox."
+      }
+
+      ledgerOutbox = component "Outbox publisher" {
+        description "BackgroundService que faz claim de mensagens, publica no Kafka e marca SENT/FAILED com retry/backoff."
+      }
+    }
+
+    ledgerDb = container "PostgreSQL Ledger" {
+      technology "PostgreSQL"
+      description "Banco do LedgerService: lancamentos, idempotencia e outbox_messages."
+    }
+  }
+
+  balance = softwareSystem "BalanceService" {
+    description "Servico de leitura/projecao. Consome eventos do Ledger e expoe consolidado diario/periodo."
+
+    balanceApi = container "BalanceService.Api" {
+      technology "ASP.NET Core"
+      description "HTTP API de consulta e composicao do consumidor Kafka."
+
+      balanceApiLayer = component "API Layer" {
+        description "Controllers, contracts, mappers, Swagger, JWT/JWKS, policies, correlation id e middlewares."
+      }
+
+      balanceApplication = component "Application Layer" {
+        description "Handlers MediatR, queries, comando de aplicacao de evento, validadores e servicos de consolidacao."
+      }
+
+      balanceDomain = component "Domain Layer" {
+        description "DailyBalance, ProcessedEvent, evento recebido e invariantes de consolidacao."
+      }
+
+      balanceInfrastructure = component "Infrastructure Layer" {
+        description "EF Core, BalanceDbContext, repositories concretos, migrations, consumidor Kafka e produtor DLQ."
+      }
+
+      balanceConsumer = component "Kafka consumer" {
+        description "BackgroundService que consome LedgerEntryCreated.v1, valida headers/payload, aplica projecao ou envia para DLQ."
+      }
+    }
+
+    balanceDb = container "PostgreSQL Balance" {
+      technology "PostgreSQL"
+      description "Banco do BalanceService: daily_balances e processed_events."
+    }
+  }
+
+  kafka = softwareSystem "Kafka" {
+    description "Broker Kafka local em KRaft, com topico principal e DLQ."
+
+    ledgerTopic = container "ledger.ledgerentry.created" {
+      technology "Kafka topic"
+      description "Topico principal do evento LedgerEntryCreated.v1."
+    }
+
+    ledgerDlq = container "ledger.ledgerentry.created.dlq" {
+      technology "Kafka topic"
+      description "DLQ usada pelo BalanceService para mensagens invalidas ou nao recuperaveis."
+    }
+  }
+
+  customer -> auth.authApi "Login e obtencao de JWT" "HTTP"
+  customer -> ledger.ledgerApi "Cria lancamentos" "HTTP + JWT"
+  customer -> balance.balanceApi "Consulta consolidados" "HTTP + JWT"
+
+  ledger.ledgerApi -> auth.authApi "Obtem JWKS para validar JWT" "HTTP cacheado"
+  balance.balanceApi -> auth.authApi "Obtem JWKS para validar JWT" "HTTP cacheado"
+
+  ledger.ledgerApi -> ledger.ledgerDb "Persiste lancamento, idempotencia e outbox" "EF Core"
+  ledger.ledgerOutbox -> ledger.ledgerDb "Le e atualiza outbox_messages" "EF Core / SQL"
+  ledger.ledgerOutbox -> kafka.ledgerTopic "Publica LedgerEntryCreated.v1" "Kafka"
+
+  balance.balanceConsumer -> kafka.ledgerTopic "Consome LedgerEntryCreated.v1" "Kafka"
+  balance.balanceConsumer -> kafka.ledgerDlq "Publica mensagens invalidas" "Kafka"
+  balance.balanceConsumer -> balance.balanceDb "Atualiza daily_balances e processed_events" "EF Core"
+  balance.balanceApi -> balance.balanceDb "Consulta projecao" "EF Core"
+
+  auth.authApi -> observability "Exporta traces e metricas quando habilitado" "OTLP/Console"
+  ledger.ledgerApi -> observability "Exporta traces e metricas quando habilitado" "OTLP/Console"
+  balance.balanceApi -> observability "Exporta traces e metricas quando habilitado" "OTLP/Console"
+
+  ledger.ledgerApiLayer -> ledger.ledgerApplication "Chama caso de uso"
+  ledger.ledgerApplication -> ledger.ledgerDomain "Cria agregados e usa contratos de repositorio"
+  ledger.ledgerInfrastructure -> ledger.ledgerApplication "Implementa composicao e hosted services"
+  ledger.ledgerInfrastructure -> ledger.ledgerDomain "Mapeia entidades e implementa repositorios"
+
+  balance.balanceApiLayer -> balance.balanceApplication "Envia queries via MediatR"
+  balance.balanceConsumer -> balance.balanceApplication "Envia comando de aplicacao de evento"
+  balance.balanceApplication -> balance.balanceDomain "Aplica regras de consolidacao"
+  balance.balanceInfrastructure -> balance.balanceApplication "Implementa repositorios e processador de mensagens"
+  balance.balanceInfrastructure -> balance.balanceDomain "Mapeia entidades e contrato consumido"
+}
