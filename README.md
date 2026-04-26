@@ -804,8 +804,13 @@ Em caso de falha no Kafka, o serviço não cai: ele registra erro, incrementa te
 
 ### Traces e métricas
 
-Consulte `docs/observability.md` para:
+Consulte [`docs/observability.md`](./docs/observability.md) para:
 
+- inventario operacional minimo;
+- health e readiness;
+- logs, metricas e tracing;
+- Kafka, DLQ e Outbox;
+- configuracao local;
 - arquitetura de telemetria;
 - configuracao por ambiente de `Observability:OpenTelemetry`;
 - uso de exporter de console e endpoint OTLP opcional;
