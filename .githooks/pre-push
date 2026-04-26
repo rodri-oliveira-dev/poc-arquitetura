@@ -3,6 +3,7 @@ set -eu
 
 CONFIGURATION="${CONFIGURATION:-Release}"
 THRESHOLD="${COVERAGE_THRESHOLD:-80}"
+ZERO_SHA="0000000000000000000000000000000000000000"
 
 if command -v git >/dev/null 2>&1; then
   repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
@@ -13,6 +14,104 @@ fi
 cd "$repo_root"
 
 results_dir="$repo_root/TestResults/pre-push"
+
+if command -v mktemp >/dev/null 2>&1; then
+  changed_files="$(mktemp "${TMPDIR:-/tmp}/pre-push-changed.XXXXXX")"
+else
+  changed_files="${TMPDIR:-/tmp}/pre-push-changed.$$"
+  : >"$changed_files"
+fi
+
+trap 'rm -f "$changed_files"' EXIT
+
+is_impacting_path() {
+  case "$1" in
+    src/*|tests/*|.github/workflows/*|.githooks/*|scripts/*|tools/*|loadtests/k6/lib/*|loadtests/k6/scenarios/*)
+      return 0
+      ;;
+    *.cs|*.csproj|*.sln|*.slnx|*.props|*.targets|*.runsettings|*.editorconfig|*.globalconfig|*.ruleset)
+      return 0
+      ;;
+    *.json|*.yml|*.yaml)
+      return 0
+      ;;
+    Dockerfile|*/Dockerfile|compose.yaml|compose.*.yaml|global.json|NuGet.config|Directory.Build.props|Directory.Build.targets|Directory.Packages.props|dotnet-tools.json|coverlet.runsettings|test.sh|test.ps1)
+      return 0
+      ;;
+  esac
+
+  return 1
+}
+
+append_changed_files_from_ref_range() {
+  base_ref="$1"
+  head_ref="$2"
+
+  git diff --name-only "$base_ref" "$head_ref" >>"$changed_files"
+}
+
+append_changed_files_from_upstream() {
+  head_ref="$1"
+
+  upstream_ref="$(git rev-parse --abbrev-ref --symbolic-full-name "@{u}" 2>/dev/null || true)"
+  if [ -z "$upstream_ref" ]; then
+    echo "==> pre-push: upstream/remoto nao configurado; executando validacoes por seguranca"
+    return 1
+  fi
+
+  git diff --name-only "$upstream_ref...$head_ref" >>"$changed_files"
+}
+
+diff_is_safe=true
+stdin_seen=false
+
+while read -r local_ref local_sha remote_ref remote_sha
+do
+  stdin_seen=true
+
+  if [ "$local_sha" = "$ZERO_SHA" ]; then
+    continue
+  fi
+
+  if [ -n "$remote_sha" ] && [ "$remote_sha" != "$ZERO_SHA" ]; then
+    if ! append_changed_files_from_ref_range "$remote_sha" "$local_sha"; then
+      diff_is_safe=false
+    fi
+    continue
+  fi
+
+  if ! append_changed_files_from_upstream "$local_sha"; then
+    diff_is_safe=false
+  fi
+done
+
+if [ "$stdin_seen" = false ]; then
+  if ! append_changed_files_from_upstream "HEAD"; then
+    diff_is_safe=false
+  fi
+fi
+
+if [ "$diff_is_safe" = false ]; then
+  echo "==> pre-push: nao foi possivel determinar o diff com seguranca; executando validacoes"
+else
+  impacting_file=""
+  while IFS= read -r changed_file
+  do
+    [ -z "$changed_file" ] && continue
+
+    if is_impacting_path "$changed_file"; then
+      impacting_file="$changed_file"
+      break
+    fi
+  done <"$changed_files"
+
+  if [ -z "$impacting_file" ]; then
+    echo "==> pre-push: nenhuma alteracao impactante detectada; pulando build, testes e cobertura"
+    exit 0
+  fi
+
+  echo "==> pre-push: alteracao impactante detectada em $impacting_file"
+fi
 
 echo "==> pre-push: restaurando dependencias"
 dotnet restore ./LedgerService.slnx

@@ -11,7 +11,28 @@ O target e idempotente, roda apos o build, ignora CI (`CI=true`) e nao falha o b
 ## Hooks disponiveis
 
 - `commit-msg`: valida a primeira linha da mensagem de commit com Conventional Commits.
-- `pre-push`: executa restore, build, testes com cobertura e falha se a cobertura total de linhas ficar abaixo de 80%.
+- `pre-push`: executa restore, build, testes com cobertura e falha se a cobertura total de linhas ficar abaixo de 80% quando houver alteracoes impactantes.
+
+## Politica do pre-push
+
+Antes de executar validacoes pesadas, o `pre-push` tenta identificar os arquivos alterados entre o branch local e o upstream/remoto:
+
+- em pushes normais, usa o intervalo informado pelo Git para comparar o SHA remoto com o SHA local;
+- em execucao manual, compara `@{u}...HEAD`;
+- se nao houver upstream/remoto configurado, ou se o diff nao puder ser calculado com seguranca, executa as validacoes completas.
+
+O hook executa restore, build, testes e cobertura quando encontra qualquer arquivo impactante, incluindo:
+
+- codigo, projetos e solution: `*.cs`, `*.csproj`, `*.sln`, `*.slnx`;
+- configuracao de build/teste: `*.props`, `*.targets`, `*.runsettings`, `.editorconfig`, `global.json`, `NuGet.config`, `Directory.Build.*`, `Directory.Packages.props`, `dotnet-tools.json`, `coverlet.runsettings`;
+- configuracoes conservadoras: `*.json`, `*.yml`, `*.yaml`, `*.ruleset`;
+- Docker e compose: `Dockerfile`, `*/Dockerfile`, `compose.yaml`, `compose.*.yaml`;
+- caminhos operacionais: `src/`, `tests/`, `.github/workflows/`, `.githooks/`, `scripts/`, `tools/`, `loadtests/k6/lib/`, `loadtests/k6/scenarios/`;
+- scripts raiz usados por validacao: `test.sh` e `test.ps1`.
+
+O hook pula build, testes e cobertura quando todas as alteracoes sao claramente nao impactantes, como Markdown, arquivos em `docs/`, imagens de documentacao (`png`, `jpg`, `jpeg`, `gif`, `svg`, `webp`), diagramas Mermaid/LikeC4 e notas textuais que nao entram no build.
+
+Se houver mistura de documentacao com qualquer arquivo impactante, as validacoes completas sao executadas. Em caso de duvida, a regra e validar.
 
 ## Padrao de commit
 
@@ -64,7 +85,21 @@ Validar `pre-push`:
 .githooks/pre-push
 ```
 
-O `pre-push` usa `coverlet.runsettings`, grava resultados em `TestResults/pre-push`, consolida a cobertura com ReportGenerator e valida o `Summary.json`.
+O `pre-push` usa `coverlet.runsettings`, grava resultados em `TestResults/pre-push`, consolida a cobertura com ReportGenerator e valida o `Summary.txt`.
+
+Para forcar a validacao completa manualmente, execute os comandos equivalentes:
+
+```bash
+dotnet restore ./LedgerService.slnx
+dotnet build ./LedgerService.slnx --configuration Release --no-restore
+dotnet test ./LedgerService.slnx --configuration Release --no-build --collect:"XPlat Code Coverage" --settings ./coverlet.runsettings
+```
+
+## GitHub Actions
+
+Os workflows `.github/workflows/dotnet.yml`, `.github/workflows/codeql.yml` e `.github/workflows/dependency-review.yml` usam `paths-ignore` em `push` e/ou `pull_request` para nao rodar quando a mudanca contem apenas Markdown, arquivos em `docs/` ou imagens de documentacao.
+
+Mudancas em codigo, projetos, solution, build, testes, Docker, workflows, hooks e configuracoes continuam acionando os workflows. O workflow CodeQL mantem a execucao agendada semanal independentemente de filtros de path.
 
 ## Falhas comuns
 
