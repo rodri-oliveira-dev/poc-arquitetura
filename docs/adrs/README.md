@@ -15,6 +15,7 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 
 | ADR                                                                   | Status      | Resumo                                                                                           |
 | --------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------ |
+| [ADR-0030](./0030-baseline-minimo-hardening-auth-api.md)              | Aceito      | Aplica baseline minimo de hardening ao Auth.Api preservando diferencas da API de autenticacao.   |
 | [ADR-0029](./0029-limites-operacionais-de-api.md)                     | Aceito      | Define limites configuraveis de body, periodo do Balance e rate limit por ambiente.              |
 | [ADR-0028](./0028-baseline-transporte-seguro-jwks-kafka.md)           | Aceito      | Define HTTPS para JWKS e Kafka seguro fora da excecao local Development/Local.                   |
 | [ADR-0027](./0027-exposicao-controlada-swagger-openapi.md)            | Aceito      | Controla exposicao de Swagger/OpenAPI por ambiente e configuracao explicita.                     |

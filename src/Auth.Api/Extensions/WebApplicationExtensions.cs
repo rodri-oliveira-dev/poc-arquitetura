@@ -14,7 +14,20 @@ public static class WebApplicationExtensions
     /// </summary>
     public static WebApplication UseAuthApiPipeline(this WebApplication app)
     {
+        if (!app.Environment.IsDevelopment())
+        {
+            app.UseHsts();
+        }
+
+        app.UseExceptionHandler();
+        app.UseStatusCodePages();
+        if (!app.Environment.IsEnvironment("Test"))
+        {
+            app.UseHttpsRedirection();
+        }
+
         app.UseMiddleware<CorrelationIdMiddleware>();
+        app.UseMiddleware<SecurityHeadersMiddleware>();
         app.UseMiddleware<LoginRateLimitMiddleware>();
         return app;
     }

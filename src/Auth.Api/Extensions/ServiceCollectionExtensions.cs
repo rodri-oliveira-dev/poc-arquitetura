@@ -2,6 +2,7 @@ using Auth.Api.Observability;
 using Auth.Api.Options;
 using Auth.Api.Security;
 using Auth.Api.Swagger;
+using Auth.Api.Middlewares;
 
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
@@ -16,10 +17,19 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddAuthApiServices(this IServiceCollection services, IConfiguration configuration)
     {
         services
+            .AddAuthApiHardening()
             .AddAuthApiOptions(configuration)
             .AddAuthApiSecurity()
             .AddAuthApiObservability(configuration)
             .AddApiSwagger();
+
+        return services;
+    }
+
+    public static IServiceCollection AddAuthApiHardening(this IServiceCollection services)
+    {
+        services.AddExceptionHandler<GlobalExceptionHandler>();
+        services.AddProblemDetails();
 
         return services;
     }

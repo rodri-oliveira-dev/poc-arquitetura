@@ -28,6 +28,61 @@ public sealed class AuthEndpointsTests : IClassFixture<AuthApiFactory>
     }
 
     [Fact]
+    public async Task Health_should_return_security_headers()
+    {
+        var res = await _client.GetAsync("/health");
+
+        res.StatusCode.Should().Be(HttpStatusCode.OK);
+        res.Headers.GetValues("X-Content-Type-Options").Should().Contain("nosniff");
+        res.Headers.GetValues("X-Frame-Options").Should().Contain("DENY");
+        res.Headers.GetValues("Referrer-Policy").Should().Contain("no-referrer");
+        res.Headers.GetValues("X-Permitted-Cross-Domain-Policies").Should().Contain("none");
+        res.Headers.GetValues("Permissions-Policy").Should().Contain("geolocation=(), microphone=(), camera=()");
+        res.Headers.GetValues("Cross-Origin-Opener-Policy").Should().Contain("same-origin");
+        res.Headers.GetValues("Cross-Origin-Resource-Policy").Should().Contain("same-origin");
+        res.Headers.GetValues("Content-Security-Policy").Should().Contain("default-src 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'");
+    }
+
+    [Fact]
+    public async Task Unknown_route_should_return_problem_details()
+    {
+        var res = await _client.GetAsync("/rota-inexistente");
+
+        res.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        res.Content.Headers.ContentType?.MediaType.Should().Be("application/problem+json");
+
+        using var doc = JsonDocument.Parse(await res.Content.ReadAsStringAsync());
+        doc.RootElement.GetProperty("status").GetInt32().Should().Be(404);
+        doc.RootElement.GetProperty("title").GetString().Should().NotBeNullOrWhiteSpace();
+    }
+
+    [Fact]
+    public async Task Swagger_should_be_disabled_by_default_in_test()
+    {
+        var res = await _client.GetAsync("/swagger/v1/swagger.json");
+
+        res.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task Swagger_should_be_enabled_when_explicitly_configured()
+    {
+        using var factory = AuthApiFactory.WithConfigurationOverrides(new Dictionary<string, string?>
+        {
+            ["Swagger:Enabled"] = "true"
+        });
+
+        using var client = factory.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        var res = await client.GetAsync("/swagger/v1/swagger.json");
+
+        res.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
     public async Task Jwks_should_return_key_with_kid()
     {
         var res = await _client.GetAsync("/.well-known/jwks.json");
@@ -126,6 +181,9 @@ public sealed class AuthEndpointsTests : IClassFixture<AuthApiFactory>
 
         (await client.PostAsJsonAsync("/auth/login", request)).StatusCode.Should().Be(HttpStatusCode.OK);
         (await client.PostAsJsonAsync("/auth/login", request)).StatusCode.Should().Be(HttpStatusCode.OK);
-        (await client.PostAsJsonAsync("/auth/login", request)).StatusCode.Should().Be((HttpStatusCode)429);
+        var rejected = await client.PostAsJsonAsync("/auth/login", request);
+
+        rejected.StatusCode.Should().Be((HttpStatusCode)429);
+        rejected.Content.Headers.ContentType?.MediaType.Should().Be("application/problem+json");
     }
 }

@@ -10,6 +10,7 @@ O objetivo é demonstrar, de forma reprodutível, uma base de microserviços em 
 - **Auth.Api** (`src/Auth.Api`)
   - Emite **JWT (RS256)** via `POST /auth/login`
   - Publica **JWKS** via `GET /.well-known/jwks.json` para validação offline pelos demais serviços
+  - Aplica hardening minimo de pipeline: correlation id, security headers, ProblemDetails, HTTPS/HSTS por ambiente, Swagger gating e rate limit no login
 - **LedgerService.Api** (`src/LedgerService.Api`)
   - API HTTP de **escrita** para criação de lançamentos (`POST /api/v1/lancamentos`)
   - Publica eventos via **Outbox** (entrega *at-least-once*)
@@ -260,6 +261,8 @@ nerdctl compose down
 - `ApiLimits:MaxBalancePeriodDays`: limite maximo inclusivo para `GET /v1/consolidados/periodo` no BalanceService. O padrao e `31` dias; intervalos maiores retornam `400 Bad Request`.
 
 Em variaveis de ambiente, use o separador `__`, por exemplo `ApiLimits__MaxRequestBodySizeBytes=1048576` e `ApiLimits__MaxBalancePeriodDays=31`.
+
+`Auth.Api` aplica o baseline minimo compativel com uma API de autenticacao: headers de seguranca, ProblemDetails para erros do pipeline, HTTPS redirection/HSTS por ambiente, Swagger gating e rate limit especifico em `POST /auth/login` via `Auth:LoginRateLimit:PermitLimit` e `Auth:LoginRateLimit:WindowSeconds`.
 
 #### Swagger/OpenAPI por ambiente
 
