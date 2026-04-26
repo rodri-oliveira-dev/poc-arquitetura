@@ -27,44 +27,47 @@ Infra local (via compose):
 
 ```mermaid
 C4Container
-title poc-arquitetura - Containers
+title poc-arquitetura - Containers reais com workers internos
 
 Person(user, "Cliente", "Usuário/Sistema chamando as APIs")
 
 System_Boundary(authBoundary, "Auth") {
-  Container(authApi, "Auth.Api", "ASP.NET", "Emite JWT (RS256) e expõe JWKS")
+  Container(authApi, "Auth.Api", "ASP.NET Core", "Emite JWT RS256, expõe JWKS e persiste chave RSA em volume local")
 }
 
 System_Boundary(ledgerBoundary, "LedgerService") {
-  Container(ledgerApi, "LedgerService.Api", "ASP.NET", "Cria lançamentos e grava Outbox")
-  Container(outboxPublisher, "Ledger.OutboxPublisher", "Worker/HostedService", "Publica eventos do Outbox no Kafka")
-  ContainerDb(ledgerDb, "PostgreSQL (ledger)", "PostgreSQL", "appdb (lancamentos + outbox)")
+  Container(ledgerApi, "LedgerService.Api", "ASP.NET Core", "API HTTP de escrita. Cria lançamentos, valida JWT, grava idempotência e grava Outbox")
+  Container(ledgerOutboxWorker, "OutboxKafkaPublisherService", "HostedService interno do LedgerService.Api", "Worker interno que lê Outbox pendente, publica eventos no Kafka e marca mensagens como publicadas")
+  ContainerDb(ledgerDb, "PostgreSQL Ledger", "PostgreSQL 16", "Banco appdb. Armazena lançamentos, idempotência e outbox")
 }
 
 System_Boundary(balanceBoundary, "BalanceService") {
-  Container(balanceApi, "BalanceService.Api", "ASP.NET", "Consulta consolidado (projeção)")
-  Container(balanceConsumer, "Balance.Consumer", "Worker", "Consome eventos e atualiza projeção")
-  ContainerDb(balanceDb, "PostgreSQL (balance)", "PostgreSQL", "dbBalance (daily_balances)")
+  Container(balanceApi, "BalanceService.Api", "ASP.NET Core", "API HTTP de leitura. Valida JWT e consulta consolidado diário ou por período")
+  Container(balanceConsumerWorker, "LedgerEventsConsumer", "HostedService interno do BalanceService.Api", "Worker interno que consome eventos do Kafka, atualiza daily_balances e envia mensagens inválidas para DLQ")
+  ContainerDb(balanceDb, "PostgreSQL Balance", "PostgreSQL 16", "Banco dbBalance. Armazena daily_balances e eventos processados")
 }
 
-ContainerQueue(kafka, "Kafka", "Kafka", "Tópicos de eventos (ex.: ledger.ledgerentry.created)")
+ContainerQueue(kafka, "Kafka", "Apache Kafka 3.7.0 KRaft", "Broker single node para eventos de ledger")
+Container(kafkaInitTopics, "kafka-init-topics", "Apache Kafka CLI", "Job de inicialização que cria os tópicos ledger.ledgerentry.created e ledger.ledgerentry.created.dlq")
 
-Rel(user, authApi, "Login (obtém JWT)", "HTTP")
-Rel(user, ledgerApi, "Cria lançamentos", "HTTP (JWT)")
-Rel(user, balanceApi, "Consulta consolidado", "HTTP (JWT)")
+Rel(user, authApi, "Login para obtenção de JWT", "HTTP")
+Rel(user, ledgerApi, "Cria lançamentos", "HTTP + Bearer JWT")
+Rel(user, balanceApi, "Consulta consolidado", "HTTP + Bearer JWT")
 
-Rel(ledgerApi, authApi, "Obtém JWKS para validar JWT", "HTTP")
-Rel(balanceApi, authApi, "Obtém JWKS para validar JWT", "HTTP")
-Rel(balanceConsumer, authApi, "Obtém JWKS para validar JWT (se necessário)", "HTTP")
+Rel(ledgerApi, authApi, "Obtém JWKS para validação/cache de chaves JWT", "HTTP")
+Rel(balanceApi, authApi, "Obtém JWKS para validação/cache de chaves JWT", "HTTP")
 
-Rel(ledgerApi, ledgerDb, "Persistência + grava Outbox", "EF Core")
-Rel(outboxPublisher, ledgerDb, "Lê Outbox pendente e marca como publicado", "EF Core/SQL")
-Rel(outboxPublisher, kafka, "Publica LedgerEntryCreated", "Kafka")
+Rel(ledgerApi, ledgerDb, "Persiste lançamento, idempotência e mensagem de Outbox", "EF Core/Npgsql")
+Rel(ledgerOutboxWorker, ledgerDb, "Lê Outbox pendente, controla lock, tentativas e status de publicação", "EF Core/Npgsql")
+Rel(ledgerOutboxWorker, kafka, "Publica LedgerEntryCreated.v1 no tópico ledger.ledgerentry.created", "Kafka Producer")
 
-Rel(balanceConsumer, kafka, "Consome LedgerEntryCreated", "Kafka (consumer group)")
-Rel(balanceConsumer, balanceDb, "Atualiza projeção daily_balances", "EF Core")
+Rel(balanceConsumerWorker, kafka, "Consome LedgerEntryCreated.v1 do tópico ledger.ledgerentry.created", "Kafka Consumer Group")
+Rel(balanceConsumerWorker, kafka, "Publica mensagens inválidas ou não recuperáveis em ledger.ledgerentry.created.dlq", "Kafka Producer")
+Rel(balanceConsumerWorker, balanceDb, "Atualiza daily_balances e registra eventos processados", "EF Core/Npgsql")
 
-Rel(balanceApi, balanceDb, "Consulta projeção daily_balances", "EF Core")
+Rel(balanceApi, balanceDb, "Consulta projeção daily_balances", "EF Core/Npgsql")
+
+Rel(kafkaInitTopics, kafka, "Cria tópicos de evento e DLQ na subida local", "Kafka CLI")
 
 ```
 
