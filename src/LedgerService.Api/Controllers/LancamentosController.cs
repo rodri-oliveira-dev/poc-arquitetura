@@ -31,10 +31,11 @@ public sealed class LancamentosController : ControllerBase
     [Authorize(Policy = ScopePolicies.LedgerWritePolicy)]
     [SwaggerOperation(
         Summary = "Cria um lançamento no ledger.",
-        Description = "Registra um lançamento CREDIT ou DEBIT. O endpoint exige `Idempotency-Key`, aceita `X-Correlation-Id` opcional e retorna `409` quando a mesma chave de idempotência é reutilizada com payload diferente.")]
+        Description = "Registra um lançamento CREDIT ou DEBIT. O endpoint exige `Idempotency-Key`, aceita `X-Correlation-Id` opcional, aplica limite de body configurável por `ApiLimits:MaxRequestBodySizeBytes` e retorna `409` quando a mesma chave de idempotência é reutilizada com payload diferente.")]
     [SwaggerResponse(StatusCodes.Status201Created, "Lançamento criado com sucesso. Retorna Location com a URI canônica do recurso.", typeof(LancamentoDto))]
     [SwaggerResponse(StatusCodes.Status400BadRequest, "Request inválido.", typeof(ValidationErrorResponse))]
     [SwaggerResponse(StatusCodes.Status409Conflict, "Conflito de idempotência.", typeof(ProblemDetails))]
+    [SwaggerResponse(StatusCodes.Status413PayloadTooLarge, "Body acima do limite configurado.", typeof(ProblemDetails))]
     [SwaggerResponse(StatusCodes.Status422UnprocessableEntity, "Violação de regra de domínio.", typeof(ProblemDetails))]
     [SwaggerResponse(StatusCodes.Status429TooManyRequests, "Limite de requisições excedido.")]
     [SwaggerResponse(StatusCodes.Status401Unauthorized, "Token ausente ou inválido.")]

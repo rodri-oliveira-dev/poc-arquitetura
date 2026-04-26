@@ -251,6 +251,16 @@ nerdctl compose down
 - `GET /health`: liveness simples, publico, retorna `ok` e nao depende de DB/Kafka.
 - `GET /ready`: readiness operacional, publico nesta PoC, valida DB e Kafka quando `Kafka:Enabled=true`.
 
+#### Limites operacionais das APIs
+
+`LedgerService.Api` e `BalanceService.Api` aplicam limites configuraveis para reduzir consumo excessivo de recursos:
+
+- `ApiLimits:MaxRequestBodySizeBytes`: limite maximo do body HTTP. O padrao e `1048576` bytes. Requests acima do limite retornam `413 Payload Too Large`.
+- `ApiLimits:RateLimitPermitLimit`, `ApiLimits:RateLimitWindowSeconds` e `ApiLimits:RateLimitQueueLimit`: configuram o rate limit fixo das rotas de negocio. O padrao e `100` requests por `60` segundos, com fila de `10`; rejeicoes retornam `429 Too Many Requests`.
+- `ApiLimits:MaxBalancePeriodDays`: limite maximo inclusivo para `GET /v1/consolidados/periodo` no BalanceService. O padrao e `31` dias; intervalos maiores retornam `400 Bad Request`.
+
+Em variaveis de ambiente, use o separador `__`, por exemplo `ApiLimits__MaxRequestBodySizeBytes=1048576` e `ApiLimits__MaxBalancePeriodDays=31`.
+
 #### Swagger/OpenAPI por ambiente
 
 Swagger/OpenAPI fica habilitado por padrao somente em `Development`, incluindo a execucao local via compose deste repositorio. Em qualquer outro ambiente, a exposicao exige configuracao explicita com `Swagger:Enabled=true` (ou `Swagger__Enabled=true` via variavel de ambiente).

@@ -5,12 +5,14 @@ using Asp.Versioning;
 using BalanceService.Api.Contracts;
 using BalanceService.Api.Mappers;
 using BalanceService.Api.Middlewares;
+using BalanceService.Api.Options;
 using BalanceService.Api.Security;
 
 using MediatR;
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 using Swashbuckle.AspNetCore.Annotations;
 
@@ -25,13 +27,16 @@ public sealed class ConsolidadosController : ControllerBase
 
     private readonly ISender _sender;
     private readonly IMerchantAuthorizationService _merchantAuthorizationService;
+    private readonly ApiLimitsOptions _apiLimitsOptions;
 
     public ConsolidadosController(
         ISender sender,
-        IMerchantAuthorizationService merchantAuthorizationService)
+        IMerchantAuthorizationService merchantAuthorizationService,
+        IOptions<ApiLimitsOptions> apiLimitsOptions)
     {
         _sender = sender;
         _merchantAuthorizationService = merchantAuthorizationService;
+        _apiLimitsOptions = apiLimitsOptions.Value;
     }
 
     [HttpGet("diario/{date}")]
@@ -70,7 +75,7 @@ public sealed class ConsolidadosController : ControllerBase
     [Authorize(Policy = ScopePolicies.BalanceReadPolicy)]
     [SwaggerOperation(
         Summary = "Consulta o consolidado por período.",
-        Description = "Retorna o agregado do período e os itens diários derivados de `daily_balances`. Quando não há dados, a API responde `200` com totais zerados e lista vazia.")]
+        Description = "Retorna o agregado do período e os itens diários derivados de `daily_balances`. O intervalo máximo padrão é 31 dias, configurável por `ApiLimits:MaxBalancePeriodDays`. Quando não há dados, a API responde `200` com totais zerados e lista vazia.")]
     [SwaggerResponse(StatusCodes.Status200OK, "Consolidado por período encontrado.", typeof(PeriodBalanceResponse))]
     [SwaggerResponse(StatusCodes.Status400BadRequest, "Parâmetros inválidos.", typeof(ValidationErrorResponse))]
     [SwaggerResponse(StatusCodes.Status401Unauthorized, "Token ausente ou inválido.")]
@@ -87,7 +92,11 @@ public sealed class ConsolidadosController : ControllerBase
         [FromHeader(Name = CorrelationIdMiddleware.HeaderName)] string? correlationId,
         CancellationToken cancellationToken)
     {
-        var query = BalanceQueryMapper.ToPeriodQuery(merchantId, from, to);
+        var query = BalanceQueryMapper.ToPeriodQuery(
+            merchantId,
+            from,
+            to,
+            _apiLimitsOptions.MaxBalancePeriodDays);
 
         if (!_merchantAuthorizationService.IsAuthorized(User, query.MerchantId))
             return Forbid();

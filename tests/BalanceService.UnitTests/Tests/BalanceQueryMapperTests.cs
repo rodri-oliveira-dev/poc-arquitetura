@@ -28,7 +28,7 @@ public sealed class BalanceQueryMapperTests
     [Fact]
     public void ToPeriodQuery_should_map_valid_request_values()
     {
-        var result = BalanceQueryMapper.ToPeriodQuery("m1", "2026-02-10", "2026-02-12");
+        var result = BalanceQueryMapper.ToPeriodQuery("m1", "2026-02-10", "2026-02-12", maxPeriodDays: 31);
 
         result.MerchantId.Should().Be("m1");
         result.From.Should().Be(new DateOnly(2026, 2, 10));
@@ -38,7 +38,16 @@ public sealed class BalanceQueryMapperTests
     [Fact]
     public void ToPeriodQuery_should_fail_when_to_is_invalid()
     {
-        var act = () => BalanceQueryMapper.ToPeriodQuery("m1", "2026-02-10", "bad");
+        var act = () => BalanceQueryMapper.ToPeriodQuery("m1", "2026-02-10", "bad", maxPeriodDays: 31);
+
+        act.Should().Throw<ValidationException>()
+            .Which.Errors.Should().ContainSingle(e => e.PropertyName == "to");
+    }
+
+    [Fact]
+    public void ToPeriodQuery_should_fail_when_range_exceeds_max_period()
+    {
+        var act = () => BalanceQueryMapper.ToPeriodQuery("m1", "2026-02-10", "2026-02-12", maxPeriodDays: 2);
 
         act.Should().Throw<ValidationException>()
             .Which.Errors.Should().ContainSingle(e => e.PropertyName == "to");

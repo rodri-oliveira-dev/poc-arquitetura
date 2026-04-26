@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text;
 
 using FluentAssertions;
 
@@ -97,6 +98,37 @@ public sealed class LancamentosAuthorizationTests : IClassFixture<LedgerApiFacto
         var res = await _client.SendAsync(req);
 
         res.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task Post_should_return_413_when_request_body_exceeds_limit()
+    {
+        var token = TestJwtTokenFactory.CreateToken(
+            issuer: "https://auth-api",
+            audiences: "ledger-api",
+            scopes: "ledger.write");
+
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        using var req = new HttpRequestMessage(HttpMethod.Post, "/api/v1/lancamentos")
+        {
+            Content = new StringContent(
+                """
+                {
+                  "merchantId": "m1",
+                  "type": "CREDIT",
+                  "amount": 10.0,
+                  "description": "payload intentionally larger than the test request body limit to exercise operational API protection"
+                }
+                """,
+                Encoding.UTF8,
+                "application/json")
+        };
+        req.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+
+        var res = await _client.SendAsync(req);
+
+        res.StatusCode.Should().Be(HttpStatusCode.RequestEntityTooLarge);
     }
 
     [Fact]

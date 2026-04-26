@@ -4,6 +4,7 @@ using Asp.Versioning;
 
 using BalanceService.Api.Middlewares;
 using BalanceService.Api.Observability;
+using BalanceService.Api.Options;
 using BalanceService.Api.Security;
 using BalanceService.Api.Swagger;
 
@@ -21,24 +22,36 @@ namespace BalanceService.Api.Extensions;
 
 public static class ServiceCollectionExtensions
 {
-    public static IServiceCollection AddApiHardening(this IServiceCollection services)
+    public static IServiceCollection AddApiHardening(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddExceptionHandler<GlobalExceptionHandler>();
         services.AddProblemDetails();
+        services
+            .AddOptions<ApiLimitsOptions>()
+            .Bind(configuration.GetSection(ApiLimitsOptions.SectionName))
+            .Validate(options => options.MaxRequestBodySizeBytes > 0, "ApiLimits:MaxRequestBodySizeBytes must be greater than zero.")
+            .Validate(options => options.MaxBalancePeriodDays > 0, "ApiLimits:MaxBalancePeriodDays must be greater than zero.")
+            .Validate(options => options.RateLimitPermitLimit > 0, "ApiLimits:RateLimitPermitLimit must be greater than zero.")
+            .Validate(options => options.RateLimitWindowSeconds > 0, "ApiLimits:RateLimitWindowSeconds must be greater than zero.")
+            .Validate(options => options.RateLimitQueueLimit >= 0, "ApiLimits:RateLimitQueueLimit must be zero or greater.")
+            .ValidateOnStart();
 
         return services;
     }
 
-    public static IServiceCollection AddApiRateLimiting(this IServiceCollection services)
+    public static IServiceCollection AddApiRateLimiting(this IServiceCollection services, IConfiguration configuration)
     {
+        var apiLimits = configuration.GetSection(ApiLimitsOptions.SectionName).Get<ApiLimitsOptions>()
+            ?? new ApiLimitsOptions();
+
         services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
             options.AddFixedWindowLimiter("fixed", config =>
             {
-                config.PermitLimit = 100;
-                config.Window = TimeSpan.FromMinutes(1);
-                config.QueueLimit = 10;
+                config.PermitLimit = apiLimits.RateLimitPermitLimit;
+                config.Window = TimeSpan.FromSeconds(apiLimits.RateLimitWindowSeconds);
+                config.QueueLimit = apiLimits.RateLimitQueueLimit;
                 config.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
             });
         });

@@ -44,6 +44,7 @@ public sealed class LedgerApiFactory : WebApplicationFactory<Program>
                 ["Jwt:Issuer"] = "https://auth-api",
                 ["Jwt:Audience"] = "ledger-api",
                 ["Jwt:JwksUrl"] = "https://localhost/jwks.json",
+                ["ApiLimits:MaxRequestBodySizeBytes"] = "128",
 
                 // DB placeholder (não será usada neste conjunto mínimo de integração)
                 ["ConnectionStrings:DefaultConnection"] = "Host=localhost;Database=ignore;Username=ignore;Password=ignore"

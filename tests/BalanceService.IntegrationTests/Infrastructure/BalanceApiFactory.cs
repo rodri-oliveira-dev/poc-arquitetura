@@ -37,6 +37,8 @@ public sealed class BalanceApiFactory : WebApplicationFactory<Program>
                 ["Jwt:Issuer"] = "https://auth-api",
                 ["Jwt:Audience"] = "balance-api",
                 ["Jwt:JwksUrl"] = "https://localhost/jwks.json",
+                ["ApiLimits:MaxRequestBodySizeBytes"] = "128",
+                ["ApiLimits:MaxBalancePeriodDays"] = "31",
                 ["ConnectionStrings:DefaultConnection"] = "Host=localhost;Database=ignore;Username=ignore;Password=ignore"
             });
         });

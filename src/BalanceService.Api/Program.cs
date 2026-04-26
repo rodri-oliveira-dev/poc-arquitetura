@@ -1,5 +1,6 @@
 using BalanceService.Api.Extensions;
 using BalanceService.Api.Middlewares;
+using BalanceService.Api.Options;
 using BalanceService.Application;
 using BalanceService.Infrastructure;
 using BalanceService.Infrastructure.Messaging.Kafka;
@@ -12,11 +13,20 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.WebHost.ConfigureKestrel(options => { options.AddServerHeader = false; });
+builder.WebHost.ConfigureKestrel((context, options) =>
+{
+    options.AddServerHeader = false;
+
+    var maxRequestBodySizeBytes = context.Configuration.GetValue<long?>(
+        $"{ApiLimitsOptions.SectionName}:{nameof(ApiLimitsOptions.MaxRequestBodySizeBytes)}");
+
+    if (maxRequestBodySizeBytes is > 0)
+        options.Limits.MaxRequestBodySize = maxRequestBodySizeBytes;
+});
 
 builder.Services
-    .AddApiHardening()
-    .AddApiRateLimiting()
+    .AddApiHardening(builder.Configuration)
+    .AddApiRateLimiting(builder.Configuration)
     .AddApiCors()
     .AddApiVersioningAndExplorer()
     .AddApiSwagger()
@@ -46,6 +56,7 @@ if (!app.Environment.IsEnvironment("Test"))
     app.UseHttpsRedirection();
 }
 app.UseMiddleware<CorrelationIdMiddleware>();
+app.UseMiddleware<RequestBodySizeLimitMiddleware>();
 app.UseMiddleware<SecurityHeadersMiddleware>();
 app.UseCors("ApiCorsPolicy");
 app.UseRateLimiter();
