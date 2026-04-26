@@ -4,6 +4,7 @@ using Auth.Api.Security;
 using Auth.Api.Swagger;
 using Auth.Api.Middlewares;
 
+using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 
@@ -71,9 +72,28 @@ public static class ServiceCollectionExtensions
             .ConfigureResource(resource => resource.AddService(otelOptions.ServiceName))
             .WithTracing(tracing =>
             {
-                tracing.AddAspNetCoreInstrumentation();
+                tracing
+                    .AddAspNetCoreInstrumentation()
+                    .AddHttpClientInstrumentation();
+
                 if (otelOptions.UseConsoleExporter)
                     tracing.AddConsoleExporter();
+
+                if (!string.IsNullOrWhiteSpace(otelOptions.OtlpEndpoint))
+                    tracing.AddOtlpExporter(options => options.Endpoint = new Uri(otelOptions.OtlpEndpoint));
+            })
+            .WithMetrics(metrics =>
+            {
+                metrics
+                    .AddAspNetCoreInstrumentation()
+                    .AddHttpClientInstrumentation()
+                    .AddRuntimeInstrumentation();
+
+                if (otelOptions.UseConsoleExporter)
+                    metrics.AddConsoleExporter();
+
+                if (!string.IsNullOrWhiteSpace(otelOptions.OtlpEndpoint))
+                    metrics.AddOtlpExporter(options => options.Endpoint = new Uri(otelOptions.OtlpEndpoint));
             });
 
         return services;

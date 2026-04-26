@@ -177,6 +177,9 @@ public static class ServiceCollectionExtensions
 
                     if (otelOptions.UseConsoleExporter)
                         tracing.AddConsoleExporter();
+
+                    if (!string.IsNullOrWhiteSpace(otelOptions.OtlpEndpoint))
+                        tracing.AddOtlpExporter(options => options.Endpoint = new Uri(otelOptions.OtlpEndpoint));
                 })
                 .WithMetrics(metrics =>
                 {
@@ -187,6 +190,9 @@ public static class ServiceCollectionExtensions
 
                     if (otelOptions.UseConsoleExporter)
                         metrics.AddConsoleExporter();
+
+                    if (!string.IsNullOrWhiteSpace(otelOptions.OtlpEndpoint))
+                        metrics.AddOtlpExporter(options => options.Endpoint = new Uri(otelOptions.OtlpEndpoint));
                 });
         }
 

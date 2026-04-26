@@ -19,6 +19,12 @@ public sealed class OpenTelemetryOptions
     public bool UseConsoleExporter { get; init; } = false;
 
     /// <summary>
+    /// Endpoint OTLP opcional usado para exportar traces e métricas.
+    /// Exemplo: http://localhost:4317.
+    /// </summary>
+    public string? OtlpEndpoint { get; init; }
+
+    /// <summary>
     /// Nome do serviço usado no Resource do OpenTelemetry.
     /// </summary>
     public string ServiceName { get; init; } = "LedgerService.Api";

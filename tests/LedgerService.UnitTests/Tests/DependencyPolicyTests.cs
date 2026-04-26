@@ -7,6 +7,7 @@ public sealed class DependencyPolicyTests
 {
     private const string CryptographyXmlPackage = "System.Security.Cryptography.Xml";
     private const string OpenTelemetryApiPackage = "OpenTelemetry.Api";
+    private const string OpenTelemetryOtlpExporterPackage = "OpenTelemetry.Exporter.OpenTelemetryProtocol";
 
     [Fact]
     public void Vulnerable_cryptography_xml_override_should_be_centralized()
@@ -34,6 +35,20 @@ public sealed class DependencyPolicyTests
 
         packageVersion.Should().NotBeNull();
         packageVersion!.Attribute("Version")!.Value.Should().Be("1.15.3");
+    }
+
+    [Fact]
+    public void Otlp_exporter_should_be_centralized()
+    {
+        var repositoryRoot = GetRepositoryRoot();
+        var packages = XDocument.Load(Path.Combine(repositoryRoot.FullName, "Directory.Packages.props"));
+
+        var packageVersion = packages
+            .Descendants("PackageVersion")
+            .SingleOrDefault(element => (string?)element.Attribute("Include") == OpenTelemetryOtlpExporterPackage);
+
+        packageVersion.Should().NotBeNull();
+        packageVersion!.Attribute("Version").Should().NotBeNull();
     }
 
     [Fact]
@@ -69,6 +84,23 @@ public sealed class DependencyPolicyTests
         packageReference.Should().NotBeNull();
         packageReference!.Attribute("Version").Should().BeNull();
         packageReference.Attribute("PrivateAssets")!.Value.Should().Be("all");
+    }
+
+    [Theory]
+    [InlineData("src/Auth.Api/Auth.Api.csproj")]
+    [InlineData("src/LedgerService.Api/LedgerService.Api.csproj")]
+    [InlineData("src/BalanceService.Api/BalanceService.Api.csproj")]
+    public void Api_projects_should_reference_otlp_exporter_without_local_version(string projectPath)
+    {
+        var repositoryRoot = GetRepositoryRoot();
+        var project = XDocument.Load(Path.Combine(repositoryRoot.FullName, projectPath));
+
+        var packageReference = project
+            .Descendants("PackageReference")
+            .SingleOrDefault(element => (string?)element.Attribute("Include") == OpenTelemetryOtlpExporterPackage);
+
+        packageReference.Should().NotBeNull();
+        packageReference!.Attribute("Version").Should().BeNull();
     }
 
     private static DirectoryInfo GetRepositoryRoot()

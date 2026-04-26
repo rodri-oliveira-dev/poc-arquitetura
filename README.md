@@ -786,6 +786,8 @@ Em caso de falha no Kafka, o serviço não cai: ele registra erro, incrementa te
 Consulte `docs/observability.md` para:
 
 - arquitetura de telemetria;
+- configuracao por ambiente de `Observability:OpenTelemetry`;
+- uso de exporter de console e endpoint OTLP opcional;
 - campos de correlação adotados (`CorrelationId`, `traceId/spanId`);
 - como validar localmente.
 
