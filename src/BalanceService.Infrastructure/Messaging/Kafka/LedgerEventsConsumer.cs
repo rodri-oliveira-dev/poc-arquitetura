@@ -1,5 +1,6 @@
 using Confluent.Kafka;
 
+using BalanceService.Infrastructure.Observability;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -42,17 +43,19 @@ public sealed class LedgerEventsConsumer : BackgroundService
         using var consumer = new ConsumerBuilder<string, string>(config)
             .SetErrorHandler((_, e) =>
             {
-                _logger.LogWarning("Kafka consumer error: {Reason} (IsFatal={IsFatal})", e.Reason, e.IsFatal);
+                _logger.KafkaConsumerError(e.Reason, e.IsFatal);
             })
             .Build();
 
         consumer.Subscribe(_options.Topics);
 
-        _logger.LogInformation(
-            "LedgerEventsConsumer started (groupId={GroupId}, clientId={ClientId}, topics={Topics})",
-            _options.GroupId,
-            _options.ClientId,
-            string.Join(",", _options.Topics));
+        if (_logger.IsEnabled(LogLevel.Information))
+        {
+            _logger.ConsumerStarted(
+                _options.GroupId,
+                _options.ClientId,
+                string.Join(",", _options.Topics));
+        }
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -66,12 +69,12 @@ public sealed class LedgerEventsConsumer : BackgroundService
                 if (await _messageProcessor.ProcessAsync(result, stoppingToken))
                 {
                     consumer.Commit(result);
-                    _logger.LogDebug("Mensagem processada/DLQ confirmada e offset commitado");
+                    _logger.KafkaMessageCommitted();
                 }
             }
             catch (ConsumeException ex)
             {
-                _logger.LogError(ex, "Erro ao consumir do Kafka. Vai retentar.");
+                _logger.KafkaConsumeError(ex);
                 await Task.Delay(_options.ConsumeErrorRetryDelay, stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -80,31 +83,19 @@ public sealed class LedgerEventsConsumer : BackgroundService
             }
             catch (DbUpdateException ex)
             {
-                _logger.LogError(ex,
-                    "Erro ao processar mensagem do Kafka. Offset nao sera commitado (retry). topic={Topic} partition={Partition} offset={Offset}",
-                    result?.Topic,
-                    result?.Partition.Value,
-                    result?.Offset.Value);
+                _logger.KafkaProcessingError(ex, result?.Topic, result?.Partition.Value, result?.Offset.Value);
 
                 await Task.Delay(_options.ProcessingErrorRetryDelay, stoppingToken);
             }
             catch (TimeoutException ex)
             {
-                _logger.LogError(ex,
-                    "Erro ao processar mensagem do Kafka. Offset nao sera commitado (retry). topic={Topic} partition={Partition} offset={Offset}",
-                    result?.Topic,
-                    result?.Partition.Value,
-                    result?.Offset.Value);
+                _logger.KafkaProcessingError(ex, result?.Topic, result?.Partition.Value, result?.Offset.Value);
 
                 await Task.Delay(_options.ProcessingErrorRetryDelay, stoppingToken);
             }
             catch (KafkaException ex)
             {
-                _logger.LogError(ex,
-                    "Erro ao processar mensagem do Kafka. Offset não será commitado (retry). topic={Topic} partition={Partition} offset={Offset}",
-                    result?.Topic,
-                    result?.Partition.Value,
-                    result?.Offset.Value);
+                _logger.KafkaProcessingErrorWithKafkaException(ex, result?.Topic, result?.Partition.Value, result?.Offset.Value);
 
                 await Task.Delay(_options.ProcessingErrorRetryDelay, stoppingToken);
             }
@@ -119,7 +110,7 @@ public sealed class LedgerEventsConsumer : BackgroundService
             // ignore shutdown errors
         }
 
-        _logger.LogInformation("LedgerEventsConsumer stopped");
+        _logger.ConsumerStopped();
     }
 
     private static void ValidateOptions(KafkaConsumerOptions options)
@@ -155,4 +146,5 @@ public sealed class LedgerEventsConsumer : BackgroundService
             _ => AutoOffsetReset.Earliest
         };
     }
+
 }

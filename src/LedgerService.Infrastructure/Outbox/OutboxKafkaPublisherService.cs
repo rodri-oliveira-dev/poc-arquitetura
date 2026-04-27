@@ -1,4 +1,5 @@
 using LedgerService.Domain.Repositories;
+using LedgerService.Infrastructure.Observability;
 using LedgerService.Infrastructure.Messaging.Kafka;
 using LedgerService.Infrastructure.Persistence;
 using Confluent.Kafka;
@@ -35,10 +36,7 @@ public sealed class OutboxKafkaPublisherService : BackgroundService
     {
         var interval = TimeSpan.FromSeconds(Math.Max(1, _options.Value.PollingIntervalSeconds));
 
-        _logger.LogInformation(
-            "OutboxKafkaPublisherService started (owner={LockOwner}, interval={IntervalSeconds}s)",
-            _lockOwner,
-            interval.TotalSeconds);
+        _logger.PublisherStarted(_lockOwner, interval.TotalSeconds);
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -52,15 +50,15 @@ public sealed class OutboxKafkaPublisherService : BackgroundService
             }
             catch (DbUpdateException ex)
             {
-                _logger.LogError(ex, "Erro persistente no OutboxKafkaPublisherService. Vai retentar no proximo ciclo.");
+                _logger.PersistentPublisherError(ex);
             }
             catch (TimeoutException ex)
             {
-                _logger.LogError(ex, "Timeout no OutboxKafkaPublisherService. Vai retentar no proximo ciclo.");
+                _logger.PublisherTimeout(ex);
             }
             catch (KafkaException ex)
             {
-                _logger.LogError(ex, "Erro não tratado no OutboxKafkaPublisherService. Vai retentar no próximo ciclo.");
+                _logger.UnhandledPublisherError(ex);
             }
 
             try
@@ -73,7 +71,7 @@ public sealed class OutboxKafkaPublisherService : BackgroundService
             }
         }
 
-        _logger.LogInformation("OutboxKafkaPublisherService stopped (owner={LockOwner})", _lockOwner);
+        _logger.PublisherStopped(_lockOwner);
     }
 
     private async Task ProcessOnceAsync(CancellationToken cancellationToken)
@@ -100,11 +98,7 @@ public sealed class OutboxKafkaPublisherService : BackgroundService
         // Confirma o claim
         await uow.SaveChangesAsync(cancellationToken);
 
-        _logger.LogDebug(
-            "Claimed {Count} outbox messages (owner={LockOwner}, parallelism={Parallelism})",
-            claimed.Count,
-            _lockOwner,
-            options.MaxParallelism);
+        _logger.OutboxMessagesClaimed(claimed.Count, _lockOwner, options.MaxParallelism);
 
         using var throttler = new SemaphoreSlim(Math.Max(1, options.MaxParallelism));
         var tasks = new List<Task>(claimed.Count);
@@ -150,11 +144,7 @@ public sealed class OutboxKafkaPublisherService : BackgroundService
         if (!string.Equals(message.LockOwner, _lockOwner, StringComparison.Ordinal) ||
             (message.LockedUntil is not null && message.LockedUntil <= now))
         {
-            _logger.LogWarning(
-                "Outbox message skipped because lock is not owned or expired (currentOwner={CurrentOwner}, expectedOwner={ExpectedOwner}, lockedUntil={LockedUntil})",
-                message.LockOwner,
-                _lockOwner,
-                message.LockedUntil);
+            _logger.OutboxMessageSkippedBecauseLockExpired(message.LockOwner, _lockOwner, message.LockedUntil);
             return;
         }
 
@@ -187,7 +177,7 @@ public sealed class OutboxKafkaPublisherService : BackgroundService
             await repo.MarkSentAsync(message.Id, DateTime.Now, ct);
             await uow.SaveChangesAsync(ct);
 
-            _logger.LogDebug("Outbox message marked as SENT");
+            _logger.OutboxMessageMarkedAsSent();
         }
         catch (ProduceException<string, string> ex)
         {
@@ -195,7 +185,7 @@ public sealed class OutboxKafkaPublisherService : BackgroundService
             await repo.MarkFailedAttemptAsync(message.Id, options.MaxAttempts, nextAttemptAt, ex.Message, ct);
             await uow.SaveChangesAsync(ct);
 
-            _logger.LogWarning(ex, "Falha ao publicar outbox message. Proxima tentativa em {NextAttemptAt}", nextAttemptAt);
+            _logger.OutboxPublishFailed(ex, nextAttemptAt);
         }
         catch (KafkaException ex)
         {
@@ -203,7 +193,7 @@ public sealed class OutboxKafkaPublisherService : BackgroundService
             await repo.MarkFailedAttemptAsync(message.Id, options.MaxAttempts, nextAttemptAt, ex.Message, ct);
             await uow.SaveChangesAsync(ct);
 
-            _logger.LogWarning(ex, "Falha ao publicar outbox message. Proxima tentativa em {NextAttemptAt}", nextAttemptAt);
+            _logger.OutboxPublishFailed(ex, nextAttemptAt);
         }
         catch (TimeoutException ex)
         {
@@ -211,7 +201,7 @@ public sealed class OutboxKafkaPublisherService : BackgroundService
             await repo.MarkFailedAttemptAsync(message.Id, options.MaxAttempts, nextAttemptAt, ex.Message, ct);
             await uow.SaveChangesAsync(ct);
 
-            _logger.LogWarning(ex, "Falha ao publicar outbox message. Proxima tentativa em {NextAttemptAt}", nextAttemptAt);
+            _logger.OutboxPublishFailed(ex, nextAttemptAt);
         }
     }
 
@@ -225,4 +215,5 @@ public sealed class OutboxKafkaPublisherService : BackgroundService
         var jitterMs = RandomNumberGenerator.GetInt32(0, 250);
         return now.Add(delay).AddMilliseconds(jitterMs);
     }
+
 }
