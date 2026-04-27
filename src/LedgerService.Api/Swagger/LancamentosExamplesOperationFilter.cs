@@ -56,7 +56,7 @@ public sealed class LancamentosExamplesOperationFilter : IOperationFilter
                 {
                     ["amount"] = new OpenApiArray
                     {
-                        new OpenApiString("Amount must be greater than zero for CREDIT.")
+                        new OpenApiString("Amount must have at most 18 digits and 2 decimal places.")
                     }
                 },
                 ["correlationId"] = new OpenApiString("5b7f7b2d-5bb5-49d2-918d-c5d87ff54e3d")

@@ -13,7 +13,7 @@ public sealed class CreateLancamentoInputMapperTests
         var request = new CreateLancamentoRequest(
             MerchantId: "m1",
             Type: "  credit ",
-            Amount: 10.5,
+            Amount: 10.50m,
             Description: "desc",
             ExternalReference: "ext-1");
 
@@ -24,7 +24,7 @@ public sealed class CreateLancamentoInputMapperTests
 
         result.MerchantId.Should().Be("m1");
         result.Type.Should().Be("CREDIT");
-        result.Amount.Should().Be("10.5");
+        result.Amount.Should().Be("10.50");
         result.Description.Should().Be("desc");
         result.ExternalReference.Should().Be("ext-1");
         result.IdempotencyKey.Should().Be("8b9e5d2b-11f7-4c1f-8ce0-8e4c20d2449b");

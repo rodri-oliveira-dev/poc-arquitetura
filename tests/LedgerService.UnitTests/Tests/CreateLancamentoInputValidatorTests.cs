@@ -47,6 +47,43 @@ public sealed class CreateLancamentoInputValidatorTests
         result.Errors.Should().Contain(e => e.PropertyName == nameof(CreateLancamentoInput.MerchantId));
     }
 
+    [Fact]
+    public void Should_be_invalid_when_merchant_exceeds_maximum_length()
+    {
+        var input = LancamentoFixture.ValidInput(merchantId: new string('m', 101));
+
+        var result = _validator.Validate(input);
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(e => e.PropertyName == nameof(CreateLancamentoInput.MerchantId));
+    }
+
+    [Theory]
+    [InlineData("10.123")]
+    [InlineData("1234567890123456789.00")]
+    public void Should_be_invalid_when_amount_exceeds_decimal_constraints(string amount)
+    {
+        var input = LancamentoFixture.ValidInput(amount: amount);
+
+        var result = _validator.Validate(input);
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(e => e.PropertyName == nameof(CreateLancamentoInput.Amount));
+    }
+
+    [Theory]
+    [InlineData("100.01", "CREDIT")]
+    [InlineData("-100.01", "DEBIT")]
+    [InlineData("1234567890123456.78", "CREDIT")]
+    public void Should_be_valid_when_amount_respects_decimal_constraints(string amount, string type)
+    {
+        var input = LancamentoFixture.ValidInput(type: type, amount: amount);
+
+        var result = _validator.Validate(input);
+
+        result.IsValid.Should().BeTrue();
+    }
+
     [Theory]
     [InlineData("credit")]
     [InlineData(" debit ")]

@@ -76,7 +76,7 @@ public sealed class CreateLancamentoBindTests
     private static CreateLancamentoRequest ValidRequest(
         string merchantId = "m1",
         string type = "CREDIT",
-        double amount = 10.0)
+        decimal amount = 10.0m)
         => new(
             MerchantId: merchantId,
             Type: type,

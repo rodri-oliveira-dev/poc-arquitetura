@@ -31,7 +31,7 @@ public sealed class LancamentosAuthorizationTests : IClassFixture<LedgerApiFacto
         {
             merchantId = "m1",
             type = "CREDIT",
-            amount = 10.0
+            amount = 10.00m
         });
         res.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
@@ -51,7 +51,7 @@ public sealed class LancamentosAuthorizationTests : IClassFixture<LedgerApiFacto
         {
             merchantId = "m1",
             type = "CREDIT",
-            amount = 10.0
+            amount = 10.00m
         });
         res.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
@@ -69,7 +69,7 @@ public sealed class LancamentosAuthorizationTests : IClassFixture<LedgerApiFacto
 
         using var req = new HttpRequestMessage(HttpMethod.Post, "/api/v1/lancamentos")
         {
-            Content = JsonContent.Create(new { merchantId = "m1", type = "CREDIT", amount = 10.0 })
+            Content = JsonContent.Create(new { merchantId = "m1", type = "CREDIT", amount = 10.00m })
         };
         req.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
 
@@ -91,7 +91,7 @@ public sealed class LancamentosAuthorizationTests : IClassFixture<LedgerApiFacto
 
         using var req = new HttpRequestMessage(HttpMethod.Post, "/api/v1/lancamentos")
         {
-            Content = JsonContent.Create(new { merchantId = "m1", type = "CREDIT", amount = 10.0 })
+            Content = JsonContent.Create(new { merchantId = "m1", type = "CREDIT", amount = 10.00m })
         };
         req.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
 
@@ -117,7 +117,7 @@ public sealed class LancamentosAuthorizationTests : IClassFixture<LedgerApiFacto
                 {
                   "merchantId": "m1",
                   "type": "CREDIT",
-                  "amount": 10.0,
+                  "amount": 10.00,
                   "description": "payload intentionally larger than the test request body limit to exercise operational API protection"
                 }
                 """,
@@ -145,7 +145,7 @@ public sealed class LancamentosAuthorizationTests : IClassFixture<LedgerApiFacto
 
         using var req = new HttpRequestMessage(HttpMethod.Post, "/api/v1/lancamentos")
         {
-            Content = JsonContent.Create(new { merchantId = "m1", type = "CREDIT", amount = 10.0 })
+            Content = JsonContent.Create(new { merchantId = "m1", type = "CREDIT", amount = 10.00m })
         };
         req.Headers.Add("Idempotency-Key", idempotencyKey);
 
@@ -174,7 +174,7 @@ public sealed class LancamentosAuthorizationTests : IClassFixture<LedgerApiFacto
         // Idempotência (cenário de sucesso): mesma Idempotency-Key + mesmo payload deve fazer replay da resposta.
         using var replayReq = new HttpRequestMessage(HttpMethod.Post, "/api/v1/lancamentos")
         {
-            Content = JsonContent.Create(new { merchantId = "m1", type = "CREDIT", amount = 10.0 })
+            Content = JsonContent.Create(new { merchantId = "m1", type = "CREDIT", amount = 10.00m })
         };
         replayReq.Headers.Add("Idempotency-Key", idempotencyKey);
 
@@ -185,6 +185,29 @@ public sealed class LancamentosAuthorizationTests : IClassFixture<LedgerApiFacto
         var replayBody = await replayRes.Content.ReadFromJsonAsync<LancamentoDto>();
         replayBody.Should().NotBeNull();
         replayBody!.Should().BeEquivalentTo(body);
+    }
+
+    [Fact]
+    public async Task Post_should_return_400_when_amount_has_more_than_two_decimal_places()
+    {
+        var token = TestJwtTokenFactory.CreateToken(
+            issuer: "https://auth-api",
+            audiences: "ledger-api",
+            scopes: "ledger.write");
+
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        using var req = new HttpRequestMessage(HttpMethod.Post, "/api/v1/lancamentos")
+        {
+            Content = JsonContent.Create(new { merchantId = "m1", type = "CREDIT", amount = 10.123m })
+        };
+        req.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+
+        var res = await _client.SendAsync(req);
+
+        res.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var body = await res.Content.ReadAsStringAsync();
+        body.Should().Contain("amount");
     }
 
     [Theory]
@@ -209,7 +232,7 @@ public sealed class LancamentosAuthorizationTests : IClassFixture<LedgerApiFacto
             {
                 merchantId = "m1",
                 type = "CREDIT",
-                amount = 10.0,
+                amount = 10.00m,
                 description = "desc",
                 externalReference = "ext"
             })
@@ -225,7 +248,7 @@ public sealed class LancamentosAuthorizationTests : IClassFixture<LedgerApiFacto
             {
                 merchantId = "m1",
                 type = "CREDIT",
-                amount = 10.0,
+                amount = 10.00m,
                 description,
                 externalReference
             })

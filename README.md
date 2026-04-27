@@ -594,7 +594,7 @@ curl -i http://localhost:5226/api/v1/lancamentos \
   -H "Authorization: Bearer <TOKEN>" \
   -H "Idempotency-Key: 00000000-0000-0000-0000-000000000001" \
   -H "Content-Type: application/json" \
-  -d '{"type":"CREDIT","merchantId":"tese","amount":"10.00","currency":"BRL"}'
+  -d '{"type":"CREDIT","merchantId":"tese","amount":10.00}'
 ```
 
 > Nota: o contrato do `Auth.Api` retorna `access_token` (snake_case). Por compatibilidade, alguns scripts aceitam `accessToken` como fallback.
