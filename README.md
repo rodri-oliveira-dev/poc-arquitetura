@@ -8,6 +8,7 @@
 ## Saude do projeto e documentacao publicada
 
 - Build e testes: workflow [`dotnet-ci`](https://github.com/rodri-oliveira-dev/poc-arquitetura/actions/workflows/dotnet.yml).
+- Pull requests: workflow [`pull-request-validation`](https://github.com/rodri-oliveira-dev/poc-arquitetura/actions/workflows/pull-request-validation.yml), que deve ser configurado como required status check para bloquear merge com build/testes falhando.
 - Cobertura: gate minimo de 80% de cobertura total de linhas, calculado com XPlat Code Coverage, `coverlet.runsettings` e ReportGenerator.
 - Relatorio de cobertura: publicado como artefato `test-results-and-coverage` em cada execucao do `dotnet-ci`.
 - Documentacao arquitetural LikeC4: publicada no GitHub Pages em <https://rodri-oliveira-dev.github.io/poc-arquitetura/>.

@@ -13,7 +13,7 @@ Com isso:
 - push direto na `main` nao cria release;
 - reexecucao do workflow nao cria uma segunda release para o mesmo commit de merge.
 
-O workflow nao executa build/testes novamente. A protecao da branch `main` deve exigir os workflows de validacao, como `dotnet-ci`, antes do merge.
+O workflow nao executa build/testes novamente. A protecao da branch `main` deve exigir o check `Build and test`, do workflow `pull-request-validation`, antes do merge.
 
 ## Formato da tag
 

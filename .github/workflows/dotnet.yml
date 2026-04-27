@@ -12,17 +12,6 @@ on:
       - "**/*.gif"
       - "**/*.svg"
       - "**/*.webp"
-  pull_request:
-    branches: ["main"]
-    paths-ignore:
-      - "**/*.md"
-      - "docs/**"
-      - "**/*.png"
-      - "**/*.jpg"
-      - "**/*.jpeg"
-      - "**/*.gif"
-      - "**/*.svg"
-      - "**/*.webp"
   workflow_dispatch:
 
 permissions:

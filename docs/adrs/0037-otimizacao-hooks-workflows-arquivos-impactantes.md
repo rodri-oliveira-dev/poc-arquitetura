@@ -37,6 +37,8 @@ Em caso de mistura entre documentacao e arquivo impactante, o hook executa as va
 
 Os workflows `.github/workflows/dotnet.yml`, `.github/workflows/codeql.yml` e `.github/workflows/dependency-review.yml` passam a usar `paths-ignore` em `push` e/ou `pull_request` para ignorar mudancas apenas em Markdown, `docs/` e imagens de documentacao. A execucao agendada do CodeQL permanece ativa.
 
+Posteriormente, a ADR-0041 criou um workflow dedicado de validacao obrigatoria de PRs sem `paths-ignore`, porque required status checks pulados por filtro de arquivos podem ficar pendentes e bloquear o merge.
+
 ## Consequencias
 
 ### Beneficios
@@ -73,6 +75,8 @@ Pushes com apenas documentacao informam que nao ha alteracoes impactantes e pula
 
 ## Impacto no CI
 `dotnet-ci`, `codeql` e `dependency-review` deixam de rodar para PRs/pushes apenas documentais. Mudancas impactantes continuam acionando os workflows. CodeQL tambem permanece rodando semanalmente pelo agendamento.
+
+A partir da ADR-0041, o workflow obrigatorio de PR `pull-request-validation` roda sem filtro de caminho para sempre reportar o status check exigido pela protecao da branch.
 
 ## Proximos passos
 - Reavaliar os filtros quando houver workflow especifico para documentacao ou validacao de arquitetura.
