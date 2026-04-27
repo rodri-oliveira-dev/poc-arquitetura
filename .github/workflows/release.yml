@@ -1,0 +1,136 @@
+name: release
+
+on:
+  pull_request:
+    types: [closed]
+    branches: ["main"]
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+jobs:
+  create-release:
+    if: ${{ github.event.pull_request.merged == true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Resolve release tag
+        id: version
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          set -euo pipefail
+
+          git fetch --force --tags origin
+
+          existing_tag="$(git tag --points-at "$MERGE_SHA" --list "v[0-9][0-9][0-9][0-9].[0-9][0-9].[0-9][0-9].*" | sort -V | tail -n 1 || true)"
+          if [ -n "$existing_tag" ]; then
+            echo "tag_name=$existing_tag" >> "$GITHUB_OUTPUT"
+            echo "create_tag=false" >> "$GITHUB_OUTPUT"
+
+            if gh release view "$existing_tag" >/dev/null 2>&1; then
+              echo "create_release=false" >> "$GITHUB_OUTPUT"
+            else
+              echo "create_release=true" >> "$GITHUB_OUTPUT"
+            fi
+
+            exit 0
+          fi
+
+          today="$(date -u +%Y.%m.%d)"
+          prefix="v$today"
+          suffix=1
+
+          while git rev-parse --quiet --verify "refs/tags/$prefix.$suffix" >/dev/null; do
+            suffix=$((suffix + 1))
+          done
+
+          tag_name="$prefix.$suffix"
+
+          echo "tag_name=$tag_name" >> "$GITHUB_OUTPUT"
+          echo "create_tag=true" >> "$GITHUB_OUTPUT"
+          echo "create_release=true" >> "$GITHUB_OUTPUT"
+
+      - name: Create tag
+        if: ${{ steps.version.outputs.create_tag == 'true' }}
+        shell: bash
+        env:
+          TAG_NAME: ${{ steps.version.outputs.tag_name }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git tag -a "$TAG_NAME" "$MERGE_SHA" -m "Release $TAG_NAME"
+          git push origin "refs/tags/$TAG_NAME"
+
+      - name: Build release notes
+        if: ${{ steps.version.outputs.create_release == 'true' }}
+        shell: bash
+        env:
+          TAG_NAME: ${{ steps.version.outputs.tag_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          set -euo pipefail
+
+          commits="$(git log --format="- %h %s (%an)" "$BASE_SHA..$MERGE_SHA" | head -n 50 || true)"
+          if [ -z "$commits" ]; then
+            commits="$(git log --format="- %h %s (%an)" -n 1 "$MERGE_SHA")"
+          fi
+
+          {
+            echo "## Pull Request"
+            echo "- PR: #$PR_NUMBER - $PR_TITLE"
+            echo "- Author: @$PR_AUTHOR"
+            echo "- Source branch: \`$PR_BRANCH\`"
+            echo "- Merge commit: \`$MERGE_SHA\`"
+            echo "- Link: $PR_URL"
+            echo
+            echo "## Changelog"
+            if [ -n "$PR_BODY" ]; then
+              printf "%s\n" "$PR_BODY"
+            else
+              echo "No pull request description was provided."
+            fi
+            echo
+            echo "## Commits"
+            printf "%s\n" "$commits"
+          } > release-notes.md
+
+      - name: Create GitHub Release
+        if: ${{ steps.version.outputs.create_release == 'true' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ steps.version.outputs.tag_name }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          set -euo pipefail
+
+          gh release create "$TAG_NAME" \
+            --title "$TAG_NAME" \
+            --notes-file release-notes.md \
+            --target "$MERGE_SHA"
