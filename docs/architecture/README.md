@@ -11,3 +11,16 @@ Arquivos principais:
 
 Classificacao atual: arquitetura hibrida, com predominancia de Clean Architecture/DDD em LedgerService e BalanceService, elementos hexagonais por portas de persistencia/mensageria, camada HTTP tradicional e CQRS/projecao assincrona entre escrita e leitura.
 
+## Visualizacao
+
+O site LikeC4 e publicado no GitHub Pages pelo workflow `pages-architecture`:
+
+<https://rodri-oliveira-dev.github.io/poc-arquitetura/>
+
+Para gerar localmente:
+
+```bash
+npx --yes likec4@latest build docs/architecture -o dist/architecture --base ./
+```
+
+Detalhes operacionais: [`docs/development/github-pages.md`](../development/github-pages.md).

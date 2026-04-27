@@ -1,5 +1,29 @@
 # poc-arquitetura
 
+[![Build](https://img.shields.io/github/actions/workflow/status/rodri-oliveira-dev/poc-arquitetura/dotnet.yml?branch=main&label=build)](https://github.com/rodri-oliveira-dev/poc-arquitetura/actions/workflows/dotnet.yml)
+[![Tests](https://img.shields.io/github/actions/workflow/status/rodri-oliveira-dev/poc-arquitetura/dotnet.yml?branch=main&label=tests)](https://github.com/rodri-oliveira-dev/poc-arquitetura/actions/workflows/dotnet.yml)
+[![Coverage](https://img.shields.io/badge/coverage-%3E%3D80%25-brightgreen)](docs/development/test-coverage.md)
+[![Architecture Docs](https://img.shields.io/github/actions/workflow/status/rodri-oliveira-dev/poc-arquitetura/pages-architecture.yml?branch=main&label=architecture%20docs)](https://rodri-oliveira-dev.github.io/poc-arquitetura/)
+
+## Saude do projeto e documentacao publicada
+
+- Build e testes: workflow [`dotnet-ci`](https://github.com/rodri-oliveira-dev/poc-arquitetura/actions/workflows/dotnet.yml).
+- Cobertura: gate minimo de 80% de cobertura total de linhas, calculado com XPlat Code Coverage, `coverlet.runsettings` e ReportGenerator.
+- Relatorio de cobertura: publicado como artefato `test-results-and-coverage` em cada execucao do `dotnet-ci`.
+- Documentacao arquitetural LikeC4: publicada no GitHub Pages em <https://rodri-oliveira-dev.github.io/poc-arquitetura/>.
+
+Comandos locais principais:
+
+```powershell
+./test.ps1
+npx --yes likec4@latest build docs/architecture -o dist/architecture --base ./
+```
+
+Mais detalhes:
+
+- [`docs/development/test-coverage.md`](docs/development/test-coverage.md)
+- [`docs/development/github-pages.md`](docs/development/github-pages.md)
+
 Este repositório é uma **POC (prova de conceito / laboratório de testes)** para validar decisões de arquitetura e práticas de engenharia.  
 O objetivo é demonstrar, de forma reprodutível, uma base de microserviços em **.NET** usando **Clean Architecture** + **DDD**, integração assíncrona via **Kafka** (com **Outbox**) e rastreabilidade (correlação + telemetria opcional).
 

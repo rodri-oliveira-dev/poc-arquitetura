@@ -15,6 +15,7 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 
 | ADR                                                                   | Status      | Resumo                                                                                           |
 | --------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------ |
+| [ADR-0039](./0039-publicacao-indicadores-qualidade-documentacao-arquitetural-pages.md) | Aceito | Publica badges de qualidade no README e documentacao LikeC4 no GitHub Pages. |
 | [ADR-0038](./0038-automacao-releases-prs-mergeados-main.md)           | Aceito      | Automatiza tags e GitHub Releases a partir de PRs mergeados na main.                             |
 | [ADR-0034](./0034-boundaries-arquiteturais-e-estrutura-de-camadas.md) | Aceito      | Define boundaries arquiteturais, nivel de camadas por servico e documentacao LikeC4.             |
 | [ADR-0033](./0033-governanca-documentacao-operacional.md)             | Aceito      | Define docs operacionais obrigatorios, responsaveis e criterios de atualizacao.                  |
