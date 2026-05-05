@@ -23,6 +23,7 @@ npx --yes likec4@latest build docs/architecture -o dist/architecture --base ./
 Mais detalhes:
 
 - [`docs/development/test-coverage.md`](docs/development/test-coverage.md)
+- [`docs/development/mutation-testing-stryker.md`](docs/development/mutation-testing-stryker.md)
 - [`docs/development/github-pages.md`](docs/development/github-pages.md)
 
 Este repositório é uma **POC (prova de conceito / laboratório de testes)** para validar decisões de arquitetura e práticas de engenharia.  
@@ -653,6 +654,17 @@ Exclusoes aplicadas com parcimonia, sem forcar coverage:
 Detalhes da politica de cobertura: [`docs/development/test-coverage.md`](docs/development/test-coverage.md).
 
 Os resultados ficam em `./TestResults/` (ignorado no git).
+
+### Mutation testing opcional com Stryker.NET
+
+Mutation testing esta configurado de forma local e opcional para `LedgerService.Application`, sem etapa obrigatoria em CI ou pull requests.
+
+```bash
+cd tests/LedgerService.UnitTests
+dotnet stryker
+```
+
+Detalhes de preparacao, leitura do relatorio e proximos passos: [`docs/development/mutation-testing-stryker.md`](docs/development/mutation-testing-stryker.md).
 
 ## Banco de dados e migrations
 
