@@ -1,41 +1,118 @@
 {
-    "version": "2.0.0",
-    "tasks": [
-        {
-            "label": "build-ledger-api",
-            "type": "process",
-            "command": "dotnet",
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build-ledger-api",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "build",
+        "${workspaceFolder}/src/LedgerService.Api/LedgerService.Api.csproj",
+        "-c",
+        "Debug"
+      ],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "build-balance-api",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "build",
+        "${workspaceFolder}/src/BalanceService.Api/BalanceService.Api.csproj",
+        "-c",
+        "Debug"
+      ],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "test",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "test",
+        "${workspaceFolder}",
+        "-c",
+        "Debug"
+      ],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "test:mutation:ledger",
+      "type": "shell",
+      "command": "dotnet tool restore && dotnet stryker; exit_code=$?; echo \"\"; echo \"Relatorio Stryker gerado, se a execucao concluiu com sucesso, em:\"; find StrykerOutput -name mutation-report.html -print 2>/dev/null || true; exit $exit_code",
+      "windows": {
+        "command": "dotnet tool restore; if ($LASTEXITCODE -eq 0) { dotnet stryker }; $exitCode = $LASTEXITCODE; Write-Host ''; Write-Host 'Relatorio Stryker gerado, se a execucao concluiu com sucesso, em:'; Get-ChildItem -Path 'StrykerOutput' -Filter 'mutation-report.html' -Recurse -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName; exit $exitCode",
+        "options": {
+          "cwd": "${workspaceFolder}/tests/LedgerService.UnitTests",
+          "shell": {
+            "executable": "powershell.exe",
             "args": [
-                "build",
-                "${workspaceFolder}/src/LedgerService.Api/LedgerService.Api.csproj",
-                "-c",
-                "Debug"
-            ],
-            "problemMatcher": "$msCompile"
-        },
-        {
-            "label": "build-balance-api",
-            "type": "process",
-            "command": "dotnet",
-            "args": [
-                "build",
-                "${workspaceFolder}/src/BalanceService.Api/BalanceService.Api.csproj",
-                "-c",
-                "Debug"
-            ],
-            "problemMatcher": "$msCompile"
-        },
-        {
-            "label": "test",
-            "type": "process",
-            "command": "dotnet",
-            "args": [
-                "test",
-                "${workspaceFolder}",
-                "-c",
-                "Debug"
-            ],
-            "problemMatcher": "$msCompile"
+              "-NoLogo",
+              "-NoProfile",
+              "-ExecutionPolicy",
+              "Bypass",
+              "-Command"
+            ]
+          }
         }
-    ]
+      },
+      "options": {
+        "cwd": "${workspaceFolder}/tests/LedgerService.UnitTests"
+      },
+      "group": "test",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      "label": "test:mutation:balance",
+      "type": "shell",
+      "command": "dotnet tool restore && dotnet stryker; exit_code=$?; echo \"\"; echo \"Relatorio Stryker gerado, se a execucao concluiu com sucesso, em:\"; find StrykerOutput -name mutation-report.html -print 2>/dev/null || true; exit $exit_code",
+      "windows": {
+        "command": "dotnet tool restore; if ($LASTEXITCODE -eq 0) { dotnet stryker }; $exitCode = $LASTEXITCODE; Write-Host ''; Write-Host 'Relatorio Stryker gerado, se a execucao concluiu com sucesso, em:'; Get-ChildItem -Path 'StrykerOutput' -Filter 'mutation-report.html' -Recurse -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName; exit $exitCode",
+        "options": {
+          "cwd": "${workspaceFolder}/tests/BalanceService.UnitTests",
+          "shell": {
+            "executable": "powershell.exe",
+            "args": [
+              "-NoLogo",
+              "-NoProfile",
+              "-ExecutionPolicy",
+              "Bypass",
+              "-Command"
+            ]
+          }
+        }
+      },
+      "options": {
+        "cwd": "${workspaceFolder}/tests/BalanceService.UnitTests"
+      },
+      "group": "test",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      "label": "test:mutation:all",
+      "dependsOn": [
+        "test:mutation:ledger",
+        "test:mutation:balance"
+      ],
+      "dependsOrder": "sequence",
+      "group": "test",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
+    }
+  ]
 }

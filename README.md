@@ -23,6 +23,7 @@ npx --yes likec4@latest build docs/architecture -o dist/architecture --base ./
 Mais detalhes:
 
 - [`docs/development/test-coverage.md`](docs/development/test-coverage.md)
+- [`docs/development/mutation-testing-stryker.md`](docs/development/mutation-testing-stryker.md)
 - [`docs/development/github-pages.md`](docs/development/github-pages.md)
 
 Este repositório é uma **POC (prova de conceito / laboratório de testes)** para validar decisões de arquitetura e práticas de engenharia.  
@@ -136,7 +137,7 @@ Rel(kafkaInitTopics, kafka, "Cria tópicos de evento e DLQ na subida local", "Ka
 ### Para executar no host (sem containers)
 
 - **.NET SDK 10** (o repo fixa via `global.json`)
-  - Versão atual: `10.0.103`.
+  - Versao base atual: `10.0.100`, com `rollForward: latestFeature`.
 
 ### Para rodar testes
 
@@ -653,6 +654,26 @@ Exclusoes aplicadas com parcimonia, sem forcar coverage:
 Detalhes da politica de cobertura: [`docs/development/test-coverage.md`](docs/development/test-coverage.md).
 
 Os resultados ficam em `./TestResults/` (ignorado no git).
+
+### Mutation testing informativo com Stryker.NET
+
+Mutation testing esta configurado para `LedgerService.Application` e `BalanceService.Application`.
+
+A execucao local continua opcional:
+
+```bash
+cd tests/LedgerService.UnitTests
+dotnet stryker
+```
+
+```bash
+cd tests/BalanceService.UnitTests
+dotnet stryker
+```
+
+No GitHub Actions, o workflow `Mutation Tests` roda em `push` para `main` e por execucao manual. Ele e informativo, nao roda em `pull_request`, nao bloqueia merge e publica os relatorios como artifacts.
+
+Detalhes de preparacao, execucao no GitHub Actions, leitura do relatorio e proximos passos: [`docs/development/mutation-testing-stryker.md`](docs/development/mutation-testing-stryker.md).
 
 ## Banco de dados e migrations
 

@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -30,12 +31,65 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Detect impactful changes
+        id: changes
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          if [ "$EVENT_NAME" != "pull_request" ]; then
+            echo "run_validation=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if ! files="$(gh api --paginate "repos/$REPOSITORY/pulls/$PR_NUMBER/files" --jq '.[] | .filename, (.previous_filename // empty)')"; then
+            echo "Could not detect pull request files. Running full validation."
+            echo "run_validation=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          docs_only=true
+
+          if [ -z "$files" ]; then
+            docs_only=false
+          fi
+
+          while IFS= read -r file; do
+            normalized="${file,,}"
+
+            case "$normalized" in
+              docs/*|*.md|*.png|*.jpg|*.jpeg|*.gif|*.svg|*.webp)
+                ;;
+              *)
+                docs_only=false
+                echo "Impactful file detected: $file"
+                ;;
+            esac
+          done <<< "$files"
+
+          if [ "$docs_only" = true ]; then
+            echo "run_validation=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_validation=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Skip build and tests for documentation-only PR
+        if: ${{ steps.changes.outputs.run_validation == 'false' }}
+        run: |
+          echo "Only documentation or documentation image files changed. Skipping restore, build and tests." >> "$GITHUB_STEP_SUMMARY"
+
       - name: Setup .NET
+        if: ${{ steps.changes.outputs.run_validation == 'true' }}
         uses: actions/setup-dotnet@v5
         with:
           global-json-file: global.json
 
       - name: Cache NuGet packages
+        if: ${{ steps.changes.outputs.run_validation == 'true' }}
         uses: actions/cache@v4
         with:
           path: ${{ env.NUGET_PACKAGES }}
@@ -44,12 +98,15 @@ jobs:
             ${{ runner.os }}-nuget-
 
       - name: Restore dependencies
+        if: ${{ steps.changes.outputs.run_validation == 'true' }}
         run: dotnet restore $SOLUTION_PATH
 
       - name: Build
+        if: ${{ steps.changes.outputs.run_validation == 'true' }}
         run: dotnet build $SOLUTION_PATH --configuration $BUILD_CONFIGURATION --no-restore
 
       - name: Test
+        if: ${{ steps.changes.outputs.run_validation == 'true' }}
         run: >
           dotnet test $SOLUTION_PATH
           --configuration $BUILD_CONFIGURATION
