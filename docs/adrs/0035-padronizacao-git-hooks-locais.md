@@ -9,10 +9,11 @@ Aceito
 ## Contexto
 O repositorio ja adota padroes de engenharia para build, testes, cobertura, documentacao e governanca por ADRs. Ainda assim, parte dessas validacoes dependia da disciplina manual do desenvolvedor antes de criar commits ou enviar alteracoes.
 
-O fluxo local precisa reforcar duas garantias antes do compartilhamento de codigo:
+O fluxo local precisa reforcar garantias antes do compartilhamento de codigo e reduzir drift de dependencias apos receber mudancas:
 
 - mensagens de commit consistentes com Conventional Commits;
 - build, testes e cobertura minima executados antes do push.
+- tools locais e dependencias NuGet restauradas apos merges ou pulls.
 
 ## Problema
 Sem hooks locais versionados, cada maquina pode ter validacoes diferentes ou nenhuma validacao. Isso aumenta o risco de commits fora do padrao, pushes com build quebrado, testes falhando ou queda de cobertura descoberta tarde demais.
@@ -21,6 +22,7 @@ Sem hooks locais versionados, cada maquina pode ter validacoes diferentes ou nen
 Versionar hooks locais em `.githooks/`:
 
 - `commit-msg` valida a primeira linha da mensagem usando Conventional Commits com os tipos aceitos pelo repositorio.
+- `post-merge` executa `dotnet tool restore` e `dotnet restore ./LedgerService.slnx` apos merges locais, incluindo o fluxo comum de `git pull`.
 - `pre-push` executa `dotnet restore`, `dotnet build --no-restore`, `dotnet test` com `coverlet.runsettings` e valida cobertura total minima de 80%.
 
 Configurar automaticamente `git config core.hooksPath .githooks` apos o build de `src/BalanceService.Api/BalanceService.Api.csproj`.
@@ -45,13 +47,15 @@ O target MSBuild deve ser idempotente, ignorar CI (`CI=true`), tolerar ambientes
 
 ### Beneficios
 - Padroniza mensagens de commit antes que entrem no historico local.
+- Mantem tools locais e dependencias NuGet sincronizadas depois de receber mudancas.
 - Aproxima o feedback de build, testes e cobertura do momento do push.
 - Reaproveita o padrao de cobertura existente com `coverlet.runsettings`.
 - Reduz configuracao manual de onboarding ao atrelar a instalacao ao build do BalanceService.Api.
 
 ### Trade-offs / custos
 - O `pre-push` aumenta o tempo de push, pois executa restore, build e testes.
-- Desenvolvedores precisam ter o SDK .NET e ferramentas POSIX basicas disponiveis localmente para a validacao de cobertura.
+- Desenvolvedores precisam ter o SDK .NET e ferramentas POSIX basicas disponiveis localmente para hooks e validacao de cobertura.
+- Merges e pulls passam a ter custo adicional de restore local.
 - Hooks locais podem ser ignorados com `--no-verify`, portanto nao substituem CI.
 
 ### Riscos
@@ -63,6 +67,7 @@ O target MSBuild deve ser idempotente, ignorar CI (`CI=true`), tolerar ambientes
 Ao construir `src/BalanceService.Api/BalanceService.Api.csproj`, o repositorio passa a apontar `core.hooksPath` para `.githooks`. Depois disso:
 
 - commits fora do padrao semantico falham no `commit-msg`;
+- merges e pulls restauram tools locais e dependencias da solution;
 - pushes executam build, testes e gate de cobertura minima de 80%.
 
 ## Impacto no CI
