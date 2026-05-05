@@ -137,7 +137,7 @@ Rel(kafkaInitTopics, kafka, "Cria tópicos de evento e DLQ na subida local", "Ka
 ### Para executar no host (sem containers)
 
 - **.NET SDK 10** (o repo fixa via `global.json`)
-  - Versão atual: `10.0.103`.
+  - Versao base atual: `10.0.100`, com `rollForward: latestFeature`.
 
 ### Para rodar testes
 
@@ -655,16 +655,25 @@ Detalhes da politica de cobertura: [`docs/development/test-coverage.md`](docs/de
 
 Os resultados ficam em `./TestResults/` (ignorado no git).
 
-### Mutation testing opcional com Stryker.NET
+### Mutation testing informativo com Stryker.NET
 
-Mutation testing esta configurado de forma local e opcional para `LedgerService.Application`, sem etapa obrigatoria em CI ou pull requests.
+Mutation testing esta configurado para `LedgerService.Application` e `BalanceService.Application`.
+
+A execucao local continua opcional:
 
 ```bash
 cd tests/LedgerService.UnitTests
 dotnet stryker
 ```
 
-Detalhes de preparacao, leitura do relatorio e proximos passos: [`docs/development/mutation-testing-stryker.md`](docs/development/mutation-testing-stryker.md).
+```bash
+cd tests/BalanceService.UnitTests
+dotnet stryker
+```
+
+No GitHub Actions, o workflow `Mutation Tests` roda em `push` para `main` e por execucao manual. Ele e informativo, nao roda em `pull_request`, nao bloqueia merge e publica os relatorios como artifacts.
+
+Detalhes de preparacao, execucao no GitHub Actions, leitura do relatorio e proximos passos: [`docs/development/mutation-testing-stryker.md`](docs/development/mutation-testing-stryker.md).
 
 ## Banco de dados e migrations
 

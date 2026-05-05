@@ -15,7 +15,7 @@ Alvos configurados ate agora:
 - Alvo 1: `LedgerService.Application`
 - Alvo 2: `BalanceService.Application`
 
-Ambos sao executados localmente a partir dos respectivos projetos de testes unitarios. Nenhum alvo faz parte de workflow remoto obrigatorio.
+Ambos sao executados localmente a partir dos respectivos projetos de testes unitarios e tambem em uma pipeline informativa apos integracao na `main`. Nenhum alvo faz parte de workflow remoto obrigatorio ou quality gate.
 
 ## Por que LedgerService.Application
 
@@ -117,6 +117,72 @@ Scripts opcionais:
 ```
 
 Esses comandos apenas restauram as ferramentas locais e executam `dotnet stryker` no diretorio do projeto de testes. Eles nao fazem parte do fluxo normal de build, teste, push ou pull request.
+
+## Execucao informativa no GitHub Actions
+
+O workflow `Mutation Tests` fica em `.github/workflows/mutation-tests.yml`.
+
+Ele roda em:
+
+- `push` para a branch `main`; na pratica, isso cobre merges de PR para `main`;
+- `workflow_dispatch`, para execucao manual opcional pela aba Actions.
+
+Ele nao roda em `pull_request` nesta etapa. A intencao e dar visibilidade continua do mutation score integrado na `main`, sem aumentar custo e tempo do fluxo de PR.
+
+### Caracteristica nao impeditiva
+
+Esta pipeline e informativa:
+
+- falhas do Stryker nao bloqueiam merge;
+- mutation score baixo nao quebra a pipeline;
+- os steps de Stryker usam `continue-on-error: true`;
+- os artifacts sao publicados com `if: always()`, mesmo se a execucao do Stryker retornar erro;
+- `thresholds.break` permanece em `0` nos arquivos `stryker-config.json`;
+- transformar mutation testing em quality gate e uma decisao futura.
+
+O workflow ainda executa restore e build antes do Stryker para falhar cedo em problemas basicos de ambiente ou compilacao da solution.
+
+### Artifacts publicados
+
+Cada alvo gera um artifact separado:
+
+- `stryker-ledger-service-application`
+- `stryker-balance-service-application`
+
+Os artifacts mantem a pasta `StrykerOutput` gerada pelo Stryker e ficam retidos por 14 dias.
+
+### Como acessar o relatorio no GitHub
+
+1. Abra a aba **Actions** no GitHub.
+2. Selecione o workflow **Mutation Tests**.
+3. Abra a execucao desejada.
+4. Baixe os artifacts `stryker-ledger-service-application` e/ou `stryker-balance-service-application`.
+5. Extraia o artifact localmente.
+6. Procure por `mutation-report.html` dentro da pasta baixada, normalmente em `StrykerOutput/<data-hora>/reports/`.
+7. Abra o HTML no navegador.
+
+O relatorio JSON fica no mesmo diretorio de `reports` e pode apoiar automacoes futuras. Nesta etapa, a leitura principal continua sendo humana pelo HTML.
+
+### Como interpretar resultados da pipeline
+
+Use os relatorios para observar tendencias e pontos frageis nos testes, nao para correcao automatica e cega.
+
+- `Killed`: mutante detectado pelos testes.
+- `Survived`: mutante sobreviveu e precisa de analise.
+- `NoCoverage`: nao havia teste cobrindo aquele mutante.
+- `Timeout`: execucao excedeu o tempo esperado.
+- `Ignored`: mutante ignorado por configuracao.
+- `CompileError`: mutacao gerou codigo invalido.
+
+### Como agir diante dos resultados
+
+1. Priorize `Survived` em regras de negocio e fluxos de aplicacao.
+2. Priorize `NoCoverage` em fluxos criticos.
+3. Ignore mutantes equivalentes apenas com justificativa.
+4. Nao altere implementacao correta para agradar o Stryker.
+5. Nao crie testes artificiais sem valor de comportamento.
+6. Melhore testes de forma incremental.
+7. Compare a evolucao do score ao longo do tempo.
 
 ## Execucao pelo VS Code Tasks
 
@@ -262,13 +328,13 @@ Para `BalanceService.Application`, priorize sobreviventes em:
 
 ## Proximos passos
 
-1. Rodar Stryker localmente no `LedgerService.Application` e `BalanceService.Application`.
-2. Comparar os scores dos dois alvos.
-3. Identificar padroes de mutantes sobreviventes.
-4. Melhorar testes onde houver comportamento relevante nao protegido.
-5. Avaliar job local agregado para os dois alvos.
-6. Avaliar job manual em pipeline remota futuramente.
-7. So depois avaliar threshold progressivo.
+1. Avaliar duracao media do workflow `Mutation Tests`.
+2. Avaliar separar Ledger e Balance em jobs paralelos ou matrix.
+3. Avaliar publicar score no GitHub Step Summary.
+4. Avaliar rodar semanalmente com `schedule`.
+5. Avaliar comentar resultado em PR futuramente.
+6. Avaliar threshold progressivo somente depois de baseline estavel.
+7. Avaliar quality gate apenas quando o time concordar com a maturidade dos testes.
 
 ## Referencias
 
