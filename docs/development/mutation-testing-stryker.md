@@ -118,6 +118,52 @@ Scripts opcionais:
 
 Esses comandos apenas restauram as ferramentas locais e executam `dotnet stryker` no diretorio do projeto de testes. Eles nao fazem parte do fluxo normal de build, teste, push ou pull request.
 
+## Execucao pelo VS Code Tasks
+
+O workspace possui tasks locais em `.vscode/tasks.json` para executar mutation testing sem digitar os comandos manualmente.
+
+Tasks disponiveis:
+
+- `test:mutation:ledger`: executa mutation testing para `LedgerService.Application` a partir de `tests/LedgerService.UnitTests`.
+- `test:mutation:balance`: executa mutation testing para `BalanceService.Application` a partir de `tests/BalanceService.UnitTests`.
+- `test:mutation:all`: executa os dois alvos em sequencia, primeiro Ledger e depois Balance.
+
+Como executar no VS Code:
+
+1. Abra o Command Palette.
+2. Execute `Tasks: Run Task`.
+3. Escolha `test:mutation:ledger`, `test:mutation:balance` ou `test:mutation:all`.
+4. Acompanhe a saida no terminal integrado.
+
+Tambem e possivel configurar um keybinding local para qualquer uma dessas tasks, mas o repositorio nao versiona atalhos obrigatorios.
+
+As tasks individuais executam `dotnet tool restore` antes de `dotnet stryker` e preservam o exit code do Stryker. Ao final, elas tentam imprimir o caminho completo de qualquer arquivo `mutation-report.html` encontrado em `StrykerOutput`.
+
+Os relatorios HTML esperados ficam em:
+
+```text
+tests/LedgerService.UnitTests/StrykerOutput/**/reports/mutation-report.html
+tests/BalanceService.UnitTests/StrykerOutput/**/reports/mutation-report.html
+```
+
+Para abrir o relatorio:
+
+1. Copie o caminho exibido no terminal integrado.
+2. Abra o arquivo `mutation-report.html` no navegador.
+3. Analise o resumo geral.
+4. Navegue por namespace, classe e mutante.
+5. Priorize `Survived` e `NoCoverage` em regras de negocio e comportamento de aplicacao.
+
+Cuidados:
+
+- mutation testing pode ser demorado;
+- durante o desenvolvimento, prefira executar um alvo por vez;
+- use `test:mutation:all` quando quiser uma visao local mais completa;
+- nao versione `StrykerOutput/`;
+- nao persiga mutation score cegamente;
+- nao altere regra de negocio para matar mutante;
+- melhore testes apenas quando o mutante sobrevivente representar comportamento relevante.
+
 ## Escopo configurado
 
 As configuracoes atuais usam:
