@@ -14,7 +14,7 @@ O fluxo de release nao executa build/testes novamente e depende de validacoes ob
 ## Decisao
 Criar o workflow `.github/workflows/pull-request-validation.yml` dedicado a validacao de PRs para qualquer branch.
 
-O workflow executa restore da solution, build em Release e testes sem coleta de cobertura.
+O workflow executa restore da solution, build em Release e testes sem coleta de cobertura quando o PR contem arquivos impactantes.
 
 Verificacao de vulnerabilidades, cobertura, relatorios e gate de cobertura permanecem nos workflows especificos, como `dependency-review` e `dotnet-ci`.
 
@@ -30,6 +30,8 @@ A branch `main` deve ser protegida no GitHub exigindo o status check `Build and 
 
 Como o check deve ser obrigatorio, o workflow de PR nao usa `paths-ignore`. Isso evita que o GitHub pule o workflow e deixe o required check pendente em PRs com alteracoes apenas documentais.
 
+Para reduzir custo sem comprometer o status obrigatorio, o workflow detecta internamente os arquivos alterados em eventos `pull_request`. Se todos os arquivos forem documentacao ou imagens de documentacao (`*.md`, `docs/**`, `*.png`, `*.jpg`, `*.jpeg`, `*.gif`, `*.svg`, `*.webp`), o job reporta sucesso e pula restore, build e testes. Eventos `merge_group` e `workflow_dispatch` continuam executando a validacao completa.
+
 ## Consequencias
 
 ### Beneficios
@@ -37,18 +39,19 @@ Como o check deve ser obrigatorio, o workflow de PR nao usa `paths-ignore`. Isso
 - A protecao de branch pode exigir um status check claro antes do merge.
 - O fluxo evita duplicar responsabilidades de cobertura, relatorios e vulnerabilidades em todo PR.
 - O evento `merge_group` prepara o repositorio para Merge Queue sem criar outro workflow.
-- PRs documentais tambem reportam o required check, evitando bloqueio por status pendente.
-- PRs direcionados a branches diferentes de `main` tambem recebem validacao basica.
+- PRs documentais tambem reportam o required check, evitando bloqueio por status pendente, mas sem executar restore, build e testes.
+- PRs direcionados a branches diferentes de `main` tambem recebem o check de validacao.
 
 ### Trade-offs / custos
 - A configuracao de branch protection nao e aplicada automaticamente pelo YAML e precisa ser feita no GitHub.
 - O nome do check `Build and test` deve ser preservado ou atualizado na regra de protecao se for renomeado.
 - Existe duplicacao intencional de restore da solution, build e testes entre `dotnet-ci` e `pull-request-validation`, pois esses passos sao o gate minimo de integridade.
-- PRs apenas documentais passam a executar build e testes.
+- A deteccao de PR documental depende da lista de padroes mantida no workflow.
 
 ### Riscos
 - Sem branch protection configurada, o workflow informa falhas mas nao impede merge.
 - Se filtros de caminho forem adicionados futuramente ao workflow obrigatorio, PRs podem ficar bloqueados com check pendente.
+- Se a lista de arquivos ignoraveis classificar incorretamente um arquivo como documental, o PR pode deixar de executar build e testes.
 
 ## Alternativas consideradas
 

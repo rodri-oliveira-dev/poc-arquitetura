@@ -11,7 +11,21 @@ O target e idempotente, roda apos o build, ignora CI (`CI=true`) e nao falha o b
 ## Hooks disponiveis
 
 - `commit-msg`: valida a primeira linha da mensagem de commit com Conventional Commits.
+- `post-merge`: apos `git merge` ou `git pull`, restaura as tools locais e as dependencias da solution.
 - `pre-push`: executa restore, build, testes com cobertura e falha se a cobertura total de linhas ficar abaixo de 80% quando houver alteracoes impactantes.
+
+## Politica do post-merge
+
+O `post-merge` executa automaticamente apos um merge local bem-sucedido, incluindo o fluxo comum de `git pull`.
+
+Ele roda, a partir da raiz do repositorio:
+
+```bash
+dotnet tool restore
+dotnet restore ./LedgerService.slnx
+```
+
+Isso reinstala ferramentas versionadas em `dotnet-tools.json` quando necessario e atualiza o restore NuGet da solution apos receber mudancas de branch ou remoto.
 
 ## Politica do pre-push
 
@@ -87,6 +101,12 @@ Validar `pre-push`:
 
 O `pre-push` usa `coverlet.runsettings`, grava resultados em `TestResults/pre-push`, consolida a cobertura com ReportGenerator e valida o `Summary.txt`.
 
+Validar `post-merge` manualmente:
+
+```bash
+.githooks/post-merge
+```
+
 Para forcar a validacao completa manualmente, execute os comandos equivalentes:
 
 ```bash
@@ -106,7 +126,7 @@ Mudancas em codigo, projetos, solution, build, testes, Docker, workflows, hooks 
 - Mensagem de commit invalida: ajuste a primeira linha para `type: descricao` ou `type(scope): descricao`.
 - Build ou testes falhando: corrija o erro local antes de enviar o push.
 - Cobertura abaixo de 80%: adicione ou ajuste testes para cobrir o comportamento alterado.
-- Ferramentas POSIX ou Python indisponiveis: execute os hooks em ambiente compativel com Git Bash no Windows ou shell POSIX no Linux/macOS, com `python3` ou `python` disponivel para ler o resumo de cobertura.
+- Ferramentas POSIX indisponiveis: execute os hooks em ambiente compativel com Git Bash no Windows ou shell POSIX no Linux/macOS.
 
 ## Desabilitacao excepcional
 
