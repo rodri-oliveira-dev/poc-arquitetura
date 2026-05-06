@@ -38,7 +38,7 @@ O workflow `dotnet-ci` permanece como validacao completa de `push` na `main` e e
 
 ## Matriz de workflows
 
-| Workflow | Arquivo | Evento | Papel | Classificacao |
+| Workflow | Arquivo | Evento | Papel | Bloqueante / informativo / operacional |
 | --- | --- | --- | --- | --- |
 | `pull-request-validation` | `.github/workflows/pull-request-validation.yml` | `pull_request`, `merge_group`, `workflow_dispatch` | Gate minimo de PR. Executa restore, build e testes sem cobertura para sempre reportar o status esperado pela protecao de branch. | Bloqueante |
 | `dotnet-ci` | `.github/workflows/dotnet.yml` | `push` na `main`, `workflow_dispatch` | Validacao completa pos-merge/manual, com restore, vulnerabilidades NuGet, build, testes, cobertura, gate de 80% e artifacts de diagnostico. | Informativo para PR; bloqueante apenas se uma regra externa decidir exigir esse check |
