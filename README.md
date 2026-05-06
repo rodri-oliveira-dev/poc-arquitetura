@@ -12,7 +12,7 @@ O repositorio e um laboratorio tecnico. Algumas decisoes estao aceitas, outras a
 ## Servicos
 
 - `Auth.Api`: emite JWT RS256 por `POST /auth/login` e publica JWKS em `GET /.well-known/jwks.json`.
-- `LedgerService.Api`: API de escrita para lancamentos em `POST /api/v1/lancamentos`, com idempotencia e Outbox.
+- `LedgerService.Api`: API de escrita para lancamentos em `POST /api/v1/lancamentos` e solicitacao de estorno em `POST /api/v1/lancamentos/{lancamentoId}/estornos`, com idempotencia e Outbox.
 - `BalanceService.Api`: API de leitura de consolidados, alimentada por eventos Kafka do Ledger.
 
 Componentes principais:
@@ -51,6 +51,7 @@ Na primeira execucao com banco vazio, aplique as migrations manualmente antes de
 
 - [Indice geral da documentacao](docs/README.md)
 - [Desenvolvimento local](docs/development/local-development.md)
+- [LedgerService API](docs/development/ledger-api.md)
 - [Arquitetura](docs/architecture/README.md)
 - [Boundaries arquiteturais](docs/architecture/boundaries.md)
 - [ADRs](docs/adrs/README.md)

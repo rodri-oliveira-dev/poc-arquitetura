@@ -4,20 +4,24 @@ Este documento concentra a referencia de mensageria entre `LedgerService.Api` e 
 
 ## Fluxo
 
-1. `LedgerService.Api` cria um lancamento.
+1. `LedgerService.Api` cria um lancamento ou registra uma solicitacao de estorno.
 2. A mesma transacao grava a mensagem em `outbox_messages`.
 3. `OutboxKafkaPublisherService` le mensagens pendentes e publica no Kafka.
-4. `BalanceService.Api` consome o evento e atualiza a projecao `daily_balances`.
-5. Mensagens invalidas ou nao recuperaveis sao publicadas na DLQ.
+4. `BalanceService.Api` consome `LedgerEntryCreated.v1` e atualiza a projecao `daily_balances`.
+5. Mensagens invalidas ou nao recuperaveis do fluxo consumido pelo Balance sao publicadas na DLQ.
 
 ## Topicos e evento
 
 | Item | Valor |
 | --- | --- |
-| Evento | `LedgerEntryCreated.v1` |
-| Topico principal | `ledger.ledgerentry.created` |
+| Evento de lancamento | `LedgerEntryCreated.v1` |
+| Topico de lancamento | `ledger.ledgerentry.created` |
+| Evento de solicitacao de estorno | `LancamentoEstornoSolicitado.v1` |
+| Topico de solicitacao de estorno | `ledger.lancamento.estorno.solicitado` |
 | DLQ | `ledger.ledgerentry.created.dlq` |
-| Mapeamento | `LedgerEntryCreated.v1` -> `ledger.ledgerentry.created` |
+| Mapeamentos | `LedgerEntryCreated.v1` -> `ledger.ledgerentry.created`; `LancamentoEstornoSolicitado.v1` -> `ledger.lancamento.estorno.solicitado` |
+
+`LancamentoEstornoSolicitado.v1` e gravado pelo Ledger no Outbox e publicado pelo mesmo worker. Nesta etapa nao ha consumidor de estorno implementado; o evento registra a intencao para processamento assincrono futuro.
 
 O compose cria os topicos no startup local. O consumer do Balance usa `AllowAutoCreateTopics=false`.
 

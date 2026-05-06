@@ -25,6 +25,7 @@ public static class DependencyInjection
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<AppDbContext>());
 
         services.AddScoped<ILedgerEntryRepository, LedgerEntryRepository>();
+        services.AddScoped<IEstornoLancamentoRepository, EstornoLancamentoRepository>();
         services.AddScoped<IIdempotencyRecordRepository, IdempotencyRecordRepository>();
         services.AddScoped<IOutboxMessageRepository, OutboxMessageRepository>();
 

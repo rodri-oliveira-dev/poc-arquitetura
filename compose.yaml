@@ -135,6 +135,8 @@ services:
         /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists \
           --topic ledger.ledgerentry.created --partitions 1 --replication-factor 1;
         /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists \
+          --topic ledger.lancamento.estorno.solicitado --partitions 1 --replication-factor 1;
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists \
           --topic ledger.ledgerentry.created.dlq --partitions 1 --replication-factor 1;
         echo "[kafka-init-topics] OK.";
 
