@@ -68,7 +68,7 @@ public sealed class LedgerEntryAmountRulesTests
             correlationId: Guid.NewGuid());
 
         Assert.Equal(LedgerEntryType.Credit, entry.Type);
-        Assert.True(entry.Amount > 0);
+        Assert.Equal(10m, entry.Amount);
     }
 
     [Fact]
@@ -84,6 +84,6 @@ public sealed class LedgerEntryAmountRulesTests
             correlationId: Guid.NewGuid());
 
         Assert.Equal(LedgerEntryType.Debit, entry.Type);
-        Assert.True(entry.Amount < 0);
+        Assert.Equal(-10m, entry.Amount);
     }
 }
