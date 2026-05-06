@@ -97,10 +97,10 @@ jobs:
       - name: Publish mutation testing summary
         if: ${{ always() }}
         run: |
-          echo "## Mutation Testing" >> "$GITHUB_STEP_SUMMARY"
+          echo "## Resumo do mutation testing" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "Esta execucao e informativa e nao bloqueia merge ou release." >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Relatorios disponiveis nos artifacts do workflow:" >> "$GITHUB_STEP_SUMMARY"
+          echo "Relatorios disponiveis nos artefatos do workflow:" >> "$GITHUB_STEP_SUMMARY"
           echo "- stryker-ledger-service-application" >> "$GITHUB_STEP_SUMMARY"
           echo "- stryker-balance-service-application" >> "$GITHUB_STEP_SUMMARY"

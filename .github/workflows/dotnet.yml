@@ -161,7 +161,7 @@ jobs:
           import pathlib
 
           path = pathlib.Path("./artifacts/test-results/coverage-report/Summary.json")
-          print("## CI summary")
+          print("## Resumo do CI")
           print()
 
           if not path.exists():
@@ -173,9 +173,9 @@ jobs:
           with path.open(encoding="utf-8") as f:
               data = json.load(f)["summary"]
 
-          print(f"- Line coverage: {data['linecoverage']}%")
-          print(f"- Branch coverage: {data['branchcoverage']}%")
-          print(f"- Method coverage: {data['methodcoverage']}%")
+          print(f"- Cobertura de linhas: {data['linecoverage']}%")
+          print(f"- Cobertura de branches: {data['branchcoverage']}%")
+          print(f"- Cobertura de metodos: {data['methodcoverage']}%")
           PY
 
       - name: Upload test results and coverage

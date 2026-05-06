@@ -80,7 +80,7 @@ jobs:
       - name: Skip build and tests for documentation-only PR
         if: ${{ steps.changes.outputs.run_validation == 'false' }}
         run: |
-          echo "Only documentation or documentation image files changed. Skipping restore, build and tests." >> "$GITHUB_STEP_SUMMARY"
+          echo "Apenas arquivos de documentacao ou imagens de documentacao foram alterados. Restore, build e testes foram ignorados." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Setup .NET
         if: ${{ steps.changes.outputs.run_validation == 'true' }}
