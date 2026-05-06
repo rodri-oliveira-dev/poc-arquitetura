@@ -116,8 +116,15 @@ jobs:
           --collect:"XPlat Code Coverage"
           --settings ./coverlet.runsettings
 
+      - name: Validate coverage files
+        if: ${{ success() && hashFiles('artifacts/test-results/**/coverage.cobertura.xml') == '' }}
+        shell: bash
+        run: |
+          echo "Testes finalizaram com sucesso, mas nenhum arquivo coverage.cobertura.xml foi gerado." >&2
+          exit 1
+
       - name: Generate coverage report
-        if: ${{ always() }}
+        if: ${{ success() && hashFiles('artifacts/test-results/**/coverage.cobertura.xml') != '' }}
         run: >
           dotnet tool run reportgenerator
           -reports:"${{ env.TEST_RESULTS_DIR }}/**/coverage.cobertura.xml"
@@ -125,7 +132,7 @@ jobs:
           -reporttypes:"HtmlInline;JsonSummary;TextSummary"
 
       - name: Enforce coverage threshold
-        if: ${{ always() }}
+        if: ${{ success() && hashFiles('artifacts/test-results/coverage-report/Summary.json') != '' }}
         shell: bash
         run: |
           python - <<'PY'
@@ -158,7 +165,9 @@ jobs:
           print()
 
           if not path.exists():
-              print("Coverage summary not found.")
+              print("Resumo de cobertura nao encontrado.")
+              print()
+              print("As etapas de cobertura podem ter sido ignoradas porque uma etapa anterior falhou antes da execucao dos testes.")
               raise SystemExit(0)
 
           with path.open(encoding="utf-8") as f:
@@ -178,5 +187,5 @@ jobs:
             ${{ env.TEST_RESULTS_DIR }}/**/*.trx
             ${{ env.TEST_RESULTS_DIR }}/**/coverage.cobertura.xml
             ${{ env.TEST_RESULTS_DIR }}/coverage-report/**
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 7
