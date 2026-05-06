@@ -15,6 +15,7 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 
 | ADR                                                                   | Status      | Resumo                                                                                           |
 | --------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------ |
+| [ADR-0048](./0048-versionamento-semantico-gitversion-commits-semanticos.md) | Aceito | Adota GitVersion como fonte oficial de SemVer baseado em commits semanticos. |
 | [ADR-0047](./0047-plano-futuro-adocao-incremental-testcontainers.md) | Proposto | Define plano futuro, incremental e condicionado a spike para adotar Testcontainers nos testes de integracao com PostgreSQL real. |
 | [ADR-0046](./0046-plano-futuro-adocao-incremental-dotnet-aspire.md) | Proposto | Define plano futuro, incremental e condicionado a spike para avaliar .NET Aspire sem substituir Compose ou testes atuais. |
 | [ADR-0045](./0045-retencao-e-exposicao-de-artifacts-github-actions.md) | Aceito | Reduz exposicao de artifacts publicados por workflows mantendo diagnostico e retencao explicita. |

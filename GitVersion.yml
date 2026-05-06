@@ -1,0 +1,8 @@
+workflow: GitHubFlow/v1
+tag-prefix: '[vV]'
+semantic-version-format: Strict
+commit-message-incrementing: Enabled
+major-version-bump-message: '^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([A-Za-z0-9._-]+\))?(!:|:.*\n\n((.+\n)+\n)?BREAKING CHANGE:\s.+)'
+minor-version-bump-message: '^feat(\([A-Za-z0-9._-]+\))?:'
+patch-version-bump-message: '^fix(\([A-Za-z0-9._-]+\))?:'
+no-bump-message: '^(build|chore|ci|docs|refactor|style|test)(\([A-Za-z0-9._-]+\))?:|\+semver:\s?(none|skip)'

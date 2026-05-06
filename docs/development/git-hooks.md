@@ -54,6 +54,7 @@ Formato aceito:
 
 ```text
 type(scope opcional): descricao
+type(scope opcional)!: descricao
 ```
 
 Tipos aceitos:
@@ -70,9 +71,10 @@ fix(balance): correct retry configuration
 docs: update architecture notes
 test(ledger): add idempotency tests
 chore: update dependencies
+feat!: change public API contract
 ```
 
-Commits de merge e revert sao permitidos.
+Use `!` antes de `:` para declarar breaking change na primeira linha do commit. Commits de merge e revert sao permitidos.
 
 ## Validacao manual
 
