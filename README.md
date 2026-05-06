@@ -8,7 +8,7 @@
 ## Saude do projeto e documentacao publicada
 
 - Build e testes: workflow [`dotnet-ci`](https://github.com/rodri-oliveira-dev/poc-arquitetura/actions/workflows/dotnet.yml).
-- Pull requests: workflow [`pull-request-validation`](https://github.com/rodri-oliveira-dev/poc-arquitetura/actions/workflows/pull-request-validation.yml), que deve ser configurado como required status check para bloquear merge com build/testes falhando.
+- Pull requests: workflow [`pull-request-validation`](https://github.com/rodri-oliveira-dev/poc-arquitetura/actions/workflows/pull-request-validation.yml), com o check `Build and test` recomendado como required status check para bloquear merge com build/testes falhando.
 - Cobertura: gate minimo de 80% de cobertura total de linhas, calculado com XPlat Code Coverage, `coverlet.runsettings` e ReportGenerator.
 - Artifacts de testes/cobertura: publicados como `test-results-and-coverage` por 7 dias em cada execucao do `dotnet-ci`, contendo TRX, Cobertura XML e summaries do ReportGenerator, sem publicar o HTML completo de cobertura.
 - Artifacts de mutation testing: publicados pelo workflow `Mutation Tests` por 7 dias, com o `mutation-report.html` de cada alvo.
@@ -24,6 +24,7 @@ npx --yes likec4@latest build docs/architecture -o dist/architecture --base ./
 Mais detalhes:
 
 - [`docs/development/test-coverage.md`](docs/development/test-coverage.md)
+- [`docs/development/pull-request-validation.md`](docs/development/pull-request-validation.md)
 - [`docs/development/mutation-testing-stryker.md`](docs/development/mutation-testing-stryker.md)
 - [`docs/development/workflow-artifacts.md`](docs/development/workflow-artifacts.md)
 - [`docs/development/github-pages.md`](docs/development/github-pages.md)
