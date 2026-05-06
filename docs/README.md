@@ -28,7 +28,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [Validacao de pull requests](development/pull-request-validation.md): checks obrigatorios, workflows e branch protection.
 - [Git hooks locais](development/git-hooks.md): `commit-msg`, `post-merge` e `pre-push`.
 - [Artifacts dos workflows](development/workflow-artifacts.md): politica de publicacao e retencao.
-- [Releases](development/releases.md): automacao de tags e GitHub Releases.
+- [Releases e versionamento](development/releases.md): SemVer com GitVersion, commits semanticos, tags e GitHub Releases.
 
 ## Relatorios
 

@@ -16,7 +16,7 @@ case "$first_line" in
     ;;
 esac
 
-if printf '%s\n' "$first_line" | grep -Eq '^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([A-Za-z0-9._-]+\))?: .+'; then
+if printf '%s\n' "$first_line" | grep -Eq '^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([A-Za-z0-9._-]+\))?!?: .+'; then
   exit 0
 fi
 
@@ -25,6 +25,7 @@ Mensagem de commit invalida.
 
 Use Conventional Commits no formato:
   type(scope opcional): descricao
+  type(scope opcional)!: descricao para breaking changes
 
 Tipos aceitos:
   feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert
