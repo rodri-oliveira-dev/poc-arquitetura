@@ -5,12 +5,12 @@ on:
     branches: ["main"]
     paths:
       - "docs/architecture/**"
-      - ".github/workflows/**"
+      - ".github/workflows/pages-architecture.yml"
   pull_request:
     branches: ["main"]
     paths:
       - "docs/architecture/**"
-      - ".github/workflows/**"
+      - ".github/workflows/pages-architecture.yml"
   workflow_dispatch:
 
 permissions:
