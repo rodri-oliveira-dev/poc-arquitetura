@@ -26,6 +26,14 @@ jobs:
           ref: main
           fetch-depth: 0
 
+      - name: Setup .NET
+        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7 # v5
+        with:
+          global-json-file: global.json
+
+      - name: Restore .NET tools
+        run: dotnet tool restore
+
       - name: Resolve release tag
         id: version
         shell: bash
@@ -36,34 +44,39 @@ jobs:
           set -euo pipefail
 
           git fetch --force --tags origin
+          git checkout -B main "$MERGE_SHA"
 
-          existing_tag="$(git tag --points-at "$MERGE_SHA" --list "v[0-9][0-9][0-9][0-9].[0-9][0-9].[0-9][0-9].*" | sort -V | tail -n 1 || true)"
-          if [ -n "$existing_tag" ]; then
-            echo "tag_name=$existing_tag" >> "$GITHUB_OUTPUT"
+          version="$(dotnet tool run dotnet-gitversion /showvariable MajorMinorPatch)"
+          full_semver="$(dotnet tool run dotnet-gitversion /showvariable FullSemVer)"
+          tag_name="v$version"
+
+          echo "tag_name=$tag_name" >> "$GITHUB_OUTPUT"
+          echo "full_semver=$full_semver" >> "$GITHUB_OUTPUT"
+
+          if git rev-parse --quiet --verify "refs/tags/$tag_name" >/dev/null; then
+            tagged_sha="$(git rev-list -n 1 "$tag_name")"
             echo "create_tag=false" >> "$GITHUB_OUTPUT"
 
-            if gh release view "$existing_tag" >/dev/null 2>&1; then
+            if [ "$tagged_sha" != "$MERGE_SHA" ]; then
               echo "create_release=false" >> "$GITHUB_OUTPUT"
+              echo "release_reason=Tag $tag_name already points to $tagged_sha; no SemVer increment was produced for $MERGE_SHA." >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            if gh release view "$tag_name" >/dev/null 2>&1; then
+              echo "create_release=false" >> "$GITHUB_OUTPUT"
+              echo "release_reason=Release $tag_name already exists for $MERGE_SHA." >> "$GITHUB_OUTPUT"
             else
               echo "create_release=true" >> "$GITHUB_OUTPUT"
+              echo "release_reason=Tag $tag_name already exists for $MERGE_SHA; release will be created." >> "$GITHUB_OUTPUT"
             fi
 
             exit 0
           fi
 
-          today="$(date -u +%Y.%m.%d)"
-          prefix="v$today"
-          suffix=1
-
-          while git rev-parse --quiet --verify "refs/tags/$prefix.$suffix" >/dev/null; do
-            suffix=$((suffix + 1))
-          done
-
-          tag_name="$prefix.$suffix"
-
-          echo "tag_name=$tag_name" >> "$GITHUB_OUTPUT"
           echo "create_tag=true" >> "$GITHUB_OUTPUT"
           echo "create_release=true" >> "$GITHUB_OUTPUT"
+          echo "release_reason=GitVersion calculated $full_semver; tag $tag_name will be created for $MERGE_SHA." >> "$GITHUB_OUTPUT"
 
       - name: Create tag
         if: ${{ steps.version.outputs.create_tag == 'true' }}
@@ -107,6 +120,7 @@ jobs:
             echo "- Author: @$PR_AUTHOR"
             echo "- Source branch: \`$PR_BRANCH\`"
             echo "- Merge commit: \`$MERGE_SHA\`"
+            echo "- Version: \`$TAG_NAME\`"
             echo "- Link: $PR_URL"
             echo
             echo "## Changelog"
@@ -134,3 +148,18 @@ jobs:
             --title "$TAG_NAME" \
             --notes-file release-notes.md \
             --target "$MERGE_SHA"
+
+      - name: Write release summary
+        if: ${{ always() }}
+        shell: bash
+        env:
+          TAG_NAME: ${{ steps.version.outputs.tag_name }}
+          FULL_SEMVER: ${{ steps.version.outputs.full_semver }}
+          RELEASE_REASON: ${{ steps.version.outputs.release_reason }}
+        run: |
+          {
+            echo "## Release"
+            echo "- Tag: \`${TAG_NAME:-not calculated}\`"
+            echo "- FullSemVer: \`${FULL_SEMVER:-not calculated}\`"
+            echo "- Result: ${RELEASE_REASON:-workflow did not reach version resolution}"
+          } >> "$GITHUB_STEP_SUMMARY"
