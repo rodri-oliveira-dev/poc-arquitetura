@@ -3,6 +3,21 @@ name: Mutation Tests
 on:
   push:
     branches: ["main"]
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "*.sln"
+      - "*.slnx"
+      - "**/*.csproj"
+      - "Directory.Build.props"
+      - "Directory.Build.targets"
+      - "Directory.Packages.props"
+      - "global.json"
+      - "dotnet-tools.json"
+      - ".config/dotnet-tools.json"
+      - "coverlet.runsettings"
+      - "**/stryker-config.json"
+      - ".github/workflows/mutation-tests.yml"
   workflow_dispatch:
 
 permissions:
