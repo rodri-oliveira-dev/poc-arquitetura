@@ -186,6 +186,7 @@ jobs:
           path: |
             ${{ env.TEST_RESULTS_DIR }}/**/*.trx
             ${{ env.TEST_RESULTS_DIR }}/**/coverage.cobertura.xml
-            ${{ env.TEST_RESULTS_DIR }}/coverage-report/**
+            ${{ env.TEST_RESULTS_DIR }}/coverage-report/Summary.json
+            ${{ env.TEST_RESULTS_DIR }}/coverage-report/Summary.txt
           if-no-files-found: warn
           retention-days: 7

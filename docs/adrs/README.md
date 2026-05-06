@@ -15,6 +15,7 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 
 | ADR                                                                   | Status      | Resumo                                                                                           |
 | --------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------ |
+| [ADR-0045](./0045-retencao-e-exposicao-de-artifacts-github-actions.md) | Aceito | Reduz exposicao de artifacts publicados por workflows mantendo diagnostico e retencao explicita. |
 | [ADR-0044](./0044-mutation-testing-informativo-github-actions.md) | Aceito | Executa mutation testing informativo no GitHub Actions apos push na main. |
 | [ADR-0043](./0043-mutation-testing-local-stryker-balance-application.md) | Aceito | Adota mutation testing local e opcional com Stryker.NET para BalanceService.Application. |
 | [ADR-0042](./0042-mutation-testing-local-stryker-ledger-application.md) | Aceito | Adota mutation testing local e opcional com Stryker.NET para LedgerService.Application. |

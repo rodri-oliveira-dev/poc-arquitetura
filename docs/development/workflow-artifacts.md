@@ -1,0 +1,59 @@
+# Artifacts dos workflows
+
+Este documento registra quais artifacts os workflows publicam no GitHub Actions, por quanto tempo ficam retidos e por que continuam publicados.
+
+Artifacts podem expor nomes de testes, paths internos do repositorio, stack traces e trechos de codigo. Por isso, a politica atual e publicar apenas o necessario para diagnostico, com retencao explicita e curta.
+
+## dotnet-ci
+
+Workflow: `.github/workflows/dotnet.yml`
+
+Artifact: `test-results-and-coverage`
+
+Retencao: 7 dias
+
+Conteudo publicado:
+
+- arquivos `.trx` de resultados de testes;
+- arquivos `coverage.cobertura.xml` coletados pelo Coverlet;
+- `coverage-report/Summary.json`;
+- `coverage-report/Summary.txt`.
+
+Motivo:
+
+- os arquivos `.trx` ajudam a diagnosticar falhas de teste;
+- o XML Cobertura e os summaries permitem validar a cobertura consolidada e investigar o gate minimo de 80%;
+- o relatorio HTML completo do ReportGenerator nao e publicado como artifact, porque os summaries e o XML ja atendem ao diagnostico principal com menor exposicao de paths e trechos renderizados.
+
+## Mutation Tests
+
+Workflow: `.github/workflows/mutation-tests.yml`
+
+Artifacts:
+
+- `stryker-ledger-service-application`
+- `stryker-balance-service-application`
+
+Retencao: 7 dias
+
+Conteudo publicado:
+
+- `mutation-report.html` gerado pelo Stryker.NET para cada alvo.
+
+Motivo:
+
+- mutation testing e informativo e nao bloqueia merge;
+- o HTML e mantido porque e o relatorio primario para analisar mutantes `Survived`, `NoCoverage`, `Timeout` e `CompileError`;
+- a publicacao nao inclui a pasta `StrykerOutput/` completa nem o JSON detalhado, reduzindo volume e exposicao desnecessaria.
+
+Risco residual:
+
+- o `mutation-report.html` pode conter paths, nomes de tipos, nomes de testes e trechos de codigo mutado;
+- por isso, a retencao e curta e o workflow continua restrito a `push` na `main` e execucao manual, sem rodar em todo pull request.
+
+## Regras de manutencao
+
+- Todo uso de `actions/upload-artifact` deve declarar `retention-days`.
+- Preserve `if-no-files-found: warn` quando o upload roda com `if: always()`, para evitar falha secundaria falsa quando uma etapa anterior falhar antes de gerar arquivos.
+- Antes de publicar um novo artifact, avalie se o GitHub Step Summary, logs do job ou um summary menor ja atendem ao diagnostico.
+- Nao publique relatorios HTML ou JSON detalhados por padrao quando summaries forem suficientes.

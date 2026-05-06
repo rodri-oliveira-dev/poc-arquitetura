@@ -149,7 +149,9 @@ Cada alvo gera um artifact separado:
 - `stryker-ledger-service-application`
 - `stryker-balance-service-application`
 
-Os artifacts mantem a pasta `StrykerOutput` gerada pelo Stryker e ficam retidos por 14 dias.
+Os artifacts publicam apenas o `mutation-report.html` gerado pelo Stryker e ficam retidos por 7 dias. A pasta `StrykerOutput/` completa e o JSON detalhado nao sao publicados como artifacts.
+
+O HTML pode conter paths, nomes de tipos/testes e trechos de codigo mutado. Ele e mantido porque e o relatorio primario para analise humana de mutantes; a retencao curta reduz exposicao desnecessaria.
 
 ### Como acessar o relatorio no GitHub
 
@@ -158,10 +160,9 @@ Os artifacts mantem a pasta `StrykerOutput` gerada pelo Stryker e ficam retidos 
 3. Abra a execucao desejada.
 4. Baixe os artifacts `stryker-ledger-service-application` e/ou `stryker-balance-service-application`.
 5. Extraia o artifact localmente.
-6. Procure por `mutation-report.html` dentro da pasta baixada, normalmente em `StrykerOutput/<data-hora>/reports/`.
-7. Abra o HTML no navegador.
+6. Abra o arquivo `mutation-report.html` extraido do artifact no navegador.
 
-O relatorio JSON fica no mesmo diretorio de `reports` e pode apoiar automacoes futuras. Nesta etapa, a leitura principal continua sendo humana pelo HTML.
+O relatorio JSON continua sendo gerado localmente pelo Stryker quando configurado, mas nao e publicado pelo workflow. Nesta etapa, a leitura principal continua sendo humana pelo HTML.
 
 ### Como interpretar resultados da pipeline
 

@@ -10,7 +10,8 @@
 - Build e testes: workflow [`dotnet-ci`](https://github.com/rodri-oliveira-dev/poc-arquitetura/actions/workflows/dotnet.yml).
 - Pull requests: workflow [`pull-request-validation`](https://github.com/rodri-oliveira-dev/poc-arquitetura/actions/workflows/pull-request-validation.yml), que deve ser configurado como required status check para bloquear merge com build/testes falhando.
 - Cobertura: gate minimo de 80% de cobertura total de linhas, calculado com XPlat Code Coverage, `coverlet.runsettings` e ReportGenerator.
-- Relatorio de cobertura: publicado como artefato `test-results-and-coverage` em cada execucao do `dotnet-ci`.
+- Artifacts de testes/cobertura: publicados como `test-results-and-coverage` por 7 dias em cada execucao do `dotnet-ci`, contendo TRX, Cobertura XML e summaries do ReportGenerator, sem publicar o HTML completo de cobertura.
+- Artifacts de mutation testing: publicados pelo workflow `Mutation Tests` por 7 dias, com o `mutation-report.html` de cada alvo.
 - Documentacao arquitetural LikeC4: publicada no GitHub Pages em <https://rodri-oliveira-dev.github.io/poc-arquitetura/>.
 
 Comandos locais principais:
@@ -24,6 +25,7 @@ Mais detalhes:
 
 - [`docs/development/test-coverage.md`](docs/development/test-coverage.md)
 - [`docs/development/mutation-testing-stryker.md`](docs/development/mutation-testing-stryker.md)
+- [`docs/development/workflow-artifacts.md`](docs/development/workflow-artifacts.md)
 - [`docs/development/github-pages.md`](docs/development/github-pages.md)
 
 Este repositório é uma **POC (prova de conceito / laboratório de testes)** para validar decisões de arquitetura e práticas de engenharia.  
@@ -671,7 +673,7 @@ cd tests/BalanceService.UnitTests
 dotnet stryker
 ```
 
-No GitHub Actions, o workflow `Mutation Tests` roda em `push` para `main` e por execucao manual. Ele e informativo, nao roda em `pull_request`, nao bloqueia merge e publica os relatorios como artifacts.
+No GitHub Actions, o workflow `Mutation Tests` roda em `push` para `main` e por execucao manual. Ele e informativo, nao roda em `pull_request`, nao bloqueia merge e publica os relatorios HTML como artifacts por 7 dias.
 
 Detalhes de preparacao, execucao no GitHub Actions, leitura do relatorio e proximos passos: [`docs/development/mutation-testing-stryker.md`](docs/development/mutation-testing-stryker.md).
 

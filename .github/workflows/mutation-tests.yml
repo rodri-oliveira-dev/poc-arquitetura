@@ -61,9 +61,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: stryker-ledger-service-application
-          path: tests/LedgerService.UnitTests/StrykerOutput/
+          path: tests/LedgerService.UnitTests/StrykerOutput/**/reports/mutation-report.html
           if-no-files-found: warn
-          retention-days: 14
+          retention-days: 7
 
       - name: Run Stryker - BalanceService.Application
         continue-on-error: true
@@ -75,9 +75,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: stryker-balance-service-application
-          path: tests/BalanceService.UnitTests/StrykerOutput/
+          path: tests/BalanceService.UnitTests/StrykerOutput/**/reports/mutation-report.html
           if-no-files-found: warn
-          retention-days: 14
+          retention-days: 7
 
       - name: Publish mutation testing summary
         if: ${{ always() }}
