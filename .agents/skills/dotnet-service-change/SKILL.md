@@ -1,148 +1,80 @@
 ---
 name: dotnet-service-change
-description: Use esta skill ao alterar serviços .NET deste repositório, especialmente código de API, Application, Domain, Infrastructure, EF Core, Kafka, Outbox, autenticação, configuração e testes.
+description: Use esta skill ao alterar servicos .NET deste repositorio: API, Application, Domain, Infrastructure, EF Core, Kafka, Outbox, autenticacao, configuracao ou testes relacionados. Nao use para mudancas apenas em governanca de agentes, CI/CD puro, release ou documentacao sem impacto no servico.
 ---
 
 # Objetivo
 
-Executar mudanças em serviços .NET deste repositório com segurança e consistência, respeitando:
-
-- Clean Architecture
-- DDD
-- Central Package Management
-- regras de build, testes e estilo já definidas no repositório
-- documentação existente em README e ADRs
+Orientar alteracoes pequenas e seguras nos servicos .NET deste repositorio.
+Esta skill preserva Clean Architecture, DDD, Central Package Management e as decisoes registradas em README, ADRs e documentacao tecnica.
+Ela deve reduzir risco de violar fronteiras entre camadas ou alterar comportamento sem validacao proporcional.
 
 # Quando usar
 
-Use esta skill quando a tarefa envolver qualquer um dos itens abaixo:
+- Alteracoes em endpoints HTTP, controllers, middlewares, binds, mappers ou Swagger.
+- Alteracoes em handlers, services, validators, DTOs de aplicacao ou casos de uso.
+- Alteracoes em entidades, value rules, repositorios de dominio ou contratos de dominio.
+- Alteracoes em EF Core, DbContext, configurations, migrations, transacoes ou repositories concretos.
+- Alteracoes em Kafka, Outbox, DLQ, hosted services, idempotencia ou contratos de eventos.
+- Alteracoes em autenticacao, autorizacao, scopes, policies, JWT, JWKS ou headers de seguranca.
+- Criacao ou ajuste de testes ligados diretamente ao comportamento dos servicos.
 
-- endpoints HTTP
-- controllers
-- middlewares
-- handlers
-- services de aplicação
-- entidades ou regras de domínio
-- EF Core
-- migrations
-- Kafka
-- Outbox
-- autenticação/autorização
-- configurações de execução
-- testes unitários ou de integração
+# Quando nao usar
 
-# Antes de alterar
+- Mudancas apenas em `.agents/`, `AGENTS.md`, prompts ou governanca de uso do Codex.
+- Revisoes puramente de CI/CD, GitVersion, releases, hooks ou artifacts.
+- Commits sem alteracao funcional pendente.
+- Documentacao geral sem impacto em contrato, arquitetura, setup local ou comportamento dos servicos.
 
-1. Identifique a camada afetada:
-   - Api
-   - Application
-   - Domain
-   - Infrastructure
+# Entradas esperadas
 
-2. Verifique se a mudança afeta:
-   - contrato HTTP
-   - DI
-   - autenticação/autorização
-   - EF Core / migrations
-   - Kafka / Outbox
-   - testes
-   - documentação
+- Objetivo funcional ou tecnico da mudanca.
+- Servico ou camada afetada, quando conhecido.
+- Arquivos, erro, teste falhando, issue ou criterio de aceite relevante.
+- Restricoes de compatibilidade, seguranca ou escopo informadas pelo usuario.
 
-3. Consulte os arquivos relevantes:
-   - `AGENTS.md`
-   - `README.md`
-   - `docs/adrs/`
-   - `Directory.Packages.props`
-   - `Directory.Build.props`
-   - `.editorconfig`
-   - `global.json`
-   - `coverlet.runsettings`
+# Saidas esperadas
 
-# Regras de implementação
+- Alteracao minima nos arquivos necessarios.
+- Testes ajustados ou criados somente quando fizerem parte do escopo real.
+- Documentacao ou ADR atualizada quando houver mudanca de contrato, fluxo, setup ou decisao.
+- Relato final com arquivos alterados, validacoes executadas e riscos restantes.
 
-- Faça a menor mudança possível.
-- Preserve as fronteiras entre camadas.
-- Não adicione `Version=` em `PackageReference`.
-- Não mova regra de negócio para controller, endpoint ou middleware.
-- Não coloque detalhes de infraestrutura na camada `Domain`.
-- Não altere migrations existentes sem necessidade explícita.
-- Não crie drift entre código, README, workflow, arquivos de VS Code e configuração local.
-- Atualize documentação quando a mudança alterar comportamento, contrato, fluxo arquitetural ou execução local.
+# Passos
 
-## Avaliação de ADR
+1. Analise o pedido e identifique area, servico e camada afetada.
+2. Consulte `AGENTS.md`, README, ADRs e documentacao relevante antes de editar.
+3. Localize implementacao, DI, contratos, configuracoes e testes relacionados.
+4. Verifique impacto em contrato HTTP, autenticacao/autorizacao, EF Core, Kafka/Outbox, observabilidade e documentacao.
+5. Decida se a mudanca exige ADR nova ou atualizacao de documentacao.
+6. Aplique a menor alteracao coerente com os padroes existentes.
+7. Preserve fronteiras: `Api` orquestra HTTP, `Application` coordena casos de uso, `Domain` guarda regras, `Infrastructure` concentra detalhes tecnicos.
+8. Revise o diff e confirme que nao houve refactor, formatacao ou renomeacao fora do escopo.
+9. Valide com comandos proporcionais ao impacto.
+10. Relate resultado, validacoes e incertezas.
 
-Antes de alterar código, avaliar se o ajuste exige uma ADR.
+# Validacao
 
-Uma ADR deve ser criada quando o ajuste envolver pelo menos um dos pontos abaixo:
+- Para mudancas pequenas e localizadas, execute o teste mais proximo quando existir.
+- Para mudancas em contratos, DI, EF Core, Kafka, autenticacao ou comportamento transversal, prefira:
 
-- mudança de arquitetura ou organização entre camadas;
-- introdução, remoção ou alteração de padrão arquitetural;
-- mudança em contrato HTTP, eventos, mensagens, DTOs públicos ou integração entre serviços;
-- decisão sobre persistência, transação, idempotência, outbox, DLQ, retry, re-drive ou consistência;
-- decisão de segurança, autenticação, autorização, headers, OWASP ou exposição de endpoint;
-- mudança em observabilidade, logs, tracing, correlation id, métricas ou auditoria;
-- alteração relevante de dependência, biblioteca, framework ou infraestrutura;
-- alteração que afete manutenção futura, testabilidade, escalabilidade, resiliência ou operação.
-
-Não criar ADR para:
-
-- correção pequena e localizada;
-- ajuste de nome sem impacto arquitetural;
-- formatação;
-- pequenas refatorações internas sem mudança de decisão técnica;
-- ajuste de teste sem decisão arquitetural nova;
-- documentação simples de comportamento já existente.
-
-Quando uma ADR for necessária:
-
-1. Identificar o próximo número sequencial em `docs/adrs`.
-2. Criar o arquivo no formato `ADR-XXXX-titulo-curto-em-kebab-case.md`, se esse for o padrão do repositório.
-3. Seguir o modelo abaixo.
-4. Referenciar os arquivos/projetos afetados na seção "Decisão".
-5. Registrar benefícios, trade-offs e alternativas consideradas.
-6. Manter o texto objetivo, técnico e compatível com o escopo real do ajuste.
-7. Não inventar decisões que não foram implementadas.
-
-# Fluxo recomendado
-
-## 1. Entender o impacto
-- localizar o ponto de entrada da mudança
-- localizar os testes relacionados
-- identificar dependências tocadas
-- identificar se a mudança é local ou transversal
-
-## 2. Implementar
-- alterar apenas os arquivos necessários
-- preservar estilo e padrões existentes
-- manter coerência com o restante da solução
-
-## 3. Validar
-- rodar build
-- rodar testes proporcionais ao impacto
-- revisar documentação afetada
-
-# Validações padrão
-
-## Finalização do ajuste
-
-Ao concluir uma alteração no serviço .NET:
-
-1. Revisar o diff.
-2. Executar restore, build e testes relevantes.
-3. Criar ou atualizar ADR em `docs/adrs` quando a mudança envolver decisão arquitetural.
-4. Se o usuário pediu commit, criar commit semântico usando Conventional Commits.
-5. A mensagem do commit deve refletir o tipo predominante da alteração.
-
-Exemplos:
-
-- `feat: adicionar fluxo de re-drive para outbox failed`
-- `fix: corrigir propagação de correlation id`
-- `refactor: isolar lógica de dispatcher`
-- `test: adicionar cobertura para retry policy`
-- `docs: registrar ADR sobre uso de outbox`
-
-## restore e build
-```bash
+```powershell
 dotnet tool restore
 dotnet restore ./LedgerService.slnx
 dotnet build ./LedgerService.slnx --configuration Release --no-restore
+dotnet test ./LedgerService.slnx --configuration Release --no-build --settings ./coverlet.runsettings
+```
+
+- Quando adequado, use `./test.ps1` para validar cobertura conforme documentacao do projeto.
+- Sempre execute `git status` antes de finalizar se houver edicoes.
+
+# Restricoes
+
+- Nao adicione `Version=` em `PackageReference`; use `Directory.Packages.props`.
+- Nao mova regra de negocio para controller, endpoint, middleware ou infraestrutura.
+- Nao coloque EF Core, Kafka, SQL, HTTP externo ou configuracao tecnica no `Domain`.
+- Nao altere migrations existentes sem necessidade explicita.
+- Nao altere testes apenas para faze-los passar.
+- Nao relaxe seguranca sem instrucao explicita.
+- Nao introduza segredos, URLs, portas ou comandos inventados.
+- Nao faca push nem crie branch sem pedido explicito.

@@ -143,3 +143,19 @@ dotnet tool restore
 dotnet restore ./LedgerService.slnx
 dotnet build ./LedgerService.slnx --configuration Release --no-restore
 dotnet test ./LedgerService.slnx --configuration Release --no-build --settings ./coverlet.runsettings
+```
+
+## Skills do Codex
+
+- Use as skills em `.agents/skills/` quando o pedido combinar com o `description` da skill.
+- Mantenha `AGENTS.md` como orientacao global; fluxos detalhados devem ficar nas skills.
+- Prefira poucas skills especificas a muitas skills genericas.
+- Nao use orientacoes externas ao Codex ou arquivos de outros agentes, salvo se estiverem documentadas em `.agents/` ou neste arquivo.
+
+## Comunicacao e seguranca operacional
+
+- Responder em portugues, salvo pedido explicito em outro idioma.
+- Registrar incertezas, comandos nao executados e validacoes que falharem.
+- Nao alterar testes apenas para faze-los passar.
+- Nao fazer push.
+- Nao criar branch sem solicitacao explicita.

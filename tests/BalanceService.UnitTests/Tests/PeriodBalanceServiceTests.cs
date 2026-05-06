@@ -69,7 +69,34 @@ public sealed class PeriodBalanceServiceTests
         result.TotalDebits.Should().Be(3m);
         result.NetBalance.Should().Be(7m);
         result.Currency.Should().Be("BRL");
-        result.Items.Should().HaveCount(2);
+        result.Items.Should().Equal(items);
         result.CalculatedAt.Should().Be(now);
+    }
+
+    [Fact]
+    public async Task Should_use_first_item_currency_when_items_exist()
+    {
+        var readRepo = new Mock<IDailyBalanceReadRepository>(MockBehavior.Strict);
+        var clock = new Mock<IClock>(MockBehavior.Strict);
+
+        var now = DateTimeOffset.Parse("2026-02-16T03:00:00Z", CultureInfo.InvariantCulture);
+        clock.SetupGet(x => x.UtcNow).Returns(now);
+
+        var query = new GetPeriodBalanceQuery("m1", new DateOnly(2026, 2, 10), new DateOnly(2026, 2, 12));
+        var items = new[]
+        {
+            new DailyBalanceReadModel("m1", new DateOnly(2026,2,10), "USD", 10m, 0m, 10m, DateTimeOffset.MinValue, now),
+            new DailyBalanceReadModel("m1", new DateOnly(2026,2,11), "BRL", 0m, 3m, -3m, DateTimeOffset.MinValue, now),
+        };
+
+        readRepo.Setup(x => x.ListByPeriodAsync(query.MerchantId, query.From, query.To, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(items);
+
+        var sut = new PeriodBalanceService(readRepo.Object, clock.Object);
+
+        var result = await sut.GetPeriodAsync(query.MerchantId, query.From, query.To, CancellationToken.None);
+
+        result.Currency.Should().Be("USD");
+        result.Items.Should().Equal(items);
     }
 }
