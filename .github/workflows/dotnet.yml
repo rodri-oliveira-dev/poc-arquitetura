@@ -37,15 +37,15 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7 # v5
         with:
           global-json-file: global.json
 
       - name: Cache NuGet packages
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ${{ env.NUGET_PACKAGES }}
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', 'Directory.Packages.props', 'Directory.Build.props', 'global.json', 'dotnet-tools.json') }}
@@ -161,7 +161,7 @@ jobs:
           import pathlib
 
           path = pathlib.Path("./artifacts/test-results/coverage-report/Summary.json")
-          print("## CI summary")
+          print("## Resumo do CI")
           print()
 
           if not path.exists():
@@ -173,19 +173,20 @@ jobs:
           with path.open(encoding="utf-8") as f:
               data = json.load(f)["summary"]
 
-          print(f"- Line coverage: {data['linecoverage']}%")
-          print(f"- Branch coverage: {data['branchcoverage']}%")
-          print(f"- Method coverage: {data['methodcoverage']}%")
+          print(f"- Cobertura de linhas: {data['linecoverage']}%")
+          print(f"- Cobertura de branches: {data['branchcoverage']}%")
+          print(f"- Cobertura de metodos: {data['methodcoverage']}%")
           PY
 
       - name: Upload test results and coverage
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: test-results-and-coverage
           path: |
             ${{ env.TEST_RESULTS_DIR }}/**/*.trx
             ${{ env.TEST_RESULTS_DIR }}/**/coverage.cobertura.xml
-            ${{ env.TEST_RESULTS_DIR }}/coverage-report/**
+            ${{ env.TEST_RESULTS_DIR }}/coverage-report/Summary.json
+            ${{ env.TEST_RESULTS_DIR }}/coverage-report/Summary.txt
           if-no-files-found: warn
           retention-days: 7

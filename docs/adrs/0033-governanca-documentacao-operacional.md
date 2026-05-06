@@ -16,7 +16,9 @@ Adotar `docs/observability.md` como documento operacional minimo obrigatorio par
 
 Docs obrigatorios:
 
-- `README.md`: visao geral, setup local, comandos principais, contratos publicos e links para documentacao operacional.
+- `README.md`: visao geral, comandos principais e links para documentacao detalhada.
+- `docs/README.md`: indice geral da documentacao.
+- `docs/development/local-development.md`: setup local, portas, migrations, execucao no host e load tests.
 - `docs/observability.md`: inventario operacional minimo, incluindo health, readiness, logs, metricas, tracing, Kafka, DLQ, Outbox e configuracao local.
 - `docs/adrs/README.md`: indice das decisoes arquiteturais.
 - `docs/adrs/NNNN-*.md`: registro de decisoes arquiteturais aceitas, propostas ou substituidas.
@@ -24,13 +26,14 @@ Docs obrigatorios:
 Responsaveis:
 
 - Quem alterar comportamento operacional deve atualizar a documentacao afetada no mesmo ajuste.
-- Quem revisar a mudanca deve validar se README, `docs/observability.md` e ADRs continuam coerentes.
+- Quem revisar a mudanca deve validar se README, `docs/README.md`, `docs/observability.md` e ADRs continuam coerentes.
 - Mudancas em codigo, compose, configuracao, Kafka, Outbox, DLQ, health/readiness, logs, metricas ou tracing devem ser avaliadas explicitamente quanto a impacto documental.
 
 Criterios de atualizacao:
 
 - Atualizar `docs/observability.md` quando mudar endpoint operacional, readiness, health, campos de log/correlacao, traces, metricas, topicos Kafka, headers, DLQ, Outbox, retry, backoff, lock, portas, variaveis de ambiente ou fluxo de validacao local.
-- Atualizar `README.md` quando mudar setup local, portas, comandos, contratos publicos, links ou instrucoes de uso.
+- Atualizar `docs/development/local-development.md` quando mudar setup local, portas, migrations, load tests ou instrucoes de uso.
+- Atualizar `README.md` quando mudar resumo do projeto, comandos principais ou links de navegacao.
 - Criar ou atualizar ADR quando a mudanca envolver decisao arquitetural, padrao tecnico, contrato entre servicos, persistencia, mensageria, observabilidade, seguranca, resiliencia, integracao externa, estrutura de projeto ou alteracao relevante de comportamento.
 - Nao criar ADR para correcao trivial, ajuste mecanico ou documentacao de comportamento existente sem decisao nova.
 
@@ -38,11 +41,13 @@ Relacao com mudancas arquiteturais:
 
 - ADRs registram o motivo e os trade-offs da decisao.
 - `docs/observability.md` registra como operar e validar o comportamento decidido.
-- README aponta para o documento operacional e mantem o caminho feliz de execucao.
+- README aponta para os documentos detalhados e mantem apenas o caminho rapido de entrada.
 
 Arquivos afetados por esta decisao:
 
 - `README.md`
+- `docs/README.md`
+- `docs/development/local-development.md`
 - `docs/observability.md`
 - `docs/adrs/README.md`
 - `docs/adrs/0033-governanca-documentacao-operacional.md`

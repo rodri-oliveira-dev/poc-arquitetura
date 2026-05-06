@@ -15,6 +15,7 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 
 | ADR                                                                   | Status      | Resumo                                                                                           |
 | --------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------ |
+| [ADR-0045](./0045-retencao-e-exposicao-de-artifacts-github-actions.md) | Aceito | Reduz exposicao de artifacts publicados por workflows mantendo diagnostico e retencao explicita. |
 | [ADR-0044](./0044-mutation-testing-informativo-github-actions.md) | Aceito | Executa mutation testing informativo no GitHub Actions apos push na main. |
 | [ADR-0043](./0043-mutation-testing-local-stryker-balance-application.md) | Aceito | Adota mutation testing local e opcional com Stryker.NET para BalanceService.Application. |
 | [ADR-0042](./0042-mutation-testing-local-stryker-ledger-application.md) | Aceito | Adota mutation testing local e opcional com Stryker.NET para LedgerService.Application. |
@@ -22,6 +23,9 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 | [ADR-0040](./0040-padronizacao-commands-queries-validacao-entrada-apis.md) | Aceito | Padroniza politica de commands/queries e valida amount decimal no contrato do Ledger. |
 | [ADR-0039](./0039-publicacao-indicadores-qualidade-documentacao-arquitetural-pages.md) | Aceito | Publica badges de qualidade no README e documentacao LikeC4 no GitHub Pages. |
 | [ADR-0038](./0038-automacao-releases-prs-mergeados-main.md)           | Aceito      | Automatiza tags e GitHub Releases a partir de PRs mergeados na main.                             |
+| [ADR-0037](./0037-otimizacao-hooks-workflows-arquivos-impactantes.md) | Aceito | Otimiza hooks e workflows usando classificacao de arquivos impactantes. |
+| [ADR-0036](./0036-padronizacao-cobertura-testes-solution.md) | Aceito | Padroniza cobertura consolidada da solution com gate minimo de 80%. |
+| [ADR-0035](./0035-padronizacao-git-hooks-locais.md) | Aceito | Padroniza hooks locais para commit, post-merge e pre-push. |
 | [ADR-0034](./0034-boundaries-arquiteturais-e-estrutura-de-camadas.md) | Aceito      | Define boundaries arquiteturais, nivel de camadas por servico e documentacao LikeC4.             |
 | [ADR-0033](./0033-governanca-documentacao-operacional.md)             | Aceito      | Define docs operacionais obrigatorios, responsaveis e criterios de atualizacao.                  |
 | [ADR-0032](./0032-baseline-seguranca-containers.md)                   | Aceito      | Define usuario non-root, politica de tags/digests, scan de imagem e limites locais de recursos.  |
@@ -45,9 +49,9 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 | [ADR-0014](./0014-contratos-eventos-kafka-versionamento-e-dlq.md)     | Proposto    | Ponto de melhoria: versionamento/compatibilidade de eventos e DLQ para poison messages no Kafka. |
 | [ADR-0013](./0013-readiness-healthchecks-db-kafka.md)                 | Proposto    | Ponto de melhoria: endpoint de readiness verificando DB e Kafka com timeouts.                    |
 | [ADR-0012](./0012-health-liveness-publico.md)                         | Substituído | Consolidado em observabilidade + readiness.                                                      |
-| [ADR-0011](./0011-padronizacao-repo-cpm-build-props-editorconfig.md)  | Substituído | Consolidado no README.md.                                                                        |
-| [ADR-0010](./0010-migrations-nao-automaticas-no-startup.md)           | Substituído | Consolidado no README.md.                                                                        |
-| [ADR-0009](./0009-stack-local-compose-nerdctl.md)                     | Substituído | Consolidado no README.md.                                                                        |
+| [ADR-0011](./0011-padronizacao-repo-cpm-build-props-editorconfig.md)  | Substituído | Consolidado em [`docs/development/repository-standards.md`](../development/repository-standards.md). |
+| [ADR-0010](./0010-migrations-nao-automaticas-no-startup.md)           | Substituído | Consolidado em [`docs/development/local-development.md`](../development/local-development.md). |
+| [ADR-0009](./0009-stack-local-compose-nerdctl.md)                     | Substituído | Consolidado em [`docs/development/local-development.md`](../development/local-development.md). |
 | [ADR-0008](./0008-scopes-por-endpoint-policy-based.md)                | Substituído | Consolidado em ADR-0004 (segurança).                                                             |
 | [ADR-0007](./0007-banco-por-microservico-postgres-efcore.md)          | Aceito      | Banco por microserviço (PostgreSQL) com EF Core.                                                 |
 | [ADR-0006](./0006-migrar-auth-api-para-keycloak.md)                   | Proposto    | Ponto de melhoria: substituir Auth.Api por Keycloak (OIDC) mantendo validação via JWKS.          |

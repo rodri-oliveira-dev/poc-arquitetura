@@ -3,6 +3,21 @@ name: Mutation Tests
 on:
   push:
     branches: ["main"]
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "*.sln"
+      - "*.slnx"
+      - "**/*.csproj"
+      - "Directory.Build.props"
+      - "Directory.Build.targets"
+      - "Directory.Packages.props"
+      - "global.json"
+      - "dotnet-tools.json"
+      - ".config/dotnet-tools.json"
+      - "coverlet.runsettings"
+      - "**/stryker-config.json"
+      - ".github/workflows/mutation-tests.yml"
   workflow_dispatch:
 
 permissions:
@@ -27,15 +42,15 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7 # v5
         with:
           global-json-file: global.json
 
       - name: Cache NuGet packages
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ${{ env.NUGET_PACKAGES }}
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', 'Directory.Packages.props', 'Directory.Build.props', 'global.json', 'dotnet-tools.json') }}
@@ -58,12 +73,12 @@ jobs:
 
       - name: Upload Stryker report - LedgerService.Application
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: stryker-ledger-service-application
-          path: tests/LedgerService.UnitTests/StrykerOutput/
+          path: tests/LedgerService.UnitTests/StrykerOutput/**/reports/mutation-report.html
           if-no-files-found: warn
-          retention-days: 14
+          retention-days: 7
 
       - name: Run Stryker - BalanceService.Application
         continue-on-error: true
@@ -72,20 +87,20 @@ jobs:
 
       - name: Upload Stryker report - BalanceService.Application
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: stryker-balance-service-application
-          path: tests/BalanceService.UnitTests/StrykerOutput/
+          path: tests/BalanceService.UnitTests/StrykerOutput/**/reports/mutation-report.html
           if-no-files-found: warn
-          retention-days: 14
+          retention-days: 7
 
       - name: Publish mutation testing summary
         if: ${{ always() }}
         run: |
-          echo "## Mutation Testing" >> "$GITHUB_STEP_SUMMARY"
+          echo "## Resumo do mutation testing" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "Esta execucao e informativa e nao bloqueia merge ou release." >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Relatorios disponiveis nos artifacts do workflow:" >> "$GITHUB_STEP_SUMMARY"
+          echo "Relatorios disponiveis nos artefatos do workflow:" >> "$GITHUB_STEP_SUMMARY"
           echo "- stryker-ledger-service-application" >> "$GITHUB_STEP_SUMMARY"
           echo "- stryker-balance-service-application" >> "$GITHUB_STEP_SUMMARY"

@@ -1,7 +1,7 @@
 # ADR-0010: Não aplicar migrations automaticamente no startup
 
 ## Status
-Substituído (ver README.md)
+Substituído (ver `docs/development/local-development.md`)
 
 ## Data
 2026-02-17
@@ -19,7 +19,7 @@ Na PoC, queremos que a infra seja explícita e reprodutível, sem “mágica”.
 ## Decisão
 Não aplicar migrations automaticamente no startup dos microserviços.
 
-As migrations são aplicadas de forma explícita via `dotnet-ef database update`, conforme documentado no `README.md`.
+As migrations são aplicadas de forma explícita via `dotnet-ef database update`, conforme documentado em `docs/development/local-development.md`.
 
 Se houver necessidade de automação no futuro, preferimos:
 
@@ -44,4 +44,4 @@ Se houver necessidade de automação no futuro, preferimos:
    - Contras: riscos de corrida e side effects; menos previsível.
 
 ## Motivo da substituição
-Este é um guideline de **operabilidade e governança de schema**. O README já documenta com mais detalhe quando e como aplicar migrations (incluindo comandos para cada `DbContext`). Para reduzir ADRs aceitas de “processo”, este registro fica como histórico.
+Este é um guideline de **operabilidade e governança de schema**. `docs/development/local-development.md` documenta com mais detalhe quando e como aplicar migrations (incluindo comandos para cada `DbContext`). Para reduzir ADRs aceitas de “processo”, este registro fica como histórico.
