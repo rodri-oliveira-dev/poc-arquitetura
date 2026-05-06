@@ -7,6 +7,17 @@ namespace LedgerService.UnitTests.Tests;
 
 public sealed partial class WorkflowArtifactPolicyTests
 {
+    private static readonly string[] AllWorkflows =
+    [
+        ".github/workflows/codeql.yml",
+        ".github/workflows/dependency-review.yml",
+        ".github/workflows/dotnet.yml",
+        ".github/workflows/mutation-tests.yml",
+        ".github/workflows/pages-architecture.yml",
+        ".github/workflows/pull-request-validation.yml",
+        ".github/workflows/release.yml",
+    ];
+
     private static readonly string[] WorkflowsWithPublishedArtifacts =
     [
         ".github/workflows/dotnet.yml",
@@ -14,7 +25,7 @@ public sealed partial class WorkflowArtifactPolicyTests
     ];
 
     [Theory]
-    [MemberData(nameof(GetWorkflowsWithPublishedArtifacts))]
+    [MemberData(nameof(GetAllWorkflows))]
     public void Workflow_should_have_valid_yaml_syntax(string workflowPath)
     {
         var repositoryRoot = GetRepositoryRoot();
@@ -24,6 +35,23 @@ public sealed partial class WorkflowArtifactPolicyTests
         var act = () => yaml.Load(new StringReader(workflow));
 
         act.Should().NotThrow();
+    }
+
+    [Theory]
+    [MemberData(nameof(GetAllWorkflows))]
+    public void Workflow_actions_should_be_pinned_to_full_commit_sha_with_original_version_comment(string workflowPath)
+    {
+        var repositoryRoot = GetRepositoryRoot();
+        var workflow = File.ReadAllText(Path.Combine(repositoryRoot.FullName, workflowPath));
+        var actionReferences = ActionReferenceRegex().Matches(workflow).Cast<Match>().ToArray();
+
+        actionReferences.Should().NotBeEmpty();
+
+        foreach (Match actionReference in actionReferences)
+        {
+            actionReference.Groups["ref"].Value.Should().MatchRegex("^[0-9a-f]{40}$");
+            actionReference.Groups["comment"].Value.Should().MatchRegex(@"^v\d+");
+        }
     }
 
     [Theory]
@@ -78,8 +106,21 @@ public sealed partial class WorkflowArtifactPolicyTests
         return data;
     }
 
-    [GeneratedRegex(@"uses:\s*actions/upload-artifact@v4[\s\S]*?(?=\n\s{6}- name:|\z)", RegexOptions.Multiline)]
+    public static TheoryData<string> GetAllWorkflows()
+    {
+        var data = new TheoryData<string>();
+
+        foreach (var workflow in AllWorkflows)
+            data.Add(workflow);
+
+        return data;
+    }
+
+    [GeneratedRegex(@"uses:\s*actions/upload-artifact@[0-9a-f]{40}\s*#\s*v4[\s\S]*?(?=\n\s{6}- name:|\z)", RegexOptions.Multiline)]
     private static partial Regex UploadArtifactStepRegex();
+
+    [GeneratedRegex(@"uses:\s+[\w.-]+/[\w.-]+(?:/[\w.-]+)?@(?<ref>[^\s#]+)\s*#\s*(?<comment>\S+)", RegexOptions.Multiline)]
+    private static partial Regex ActionReferenceRegex();
 
     [GeneratedRegex(@"retention-days:\s*7")]
     private static partial Regex RetentionDaysSevenRegex();

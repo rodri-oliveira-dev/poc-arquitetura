@@ -70,6 +70,17 @@ Se o job `Build and test` for renomeado, a branch protection ou ruleset que exig
 
 Nao promova `Mutation Tests` para gate obrigatorio apenas por renomeacao ou ajuste operacional. Essa mudanca exige decisao explicita, porque aumenta tempo de feedback e pode bloquear merges por uma validacao originalmente informativa.
 
+## Pinagem de GitHub Actions
+
+As actions usadas em `.github/workflows/` devem ser referenciadas por SHA completo de commit, mantendo um comentario com a ref semantica original, por exemplo `# v4`.
+
+Para atualizar uma action:
+
+1. Consulte o repositorio oficial da action, sem usar forks.
+2. Obtenha o commit completo da tag ou branch semantica usada pelo comentario, por exemplo `git ls-remote https://github.com/actions/checkout.git refs/tags/v4 refs/tags/v4^{}` ou `git ls-remote https://github.com/actions/dependency-review-action.git refs/heads/v4`.
+3. Substitua somente o SHA, preservando o owner, repositorio, subaction e comentario da versao original.
+4. Revise o diff para confirmar que nao houve mudanca de nomes de workflows, nomes de jobs, `paths`, permissoes, artifacts ou logica de execucao.
+
 ## Configuracao externa esperada no GitHub
 
 A protecao de branch e os rulesets sao configuracoes externas ao repositorio. O YAML cria os checks, mas nao impede merge sozinho.
