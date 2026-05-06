@@ -67,4 +67,8 @@ Quando o gate falhar:
 3. Priorize testes que validem comportamento de dominio, aplicacao, infraestrutura critica ou contratos HTTP.
 4. Use exclusao somente quando houver justificativa tecnica clara e localizada.
 
-O CI publica os resultados de testes e cobertura como artefato quando executado no GitHub Actions.
+O CI publica os resultados de testes e cobertura como artifact `test-results-and-coverage` por 7 dias quando executado no GitHub Actions.
+
+O artifact contem arquivos `.trx`, `coverage.cobertura.xml`, `coverage-report/Summary.json` e `coverage-report/Summary.txt`. O HTML completo do ReportGenerator nao e publicado como artifact porque o XML e os summaries atendem ao diagnostico principal com menor exposicao de paths e trechos renderizados.
+
+Detalhes da politica de artifacts: [`workflow-artifacts.md`](workflow-artifacts.md).

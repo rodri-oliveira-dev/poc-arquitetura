@@ -1,7 +1,7 @@
 # ADR-0011: Padronização do repositório (CPM, Build.props, EditorConfig, Gitattributes)
 
 ## Status
-Substituído (ver README.md)
+Substituído (ver `docs/development/repository-standards.md`)
 
 ## Data
 2026-02-17
@@ -43,4 +43,4 @@ Adotar os seguintes padrões como regra do repositório:
    - Contras: drift e manutenção custosa.
 
 ## Motivo da substituição
-Esta decisão é importante, porém é **mais apropriada como documentação de engenharia do repositório** do que como ADR arquitetural (é um “guardrail” de build/estilo). Como já existe uma seção detalhada no `README.md` (com propósito e comandos), este ADR fica apenas como histórico para não inflar o conjunto de ADRs “Aceitas”.
+Esta decisão é importante, porém é **mais apropriada como documentação de engenharia do repositório** do que como ADR arquitetural (é um “guardrail” de build/estilo). Como já existe uma referencia detalhada em `docs/development/repository-standards.md` (com propósito e comandos), este ADR fica apenas como histórico para não inflar o conjunto de ADRs “Aceitas”.

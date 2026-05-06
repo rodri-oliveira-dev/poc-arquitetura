@@ -18,7 +18,7 @@ O deploy e feito por `.github/workflows/pages-architecture.yml`.
 
 O workflow roda em:
 
-- `push` para `main` quando houver alteracao em `docs/architecture/**` ou `.github/workflows/**`;
+- `push` para `main` quando houver alteracao em `docs/architecture/**` ou `.github/workflows/pages-architecture.yml`;
 - `pull_request` para `main` nos mesmos caminhos, apenas para validar o build;
 - `workflow_dispatch`, para execucao manual.
 
