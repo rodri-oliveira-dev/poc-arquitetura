@@ -28,7 +28,10 @@ public sealed class ApplyLedgerEntryCreatedHandlerTests
         clock.SetupGet(x => x.UtcNow).Returns(now);
 
         uow.Setup(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>())).ReturnsAsync(tx.Object);
-        processedRepo.Setup(x => x.TryInsertAsync(It.IsAny<ProcessedEvent>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
+        ProcessedEvent? processedEvent = null;
+        processedRepo.Setup(x => x.TryInsertAsync(It.IsAny<ProcessedEvent>(), It.IsAny<CancellationToken>()))
+            .Callback<ProcessedEvent, CancellationToken>((e, _) => processedEvent = e)
+            .ReturnsAsync(false);
 
         tx.Setup(x => x.CommitAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         tx.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask);
@@ -38,8 +41,17 @@ public sealed class ApplyLedgerEntryCreatedHandlerTests
         await sut.Handle(new ApplyLedgerEntryCreatedCommand(evt), CancellationToken.None);
 
         // Não chama repo/SaveChanges quando já processado.
+        processedEvent.Should().NotBeNull();
+        processedEvent!.EventId.Should().Be(evt.Id);
+        processedEvent.MerchantId.Should().Be(evt.MerchantId);
+        processedEvent.OccurredAt.Should().Be(evt.OccurredAt.ToUniversalTime());
+        processedEvent.ProcessedAt.Should().Be(now);
         dailyRepo.VerifyNoOtherCalls();
         uow.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+        tx.Verify(x => x.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        tx.Verify(x => x.DisposeAsync(), Times.Once);
+        processedRepo.VerifyAll();
+        uow.VerifyAll();
     }
 
     [Fact]
@@ -57,9 +69,14 @@ public sealed class ApplyLedgerEntryCreatedHandlerTests
         clock.SetupGet(x => x.UtcNow).Returns(now);
 
         uow.Setup(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>())).ReturnsAsync(tx.Object);
-        processedRepo.Setup(x => x.TryInsertAsync(It.IsAny<ProcessedEvent>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        ProcessedEvent? processedEvent = null;
+        processedRepo.Setup(x => x.TryInsertAsync(It.IsAny<ProcessedEvent>(), It.IsAny<CancellationToken>()))
+            .Callback<ProcessedEvent, CancellationToken>((e, _) => processedEvent = e)
+            .ReturnsAsync(true);
 
+        DateOnly? requestedDate = null;
         dailyRepo.Setup(x => x.GetByMerchantDateAndCurrencyAsync(evt.MerchantId, It.IsAny<DateOnly>(), "BRL", It.IsAny<CancellationToken>()))
+            .Callback<string, DateOnly, string, CancellationToken>((_, date, _, _) => requestedDate = date)
             .ReturnsAsync((DailyBalance?)null);
 
         DailyBalance? created = null;
@@ -76,8 +93,24 @@ public sealed class ApplyLedgerEntryCreatedHandlerTests
         await sut.Handle(new ApplyLedgerEntryCreatedCommand(evt), CancellationToken.None);
 
         created.Should().NotBeNull();
+        requestedDate.Should().Be(new DateOnly(2026, 2, 16));
+        processedEvent.Should().NotBeNull();
+        processedEvent!.EventId.Should().Be(evt.Id);
+        processedEvent.MerchantId.Should().Be(evt.MerchantId);
+        processedEvent.OccurredAt.Should().Be(evt.OccurredAt.ToUniversalTime());
+        processedEvent.ProcessedAt.Should().Be(now);
         created!.MerchantId.Should().Be(evt.MerchantId);
+        created!.Date.Should().Be(new DateOnly(2026, 2, 16));
         created!.Currency.Should().Be("BRL");
         created!.TotalCredits.Should().Be(10m);
+        created!.TotalDebits.Should().Be(0m);
+        created!.NetBalance.Should().Be(10m);
+        created!.AsOf.Should().Be(evt.OccurredAt.ToUniversalTime());
+        created!.UpdatedAt.Should().Be(now);
+
+        dailyRepo.VerifyAll();
+        processedRepo.VerifyAll();
+        uow.VerifyAll();
+        tx.VerifyAll();
     }
 }

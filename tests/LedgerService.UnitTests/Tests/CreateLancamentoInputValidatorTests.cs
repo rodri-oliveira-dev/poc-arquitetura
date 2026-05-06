@@ -71,6 +71,19 @@ public sealed class CreateLancamentoInputValidatorTests
         result.Errors.Should().Contain(e => e.PropertyName == nameof(CreateLancamentoInput.Amount));
     }
 
+    [Fact]
+    public void Should_be_invalid_when_unsigned_amount_exceeds_total_digits_by_one()
+    {
+        var input = LancamentoFixture.ValidInput(amount: "12345678901234567.89");
+
+        var result = _validator.Validate(input);
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(e =>
+            e.PropertyName == nameof(CreateLancamentoInput.Amount)
+            && e.ErrorMessage.Contains("18 digits", StringComparison.Ordinal));
+    }
+
     [Theory]
     [InlineData("100.01", "CREDIT")]
     [InlineData("-100.01", "DEBIT")]
@@ -97,6 +110,34 @@ public sealed class CreateLancamentoInputValidatorTests
 
         result.IsValid.Should().BeFalse();
         result.Errors.Should().Contain(e => e.PropertyName == nameof(CreateLancamentoInput.Type));
+    }
+
+    [Fact]
+    public void Should_be_invalid_when_description_exceeds_maximum_length()
+    {
+        var input = LancamentoFixture.ValidInput() with
+        {
+            Description = new string('d', 501)
+        };
+
+        var result = _validator.Validate(input);
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(e => e.PropertyName == nameof(CreateLancamentoInput.Description));
+    }
+
+    [Fact]
+    public void Should_be_invalid_when_external_reference_exceeds_maximum_length()
+    {
+        var input = LancamentoFixture.ValidInput() with
+        {
+            ExternalReference = new string('e', 151)
+        };
+
+        var result = _validator.Validate(input);
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(e => e.PropertyName == nameof(CreateLancamentoInput.ExternalReference));
     }
 
     [Fact]

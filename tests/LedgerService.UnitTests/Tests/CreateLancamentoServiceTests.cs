@@ -1,6 +1,8 @@
 using FluentAssertions;
 using LedgerService.Application.Lancamentos.Events;
 using LedgerService.Application.Common.Exceptions;
+using LedgerService.Application.Common.Models;
+using LedgerService.Application.Lancamentos.Inputs.CreateLancamento;
 using LedgerService.Application.Lancamentos.Services;
 using LedgerService.Domain.Entities;
 using LedgerService.Domain.Repositories;
@@ -56,6 +58,10 @@ public sealed class CreateLancamentoServiceTests
         result.MerchantId.Should().Be(input.MerchantId);
         result.Amount.Should().Be("10.00");
         result.Id.Should().StartWith("lan_");
+        result.Description.Should().Be(input.Description);
+        result.ExternalReference.Should().Be(input.ExternalReference);
+        result.OccurredAt.Should().NotBeNullOrWhiteSpace();
+        result.CreatedAt.Should().NotBeNullOrWhiteSpace();
 
         createdEntry.Should().NotBeNull();
         createdEntry!.MerchantId.Should().Be(input.MerchantId);
@@ -75,6 +81,74 @@ public sealed class CreateLancamentoServiceTests
         createdOutbox!.EventType.Should().Be(LedgerEntryCreatedV1.EventType);
         createdOutbox!.Payload.Should().Contain("\"merchantId\"");
         createdOutbox!.CorrelationId.Should().Be(Guid.Parse(input.CorrelationId));
+
+        var outboxEvent = System.Text.Json.JsonSerializer.Deserialize<LedgerEntryCreatedV1>(createdOutbox.Payload, JsonOptions);
+        outboxEvent.Should().NotBeNull();
+        outboxEvent!.Id.Should().Be(result.Id);
+        outboxEvent.Type.Should().Be("CREDIT");
+        outboxEvent.Amount.Should().Be("10.00");
+        outboxEvent.MerchantId.Should().Be(input.MerchantId);
+        outboxEvent.Description.Should().Be(input.Description);
+        outboxEvent.ExternalReference.Should().Be(input.ExternalReference);
+        outboxEvent.CorrelationId.Should().Be(input.CorrelationId);
+        outboxEvent.OccurredAt.Should().Be(result.OccurredAt);
+        outboxEvent.CreatedAt.Should().Be(result.CreatedAt);
+
+        ledgerRepo.VerifyAll();
+        idemRepo.VerifyAll();
+        outboxRepo.VerifyAll();
+        uow.VerifyAll();
+        tx.VerifyAll();
+    }
+
+    [Fact]
+    public async Task Should_create_debit_response_and_outbox_event()
+    {
+        var ledgerRepo = new Mock<ILedgerEntryRepository>(MockBehavior.Strict);
+        var idemRepo = new Mock<IIdempotencyRecordRepository>(MockBehavior.Strict);
+        var outboxRepo = new Mock<IOutboxMessageRepository>(MockBehavior.Strict);
+        var uow = new Mock<IUnitOfWork>(MockBehavior.Strict);
+        var tx = new Mock<IAppTransaction>(MockBehavior.Strict);
+
+        var input = LancamentoFixture.ValidInput(type: "DEBIT", amount: "-15.50");
+
+        uow.Setup(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(tx.Object);
+        idemRepo.Setup(x => x.GetByMerchantAndKeyAsync(input.MerchantId, input.IdempotencyKey, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IdempotencyRecord?)null);
+
+        LedgerEntry? createdEntry = null;
+        ledgerRepo.Setup(x => x.AddAsync(It.IsAny<LedgerEntry>(), It.IsAny<CancellationToken>()))
+            .Callback<LedgerEntry, CancellationToken>((e, _) => createdEntry = e)
+            .Returns(Task.CompletedTask);
+
+        idemRepo.Setup(x => x.AddAsync(It.IsAny<IdempotencyRecord>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        OutboxMessage? createdOutbox = null;
+        outboxRepo.Setup(x => x.AddAsync(It.IsAny<OutboxMessage>(), It.IsAny<CancellationToken>()))
+            .Callback<OutboxMessage, CancellationToken>((m, _) => createdOutbox = m)
+            .Returns(Task.CompletedTask);
+
+        uow.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
+        tx.Setup(x => x.CommitAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        tx.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask);
+
+        var sut = new CreateLancamentoService(ledgerRepo.Object, idemRepo.Object, outboxRepo.Object, uow.Object);
+
+        var result = await sut.ExecuteAsync(input, CancellationToken.None);
+
+        result.Type.Should().Be("DEBIT");
+        result.Amount.Should().Be("-15.50");
+        createdEntry.Should().NotBeNull();
+        createdEntry!.Type.Should().Be(LedgerEntryType.Debit);
+        createdEntry.Amount.Should().Be(-15.50m);
+
+        createdOutbox.Should().NotBeNull();
+        var outboxEvent = System.Text.Json.JsonSerializer.Deserialize<LedgerEntryCreatedV1>(createdOutbox!.Payload, JsonOptions);
+        outboxEvent.Should().NotBeNull();
+        outboxEvent!.Type.Should().Be("DEBIT");
+        outboxEvent.Amount.Should().Be("-15.50");
 
         ledgerRepo.VerifyAll();
         idemRepo.VerifyAll();
@@ -206,7 +280,102 @@ public sealed class CreateLancamentoServiceTests
         result.Amount.Should().Be("10.00");
     }
 
-    private static string ComputeRequestHash(LedgerService.Application.Lancamentos.Inputs.CreateLancamento.CreateLancamentoInput input)
+    [Fact]
+    public async Task Should_throw_conflict_when_idempotency_record_has_unreplayable_response_body()
+    {
+        var ledgerRepo = new Mock<ILedgerEntryRepository>(MockBehavior.Strict);
+        var idemRepo = new Mock<IIdempotencyRecordRepository>(MockBehavior.Strict);
+        var outboxRepo = new Mock<IOutboxMessageRepository>(MockBehavior.Strict);
+        var uow = new Mock<IUnitOfWork>(MockBehavior.Strict);
+        var tx = new Mock<IAppTransaction>(MockBehavior.Strict);
+
+        var input = LancamentoFixture.ValidInput(type: "CREDIT", amount: "10.00");
+
+        uow.Setup(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(tx.Object);
+
+        var existing = new IdempotencyRecord(
+            merchantId: input.MerchantId,
+            idempotencyKey: input.IdempotencyKey,
+            requestHash: ComputeRequestHash(input),
+            ledgerEntryId: Guid.NewGuid(),
+            responseStatusCode: 201,
+            responseBody: "null",
+            expiresAt: DateTime.Now.AddDays(7));
+
+        idemRepo.Setup(x => x.GetByMerchantAndKeyAsync(input.MerchantId, input.IdempotencyKey, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(existing);
+
+        tx.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask);
+
+        var sut = new CreateLancamentoService(ledgerRepo.Object, idemRepo.Object, outboxRepo.Object, uow.Object);
+
+        var act = async () => await sut.ExecuteAsync(input, CancellationToken.None);
+
+        await act.Should().ThrowAsync<ConflictException>()
+            .WithMessage("*Unable to replay idempotent response*");
+    }
+
+    [Fact]
+    public async Task Should_replay_response_when_idempotency_payload_differs_only_by_optional_text_whitespace()
+    {
+        var ledgerRepo = new Mock<ILedgerEntryRepository>(MockBehavior.Strict);
+        var idemRepo = new Mock<IIdempotencyRecordRepository>(MockBehavior.Strict);
+        var outboxRepo = new Mock<IOutboxMessageRepository>(MockBehavior.Strict);
+        var uow = new Mock<IUnitOfWork>(MockBehavior.Strict);
+        var tx = new Mock<IAppTransaction>(MockBehavior.Strict);
+
+        var originalInput = LancamentoFixture.ValidInput(
+            type: "CREDIT",
+            amount: "10.00") with
+        {
+            Description = "desc",
+            ExternalReference = "ext"
+        };
+        var replayInput = originalInput with
+        {
+            Description = "  desc  ",
+            ExternalReference = "  ext  "
+        };
+
+        uow.Setup(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(tx.Object);
+
+        var expectedReplay = new LancamentoDto(
+            "lan_12345678",
+            originalInput.MerchantId,
+            "CREDIT",
+            "10.00",
+            "2026-02-16T00:00:00.0000000Z",
+            "desc",
+            "ext",
+            "2026-02-16T00:00:00.0000000Z");
+
+        var existing = new IdempotencyRecord(
+            merchantId: originalInput.MerchantId,
+            idempotencyKey: originalInput.IdempotencyKey,
+            requestHash: ComputeRequestHash(originalInput),
+            ledgerEntryId: Guid.NewGuid(),
+            responseStatusCode: 201,
+            responseBody: System.Text.Json.JsonSerializer.Serialize(expectedReplay, JsonOptions),
+            expiresAt: DateTime.Now.AddDays(7));
+
+        idemRepo.Setup(x => x.GetByMerchantAndKeyAsync(replayInput.MerchantId, replayInput.IdempotencyKey, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(existing);
+
+        tx.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask);
+
+        var sut = new CreateLancamentoService(ledgerRepo.Object, idemRepo.Object, outboxRepo.Object, uow.Object);
+
+        var result = await sut.ExecuteAsync(replayInput, CancellationToken.None);
+
+        result.Should().Be(expectedReplay);
+        ledgerRepo.VerifyNoOtherCalls();
+        outboxRepo.VerifyNoOtherCalls();
+        uow.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    private static string ComputeRequestHash(CreateLancamentoInput input)
     {
         var canonical = System.Text.Json.JsonSerializer.Serialize(new
         {
