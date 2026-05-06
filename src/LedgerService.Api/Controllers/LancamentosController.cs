@@ -5,6 +5,7 @@ using LedgerService.Api.Mappers;
 using LedgerService.Api.Middlewares;
 using LedgerService.Api.Security;
 using LedgerService.Application.Common.Models;
+using LedgerService.Application.Lancamentos.Queries;
 using LedgerService.Application.Lancamentos.Services;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
@@ -106,5 +107,30 @@ public sealed class LancamentosController : ControllerBase
         var response = SolicitarEstornoLancamentoMapper.ToResponse(result);
 
         return Accepted(response.StatusUrl, response);
+    }
+
+    [HttpGet("estornos/{estornoId:guid}")]
+    [Authorize(Policy = ScopePolicies.LedgerReadPolicy)]
+    [SwaggerOperation(
+        Summary = "Consulta status de uma solicitacao de estorno.",
+        Description = "Retorna o estado atual de uma solicitacao de estorno registrada previamente. O processamento do estorno e assincrono e pode evoluir apos a resposta do endpoint de criacao.")]
+    [SwaggerResponse(StatusCodes.Status200OK, "Status da solicitacao de estorno.", typeof(ObterStatusEstornoLancamentoResponse))]
+    [SwaggerResponse(StatusCodes.Status401Unauthorized, "Token ausente ou invalido.")]
+    [SwaggerResponse(StatusCodes.Status403Forbidden, "Scope insuficiente ou token sem autorizacao para o merchant do estorno.")]
+    [SwaggerResponse(StatusCodes.Status404NotFound, "Solicitacao de estorno inexistente.", typeof(ProblemDetails))]
+    [SwaggerResponse(StatusCodes.Status429TooManyRequests, "Limite de requisicoes excedido.")]
+    [SwaggerResponse(StatusCodes.Status500InternalServerError, "Erro interno.", typeof(ProblemDetails))]
+    public async Task<ActionResult<ObterStatusEstornoLancamentoResponse>> ObterStatusEstorno(
+        [SwaggerParameter(Description = "Identificador da solicitacao de estorno.")]
+        [FromRoute] Guid estornoId,
+        CancellationToken cancellationToken)
+    {
+        var result = await _sender.Send(
+            new ObterStatusEstornoLancamentoQuery(
+                estornoId,
+                _merchantAuthorizationService.GetAuthorizedMerchantIds(User)),
+            cancellationToken);
+
+        return Ok(ObterStatusEstornoLancamentoMapper.ToResponse(result));
     }
 }

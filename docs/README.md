@@ -6,7 +6,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 
 - [README do projeto](../README.md): resumo, comandos principais e links.
 - [Desenvolvimento local](development/local-development.md): compose, portas, migrations, execucao no host, VS Code e load tests.
-- [LedgerService API](development/ledger-api.md): contratos de escrita, headers, idempotencia, Outbox e solicitacao de estorno.
+- [LedgerService API](development/ledger-api.md): contratos de escrita, headers, idempotencia, Outbox, solicitacao de estorno e consulta de status.
 - [Padroes do repositorio](development/repository-standards.md): arquivos de padronizacao, tools, estilo, hooks e cuidados de manutencao.
 
 ## Entender a arquitetura

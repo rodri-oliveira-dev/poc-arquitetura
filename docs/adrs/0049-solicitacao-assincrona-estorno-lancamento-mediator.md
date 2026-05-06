@@ -35,6 +35,8 @@ A autorizacao por merchant continua baseada em claims na borda HTTP. Como a rota
 
 O evento `LancamentoEstornoSolicitado.v1` e gravado no Outbox e mapeado para o topico `ledger.lancamento.estorno.solicitado`. Nao foi implementado consumidor de estorno nesta decisao.
 
+O endpoint `GET /api/v1/lancamentos/estornos/{estornoId}` reutiliza a mesma decisao arquitetural para leitura: a camada `Api` monta `ObterStatusEstornoLancamentoQuery`, envia via `ISender` e traduz o resultado para contrato HTTP. O handler em `Application` consulta a porta `IEstornoLancamentoRepository`, aplica a autorizacao por merchant com o contexto recebido da borda HTTP e retorna um result publico, sem expor entidade de dominio ou detalhes EF Core.
+
 ## Consequencias
 
 ### Beneficios
@@ -43,11 +45,13 @@ O evento `LancamentoEstornoSolicitado.v1` e gravado no Outbox e mapeado para o t
 - Preserva consistencia entre solicitacao de estorno e evento por Outbox transacional.
 - Evita processamento financeiro sincrono no endpoint HTTP.
 - Mantem resposta idempotente estavel para repeticao da mesma operacao.
+- Aplica Mediator tambem na leitura de status, mantendo o endpoint HTTP fino e coerente com a politica de queries da ADR-0040.
 
 ### Trade-offs / custos
 - Aumenta a estrutura do `LedgerService.Application` com command, handler, validator e behavior.
 - Introduz mais uma tabela e migration no Ledger.
 - O command carrega lista de merchants autorizados para permitir BOLA check depois de carregar o recurso original.
+- A query de status tambem carrega lista de merchants autorizados pelo mesmo motivo, pois a rota recebe apenas o `estornoId`.
 - O evento de estorno passa a existir antes do consumidor final; operadores podem observar mensagens publicadas sem efeito financeiro imediato.
 
 ## Alternativas consideradas
@@ -66,7 +70,9 @@ O evento `LancamentoEstornoSolicitado.v1` e gravado no Outbox e mapeado para o t
 
 ## Impacto nos testes
 - Foram adicionados testes unitarios para validator e handler do comando de estorno.
+- Foram adicionados testes unitarios para validator e handler da query de status de estorno, incluindo estados modelados pelo dominio e erro de recurso inexistente.
 - Foram adicionados testes de integracao HTTP para `202`, `400`, `403`, `404`, `409`, idempotencia e persistencia/Outbox.
+- Foram adicionados testes de integracao HTTP para consulta de status com `200`, `401`, `403`, `404` e rota invalida.
 - A cobertura continua validada pelo fluxo oficial `test.ps1`.
 
 ## Impacto operacional

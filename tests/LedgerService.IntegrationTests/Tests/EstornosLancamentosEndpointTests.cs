@@ -115,18 +115,86 @@ public sealed class EstornosLancamentosEndpointTests : IClassFixture<LedgerApiFa
         res.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
-    private void Authenticate(string merchantIds = "m1")
+    [Fact]
+    public async Task Get_estornos_should_return_200_for_existing_estorno()
+    {
+        Authenticate(scopes: "ledger.write");
+        var lancamento = await SeedLancamentoAsync("m1");
+
+        using var createReq = CreateRequest(lancamento.Id, Guid.NewGuid().ToString());
+        var createRes = await _client.SendAsync(createReq);
+        createRes.StatusCode.Should().Be(HttpStatusCode.Accepted);
+
+        var created = await createRes.Content.ReadFromJsonAsync<SolicitarEstornoLancamentoResponse>();
+        created.Should().NotBeNull();
+
+        Authenticate(scopes: "ledger.read");
+
+        var res = await _client.GetAsync($"/api/v1/lancamentos/estornos/{created!.EstornoId}");
+
+        res.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await res.Content.ReadFromJsonAsync<ObterStatusEstornoLancamentoResponse>();
+        body.Should().NotBeNull();
+        body!.EstornoId.Should().Be(created.EstornoId);
+        body.LancamentoOriginalId.Should().Be(lancamento.Id);
+        body.Status.Should().Be("Pending");
+        body.Motivo.Should().Be("Erro operacional no lancamento original");
+        body.SolicitadoEm.Should().NotBe(default);
+    }
+
+    [Fact]
+    public async Task Get_estornos_should_return_404_when_estorno_does_not_exist()
+    {
+        Authenticate(scopes: "ledger.read");
+
+        var res = await _client.GetAsync($"/api/v1/lancamentos/estornos/{Guid.NewGuid()}");
+
+        res.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task Get_estornos_should_return_404_for_invalid_estorno_id_route()
+    {
+        Authenticate(scopes: "ledger.read");
+
+        var res = await _client.GetAsync("/api/v1/lancamentos/estornos/not-a-guid");
+
+        res.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task Get_estornos_should_return_403_when_token_is_not_authorized_for_estorno_merchant()
+    {
+        var estorno = await SeedEstornoAsync("m1");
+        Authenticate(scopes: "ledger.read", merchantIds: "m2");
+
+        var res = await _client.GetAsync($"/api/v1/lancamentos/estornos/{estorno.Id}");
+
+        res.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task Get_estornos_should_return_401_without_token()
+    {
+        _client.DefaultRequestHeaders.Authorization = null;
+
+        var res = await _client.GetAsync($"/api/v1/lancamentos/estornos/{Guid.NewGuid()}");
+
+        res.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    private void Authenticate(string merchantIds = "m1", string scopes = "ledger.write")
     {
         var token = TestJwtTokenFactory.CreateToken(
             issuer: "https://auth-api",
             audiences: "ledger-api",
-            scopes: "ledger.write",
+            scopes: scopes,
             merchantIds: merchantIds);
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
     }
 
-    private HttpRequestMessage CreateRequest(
+    private static HttpRequestMessage CreateRequest(
         Guid lancamentoId,
         string idempotencyKey,
         string motivo = "Erro operacional no lancamento original")
@@ -156,5 +224,21 @@ public sealed class EstornosLancamentosEndpointTests : IClassFixture<LedgerApiFa
         await db.SaveChangesAsync();
 
         return lancamento;
+    }
+
+    private async Task<EstornoLancamento> SeedEstornoAsync(string merchantId)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var estorno = new EstornoLancamento(
+            Guid.NewGuid(),
+            merchantId,
+            "Erro operacional no lancamento original",
+            Guid.NewGuid());
+
+        await db.EstornosLancamentos.AddAsync(estorno);
+        await db.SaveChangesAsync();
+
+        return estorno;
     }
 }

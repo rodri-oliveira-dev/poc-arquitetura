@@ -14,6 +14,15 @@ public sealed class EstornoLancamentoRepository : IEstornoLancamentoRepository
         _context = context;
     }
 
+    public async Task<EstornoLancamento?> GetByIdAsync(
+        Guid estornoId,
+        CancellationToken cancellationToken = default)
+    {
+        return await _context.EstornosLancamentos
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == estornoId, cancellationToken);
+    }
+
     public async Task<EstornoLancamento?> GetActiveByLancamentoOriginalIdAsync(
         Guid lancamentoOriginalId,
         CancellationToken cancellationToken = default)
