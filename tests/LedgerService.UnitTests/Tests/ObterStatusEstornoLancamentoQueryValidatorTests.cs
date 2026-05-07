@@ -1,0 +1,41 @@
+using FluentAssertions;
+using LedgerService.Application.Lancamentos.Queries;
+
+namespace LedgerService.UnitTests.Tests;
+
+public sealed class ObterStatusEstornoLancamentoQueryValidatorTests
+{
+    private readonly ObterStatusEstornoLancamentoQueryValidator _validator = new();
+
+    [Fact]
+    public void Should_reject_empty_estorno_id()
+    {
+        var query = new ObterStatusEstornoLancamentoQuery(Guid.Empty, ["m1"]);
+
+        var result = _validator.Validate(query);
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(e => e.PropertyName == nameof(ObterStatusEstornoLancamentoQuery.EstornoId));
+    }
+
+    [Fact]
+    public void Should_reject_missing_authorized_merchants()
+    {
+        var query = new ObterStatusEstornoLancamentoQuery(Guid.NewGuid(), []);
+
+        var result = _validator.Validate(query);
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(e => e.PropertyName == nameof(ObterStatusEstornoLancamentoQuery.AuthorizedMerchantIds));
+    }
+
+    [Fact]
+    public void Should_accept_valid_query()
+    {
+        var query = new ObterStatusEstornoLancamentoQuery(Guid.NewGuid(), ["m1"]);
+
+        var result = _validator.Validate(query);
+
+        result.IsValid.Should().BeTrue();
+    }
+}

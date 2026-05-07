@@ -13,8 +13,18 @@ public sealed class MerchantAuthorizationService : IMerchantAuthorizationService
 
         var requestedMerchantId = merchantId.Trim();
 
+        return GetAuthorizedMerchantIds(user)
+            .Any(value => string.Equals(value, requestedMerchantId, StringComparison.Ordinal));
+    }
+
+    public IReadOnlyCollection<string> GetAuthorizedMerchantIds(ClaimsPrincipal user)
+    {
+        if (user.Identity?.IsAuthenticated != true)
+            return Array.Empty<string>();
+
         return user.FindAll(ClaimType)
             .SelectMany(claim => claim.Value.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-            .Any(value => string.Equals(value, requestedMerchantId, StringComparison.Ordinal));
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
     }
 }

@@ -22,6 +22,84 @@ namespace LedgerService.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("LedgerService.Domain.Entities.EstornoLancamento", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("completed_at");
+
+                    b.Property<Guid>("CorrelationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("correlation_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTime?>("FailedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("failed_at");
+
+                    b.Property<string>("FailureReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("failure_reason");
+
+                    b.Property<Guid?>("LancamentoCompensatorioId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("lancamento_compensatorio_id");
+
+                    b.Property<Guid>("LancamentoOriginalId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("lancamento_original_id");
+
+                    b.Property<string>("MerchantId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("merchant_id");
+
+                    b.Property<string>("Motivo")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("motivo");
+
+                    b.Property<DateTime?>("ProcessingStartedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("processing_started_at");
+
+                    b.Property<DateTime?>("RejectedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("rejected_at");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("rejection_reason");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LancamentoCompensatorioId")
+                        .HasDatabaseName("idx_estornos_lancamentos_compensatorio");
+
+                    b.HasIndex("LancamentoOriginalId")
+                        .HasDatabaseName("idx_estornos_lancamentos_original");
+
+                    b.HasIndex("LancamentoOriginalId", "Status")
+                        .HasDatabaseName("idx_estornos_lancamentos_original_status");
+
+                    b.ToTable("estornos_lancamentos", (string)null);
+                });
+
             modelBuilder.Entity("LedgerService.Domain.Entities.IdempotencyRecord", b =>
                 {
                     b.Property<Guid>("Id")
@@ -119,6 +197,11 @@ namespace LedgerService.Infrastructure.Persistence.Migrations
                         .HasColumnName("type");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ExternalReference")
+                        .IsUnique()
+                        .HasDatabaseName("ux_ledger_entries_estorno_external_reference")
+                        .HasFilter("external_reference LIKE 'estorno:%'");
 
                     b.HasIndex("MerchantId", "OccurredAt")
                         .HasDatabaseName("idx_ledger_entries_merchant_occurred_at");

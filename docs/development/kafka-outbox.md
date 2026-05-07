@@ -4,20 +4,28 @@ Este documento concentra a referencia de mensageria entre `LedgerService.Api` e 
 
 ## Fluxo
 
-1. `LedgerService.Api` cria um lancamento.
+1. `LedgerService.Api` cria um lancamento ou registra uma solicitacao de estorno.
 2. A mesma transacao grava a mensagem em `outbox_messages`.
 3. `OutboxKafkaPublisherService` le mensagens pendentes e publica no Kafka.
-4. `BalanceService.Api` consome o evento e atualiza a projecao `daily_balances`.
-5. Mensagens invalidas ou nao recuperaveis sao publicadas na DLQ.
+4. `EstornoLancamentoProcessorService`, no proprio Ledger, processa solicitacoes `Pending` e cria lancamentos compensatorios.
+5. O estorno concluido grava `LedgerEntryCreated.v1` do lancamento compensatorio no Outbox.
+6. `BalanceService.Api` consome apenas `LedgerEntryCreated.v1` e atualiza a projecao `daily_balances`.
+7. Mensagens invalidas ou nao recuperaveis do fluxo consumido pelo Balance sao publicadas na DLQ.
 
 ## Topicos e evento
 
 | Item | Valor |
 | --- | --- |
-| Evento | `LedgerEntryCreated.v1` |
-| Topico principal | `ledger.ledgerentry.created` |
+| Evento de lancamento | `LedgerEntryCreated.v1` |
+| Topico de lancamento | `ledger.ledgerentry.created` |
+| Evento de solicitacao de estorno | `LancamentoEstornoSolicitado.v1` |
+| Topico de solicitacao de estorno | `ledger.lancamento.estorno.solicitado` |
 | DLQ | `ledger.ledgerentry.created.dlq` |
-| Mapeamento | `LedgerEntryCreated.v1` -> `ledger.ledgerentry.created` |
+| Mapeamentos | `LedgerEntryCreated.v1` -> `ledger.ledgerentry.created`; `LancamentoEstornoSolicitado.v1` -> `ledger.lancamento.estorno.solicitado` |
+
+`LancamentoEstornoSolicitado.v1` e gravado pelo Ledger no Outbox e publicado pelo mesmo worker. Ele representa a intencao operacional de estorno, nao um fato financeiro final. O processamento financeiro nao depende do `BalanceService`: o proprio Ledger processa a solicitacao persistida e, ao concluir, registra um `LedgerEntryCreated.v1` para o lancamento compensatorio.
+
+O `BalanceService.Api` deve ignorar/rejeitar `LancamentoEstornoSolicitado.v1` como evento financeiro. Saldos so mudam com `LedgerEntryCreated.v1`, inclusive quando esse evento representa o lancamento compensatorio de um estorno.
 
 O compose cria os topicos no startup local. O consumer do Balance usa `AllowAutoCreateTopics=false`.
 
@@ -90,6 +98,24 @@ Balance:
 7. Consulte o Balance para confirmar atualizacao da projecao.
 
 Em falha do Kafka, o servico nao deve cair: ele registra erro, incrementa tentativas e agenda `next_attempt_at` com backoff.
+
+## Processamento de estornos
+
+O worker `EstornoLancamentoProcessorService` usa polling da tabela `estornos_lancamentos`:
+
+- `Pending`: selecionado para processamento;
+- `Processing`: caso de uso iniciado;
+- `Completed`: lancamento compensatorio persistido e evento final no Outbox;
+- `Rejected`: regra de negocio impediu o estorno;
+- `Failed`: falha tecnica ou inesperada registrada.
+
+Configuracao:
+
+- `Estornos:Processor:Enabled`;
+- `Estornos:Processor:PollingIntervalSeconds`;
+- `Estornos:Processor:BatchSize`.
+
+A idempotencia e garantida por status final, verificacao de estorno ja concluido por lancamento original, busca do lancamento compensatorio por `external_reference=estorno:{lancamentoOriginalId}` e indice unico filtrado para essa referencia. Reprocessar uma solicitacao concluida nao duplica lancamento nem evento final.
 
 ## Governanca
 

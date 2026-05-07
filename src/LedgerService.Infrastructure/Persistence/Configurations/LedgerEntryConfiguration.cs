@@ -60,5 +60,10 @@ public sealed class LedgerEntryConfiguration : IEntityTypeConfiguration<LedgerEn
 
         builder.HasIndex(x => new { x.MerchantId, x.OccurredAt })
             .HasDatabaseName("idx_ledger_entries_merchant_occurred_at");
+
+        builder.HasIndex(x => x.ExternalReference)
+            .HasDatabaseName("ux_ledger_entries_estorno_external_reference")
+            .IsUnique()
+            .HasFilter("external_reference LIKE 'estorno:%'");
     }
 }

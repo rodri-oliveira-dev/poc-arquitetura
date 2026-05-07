@@ -21,3 +21,15 @@ X-Correlation-Id: {{$shared correlationId}}
 }
 
 ###
+
+POST {{LedgerService.Api_HostAddress}}/api/v1/lancamentos/00000000-0000-0000-0000-000000000000/estornos
+Accept: application/json
+Content-Type: application/json
+Idempotency-Key: {{$shared idempotencyKey}}
+X-Correlation-Id: {{$shared correlationId}}
+
+{
+  "motivo": "Erro operacional no lancamento original"
+}
+
+###
