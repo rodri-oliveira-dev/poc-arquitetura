@@ -21,9 +21,9 @@ Manter suporte a ambientes sem Docker Desktop desde que exponham uma Docker-comp
 Para Windows sem Docker Desktop, o ambiente recomendado e Rancher Desktop com:
 
 - `moby/dockerd` como container engine;
-- `DOCKER_HOST=npipe:////./pipe/docker_engine`.
+- `DOCKER_HOST` nao configurado de forma persistente, deixando CLI `docker` e Testcontainers descobrirem a Docker-compatible API pelo contexto/padrao do ambiente.
 
-Se o cliente .NET usado pelo Testcontainers rejeitar esse valor com erro de URI npipe invalida, o formato equivalente aceito pelo Docker.DotNet e `npipe://./pipe/docker_engine`.
+O formato `npipe:////./pipe/docker_engine` pode funcionar com a CLI `docker`, mas deve ser evitado para a suite .NET porque o Docker.DotNet usado pelo Testcontainers pode rejeita-lo como URI npipe invalida. Se algum runtime exigir `DOCKER_HOST` para o processo de teste, use override local da sessao com `npipe://./pipe/docker_engine`, sem persistir como variavel de usuario.
 
 `DOCKER_HOST` deve ser configurado no ambiente local do desenvolvedor, nunca de forma permanente no codigo da aplicacao.
 

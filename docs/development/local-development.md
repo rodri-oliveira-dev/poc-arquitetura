@@ -149,15 +149,9 @@ No Windows sem Docker Desktop, a recomendacao local e Rancher Desktop com `moby/
 
 ```powershell
 rdctl set --container-engine.name=moby
-
-[Environment]::SetEnvironmentVariable(
-  "DOCKER_HOST",
-  "npipe:////./pipe/docker_engine",
-  "User"
-)
 ```
 
-Depois de definir a variavel, feche e abra novamente terminal, VS Code, Visual Studio ou Rider para que o novo ambiente seja carregado.
+Em geral, nao defina `DOCKER_HOST` de forma persistente. Com Rancher Desktop em `moby/dockerd`, a CLI `docker` e o Testcontainers devem localizar a Docker-compatible API pelo contexto/padrao do ambiente.
 
 Nao configure `DOCKER_HOST` de forma permanente no codigo da aplicacao. Essa configuracao pertence ao ambiente local do desenvolvedor.
 
@@ -179,20 +173,36 @@ Se os testes com Testcontainers falharem por nao localizar o Docker daemon:
    echo $env:DOCKER_HOST
    ```
 
-4. Valor esperado no Windows:
+4. Valor recomendado no Windows:
 
    ```text
-   npipe:////./pipe/docker_engine
+   <vazio>
    ```
 
-5. Se o Testcontainers/.NET reportar `npipe:////pipe/docker_engine is not a valid npipe URI`, valide tambem o formato aceito diretamente pelo Docker.DotNet no processo de teste:
+5. Se o ambiente estiver com `DOCKER_HOST=npipe:////./pipe/docker_engine`, a CLI `docker` pode funcionar, mas o Docker.DotNet usado pelo Testcontainers pode falhar com erro semelhante a `npipe:////pipe/docker_engine is not a valid npipe URI`. Remova a variavel persistente do usuario e reabra o terminal ou IDE:
+
+   ```powershell
+   [Environment]::SetEnvironmentVariable("DOCKER_HOST", $null, "User")
+   ```
+
+6. Para validar na sessao atual sem reabrir o terminal:
+
+   ```powershell
+   Remove-Item Env:DOCKER_HOST -ErrorAction SilentlyContinue
+   docker ps
+   dotnet test
+   ```
+
+7. Se algum runtime especifico exigir `DOCKER_HOST` para o processo de teste, use override apenas na sessao atual do terminal:
 
    ```powershell
    $env:DOCKER_HOST = "npipe://./pipe/docker_engine"
    dotnet test
    ```
 
-6. Feche e abra novamente o terminal ou IDE apos alterar variaveis de ambiente.
+   Evite persistir esse valor como variavel de usuario, pois ele pode quebrar a CLI `docker` em alguns ambientes Windows.
+
+8. Feche e abra novamente o terminal ou IDE apos alterar variaveis de ambiente persistentes.
 
 ## Swagger e endpoints operacionais
 
