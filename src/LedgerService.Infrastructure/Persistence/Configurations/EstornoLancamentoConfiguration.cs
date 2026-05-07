@@ -34,6 +34,17 @@ public sealed class EstornoLancamentoConfiguration : IEntityTypeConfiguration<Es
             .HasConversion<string>()
             .IsRequired();
 
+        builder.Property(x => x.LancamentoCompensatorioId)
+            .HasColumnName("lancamento_compensatorio_id");
+
+        builder.Property(x => x.RejectionReason)
+            .HasColumnName("rejection_reason")
+            .HasMaxLength(500);
+
+        builder.Property(x => x.FailureReason)
+            .HasColumnName("failure_reason")
+            .HasMaxLength(500);
+
         builder.Property(x => x.CorrelationId)
             .HasColumnName("correlation_id")
             .IsRequired();
@@ -43,10 +54,29 @@ public sealed class EstornoLancamentoConfiguration : IEntityTypeConfiguration<Es
             .HasColumnType("timestamp without time zone")
             .IsRequired();
 
+        builder.Property(x => x.ProcessingStartedAt)
+            .HasColumnName("processing_started_at")
+            .HasColumnType("timestamp without time zone");
+
+        builder.Property(x => x.CompletedAt)
+            .HasColumnName("completed_at")
+            .HasColumnType("timestamp without time zone");
+
+        builder.Property(x => x.RejectedAt)
+            .HasColumnName("rejected_at")
+            .HasColumnType("timestamp without time zone");
+
+        builder.Property(x => x.FailedAt)
+            .HasColumnName("failed_at")
+            .HasColumnType("timestamp without time zone");
+
         builder.HasIndex(x => x.LancamentoOriginalId)
             .HasDatabaseName("idx_estornos_lancamentos_original");
 
         builder.HasIndex(x => new { x.LancamentoOriginalId, x.Status })
             .HasDatabaseName("idx_estornos_lancamentos_original_status");
+
+        builder.HasIndex(x => x.LancamentoCompensatorioId)
+            .HasDatabaseName("idx_estornos_lancamentos_compensatorio");
     }
 }

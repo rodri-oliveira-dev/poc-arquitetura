@@ -33,7 +33,7 @@ O handler em `Application` concentra a orquestracao do caso de uso e usa portas 
 
 A autorizacao por merchant continua baseada em claims na borda HTTP. Como a rota recebe apenas o `lancamentoId`, a API extrai os merchants autorizados do token e o command carrega esse contexto de autorizacao de forma explicita, sem acoplar `Application` a `ClaimsPrincipal` ou ASP.NET Core.
 
-O evento `LancamentoEstornoSolicitado.v1` e gravado no Outbox e mapeado para o topico `ledger.lancamento.estorno.solicitado`. Nao foi implementado consumidor de estorno nesta decisao.
+O evento `LancamentoEstornoSolicitado.v1` e gravado no Outbox e mapeado para o topico `ledger.lancamento.estorno.solicitado`. O processamento financeiro do estorno ficou fora desta decisao e foi definido depois pela ADR-0050.
 
 O endpoint `GET /api/v1/lancamentos/estornos/{estornoId}` reutiliza a mesma decisao arquitetural para leitura: a camada `Api` monta `ObterStatusEstornoLancamentoQuery`, envia via `ISender` e traduz o resultado para contrato HTTP. O handler em `Application` consulta a porta `IEstornoLancamentoRepository`, aplica a autorizacao por merchant com o contexto recebido da borda HTTP e retorna um result publico, sem expor entidade de dominio ou detalhes EF Core.
 
@@ -52,7 +52,7 @@ O endpoint `GET /api/v1/lancamentos/estornos/{estornoId}` reutiliza a mesma deci
 - Introduz mais uma tabela e migration no Ledger.
 - O command carrega lista de merchants autorizados para permitir BOLA check depois de carregar o recurso original.
 - A query de status tambem carrega lista de merchants autorizados pelo mesmo motivo, pois a rota recebe apenas o `estornoId`.
-- O evento de estorno passa a existir antes do consumidor final; operadores podem observar mensagens publicadas sem efeito financeiro imediato.
+- O evento de estorno passa a existir antes do processamento financeiro final; operadores podem observar mensagens publicadas enquanto a solicitacao ainda esta pendente.
 
 ## Alternativas consideradas
 
@@ -78,4 +78,4 @@ O endpoint `GET /api/v1/lancamentos/estornos/{estornoId}` reutiliza a mesma deci
 ## Impacto operacional
 - Aplicar a nova migration do `LedgerService` antes de usar o endpoint em banco novo ou existente.
 - O compose passa a criar o topico `ledger.lancamento.estorno.solicitado`.
-- Enquanto nao houver consumidor de estorno, o efeito operacional esperado e apenas registrar e publicar a intencao de processamento.
+- O processamento financeiro final de estornos e descrito na ADR-0050.

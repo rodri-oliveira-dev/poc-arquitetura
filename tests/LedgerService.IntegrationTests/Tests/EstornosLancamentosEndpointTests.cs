@@ -4,10 +4,13 @@ using System.Net.Http.Json;
 
 using FluentAssertions;
 using LedgerService.Api.Contracts;
+using LedgerService.Application.Lancamentos.Commands;
+using LedgerService.Application.Lancamentos.Events;
 using LedgerService.Domain.Entities;
 using LedgerService.Infrastructure.Persistence;
 using LedgerService.IntegrationTests.Infrastructure;
 using LedgerService.IntegrationTests.Infrastructure.Security;
+using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LedgerService.IntegrationTests.Tests;
@@ -113,6 +116,47 @@ public sealed class EstornosLancamentosEndpointTests : IClassFixture<LedgerApiFa
         var res = await _client.SendAsync(req);
 
         res.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task Processar_estorno_should_persist_compensating_lancamento_and_final_outbox_event()
+    {
+        Authenticate();
+        var lancamento = await SeedLancamentoAsync("m1");
+
+        using var createReq = CreateRequest(lancamento.Id, Guid.NewGuid().ToString());
+        var createRes = await _client.SendAsync(createReq);
+        createRes.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        var created = await createRes.Content.ReadFromJsonAsync<SolicitarEstornoLancamentoResponse>();
+        created.Should().NotBeNull();
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var sender = scope.ServiceProvider.GetRequiredService<ISender>();
+            await sender.Send(new ProcessarEstornoLancamentoCommand(created!.EstornoId));
+            await sender.Send(new ProcessarEstornoLancamentoCommand(created.EstornoId));
+        }
+
+        using var assertScope = _factory.Services.CreateScope();
+        var db = assertScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var estorno = db.EstornosLancamentos.Single(x => x.Id == created!.EstornoId);
+        estorno.Status.Should().Be(EstornoLancamentoStatus.Completed);
+        estorno.LancamentoCompensatorioId.Should().NotBeNull();
+
+        var compensating = db.LedgerEntries.Single(x => x.Id == estorno.LancamentoCompensatorioId);
+        compensating.Type.Should().Be(LedgerEntryType.Debit);
+        compensating.Amount.Should().Be(-10m);
+        compensating.ExternalReference.Should().Be($"estorno:{lancamento.Id:N}");
+
+        db.LedgerEntries
+            .Where(x => x.ExternalReference == $"estorno:{lancamento.Id:N}")
+            .Should()
+            .ContainSingle();
+
+        db.OutboxMessages
+            .Where(x => x.AggregateId == compensating.Id && x.EventType == LedgerEntryCreatedV1.EventType)
+            .Should()
+            .ContainSingle();
     }
 
     [Fact]

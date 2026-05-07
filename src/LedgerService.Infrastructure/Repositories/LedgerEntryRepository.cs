@@ -20,6 +20,15 @@ public sealed class LedgerEntryRepository : ILedgerEntryRepository
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
     }
 
+    public async Task<LedgerEntry?> GetCompensatingEntryAsync(
+        Guid lancamentoOriginalId,
+        CancellationToken cancellationToken = default)
+    {
+        var externalReference = $"estorno:{lancamentoOriginalId:N}";
+        return await _context.LedgerEntries
+            .FirstOrDefaultAsync(x => x.ExternalReference == externalReference, cancellationToken);
+    }
+
     public async Task AddAsync(LedgerEntry ledgerEntry, CancellationToken cancellationToken = default)
     {
         await _context.LedgerEntries.AddAsync(ledgerEntry, cancellationToken);

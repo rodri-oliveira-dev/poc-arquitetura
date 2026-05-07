@@ -23,6 +23,26 @@ public sealed class EstornoLancamentoRepository : IEstornoLancamentoRepository
             .FirstOrDefaultAsync(x => x.Id == estornoId, cancellationToken);
     }
 
+    public async Task<EstornoLancamento?> GetByIdForUpdateAsync(
+        Guid estornoId,
+        CancellationToken cancellationToken = default)
+    {
+        return await _context.EstornosLancamentos
+            .FirstOrDefaultAsync(x => x.Id == estornoId, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<EstornoLancamento>> ListPendingAsync(
+        int maxItems,
+        CancellationToken cancellationToken = default)
+    {
+        return await _context.EstornosLancamentos
+            .AsNoTracking()
+            .Where(x => x.Status == EstornoLancamentoStatus.Pending)
+            .OrderBy(x => x.CreatedAt)
+            .Take(maxItems)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<EstornoLancamento?> GetActiveByLancamentoOriginalIdAsync(
         Guid lancamentoOriginalId,
         CancellationToken cancellationToken = default)
@@ -32,6 +52,17 @@ public sealed class EstornoLancamentoRepository : IEstornoLancamentoRepository
                 x => x.LancamentoOriginalId == lancamentoOriginalId
                     && (x.Status == EstornoLancamentoStatus.Pending
                         || x.Status == EstornoLancamentoStatus.Processing),
+                cancellationToken);
+    }
+
+    public async Task<EstornoLancamento?> GetCompletedByLancamentoOriginalIdAsync(
+        Guid lancamentoOriginalId,
+        CancellationToken cancellationToken = default)
+    {
+        return await _context.EstornosLancamentos
+            .FirstOrDefaultAsync(
+                x => x.LancamentoOriginalId == lancamentoOriginalId
+                    && x.Status == EstornoLancamentoStatus.Completed,
                 cancellationToken);
     }
 

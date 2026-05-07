@@ -49,6 +49,34 @@ public sealed class DailyBalanceDomainTests
         balance.NetBalance.Should().Be(-20.00m);
     }
 
+    [Fact]
+    public void Apply_should_compensate_credit_with_debit_reversal_event()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var balance = new DailyBalance("m1", new DateOnly(2026, 2, 16), "BRL", now);
+
+        balance.Apply(BalanceFixture.Event(type: "CREDIT", amount: "100.00"), now);
+        balance.Apply(BalanceFixture.Event(id: "lan_estorno1", type: "DEBIT", amount: "-100.00"), now);
+
+        balance.TotalCredits.Should().Be(100m);
+        balance.TotalDebits.Should().Be(100m);
+        balance.NetBalance.Should().Be(0m);
+    }
+
+    [Fact]
+    public void Apply_should_compensate_debit_with_credit_reversal_event()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var balance = new DailyBalance("m1", new DateOnly(2026, 2, 16), "BRL", now);
+
+        balance.Apply(BalanceFixture.Event(type: "DEBIT", amount: "-100.00"), now);
+        balance.Apply(BalanceFixture.Event(id: "lan_estorno1", type: "CREDIT", amount: "100.00"), now);
+
+        balance.TotalCredits.Should().Be(100m);
+        balance.TotalDebits.Should().Be(100m);
+        balance.NetBalance.Should().Be(0m);
+    }
+
     [Theory]
     [InlineData("CREDIT", "0")]
     [InlineData("DEBIT", "0")]

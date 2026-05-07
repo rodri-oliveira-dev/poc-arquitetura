@@ -8,7 +8,19 @@ public interface IEstornoLancamentoRepository
         Guid estornoId,
         CancellationToken cancellationToken = default);
 
+    Task<EstornoLancamento?> GetByIdForUpdateAsync(
+        Guid estornoId,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<EstornoLancamento>> ListPendingAsync(
+        int maxItems,
+        CancellationToken cancellationToken = default);
+
     Task<EstornoLancamento?> GetActiveByLancamentoOriginalIdAsync(
+        Guid lancamentoOriginalId,
+        CancellationToken cancellationToken = default);
+
+    Task<EstornoLancamento?> GetCompletedByLancamentoOriginalIdAsync(
         Guid lancamentoOriginalId,
         CancellationToken cancellationToken = default);
 

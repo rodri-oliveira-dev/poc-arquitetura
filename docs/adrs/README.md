@@ -15,6 +15,7 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 
 | ADR                                                                   | Status      | Resumo                                                                                           |
 | --------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------ |
+| [ADR-0050](./0050-processamento-assincrono-estornos-ledger.md) | Aceito | Processa estornos no Ledger por worker, cria lancamento compensatorio e publica evento financeiro final para o Balance. |
 | [ADR-0049](./0049-solicitacao-assincrona-estorno-lancamento-mediator.md) | Aceito | Adota MediatR no Ledger para solicitar estorno assincrono e consultar seu status com persistencia, idempotencia e Outbox. |
 | [ADR-0048](./0048-versionamento-semantico-gitversion-commits-semanticos.md) | Aceito | Adota GitVersion como fonte oficial de SemVer baseado em commits semanticos. |
 | [ADR-0047](./0047-plano-futuro-adocao-incremental-testcontainers.md) | Proposto | Define plano futuro, incremental e condicionado a spike para adotar Testcontainers nos testes de integracao com PostgreSQL real. |

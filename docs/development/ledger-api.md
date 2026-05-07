@@ -18,7 +18,7 @@ Headers relevantes:
 
 `POST /api/v1/lancamentos/{lancamentoId}/estornos`
 
-Solicita o estorno de um lancamento existente. O endpoint apenas registra a intencao de estorno com status inicial `Pending`, persiste a solicitacao e grava o evento `LancamentoEstornoSolicitado.v1` no Outbox. O processamento financeiro efetivo nao acontece no request HTTP; ele fica para o fluxo assincrono de worker/background publishing ja usado pelo Ledger.
+Solicita o estorno de um lancamento existente. O endpoint apenas registra a intencao de estorno com status inicial `Pending`, persiste a solicitacao e grava o evento operacional `LancamentoEstornoSolicitado.v1` no Outbox. O processamento financeiro efetivo nao acontece no request HTTP; ele e executado de forma assincrona por worker do proprio `LedgerService`.
 
 Headers relevantes:
 
@@ -132,9 +132,9 @@ Estados possiveis:
 | --- | --- |
 | `Pending` | Solicitacao registrada e ainda nao processada. |
 | `Processing` | Processamento iniciado por fluxo assincrono futuro. |
-| `Completed` | Estorno concluido por fluxo assincrono futuro. |
-| `Failed` | Processamento falhou por fluxo assincrono futuro. |
-| `Rejected` | Solicitacao rejeitada por regra de processamento futuro. |
+| `Completed` | Estorno concluido pelo worker do Ledger. |
+| `Failed` | Processamento falhou por erro tecnico ou inesperado. |
+| `Rejected` | Solicitacao rejeitada por regra de negocio no processamento. |
 
 Respostas esperadas:
 
@@ -146,9 +146,9 @@ Respostas esperadas:
 | `404 Not Found` | Solicitacao inexistente ou rota com `estornoId` fora do formato UUID. |
 | `429 Too Many Requests` | Rate limit excedido. |
 
-Como o processamento financeiro e assincrono e ainda nao ha consumidor de estorno implementado, a API registra a intencao e inicialmente retorna `Pending`. Estados posteriores refletem a evolucao futura do processamento e devem ser interpretados com consistencia eventual: uma consulta logo apos o `POST` pode retornar `Pending` ate que um worker processe a solicitacao.
+Como o processamento financeiro e assincrono, a API registra a intencao e inicialmente retorna `Pending`. Estados posteriores refletem a evolucao do worker e devem ser interpretados com consistencia eventual: uma consulta logo apos o `POST` pode retornar `Pending` ate que o worker processe a solicitacao.
 
-## Outbox e processamento assincrono
+## Outbox, processamento assincrono e saldo
 
 A solicitacao de estorno grava uma linha em `estornos_lancamentos` e outra em `outbox_messages` na mesma transacao. O evento usa:
 
@@ -157,4 +157,33 @@ A solicitacao de estorno grava uma linha em `estornos_lancamentos` e outra em `o
 - `AggregateType`: `LancamentoEstorno`;
 - `AggregateId`: identificador da solicitacao de estorno.
 
-Nesta etapa nao existe consumidor de estorno implementado. O contrato fica registrado para evolucao do processamento assincrono sem acoplar a API ao Kafka diretamente.
+Esse evento representa uma mensagem operacional/intencao interna. Ele nao e fato financeiro final e nao deve ser consumido pelo `BalanceService` para alterar saldo.
+
+O processamento efetivo ocorre no `EstornoLancamentoProcessorService`, em `LedgerService.Infrastructure`. O worker:
+
+1. localiza solicitacoes `Pending`;
+2. delega cada `estornoId` ao Mediator com `ProcessarEstornoLancamentoCommand`;
+3. o handler marca a solicitacao como `Processing`;
+4. o dominio cria um lancamento compensatorio invertendo tipo e valor do lancamento original;
+5. o handler vincula o compensatorio em `LancamentoCompensatorioId`;
+6. a solicitacao termina como `Completed`;
+7. o Outbox registra `LedgerEntryCreated.v1` para o lancamento compensatorio.
+
+Estados:
+
+| Status | Significado |
+| --- | --- |
+| `Pending` | Solicitacao registrada, ainda nao processada. |
+| `Processing` | Worker iniciou o processamento da solicitacao. |
+| `Completed` | Lancamento compensatorio persistido e evento final registrado no Outbox. |
+| `Rejected` | Estorno recusado por regra de negocio, sem lancamento compensatorio. |
+| `Failed` | Falha tecnica ou inesperada no processamento. |
+
+Idempotencia:
+
+- reexecutar `ProcessarEstornoLancamentoCommand` para uma solicitacao `Completed` nao cria outro lancamento;
+- o lancamento compensatorio usa `external_reference=estorno:{lancamentoOriginalId}` para detectar duplicidade;
+- ha indice unico filtrado para `external_reference` de estornos, reduzindo duplicidade em execucao concorrente;
+- o evento final `LedgerEntryCreated.v1` so e registrado quando o estorno e concluido na mesma transacao.
+
+O `BalanceService` consome apenas o evento financeiro final `LedgerEntryCreated.v1`. Para estorno de credito, o compensatorio e `DEBIT` com valor negativo; para estorno de debito, o compensatorio e `CREDIT` com valor positivo. Assim o saldo liquido e compensado pelo mesmo fluxo de consolidacao ja usado para lancamentos normais.
