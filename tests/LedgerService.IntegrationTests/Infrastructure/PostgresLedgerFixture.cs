@@ -5,10 +5,11 @@ namespace LedgerService.IntegrationTests.Infrastructure;
 public sealed class PostgresLedgerFixture : IAsyncLifetime
 {
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder()
-        .WithImage("postgres:16-alpine")
-        .WithDatabase("ledger_tests")
-        .WithUsername("postgres")
-        .WithPassword("postgres")
+        .WithImage("docker.io/postgres:16")
+        .WithDatabase("appdb")
+        .WithUsername("appuser")
+        .WithPassword("app123")
+        .WithPortBinding(15432, 5432)
         .Build();
 
     public string ConnectionString => _postgres.GetConnectionString();

@@ -13,10 +13,11 @@ namespace BalanceService.IntegrationTests.Infrastructure;
 public sealed class PostgresBalanceFixture : IAsyncLifetime
 {
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder()
-        .WithImage("postgres:16-alpine")
-        .WithDatabase("balance_tests")
-        .WithUsername("postgres")
-        .WithPassword("postgres")
+        .WithImage("docker.io/postgres:16")
+        .WithDatabase("dbBalance")
+        .WithUsername("userBalance")
+        .WithPassword("Balance123")
+        .WithPortBinding(15433, 5432)
         .Build();
 
     public string ConnectionString => _postgres.GetConnectionString();
