@@ -1,7 +1,7 @@
 # ADR-0009: Stack local via compose (nerdctl) com Kafka e Postgres
 
 ## Status
-Substituído (ver `docs/development/local-development.md`)
+Substituído (ver `docs/development/local-development.md` e ADR-0055)
 
 ## Data
 2026-02-17
@@ -49,4 +49,4 @@ Manter um `compose.yaml` na raiz do repositório para subir a stack completa com
    - Contras: pesado para a PoC; curva e manutenção.
 
 ## Motivo da substituição
-Este ADR descreve uma **decisão de tooling local**. A regra e os comandos já estão documentados de forma mais completa em `docs/development/local-development.md` (incluindo portas, scripts e troubleshooting). Mantemos este registro como histórico para reduzir a quantidade de ADRs “Aceitas”.
+Este ADR descreve uma **decisão de tooling local** anterior. A regra vigente e os comandos atuais estao documentados em `docs/development/local-development.md` e na ADR-0055, com padronizacao em `docker compose` e Docker-compatible API para Testcontainers. Mantemos este registro como historico para preservar o contexto da decisao substituida.

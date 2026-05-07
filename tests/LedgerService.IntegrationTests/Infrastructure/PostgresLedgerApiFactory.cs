@@ -46,6 +46,16 @@ public sealed class PostgresLedgerApiFactory : WebApplicationFactory<Program>
 
         builder.ConfigureServices(services =>
         {
+            var db = services.SingleOrDefault(d => d.ServiceType == typeof(AppDbContext));
+            if (db is not null)
+                services.Remove(db);
+
+            var dbDescriptor = services.SingleOrDefault(d => d.ServiceType == typeof(DbContextOptions<AppDbContext>));
+            if (dbDescriptor is not null)
+                services.Remove(dbDescriptor);
+
+            services.AddDbContext<AppDbContext>(options => options.UseNpgsql(_connectionString));
+
             var hostedServices = services.Where(d => d.ServiceType == typeof(IHostedService)).ToList();
             foreach (var d in hostedServices)
                 services.Remove(d);

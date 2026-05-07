@@ -15,6 +15,7 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 
 | ADR                                                                   | Status      | Resumo                                                                                           |
 | --------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------ |
+| [ADR-0055](./0055-runtime-docker-compatible-testcontainers.md) | Aceito | Padroniza Docker-compatible API para Testcontainers e comandos `docker compose` sem exigir Docker Desktop. |
 | [ADR-0054](./0054-controle-concorrencia-estornos-ledger.md) | Aceito | Define indice unico filtrado, claim atomico e lock por linha para concorrencia em estornos do LedgerService. |
 | [ADR-0053](./0053-lock-transacional-por-chave-no-balance.md) | Aceito | Usa lock transacional por chave no PostgreSQL para evitar lost update em daily_balances sob concorrencia. |
 | [ADR-0052](./0052-processamento-assincrono-reprocessamento-lancamentos-ledger.md) | Aceito | Processa reprocessamentos no Ledger por consumer Kafka, faz replay idempotente de LedgerEntryCreated.v1 e mantem o Balance fora da solicitacao operacional. |
@@ -60,7 +61,7 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 | [ADR-0012](./0012-health-liveness-publico.md)                         | Substituído | Consolidado em observabilidade + readiness.                                                      |
 | [ADR-0011](./0011-padronizacao-repo-cpm-build-props-editorconfig.md)  | Substituído | Consolidado em [`docs/development/repository-standards.md`](../development/repository-standards.md). |
 | [ADR-0010](./0010-migrations-nao-automaticas-no-startup.md)           | Substituído | Consolidado em [`docs/development/local-development.md`](../development/local-development.md). |
-| [ADR-0009](./0009-stack-local-compose-nerdctl.md)                     | Substituído | Consolidado em [`docs/development/local-development.md`](../development/local-development.md). |
+| [ADR-0009](./0009-stack-local-compose-nerdctl.md)                     | Substituído | Substituido por [`ADR-0055`](./0055-runtime-docker-compatible-testcontainers.md) e consolidado em [`docs/development/local-development.md`](../development/local-development.md). |
 | [ADR-0008](./0008-scopes-por-endpoint-policy-based.md)                | Substituído | Consolidado em ADR-0004 (segurança).                                                             |
 | [ADR-0007](./0007-banco-por-microservico-postgres-efcore.md)          | Aceito      | Banco por microserviço (PostgreSQL) com EF Core.                                                 |
 | [ADR-0006](./0006-migrar-auth-api-para-keycloak.md)                   | Proposto    | Ponto de melhoria: substituir Auth.Api por Keycloak (OIDC) mantendo validação via JWKS.          |

@@ -85,7 +85,7 @@ function Run-K6([string]$scenarioName, [string]$scriptPath, [hashtable]$envVars)
     "--summary-export", $summary
   )
 
-  & nerdctl @args
+  & docker @args
   if ($LASTEXITCODE -ne 0) { throw "k6 falhou: $LASTEXITCODE" }
 
   Assert-K6Summary $hostSummary

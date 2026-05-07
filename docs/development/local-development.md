@@ -6,9 +6,11 @@ Este guia concentra os passos para executar, validar e depurar a POC localmente.
 
 Para a stack completa:
 
-- `nerdctl` com suporte a `compose`;
-- runtime compativel com containerd;
+- Docker-compatible API acessivel;
+- CLI `docker` com suporte a `docker compose`;
 - build de imagens habilitado no runtime local.
+
+O projeto nao exige Docker Desktop como premissa. No Windows sem Docker Desktop, o ambiente recomendado e Rancher Desktop usando `moby/dockerd`, pois ele expoe uma API compativel com Docker. `containerd` puro com `nerdctl` nao deve ser tratado como ambiente suportado para os testes baseados em Testcontainers.
 
 Para rodar no host:
 
@@ -37,20 +39,20 @@ O `compose.yaml` sobe:
 Subir a stack:
 
 ```bash
-nerdctl compose up -d --build
+docker compose up -d --build
 ```
 
 Parar a stack:
 
 ```bash
-nerdctl compose down
+docker compose down
 ```
 
 Ver status e logs:
 
 ```bash
-nerdctl compose ps
-nerdctl compose logs -f ledger-service
+docker compose ps
+docker compose logs -f ledger-service
 ```
 
 Portas expostas no host:
@@ -127,6 +129,67 @@ $env:Kafka__Producer__BootstrapServers = "127.0.0.1:9092"
 
 Nao versione segredos. Em ambientes compartilhados ou produtivos, JWKS via HTTP e Kafka `Plaintext` nao devem ser usados.
 
+## Testcontainers e Docker-compatible API
+
+Alguns testes de integracao usam Testcontainers com PostgreSQL real. O Testcontainers depende de uma Docker-compatible API acessivel, nao de Docker Desktop especificamente e nem da CLI usada para a stack local.
+
+Validacao rapida do ambiente:
+
+```powershell
+docker version
+docker ps
+dotnet test
+```
+
+No Windows sem Docker Desktop, a recomendacao local e Rancher Desktop com `moby/dockerd`:
+
+```powershell
+rdctl set --container-engine.name=moby
+
+[Environment]::SetEnvironmentVariable(
+  "DOCKER_HOST",
+  "npipe:////./pipe/docker_engine",
+  "User"
+)
+```
+
+Depois de definir a variavel, feche e abra novamente terminal, VS Code, Visual Studio ou Rider para que o novo ambiente seja carregado.
+
+Nao configure `DOCKER_HOST` de forma permanente no codigo da aplicacao. Essa configuracao pertence ao ambiente local do desenvolvedor.
+
+### Troubleshooting - Testcontainers no Windows sem Docker Desktop
+
+Se os testes com Testcontainers falharem por nao localizar o Docker daemon:
+
+1. Confirme que o Rancher Desktop esta usando `moby/dockerd`.
+2. Confirme que a Docker API esta acessivel:
+
+   ```powershell
+   docker version
+   docker ps
+   ```
+
+3. Confirme o `DOCKER_HOST`:
+
+   ```powershell
+   echo $env:DOCKER_HOST
+   ```
+
+4. Valor esperado no Windows:
+
+   ```text
+   npipe:////./pipe/docker_engine
+   ```
+
+5. Se o Testcontainers/.NET reportar `npipe:////pipe/docker_engine is not a valid npipe URI`, valide tambem o formato aceito diretamente pelo Docker.DotNet no processo de teste:
+
+   ```powershell
+   $env:DOCKER_HOST = "npipe://./pipe/docker_engine"
+   dotnet test
+   ```
+
+6. Feche e abra novamente o terminal ou IDE apos alterar variaveis de ambiente.
+
 ## Swagger e endpoints operacionais
 
 Swagger/OpenAPI fica habilitado por padrao somente em `Development`. Fora desse ambiente, a exposicao exige `Swagger:Enabled=true`.
@@ -175,7 +238,7 @@ Os testes de carga ficam em `loadtests/k6` e rodam dentro da rede do compose.
 
 Pre-requisitos:
 
-1. Suba a stack com `nerdctl compose -f compose.yaml up -d --build`.
+1. Suba a stack com `docker compose -f compose.yaml up -d --build`.
 2. Aplique migrations.
 
 Windows:

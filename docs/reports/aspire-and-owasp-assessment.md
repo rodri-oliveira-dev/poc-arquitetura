@@ -72,7 +72,7 @@ Impacto positivo:
 
 Pontos de atencao:
 
-- Hoje o README e `compose.yaml` usam `nerdctl compose`, portas fixas e migrations manuais. O Aspire exigiria documentar claramente um novo caminho ou substituir o atual.
+- Hoje o README e `compose.yaml` usam `docker compose`, portas fixas e migrations manuais. O Aspire exigiria documentar claramente um novo caminho ou substituir o atual.
 - O Kafka atual usa imagem Apache Kafka com KRaft e init de topicos. A modelagem no AppHost precisa preservar criacao explicita de `ledger.ledgerentry.created` e `ledger.ledgerentry.created.dlq`.
 - As connection strings e `Jwt__JwksUrl` tem semantica diferente fora e dentro de container. O Aspire deve centralizar esses parametros para reduzir divergencia.
 

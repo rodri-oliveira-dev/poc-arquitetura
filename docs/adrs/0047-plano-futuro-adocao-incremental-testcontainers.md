@@ -52,7 +52,7 @@ Somente apos esse spike deve ser avaliado:
 - migrar cenarios selecionados de `BalanceService.IntegrationTests` para PostgreSQL real;
 - separar testes com containers por trait/categoria ou workflow dedicado;
 - adicionar Kafka via Testcontainers para smoke tests de fluxo Ledger -> Kafka -> Balance;
-- tornar Docker pre-requisito oficial para alguma parte da validacao de pull requests.
+- tornar uma Docker-compatible API pre-requisito oficial para alguma parte da validacao de pull requests.
 
 Kafka com Testcontainers deve ser tratado como segunda etapa, pois aumenta custo de setup, tempo de execucao e risco de flakiness. O ganho inicial mais claro esta no PostgreSQL, especialmente em migrations, transacoes, constraints, queries e Outbox.
 
@@ -71,7 +71,7 @@ Mocks, fakes, EF InMemory e testes de unidade continuam validos quando o objetiv
 - Aproveita dependencias Testcontainers ja centralizadas no repositorio.
 
 ### Trade-offs / custos
-- Exige Docker ou runtime compativel no ambiente local e no CI, se os testes forem obrigatorios.
+- Exige Docker-compatible API no ambiente local e no CI, se os testes forem obrigatorios.
 - Aumenta o tempo de execucao da suite quando containers entram no fluxo padrao.
 - Exige desenho de fixtures, ciclo de vida assincrono e limpeza de dados.
 - Pode aumentar flakiness se readiness, timeouts e isolamento nao forem tratados.
@@ -81,7 +81,7 @@ Mocks, fakes, EF InMemory e testes de unidade continuam validos quando o objetiv
 
 ### Riscos
 - Tornar todos os testes mais lentos ao migrar cenarios sem ganho real.
-- Introduzir dependencia obrigatoria de Docker em todo PR sem avaliar custo no pipeline.
+- Introduzir dependencia obrigatoria de runtime Docker-compatible em todo PR sem avaliar custo no pipeline.
 - Criar testes frageis por compartilhamento indevido de estado entre classes.
 - Mascarar problemas de design ao transformar testes unitarios em testes de infraestrutura.
 - Subir Kafka cedo demais e aumentar custo antes de estabilizar PostgreSQL.
@@ -115,7 +115,7 @@ Mocks, fakes, EF InMemory e testes de unidade continuam validos quando o objetiv
 ## Plano futuro proposto
 
 ### Fase 1: Preparacao
-- Confirmar Docker local e no GitHub Actions.
+- Confirmar Docker-compatible API local e no GitHub Actions.
 - Medir baseline atual de `dotnet test ./LedgerService.slnx --configuration Release`.
 - Escolher um conjunto pequeno de testes candidatos.
 - Definir criterio de sucesso: testes passam local e no CI, tempo adicional aceitavel e sem reducao de cobertura.
@@ -144,7 +144,7 @@ Mocks, fakes, EF InMemory e testes de unidade continuam validos quando o objetiv
 - Evitar refatoracoes amplas junto com a migracao.
 
 ### Fase 5: CI/CD
-- Validar suporte a Docker no pipeline.
+- Validar suporte a Docker-compatible API no pipeline.
 - Avaliar impacto no timeout atual de 20 minutos.
 - Separar testes com containers por trait/categoria se necessario.
 - Preservar coleta de cobertura com `coverlet.runsettings`.
@@ -168,11 +168,11 @@ Mocks, fakes, EF InMemory e testes de unidade continuam validos quando o objetiv
   - leitura diaria e por periodo com dados persistidos em PostgreSQL real.
 
 ## Proximos passos
-- Confirmar runtime Docker local e no GitHub Actions.
+- Confirmar runtime Docker-compatible local e no GitHub Actions.
 - Medir baseline atual da suite.
 - Criar branch separada para spike, se aprovado.
 - Implementar fixture minima de PostgreSQL em Testcontainers apenas para Ledger.
 - Aplicar migrations no container de teste.
 - Medir tempo e estabilidade.
 - Decidir se testes com containers entram no fluxo padrao ou em execucao seletiva.
-- Avaliar nova ADR ou atualizacao desta antes de tornar Docker requisito oficial de PR.
+- Avaliar nova ADR ou atualizacao desta antes de tornar Docker-compatible API requisito oficial de PR.

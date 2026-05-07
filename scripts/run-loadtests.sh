@@ -4,7 +4,7 @@ set -euo pipefail
 # Runner reprodutível:
 #  a) gera .env.k6.auto a partir do compose.yaml
 #  b) obtém TOKEN conforme README
-#  c) roda k6 dentro do compose network via nerdctl compose
+#  c) roda k6 dentro do compose network via docker compose
 
 MODE="${1:-}"
 if [[ -z "$MODE" ]]; then
@@ -38,7 +38,7 @@ run_k6() {
   local summaryFile="summary-$MODE-$scenarioName-$ts.json"
   local hostSummary="$ARTIFACTS_DIR/$summaryFile"
 
-  nerdctl compose -f "$COMPOSE_FILE" -f "$COMPOSE_K6_FILE" run --rm \
+  docker compose -f "$COMPOSE_FILE" -f "$COMPOSE_K6_FILE" run --rm \
     -e "TOKEN=$TOKEN" \
     "$@" \
     k6 run "$scriptPath" --summary-export "/artifacts/$summaryFile"
