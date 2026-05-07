@@ -23,6 +23,28 @@ public sealed class ReprocessamentoLancamentosRepository : IReprocessamentoLanca
             .FirstOrDefaultAsync(x => x.Id == reprocessamentoId, cancellationToken);
     }
 
+    public async Task<ReprocessamentoLancamentos?> GetByIdForUpdateAsync(
+        Guid reprocessamentoId,
+        CancellationToken cancellationToken = default)
+    {
+        if (!IsNpgsql())
+        {
+            return await _context.ReprocessamentosLancamentos
+                .FirstOrDefaultAsync(x => x.Id == reprocessamentoId, cancellationToken);
+        }
+
+        return await _context.ReprocessamentosLancamentos
+            .FromSqlInterpolated(
+                $"SELECT * FROM reprocessamentos_lancamentos WHERE id = {reprocessamentoId} FOR UPDATE")
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    private bool IsNpgsql()
+        => string.Equals(
+            _context.Database.ProviderName,
+            "Npgsql.EntityFrameworkCore.PostgreSQL",
+            StringComparison.Ordinal);
+
     public async Task AddAsync(
         ReprocessamentoLancamentos reprocessamento,
         CancellationToken cancellationToken = default)

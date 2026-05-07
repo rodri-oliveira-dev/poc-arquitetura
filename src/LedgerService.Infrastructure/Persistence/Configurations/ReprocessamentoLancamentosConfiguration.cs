@@ -51,6 +51,30 @@ public sealed class ReprocessamentoLancamentosConfiguration
             .HasColumnType("timestamp without time zone")
             .IsRequired();
 
+        builder.Property(x => x.ProcessingStartedAt)
+            .HasColumnName("processing_started_at")
+            .HasColumnType("timestamp without time zone");
+
+        builder.Property(x => x.CompletedAt)
+            .HasColumnName("completed_at")
+            .HasColumnType("timestamp without time zone");
+
+        builder.Property(x => x.FailedAt)
+            .HasColumnName("failed_at")
+            .HasColumnType("timestamp without time zone");
+
+        builder.Property(x => x.RejectedAt)
+            .HasColumnName("rejected_at")
+            .HasColumnType("timestamp without time zone");
+
+        builder.Property(x => x.FailureReason)
+            .HasColumnName("failure_reason")
+            .HasMaxLength(500);
+
+        builder.Property(x => x.RejectionReason)
+            .HasColumnName("rejection_reason")
+            .HasMaxLength(500);
+
         builder.HasIndex(x => new { x.MerchantId, x.DataInicial, x.DataFinal })
             .HasDatabaseName("idx_reprocessamentos_lancamentos_merchant_periodo");
     }

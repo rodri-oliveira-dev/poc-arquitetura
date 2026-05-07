@@ -30,7 +30,7 @@ O endpoint de criacao segue o padrao do estorno:
 
 A solicitacao grava o evento operacional `ReprocessamentoLancamentosSolicitado.v1` no Outbox, mapeado para o topico `ledger.lancamentos.reprocessamento.solicitado`. Esse evento representa intencao de processamento, nao fato financeiro final.
 
-O processamento efetivo do reprocessamento fica fora desta decisao. A tabela e o evento deixam um ponto de extensao para worker/background flow posterior, sem bloquear a requisicao HTTP.
+O processamento efetivo do reprocessamento fica fora desta decisao. A tabela e o evento deixam um ponto de extensao para worker/background flow posterior, sem bloquear a requisicao HTTP. Esse ponto de extensao foi implementado depois pela ADR-0052.
 
 ## Consequencias
 
@@ -45,8 +45,8 @@ O processamento efetivo do reprocessamento fica fora desta decisao. A tabela e o
 ### Trade-offs / custos
 - Introduz nova tabela, migration, repositorio e contrato de evento operacional.
 - O campo `LedgerEntryId` da tabela de idempotencia e reutilizado para guardar o identificador da solicitacao, mantendo o mecanismo existente em vez de criar uma nova tabela de idempotencia.
-- O topico operacional de reprocessamento existe antes de haver worker dedicado.
-- Estados alem de `Pending` ficam modelados para compatibilidade futura, mas nao evoluem nesta tarefa.
+- No escopo original desta ADR, o topico operacional de reprocessamento existia antes de haver worker dedicado; a ADR-0052 adicionou o consumer.
+- No escopo original desta ADR, estados alem de `Pending` ficavam modelados para compatibilidade futura; a ADR-0052 passou a evoluir esses estados no processamento.
 
 ## Alternativas consideradas
 
@@ -73,4 +73,4 @@ O processamento efetivo do reprocessamento fica fora desta decisao. A tabela e o
 ## Impacto operacional
 - Aplicar a nova migration do `LedgerService`.
 - Criar o topico `ledger.lancamentos.reprocessamento.solicitado` no Kafka local ou no ambiente alvo.
-- Monitorar solicitacoes `Pending` em `reprocessamentos_lancamentos` enquanto o worker de reprocessamento nao existir.
+- Monitorar solicitacoes `Pending`, `Processing`, `Completed`, `CompletedWithWarnings`, `Rejected` e `Failed` em `reprocessamentos_lancamentos`; o consumer foi definido pela ADR-0052.

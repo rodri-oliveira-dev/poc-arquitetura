@@ -4,10 +4,12 @@ using System.Net.Http.Json;
 
 using FluentAssertions;
 using LedgerService.Api.Contracts;
+using LedgerService.Application.Lancamentos.Commands;
 using LedgerService.Domain.Entities;
 using LedgerService.Infrastructure.Persistence;
 using LedgerService.IntegrationTests.Infrastructure;
 using LedgerService.IntegrationTests.Infrastructure.Security;
+using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LedgerService.IntegrationTests.Tests;
@@ -188,6 +190,43 @@ public sealed class ReprocessamentosLancamentosEndpointTests : IClassFixture<Led
         res.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
+    [Fact]
+    public async Task Processar_reprocessamento_should_republish_only_eligible_entries_and_complete_job()
+    {
+        Authenticate();
+        var eligible = await SeedLancamentoAsync("m1", new DateTime(2026, 5, 2, 10, 0, 0), LedgerEntryType.Credit, 10m);
+        await SeedLancamentoAsync("m1", new DateTime(2026, 5, 8, 10, 0, 0), LedgerEntryType.Credit, 20m);
+        await SeedLancamentoAsync("m2", new DateTime(2026, 5, 2, 10, 0, 0), LedgerEntryType.Credit, 30m);
+
+        using var createReq = CreateRequest(Guid.NewGuid().ToString());
+        var createRes = await _client.SendAsync(createReq);
+        createRes.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        var created = await createRes.Content.ReadFromJsonAsync<SolicitarReprocessamentoLancamentosResponse>();
+        created.Should().NotBeNull();
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var sender = scope.ServiceProvider.GetRequiredService<ISender>();
+            await sender.Send(new ProcessarReprocessamentoLancamentosCommand(created!.ReprocessamentoId));
+            await sender.Send(new ProcessarReprocessamentoLancamentosCommand(created.ReprocessamentoId));
+        }
+
+        using var assertScope = _factory.Services.CreateScope();
+        var db = assertScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var reprocessamento = db.ReprocessamentosLancamentos.Single(x => x.Id == created!.ReprocessamentoId);
+        reprocessamento.Status.Should().Be(ReprocessamentoLancamentosStatus.Completed);
+        reprocessamento.ProcessingStartedAt.Should().NotBeNull();
+        reprocessamento.CompletedAt.Should().NotBeNull();
+
+        db.OutboxMessages
+            .Where(x =>
+                x.AggregateType == "LedgerEntryReprocessamento" &&
+                x.EventType == "LedgerEntryCreated.v1")
+            .Should()
+            .ContainSingle()
+            .Which.AggregateId.Should().Be(eligible.Id);
+    }
+
     private void Authenticate(string merchantIds = "m1", string scopes = "ledger.write")
     {
         var token = TestJwtTokenFactory.CreateToken(
@@ -218,5 +257,28 @@ public sealed class ReprocessamentosLancamentosEndpointTests : IClassFixture<Led
         };
         req.Headers.Add("Idempotency-Key", idempotencyKey);
         return req;
+    }
+
+    private async Task<LedgerEntry> SeedLancamentoAsync(
+        string merchantId,
+        DateTime occurredAt,
+        LedgerEntryType type,
+        decimal amount)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var lancamento = new LedgerEntry(
+            merchantId,
+            type,
+            amount,
+            occurredAt,
+            "desc",
+            null,
+            Guid.NewGuid());
+
+        await db.LedgerEntries.AddAsync(lancamento);
+        await db.SaveChangesAsync();
+
+        return lancamento;
     }
 }

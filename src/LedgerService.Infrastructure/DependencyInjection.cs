@@ -7,6 +7,7 @@ using LedgerService.Infrastructure.Persistence;
 using LedgerService.Infrastructure.Repositories;
 using LedgerService.Infrastructure.Messaging.Kafka;
 using LedgerService.Infrastructure.Outbox;
+using LedgerService.Infrastructure.Reprocessamentos;
 using Microsoft.Extensions.Hosting;
 
 namespace LedgerService.Infrastructure;
@@ -61,6 +62,25 @@ public static class DependencyInjection
                 .ValidateOnStart();
 
             services.AddHostedService<OutboxKafkaPublisherService>();
+
+            var reprocessamentoConsumerEnabled = configuration.GetValue<bool>(
+                $"{ReprocessamentoLancamentosConsumerOptions.SectionName}:Enabled",
+                defaultValue: true);
+            if (reprocessamentoConsumerEnabled)
+            {
+                services.AddOptions<ReprocessamentoLancamentosConsumerOptions>()
+                    .Bind(configuration.GetSection(ReprocessamentoLancamentosConsumerOptions.SectionName))
+                    .Validate(o => !string.IsNullOrWhiteSpace(o.BootstrapServers), "Reprocessamentos Consumer BootstrapServers nao configurado.")
+                    .Validate(o => IsLocalEnvironment(environment) || !KafkaClientConfigExtensions.IsPlaintext(o), "Kafka PLAINTEXT e permitido apenas em Development/Local.")
+                    .Validate(o => !string.IsNullOrWhiteSpace(o.GroupId), "Reprocessamentos Consumer GroupId nao configurado.")
+                    .Validate(o => !string.IsNullOrWhiteSpace(o.Topic), "Reprocessamentos Consumer Topic nao configurado.")
+                    .Validate(o => o.ConsumeErrorRetryDelay > TimeSpan.Zero, "Reprocessamentos Consumer ConsumeErrorRetryDelay deve ser maior que zero.")
+                    .Validate(o => o.ProcessingErrorRetryDelay > TimeSpan.Zero, "Reprocessamentos Consumer ProcessingErrorRetryDelay deve ser maior que zero.")
+                    .ValidateOnStart();
+
+                services.AddSingleton<ReprocessamentoLancamentosMessageProcessor>();
+                services.AddHostedService<ReprocessamentoLancamentosConsumerService>();
+            }
         }
 
         return services;

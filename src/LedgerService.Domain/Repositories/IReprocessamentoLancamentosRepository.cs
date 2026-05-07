@@ -8,6 +8,10 @@ public interface IReprocessamentoLancamentosRepository
         Guid reprocessamentoId,
         CancellationToken cancellationToken = default);
 
+    Task<ReprocessamentoLancamentos?> GetByIdForUpdateAsync(
+        Guid reprocessamentoId,
+        CancellationToken cancellationToken = default);
+
     Task AddAsync(
         ReprocessamentoLancamentos reprocessamento,
         CancellationToken cancellationToken = default);
