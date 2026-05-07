@@ -6,9 +6,11 @@ Este guia concentra os passos para executar, validar e depurar a POC localmente.
 
 Para a stack completa:
 
-- `nerdctl` com suporte a `compose`;
-- runtime compativel com containerd;
+- Docker-compatible API acessivel;
+- CLI `docker` com suporte a `docker compose`;
 - build de imagens habilitado no runtime local.
+
+O projeto nao exige Docker Desktop como premissa. No Windows sem Docker Desktop, o ambiente recomendado e Rancher Desktop usando `moby/dockerd`, pois ele expoe uma API compativel com Docker. `containerd` puro com `nerdctl` nao deve ser tratado como ambiente suportado para os testes baseados em Testcontainers.
 
 Para rodar no host:
 
@@ -37,20 +39,20 @@ O `compose.yaml` sobe:
 Subir a stack:
 
 ```bash
-nerdctl compose up -d --build
+docker compose up -d --build
 ```
 
 Parar a stack:
 
 ```bash
-nerdctl compose down
+docker compose down
 ```
 
 Ver status e logs:
 
 ```bash
-nerdctl compose ps
-nerdctl compose logs -f ledger-service
+docker compose ps
+docker compose logs -f ledger-service
 ```
 
 Portas expostas no host:
@@ -127,6 +129,81 @@ $env:Kafka__Producer__BootstrapServers = "127.0.0.1:9092"
 
 Nao versione segredos. Em ambientes compartilhados ou produtivos, JWKS via HTTP e Kafka `Plaintext` nao devem ser usados.
 
+## Testcontainers e Docker-compatible API
+
+Alguns testes de integracao usam Testcontainers com PostgreSQL real. O Testcontainers depende de uma Docker-compatible API acessivel, nao de Docker Desktop especificamente e nem da CLI usada para a stack local.
+
+Esses testes iniciam e descartam containers PostgreSQL automaticamente durante a execucao, usando connection string dinamica e porta publicada dinamicamente pelo runtime de containers. Nao e necessario ter PostgreSQL instalado localmente e nao e necessario executar `docker compose up` antes dos testes.
+
+Os testes PostgreSQL ficam em collections xUnit especificas, compartilham um container por collection e limpam as tabelas afetadas entre cenarios para evitar estado residual.
+
+Validacao rapida do ambiente:
+
+```powershell
+docker version
+docker ps
+dotnet test
+```
+
+No Windows sem Docker Desktop, a recomendacao local e Rancher Desktop com `moby/dockerd`:
+
+```powershell
+rdctl set --container-engine.name=moby
+```
+
+Em geral, nao defina `DOCKER_HOST` de forma persistente. Com Rancher Desktop em `moby/dockerd`, a CLI `docker` e o Testcontainers devem localizar a Docker-compatible API pelo contexto/padrao do ambiente.
+
+Nao configure `DOCKER_HOST` de forma permanente no codigo da aplicacao. Essa configuracao pertence ao ambiente local do desenvolvedor.
+
+### Troubleshooting - Testcontainers no Windows sem Docker Desktop
+
+Se os testes com Testcontainers falharem por nao localizar o Docker daemon:
+
+1. Confirme que o Rancher Desktop esta usando `moby/dockerd`.
+2. Confirme que a Docker API esta acessivel:
+
+   ```powershell
+   docker version
+   docker ps
+   ```
+
+3. Confirme o `DOCKER_HOST`:
+
+   ```powershell
+   echo $env:DOCKER_HOST
+   ```
+
+4. Valor recomendado no Windows:
+
+   ```text
+   <vazio>
+   ```
+
+5. Se o ambiente estiver com `DOCKER_HOST=npipe:////./pipe/docker_engine`, a CLI `docker` pode funcionar, mas o Docker.DotNet usado pelo Testcontainers pode falhar com erro semelhante a `npipe:////pipe/docker_engine is not a valid npipe URI`. Remova a variavel persistente do usuario e reabra o terminal ou IDE:
+
+   ```powershell
+   [Environment]::SetEnvironmentVariable("DOCKER_HOST", $null, "User")
+   ```
+
+6. Para validar na sessao atual sem reabrir o terminal:
+
+   ```powershell
+   Remove-Item Env:DOCKER_HOST -ErrorAction SilentlyContinue
+   docker ps
+   dotnet test
+   ```
+
+7. Se algum runtime especifico exigir `DOCKER_HOST` para o processo de teste, use override apenas na sessao atual do terminal:
+
+   ```powershell
+   $env:DOCKER_HOST = "npipe://./pipe/docker_engine"
+   dotnet test
+   ```
+
+   Evite persistir esse valor como variavel de usuario, pois ele pode quebrar a CLI `docker` em alguns ambientes Windows.
+
+8. Feche e abra novamente o terminal ou IDE apos alterar variaveis de ambiente persistentes.
+
 ## Swagger e endpoints operacionais
 
 Swagger/OpenAPI fica habilitado por padrao somente em `Development`. Fora desse ambiente, a exposicao exige `Swagger:Enabled=true`.
@@ -175,7 +252,7 @@ Os testes de carga ficam em `loadtests/k6` e rodam dentro da rede do compose.
 
 Pre-requisitos:
 
-1. Suba a stack com `nerdctl compose -f compose.yaml up -d --build`.
+1. Suba a stack com `docker compose -f compose.yaml up -d --build`.
 2. Aplique migrations.
 
 Windows:

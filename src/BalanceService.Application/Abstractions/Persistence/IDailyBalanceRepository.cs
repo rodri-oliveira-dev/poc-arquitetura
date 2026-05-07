@@ -4,6 +4,12 @@ namespace BalanceService.Application.Abstractions.Persistence;
 
 public interface IDailyBalanceRepository
 {
+    Task LockByMerchantDateAndCurrencyAsync(
+        string merchantId,
+        DateOnly date,
+        string currency,
+        CancellationToken cancellationToken = default);
+
     Task<DailyBalance?> GetByMerchantDateAndCurrencyAsync(
         string merchantId,
         DateOnly date,

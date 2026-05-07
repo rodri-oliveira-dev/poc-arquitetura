@@ -74,13 +74,20 @@ public sealed class ApplyLedgerEntryCreatedHandlerTests
             .Callback<ProcessedEvent, CancellationToken>((e, _) => processedEvent = e)
             .ReturnsAsync(true);
 
+        var dailySequence = new MockSequence();
+        dailyRepo.InSequence(dailySequence)
+            .Setup(x => x.LockByMerchantDateAndCurrencyAsync(evt.MerchantId, It.IsAny<DateOnly>(), "BRL", It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
         DateOnly? requestedDate = null;
-        dailyRepo.Setup(x => x.GetByMerchantDateAndCurrencyAsync(evt.MerchantId, It.IsAny<DateOnly>(), "BRL", It.IsAny<CancellationToken>()))
+        dailyRepo.InSequence(dailySequence)
+            .Setup(x => x.GetByMerchantDateAndCurrencyAsync(evt.MerchantId, It.IsAny<DateOnly>(), "BRL", It.IsAny<CancellationToken>()))
             .Callback<string, DateOnly, string, CancellationToken>((_, date, _, _) => requestedDate = date)
             .ReturnsAsync((DailyBalance?)null);
 
         DailyBalance? created = null;
-        dailyRepo.Setup(x => x.AddAsync(It.IsAny<DailyBalance>(), It.IsAny<CancellationToken>()))
+        dailyRepo.InSequence(dailySequence)
+            .Setup(x => x.AddAsync(It.IsAny<DailyBalance>(), It.IsAny<CancellationToken>()))
             .Callback<DailyBalance, CancellationToken>((b, _) => created = b)
             .Returns(Task.CompletedTask);
 

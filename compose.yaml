@@ -137,6 +137,8 @@ services:
         /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists \
           --topic ledger.lancamento.estorno.solicitado --partitions 1 --replication-factor 1;
         /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists \
+          --topic ledger.lancamentos.reprocessamento.solicitado --partitions 1 --replication-factor 1;
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists \
           --topic ledger.ledgerentry.created.dlq --partitions 1 --replication-factor 1;
         echo "[kafka-init-topics] OK.";
 
@@ -164,6 +166,8 @@ services:
       ConnectionStrings__DefaultConnection: "Host=ledger-db;Port=5432;Database=appdb;Username=appuser;Password=app123"
       Kafka__Producer__BootstrapServers: "kafka:9092"
       Kafka__Producer__SecurityProtocol: "Plaintext"
+      Reprocessamentos__Consumer__BootstrapServers: "kafka:9092"
+      Reprocessamentos__Consumer__SecurityProtocol: "Plaintext"
     ports:
       # Mantém a mesma porta do launchSettings para facilitar uso local
       - "5226:8080"

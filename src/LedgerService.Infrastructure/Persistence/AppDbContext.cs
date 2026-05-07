@@ -8,6 +8,7 @@ public sealed class AppDbContext : DbContext, IUnitOfWork
 {
     public DbSet<LedgerEntry> LedgerEntries => Set<LedgerEntry>();
     public DbSet<EstornoLancamento> EstornosLancamentos => Set<EstornoLancamento>();
+    public DbSet<ReprocessamentoLancamentos> ReprocessamentosLancamentos => Set<ReprocessamentoLancamentos>();
     public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 

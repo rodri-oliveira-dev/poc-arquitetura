@@ -133,6 +133,16 @@ public sealed class ProcessarEstornoLancamentoHandlerTests
         public Task<LedgerEntry?> GetCompensatingEntryAsync(Guid lancamentoOriginalId, CancellationToken cancellationToken = default)
             => Task.FromResult(_state.LedgerEntries.FirstOrDefault(x => x.ExternalReference == $"estorno:{lancamentoOriginalId:N}"));
 
+        public Task<IReadOnlyList<LedgerEntry>> ListByMerchantAndPeriodAsync(
+            string merchantId,
+            DateTime startInclusive,
+            DateTime endExclusive,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<LedgerEntry>>(
+                _state.LedgerEntries
+                    .Where(x => x.MerchantId == merchantId && x.OccurredAt >= startInclusive && x.OccurredAt < endExclusive)
+                    .ToList());
+
         public Task AddAsync(LedgerEntry ledgerEntry, CancellationToken cancellationToken = default)
         {
             _state.LedgerEntries.Add(ledgerEntry);
@@ -152,7 +162,7 @@ public sealed class ProcessarEstornoLancamentoHandlerTests
         public Task<EstornoLancamento?> GetByIdForUpdateAsync(Guid estornoId, CancellationToken cancellationToken = default)
             => GetByIdAsync(estornoId, cancellationToken);
 
-        public Task<IReadOnlyList<EstornoLancamento>> ListPendingAsync(int maxItems, CancellationToken cancellationToken = default)
+        public Task<IReadOnlyList<EstornoLancamento>> ClaimPendingAsync(int maxItems, CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<EstornoLancamento>>(_state.Estornos.Where(x => x.Status == EstornoLancamentoStatus.Pending).Take(maxItems).ToList());
 
         public Task<EstornoLancamento?> GetActiveByLancamentoOriginalIdAsync(Guid lancamentoOriginalId, CancellationToken cancellationToken = default)

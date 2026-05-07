@@ -7,7 +7,7 @@ Proposto
 2026-05-06
 
 ## Contexto
-O projeto e uma POC distribuida em .NET 10 com tres APIs (`Auth.Api`, `LedgerService.Api` e `BalanceService.Api`), dois bancos PostgreSQL, Kafka em KRaft, Outbox, DLQ, JWT via JWKS, health/readiness, OpenTelemetry opcional, Docker Compose via `nerdctl compose`, testes automatizados e pipelines GitHub Actions.
+O projeto e uma POC distribuida em .NET 10 com tres APIs (`Auth.Api`, `LedgerService.Api` e `BalanceService.Api`), dois bancos PostgreSQL, Kafka em KRaft, Outbox, DLQ, JWT via JWKS, health/readiness, OpenTelemetry opcional, Docker Compose via `docker compose`, testes automatizados e pipelines GitHub Actions.
 
 O ambiente local completo ja esta documentado em `README.md` e `docs/development/local-development.md`, usando `compose.yaml` para subir APIs, bancos, Kafka e o job de criacao de topicos. As migrations continuam manuais por decisao existente. Os testes de integracao atuais usam `WebApplicationFactory`, substituem persistencia por EF InMemory em parte do escopo HTTP e desligam Kafka por configuracao.
 
@@ -27,7 +27,7 @@ O primeiro passo futuro deve ser um spike em branch separada, com escopo minimo:
 - modelar inicialmente `Auth.Api`, `LedgerService.Api` e PostgreSQL Ledger;
 - preservar migrations manuais ate decisao explicita em contrario;
 - validar Aspire Dashboard, logs, traces, health/readiness e configuracao local;
-- comparar o fluxo com o `nerdctl compose` atual;
+- comparar o fluxo com o `docker compose` atual;
 - medir tempo de startup, clareza de configuracao e impacto no onboarding.
 
 Somente apos esse spike deve ser avaliado:
@@ -89,7 +89,7 @@ O AppHost, se aprovado, deve representar a topologia local de desenvolvimento. E
 
 ## Proximos passos
 - Confirmar instalacao dos templates Aspire e versao compativel com .NET 10.
-- Medir baseline atual de `nerdctl compose up -d --build`, aplicacao de migrations e `dotnet test`.
+- Medir baseline atual de `docker compose up -d --build`, aplicacao de migrations e `dotnet test`.
 - Criar branch separada para spike, se aprovado.
 - Criar AppHost experimental minimo com Auth, Ledger e PostgreSQL Ledger.
 - Validar dashboard, logs, traces, health/readiness e configuracao injetada.

@@ -92,7 +92,9 @@ namespace LedgerService.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("idx_estornos_lancamentos_compensatorio");
 
                     b.HasIndex("LancamentoOriginalId")
-                        .HasDatabaseName("idx_estornos_lancamentos_original");
+                        .IsUnique()
+                        .HasDatabaseName("ux_estornos_lancamentos_original_active")
+                        .HasFilter("status IN ('Pending', 'Processing')");
 
                     b.HasIndex("LancamentoOriginalId", "Status")
                         .HasDatabaseName("idx_estornos_lancamentos_original_status");
@@ -283,6 +285,79 @@ namespace LedgerService.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("idx_outbox_pending");
 
                     b.ToTable("outbox_messages", (string)null);
+                });
+
+            modelBuilder.Entity("LedgerService.Domain.Entities.ReprocessamentoLancamentos", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("completed_at");
+
+                    b.Property<Guid>("CorrelationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("correlation_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateOnly>("DataFinal")
+                        .HasColumnType("date")
+                        .HasColumnName("data_final");
+
+                    b.Property<DateOnly>("DataInicial")
+                        .HasColumnType("date")
+                        .HasColumnName("data_inicial");
+
+                    b.Property<DateTime?>("FailedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("failed_at");
+
+                    b.Property<string>("FailureReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("failure_reason");
+
+                    b.Property<string>("MerchantId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("merchant_id");
+
+                    b.Property<string>("Motivo")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("motivo");
+
+                    b.Property<DateTime?>("ProcessingStartedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("processing_started_at");
+
+                    b.Property<DateTime?>("RejectedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("rejected_at");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("rejection_reason");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MerchantId", "DataInicial", "DataFinal")
+                        .HasDatabaseName("idx_reprocessamentos_lancamentos_merchant_periodo");
+
+                    b.ToTable("reprocessamentos_lancamentos", (string)null);
                 });
 #pragma warning restore 612, 618
         }

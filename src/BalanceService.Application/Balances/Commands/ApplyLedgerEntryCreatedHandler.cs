@@ -91,6 +91,12 @@ public sealed class ApplyLedgerEntryCreatedHandler : IRequestHandler<ApplyLedger
             return;
         }
 
+        await _dailyBalanceRepository.LockByMerchantDateAndCurrencyAsync(
+            evt.MerchantId,
+            date,
+            currency,
+            cancellationToken);
+
         var dailyBalance = await _dailyBalanceRepository.GetByMerchantDateAndCurrencyAsync(
             evt.MerchantId,
             date,

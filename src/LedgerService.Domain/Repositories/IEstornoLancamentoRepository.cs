@@ -12,7 +12,7 @@ public interface IEstornoLancamentoRepository
         Guid estornoId,
         CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyList<EstornoLancamento>> ListPendingAsync(
+    Task<IReadOnlyList<EstornoLancamento>> ClaimPendingAsync(
         int maxItems,
         CancellationToken cancellationToken = default);
 

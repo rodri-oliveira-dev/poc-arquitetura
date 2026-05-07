@@ -2,6 +2,7 @@ using BalanceService.Application.Abstractions.Persistence;
 using BalanceService.Domain.Balances;
 using BalanceService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using System.Globalization;
 
 namespace BalanceService.Infrastructure.Persistence.Repositories;
 
@@ -12,6 +13,25 @@ public sealed class DailyBalanceRepository : IDailyBalanceRepository
     public DailyBalanceRepository(BalanceDbContext context)
     {
         _context = context;
+    }
+
+    public async Task LockByMerchantDateAndCurrencyAsync(
+        string merchantId,
+        DateOnly date,
+        string currency,
+        CancellationToken cancellationToken = default)
+    {
+        if (!IsNpgsql())
+            return;
+
+        var normalizedCurrency = currency.Trim().ToUpperInvariant();
+        var lockKey = string.Create(
+            CultureInfo.InvariantCulture,
+            $"{merchantId}|{date:yyyy-MM-dd}|{normalizedCurrency}");
+
+        await _context.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT pg_advisory_xact_lock(hashtextextended({lockKey}, 0));",
+            cancellationToken);
     }
 
     public async Task<DailyBalance?> GetByMerchantDateAndCurrencyAsync(
@@ -29,4 +49,10 @@ public sealed class DailyBalanceRepository : IDailyBalanceRepository
 
     public Task AddAsync(DailyBalance dailyBalance, CancellationToken cancellationToken = default)
         => _context.DailyBalances.AddAsync(dailyBalance, cancellationToken).AsTask();
+
+    private bool IsNpgsql()
+        => string.Equals(
+            _context.Database.ProviderName,
+            "Npgsql.EntityFrameworkCore.PostgreSQL",
+            StringComparison.Ordinal);
 }

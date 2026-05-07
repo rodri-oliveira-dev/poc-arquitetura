@@ -29,6 +29,23 @@ public sealed class LedgerEntryRepository : ILedgerEntryRepository
             .FirstOrDefaultAsync(x => x.ExternalReference == externalReference, cancellationToken);
     }
 
+    public async Task<IReadOnlyList<LedgerEntry>> ListByMerchantAndPeriodAsync(
+        string merchantId,
+        DateTime startInclusive,
+        DateTime endExclusive,
+        CancellationToken cancellationToken = default)
+    {
+        return await _context.LedgerEntries
+            .AsNoTracking()
+            .Where(x =>
+                x.MerchantId == merchantId &&
+                x.OccurredAt >= startInclusive &&
+                x.OccurredAt < endExclusive)
+            .OrderBy(x => x.OccurredAt)
+            .ThenBy(x => x.Id)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task AddAsync(LedgerEntry ledgerEntry, CancellationToken cancellationToken = default)
     {
         await _context.LedgerEntries.AddAsync(ledgerEntry, cancellationToken);

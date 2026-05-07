@@ -12,7 +12,7 @@ O repositorio e um laboratorio tecnico. Algumas decisoes estao aceitas, outras a
 ## Servicos
 
 - `Auth.Api`: emite JWT RS256 por `POST /auth/login` e publica JWKS em `GET /.well-known/jwks.json`.
-- `LedgerService.Api`: API de escrita para lancamentos em `POST /api/v1/lancamentos`, solicitacao de estorno em `POST /api/v1/lancamentos/{lancamentoId}/estornos` e consulta de status em `GET /api/v1/lancamentos/estornos/{estornoId}`, com idempotencia e Outbox.
+- `LedgerService.Api`: API de escrita para lancamentos em `POST /api/v1/lancamentos`, solicitacao/processamento de estorno, solicitacao/processamento de reprocessamento em `POST /api/v1/lancamentos/reprocessar` e consultas de status, com idempotencia e Outbox.
 - `BalanceService.Api`: API de leitura de consolidados, alimentada por eventos Kafka do Ledger.
 
 Componentes principais:
@@ -27,7 +27,8 @@ Componentes principais:
 Pre-requisitos principais:
 
 - .NET SDK conforme `global.json`.
-- `nerdctl compose` para a stack completa local.
+- Docker-compatible API para Testcontainers e stack local.
+- CLI `docker` com suporte a `docker compose` para a stack completa local.
 - PostgreSQL e Kafka, quando rodar as APIs fora de container.
 
 Comandos mais usados:
@@ -42,10 +43,12 @@ dotnet test ./LedgerService.slnx --configuration Release --no-build --settings .
 Fluxo local completo:
 
 ```powershell
-nerdctl compose up -d --build
+docker compose up -d --build
 ```
 
 Na primeira execucao com banco vazio, aplique as migrations manualmente antes de usar as APIs. O passo a passo fica em [desenvolvimento local](docs/development/local-development.md).
+
+Testes de integracao selecionados usam Testcontainers com PostgreSQL real. O Testcontainers precisa de uma Docker-compatible API, nao da CLI `docker` nem de Docker Desktop especificamente. No Windows sem Docker Desktop, o ambiente recomendado e Rancher Desktop com `moby/dockerd`.
 
 ## Documentacao
 
@@ -88,3 +91,4 @@ As decisoes do projeto ficam em [docs/adrs](docs/adrs/README.md). Use as ADRs co
 - Erro ao aplicar migrations: confira a connection string e se o PostgreSQL esta acessivel.
 - Swagger nao abre: confirme se a API esta rodando e se Swagger esta habilitado para o ambiente.
 - Outbox com logs repetidos: comportamento esperado do polling configurado em `Outbox:Publisher`.
+- Testcontainers nao encontra o Docker daemon: confira `docker version`, `docker ps` e o `DOCKER_HOST` documentado em [desenvolvimento local](docs/development/local-development.md).

@@ -4,13 +4,14 @@ Este documento concentra a referencia de mensageria entre `LedgerService.Api` e 
 
 ## Fluxo
 
-1. `LedgerService.Api` cria um lancamento ou registra uma solicitacao de estorno.
+1. `LedgerService.Api` cria um lancamento, registra uma solicitacao de estorno ou registra uma solicitacao de reprocessamento.
 2. A mesma transacao grava a mensagem em `outbox_messages`.
 3. `OutboxKafkaPublisherService` le mensagens pendentes e publica no Kafka.
 4. `EstornoLancamentoProcessorService`, no proprio Ledger, processa solicitacoes `Pending` e cria lancamentos compensatorios.
 5. O estorno concluido grava `LedgerEntryCreated.v1` do lancamento compensatorio no Outbox.
-6. `BalanceService.Api` consome apenas `LedgerEntryCreated.v1` e atualiza a projecao `daily_balances`.
-7. Mensagens invalidas ou nao recuperaveis do fluxo consumido pelo Balance sao publicadas na DLQ.
+6. `ReprocessamentoLancamentosConsumerService`, no proprio Ledger, consome `ledger.lancamentos.reprocessamento.solicitado`, chama o caso de uso de reprocessamento e registra eventos financeiros finais no Outbox quando houver lancamentos elegiveis.
+7. `BalanceService.Api` consome apenas `LedgerEntryCreated.v1` e atualiza a projecao `daily_balances`.
+8. Mensagens invalidas ou nao recuperaveis do fluxo consumido pelo Balance sao publicadas na DLQ.
 
 ## Topicos e evento
 
@@ -20,12 +21,16 @@ Este documento concentra a referencia de mensageria entre `LedgerService.Api` e 
 | Topico de lancamento | `ledger.ledgerentry.created` |
 | Evento de solicitacao de estorno | `LancamentoEstornoSolicitado.v1` |
 | Topico de solicitacao de estorno | `ledger.lancamento.estorno.solicitado` |
+| Evento de solicitacao de reprocessamento | `ReprocessamentoLancamentosSolicitado.v1` |
+| Topico de solicitacao de reprocessamento | `ledger.lancamentos.reprocessamento.solicitado` |
 | DLQ | `ledger.ledgerentry.created.dlq` |
-| Mapeamentos | `LedgerEntryCreated.v1` -> `ledger.ledgerentry.created`; `LancamentoEstornoSolicitado.v1` -> `ledger.lancamento.estorno.solicitado` |
+| Mapeamentos | `LedgerEntryCreated.v1` -> `ledger.ledgerentry.created`; `LancamentoEstornoSolicitado.v1` -> `ledger.lancamento.estorno.solicitado`; `ReprocessamentoLancamentosSolicitado.v1` -> `ledger.lancamentos.reprocessamento.solicitado` |
 
 `LancamentoEstornoSolicitado.v1` e gravado pelo Ledger no Outbox e publicado pelo mesmo worker. Ele representa a intencao operacional de estorno, nao um fato financeiro final. O processamento financeiro nao depende do `BalanceService`: o proprio Ledger processa a solicitacao persistida e, ao concluir, registra um `LedgerEntryCreated.v1` para o lancamento compensatorio.
 
 O `BalanceService.Api` deve ignorar/rejeitar `LancamentoEstornoSolicitado.v1` como evento financeiro. Saldos so mudam com `LedgerEntryCreated.v1`, inclusive quando esse evento representa o lancamento compensatorio de um estorno.
+
+`ReprocessamentoLancamentosSolicitado.v1` tambem e evento operacional/intencao interna. Ele nao representa conclusao nem alteracao direta de saldo. O `LedgerService` e o dono do processamento: o consumer de reprocessamento le esse topico, localiza a solicitacao persistida, muda o status e republica `LedgerEntryCreated.v1` para os lancamentos elegiveis como evento financeiro final. O `BalanceService` nao consome a solicitacao operacional.
 
 O compose cria os topicos no startup local. O consumer do Balance usa `AllowAutoCreateTopics=false`.
 
@@ -79,6 +84,7 @@ Ledger:
 
 - `Kafka:Producer`;
 - `Outbox:Publisher`.
+- `Reprocessamentos:Consumer`.
 
 Balance:
 
@@ -101,7 +107,7 @@ Em falha do Kafka, o servico nao deve cair: ele registra erro, incrementa tentat
 
 ## Processamento de estornos
 
-O worker `EstornoLancamentoProcessorService` usa polling da tabela `estornos_lancamentos`:
+O worker `EstornoLancamentoProcessorService` usa polling da tabela `estornos_lancamentos`, mas a selecao nao e apenas uma leitura. Cada ciclo reclama pendentes com `UPDATE ... FOR UPDATE SKIP LOCKED ... RETURNING`, mudando as linhas para `Processing` antes de delegar ao Mediator. Isso permite workers concorrentes sem processar o mesmo estorno ao mesmo tempo.
 
 - `Pending`: selecionado para processamento;
 - `Processing`: caso de uso iniciado;
@@ -115,7 +121,27 @@ Configuracao:
 - `Estornos:Processor:PollingIntervalSeconds`;
 - `Estornos:Processor:BatchSize`.
 
-A idempotencia e garantida por status final, verificacao de estorno ja concluido por lancamento original, busca do lancamento compensatorio por `external_reference=estorno:{lancamentoOriginalId}` e indice unico filtrado para essa referencia. Reprocessar uma solicitacao concluida nao duplica lancamento nem evento final.
+A idempotencia e garantida por indice unico filtrado para uma solicitacao ativa por `lancamento_original_id`, claim atomico de pendentes, lock real por linha no processamento, status final, verificacao de estorno ja concluido por lancamento original, busca do lancamento compensatorio por `external_reference=estorno:{lancamentoOriginalId}` e indice unico filtrado para essa referencia. Reprocessar uma solicitacao concluida nao duplica lancamento nem evento final.
+
+## Solicitacoes de reprocessamento
+
+`POST /api/v1/lancamentos/reprocessar` persiste solicitacoes em `reprocessamentos_lancamentos` e grava `ReprocessamentoLancamentosSolicitado.v1` no Outbox na mesma transacao. O status inicial e `Pending`, com periodo maximo inclusivo de 31 dias e idempotencia por `merchantId` + `Idempotency-Key`.
+
+O processamento efetivo ocorre no `ReprocessamentoLancamentosConsumerService`, em `LedgerService.Infrastructure`. O hosted service usa as configuracoes de `Reprocessamentos:Consumer`, assina o topico `ledger.lancamentos.reprocessamento.solicitado`, valida `event_type=ReprocessamentoLancamentosSolicitado.v1` e delega o trabalho ao Mediator com `ProcessarReprocessamentoLancamentosCommand`.
+
+O handler:
+
+1. localiza a solicitacao por `reprocessamentoId`;
+2. ignora solicitacoes ja finais para suportar retry e reentrega Kafka;
+3. marca a solicitacao como `Processing`;
+4. busca `LedgerEntry` do mesmo `merchantId` no periodo inclusivo informado;
+5. registra no Outbox um `LedgerEntryCreated.v1` para cada lancamento elegivel;
+6. marca como `Completed` quando houver lancamentos ou `CompletedWithWarnings` quando nenhum lancamento for encontrado;
+7. marca como `Rejected` em erro de regra conhecido e `Failed` em erro tecnico inesperado.
+
+O reprocessamento de valores, nesta POC, e feito por replay idempotente dos fatos financeiros persistidos no Ledger. O payload final usa os campos atuais do `LedgerEntry` (`Amount`, `Type`, `OccurredAt`, `MerchantId`, `Currency` etc.) e o mesmo identificador de evento financeiro derivado do lancamento (`lan_{id}`). Assim, se o Balance ja aplicou aquele lancamento, a tabela `processed_events` evita duplicidade; se o evento estava ausente na projecao, o consumer aplica o saldo/consolidado pelo fluxo normal.
+
+Limitacao conhecida: esse fluxo corrige projecoes ausentes por replay de eventos do Ledger, mas nao reconstroi saldos ja materializados com regra historica incorreta. Uma recomposicao completa de projecao ou evento especifico de correcao de valor deve ser modelado em decisao futura se essa necessidade aparecer.
 
 ## Governanca
 
