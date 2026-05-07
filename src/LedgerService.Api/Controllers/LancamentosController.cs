@@ -1,10 +1,13 @@
 using Asp.Versioning;
 using LedgerService.Api.Contracts;
 using LedgerService.Api.Controllers.Binds;
+using LedgerService.Api.Mappers;
 using LedgerService.Api.Middlewares;
 using LedgerService.Api.Security;
 using LedgerService.Application.Common.Models;
+using LedgerService.Application.Lancamentos.Queries;
 using LedgerService.Application.Lancamentos.Services;
+using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
@@ -18,13 +21,16 @@ public sealed class LancamentosController : ControllerBase
 {
     private readonly CreateLancamentoService _createLancamentoService;
     private readonly IMerchantAuthorizationService _merchantAuthorizationService;
+    private readonly ISender _sender;
 
     public LancamentosController(
         CreateLancamentoService createLancamentoService,
-        IMerchantAuthorizationService merchantAuthorizationService)
+        IMerchantAuthorizationService merchantAuthorizationService,
+        ISender sender)
     {
         _createLancamentoService = createLancamentoService;
         _merchantAuthorizationService = merchantAuthorizationService;
+        _sender = sender;
     }
 
     [HttpPost]
@@ -63,5 +69,68 @@ public sealed class LancamentosController : ControllerBase
 
         // Ainda não há endpoint GET por id; Location identifica a URI canônica futura do recurso criado.
         return Created($"{Request.Path}/{created.Id}", created);
+    }
+
+    [HttpPost("{lancamentoId:guid}/estornos")]
+    [Authorize(Policy = ScopePolicies.LedgerWritePolicy)]
+    [SwaggerOperation(
+        Summary = "Solicita estorno de um lancamento.",
+        Description = "Registra uma solicitacao de estorno com status Pending e grava a intencao no Outbox para processamento assincrono posterior. O endpoint nao processa o estorno financeiro no request HTTP.")]
+    [SwaggerResponse(StatusCodes.Status202Accepted, "Solicitacao aceita para processamento assincrono. Retorna Location com a URI futura de status.", typeof(SolicitarEstornoLancamentoResponse))]
+    [SwaggerResponse(StatusCodes.Status400BadRequest, "Request invalido.", typeof(ValidationErrorResponse))]
+    [SwaggerResponse(StatusCodes.Status404NotFound, "Lancamento original nao encontrado.", typeof(ProblemDetails))]
+    [SwaggerResponse(StatusCodes.Status409Conflict, "Conflito de idempotencia ou solicitacao ativa duplicada.", typeof(ProblemDetails))]
+    [SwaggerResponse(StatusCodes.Status413PayloadTooLarge, "Body acima do limite configurado.", typeof(ProblemDetails))]
+    [SwaggerResponse(StatusCodes.Status429TooManyRequests, "Limite de requisicoes excedido.")]
+    [SwaggerResponse(StatusCodes.Status401Unauthorized, "Token ausente ou invalido.")]
+    [SwaggerResponse(StatusCodes.Status403Forbidden, "Scope insuficiente ou token sem autorizacao para o merchant do lancamento original.")]
+    [SwaggerResponse(StatusCodes.Status500InternalServerError, "Erro interno.", typeof(ProblemDetails))]
+    public async Task<ActionResult<SolicitarEstornoLancamentoResponse>> SolicitarEstorno(
+        [SwaggerParameter(Description = "Identificador interno do lancamento original.")]
+        [FromRoute] Guid lancamentoId,
+        [SwaggerParameter(Description = "Chave de idempotencia em formato UUID. Deve ser unica por operacao logica.")]
+        [FromHeader(Name = "Idempotency-Key")] string idempotencyKey,
+        [SwaggerParameter(Description = "Correlation id opcional em formato UUID. Se ausente, a API gera e devolve um valor no response header.")]
+        [FromHeader(Name = CorrelationIdMiddleware.HeaderName)] string? correlationId,
+        [FromBody] SolicitarEstornoLancamentoRequest request,
+        CancellationToken cancellationToken)
+    {
+        var command = SolicitarEstornoLancamentoBind.Bind(
+            HttpContext,
+            lancamentoId,
+            idempotencyKey,
+            correlationId,
+            request,
+            _merchantAuthorizationService.GetAuthorizedMerchantIds(User));
+
+        var result = await _sender.Send(command, cancellationToken);
+        var response = SolicitarEstornoLancamentoMapper.ToResponse(result);
+
+        return Accepted(response.StatusUrl, response);
+    }
+
+    [HttpGet("estornos/{estornoId:guid}")]
+    [Authorize(Policy = ScopePolicies.LedgerReadPolicy)]
+    [SwaggerOperation(
+        Summary = "Consulta status de uma solicitacao de estorno.",
+        Description = "Retorna o estado atual de uma solicitacao de estorno registrada previamente. O processamento do estorno e assincrono e pode evoluir apos a resposta do endpoint de criacao.")]
+    [SwaggerResponse(StatusCodes.Status200OK, "Status da solicitacao de estorno.", typeof(ObterStatusEstornoLancamentoResponse))]
+    [SwaggerResponse(StatusCodes.Status401Unauthorized, "Token ausente ou invalido.")]
+    [SwaggerResponse(StatusCodes.Status403Forbidden, "Scope insuficiente ou token sem autorizacao para o merchant do estorno.")]
+    [SwaggerResponse(StatusCodes.Status404NotFound, "Solicitacao de estorno inexistente.", typeof(ProblemDetails))]
+    [SwaggerResponse(StatusCodes.Status429TooManyRequests, "Limite de requisicoes excedido.")]
+    [SwaggerResponse(StatusCodes.Status500InternalServerError, "Erro interno.", typeof(ProblemDetails))]
+    public async Task<ActionResult<ObterStatusEstornoLancamentoResponse>> ObterStatusEstorno(
+        [SwaggerParameter(Description = "Identificador da solicitacao de estorno.")]
+        [FromRoute] Guid estornoId,
+        CancellationToken cancellationToken)
+    {
+        var result = await _sender.Send(
+            new ObterStatusEstornoLancamentoQuery(
+                estornoId,
+                _merchantAuthorizationService.GetAuthorizedMerchantIds(User)),
+            cancellationToken);
+
+        return Ok(ObterStatusEstornoLancamentoMapper.ToResponse(result));
     }
 }

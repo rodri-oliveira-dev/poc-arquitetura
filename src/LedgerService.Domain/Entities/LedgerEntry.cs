@@ -43,6 +43,27 @@ public sealed class LedgerEntry : Entity, IAggregateRoot
         CreatedAt = DateTime.Now;
     }
 
+    public LedgerEntry CreateCompensatingEntry(Guid correlationId, string motivo)
+    {
+        var compensatingType = Type == LedgerEntryType.Credit
+            ? LedgerEntryType.Debit
+            : LedgerEntryType.Credit;
+
+        var compensatingAmount = -Amount;
+        var description = string.IsNullOrWhiteSpace(motivo)
+            ? $"Estorno do lancamento {Id}"
+            : $"Estorno do lancamento {Id}: {motivo.Trim()}";
+
+        return new LedgerEntry(
+            MerchantId,
+            compensatingType,
+            compensatingAmount,
+            DateTime.Now,
+            description,
+            $"estorno:{Id:N}",
+            correlationId);
+    }
+
     private static void EnsureValidAmount(LedgerEntryType type, decimal amount)
     {
         if (amount == 0)

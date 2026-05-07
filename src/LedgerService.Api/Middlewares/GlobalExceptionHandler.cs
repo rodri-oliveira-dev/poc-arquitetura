@@ -60,7 +60,7 @@ public sealed class GlobalExceptionHandler : IExceptionHandler
 
     private void LogHandledException(Exception exception, string traceId)
     {
-        if (exception is ValidationException or ConflictException or NotFoundException or DomainException)
+        if (exception is ValidationException or ForbiddenException or ConflictException or NotFoundException or DomainException)
         {
             _logger.LogWarning(exception, "Exceção tratada. TraceId: {TraceId}", traceId);
             return;
@@ -74,6 +74,7 @@ public sealed class GlobalExceptionHandler : IExceptionHandler
         return exception switch
         {
             ValidationException => (StatusCodes.Status400BadRequest, "Invalid request", "One or more validation errors occurred."),
+            ForbiddenException => (StatusCodes.Status403Forbidden, "Forbidden", exception.Message),
             ConflictException => (StatusCodes.Status409Conflict, "Conflict", exception.Message),
             NotFoundException => (StatusCodes.Status404NotFound, "Recurso não encontrado", exception.Message),
             DomainException => (StatusCodes.Status422UnprocessableEntity, "Violação de regra de domínio", exception.Message),

@@ -1,0 +1,152 @@
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+
+using LedgerService.Application.Common.Exceptions;
+using LedgerService.Application.Lancamentos.Events;
+using LedgerService.Domain.Entities;
+using LedgerService.Domain.Repositories;
+using MediatR;
+
+namespace LedgerService.Application.Lancamentos.Commands;
+
+public sealed class SolicitarEstornoLancamentoHandler
+    : IRequestHandler<SolicitarEstornoLancamentoCommand, SolicitarEstornoLancamentoResult>
+{
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
+    private readonly ILedgerEntryRepository _ledgerEntryRepository;
+    private readonly IEstornoLancamentoRepository _estornoRepository;
+    private readonly IIdempotencyRecordRepository _idempotencyRecordRepository;
+    private readonly IOutboxMessageRepository _outboxMessageRepository;
+    private readonly IUnitOfWork _unitOfWork;
+
+    public SolicitarEstornoLancamentoHandler(
+        ILedgerEntryRepository ledgerEntryRepository,
+        IEstornoLancamentoRepository estornoRepository,
+        IIdempotencyRecordRepository idempotencyRecordRepository,
+        IOutboxMessageRepository outboxMessageRepository,
+        IUnitOfWork unitOfWork)
+    {
+        _ledgerEntryRepository = ledgerEntryRepository;
+        _estornoRepository = estornoRepository;
+        _idempotencyRecordRepository = idempotencyRecordRepository;
+        _outboxMessageRepository = outboxMessageRepository;
+        _unitOfWork = unitOfWork;
+    }
+
+    public async Task<SolicitarEstornoLancamentoResult> Handle(
+        SolicitarEstornoLancamentoCommand request,
+        CancellationToken cancellationToken)
+    {
+        var requestHash = GenerateRequestHash(request);
+        var correlationId = Guid.Parse(request.CorrelationId);
+
+        await using var transaction = await _unitOfWork.BeginTransactionAsync(cancellationToken);
+
+        var lancamentoOriginal = await _ledgerEntryRepository.GetByIdAsync(request.LancamentoId, cancellationToken);
+        if (lancamentoOriginal is null)
+            throw new NotFoundException("Lancamento original nao encontrado.");
+
+        if (!IsMerchantAuthorized(request.AuthorizedMerchantIds, lancamentoOriginal.MerchantId))
+            throw new ForbiddenException("Token sem autorizacao para o merchant do lancamento original.");
+
+        var existing = await _idempotencyRecordRepository
+            .GetByMerchantAndKeyAsync(lancamentoOriginal.MerchantId, request.IdempotencyKey, cancellationToken);
+
+        if (existing is not null)
+        {
+            if (!string.Equals(existing.RequestHash, requestHash, StringComparison.Ordinal))
+                throw new ConflictException("Idempotency-Key already used with a different payload.");
+
+            if (!string.IsNullOrWhiteSpace(existing.ResponseBody))
+            {
+                var replay = JsonSerializer.Deserialize<SolicitarEstornoLancamentoResult>(existing.ResponseBody, JsonOptions);
+                if (replay is not null)
+                    return replay;
+            }
+
+            throw new ConflictException("Unable to replay idempotent response.");
+        }
+
+        var activeEstorno = await _estornoRepository
+            .GetActiveByLancamentoOriginalIdAsync(request.LancamentoId, cancellationToken);
+
+        if (activeEstorno is not null)
+            throw new ConflictException("Lancamento ja possui solicitacao ativa de estorno.");
+
+        var estorno = new EstornoLancamento(
+            request.LancamentoId,
+            lancamentoOriginal.MerchantId,
+            request.Motivo,
+            correlationId);
+
+        await _estornoRepository.AddAsync(estorno, cancellationToken);
+
+        var response = ToResponse(estorno);
+        var responseJson = JsonSerializer.Serialize(response, JsonOptions);
+
+        var idempotencyRecord = new IdempotencyRecord(
+            lancamentoOriginal.MerchantId,
+            request.IdempotencyKey,
+            requestHash,
+            lancamentoOriginal.Id,
+            202,
+            responseJson,
+            DateTime.Now.AddDays(7));
+
+        await _idempotencyRecordRepository.AddAsync(idempotencyRecord, cancellationToken);
+
+        var outboxPayload = JsonSerializer.Serialize(
+            new LancamentoEstornoSolicitadoV1(
+                estorno.Id,
+                estorno.LancamentoOriginalId,
+                estorno.MerchantId,
+                estorno.Motivo,
+                estorno.Status.ToString(),
+                estorno.CreatedAt.ToString("o", System.Globalization.CultureInfo.InvariantCulture),
+                request.CorrelationId),
+            JsonOptions);
+
+        var outboxMessage = new OutboxMessage(
+            "LancamentoEstorno",
+            estorno.Id,
+            LancamentoEstornoSolicitadoV1.EventType,
+            outboxPayload,
+            DateTime.Now,
+            correlationId);
+
+        await _outboxMessageRepository.AddAsync(outboxMessage, cancellationToken);
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        return response;
+    }
+
+    private static SolicitarEstornoLancamentoResult ToResponse(EstornoLancamento estorno)
+        => new(
+            estorno.Id,
+            estorno.LancamentoOriginalId,
+            estorno.Status.ToString(),
+            $"/api/v1/lancamentos/estornos/{estorno.Id}",
+            estorno.MerchantId);
+
+    private static bool IsMerchantAuthorized(IReadOnlyCollection<string> authorizedMerchantIds, string merchantId)
+        => authorizedMerchantIds.Any(value => string.Equals(value, merchantId, StringComparison.Ordinal));
+
+    private static string GenerateRequestHash(SolicitarEstornoLancamentoCommand request)
+    {
+        var canonical = JsonSerializer.Serialize(new
+        {
+            request.LancamentoId,
+            Motivo = NormalizeText(request.Motivo)
+        }, JsonOptions);
+
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(canonical));
+        return Convert.ToHexString(bytes).ToLowerInvariant();
+    }
+
+    private static string NormalizeText(string value)
+        => value.Trim();
+}
