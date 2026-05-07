@@ -9,7 +9,8 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace BalanceService.IntegrationTests.Tests;
 
-public sealed class ApplyLedgerEntryCreatedConcurrencyTests : IClassFixture<PostgresBalanceFixture>
+[Collection(PostgresBalanceCollection.Name)]
+public sealed class ApplyLedgerEntryCreatedConcurrencyTests
 {
     private readonly PostgresBalanceFixture _fixture;
 

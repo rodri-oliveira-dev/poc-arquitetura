@@ -9,7 +9,6 @@ public sealed class PostgresLedgerFixture : IAsyncLifetime
         .WithDatabase("appdb")
         .WithUsername("appuser")
         .WithPassword("app123")
-        .WithPortBinding(15432, 5432)
         .Build();
 
     public string ConnectionString => _postgres.GetConnectionString();

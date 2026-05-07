@@ -17,7 +17,8 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace LedgerService.IntegrationTests.Tests;
 
-public sealed class EstornoLancamentoConcurrencyTests : IClassFixture<PostgresLedgerFixture>, IAsyncLifetime
+[Collection(PostgresLedgerCollection.Name)]
+public sealed class EstornoLancamentoConcurrencyTests : IAsyncLifetime
 {
     private readonly PostgresLedgerApiFactory _factory;
 

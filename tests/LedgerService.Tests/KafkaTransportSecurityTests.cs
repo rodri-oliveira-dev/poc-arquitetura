@@ -50,7 +50,7 @@ public sealed class KafkaTransportSecurityTests
         return new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["ConnectionStrings:DefaultConnection"] = "Host=localhost;Database=ignore;Username=ignore;Password=ignore",
+                ["ConnectionStrings:DefaultConnection"] = "Host=unused;Database=ignore;Username=ignore;Password=ignore",
                 ["Kafka:Enabled"] = "true",
                 ["Kafka:Producer:BootstrapServers"] = "localhost:9092",
                 ["Kafka:Producer:SecurityProtocol"] = securityProtocol

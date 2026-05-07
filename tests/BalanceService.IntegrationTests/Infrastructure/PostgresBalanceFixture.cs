@@ -17,7 +17,6 @@ public sealed class PostgresBalanceFixture : IAsyncLifetime
         .WithDatabase("dbBalance")
         .WithUsername("userBalance")
         .WithPassword("Balance123")
-        .WithPortBinding(15433, 5432)
         .Build();
 
     public string ConnectionString => _postgres.GetConnectionString();

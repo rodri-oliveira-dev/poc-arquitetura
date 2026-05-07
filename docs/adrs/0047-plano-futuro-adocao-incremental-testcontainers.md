@@ -3,6 +3,8 @@
 ## Status
 Proposto
 
+> Parcialmente realizado por [ADR-0056](./0056-testcontainers-postgresql-testes-integracao.md), que padroniza Testcontainers para testes de integracao que dependem de PostgreSQL real.
+
 ## Data
 2026-05-06
 

@@ -47,7 +47,7 @@ public sealed class LedgerApiFactory : WebApplicationFactory<Program>
                 ["ApiLimits:MaxRequestBodySizeBytes"] = "128",
 
                 // DB placeholder (não será usada neste conjunto mínimo de integração)
-                ["ConnectionStrings:DefaultConnection"] = "Host=localhost;Database=ignore;Username=ignore;Password=ignore"
+                ["ConnectionStrings:DefaultConnection"] = "Host=unused;Database=ignore;Username=ignore;Password=ignore"
             });
         });
 
