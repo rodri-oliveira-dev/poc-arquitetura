@@ -107,7 +107,7 @@ Em falha do Kafka, o servico nao deve cair: ele registra erro, incrementa tentat
 
 ## Processamento de estornos
 
-O worker `EstornoLancamentoProcessorService` usa polling da tabela `estornos_lancamentos`:
+O worker `EstornoLancamentoProcessorService` usa polling da tabela `estornos_lancamentos`, mas a selecao nao e apenas uma leitura. Cada ciclo reclama pendentes com `UPDATE ... FOR UPDATE SKIP LOCKED ... RETURNING`, mudando as linhas para `Processing` antes de delegar ao Mediator. Isso permite workers concorrentes sem processar o mesmo estorno ao mesmo tempo.
 
 - `Pending`: selecionado para processamento;
 - `Processing`: caso de uso iniciado;
@@ -121,7 +121,7 @@ Configuracao:
 - `Estornos:Processor:PollingIntervalSeconds`;
 - `Estornos:Processor:BatchSize`.
 
-A idempotencia e garantida por status final, verificacao de estorno ja concluido por lancamento original, busca do lancamento compensatorio por `external_reference=estorno:{lancamentoOriginalId}` e indice unico filtrado para essa referencia. Reprocessar uma solicitacao concluida nao duplica lancamento nem evento final.
+A idempotencia e garantida por indice unico filtrado para uma solicitacao ativa por `lancamento_original_id`, claim atomico de pendentes, lock real por linha no processamento, status final, verificacao de estorno ja concluido por lancamento original, busca do lancamento compensatorio por `external_reference=estorno:{lancamentoOriginalId}` e indice unico filtrado para essa referencia. Reprocessar uma solicitacao concluida nao duplica lancamento nem evento final.
 
 ## Solicitacoes de reprocessamento
 

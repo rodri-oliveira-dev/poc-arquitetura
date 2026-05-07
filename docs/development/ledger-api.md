@@ -161,9 +161,9 @@ Esse evento representa uma mensagem operacional/intencao interna. Ele nao e fato
 
 O processamento efetivo ocorre no `EstornoLancamentoProcessorService`, em `LedgerService.Infrastructure`. O worker:
 
-1. localiza solicitacoes `Pending`;
+1. reclama solicitacoes `Pending` de forma atomica, mudando-as para `Processing` com lock por linha no PostgreSQL;
 2. delega cada `estornoId` ao Mediator com `ProcessarEstornoLancamentoCommand`;
-3. o handler marca a solicitacao como `Processing`;
+3. o handler recarrega a solicitacao com `SELECT ... FOR UPDATE` quando usa PostgreSQL;
 4. o dominio cria um lancamento compensatorio invertendo tipo e valor do lancamento original;
 5. o handler vincula o compensatorio em `LancamentoCompensatorioId`;
 6. a solicitacao termina como `Completed`;
@@ -182,6 +182,8 @@ Estados:
 Idempotencia:
 
 - reexecutar `ProcessarEstornoLancamentoCommand` para uma solicitacao `Completed` nao cria outro lancamento;
+- apenas uma solicitacao `Pending` ou `Processing` pode existir por `lancamento_original_id`, por indice unico filtrado;
+- requisicoes concorrentes com `Idempotency-Key` diferentes para o mesmo lancamento retornam no maximo um `202 Accepted`; a outra recebe `409 Conflict`;
 - o lancamento compensatorio usa `external_reference=estorno:{lancamentoOriginalId}` para detectar duplicidade;
 - ha indice unico filtrado para `external_reference` de estornos, reduzindo duplicidade em execucao concorrente;
 - o evento final `LedgerEntryCreated.v1` so e registrado quando o estorno e concluido na mesma transacao.

@@ -15,6 +15,7 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 
 | ADR                                                                   | Status      | Resumo                                                                                           |
 | --------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------ |
+| [ADR-0054](./0054-controle-concorrencia-estornos-ledger.md) | Aceito | Define indice unico filtrado, claim atomico e lock por linha para concorrencia em estornos do LedgerService. |
 | [ADR-0053](./0053-lock-transacional-por-chave-no-balance.md) | Aceito | Usa lock transacional por chave no PostgreSQL para evitar lost update em daily_balances sob concorrencia. |
 | [ADR-0052](./0052-processamento-assincrono-reprocessamento-lancamentos-ledger.md) | Aceito | Processa reprocessamentos no Ledger por consumer Kafka, faz replay idempotente de LedgerEntryCreated.v1 e mantem o Balance fora da solicitacao operacional. |
 | [ADR-0051](./0051-solicitacao-assincrona-reprocessamento-lancamentos.md) | Aceito | Registra solicitacoes de reprocessamento por merchant/periodo com MediatR, idempotencia, Outbox e resposta 202. |

@@ -162,7 +162,7 @@ public sealed class ProcessarEstornoLancamentoHandlerTests
         public Task<EstornoLancamento?> GetByIdForUpdateAsync(Guid estornoId, CancellationToken cancellationToken = default)
             => GetByIdAsync(estornoId, cancellationToken);
 
-        public Task<IReadOnlyList<EstornoLancamento>> ListPendingAsync(int maxItems, CancellationToken cancellationToken = default)
+        public Task<IReadOnlyList<EstornoLancamento>> ClaimPendingAsync(int maxItems, CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<EstornoLancamento>>(_state.Estornos.Where(x => x.Status == EstornoLancamentoStatus.Pending).Take(maxItems).ToList());
 
         public Task<EstornoLancamento?> GetActiveByLancamentoOriginalIdAsync(Guid lancamentoOriginalId, CancellationToken cancellationToken = default)

@@ -65,7 +65,7 @@ public sealed class EstornoLancamentoProcessorService : BackgroundService
         var estornoRepository = scope.ServiceProvider.GetRequiredService<IEstornoLancamentoRepository>();
         var sender = scope.ServiceProvider.GetRequiredService<ISender>();
 
-        var pending = await estornoRepository.ListPendingAsync(
+        var pending = await estornoRepository.ClaimPendingAsync(
             Math.Max(1, _options.Value.BatchSize),
             cancellationToken);
 

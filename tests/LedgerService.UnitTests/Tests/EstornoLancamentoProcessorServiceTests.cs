@@ -20,7 +20,7 @@ public sealed class EstornoLancamentoProcessorServiceTests
         var repo = new Mock<IEstornoLancamentoRepository>(MockBehavior.Strict);
         var sender = new Mock<ISender>(MockBehavior.Strict);
 
-        repo.Setup(x => x.ListPendingAsync(10, It.IsAny<CancellationToken>()))
+        repo.Setup(x => x.ClaimPendingAsync(10, It.IsAny<CancellationToken>()))
             .ReturnsAsync([pending]);
         sender.Setup(x => x.Send(
                 It.Is<ProcessarEstornoLancamentoCommand>(cmd => cmd.EstornoId == pending.Id),
@@ -41,7 +41,7 @@ public sealed class EstornoLancamentoProcessorServiceTests
         var repo = new Mock<IEstornoLancamentoRepository>(MockBehavior.Strict);
         var sender = new Mock<ISender>(MockBehavior.Strict);
 
-        repo.Setup(x => x.ListPendingAsync(10, It.IsAny<CancellationToken>()))
+        repo.Setup(x => x.ClaimPendingAsync(10, It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
 
         using var sut = CreateSut(repo.Object, sender.Object);
@@ -60,7 +60,7 @@ public sealed class EstornoLancamentoProcessorServiceTests
         using var cts = new CancellationTokenSource();
         await cts.CancelAsync();
 
-        repo.Setup(x => x.ListPendingAsync(10, It.IsAny<CancellationToken>()))
+        repo.Setup(x => x.ClaimPendingAsync(10, It.IsAny<CancellationToken>()))
             .ThrowsAsync(new OperationCanceledException(cts.Token));
 
         using var sut = CreateSut(repo.Object, sender.Object);
