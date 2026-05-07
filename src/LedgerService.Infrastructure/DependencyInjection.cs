@@ -27,6 +27,7 @@ public static class DependencyInjection
 
         services.AddScoped<ILedgerEntryRepository, LedgerEntryRepository>();
         services.AddScoped<IEstornoLancamentoRepository, EstornoLancamentoRepository>();
+        services.AddScoped<IReprocessamentoLancamentosRepository, ReprocessamentoLancamentosRepository>();
         services.AddScoped<IIdempotencyRecordRepository, IdempotencyRecordRepository>();
         services.AddScoped<IOutboxMessageRepository, OutboxMessageRepository>();
 

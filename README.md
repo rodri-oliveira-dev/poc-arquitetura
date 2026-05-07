@@ -12,7 +12,7 @@ O repositorio e um laboratorio tecnico. Algumas decisoes estao aceitas, outras a
 ## Servicos
 
 - `Auth.Api`: emite JWT RS256 por `POST /auth/login` e publica JWKS em `GET /.well-known/jwks.json`.
-- `LedgerService.Api`: API de escrita para lancamentos em `POST /api/v1/lancamentos`, solicitacao de estorno em `POST /api/v1/lancamentos/{lancamentoId}/estornos` e consulta de status em `GET /api/v1/lancamentos/estornos/{estornoId}`, com idempotencia e Outbox.
+- `LedgerService.Api`: API de escrita para lancamentos em `POST /api/v1/lancamentos`, solicitacao de estorno em `POST /api/v1/lancamentos/{lancamentoId}/estornos`, solicitacao de reprocessamento em `POST /api/v1/lancamentos/reprocessar` e consultas de status, com idempotencia e Outbox.
 - `BalanceService.Api`: API de leitura de consolidados, alimentada por eventos Kafka do Ledger.
 
 Componentes principais:

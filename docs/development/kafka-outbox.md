@@ -4,7 +4,7 @@ Este documento concentra a referencia de mensageria entre `LedgerService.Api` e 
 
 ## Fluxo
 
-1. `LedgerService.Api` cria um lancamento ou registra uma solicitacao de estorno.
+1. `LedgerService.Api` cria um lancamento, registra uma solicitacao de estorno ou registra uma solicitacao de reprocessamento.
 2. A mesma transacao grava a mensagem em `outbox_messages`.
 3. `OutboxKafkaPublisherService` le mensagens pendentes e publica no Kafka.
 4. `EstornoLancamentoProcessorService`, no proprio Ledger, processa solicitacoes `Pending` e cria lancamentos compensatorios.
@@ -20,12 +20,16 @@ Este documento concentra a referencia de mensageria entre `LedgerService.Api` e 
 | Topico de lancamento | `ledger.ledgerentry.created` |
 | Evento de solicitacao de estorno | `LancamentoEstornoSolicitado.v1` |
 | Topico de solicitacao de estorno | `ledger.lancamento.estorno.solicitado` |
+| Evento de solicitacao de reprocessamento | `ReprocessamentoLancamentosSolicitado.v1` |
+| Topico de solicitacao de reprocessamento | `ledger.lancamentos.reprocessamento.solicitado` |
 | DLQ | `ledger.ledgerentry.created.dlq` |
-| Mapeamentos | `LedgerEntryCreated.v1` -> `ledger.ledgerentry.created`; `LancamentoEstornoSolicitado.v1` -> `ledger.lancamento.estorno.solicitado` |
+| Mapeamentos | `LedgerEntryCreated.v1` -> `ledger.ledgerentry.created`; `LancamentoEstornoSolicitado.v1` -> `ledger.lancamento.estorno.solicitado`; `ReprocessamentoLancamentosSolicitado.v1` -> `ledger.lancamentos.reprocessamento.solicitado` |
 
 `LancamentoEstornoSolicitado.v1` e gravado pelo Ledger no Outbox e publicado pelo mesmo worker. Ele representa a intencao operacional de estorno, nao um fato financeiro final. O processamento financeiro nao depende do `BalanceService`: o proprio Ledger processa a solicitacao persistida e, ao concluir, registra um `LedgerEntryCreated.v1` para o lancamento compensatorio.
 
 O `BalanceService.Api` deve ignorar/rejeitar `LancamentoEstornoSolicitado.v1` como evento financeiro. Saldos so mudam com `LedgerEntryCreated.v1`, inclusive quando esse evento representa o lancamento compensatorio de um estorno.
+
+`ReprocessamentoLancamentosSolicitado.v1` tambem e evento operacional/intencao interna. Nesta etapa, ele registra a demanda de reprocessamento e nao representa conclusao nem alteracao de saldo. O worker/background flow efetivo de reprocessamento deve ser implementado em tarefa separada.
 
 O compose cria os topicos no startup local. O consumer do Balance usa `AllowAutoCreateTopics=false`.
 
@@ -116,6 +120,12 @@ Configuracao:
 - `Estornos:Processor:BatchSize`.
 
 A idempotencia e garantida por status final, verificacao de estorno ja concluido por lancamento original, busca do lancamento compensatorio por `external_reference=estorno:{lancamentoOriginalId}` e indice unico filtrado para essa referencia. Reprocessar uma solicitacao concluida nao duplica lancamento nem evento final.
+
+## Solicitacoes de reprocessamento
+
+`POST /api/v1/lancamentos/reprocessar` persiste solicitacoes em `reprocessamentos_lancamentos` e grava `ReprocessamentoLancamentosSolicitado.v1` no Outbox na mesma transacao. O status inicial e `Pending`, com periodo maximo inclusivo de 31 dias e idempotencia por `merchantId` + `Idempotency-Key`.
+
+O fluxo de execucao do reprocessamento ainda nao possui worker dedicado nesta POC. O contrato e a persistencia deixam o ponto de extensao preparado para um hosted service, consumidor operacional ou mecanismo equivalente que processe as solicitacoes pendentes sem bloquear o request HTTP.
 
 ## Governanca
 

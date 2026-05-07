@@ -187,3 +187,116 @@ Idempotencia:
 - o evento final `LedgerEntryCreated.v1` so e registrado quando o estorno e concluido na mesma transacao.
 
 O `BalanceService` consome apenas o evento financeiro final `LedgerEntryCreated.v1`. Para estorno de credito, o compensatorio e `DEBIT` com valor negativo; para estorno de debito, o compensatorio e `CREDIT` com valor positivo. Assim o saldo liquido e compensado pelo mesmo fluxo de consolidacao ja usado para lancamentos normais.
+
+## Solicitar reprocessamento de lancamentos
+
+`POST /api/v1/lancamentos/reprocessar`
+
+Solicita o reprocessamento de lancamentos de um merchant em um periodo controlado. O endpoint apenas registra a solicitacao com status inicial `Pending`, persiste a linha em `reprocessamentos_lancamentos` e grava o evento operacional `ReprocessamentoLancamentosSolicitado.v1` no Outbox. O reprocessamento efetivo nao acontece no request HTTP; o worker/background flow de execucao fica como ponto de extensao posterior.
+
+O contrato usa `merchantId` em vez de `contaId` porque o dominio atual do Ledger e segmentado por merchant e a autorizacao tambem usa a claim `merchant_id`.
+
+Headers relevantes:
+
+- `Authorization: Bearer <token>` com scope `ledger.write`;
+- `Idempotency-Key`: obrigatorio, em formato UUID. Repetir a mesma chave com o mesmo payload retorna o mesmo resultado; repetir com payload diferente retorna `409 Conflict`;
+- `X-Correlation-Id`: opcional, em formato UUID. Se ausente, a API gera e devolve no response.
+
+Request body:
+
+```json
+{
+  "merchantId": "m1",
+  "dataInicial": "2026-05-01",
+  "dataFinal": "2026-05-06",
+  "motivo": "Correcao de regra de consolidacao"
+}
+```
+
+Regras de validacao:
+
+| Campo | Regra |
+| --- | --- |
+| `merchantId` | Obrigatorio e deve estar autorizado no token. |
+| `dataInicial` | Obrigatoria. |
+| `dataFinal` | Obrigatoria, maior ou igual a `dataInicial`. |
+| periodo | Maximo inclusivo de 31 dias nesta POC. |
+| `motivo` | Obrigatorio, entre 10 e 500 caracteres. |
+| `Idempotency-Key` | Obrigatorio e UUID valido. |
+
+Resposta de sucesso:
+
+```http
+HTTP/1.1 202 Accepted
+Location: /api/v1/lancamentos/reprocessamentos/00000000-0000-0000-0000-000000000000
+```
+
+```json
+{
+  "reprocessamentoId": "00000000-0000-0000-0000-000000000000",
+  "merchantId": "m1",
+  "dataInicial": "2026-05-01",
+  "dataFinal": "2026-05-06",
+  "status": "Pending",
+  "statusUrl": "/api/v1/lancamentos/reprocessamentos/00000000-0000-0000-0000-000000000000"
+}
+```
+
+Respostas esperadas:
+
+| Status | Quando ocorre |
+| --- | --- |
+| `202 Accepted` | Solicitacao aceita e persistida como `Pending`. |
+| `400 Bad Request` | Payload, periodo ou headers invalidos. |
+| `401 Unauthorized` | Token ausente ou invalido. |
+| `403 Forbidden` | Scope insuficiente ou token sem autorizacao para o merchant informado. |
+| `409 Conflict` | Chave de idempotencia reutilizada com payload diferente. |
+| `413 Payload Too Large` | Body acima de `ApiLimits:MaxRequestBodySizeBytes`. |
+| `429 Too Many Requests` | Rate limit excedido. |
+
+Estados modelados:
+
+| Status | Significado |
+| --- | --- |
+| `Pending` | Solicitacao registrada, ainda nao processada. |
+| `Processing` | Processamento iniciado por fluxo assincrono futuro. |
+| `Completed` | Reprocessamento concluido sem avisos. |
+| `CompletedWithWarnings` | Reprocessamento concluido com avisos operacionais. |
+| `Failed` | Processamento falhou por erro tecnico ou inesperado. |
+| `Rejected` | Solicitacao rejeitada por regra de negocio no processamento. |
+| `Canceled` | Solicitacao cancelada antes da conclusao. |
+
+## Consultar status de reprocessamento
+
+`GET /api/v1/lancamentos/reprocessamentos/{reprocessamentoId}`
+
+Consulta a solicitacao registrada por `POST /api/v1/lancamentos/reprocessar`. Nesta etapa, a consulta retorna principalmente o status inicial `Pending`; estados posteriores dependem do worker/background flow de reprocessamento que sera implementado separadamente.
+
+Headers relevantes:
+
+- `Authorization: Bearer <token>` com scope `ledger.read`.
+
+Resposta `Pending`:
+
+```json
+{
+  "reprocessamentoId": "00000000-0000-0000-0000-000000000000",
+  "merchantId": "m1",
+  "dataInicial": "2026-05-01",
+  "dataFinal": "2026-05-06",
+  "status": "Pending",
+  "motivo": "Correcao de regra de consolidacao",
+  "solicitadoEm": "2026-05-07T08:30:00"
+}
+```
+
+## Outbox e ponto de extensao para reprocessamento
+
+A solicitacao de reprocessamento grava uma linha em `reprocessamentos_lancamentos` e uma mensagem em `outbox_messages` na mesma transacao. O evento usa:
+
+- `EventType`: `ReprocessamentoLancamentosSolicitado.v1`;
+- topico Kafka mapeado: `ledger.lancamentos.reprocessamento.solicitado`;
+- `AggregateType`: `ReprocessamentoLancamentos`;
+- `AggregateId`: identificador da solicitacao de reprocessamento.
+
+Esse evento representa uma intencao operacional interna. Ele nao e fato financeiro final e nao deve ser consumido pelo `BalanceService` para alterar saldo. O processamento posterior deve ler solicitacoes persistidas ou consumir a intencao operacional e, ao concluir trabalho que gere novos fatos financeiros, publicar eventos finais apropriados em outro fluxo transacional.
