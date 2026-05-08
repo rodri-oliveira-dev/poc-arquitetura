@@ -109,6 +109,40 @@ public sealed class LancamentosController : ControllerBase
         return Accepted(response.StatusUrl, response);
     }
 
+    [HttpPost("reprocessar")]
+    [Authorize(Policy = ScopePolicies.LedgerWritePolicy)]
+    [SwaggerOperation(
+        Summary = "Solicita reprocessamento de lancamentos.",
+        Description = "Registra uma solicitacao de reprocessamento por merchant e periodo, com status Pending, e grava a intencao no Outbox para processamento assincrono posterior. O endpoint nao executa o reprocessamento no request HTTP.")]
+    [SwaggerResponse(StatusCodes.Status202Accepted, "Solicitacao aceita para processamento assincrono. Retorna Location com a URI de status.", typeof(SolicitarReprocessamentoLancamentosResponse))]
+    [SwaggerResponse(StatusCodes.Status400BadRequest, "Request invalido.", typeof(ValidationErrorResponse))]
+    [SwaggerResponse(StatusCodes.Status409Conflict, "Conflito de idempotencia.", typeof(ProblemDetails))]
+    [SwaggerResponse(StatusCodes.Status413PayloadTooLarge, "Body acima do limite configurado.", typeof(ProblemDetails))]
+    [SwaggerResponse(StatusCodes.Status429TooManyRequests, "Limite de requisicoes excedido.")]
+    [SwaggerResponse(StatusCodes.Status401Unauthorized, "Token ausente ou invalido.")]
+    [SwaggerResponse(StatusCodes.Status403Forbidden, "Scope insuficiente ou token sem autorizacao para o merchant informado.")]
+    [SwaggerResponse(StatusCodes.Status500InternalServerError, "Erro interno.", typeof(ProblemDetails))]
+    public async Task<ActionResult<SolicitarReprocessamentoLancamentosResponse>> SolicitarReprocessamento(
+        [SwaggerParameter(Description = "Chave de idempotencia em formato UUID. Deve ser unica por operacao logica.")]
+        [FromHeader(Name = "Idempotency-Key")] string idempotencyKey,
+        [SwaggerParameter(Description = "Correlation id opcional em formato UUID. Se ausente, a API gera e devolve um valor no response header.")]
+        [FromHeader(Name = CorrelationIdMiddleware.HeaderName)] string? correlationId,
+        [FromBody] SolicitarReprocessamentoLancamentosRequest request,
+        CancellationToken cancellationToken)
+    {
+        var command = SolicitarReprocessamentoLancamentosBind.Bind(
+            HttpContext,
+            idempotencyKey,
+            correlationId,
+            request,
+            _merchantAuthorizationService.GetAuthorizedMerchantIds(User));
+
+        var result = await _sender.Send(command, cancellationToken);
+        var response = SolicitarReprocessamentoLancamentosMapper.ToResponse(result);
+
+        return Accepted(response.StatusUrl, response);
+    }
+
     [HttpGet("estornos/{estornoId:guid}")]
     [Authorize(Policy = ScopePolicies.LedgerReadPolicy)]
     [SwaggerOperation(
@@ -132,5 +166,30 @@ public sealed class LancamentosController : ControllerBase
             cancellationToken);
 
         return Ok(ObterStatusEstornoLancamentoMapper.ToResponse(result));
+    }
+
+    [HttpGet("reprocessamentos/{reprocessamentoId:guid}")]
+    [Authorize(Policy = ScopePolicies.LedgerReadPolicy)]
+    [SwaggerOperation(
+        Summary = "Consulta status de uma solicitacao de reprocessamento.",
+        Description = "Retorna o estado atual de uma solicitacao de reprocessamento registrada previamente. O processamento efetivo e assincrono e sera executado por fluxo de worker/background.")]
+    [SwaggerResponse(StatusCodes.Status200OK, "Status da solicitacao de reprocessamento.", typeof(ObterStatusReprocessamentoLancamentosResponse))]
+    [SwaggerResponse(StatusCodes.Status401Unauthorized, "Token ausente ou invalido.")]
+    [SwaggerResponse(StatusCodes.Status403Forbidden, "Scope insuficiente ou token sem autorizacao para o merchant do reprocessamento.")]
+    [SwaggerResponse(StatusCodes.Status404NotFound, "Solicitacao de reprocessamento inexistente.", typeof(ProblemDetails))]
+    [SwaggerResponse(StatusCodes.Status429TooManyRequests, "Limite de requisicoes excedido.")]
+    [SwaggerResponse(StatusCodes.Status500InternalServerError, "Erro interno.", typeof(ProblemDetails))]
+    public async Task<ActionResult<ObterStatusReprocessamentoLancamentosResponse>> ObterStatusReprocessamento(
+        [SwaggerParameter(Description = "Identificador da solicitacao de reprocessamento.")]
+        [FromRoute] Guid reprocessamentoId,
+        CancellationToken cancellationToken)
+    {
+        var result = await _sender.Send(
+            new ObterStatusReprocessamentoLancamentosQuery(
+                reprocessamentoId,
+                _merchantAuthorizationService.GetAuthorizedMerchantIds(User)),
+            cancellationToken);
+
+        return Ok(ObterStatusReprocessamentoLancamentosMapper.ToResponse(result));
     }
 }

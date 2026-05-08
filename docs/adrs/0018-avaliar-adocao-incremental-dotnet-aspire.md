@@ -20,7 +20,7 @@ Adotar Aspire apenas de forma incremental e inicialmente local, com escopo expli
 
 ## Alternativas consideradas
 
-- Nao adotar Aspire e manter somente `nerdctl compose`.
+- Nao adotar Aspire e manter somente `docker compose`.
 - Substituir imediatamente o compose por Aspire.
 - Adotar apenas `ServiceDefaults`, sem AppHost.
 

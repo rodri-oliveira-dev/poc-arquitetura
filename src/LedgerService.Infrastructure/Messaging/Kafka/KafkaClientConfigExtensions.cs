@@ -1,4 +1,5 @@
 using Confluent.Kafka;
+using LedgerService.Infrastructure.Reprocessamentos;
 
 namespace LedgerService.Infrastructure.Messaging.Kafka;
 
@@ -22,6 +23,26 @@ public static class KafkaClientConfigExtensions
     }
 
     public static bool IsPlaintext(KafkaProducerOptions options)
+        => ParseSecurityProtocol(options.SecurityProtocol) is SecurityProtocol.Plaintext;
+
+    public static void ApplySecurity(this ClientConfig config, ReprocessamentoLancamentosConsumerOptions options)
+    {
+        config.SecurityProtocol = ParseSecurityProtocol(options.SecurityProtocol);
+
+        if (!string.IsNullOrWhiteSpace(options.SaslMechanism))
+            config.SaslMechanism = ParseSaslMechanism(options.SaslMechanism);
+
+        if (!string.IsNullOrWhiteSpace(options.SaslUsername))
+            config.SaslUsername = options.SaslUsername;
+
+        if (!string.IsNullOrWhiteSpace(options.SaslPassword))
+            config.SaslPassword = options.SaslPassword;
+
+        if (!string.IsNullOrWhiteSpace(options.SslCaLocation))
+            config.SslCaLocation = options.SslCaLocation;
+    }
+
+    public static bool IsPlaintext(ReprocessamentoLancamentosConsumerOptions options)
         => ParseSecurityProtocol(options.SecurityProtocol) is SecurityProtocol.Plaintext;
 
     private static SecurityProtocol ParseSecurityProtocol(string value)

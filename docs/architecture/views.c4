@@ -17,6 +17,7 @@ views {
     include balance.balanceDb
     include kafka.ledgerTopic
     include kafka.ledgerEstornoTopic
+    include kafka.ledgerReprocessamentoTopic
     include kafka.ledgerDlq
     include observability
     autoLayout LeftRight
@@ -30,9 +31,11 @@ views {
     include ledger.ledgerInfrastructure
     include ledger.ledgerOutbox
     include ledger.ledgerEstornoProcessor
+    include ledger.ledgerReprocessamentoConsumer
     include ledger.ledgerDb
     include kafka.ledgerTopic
     include kafka.ledgerEstornoTopic
+    include kafka.ledgerReprocessamentoTopic
     include auth.authApi
     autoLayout LeftRight
   }
@@ -46,7 +49,6 @@ views {
     include balance.balanceConsumer
     include balance.balanceDb
     include kafka.ledgerTopic
-    include kafka.ledgerEstornoTopic
     include kafka.ledgerDlq
     include auth.authApi
     autoLayout LeftRight

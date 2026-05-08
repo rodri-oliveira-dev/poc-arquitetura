@@ -15,7 +15,7 @@ specification {
 
 model {
   customer = actor "Cliente / Sistema externo" {
-    description "Chama APIs HTTP para login, criacao de lancamentos, solicitacao/consulta de estornos e consulta de consolidados."
+    description "Chama APIs HTTP para login, criacao de lancamentos, solicitacao/consulta de estornos, solicitacao/consulta de reprocessamentos e consulta de consolidados."
   }
 
   observability = softwareSystem "Observabilidade" {
@@ -44,26 +44,26 @@ model {
   }
 
   ledger = softwareSystem "LedgerService" {
-    description "Servico de escrita do ledger. Cria lancamentos, solicita/processa estornos, garante idempotencia e publica eventos via Outbox."
+    description "Servico de escrita do ledger. Cria lancamentos, solicita/processa estornos e reprocessamentos, garante idempotencia e publica eventos via Outbox."
 
     ledgerApi = container "LedgerService.Api" {
       technology "ASP.NET Core"
-      description "HTTP API para criacao de lancamentos, solicitacao de estorno, consulta de status e composicao do processo."
+      description "HTTP API para criacao de lancamentos, solicitacao de estorno, solicitacao de reprocessamento, consulta de status e composicao do processo."
 
       ledgerApiLayer = component "API Layer" {
         description "Controllers, contracts, binders, mappers, Swagger, JWT/JWKS, policies, correlation id e middlewares."
       }
 
       ledgerApplication = component "Application Layer" {
-        description "CreateLancamentoService, handlers MediatR de estorno/status, validacao, idempotencia, transacoes, criacao de lancamento e registro de Outbox."
+        description "CreateLancamentoService, handlers MediatR de estorno/reprocessamento/status/processamento, validacao, idempotencia, transacoes, criacao de lancamento e registro de Outbox."
       }
 
       ledgerDomain = component "Domain Layer" {
-        description "LedgerEntry, EstornoLancamento, IdempotencyRecord, OutboxMessage, invariantes de valor/estorno e contratos de repositorio."
+        description "LedgerEntry, EstornoLancamento, ReprocessamentoLancamentos, IdempotencyRecord, OutboxMessage, invariantes de valor/estorno/reprocessamento e contratos de repositorio."
       }
 
       ledgerInfrastructure = component "Infrastructure Layer" {
-        description "EF Core, AppDbContext, repositories concretos, migrations, produtor Kafka, hosted service de Outbox e worker de estornos."
+        description "EF Core, AppDbContext, repositories concretos, migrations, produtor Kafka, hosted service de Outbox e workers/consumers de estorno e reprocessamento."
       }
 
       ledgerOutbox = component "Outbox publisher" {
@@ -73,11 +73,15 @@ model {
       ledgerEstornoProcessor = component "Estorno processor" {
         description "BackgroundService que busca estornos Pending, envia ProcessarEstornoLancamentoCommand e cria lancamento compensatorio idempotente."
       }
+
+      ledgerReprocessamentoConsumer = component "Reprocessamento consumer" {
+        description "BackgroundService Kafka que consome ReprocessamentoLancamentosSolicitado.v1, envia ProcessarReprocessamentoLancamentosCommand e registra replay idempotente de LedgerEntryCreated.v1."
+      }
     }
 
     ledgerDb = container "PostgreSQL Ledger" {
       technology "PostgreSQL"
-      description "Banco do LedgerService: lancamentos, estornos_lancamentos, idempotencia e outbox_messages."
+      description "Banco do LedgerService: lancamentos, estornos_lancamentos, reprocessamentos_lancamentos, idempotencia e outbox_messages."
     }
   }
 
@@ -128,6 +132,11 @@ model {
       description "Topico operacional do evento LancamentoEstornoSolicitado.v1; nao e consumido como fato financeiro pelo BalanceService."
     }
 
+    ledgerReprocessamentoTopic = container "ledger.lancamentos.reprocessamento.solicitado" {
+      technology "Kafka topic"
+      description "Topico operacional do evento ReprocessamentoLancamentosSolicitado.v1; registra intencao de reprocessamento sem representar fato financeiro final."
+    }
+
     ledgerDlq = container "ledger.ledgerentry.created.dlq" {
       technology "Kafka topic"
       description "DLQ usada pelo BalanceService para mensagens invalidas ou nao recuperaveis."
@@ -135,20 +144,24 @@ model {
   }
 
   customer -> auth.authApi "Login e obtencao de JWT" "HTTP"
-  customer -> ledger.ledgerApi "Cria lancamentos e solicita/consulta estornos" "HTTP + JWT"
+  customer -> ledger.ledgerApi "Cria lancamentos e solicita/consulta estornos e reprocessamentos" "HTTP + JWT"
   customer -> balance.balanceApi "Consulta consolidados" "HTTP + JWT"
 
   ledger.ledgerApi -> auth.authApi "Obtem JWKS para validar JWT" "HTTP cacheado"
   balance.balanceApi -> auth.authApi "Obtem JWKS para validar JWT" "HTTP cacheado"
 
-  ledger.ledgerApi -> ledger.ledgerDb "Persiste lancamento, estorno, idempotencia e outbox" "EF Core"
+  ledger.ledgerApi -> ledger.ledgerDb "Persiste lancamento, estorno, reprocessamento, idempotencia e outbox" "EF Core"
   ledger.ledgerEstornoProcessor -> ledger.ledgerDb "Busca estornos Pending e atualiza status" "EF Core / SQL"
   ledger.ledgerEstornoProcessor -> ledger.ledgerApplication "Envia ProcessarEstornoLancamentoCommand" "MediatR"
   ledger.ledgerOutbox -> ledger.ledgerDb "Le e atualiza outbox_messages" "EF Core / SQL"
   ledger.ledgerOutbox -> kafka.ledgerTopic "Publica LedgerEntryCreated.v1" "Kafka"
   ledger.ledgerOutbox -> kafka.ledgerEstornoTopic "Publica LancamentoEstornoSolicitado.v1" "Kafka"
+  ledger.ledgerOutbox -> kafka.ledgerReprocessamentoTopic "Publica ReprocessamentoLancamentosSolicitado.v1" "Kafka"
+  ledger.ledgerReprocessamentoConsumer -> kafka.ledgerReprocessamentoTopic "Consome ReprocessamentoLancamentosSolicitado.v1" "Kafka"
+  ledger.ledgerReprocessamentoConsumer -> ledger.ledgerApplication "Envia ProcessarReprocessamentoLancamentosCommand" "MediatR"
+  ledger.ledgerReprocessamentoConsumer -> ledger.ledgerDb "Atualiza status e registra eventos finais no Outbox" "EF Core / SQL"
 
-  balance.balanceConsumer -> kafka.ledgerTopic "Consome LedgerEntryCreated.v1, inclusive compensatorios" "Kafka"
+  balance.balanceConsumer -> kafka.ledgerTopic "Consome LedgerEntryCreated.v1, inclusive compensatorios e replays de reprocessamento" "Kafka"
   balance.balanceConsumer -> kafka.ledgerDlq "Publica mensagens invalidas" "Kafka"
   balance.balanceConsumer -> balance.balanceDb "Atualiza daily_balances e processed_events" "EF Core"
   balance.balanceApi -> balance.balanceDb "Consulta projecao" "EF Core"

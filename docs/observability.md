@@ -2,7 +2,7 @@
 
 Este documento define o inventario operacional minimo da POC para `Auth.Api`, `LedgerService.Api` e `BalanceService.Api`.
 
-OpenTelemetry fica desabilitado por padrao. A correlacao via `X-Correlation-Id` permanece sempre ativa nas APIs e e usada para conectar logs, respostas HTTP e mensagens Kafka. A operacao local usa `nerdctl compose`, PostgreSQL e Kafka conforme documentado em [desenvolvimento local](development/local-development.md).
+OpenTelemetry fica desabilitado por padrao. A correlacao via `X-Correlation-Id` permanece sempre ativa nas APIs e e usada para conectar logs, respostas HTTP e mensagens Kafka. A operacao local usa `docker compose`, PostgreSQL e Kafka conforme documentado em [desenvolvimento local](development/local-development.md).
 
 ## Baseline
 
@@ -232,7 +232,7 @@ Validacao minima:
 O caminho recomendado para a stack completa e:
 
 ```bash
-nerdctl compose up -d --build
+docker compose up -d --build
 ```
 
 Portas expostas no host:

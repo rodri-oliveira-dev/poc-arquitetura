@@ -90,6 +90,38 @@ public sealed class LedgerKafkaMessageProcessorTests
     }
 
     [Fact]
+    public async Task Reprocessamento_request_event_should_not_be_processed_as_financial_event()
+    {
+        var dlq = new CapturingDeadLetterProducer();
+        var sender = new Mock<ISender>(MockBehavior.Strict);
+        var sut = CreateSut(dlq, sender.Object);
+        var headers = new Headers
+        {
+            { KafkaHeaderNames.EventType, Encoding.UTF8.GetBytes("ReprocessamentoLancamentosSolicitado.v1") },
+            { KafkaHeaderNames.EventId, Encoding.UTF8.GetBytes("evt-reprocessamento-1") }
+        };
+
+        var result = CreateResult(JsonSerializer.Serialize(new
+        {
+            reprocessamentoId = Guid.NewGuid(),
+            merchantId = "m1",
+            dataInicial = "2026-05-01",
+            dataFinal = "2026-05-06",
+            motivo = "Correcao de regra de consolidacao",
+            status = "Pending",
+            requestedAt = "2026-05-07T10:00:00.0000000",
+            correlationId = Guid.NewGuid().ToString()
+        }), headers);
+
+        var shouldCommit = await sut.ProcessAsync(result, CancellationToken.None);
+
+        shouldCommit.Should().BeTrue();
+        dlq.Messages.Should().ContainSingle();
+        dlq.Messages[0].Reason.Should().Contain("Unsupported Kafka event_type");
+        sender.VerifyNoOtherCalls();
+    }
+
+    [Fact]
     public async Task Missing_event_id_should_process_using_payload_id()
     {
         var dlq = new CapturingDeadLetterProducer();

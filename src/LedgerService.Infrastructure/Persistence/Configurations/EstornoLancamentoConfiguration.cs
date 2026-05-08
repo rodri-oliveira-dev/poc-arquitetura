@@ -76,6 +76,11 @@ public sealed class EstornoLancamentoConfiguration : IEntityTypeConfiguration<Es
         builder.HasIndex(x => new { x.LancamentoOriginalId, x.Status })
             .HasDatabaseName("idx_estornos_lancamentos_original_status");
 
+        builder.HasIndex(x => x.LancamentoOriginalId)
+            .IsUnique()
+            .HasDatabaseName("ux_estornos_lancamentos_original_active")
+            .HasFilter("status IN ('Pending', 'Processing')");
+
         builder.HasIndex(x => x.LancamentoCompensatorioId)
             .HasDatabaseName("idx_estornos_lancamentos_compensatorio");
     }
