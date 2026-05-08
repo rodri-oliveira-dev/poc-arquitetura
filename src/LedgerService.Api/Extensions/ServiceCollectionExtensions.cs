@@ -147,7 +147,7 @@ public static class ServiceCollectionExtensions
                 Scheme = "bearer",
                 BearerFormat = "JWT",
                 In = ParameterLocation.Header,
-                Description = $"Autenticação via JWT Bearer. Obtenha um token no Auth.Api (POST /auth/login) e informe: Bearer {{token}}.\n\nScopes relevantes nesta API: {ScopePolicies.LedgerWrite} (escrita) / {ScopePolicies.LedgerRead} (leitura - TODO se/when existirem endpoints de leitura)."
+                Description = $"Autenticação via JWT Bearer. Obtenha um token no Auth.Api (POST /auth/login) e informe: Bearer {{token}}.\n\nScopes relevantes nesta API: {ScopePolicies.LedgerWrite} (escrita) / {ScopePolicies.LedgerRead} (leitura) / {ScopePolicies.OutboxRequeue} (requeue administrativo do Outbox)."
             });
 
             // Aplica requirement + descrição de scopes por endpoint com [Authorize]

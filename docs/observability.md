@@ -207,6 +207,8 @@ Estados esperados:
 - `Sent`: mensagem publicada com sucesso no Kafka;
 - `Failed`: mensagem excedeu o limite configurado de tentativas.
 
+Mensagens em `Failed` podem ser recuperadas por requeue administrativo protegido em `POST /api/v1/outbox/failed/requeue`, com scope `ledger.outbox.requeue`, motivo obrigatorio e filtros por id, tipo de evento ou janela de ocorrencia. O requeue registra contador, operador, data e motivo na linha da mensagem e recoloca somente mensagens `Failed` como `Pending`; mensagens `Sent` e `Processing` validas nao sao alteradas.
+
 Configuracoes principais em `Outbox:Publisher`:
 
 - `PollingIntervalSeconds`;
@@ -224,6 +226,7 @@ Validacao minima:
 4. Verificar linha em `outbox_messages` com `Pending`.
 5. Aguardar o polling e verificar transicao para `Sent`.
 6. Em falha de Kafka, verificar incremento de tentativas e agendamento de `next_attempt_at`.
+7. Se a mensagem atingir `Failed`, corrigir a causa raiz e usar o requeue administrativo documentado em `docs/development/kafka-outbox.md`.
 
 ## Configuracao local
 

@@ -83,4 +83,156 @@ public sealed class OutboxMessageRepositoryTests
         Assert.Equal("boom", refreshed.LastError);
         Assert.NotNull(refreshed.ProcessedAt);
     }
+
+    [Fact]
+    public async Task RequeueFailedAsync_DeveVoltarFailedParaPendingComAuditoria()
+    {
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase($"outbox-db-{Guid.NewGuid():N}")
+            .Options;
+
+        await using var db = new AppDbContext(options);
+        var repo = new OutboxMessageRepository(db);
+        var msg = new OutboxMessage("LedgerEntry", Guid.NewGuid(), "LedgerEntryCreated.v1", "{}", DateTime.Now, Guid.NewGuid());
+
+        await repo.AddAsync(msg);
+        await db.SaveChangesAsync();
+
+        await repo.MarkFailedAttemptAsync(msg.Id, maxAttempts: 1, nextAttemptAt: DateTime.Now.AddSeconds(10), lastError: "kafka down");
+        await db.SaveChangesAsync();
+
+        var requeuedAt = DateTime.Now;
+        var requeued = await repo.RequeueFailedAsync(
+            id: msg.Id,
+            eventType: null,
+            occurredFrom: null,
+            occurredUntil: null,
+            limit: 10,
+            requeuedAt: requeuedAt,
+            requeuedBy: "operador",
+            reason: "broker recuperado");
+        await db.SaveChangesAsync();
+
+        Assert.Single(requeued);
+        Assert.Equal(msg.Id, requeued[0].Id);
+
+        var refreshed = await db.OutboxMessages.SingleAsync(x => x.Id == msg.Id);
+        Assert.Equal(OutboxStatus.Pending, refreshed.Status);
+        Assert.Equal(0, refreshed.Attempts);
+        Assert.Null(refreshed.NextAttemptAt);
+        Assert.Null(refreshed.ProcessedAt);
+        Assert.Equal(1, refreshed.RequeueCount);
+        Assert.Equal(requeuedAt, refreshed.LastRequeuedAt);
+        Assert.Equal("operador", refreshed.LastRequeuedBy);
+        Assert.Equal("broker recuperado", refreshed.LastRequeueReason);
+        Assert.Equal("kafka down", refreshed.LastError);
+    }
+
+    [Fact]
+    public async Task RequeueFailedAsync_NaoDeveReprocessarSent()
+    {
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase($"outbox-db-{Guid.NewGuid():N}")
+            .Options;
+
+        await using var db = new AppDbContext(options);
+        var repo = new OutboxMessageRepository(db);
+        var msg = new OutboxMessage("LedgerEntry", Guid.NewGuid(), "LedgerEntryCreated.v1", "{}", DateTime.Now, Guid.NewGuid());
+        msg.MarkSent(DateTime.Now);
+
+        await repo.AddAsync(msg);
+        await db.SaveChangesAsync();
+
+        var requeued = await repo.RequeueFailedAsync(
+            id: msg.Id,
+            eventType: null,
+            occurredFrom: null,
+            occurredUntil: null,
+            limit: 10,
+            requeuedAt: DateTime.Now,
+            requeuedBy: "operador",
+            reason: "nao deve reprocessar");
+        await db.SaveChangesAsync();
+
+        Assert.Empty(requeued);
+
+        var refreshed = await db.OutboxMessages.SingleAsync(x => x.Id == msg.Id);
+        Assert.Equal(OutboxStatus.Sent, refreshed.Status);
+        Assert.Equal(0, refreshed.RequeueCount);
+    }
+
+    [Fact]
+    public async Task RequeueFailedAsync_NaoDeveReprocessarProcessingValida()
+    {
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase($"outbox-db-{Guid.NewGuid():N}")
+            .Options;
+
+        await using var db = new AppDbContext(options);
+        var repo = new OutboxMessageRepository(db);
+        var msg = new OutboxMessage("LedgerEntry", Guid.NewGuid(), "LedgerEntryCreated.v1", "{}", DateTime.Now, Guid.NewGuid());
+        msg.MarkProcessing("publisher", DateTime.Now.AddMinutes(5));
+
+        await repo.AddAsync(msg);
+        await db.SaveChangesAsync();
+
+        var requeued = await repo.RequeueFailedAsync(
+            id: msg.Id,
+            eventType: null,
+            occurredFrom: null,
+            occurredUntil: null,
+            limit: 10,
+            requeuedAt: DateTime.Now,
+            requeuedBy: "operador",
+            reason: "nao deve reprocessar");
+        await db.SaveChangesAsync();
+
+        Assert.Empty(requeued);
+
+        var refreshed = await db.OutboxMessages.SingleAsync(x => x.Id == msg.Id);
+        Assert.Equal(OutboxStatus.Processing, refreshed.Status);
+        Assert.Equal("publisher", refreshed.LockOwner);
+        Assert.Equal(0, refreshed.RequeueCount);
+    }
+
+    [Fact]
+    public async Task RequeueFailedAsync_DevePermitirClaimEPublicacaoPosterior()
+    {
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase($"outbox-db-{Guid.NewGuid():N}")
+            .Options;
+
+        await using var db = new AppDbContext(options);
+        var repo = new OutboxMessageRepository(db);
+        var now = DateTime.Now;
+        var msg = new OutboxMessage("LedgerEntry", Guid.NewGuid(), "LedgerEntryCreated.v1", "{}", now.AddMinutes(-1), Guid.NewGuid());
+
+        await repo.AddAsync(msg);
+        await db.SaveChangesAsync();
+        await repo.MarkFailedAttemptAsync(msg.Id, maxAttempts: 1, nextAttemptAt: now.AddSeconds(10), lastError: "kafka down");
+        await db.SaveChangesAsync();
+
+        await repo.RequeueFailedAsync(
+            id: msg.Id,
+            eventType: null,
+            occurredFrom: null,
+            occurredUntil: null,
+            limit: 10,
+            requeuedAt: now,
+            requeuedBy: "operador",
+            reason: "broker recuperado");
+        await db.SaveChangesAsync();
+
+        var claimed = await repo.ClaimPendingAsync(10, now, "publisher", TimeSpan.FromMinutes(1));
+        await db.SaveChangesAsync();
+        Assert.Single(claimed);
+        Assert.Equal(msg.Id, claimed[0].Id);
+
+        await repo.MarkSentAsync(msg.Id, now.AddSeconds(1));
+        await db.SaveChangesAsync();
+
+        var refreshed = await db.OutboxMessages.SingleAsync(x => x.Id == msg.Id);
+        Assert.Equal(OutboxStatus.Sent, refreshed.Status);
+        Assert.Equal(1, refreshed.RequeueCount);
+    }
 }

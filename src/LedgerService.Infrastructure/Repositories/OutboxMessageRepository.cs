@@ -168,4 +168,43 @@ WHERE id = {6};
         if (affected == 0)
             throw new InvalidOperationException($"OutboxMessage {id} não encontrada para MarkFailedAttempt.");
     }
+
+    public async Task<IReadOnlyList<OutboxMessage>> RequeueFailedAsync(
+        Guid? id,
+        string? eventType,
+        DateTime? occurredFrom,
+        DateTime? occurredUntil,
+        int limit,
+        DateTime requeuedAt,
+        string requeuedBy,
+        string reason,
+        CancellationToken cancellationToken = default)
+    {
+        IQueryable<OutboxMessage> query = _context.OutboxMessages
+            .Where(x => x.Status == OutboxStatus.Failed);
+
+        if (id is not null)
+            query = query.Where(x => x.Id == id);
+
+        if (!string.IsNullOrWhiteSpace(eventType))
+            query = query.Where(x => x.EventType == eventType);
+
+        if (occurredFrom is not null)
+            query = query.Where(x => x.OccurredAt >= occurredFrom);
+
+        if (occurredUntil is not null)
+            query = query.Where(x => x.OccurredAt <= occurredUntil);
+
+        var messages = await query
+            .OrderBy(x => x.OccurredAt)
+            .Take(limit)
+            .ToListAsync(cancellationToken);
+
+        foreach (var message in messages)
+        {
+            message.RequeueFailed(requeuedAt, requeuedBy, reason);
+        }
+
+        return messages;
+    }
 }

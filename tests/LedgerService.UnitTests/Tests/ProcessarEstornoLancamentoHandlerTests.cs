@@ -198,6 +198,9 @@ public sealed class ProcessarEstornoLancamentoHandlerTests
 
         public Task MarkFailedAttemptAsync(Guid id, int maxAttempts, DateTime nextAttemptAt, string? lastError, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<OutboxMessage>> RequeueFailedAsync(Guid? id, string? eventType, DateTime? occurredFrom, DateTime? occurredUntil, int limit, DateTime requeuedAt, string requeuedBy, string reason, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
     }
 
     private sealed class UnitOfWork : IUnitOfWork

@@ -68,6 +68,22 @@ public sealed class OutboxMessageConfiguration : IEntityTypeConfiguration<Outbox
         builder.Property(x => x.LockOwner)
             .HasColumnName("lock_owner");
 
+        builder.Property(x => x.RequeueCount)
+            .HasColumnName("requeue_count")
+            .IsRequired();
+
+        builder.Property(x => x.LastRequeuedAt)
+            .HasColumnName("last_requeued_at")
+            .HasColumnType("timestamp without time zone");
+
+        builder.Property(x => x.LastRequeuedBy)
+            .HasColumnName("last_requeued_by")
+            .HasMaxLength(200);
+
+        builder.Property(x => x.LastRequeueReason)
+            .HasColumnName("last_requeue_reason")
+            .HasMaxLength(500);
+
         builder.HasIndex(x => new { x.Status, x.NextAttemptAt })
             .HasDatabaseName("idx_outbox_pending");
 

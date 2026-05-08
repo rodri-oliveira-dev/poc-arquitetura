@@ -15,6 +15,7 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 
 | ADR                                                                   | Status      | Resumo                                                                                           |
 | --------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------ |
+| [ADR-0057](./0057-requeue-administrativo-outbox-failed.md) | Aceito | Cria endpoint administrativo protegido para recolocar mensagens Outbox Failed em Pending com auditoria operacional. |
 | [ADR-0056](./0056-testcontainers-postgresql-testes-integracao.md) | Aceito | Padroniza Testcontainers para testes de integracao que dependem de PostgreSQL real, com porta dinamica e isolamento por collection. |
 | [ADR-0055](./0055-runtime-docker-compatible-testcontainers.md) | Aceito | Padroniza Docker-compatible API para Testcontainers e comandos `docker compose` sem exigir Docker Desktop. |
 | [ADR-0054](./0054-controle-concorrencia-estornos-ledger.md) | Aceito | Define indice unico filtrado, claim atomico e lock por linha para concorrencia em estornos do LedgerService. |

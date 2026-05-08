@@ -25,4 +25,15 @@ public interface IOutboxMessageRepository
         DateTime nextAttemptAt,
         string? lastError,
         CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<OutboxMessage>> RequeueFailedAsync(
+        Guid? id,
+        string? eventType,
+        DateTime? occurredFrom,
+        DateTime? occurredUntil,
+        int limit,
+        DateTime requeuedAt,
+        string requeuedBy,
+        string reason,
+        CancellationToken cancellationToken = default);
 }
