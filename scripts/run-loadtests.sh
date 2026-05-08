@@ -39,6 +39,7 @@ run_k6() {
   local hostSummary="$ARTIFACTS_DIR/$summaryFile"
 
   docker compose -f "$COMPOSE_FILE" -f "$COMPOSE_K6_FILE" run --rm \
+    --user "$(id -u):$(id -g)" \
     -e "TOKEN=$TOKEN" \
     "$@" \
     k6 run "$scriptPath" --summary-export "/artifacts/$summaryFile"
