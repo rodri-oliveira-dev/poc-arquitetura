@@ -1,0 +1,86 @@
+name: loadtests-smoke
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: true
+  DOTNET_NOLOGO: true
+  BUILD_CONFIGURATION: Release
+  SOLUTION_PATH: ./LedgerService.slnx
+  K6_ARTIFACTS_DIR: ./artifacts/k6
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7 # v5
+        with:
+          global-json-file: global.json
+
+      - name: Restore .NET tools
+        run: dotnet tool restore
+
+      - name: Restore dependencies
+        run: dotnet restore $SOLUTION_PATH
+
+      - name: Build
+        run: dotnet build $SOLUTION_PATH --configuration $BUILD_CONFIGURATION --no-restore
+
+      - name: Start local stack and apply migrations
+        run: bash ./scripts/start-local-stack.sh
+
+      - name: Wait for APIs
+        shell: bash
+        run: |
+          for url in \
+            http://localhost:5030/health \
+            http://localhost:5226/health \
+            http://localhost:5228/health
+          do
+            for i in {1..30}; do
+              if curl -fsS "$url" >/dev/null; then
+                break
+              fi
+              if [ "$i" -eq 30 ]; then
+                echo "API indisponivel: $url" >&2
+                exit 1
+              fi
+              sleep 2
+            done
+          done
+
+      - name: Run k6 smoke load tests
+        run: bash ./scripts/run-loadtests.sh smoke
+
+      - name: List k6 summaries
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          find "$K6_ARTIFACTS_DIR" -maxdepth 1 -type f -name 'summary-smoke-*.json' -print | sort || true
+
+      - name: Upload k6 summaries
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: k6-smoke-summaries
+          path: ${{ env.K6_ARTIFACTS_DIR }}/summary-smoke-*.json
+          if-no-files-found: warn
+          retention-days: 3
+
+      - name: Stop local stack
+        if: ${{ always() }}
+        run: docker compose -f compose.yaml down --volumes --remove-orphans

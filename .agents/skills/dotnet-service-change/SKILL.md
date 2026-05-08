@@ -65,6 +65,13 @@ dotnet build ./LedgerService.slnx --configuration Release --no-restore
 dotnet test ./LedgerService.slnx --configuration Release --no-build --settings ./coverlet.runsettings
 ```
 
+- Quando a validacao incluir testes com Testcontainers/PostgreSQL, execute fora do sandbox. No Windows/Rancher Desktop, normalize `DOCKER_HOST` somente no processo do teste se necessario:
+
+```powershell
+$env:DOCKER_HOST='npipe://./pipe/docker_engine'
+dotnet test ./LedgerService.slnx --configuration Release --no-build --settings ./coverlet.runsettings
+```
+
 - Quando adequado, use `./test.ps1` para validar cobertura conforme documentacao do projeto.
 - Sempre execute `git status` antes de finalizar se houver edicoes.
 

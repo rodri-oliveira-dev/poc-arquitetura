@@ -17,6 +17,10 @@ public sealed class OutboxMessage : Entity
     public Guid? CorrelationId { get; private set; }
     public DateTime? LockedUntil { get; private set; }
     public string? LockOwner { get; private set; }
+    public int RequeueCount { get; private set; }
+    public DateTime? LastRequeuedAt { get; private set; }
+    public string? LastRequeuedBy { get; private set; }
+    public string? LastRequeueReason { get; private set; }
 
     private OutboxMessage()
     {
@@ -77,5 +81,22 @@ public sealed class OutboxMessage : Entity
 
         Status = OutboxStatus.Pending;
         NextAttemptAt = nextAttemptAt;
+    }
+
+    public void RequeueFailed(DateTime requeuedAt, string requeuedBy, string reason)
+    {
+        if (Status != OutboxStatus.Failed)
+            throw new InvalidOperationException("Only failed outbox messages can be requeued.");
+
+        Status = OutboxStatus.Pending;
+        Attempts = 0;
+        NextAttemptAt = null;
+        ProcessedAt = null;
+        LockedUntil = null;
+        LockOwner = null;
+        RequeueCount++;
+        LastRequeuedAt = requeuedAt;
+        LastRequeuedBy = requeuedBy;
+        LastRequeueReason = reason;
     }
 }

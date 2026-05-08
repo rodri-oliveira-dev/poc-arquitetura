@@ -43,10 +43,17 @@ dotnet test ./LedgerService.slnx --configuration Release --no-build --settings .
 Fluxo local completo:
 
 ```powershell
-docker compose up -d --build
+./scripts/start-local-stack.ps1
 ```
 
-Na primeira execucao com banco vazio, aplique as migrations manualmente antes de usar as APIs. O passo a passo fica em [desenvolvimento local](docs/development/local-development.md).
+No Linux/macOS:
+
+```bash
+chmod +x ./scripts/*.sh
+./scripts/start-local-stack.sh
+```
+
+Esse script sobe a infraestrutura, aplica as migrations pelo host e inicia as APIs depois do schema estar pronto. O passo a passo manual fica em [desenvolvimento local](docs/development/local-development.md).
 
 Testes de integracao selecionados usam Testcontainers com PostgreSQL real. O Testcontainers precisa de uma Docker-compatible API, nao da CLI `docker` nem de Docker Desktop especificamente. No Windows sem Docker Desktop, o ambiente recomendado e Rancher Desktop com `moby/dockerd`.
 
@@ -81,6 +88,32 @@ O fluxo recomendado para validar uma mudanca e:
 Esse script executa testes com cobertura e aplica o gate minimo de 80% de cobertura total de linhas. Detalhes ficam em [cobertura de testes](docs/development/test-coverage.md).
 
 Pull requests devem passar pelo check `Build and test`, definido no workflow `pull-request-validation`. A validacao completa pos-merge/manual fica no workflow `dotnet-ci`.
+
+## Load tests com k6
+
+Os testes de carga ficam em `loadtests/k6` e rodam em container dentro da rede do compose, usando `compose.k6.yaml`.
+
+Fluxo local resumido:
+
+```powershell
+./scripts/start-local-stack.ps1
+```
+
+Em seguida, execute o modo curto:
+
+```powershell
+./scripts/run-loadtests.ps1 -Mode smoke
+```
+
+No Linux/macOS:
+
+```bash
+chmod +x ./scripts/*.sh
+./scripts/start-local-stack.sh
+./scripts/run-loadtests.sh smoke
+```
+
+Os runners geram `.env.k6.auto`, obtêm o JWT no `Auth.Api`, executam os cenarios `ledger_resilience` e `balance_daily_50rps` no modo `smoke` e exportam summaries JSON em `artifacts/k6`. Esses arquivos gerados nao devem ser versionados.
 
 ## Decisoes arquiteturais
 
