@@ -49,7 +49,6 @@ Fluxo local completo:
 No Linux/macOS:
 
 ```bash
-chmod +x ./scripts/*.sh
 ./scripts/start-local-stack.sh
 ```
 
@@ -108,7 +107,6 @@ Em seguida, execute o modo curto:
 No Linux/macOS:
 
 ```bash
-chmod +x ./scripts/*.sh
 ./scripts/start-local-stack.sh
 ./scripts/run-loadtests.sh smoke
 ```

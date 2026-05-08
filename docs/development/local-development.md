@@ -45,7 +45,6 @@ Subir a stack:
 No Linux/macOS:
 
 ```bash
-chmod +x ./scripts/*.sh
 ./scripts/start-local-stack.sh
 ```
 
@@ -280,7 +279,6 @@ Windows:
 Linux/macOS:
 
 ```bash
-chmod +x ./scripts/*.sh
 ./scripts/run-loadtests.sh smoke
 ./scripts/run-loadtests.sh balance50
 ./scripts/run-loadtests.sh resilience
