@@ -31,6 +31,19 @@ dotnet test ./LedgerService.slnx \
   --results-directory ./TestResults
 ```
 
+## Testes com Testcontainers
+
+Alguns testes de integracao usam Testcontainers com PostgreSQL real. Esses testes devem ser executados fora do sandbox, porque precisam acessar a Docker-compatible API do ambiente.
+
+No Windows com Rancher Desktop/Docker-compatible API, o Docker CLI pode funcionar com `DOCKER_HOST=npipe:////./pipe/docker_engine`, mas o Testcontainers/Docker.DotNet espera o formato `npipe://./pipe/docker_engine`. Quando necessario, normalize a variavel apenas no processo do teste:
+
+```powershell
+$env:DOCKER_HOST='npipe://./pipe/docker_engine'
+dotnet test ./LedgerService.slnx --configuration Release --no-build --settings ./coverlet.runsettings
+```
+
+Se a suite falhar com `npipe:////pipe/docker_engine is not a valid npipe URI`, repita com o `DOCKER_HOST` acima antes de investigar falhas funcionais dos testes.
+
 Depois da coleta, os scripts executam o ReportGenerator e leem `TestResults/coverage-report/Summary.json`.
 
 ## Regra de cobertura

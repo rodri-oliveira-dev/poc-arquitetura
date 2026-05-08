@@ -55,6 +55,8 @@ Estados esperados:
 - `Sent`: mensagem publicada com sucesso;
 - `Failed`: mensagem excedeu o limite de tentativas.
 
+Mensagens `Failed` exigem investigacao antes de qualquer nova tentativa. O requeue operacional recoloca somente mensagens `Failed` em `Pending`; mensagens `Sent` nao sao reprocessadas e mensagens `Processing` validas continuam sob responsabilidade do lock do publisher.
+
 Configuracoes principais em `Outbox:Publisher`:
 
 - `PollingIntervalSeconds`;
@@ -63,6 +65,63 @@ Configuracoes principais em `Outbox:Publisher`:
 - `MaxAttempts`;
 - `BaseBackoffSeconds`;
 - `LockDurationSeconds`.
+
+## Requeue operacional de Outbox Failed
+
+Use o requeue quando a causa da falha ja tiver sido corrigida ou classificada como transiente, por exemplo indisponibilidade temporaria de Kafka, credenciais/ACL corrigidas, topico recriado ou configuracao de producer ajustada. Nao use para mascarar erro permanente de contrato, payload invalido, topico incorreto ou incompatibilidade de consumidor.
+
+Endpoint administrativo:
+
+- `POST /api/v1/outbox/failed/requeue`;
+- exige JWT valido com scope `ledger.outbox.requeue`;
+- exige `reason` e ao menos um filtro: `outboxMessageId`, `eventType`, `occurredFrom` ou `occurredUntil`;
+- `limit` padrao: `50`; maximo: `100`;
+- altera apenas mensagens com status `Failed`.
+
+Exemplo controlado por id:
+
+```bash
+curl -i -X POST http://localhost:5226/api/v1/outbox/failed/requeue \
+  -H "Authorization: Bearer <TOKEN_COM_LEDGER_OUTBOX_REQUEUE>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "outboxMessageId": "00000000-0000-0000-0000-000000000001",
+    "reason": "Kafka recuperado apos indisponibilidade temporaria"
+  }'
+```
+
+Exemplo por tipo de evento e janela:
+
+```bash
+curl -i -X POST http://localhost:5226/api/v1/outbox/failed/requeue \
+  -H "Authorization: Bearer <TOKEN_COM_LEDGER_OUTBOX_REQUEUE>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "eventType": "LedgerEntryCreated.v1",
+    "occurredFrom": "2026-05-08T00:00:00",
+    "occurredUntil": "2026-05-08T23:59:59",
+    "limit": 25,
+    "reason": "Requeue apos correcao de ACL do producer"
+  }'
+```
+
+Cada mensagem requeued registra `requeue_count`, `last_requeued_at`, `last_requeued_by` e `last_requeue_reason`. O `OutboxKafkaPublisherService` publica depois pelo fluxo normal de polling, preservando headers, correlacao, retry/backoff e idempotencia at-least-once.
+
+Procedimento recomendado:
+
+1. Identifique a causa do `Failed` em logs, `last_error` e configuracao Kafka.
+2. Corrija a causa raiz antes do requeue.
+3. Prefira `outboxMessageId` para recuperacao pontual; use filtros por `eventType` e data apenas para incidentes conhecidos.
+4. Execute o endpoint com `reason` claro e limite pequeno.
+5. Aguarde o polling e confirme transicao para `Sent`.
+6. Confirme no Balance que a projecao foi atualizada ou que `processed_events` manteve idempotencia em caso de reentrega.
+
+Limitacoes e riscos:
+
+- O requeue nao altera payload nem contrato de evento.
+- Requeue de `LedgerEntryCreated.v1` pode gerar reentrega Kafka, esperada no modelo at-least-once; o Balance deve permanecer idempotente.
+- Se a mensagem voltar para `Failed`, nao repita indefinidamente: investigue contrato, topico, ACL, serializacao e disponibilidade do broker.
+- A auditoria persistente guarda o ultimo requeue e o contador; logs da API/publisher complementam a linha do tempo operacional.
 
 ## DLQ
 

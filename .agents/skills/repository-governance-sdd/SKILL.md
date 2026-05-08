@@ -51,6 +51,7 @@ Ela deve ser usada para evoluir orientacoes de agentes, skills, ADRs e convencoe
 8. Ajuste `AGENTS.md` apenas quando houver lacuna global ou conflito com skills.
 9. Valide estrutura, frontmatter, nomes, descricoes, escopo, idioma e ausencia de referencias proibidas.
 10. Revise diff, execute validacoes proporcionais e faca commit semantico quando solicitado.
+11. Para comandos Git que alteram indice ou historico (`git add`, `git commit`, `git restore --staged` etc.), use execucao fora do sandbox quando o sandbox nao conseguir criar `.git/index.lock`.
 
 # Validacao
 

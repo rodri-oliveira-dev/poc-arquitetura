@@ -94,7 +94,7 @@ function Run-K6([string]$scenarioName, [string]$scriptPath, [hashtable]$envVars)
 switch ($Mode) {
   "smoke" {
     Run-K6 "ledger_resilience" "scenarios/ledger_resilience.js" @{ TOKEN = $token; VUS = "1"; DURATION = "10s" }
-    Run-K6 "balance_daily_50rps" "scenarios/balance_daily_50rps.js" @{ TOKEN = $token; RATE = "1"; DURATION = "10s"; PREALLOCATED_VUS = "2"; MAX_VUS = "10" }
+    Run-K6 "balance_daily_50rps" "scenarios/balance_daily_50rps.js" @{ TOKEN = $token; RATE = "1"; DURATION = "10s"; PREALLOCATED_VUS = "5"; MAX_VUS = "10" }
   }
   "balance50" {
     Run-K6 "balance_daily_50rps" "scenarios/balance_daily_50rps.js" @{ TOKEN = $token; RATE = "50"; DURATION = "1m" }

@@ -38,6 +38,21 @@ O `compose.yaml` sobe:
 
 Subir a stack:
 
+```powershell
+./scripts/start-local-stack.ps1
+```
+
+No Linux/macOS:
+
+```bash
+chmod +x ./scripts/*.sh
+./scripts/start-local-stack.sh
+```
+
+Esse fluxo sobe bancos, Kafka e `Auth.Api`, aplica migrations pelo host e depois inicia `LedgerService.Api` e `BalanceService.Api`.
+
+Para subir somente o compose, sem aplicar migrations:
+
 ```bash
 docker compose up -d --build
 ```
@@ -252,8 +267,7 @@ Os testes de carga ficam em `loadtests/k6` e rodam dentro da rede do compose.
 
 Pre-requisitos:
 
-1. Suba a stack com `docker compose -f compose.yaml up -d --build`.
-2. Aplique migrations.
+1. Suba a stack local com `./scripts/start-local-stack.ps1` ou `./scripts/start-local-stack.sh`.
 
 Windows:
 

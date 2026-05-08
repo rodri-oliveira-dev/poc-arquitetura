@@ -55,6 +55,14 @@ Ela preserva a estrategia incremental descrita nas ADRs e evita transformar test
 
 # Validacao
 
+- Testes com Testcontainers/PostgreSQL devem ser executados fora do sandbox, porque precisam acessar a Docker-compatible API.
+- No Windows/Rancher Desktop, se `DOCKER_HOST` estiver como `npipe:////./pipe/docker_engine`, normalize apenas no processo do teste para o formato aceito pelo Docker.DotNet/Testcontainers:
+
+```powershell
+$env:DOCKER_HOST='npipe://./pipe/docker_engine'
+dotnet test ./tests/<Projeto>.csproj --configuration Release
+```
+
 - Execute o projeto de teste afetado quando possivel:
 
 ```powershell
@@ -67,6 +75,7 @@ dotnet test ./tests/<Projeto>.csproj --configuration Release
 dotnet test ./LedgerService.slnx --configuration Release --settings ./coverlet.runsettings
 ```
 
+- Se a suite falhar com `npipe:////pipe/docker_engine is not a valid npipe URI`, repita fora do sandbox com `DOCKER_HOST='npipe://./pipe/docker_engine'` antes de concluir que houve falha funcional.
 - Quando alterar cobertura ou estrategia oficial, valide a documentacao relacionada.
 - Execute `git status` antes de finalizar se houver edicoes.
 

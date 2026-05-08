@@ -21,7 +21,7 @@ ARTIFACTS_DIR="${ARTIFACTS_DIR:-$ROOT_DIR/artifacts/k6}"
 mkdir -p "$ARTIFACTS_DIR"
 
 # a) gerar env
-"$ROOT_DIR/scripts/compose-env.sh" >/dev/null
+COMPOSE_FILE="$COMPOSE_FILE" OUT_FILE="$ENV_FILE" "$ROOT_DIR/scripts/compose-env.sh" >/dev/null
 
 # b) obter token (por padrão via localhost conforme README)
 TOKEN="$($ROOT_DIR/scripts/get-token.sh)"
@@ -42,6 +42,11 @@ run_k6() {
     -e "TOKEN=$TOKEN" \
     "$@" \
     k6 run "$scriptPath" --summary-export "/artifacts/$summaryFile"
+
+  if [[ ! -f "$hostSummary" ]]; then
+    echo "Summary k6 nao encontrado: $hostSummary" 1>&2
+    exit 1
+  fi
 
   python3 - "$hostSummary" <<'PY'
 import json
@@ -69,7 +74,7 @@ PY
 case "$MODE" in
   smoke)
     run_k6 ledger_resilience scenarios/ledger_resilience.js -e VUS=1 -e DURATION=10s
-    run_k6 balance_daily_50rps scenarios/balance_daily_50rps.js -e RATE=1 -e DURATION=10s -e PREALLOCATED_VUS=2 -e MAX_VUS=10
+    run_k6 balance_daily_50rps scenarios/balance_daily_50rps.js -e RATE=1 -e DURATION=10s -e PREALLOCATED_VUS=5 -e MAX_VUS=10
     ;;
   balance50)
     run_k6 balance_daily_50rps scenarios/balance_daily_50rps.js -e RATE=50 -e DURATION=1m
