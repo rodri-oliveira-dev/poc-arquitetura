@@ -145,6 +145,18 @@ dotnet build ./LedgerService.slnx --configuration Release --no-restore
 dotnet test ./LedgerService.slnx --configuration Release --no-build --settings ./coverlet.runsettings
 ```
 
+### Execucao operacional fora do sandbox
+
+- Testes que usam Testcontainers/PostgreSQL devem ser executados fora do sandbox, pois precisam acessar a Docker-compatible API.
+- No Windows com Rancher Desktop/Docker-compatible API, quando `DOCKER_HOST` estiver como `npipe:////./pipe/docker_engine`, normalize apenas no processo do teste:
+
+```powershell
+$env:DOCKER_HOST='npipe://./pipe/docker_engine'
+dotnet test ./LedgerService.slnx --configuration Release --no-build --settings ./coverlet.runsettings
+```
+
+- Comandos Git que alteram o indice ou historico (`git add`, `git commit`, `git restore --staged` etc.) tambem devem ser executados fora do sandbox quando o sandbox nao conseguir criar `.git/index.lock`.
+
 ## Skills do Codex
 
 - Use as skills em `.agents/skills/` quando o pedido combinar com o `description` da skill.
