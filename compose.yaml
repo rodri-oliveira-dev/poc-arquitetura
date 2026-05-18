@@ -171,6 +171,7 @@ services:
       - ledger-db
       - kafka
       - kafka-init-topics
+      - jaeger
     environment:
       ASPNETCORE_URLS: "http://+:8080"
       ASPNETCORE_ENVIRONMENT: "Development"
@@ -187,6 +188,10 @@ services:
       Kafka__Producer__SecurityProtocol: "Plaintext"
       Reprocessamentos__Consumer__BootstrapServers: "kafka:9092"
       Reprocessamentos__Consumer__SecurityProtocol: "Plaintext"
+      Observability__OpenTelemetry__Enabled: "true"
+      Observability__OpenTelemetry__UseConsoleExporter: "false"
+      Observability__OpenTelemetry__OtlpEndpoint: "http://jaeger:4317"
+      Observability__OpenTelemetry__ServiceName: "LedgerService.Api"
     ports:
       # Mantém a mesma porta do launchSettings para facilitar uso local
       - "5226:8080"
@@ -208,6 +213,7 @@ services:
       - balance-db
       - kafka
       - kafka-init-topics
+      - jaeger
     environment:
       ASPNETCORE_URLS: "http://+:8080"
       ASPNETCORE_ENVIRONMENT: "Development"
@@ -221,6 +227,10 @@ services:
       ConnectionStrings__DefaultConnection: "Host=balance-db;Port=5432;Database=dbBalance;Username=userBalance;Password=Balance123"
       Kafka__Consumer__BootstrapServers: "kafka:9092"
       Kafka__Consumer__SecurityProtocol: "Plaintext"
+      Observability__OpenTelemetry__Enabled: "true"
+      Observability__OpenTelemetry__UseConsoleExporter: "false"
+      Observability__OpenTelemetry__OtlpEndpoint: "http://jaeger:4317"
+      Observability__OpenTelemetry__ServiceName: "BalanceService.Api"
     ports:
       - "5228:8080"
     deploy:
@@ -237,6 +247,8 @@ services:
       context: .
       dockerfile: src/Auth.Api/Dockerfile
     container_name: poc-auth-api
+    depends_on:
+      - jaeger
     environment:
       ASPNETCORE_URLS: "http://+:8080"
       ASPNETCORE_ENVIRONMENT: "Development"
@@ -245,6 +257,10 @@ services:
       # Credenciais locais de POC. Nao ha fallback em appsettings.json/producao.
       Auth__DevelopmentUser__Username: "poc-usuario"
       Auth__DevelopmentUser__Password: "Poc#123"
+      Observability__OpenTelemetry__Enabled: "true"
+      Observability__OpenTelemetry__UseConsoleExporter: "false"
+      Observability__OpenTelemetry__OtlpEndpoint: "http://jaeger:4317"
+      Observability__OpenTelemetry__ServiceName: "Auth.Api"
     ports:
       - "5030:8080"
     deploy:
