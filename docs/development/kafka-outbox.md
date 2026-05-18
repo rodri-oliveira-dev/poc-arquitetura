@@ -42,6 +42,7 @@ Headers publicados pelo producer:
 - `event_type`;
 - `correlation_id`, quando existir;
 - `traceparent`, quando houver `Activity`;
+- `tracestate`, quando houver `Activity` com tracestate;
 - `baggage`, quando houver `Activity`.
 
 O `BalanceService.Api` exige `event_type=LedgerEntryCreated.v1`, usa `event_id` para rastreabilidade e idempotencia quando presente e preserva headers relevantes ao enviar mensagens para a DLQ.
