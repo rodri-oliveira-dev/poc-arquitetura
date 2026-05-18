@@ -12,6 +12,7 @@ OpenTelemetry fica desabilitado por padrao. A correlacao via `X-Correlation-Id` 
 - Exporters: console para validacao local e OTLP quando `OtlpEndpoint` estiver configurado.
 - Correlacao: header HTTP `X-Correlation-Id`, campo `CorrelationId` em logs e `correlation_id` em eventos Kafka.
 - Health: `GET /health` em `LedgerService.Api` e `BalanceService.Api`.
+- Health simples tambem existe em `Auth.Api` para liveness do processo.
 - Readiness: `GET /ready` em `LedgerService.Api` e `BalanceService.Api`.
 - Mensageria: Kafka com topico principal `ledger.ledgerentry.created` e DLQ `ledger.ledgerentry.created.dlq`.
 - Outbox: publicacao assincrona do Ledger com polling, lock, tentativas e backoff configuraveis.
@@ -29,7 +30,7 @@ OpenTelemetry fica desabilitado por padrao. A correlacao via `X-Correlation-Id` 
 - nao verifica PostgreSQL nem Kafka;
 - uso esperado: liveness simples do processo HTTP.
 
-`Auth.Api` nao expoe endpoint dedicado de health/readiness nesta POC. A validacao operacional minima do Auth e feita por `POST /auth/login` e `GET /.well-known/jwks.json`.
+`Auth.Api` expoe `GET /health` como liveness simples. Ele nao expoe `GET /ready`; a validacao operacional minima do fluxo de autenticacao continua sendo feita por `POST /auth/login` e `GET /.well-known/jwks.json`.
 
 ### Readiness
 
@@ -263,12 +264,16 @@ Portas expostas no host:
 - PostgreSQL Ledger: `localhost:15432`;
 - PostgreSQL Balance: `localhost:15433`;
 - Kafka: `localhost:19092`.
+- Jaeger UI: `http://localhost:16686`;
+- Jaeger OTLP gRPC/HTTP: `localhost:4317` e `localhost:4318`.
 
 O compose sobrescreve configuracoes por variaveis de ambiente para usar os nomes internos `ledger-db`, `balance-db` e `kafka`. Aplique migrations manualmente antes de usar as APIs em banco vazio.
 
 ### Validacao local com Jaeger
 
-O compose local inclui Jaeger all-in-one com OTLP habilitado. `LedgerService.Api` e `BalanceService.Api` sobem com OpenTelemetry habilitado e exportam para `http://jaeger:4317` dentro da rede do compose.
+O compose local inclui Jaeger all-in-one com OTLP habilitado. `Auth.Api`, `LedgerService.Api` e `BalanceService.Api` sobem com OpenTelemetry habilitado e exportam para `http://jaeger:4317` dentro da rede do compose.
+
+O Jaeger local e usado como backend de tracing. As APIs tambem possuem exporter de metricas OTLP quando `OtlpEndpoint` esta configurado, mas a validacao local com Jaeger deve focar traces; dashboards, alertas, Prometheus e Grafana continuam fora do escopo desta POC.
 
 Suba a stack:
 
@@ -285,14 +290,16 @@ curl http://localhost:5226/health
 curl http://localhost:5226/ready
 curl http://localhost:5228/health
 curl http://localhost:5228/ready
+curl http://localhost:5030/health
 ```
 
 Na UI do Jaeger, use o seletor de servico para procurar:
 
+- `Auth.Api`
 - `LedgerService.Api`
 - `BalanceService.Api`
 
-Ao consultar traces, o esperado e visualizar spans de entrada HTTP gerados pela instrumentacao ASP.NET Core para `GET /health` e `GET /ready`. A validacao confirma apenas o caminho minimo de traces HTTP; ela nao depende de eventos Kafka, Outbox, endpoints autenticados, spans customizados ou metricas customizadas.
+Ao consultar traces, o esperado e visualizar spans de entrada HTTP gerados pela instrumentacao ASP.NET Core para `GET /health` e `GET /ready` nos servicos que expoem esses endpoints. A validacao confirma apenas o caminho minimo de traces HTTP; ela nao depende de eventos Kafka, Outbox, endpoints autenticados, spans customizados ou metricas customizadas.
 
 ### Validacao Auth -> Ledger -> Outbox -> Kafka -> Balance
 

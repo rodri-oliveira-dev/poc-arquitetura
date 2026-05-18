@@ -34,7 +34,8 @@ O `compose.yaml` sobe:
 - PostgreSQL Ledger;
 - PostgreSQL Balance;
 - Kafka single node em KRaft;
-- job de inicializacao dos topicos Kafka.
+- job de inicializacao dos topicos Kafka;
+- Jaeger all-in-one para tracing local via OTLP.
 
 Subir a stack:
 
@@ -79,6 +80,8 @@ Portas expostas no host:
 | PostgreSQL Ledger | `localhost:15432` |
 | PostgreSQL Balance | `localhost:15433` |
 | Kafka | `localhost:19092` |
+| Jaeger UI | `http://localhost:16686/` |
+| Jaeger OTLP | `localhost:4317` e `localhost:4318` |
 
 O compose sobrescreve configuracoes por variaveis de ambiente para usar hosts internos como `ledger-db`, `balance-db` e `kafka`. O ambiente local do compose roda como `Development`.
 

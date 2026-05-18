@@ -19,7 +19,12 @@ model {
   }
 
   observability = softwareSystem "Observabilidade" {
-    description "Exportadores OpenTelemetry opcionais via console ou OTLP."
+    description "Stack local de tracing distribuido e exporters OpenTelemetry opcionais via console ou OTLP."
+
+    jaeger = container "Jaeger all-in-one" {
+      technology "Jaeger / OTLP"
+      description "Backend local de tracing com receiver OTLP em 4317/4318 e UI em 16686."
+    }
   }
 
   auth = softwareSystem "Auth.Api" {
@@ -166,9 +171,9 @@ model {
   balance.balanceConsumer -> balance.balanceDb "Atualiza daily_balances e processed_events" "EF Core"
   balance.balanceApi -> balance.balanceDb "Consulta projecao" "EF Core"
 
-  auth.authApi -> observability "Exporta traces e metricas quando habilitado" "OTLP/Console"
-  ledger.ledgerApi -> observability "Exporta traces e metricas quando habilitado" "OTLP/Console"
-  balance.balanceApi -> observability "Exporta traces e metricas quando habilitado" "OTLP/Console"
+  auth.authApi -> observability.jaeger "Exporta telemetria quando habilitado no compose" "OTLP"
+  ledger.ledgerApi -> observability.jaeger "Exporta telemetria quando habilitado no compose" "OTLP"
+  balance.balanceApi -> observability.jaeger "Exporta telemetria quando habilitado no compose" "OTLP"
 
   ledger.ledgerApiLayer -> ledger.ledgerApplication "Chama caso de uso"
   ledger.ledgerApplication -> ledger.ledgerDomain "Cria agregados e usa contratos de repositorio"
