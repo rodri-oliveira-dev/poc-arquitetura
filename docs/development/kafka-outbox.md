@@ -164,6 +164,12 @@ Balance:
 
 Em falha do Kafka, o servico nao deve cair: ele registra erro, incrementa tentativas e agenda `next_attempt_at` com backoff.
 
+Para o roteiro operacional completo Auth -> Ledger -> Outbox -> Kafka -> Balance, incluindo `X-Correlation-Id`, logs, consultas SQL, Balance e Jaeger, use a secao [Validacao Auth -> Ledger -> Outbox -> Kafka -> Balance](../observability.md#validacao-auth---ledger---outbox---kafka---balance). O script recomendado e:
+
+```powershell
+./scripts/validate-auth-ledger-trace.ps1
+```
+
 ## Processamento de estornos
 
 O worker `EstornoLancamentoProcessorService` usa polling da tabela `estornos_lancamentos`, mas a selecao nao e apenas uma leitura. Cada ciclo reclama pendentes com `UPDATE ... FOR UPDATE SKIP LOCKED ... RETURNING`, mudando as linhas para `Processing` antes de delegar ao Mediator. Isso permite workers concorrentes sem processar o mesmo estorno ao mesmo tempo.

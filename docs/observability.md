@@ -149,7 +149,14 @@ Quando `Observability:OpenTelemetry:Enabled=true`, as APIs registram:
 - spans de entrada HTTP via instrumentacao ASP.NET Core;
 - spans de saida HTTP via instrumentacao `HttpClient`.
 
-`LedgerService` e `BalanceService` tambem criam `Activity` em trechos de Kafka/Outbox ja instrumentados no codigo. Quando ha `Activity`, headers W3C como `traceparent` e `baggage` sao propagados nas mensagens.
+`LedgerService` e `BalanceService` tambem criam `Activity` em trechos de Kafka/Outbox instrumentados no codigo:
+
+- `LedgerService.OutboxPublisher`, para publicacao do Outbox no Kafka;
+- `BalanceService.KafkaConsumer`, para consumo Kafka;
+- `BalanceService.Application`, para aplicacao do evento no consolidado;
+- `BalanceService.Api`, para consultas de consolidado.
+
+Quando ha `Activity` ativa no publisher, headers W3C como `traceparent`, `tracestate` e `baggage` sao propagados nas mensagens. O `CorrelationId` continua sendo um identificador operacional separado do `TraceId`.
 
 ## Metricas
 
@@ -285,9 +292,9 @@ Na UI do Jaeger, use o seletor de servico para procurar:
 
 Ao consultar traces, o esperado e visualizar spans de entrada HTTP gerados pela instrumentacao ASP.NET Core para `GET /health` e `GET /ready`. A validacao confirma apenas o caminho minimo de traces HTTP; ela nao depende de eventos Kafka, Outbox, endpoints autenticados, spans customizados ou metricas customizadas.
 
-### Validacao Auth -> Ledger com JWT
+### Validacao Auth -> Ledger -> Outbox -> Kafka -> Balance
 
-Para validar o fluxo HTTP autenticado com trace no Jaeger, use `Auth.Api` para obter um JWT RS256 e chame o endpoint protegido `POST /api/v1/lancamentos` no `LedgerService.Api`.
+Para validar o fluxo distribuido completo com chamada autenticada, Outbox, Kafka, Balance, logs e Jaeger, use `Auth.Api` para obter um JWT RS256 e chame o endpoint protegido `POST /api/v1/lancamentos` no `LedgerService.Api`.
 
 Esse endpoint foi escolhido porque:
 
@@ -295,7 +302,28 @@ Esse endpoint foi escolhido porque:
 - exige `Idempotency-Key`;
 - aceita e devolve `X-Correlation-Id`;
 - usa `merchantId` no contrato real e valida esse valor contra a claim `merchant_id` emitida pelo `Auth.Api`;
-- gera uma requisicao HTTP de negocio visivel como trace em `LedgerService.Api`.
+- grava `LedgerEntryCreated.v1` em `outbox_messages` na mesma transacao da escrita;
+- aciona o `OutboxKafkaPublisherService`, que publica no topico `ledger.ledgerentry.created`;
+- alimenta o `BalanceService.Api`, que atualiza `processed_events` e `daily_balances`.
+
+Pre-requisitos:
+
+- Docker-compatible API disponivel;
+- stack local com migrations aplicadas;
+- portas do compose livres: `5030`, `5226`, `5228`, `15432`, `15433`, `16686` e `19092`;
+- OpenTelemetry habilitado pelo compose para `Auth.Api`, `LedgerService.Api` e `BalanceService.Api`.
+
+Suba a stack local completa. O script aplica migrations antes de iniciar Ledger e Balance:
+
+```powershell
+./scripts/start-local-stack.ps1
+```
+
+Se preferir validar apenas a sintaxe efetiva do compose:
+
+```powershell
+docker compose config
+```
 
 Payload real do login, conforme `src/Auth.Api/Contracts/LoginRequest.cs`:
 
@@ -303,7 +331,7 @@ Payload real do login, conforme `src/Auth.Api/Contracts/LoginRequest.cs`:
 {
   "username": "poc-usuario",
   "password": "Poc#123",
-  "scope": "ledger.write"
+  "scope": "ledger.write balance.read"
 }
 ```
 
@@ -321,16 +349,21 @@ O script:
 2. extrai `access_token`;
 3. chama `POST /api/v1/lancamentos` em `http://localhost:5226`;
 4. envia `Authorization`, `Idempotency-Key` e `X-Correlation-Id` explicito;
-5. imprime o status HTTP e o `X-Correlation-Id` devolvido;
-6. consulta traces recentes de `LedgerService.Api` no Jaeger;
-7. tenta localizar o correlation id nos logs recentes de `ledger-service`.
+5. valida `201 Created` e o `X-Correlation-Id` devolvido;
+6. consulta `outbox_messages` no PostgreSQL do Ledger ate encontrar o evento como `Sent`;
+7. consulta `processed_events` e `daily_balances` no PostgreSQL do Balance;
+8. chama `GET /v1/consolidados/diario/{date}?merchantId={merchantId}` no Balance com o mesmo `X-Correlation-Id`;
+9. consulta traces recentes no Jaeger;
+10. tenta localizar o `CorrelationId` nos logs recentes de `ledger-service` e `balance-service`.
+
+O script usa polling curto configuravel por `-PollingTimeoutSeconds` e `-PollingIntervalSeconds`. Ele nao usa sleeps longos para mascarar consistencia eventual; se o Outbox ou o consumer nao avancarem dentro do timeout, a validacao falha com o ultimo estado observado.
 
 Tambem e possivel executar manualmente com `curl`:
 
 ```bash
 TOKEN="$(curl -sS -X POST http://localhost:5030/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"poc-usuario","password":"Poc#123","scope":"ledger.write"}' \
+  -d '{"username":"poc-usuario","password":"Poc#123","scope":"ledger.write balance.read"}' \
   | sed -nE 's/.*"access_token"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p')"
 
 CORRELATION_ID="11111111-1111-4111-8111-111111111111"
@@ -350,21 +383,84 @@ curl -i -X POST http://localhost:5226/api/v1/lancamentos \
   }'
 ```
 
+Guarde o `id` retornado no body, por exemplo `lan_12345678`, e a data de `occurredAt`.
+
+Consultas SQL uteis pelo compose:
+
+```bash
+docker compose exec -T ledger-db psql -U appuser -d appdb \
+  -c "SELECT id, event_type, status, attempts, correlation_id, processed_at FROM outbox_messages WHERE correlation_id = '11111111-1111-4111-8111-111111111111' ORDER BY occurred_at DESC LIMIT 5;"
+```
+
+Durante uma janela curta, a mensagem pode aparecer como `Pending` ou `Processing`. Depois do polling do `OutboxKafkaPublisherService`, o esperado e `Sent`. Se Kafka estiver indisponivel, acompanhe `attempts`, `next_attempt_at`, `last_error` e eventual `Failed`.
+
+No Balance, confirme o efeito funcional:
+
+```bash
+docker compose exec -T balance-db psql -U userBalance -d dbBalance \
+  -c "SELECT event_id, merchant_id, processed_at FROM processed_events WHERE event_id = '<ID_RETORNADO_PELO_LEDGER>';"
+
+docker compose exec -T balance-db psql -U userBalance -d dbBalance \
+  -c "SELECT merchant_id, date, currency, total_credits, total_debits, net_balance FROM daily_balances WHERE merchant_id = 'tese' ORDER BY updated_at DESC LIMIT 5;"
+```
+
+Tambem e possivel consultar a API de leitura, usando o mesmo token:
+
+```bash
+curl -i "http://localhost:5228/v1/consolidados/diario/<YYYY-MM-DD>?merchantId=tese" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -H "X-Correlation-Id: ${CORRELATION_ID}"
+```
+
+Logs:
+
+```bash
+docker compose logs ledger-service --since 10m | grep 11111111-1111-4111-8111-111111111111
+docker compose logs balance-service --since 10m | grep 11111111-1111-4111-8111-111111111111
+```
+
 Resultado esperado:
 
 - `POST /auth/login` retorna `access_token`;
 - `POST /api/v1/lancamentos` retorna `201 Created`;
 - o header `X-Correlation-Id` do response preserva o UUID enviado;
-- `docker compose logs ledger-service --since 10m` mostra o correlation id no escopo de logs quando o provider imprime scopes;
-- a UI do Jaeger em `http://localhost:16686` mostra trace recente para o servico `LedgerService.Api`, associado ao `POST /api/v1/lancamentos`.
+- a tabela `outbox_messages` contem `LedgerEntryCreated.v1` com o mesmo `correlation_id` e status final `Sent`;
+- os logs do Ledger mostram o `CorrelationId` na requisicao e/ou no publisher;
+- `processed_events` contem o `id` do evento financeiro retornado no payload do Ledger;
+- `daily_balances` reflete o credito ou debito criado;
+- `GET /v1/consolidados/diario/{date}` retorna o consolidado atualizado;
+- os logs do Balance mostram o mesmo `CorrelationId` durante o consumo;
+- a UI do Jaeger em `http://localhost:16686` mostra traces recentes para `Auth.Api`, `LedgerService.Api` e `BalanceService.Api`.
 
 Na UI do Jaeger:
 
-1. selecione `LedgerService.Api` em `Service`;
-2. clique em `Find Traces`;
-3. procure uma entrada recente de `POST /api/v1/lancamentos`.
+1. selecione `Auth.Api` e procure `POST /auth/login`;
+2. selecione `LedgerService.Api` e procure `POST /api/v1/lancamentos` e spans `outbox.publish`;
+3. selecione `BalanceService.Api` e procure spans `kafka.consume`, `balance.apply` e a consulta `GET /v1/consolidados/diario/{date}`;
+4. use o `TraceID` para analise temporal e o `CorrelationId` nos logs/SQL para conectar a operacao de negocio.
+
+Limitacao conhecida de trace distribuido:
+
+- `POST /auth/login` e `POST /api/v1/lancamentos` sao chamadas HTTP separadas; o token JWT nao carrega trace context.
+- O Ledger persiste `correlation_id` na Outbox, mas nao persiste `traceparent`, `tracestate` ou `baggage` na tabela `outbox_messages`.
+- Por isso, o trace HTTP do `POST /api/v1/lancamentos` nao aparece hoje como a mesma arvore do processamento assincrono Outbox/Kafka/Balance.
+- A partir do publisher, o span `outbox.publish` propaga `traceparent` para o Kafka, e o consumer do Balance usa esse parent quando o header esta presente. Assim, a parte Outbox -> Kafka -> Balance pode aparecer conectada, mas a ponte HTTP -> Outbox ainda depende de evolucao futura.
+- O ajuste futuro necessario para uma arvore continua desde o request HTTP seria persistir um envelope de trace context no Outbox, restaurar esse contexto no publisher e entao publicar os headers W3C no Kafka.
 
 O `X-Correlation-Id` e sempre refletido no response pelo middleware de correlacao. Em traces HTTP gerados pela instrumentacao ASP.NET Core, ele nao deve ser tratado como substituto de `traceID`; para fluxos Kafka/Outbox, o correlation id tambem e persistido no dominio e propagado em mensagens como `correlation_id`.
+
+Para inspecionar headers no Kafka de forma pontual, use o console consumer do container Kafka. Esse comando pode consumir mensagens do topico principal; use em ambiente local/controlado:
+
+```bash
+docker compose exec -T kafka /opt/kafka/bin/kafka-console-consumer.sh \
+  --bootstrap-server kafka:9092 \
+  --topic ledger.ledgerentry.created \
+  --from-beginning \
+  --max-messages 5 \
+  --property print.headers=true
+```
+
+Procure headers `event_id`, `event_type`, `correlation_id` e, quando tracing estiver ativo no publisher, `traceparent`.
 
 Se o Jaeger ficar temporariamente indisponivel depois que a aplicacao ja iniciou, o exporter OTLP pode registrar falhas de exportacao, mas o processamento HTTP deve continuar. Nesse periodo os traces podem ser perdidos ou aparecer com atraso ate o backend voltar a receber dados.
 
