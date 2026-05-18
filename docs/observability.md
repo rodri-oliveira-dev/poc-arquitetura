@@ -249,6 +249,36 @@ Portas expostas no host:
 
 O compose sobrescreve configuracoes por variaveis de ambiente para usar os nomes internos `ledger-db`, `balance-db` e `kafka`. Aplique migrations manualmente antes de usar as APIs em banco vazio.
 
+### Validacao local com Jaeger
+
+O compose local inclui Jaeger all-in-one com OTLP habilitado. `LedgerService.Api` e `BalanceService.Api` sobem com OpenTelemetry habilitado e exportam para `http://jaeger:4317` dentro da rede do compose.
+
+Suba a stack:
+
+```bash
+docker compose up -d --build
+```
+
+Acesse a UI do Jaeger em `http://localhost:16686`.
+
+Para gerar traces HTTP simples, sem Kafka, Outbox ou autenticacao, chame os endpoints operacionais:
+
+```bash
+curl http://localhost:5226/health
+curl http://localhost:5226/ready
+curl http://localhost:5228/health
+curl http://localhost:5228/ready
+```
+
+Na UI do Jaeger, use o seletor de servico para procurar:
+
+- `LedgerService.Api`
+- `BalanceService.Api`
+
+Ao consultar traces, o esperado e visualizar spans de entrada HTTP gerados pela instrumentacao ASP.NET Core para `GET /health` e `GET /ready`. A validacao confirma apenas o caminho minimo de traces HTTP; ela nao depende de eventos Kafka, Outbox, endpoints autenticados, spans customizados ou metricas customizadas.
+
+Se o Jaeger ficar temporariamente indisponivel depois que a aplicacao ja iniciou, o exporter OTLP pode registrar falhas de exportacao, mas o processamento HTTP deve continuar. Nesse periodo os traces podem ser perdidos ou aparecer com atraso ate o backend voltar a receber dados.
+
 ### Host
 
 Para execucao fora de container, configure PostgreSQL e Kafka locais e use as configuracoes dos `appsettings.json` como baseline. Use variaveis de ambiente para sobrescrever valores por ambiente:
