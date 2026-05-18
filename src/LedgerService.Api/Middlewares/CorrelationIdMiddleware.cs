@@ -41,12 +41,12 @@ public sealed class CorrelationIdMiddleware
             return Task.CompletedTask;
         });
 
-        using (_logger.BeginScope(new Dictionary<string, object?>
-        {
-            [ScopeKey] = correlationId,
-            ["TraceId"] = traceId,
-            ["SpanId"] = spanId
-        }))
+        using (_logger.BeginScope(
+            "{CorrelationIdKey}={CorrelationId} TraceId={TraceId} SpanId={SpanId}",
+            ScopeKey,
+            correlationId,
+            traceId,
+            spanId))
         {
             await _next(context);
         }

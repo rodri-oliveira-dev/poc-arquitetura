@@ -119,7 +119,15 @@ O endpoint real deve ser fornecido pela plataforma de execucao ou secret/config 
 
 ## Logs
 
-Os logs usam o pipeline padrao do ASP.NET Core. `LedgerService.Api` e `BalanceService.Api` habilitam `Logging:Console:IncludeScopes=true`, o que permite incluir `CorrelationId` no console quando o provider exibe scopes.
+Os logs usam o pipeline padrao do ASP.NET Core. As APIs habilitam `Logging:Console:IncludeScopes=true`, o que permite incluir o escopo de correlacao no console quando o provider exibe scopes.
+
+O middleware de correlacao cria um scope estruturado e com representacao textual explicita:
+
+```text
+CorrelationId=<uuid> TraceId=<trace-id> SpanId=<span-id>
+```
+
+Esse formato evita que o console simples renderize apenas o tipo do estado do scope, como `System.Collections.Generic.Dictionary...`, e preserva os campos nomeados para providers que leem scopes estruturados.
 
 Campos operacionais esperados:
 
@@ -379,10 +387,10 @@ O header padrao e `X-Correlation-Id`:
 
 - se vier ausente ou invalido, a API gera um UUID;
 - o valor efetivo e devolvido no response;
-- o valor entra no logging scope como `CorrelationId`;
+- o valor entra no logging scope como `CorrelationId=<uuid>`;
 - eventos Kafka usam `correlation_id` quando o fluxo possui esse valor.
 
-`CorrelationId` nao substitui trace distribuido. Ele e um identificador estavel de operacao para suporte e auditoria leve; traces e spans continuam sendo a fonte para analise temporal detalhada quando OpenTelemetry esta habilitado.
+`CorrelationId` nao substitui trace distribuido. Ele e um identificador estavel de operacao para suporte e auditoria leve, controlado pelo header HTTP e propagado para responses e eventos. `TraceId` e `SpanId` identificam a arvore temporal de spans da `Activity`; quando OpenTelemetry esta desabilitado, a correlacao por `X-Correlation-Id` continua funcionando.
 
 ## Validacao rapida
 

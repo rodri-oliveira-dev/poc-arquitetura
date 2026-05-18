@@ -1,13 +1,13 @@
+using BalanceService.IntegrationTests.Infrastructure;
 using FluentAssertions;
-using LedgerService.IntegrationTests.Infrastructure;
 
-namespace LedgerService.IntegrationTests.Tests;
+namespace BalanceService.IntegrationTests.Tests;
 
-public sealed class HealthEndpointTests : IClassFixture<LedgerApiFactory>
+public sealed class HealthEndpointTests : IClassFixture<BalanceApiFactory>
 {
     private readonly HttpClient _client;
 
-    public HealthEndpointTests(LedgerApiFactory factory)
+    public HealthEndpointTests(BalanceApiFactory factory)
     {
         _client = factory.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
         {
@@ -16,15 +16,15 @@ public sealed class HealthEndpointTests : IClassFixture<LedgerApiFactory>
     }
 
     [Fact]
-    public async Task Health_should_return_200_ok()
+    public async Task Health_should_return_200_ok_and_generate_correlation_id()
     {
         var res = await _client.GetAsync("/health");
 
         res.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
         (await res.Content.ReadAsStringAsync()).Should().Be("ok");
 
-        // CorrelationId middleware sempre propaga o header
-        res.Headers.Contains("X-Correlation-Id").Should().BeTrue();
+        res.Headers.TryGetValues("X-Correlation-Id", out var values).Should().BeTrue();
+        Guid.TryParse(values.Should().ContainSingle().Which, out _).Should().BeTrue();
     }
 
     [Fact]
@@ -39,17 +39,5 @@ public sealed class HealthEndpointTests : IClassFixture<LedgerApiFactory>
         res.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
         res.Headers.TryGetValues("X-Correlation-Id", out var values).Should().BeTrue();
         values.Should().ContainSingle().Which.Should().Be(correlationId);
-    }
-
-    [Fact]
-    public async Task Ready_should_return_200_when_db_is_available_and_kafka_is_disabled()
-    {
-        var res = await _client.GetAsync("/ready");
-
-        res.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
-        var body = await res.Content.ReadAsStringAsync();
-        body.Should().Contain("\"status\":\"ready\"");
-        body.Should().Contain("\"db\":\"ok\"");
-        body.Should().Contain("\"kafka\":\"disabled\"");
     }
 }
