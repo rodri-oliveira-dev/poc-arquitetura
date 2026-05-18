@@ -34,6 +34,36 @@ public sealed class OutboxMessageRepositoryTests
     }
 
     [Fact]
+    public async Task AddAsync_DevePersistirContextoW3cOpcional()
+    {
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase($"outbox-db-{Guid.NewGuid():N}")
+            .Options;
+
+        await using var db = new AppDbContext(options);
+        var repo = new OutboxMessageRepository(db);
+
+        var msg = new OutboxMessage(
+            "LedgerEntry",
+            Guid.NewGuid(),
+            "LedgerEntryCreated.v1",
+            "{}",
+            DateTime.Now,
+            Guid.NewGuid(),
+            "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+            "vendor=value",
+            "tenant=poc");
+
+        await repo.AddAsync(msg);
+        await db.SaveChangesAsync();
+
+        var refreshed = await db.OutboxMessages.SingleAsync(x => x.Id == msg.Id);
+        Assert.Equal(msg.TraceParent, refreshed.TraceParent);
+        Assert.Equal("vendor=value", refreshed.TraceState);
+        Assert.Equal("tenant=poc", refreshed.Baggage);
+    }
+
+    [Fact]
     public async Task MarkFailedAttemptAsync_DeveIncrementarAttemptsEManterPendingAteMaxAttempts()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()

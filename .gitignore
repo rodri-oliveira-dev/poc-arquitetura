@@ -97,3 +97,4 @@ nunit-*.xml
 .env.k6.auto
 artifacts/k6/
 artifacts/k6/*
+zap-reports

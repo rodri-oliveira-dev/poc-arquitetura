@@ -173,7 +173,10 @@ public static class ServiceCollectionExtensions
                 {
                     tracing
                         .AddAspNetCoreInstrumentation()
-                        .AddHttpClientInstrumentation();
+                        .AddHttpClientInstrumentation()
+                        .AddSource("BalanceService.Api")
+                        .AddSource("BalanceService.Application")
+                        .AddSource("BalanceService.KafkaConsumer");
 
                     if (otelOptions.UseConsoleExporter)
                         tracing.AddConsoleExporter();

@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 
 using LedgerService.Application.Common.Exceptions;
+using LedgerService.Application.Common.Observability;
 using LedgerService.Application.Lancamentos.Events;
 using LedgerService.Domain.Entities;
 using LedgerService.Domain.Repositories;
@@ -108,13 +109,17 @@ public sealed class SolicitarEstornoLancamentoHandler
                 request.CorrelationId),
             JsonOptions);
 
+        var traceContext = OutboxTraceContext.CaptureCurrent();
         var outboxMessage = new OutboxMessage(
             "LancamentoEstorno",
             estorno.Id,
             LancamentoEstornoSolicitadoV1.EventType,
             outboxPayload,
             DateTime.Now,
-            correlationId);
+            correlationId,
+            traceContext.TraceParent,
+            traceContext.TraceState,
+            traceContext.Baggage);
 
         await _outboxMessageRepository.AddAsync(outboxMessage, cancellationToken);
 

@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Text;
 using System.Text.Json;
 
 using BalanceService.Application.Balances.Commands;
@@ -36,7 +35,7 @@ public sealed class LedgerKafkaMessageProcessor
 
     public async Task<bool> ProcessAsync(ConsumeResult<string, string> result, CancellationToken cancellationToken)
     {
-        var headers = ReadHeaders(result.Message.Headers);
+        var headers = KafkaTraceContext.ReadHeaders(result.Message.Headers);
 
         try
         {
@@ -130,13 +129,12 @@ public sealed class LedgerKafkaMessageProcessor
         IReadOnlyDictionary<string, string> headers,
         LedgerEntryCreatedEvent evt)
     {
-        ActivityContext parentContext = default;
-        if (headers.TryGetValue(KafkaHeaderNames.TraceParent, out var traceParent))
-            ActivityContext.TryParse(traceParent, headers.GetValueOrDefault(KafkaHeaderNames.TraceState), out parentContext);
-
-        var activity = parentContext == default
-            ? ActivitySource.StartActivity("kafka.consume", ActivityKind.Consumer)
-            : ActivitySource.StartActivity("kafka.consume", ActivityKind.Consumer, parentContext);
+        var activity = KafkaTraceContext.StartConsumerActivity(
+            ActivitySource,
+            "kafka.consume",
+            headers.GetValueOrDefault(KafkaHeaderNames.TraceParent),
+            headers.GetValueOrDefault(KafkaHeaderNames.TraceState),
+            headers.GetValueOrDefault(KafkaHeaderNames.Baggage));
 
         activity?.SetTag("messaging.system", "kafka");
         activity?.SetTag("messaging.operation", "consume");
@@ -147,9 +145,6 @@ public sealed class LedgerKafkaMessageProcessor
         activity?.SetTag("event_id", ResolveEventId(headers, evt.Id));
         activity?.SetTag("event_type", headers.GetValueOrDefault(KafkaHeaderNames.EventType));
         activity?.AddBaggage("correlation_id", evt.CorrelationId);
-
-        if (headers.TryGetValue(KafkaHeaderNames.Baggage, out var baggage))
-            activity?.SetTag(KafkaHeaderNames.Baggage, baggage);
 
         return activity;
     }
@@ -188,18 +183,6 @@ public sealed class LedgerKafkaMessageProcessor
         => headers.TryGetValue(KafkaHeaderNames.EventId, out var eventId) && !string.IsNullOrWhiteSpace(eventId)
             ? eventId
             : payloadEventId;
-
-    private static IReadOnlyDictionary<string, string> ReadHeaders(Headers? headers)
-    {
-        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        if (headers is null)
-            return result;
-
-        foreach (var header in headers)
-            result[header.Key] = Encoding.UTF8.GetString(header.GetValueBytes());
-
-        return result;
-    }
 
     private static bool IsNonRecoverableProcessingFailure(InvalidOperationException ex)
         => ex.Source?.Contains("EntityFramework", StringComparison.OrdinalIgnoreCase) != true;

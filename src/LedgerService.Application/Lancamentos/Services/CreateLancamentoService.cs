@@ -5,6 +5,7 @@ using System.Text.Json;
 
 using LedgerService.Application.Common.Exceptions;
 using LedgerService.Application.Common.Models;
+using LedgerService.Application.Common.Observability;
 using LedgerService.Application.Lancamentos.Events;
 using LedgerService.Application.Lancamentos.Inputs.CreateLancamento;
 using LedgerService.Domain.Entities;
@@ -103,13 +104,17 @@ public sealed class CreateLancamentoService
                 response.ExternalReference),
             JsonOptions);
 
+        var traceContext = OutboxTraceContext.CaptureCurrent();
         var outboxMessage = new OutboxMessage(
             "LedgerEntry",
             ledgerEntry.Id,
             LedgerEntryCreatedV1.EventType,
             outboxPayload,
             DateTime.Now,
-            correlationId);
+            correlationId,
+            traceContext.TraceParent,
+            traceContext.TraceState,
+            traceContext.Baggage);
 
         await _outboxMessageRepository.AddAsync(outboxMessage, cancellationToken);
 

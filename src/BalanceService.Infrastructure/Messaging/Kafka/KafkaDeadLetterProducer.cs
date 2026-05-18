@@ -52,12 +52,12 @@ public sealed class KafkaDeadLetterProducer : IKafkaDeadLetterProducer, IDisposa
             { "original_offset", Encoding.UTF8.GetBytes(message.OriginalOffset.ToString(CultureInfo.InvariantCulture)) }
         };
 
-        CopyHeaderIfPresent(message.OriginalHeaders, headers, KafkaHeaderNames.EventType);
-        CopyHeaderIfPresent(message.OriginalHeaders, headers, KafkaHeaderNames.EventId);
-        CopyHeaderIfPresent(message.OriginalHeaders, headers, KafkaHeaderNames.CorrelationId);
-        CopyHeaderIfPresent(message.OriginalHeaders, headers, KafkaHeaderNames.TraceParent);
-        CopyHeaderIfPresent(message.OriginalHeaders, headers, KafkaHeaderNames.TraceState);
-        CopyHeaderIfPresent(message.OriginalHeaders, headers, KafkaHeaderNames.Baggage);
+        KafkaTraceContext.CopyHeaderIfPresent(message.OriginalHeaders, headers, KafkaHeaderNames.EventType);
+        KafkaTraceContext.CopyHeaderIfPresent(message.OriginalHeaders, headers, KafkaHeaderNames.EventId);
+        KafkaTraceContext.CopyHeaderIfPresent(message.OriginalHeaders, headers, KafkaHeaderNames.CorrelationId);
+        KafkaTraceContext.CopyHeaderIfPresent(message.OriginalHeaders, headers, KafkaHeaderNames.TraceParent);
+        KafkaTraceContext.CopyHeaderIfPresent(message.OriginalHeaders, headers, KafkaHeaderNames.TraceState);
+        KafkaTraceContext.CopyHeaderIfPresent(message.OriginalHeaders, headers, KafkaHeaderNames.Baggage);
 
         var result = await _producer.ProduceAsync(
             _options.DeadLetterTopic,
@@ -94,9 +94,4 @@ public sealed class KafkaDeadLetterProducer : IKafkaDeadLetterProducer, IDisposa
         _producer.Dispose();
     }
 
-    private static void CopyHeaderIfPresent(IReadOnlyDictionary<string, string> source, Headers target, string name)
-    {
-        if (source.TryGetValue(name, out var value) && !string.IsNullOrWhiteSpace(value))
-            target.Add(name, Encoding.UTF8.GetBytes(value));
-    }
 }

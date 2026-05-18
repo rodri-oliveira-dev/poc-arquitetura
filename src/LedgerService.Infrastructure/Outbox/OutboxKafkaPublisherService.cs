@@ -156,9 +156,12 @@ public sealed class OutboxKafkaPublisherService : BackgroundService
             ["AggregateId"] = message.AggregateId
         });
 
-        using var activity = ActivitySource.StartActivity(
+        using var activity = KafkaTraceContext.StartProducerActivity(
+            ActivitySource,
             "outbox.publish",
-            ActivityKind.Producer);
+            message.TraceParent,
+            message.TraceState,
+            message.Baggage);
 
         activity?.SetTag("messaging.system", "kafka");
         activity?.SetTag("messaging.destination", "kafka");

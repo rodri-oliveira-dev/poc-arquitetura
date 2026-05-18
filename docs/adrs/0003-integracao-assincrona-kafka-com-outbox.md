@@ -26,7 +26,7 @@ Adotar o padrão **Outbox** no `LedgerService`:
 Detalhes relevantes (estado atual):
 
 - Tópico dedicado: `ledger.ledgerentry.created` (criado no compose por um init job).
-- Headers incluem `event_id`, `event_type`, `correlation_id` e (quando houver `Activity`) `traceparent`/`baggage`.
+- Headers incluem `event_id`, `event_type`, `correlation_id` e, quando houver contexto W3C persistido ou `Activity`, `traceparent`/`tracestate`/`baggage`.
 
 ## Justificativa: escolha de mensageria (Kafka) vs alternativas
 Nesta PoC, a escolha por **Kafka** (via `Confluent.Kafka`) é adequada porque:

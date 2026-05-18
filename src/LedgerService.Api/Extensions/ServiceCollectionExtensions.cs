@@ -177,7 +177,8 @@ public static class ServiceCollectionExtensions
                 {
                     tracing
                         .AddAspNetCoreInstrumentation()
-                        .AddHttpClientInstrumentation();
+                        .AddHttpClientInstrumentation()
+                        .AddSource("LedgerService.OutboxPublisher");
 
                     if (otelOptions.UseConsoleExporter)
                         tracing.AddConsoleExporter();
