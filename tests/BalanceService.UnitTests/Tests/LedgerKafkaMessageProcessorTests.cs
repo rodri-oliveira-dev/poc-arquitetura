@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using System.Diagnostics;
 
 using BalanceService.Application.Balances.Commands;
 using BalanceService.Domain.Balances;
@@ -144,6 +145,42 @@ public sealed class LedgerKafkaMessageProcessorTests
     }
 
     [Fact]
+    public async Task Valid_message_should_restore_trace_context_and_baggage()
+    {
+        Activity? stoppedActivity = null;
+        using var listener = new ActivityListener
+        {
+            ShouldListenTo = source => source.Name == "BalanceService.KafkaConsumer",
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
+            ActivityStopped = activity => stoppedActivity = activity
+        };
+        ActivitySource.AddActivityListener(listener);
+
+        var dlq = new CapturingDeadLetterProducer();
+        var sender = new Mock<ISender>();
+        sender
+            .Setup(x => x.Send(It.IsAny<IRequest>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var sut = CreateSut(dlq, sender.Object);
+        var result = CreateResult(
+            ValidPayload(),
+            HeadersWith(
+                EventId: "evt-1",
+                TraceParent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+                TraceState: "vendor=value",
+                Baggage: "tenant=poc"));
+
+        var shouldCommit = await sut.ProcessAsync(result, CancellationToken.None);
+
+        shouldCommit.Should().BeTrue();
+        stoppedActivity.Should().NotBeNull();
+        stoppedActivity!.TraceId.ToString().Should().Be("4bf92f3577b34da6a3ce929d0e0e4736");
+        stoppedActivity.ParentSpanId.ToString().Should().Be("00f067aa0ba902b7");
+        stoppedActivity.Baggage.Should().Contain(x => x.Key == "tenant" && x.Value == "poc");
+    }
+
+    [Fact]
     public async Task Non_recoverable_processing_failure_should_publish_to_dlq()
     {
         var dlq = new CapturingDeadLetterProducer();
@@ -203,7 +240,11 @@ public sealed class LedgerKafkaMessageProcessorTests
             }
         };
 
-    private static Headers HeadersWith(string? EventId, string? TraceParent = null, string? Baggage = null)
+    private static Headers HeadersWith(
+        string? EventId,
+        string? TraceParent = null,
+        string? TraceState = null,
+        string? Baggage = null)
     {
         var headers = new Headers
         {
@@ -215,6 +256,9 @@ public sealed class LedgerKafkaMessageProcessorTests
 
         if (TraceParent is not null)
             headers.Add(KafkaHeaderNames.TraceParent, Encoding.UTF8.GetBytes(TraceParent));
+
+        if (TraceState is not null)
+            headers.Add(KafkaHeaderNames.TraceState, Encoding.UTF8.GetBytes(TraceState));
 
         if (Baggage is not null)
             headers.Add(KafkaHeaderNames.Baggage, Encoding.UTF8.GetBytes(Baggage));

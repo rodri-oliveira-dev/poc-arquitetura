@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 using FluentAssertions;
 using LedgerService.Application.Lancamentos.Events;
 using LedgerService.Application.Common.Exceptions;
@@ -99,6 +101,58 @@ public sealed class CreateLancamentoServiceTests
         outboxRepo.VerifyAll();
         uow.VerifyAll();
         tx.VerifyAll();
+    }
+
+    [Fact]
+    public async Task Should_persist_current_trace_context_in_outbox()
+    {
+        using var listener = new ActivityListener
+        {
+            ShouldListenTo = _ => true,
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded
+        };
+        ActivitySource.AddActivityListener(listener);
+
+        using var source = new ActivitySource("LedgerService.UnitTests");
+        using var activity = source.StartActivity("http.request", ActivityKind.Server);
+        activity.Should().NotBeNull();
+        activity!.TraceStateString = "vendor=value";
+        activity.AddBaggage("tenant", "poc");
+
+        var ledgerRepo = new Mock<ILedgerEntryRepository>(MockBehavior.Strict);
+        var idemRepo = new Mock<IIdempotencyRecordRepository>(MockBehavior.Strict);
+        var outboxRepo = new Mock<IOutboxMessageRepository>(MockBehavior.Strict);
+        var uow = new Mock<IUnitOfWork>(MockBehavior.Strict);
+        var tx = new Mock<IAppTransaction>(MockBehavior.Strict);
+
+        var input = LancamentoFixture.ValidInput(type: "CREDIT", amount: "10.00");
+
+        uow.Setup(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(tx.Object);
+        idemRepo.Setup(x => x.GetByMerchantAndKeyAsync(input.MerchantId, input.IdempotencyKey, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IdempotencyRecord?)null);
+        ledgerRepo.Setup(x => x.AddAsync(It.IsAny<LedgerEntry>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        idemRepo.Setup(x => x.AddAsync(It.IsAny<IdempotencyRecord>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        OutboxMessage? createdOutbox = null;
+        outboxRepo.Setup(x => x.AddAsync(It.IsAny<OutboxMessage>(), It.IsAny<CancellationToken>()))
+            .Callback<OutboxMessage, CancellationToken>((m, _) => createdOutbox = m)
+            .Returns(Task.CompletedTask);
+
+        uow.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
+        tx.Setup(x => x.CommitAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        tx.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask);
+
+        var sut = new CreateLancamentoService(ledgerRepo.Object, idemRepo.Object, outboxRepo.Object, uow.Object);
+
+        await sut.ExecuteAsync(input, CancellationToken.None);
+
+        createdOutbox.Should().NotBeNull();
+        createdOutbox!.TraceParent.Should().Be(activity.Id);
+        createdOutbox.TraceState.Should().Be("vendor=value");
+        createdOutbox.Baggage.Should().Be("tenant=poc");
     }
 
     [Fact]

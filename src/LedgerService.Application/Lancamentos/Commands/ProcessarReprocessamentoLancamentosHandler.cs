@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Text.Json;
 
 using LedgerService.Application.Common.Exceptions;
+using LedgerService.Application.Common.Observability;
 using LedgerService.Application.Lancamentos.Events;
 using LedgerService.Domain.Entities;
 using LedgerService.Domain.Exceptions;
@@ -99,13 +100,17 @@ public sealed class ProcessarReprocessamentoLancamentosHandler
             cancellationToken.ThrowIfCancellationRequested();
 
             var outboxPayload = JsonSerializer.Serialize(ToLedgerEntryCreated(entry), JsonOptions);
+            var traceContext = OutboxTraceContext.CaptureCurrent();
             var outboxMessage = new OutboxMessage(
                 "LedgerEntryReprocessamento",
                 entry.Id,
                 LedgerEntryCreatedV1.EventType,
                 outboxPayload,
                 DateTime.Now,
-                reprocessamento.CorrelationId);
+                reprocessamento.CorrelationId,
+                traceContext.TraceParent,
+                traceContext.TraceState,
+                traceContext.Baggage);
 
             await _outboxMessageRepository.AddAsync(outboxMessage, cancellationToken);
         }

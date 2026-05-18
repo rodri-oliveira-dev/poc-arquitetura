@@ -61,6 +61,18 @@ public sealed class OutboxMessageConfiguration : IEntityTypeConfiguration<Outbox
         builder.Property(x => x.CorrelationId)
             .HasColumnName("correlation_id");
 
+        builder.Property(x => x.TraceParent)
+            .HasColumnName("traceparent")
+            .HasMaxLength(128);
+
+        builder.Property(x => x.TraceState)
+            .HasColumnName("tracestate")
+            .HasMaxLength(512);
+
+        builder.Property(x => x.Baggage)
+            .HasColumnName("baggage")
+            .HasMaxLength(1024);
+
         builder.Property(x => x.LockedUntil)
             .HasColumnName("locked_until")
             .HasColumnType("timestamp without time zone");

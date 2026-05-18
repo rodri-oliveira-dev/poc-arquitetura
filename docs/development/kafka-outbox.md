@@ -41,11 +41,11 @@ Headers publicados pelo producer:
 - `event_id`;
 - `event_type`;
 - `correlation_id`, quando existir;
-- `traceparent`, quando houver `Activity`;
-- `tracestate`, quando houver `Activity` com tracestate;
-- `baggage`, quando houver `Activity`.
+- `traceparent`, quando houver contexto W3C persistido na Outbox ou `Activity` atual;
+- `tracestate`, quando houver contexto W3C com tracestate;
+- `baggage`, quando houver baggage persistido na Outbox ou `Activity` atual.
 
-O `BalanceService.Api` exige `event_type=LedgerEntryCreated.v1`, usa `event_id` para rastreabilidade e idempotencia quando presente e preserva headers relevantes ao enviar mensagens para a DLQ.
+O `BalanceService.Api` exige `event_type=LedgerEntryCreated.v1`, usa `event_id` para rastreabilidade e idempotencia quando presente, restaura `traceparent`/`tracestate` como parent do span `kafka.consume`, reidrata `baggage` quando possivel e preserva headers relevantes ao enviar mensagens para a DLQ. Mensagens antigas sem headers W3C continuam validas; nesse caso, o consumo segue pelo fallback funcional e pode criar um span raiz quando OpenTelemetry estiver habilitado.
 
 ## Outbox
 
@@ -57,6 +57,8 @@ Estados esperados:
 - `Failed`: mensagem excedeu o limite de tentativas.
 
 Mensagens `Failed` exigem investigacao antes de qualquer nova tentativa. O requeue operacional recoloca somente mensagens `Failed` em `Pending`; mensagens `Sent` nao sao reprocessadas e mensagens `Processing` validas continuam sob responsabilidade do lock do publisher.
+
+A Outbox tambem persiste metadados opcionais de propagacao distribuida em `traceparent`, `tracestate` e `baggage`. Esses campos nao fazem parte do payload do evento, nao mudam contrato de negocio e servem apenas para reconstruir a arvore W3C entre o request HTTP original, o polling da Outbox, Kafka e o consumer do Balance. Quando OpenTelemetry esta desligado ou nao existe `Activity.Current`, esses campos ficam nulos e o fluxo continua usando `correlation_id`.
 
 Configuracoes principais em `Outbox:Publisher`:
 

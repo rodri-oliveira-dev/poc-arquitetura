@@ -156,7 +156,9 @@ Quando `Observability:OpenTelemetry:Enabled=true`, as APIs registram:
 - `BalanceService.Application`, para aplicacao do evento no consolidado;
 - `BalanceService.Api`, para consultas de consolidado.
 
-Quando ha `Activity` ativa no publisher, headers W3C como `traceparent`, `tracestate` e `baggage` sao propagados nas mensagens. O `CorrelationId` continua sendo um identificador operacional separado do `TraceId`.
+Quando ha `Activity` ativa no request HTTP, o Ledger persiste `traceparent`, `tracestate` e `baggage` em colunas opcionais da `outbox_messages`. O publisher restaura esse contexto antes de criar o span `outbox.publish` e publica os mesmos headers W3C no Kafka. O `BalanceService.Api` usa `traceparent`/`tracestate` como parent do span `kafka.consume` e reidrata o header `baggage` como baggage da `Activity` quando possivel.
+
+O `CorrelationId` continua sendo um identificador operacional separado do `TraceId`. Mensagens antigas, ou criadas sem `Activity`, ficam sem os campos W3C e seguem pelo fallback atual: o processamento continua, e spans Kafka podem nascer como raiz quando houver listener OpenTelemetry.
 
 ## Metricas
 
@@ -389,7 +391,7 @@ Consultas SQL uteis pelo compose:
 
 ```bash
 docker compose exec -T ledger-db psql -U appuser -d appdb \
-  -c "SELECT id, event_type, status, attempts, correlation_id, processed_at FROM outbox_messages WHERE correlation_id = '11111111-1111-4111-8111-111111111111' ORDER BY occurred_at DESC LIMIT 5;"
+  -c "SELECT id, event_type, status, attempts, correlation_id, traceparent, tracestate, baggage, processed_at FROM outbox_messages WHERE correlation_id = '11111111-1111-4111-8111-111111111111' ORDER BY occurred_at DESC LIMIT 5;"
 ```
 
 Durante uma janela curta, a mensagem pode aparecer como `Pending` ou `Processing`. Depois do polling do `OutboxKafkaPublisherService`, o esperado e `Sent`. Se Kafka estiver indisponivel, acompanhe `attempts`, `next_attempt_at`, `last_error` e eventual `Failed`.
@@ -439,13 +441,13 @@ Na UI do Jaeger:
 3. selecione `BalanceService.Api` e procure spans `kafka.consume`, `balance.apply` e a consulta `GET /v1/consolidados/diario/{date}`;
 4. use o `TraceID` para analise temporal e o `CorrelationId` nos logs/SQL para conectar a operacao de negocio.
 
-Limitacao conhecida de trace distribuido:
+Trace distribuido no fluxo autenticado:
 
 - `POST /auth/login` e `POST /api/v1/lancamentos` sao chamadas HTTP separadas; o token JWT nao carrega trace context.
-- O Ledger persiste `correlation_id` na Outbox, mas nao persiste `traceparent`, `tracestate` ou `baggage` na tabela `outbox_messages`.
-- Por isso, o trace HTTP do `POST /api/v1/lancamentos` nao aparece hoje como a mesma arvore do processamento assincrono Outbox/Kafka/Balance.
-- A partir do publisher, o span `outbox.publish` propaga `traceparent` para o Kafka, e o consumer do Balance usa esse parent quando o header esta presente. Assim, a parte Outbox -> Kafka -> Balance pode aparecer conectada, mas a ponte HTTP -> Outbox ainda depende de evolucao futura.
-- O ajuste futuro necessario para uma arvore continua desde o request HTTP seria persistir um envelope de trace context no Outbox, restaurar esse contexto no publisher e entao publicar os headers W3C no Kafka.
+- O Ledger persiste `correlation_id`, `traceparent`, `tracestate` e `baggage` na tabela `outbox_messages`.
+- O trace HTTP do `POST /api/v1/lancamentos` pode aparecer como a mesma arvore do processamento assincrono Outbox/Kafka/Balance quando OpenTelemetry esta habilitado e existe `Activity` ativa no request.
+- O span `outbox.publish` usa o contexto salvo na Outbox como parent e o producer publica os headers W3C no Kafka.
+- O consumer do Balance usa esse parent quando `traceparent` esta presente; se o contexto W3C estiver ausente ou invalido, o consumo continua com fallback operacional.
 
 ### Diagnostico de propagacao Kafka
 
@@ -453,28 +455,28 @@ Estado atual auditado no fluxo `LedgerService.Api` -> Outbox -> Kafka -> `Balanc
 
 - O `CorrelationIdMiddleware` das APIs resolve `X-Correlation-Id`, gera UUID quando o header esta ausente ou invalido, injeta o valor no request/response HTTP e cria scope de log com `CorrelationId`, `TraceId` e `SpanId` quando ha `Activity` ativa.
 - O caso de uso de criacao de lancamento grava o `correlationId` no payload `LedgerEntryCreated.v1` e na coluna `outbox_messages.correlation_id`.
-- O `OutboxKafkaPublisherService` cria a `Activity` `outbox.publish` com `ActivityKind.Producer` apenas quando existe listener para `LedgerService.OutboxPublisher`, como ocorre com OpenTelemetry habilitado.
-- O `OutboxKafkaProducer` publica `event_id`, `event_type`, `correlation_id` e, quando `Activity.Current` existe, `traceparent`, `tracestate` e `baggage`.
+- Quando existe `Activity.Current`, o caso de uso tambem grava `traceparent`, `tracestate` e `baggage` nas colunas opcionais da Outbox.
+- O `OutboxKafkaPublisherService` restaura o parent W3C salvo na Outbox ao criar a `Activity` `outbox.publish` com `ActivityKind.Producer`.
+- O `OutboxKafkaProducer` publica `event_id`, `event_type`, `correlation_id`, `traceparent`, `tracestate` e `baggage` quando esse contexto existe na Outbox ou na `Activity.Current`.
 - O `BalanceService` le headers Kafka em dicionario case-insensitive, valida `event_type=LedgerEntryCreated.v1`, usa `event_id` do header quando presente e faz fallback para o `id` do payload.
 - O consumer tenta restaurar o parent do span `kafka.consume` com `ActivityContext.TryParse(traceparent, tracestate)`. Se o `traceparent` estiver ausente ou invalido, o consumo continua com uma nova Activity raiz quando OpenTelemetry esta habilitado.
 - O `correlation_id` do header Kafka nao e usado como fonte primaria no Balance; a correlacao operacional vem do campo `correlationId` do payload. Por isso, mensagens sem header `correlation_id`, mas com payload valido e `event_type`, continuam sendo processadas.
-- O header `baggage` recebido nao e reidratado como baggage da `Activity`; ele e registrado como tag. O consumer adiciona apenas `correlation_id` como baggage local.
+- O header `baggage` recebido e reidratado como baggage da `Activity` quando possivel. O consumer tambem adiciona `correlation_id` como baggage local.
 - Mensagens com `event_type`, payload invalido ou falha nao recuperavel sao enviadas para DLQ. A DLQ preserva `event_id`, `event_type`, `correlation_id`, `traceparent`, `tracestate` e `baggage` quando esses headers existirem.
 
 Com OpenTelemetry desligado:
 
 - a correlacao por `X-Correlation-Id`, payload `correlationId`, coluna `outbox_messages.correlation_id`, logs e header Kafka `correlation_id` continua funcionando;
-- as `ActivitySource` customizadas nao possuem listener e normalmente nao criam `Activity`; consequentemente, o publisher nao adiciona `traceparent`, `tracestate` nem `baggage` derivados de `Activity.Current`;
+- as `ActivitySource` customizadas nao possuem listener e normalmente nao criam `Activity`; consequentemente, novas mensagens nao persistem nem publicam `traceparent`, `tracestate` e `baggage`;
 - o Balance continua processando mensagens Kafka validas, mas nao ha arvore exportada de spans customizados.
 
-Gaps e riscos conhecidos:
+Riscos e limites conhecidos:
 
-- Nao ha continuidade real entre o span HTTP de criacao do lancamento e o span `outbox.publish`, porque o contexto W3C nao e persistido na Outbox.
-- Se OpenTelemetry estiver habilitado, a continuidade existe somente a partir do publisher para o consumer quando `traceparent` for publicado.
+- A continuidade HTTP -> Outbox -> Kafka -> Balance depende de `Activity` ativa no request de origem. Sem OpenTelemetry/listener, nao ha contexto W3C novo a persistir.
 - Sem `traceparent`, o Balance pode gerar um span raiz para `kafka.consume`, o que e correto operacionalmente, mas representa trace quebrado para analise temporal ponta a ponta.
 - O `CorrelationId` esta separado do `TraceId`; isso evita acoplamento indevido, mas tambem significa que consultas por correlation id dependem de logs, SQL, tags ou payload, nao da identidade nativa do trace.
-- A montagem manual de `baggage` no producer e o tratamento como tag no consumer sao suficientes para a POC, mas nao implementam propagacao W3C completa de baggage.
-- A logica de headers W3C aparece no producer, no consumer e na DLQ. Ainda esta pequena, mas uma evolucao com mais topicos/consumidores pode justificar centralizar a propagacao para reduzir drift.
+- A formatacao/parsing de `baggage` e pequena e cobre o formato usado pela POC; valores com metadados W3C sao aceitos descartando metadados no baggage reidratado.
+- A logica W3C foi centralizada em helpers pequenos por servico para reduzir drift sem criar framework interno.
 
 O `X-Correlation-Id` e sempre refletido no response pelo middleware de correlacao. Em traces HTTP gerados pela instrumentacao ASP.NET Core, ele nao deve ser tratado como substituto de `traceID`; para fluxos Kafka/Outbox, o correlation id tambem e persistido no dominio e propagado em mensagens como `correlation_id`.
 

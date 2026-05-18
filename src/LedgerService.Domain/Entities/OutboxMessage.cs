@@ -15,6 +15,9 @@ public sealed class OutboxMessage : Entity
     public DateTime? ProcessedAt { get; private set; }
     public string? LastError { get; private set; }
     public Guid? CorrelationId { get; private set; }
+    public string? TraceParent { get; private set; }
+    public string? TraceState { get; private set; }
+    public string? Baggage { get; private set; }
     public DateTime? LockedUntil { get; private set; }
     public string? LockOwner { get; private set; }
     public int RequeueCount { get; private set; }
@@ -35,7 +38,10 @@ public sealed class OutboxMessage : Entity
         string eventType,
         string payload,
         DateTime occurredAt,
-        Guid? correlationId)
+        Guid? correlationId,
+        string? traceParent = null,
+        string? traceState = null,
+        string? baggage = null)
     {
         AggregateType = aggregateType;
         AggregateId = aggregateId;
@@ -45,6 +51,9 @@ public sealed class OutboxMessage : Entity
         Status = OutboxStatus.Pending;
         Attempts = 0;
         CorrelationId = correlationId;
+        TraceParent = Normalize(traceParent);
+        TraceState = Normalize(traceState);
+        Baggage = Normalize(baggage);
     }
 
     public void MarkProcessing(string lockOwner, DateTime lockedUntil)
@@ -99,4 +108,7 @@ public sealed class OutboxMessage : Entity
         LastRequeuedBy = requeuedBy;
         LastRequeueReason = reason;
     }
+
+    private static string? Normalize(string? value)
+        => string.IsNullOrWhiteSpace(value) ? null : value;
 }
