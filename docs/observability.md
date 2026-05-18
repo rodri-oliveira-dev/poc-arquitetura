@@ -277,6 +277,87 @@ Na UI do Jaeger, use o seletor de servico para procurar:
 
 Ao consultar traces, o esperado e visualizar spans de entrada HTTP gerados pela instrumentacao ASP.NET Core para `GET /health` e `GET /ready`. A validacao confirma apenas o caminho minimo de traces HTTP; ela nao depende de eventos Kafka, Outbox, endpoints autenticados, spans customizados ou metricas customizadas.
 
+### Validacao Auth -> Ledger com JWT
+
+Para validar o fluxo HTTP autenticado com trace no Jaeger, use `Auth.Api` para obter um JWT RS256 e chame o endpoint protegido `POST /api/v1/lancamentos` no `LedgerService.Api`.
+
+Esse endpoint foi escolhido porque:
+
+- exige `Authorization: Bearer <token>` com scope `ledger.write`;
+- exige `Idempotency-Key`;
+- aceita e devolve `X-Correlation-Id`;
+- usa `merchantId` no contrato real e valida esse valor contra a claim `merchant_id` emitida pelo `Auth.Api`;
+- gera uma requisicao HTTP de negocio visivel como trace em `LedgerService.Api`.
+
+Payload real do login, conforme `src/Auth.Api/Contracts/LoginRequest.cs`:
+
+```json
+{
+  "username": "poc-usuario",
+  "password": "Poc#123",
+  "scope": "ledger.write"
+}
+```
+
+O compose local configura essas credenciais de POC em `auth-api` e o `Auth.Api` versionado autoriza os merchants `tese` e `m1`. Para criar um lancamento, use um desses merchants. O contrato real de criacao de lancamento fica em `src/LedgerService.Api/Contracts/CreateLancamentoRequest.cs`; `CREDIT` exige `amount` maior que zero e `DEBIT` exige `amount` menor que zero.
+
+No Windows/PowerShell, o fluxo completo pode ser executado com:
+
+```powershell
+./scripts/validate-auth-ledger-trace.ps1
+```
+
+O script:
+
+1. chama `POST /auth/login` em `http://localhost:5030`;
+2. extrai `access_token`;
+3. chama `POST /api/v1/lancamentos` em `http://localhost:5226`;
+4. envia `Authorization`, `Idempotency-Key` e `X-Correlation-Id` explicito;
+5. imprime o status HTTP e o `X-Correlation-Id` devolvido;
+6. consulta traces recentes de `LedgerService.Api` no Jaeger;
+7. tenta localizar o correlation id nos logs recentes de `ledger-service`.
+
+Tambem e possivel executar manualmente com `curl`:
+
+```bash
+TOKEN="$(curl -sS -X POST http://localhost:5030/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"poc-usuario","password":"Poc#123","scope":"ledger.write"}' \
+  | sed -nE 's/.*"access_token"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p')"
+
+CORRELATION_ID="11111111-1111-4111-8111-111111111111"
+IDEMPOTENCY_KEY="$(uuidgen)"
+
+curl -i -X POST http://localhost:5226/api/v1/lancamentos \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -H "Idempotency-Key: ${IDEMPOTENCY_KEY}" \
+  -H "X-Correlation-Id: ${CORRELATION_ID}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "merchantId": "tese",
+    "type": "CREDIT",
+    "amount": 10.00,
+    "description": "Validacao local Auth -> Ledger com OpenTelemetry",
+    "externalReference": "local-auth-ledger-manual"
+  }'
+```
+
+Resultado esperado:
+
+- `POST /auth/login` retorna `access_token`;
+- `POST /api/v1/lancamentos` retorna `201 Created`;
+- o header `X-Correlation-Id` do response preserva o UUID enviado;
+- `docker compose logs ledger-service --since 10m` mostra o correlation id no escopo de logs quando o provider imprime scopes;
+- a UI do Jaeger em `http://localhost:16686` mostra trace recente para o servico `LedgerService.Api`, associado ao `POST /api/v1/lancamentos`.
+
+Na UI do Jaeger:
+
+1. selecione `LedgerService.Api` em `Service`;
+2. clique em `Find Traces`;
+3. procure uma entrada recente de `POST /api/v1/lancamentos`.
+
+O `X-Correlation-Id` e sempre refletido no response pelo middleware de correlacao. Em traces HTTP gerados pela instrumentacao ASP.NET Core, ele nao deve ser tratado como substituto de `traceID`; para fluxos Kafka/Outbox, o correlation id tambem e persistido no dominio e propagado em mensagens como `correlation_id`.
+
 Se o Jaeger ficar temporariamente indisponivel depois que a aplicacao ja iniciou, o exporter OTLP pode registrar falhas de exportacao, mas o processamento HTTP deve continuar. Nesse periodo os traces podem ser perdidos ou aparecer com atraso ate o backend voltar a receber dados.
 
 ### Host
