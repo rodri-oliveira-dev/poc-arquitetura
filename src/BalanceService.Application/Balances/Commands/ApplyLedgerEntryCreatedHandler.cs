@@ -1,13 +1,14 @@
+using System.Diagnostics;
+using System.Globalization;
+
 using BalanceService.Application.Abstractions.Persistence;
 using BalanceService.Application.Abstractions.Time;
+using BalanceService.Application.Common.Observability;
 using BalanceService.Domain.Balances;
 
 using MediatR;
 
 using Microsoft.Extensions.Logging;
-
-using System.Diagnostics;
-using System.Globalization;
 
 namespace BalanceService.Application.Balances.Commands;
 
@@ -15,111 +16,144 @@ public sealed class ApplyLedgerEntryCreatedHandler : IRequestHandler<ApplyLedger
 {
     private static readonly ActivitySource _activitySource = new("BalanceService.Application");
 
-    // TODO: confirmar a origem/contrato de currency no evento. No payload atual não há currency.
-    // Para não bloquear o processamento da POC, usamos um default conservador.
+    // TODO: confirmar a origem/contrato de currency no evento. No payload atual nao ha currency.
+    // Para nao bloquear o processamento da POC, usamos um default conservador.
     private const string DefaultCurrency = "BRL";
+    private const string LedgerEntryCreatedEventType = "LedgerEntryCreated.v1";
 
     private readonly IDailyBalanceRepository _dailyBalanceRepository;
     private readonly IProcessedEventRepository _processedEventRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IClock _clock;
     private readonly ILogger<ApplyLedgerEntryCreatedHandler> _logger;
+    private readonly BalanceDomainMetrics? _metrics;
 
     public ApplyLedgerEntryCreatedHandler(
         IDailyBalanceRepository dailyBalanceRepository,
         IProcessedEventRepository processedEventRepository,
         IUnitOfWork unitOfWork,
         IClock clock,
-        ILogger<ApplyLedgerEntryCreatedHandler> logger)
+        ILogger<ApplyLedgerEntryCreatedHandler> logger,
+        BalanceDomainMetrics? metrics = null)
     {
         _dailyBalanceRepository = dailyBalanceRepository;
         _processedEventRepository = processedEventRepository;
         _unitOfWork = unitOfWork;
         _clock = clock;
         _logger = logger;
+        _metrics = metrics;
     }
 
-    public async Task<ApplyLedgerEntryCreatedResult> Handle(ApplyLedgerEntryCreatedCommand command, CancellationToken cancellationToken)
+    public async Task<ApplyLedgerEntryCreatedResult> Handle(
+        ApplyLedgerEntryCreatedCommand command,
+        CancellationToken cancellationToken)
     {
+        var startedAt = Stopwatch.GetTimestamp();
         var evt = command.Event;
 
-        // Importante: a consolidação diária deve usar o "dia" derivado do occurredAt no fuso recebido.
-        // Por isso, calculamos a DateOnly ANTES de normalizar timestamps para UTC.
-        var date = DateOnly.FromDateTime(evt.OccurredAt.Date);
-        var currency = DefaultCurrency;
-        var now = _clock.UtcNow;
-
-        // Npgsql + timestamptz: DateTimeOffset precisa estar em UTC (Offset=0)
-        // para ser persistido. Mantemos a lógica do "dia" usando o offset original.
-        var occurredAtUtc = evt.OccurredAt.ToUniversalTime();
-        var createdAtUtc = evt.CreatedAt.ToUniversalTime();
-        var normalizedEvent = evt with
+        try
         {
-            OccurredAt = occurredAtUtc,
-            CreatedAt = createdAtUtc
-        };
+            // Importante: a consolidacao diaria deve usar o "dia" derivado do occurredAt no fuso recebido.
+            // Por isso, calculamos a DateOnly ANTES de normalizar timestamps para UTC.
+            var date = DateOnly.FromDateTime(evt.OccurredAt.Date);
+            var currency = DefaultCurrency;
+            var now = _clock.UtcNow;
 
-        using var logScope = _logger.BeginScope(new Dictionary<string, object?>
-        {
-            ["EventId"] = evt.Id,
-            ["MerchantId"] = evt.MerchantId,
-            ["OccurredAt"] = evt.OccurredAt,
-            ["CorrelationId"] = evt.CorrelationId,
-            ["BalanceDate"] = date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-            ["Currency"] = currency
-        });
+            // Npgsql + timestamptz: DateTimeOffset precisa estar em UTC (Offset=0)
+            // para ser persistido. Mantemos a logica do "dia" usando o offset original.
+            var occurredAtUtc = evt.OccurredAt.ToUniversalTime();
+            var createdAtUtc = evt.CreatedAt.ToUniversalTime();
+            var normalizedEvent = evt with
+            {
+                OccurredAt = occurredAtUtc,
+                CreatedAt = createdAtUtc
+            };
 
-        using var activity = _activitySource.StartActivity("balance.apply", ActivityKind.Internal);
-        activity?.SetTag("messaging.system", "kafka");
-        activity?.SetTag("balance.event_id", evt.Id);
-        activity?.SetTag("balance.merchant_id", evt.MerchantId);
-        activity?.SetTag("balance.occurred_at", evt.OccurredAt.ToString("o", CultureInfo.InvariantCulture));
-        activity?.SetTag("correlation_id", evt.CorrelationId);
-        activity?.SetTag("balance.date", date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
-        activity?.SetTag("balance.currency", currency);
-        activity?.AddBaggage("correlation_id", evt.CorrelationId);
+            using var logScope = _logger.BeginScope(new Dictionary<string, object?>
+            {
+                ["EventId"] = evt.Id,
+                ["MerchantId"] = evt.MerchantId,
+                ["OccurredAt"] = evt.OccurredAt,
+                ["CorrelationId"] = evt.CorrelationId,
+                ["BalanceDate"] = date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                ["Currency"] = currency
+            });
 
-        await using var transaction = await _unitOfWork.BeginTransactionAsync(cancellationToken);
+            using var activity = _activitySource.StartActivity("balance.apply", ActivityKind.Internal);
+            activity?.SetTag("messaging.system", "kafka");
+            activity?.SetTag("balance.event_id", evt.Id);
+            activity?.SetTag("balance.merchant_id", evt.MerchantId);
+            activity?.SetTag("balance.occurred_at", evt.OccurredAt.ToString("o", CultureInfo.InvariantCulture));
+            activity?.SetTag("correlation_id", evt.CorrelationId);
+            activity?.SetTag("balance.date", date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+            activity?.SetTag("balance.currency", currency);
+            activity?.AddBaggage("correlation_id", evt.CorrelationId);
 
-        var processedEvent = new ProcessedEvent(evt.Id, evt.MerchantId, occurredAtUtc, now);
-        var inserted = await _processedEventRepository.TryInsertAsync(processedEvent, cancellationToken);
+            await using var transaction = await _unitOfWork.BeginTransactionAsync(cancellationToken);
 
-        if (!inserted)
-        {
-            _logger.LogDebug("Evento já processado (idempotência). Nenhuma alteração aplicada.");
+            var processedEvent = new ProcessedEvent(evt.Id, evt.MerchantId, occurredAtUtc, now);
+            var inserted = await _processedEventRepository.TryInsertAsync(processedEvent, cancellationToken);
+
+            if (!inserted)
+            {
+                _logger.LogDebug("Evento ja processado (idempotencia). Nenhuma alteracao aplicada.");
+                await transaction.CommitAsync(cancellationToken);
+                RecordApplyMetrics(startedAt, "duplicate", projectionUpdated: false, currency);
+                return ApplyLedgerEntryCreatedResult.IgnoredDuplicate;
+            }
+
+            await _dailyBalanceRepository.LockByMerchantDateAndCurrencyAsync(
+                evt.MerchantId,
+                date,
+                currency,
+                cancellationToken);
+
+            var dailyBalance = await _dailyBalanceRepository.GetByMerchantDateAndCurrencyAsync(
+                evt.MerchantId,
+                date,
+                currency,
+                cancellationToken);
+
+            if (dailyBalance is null)
+            {
+                dailyBalance = new DailyBalance(evt.MerchantId, date, currency, now);
+                await _dailyBalanceRepository.AddAsync(dailyBalance, cancellationToken);
+            }
+
+            dailyBalance.Apply(normalizedEvent, now);
+
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
-            return ApplyLedgerEntryCreatedResult.IgnoredDuplicate;
+
+            RecordApplyMetrics(startedAt, "success", projectionUpdated: true, currency);
+
+            _logger.LogDebug(
+                "Saldo diario consolidado atualizado (credits={TotalCredits}, debits={TotalDebits}, net={Net})",
+                dailyBalance.TotalCredits,
+                dailyBalance.TotalDebits,
+                dailyBalance.NetBalance);
+
+            return ApplyLedgerEntryCreatedResult.Processed;
         }
-
-        await _dailyBalanceRepository.LockByMerchantDateAndCurrencyAsync(
-            evt.MerchantId,
-            date,
-            currency,
-            cancellationToken);
-
-        var dailyBalance = await _dailyBalanceRepository.GetByMerchantDateAndCurrencyAsync(
-            evt.MerchantId,
-            date,
-            currency,
-            cancellationToken);
-
-        if (dailyBalance is null)
+        catch (Exception) when (!cancellationToken.IsCancellationRequested)
         {
-            dailyBalance = new DailyBalance(evt.MerchantId, date, currency, now);
-            await _dailyBalanceRepository.AddAsync(dailyBalance, cancellationToken);
+            RecordApplyMetrics(startedAt, "failed", projectionUpdated: false, DefaultCurrency);
+            throw;
         }
+    }
 
-        dailyBalance.Apply(normalizedEvent, now);
+    private void RecordApplyMetrics(long startedAt, string result, bool projectionUpdated, string currency)
+    {
+        _metrics?.RecordEventApplied(LedgerEntryCreatedEventType, result);
+        _metrics?.RecordApplyDuration(
+            Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds,
+            LedgerEntryCreatedEventType,
+            result);
 
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
+        if (result == "duplicate")
+            _metrics?.RecordEventDuplicate(LedgerEntryCreatedEventType);
 
-        _logger.LogDebug(
-            "Saldo diário consolidado atualizado (credits={TotalCredits}, debits={TotalDebits}, net={Net})",
-            dailyBalance.TotalCredits,
-            dailyBalance.TotalDebits,
-            dailyBalance.NetBalance);
-
-        return ApplyLedgerEntryCreatedResult.Processed;
+        if (projectionUpdated)
+            _metrics?.RecordProjectionUpdated(currency);
     }
 }

@@ -25,19 +25,22 @@ public sealed class ProcessarReprocessamentoLancamentosHandler
     private readonly IOutboxMessageRepository _outboxMessageRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<ProcessarReprocessamentoLancamentosHandler> _logger;
+    private readonly LedgerDomainMetrics? _metrics;
 
     public ProcessarReprocessamentoLancamentosHandler(
         IReprocessamentoLancamentosRepository reprocessamentoRepository,
         ILedgerEntryRepository ledgerEntryRepository,
         IOutboxMessageRepository outboxMessageRepository,
         IUnitOfWork unitOfWork,
-        ILogger<ProcessarReprocessamentoLancamentosHandler> logger)
+        ILogger<ProcessarReprocessamentoLancamentosHandler> logger,
+        LedgerDomainMetrics? metrics = null)
     {
         _reprocessamentoRepository = reprocessamentoRepository;
         _ledgerEntryRepository = ledgerEntryRepository;
         _outboxMessageRepository = outboxMessageRepository;
         _unitOfWork = unitOfWork;
         _logger = logger;
+        _metrics = metrics;
     }
 
     public async Task Handle(ProcessarReprocessamentoLancamentosCommand request, CancellationToken cancellationToken)
@@ -81,6 +84,7 @@ public sealed class ProcessarReprocessamentoLancamentosHandler
         if (reprocessamento.IsFinal())
         {
             await transaction.CommitAsync(cancellationToken);
+            _metrics?.RecordReprocessRequestProcessed(ToMetricResult(reprocessamento.Status));
             return;
         }
 
@@ -129,6 +133,8 @@ public sealed class ProcessarReprocessamentoLancamentosHandler
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
+        _metrics?.RecordReprocessRequestProcessed(ToMetricResult(reprocessamento.Status));
+
         stopwatch.Stop();
         _logger.LogInformation(
             "Reprocessamento processado. reprocessamentoId={ReprocessamentoId} merchantId={MerchantId} dataInicial={DataInicial} dataFinal={DataFinal} statusAnterior={StatusAnterior} statusNovo={StatusNovo} registrosEncontrados={RegistrosEncontrados} registrosReprocessados={RegistrosReprocessados} duracaoMs={DuracaoMs}",
@@ -156,6 +162,7 @@ public sealed class ProcessarReprocessamentoLancamentosHandler
         }
 
         await transaction.CommitAsync(cancellationToken);
+        _metrics?.RecordReprocessRequestProcessed("rejected");
         _logger.LogWarning(
             "Reprocessamento rejeitado. reprocessamentoId={ReprocessamentoId} motivo={Motivo}",
             reprocessamentoId,
@@ -175,6 +182,7 @@ public sealed class ProcessarReprocessamentoLancamentosHandler
         }
 
         await transaction.CommitAsync(cancellationToken);
+        _metrics?.RecordReprocessRequestProcessed("failed");
     }
 
     private static LedgerEntryCreatedV1 ToLedgerEntryCreated(LedgerEntry entry)
@@ -188,4 +196,14 @@ public sealed class ProcessarReprocessamentoLancamentosHandler
             entry.Description,
             entry.CorrelationId.ToString(),
             entry.ExternalReference);
+
+    private static string ToMetricResult(ReprocessamentoLancamentosStatus status)
+        => status switch
+        {
+            ReprocessamentoLancamentosStatus.Completed => "completed",
+            ReprocessamentoLancamentosStatus.CompletedWithWarnings => "completed_with_warnings",
+            ReprocessamentoLancamentosStatus.Rejected => "rejected",
+            ReprocessamentoLancamentosStatus.Failed => "failed",
+            _ => "failed"
+        };
 }

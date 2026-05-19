@@ -217,10 +217,51 @@ A primeira metrica customizada foi `ledger.outbox.publish.attempts`, registrada 
 
 Meters customizados registrados no OpenTelemetry Metrics quando `Observability:OpenTelemetry:Enabled=true`:
 
+- `LedgerService.Domain`, emitido pelo `LedgerService.Api`;
 - `LedgerService.Outbox`, emitido pelo `LedgerService.Api`;
+- `BalanceService.Domain`, emitido pelo `BalanceService.Api`;
 - `BalanceService.Kafka`, emitido pelo `BalanceService.Api`.
 
 Com OpenTelemetry desabilitado, os instrumentos continuam sendo chamados pela aplicacao, mas nao ha provider/exporter ativo coletando as series. O fluxo funcional permanece inalterado.
+
+### Metricas de dominio
+
+Metricas tecnicas medem comportamento da plataforma ou runtime, como HTTP, `HttpClient` e runtime .NET. Metricas operacionais medem componentes de entrega e confiabilidade, como Outbox, producer Kafka, consumer Kafka e DLQ. Metricas de dominio medem fatos de negocio observaveis pelos casos de uso, como lancamentos criados, estornos processados, reprocessamentos e atualizacao de projecoes de saldo.
+
+As metricas de dominio sao emitidas em pontos de orquestracao da camada de aplicacao ou no processamento de mensagens que chama casos de uso. Elas nao fazem parte do dominio puro: entidades, value objects e regras de dominio nao dependem de `System.Diagnostics.Metrics`, OpenTelemetry, exporters ou infraestrutura de observabilidade.
+
+Metricas de dominio nao devem carregar identificadores individuais nem valores de alta cardinalidade. Tags como `merchant_id`, `ledger_entry_id`, `event_id`, `correlation_id`, `trace_id`, `span_id`, `document`, `external_reference`, `idempotency_key`, valor monetario, descricao e mensagem de exception continuam proibidas. Tags como `result`, `reason`, `operation`, `entry_type`, `event_type` e `currency` devem usar conjuntos pequenos e estaveis. A tag `reason` deve ser classificacao estavel, nunca mensagem livre.
+
+Metricas de dominio do `LedgerService.Api`:
+
+| Metrica | Instrumento | Unidade | Tags permitidas | Significado | Interpretacao operacional |
+| --- | --- | --- | --- | --- | --- |
+| `ledger.entries.created` | Counter | `1` | `entry_type`, `currency`, `result` | Lancamentos financeiros criados pelo caso de uso de criacao. | Volume de entrada financeira aceita por tipo (`CREDIT`/`DEBIT`) e moeda. `result=success` indica persistencia e Outbox gravadas com sucesso. |
+| `ledger.entries.rejected` | Counter | `1` | `reason` | Lancamentos rejeitados por classificacao estavel. | Ajuda a diferenciar rejeicoes de dominio ou idempotencia sem expor payload, documento, valor ou mensagem livre. |
+| `ledger.reversals.requested` | Counter | `1` | `result` | Solicitacoes de estorno recebidas pelo Ledger. | Indica volume de solicitacoes aceitas, rejeitadas, nao encontradas ou falhas no fluxo de entrada do estorno. |
+| `ledger.reversals.processed` | Counter | `1` | `result` | Solicitacoes de estorno processadas pelo worker/caso de uso. | Indica conclusao, rejeicao ou falha tecnica no processamento financeiro do estorno. |
+| `ledger.reprocess.requests.created` | Counter | `1` | `result` | Solicitacoes de reprocessamento recebidas pelo Ledger. | Indica volume de pedidos de replay aceitos, rejeitados ou com falha no fluxo de entrada. |
+| `ledger.reprocess.requests.processed` | Counter | `1` | `result` | Solicitacoes de reprocessamento processadas pelo Ledger. | Indica se o replay terminou como `completed`, `completed_with_warnings`, `rejected` ou `failed`. |
+| `ledger.idempotency.hits` | Counter | `1` | `operation` | Replays atendidos por idempotencia no Ledger. | Sinaliza repeticao esperada de operacoes sem contar a `Idempotency-Key`; `operation` usa nomes estaveis como `create_entry`, `request_reversal` e `request_reprocess`. |
+
+Metricas de dominio do `BalanceService.Api`:
+
+| Metrica | Instrumento | Unidade | Tags permitidas | Significado | Interpretacao operacional |
+| --- | --- | --- | --- | --- | --- |
+| `balance.events.applied` | Counter | `1` | `event_type`, `result` | Eventos financeiros tratados pela aplicacao da projecao. | `success` indica evento aplicado, `duplicate` indica entrega repetida ignorada com seguranca e `failed` indica falha antes da conclusao. |
+| `balance.events.duplicates` | Counter | `1` | `event_type` | Eventos duplicados ignorados pela idempotencia da projecao. | Mede duplicidade de fatos financeiros no nivel de dominio/projecao, separada da metrica operacional do consumer Kafka. |
+| `balance.projections.updated` | Counter | `1` | `currency` | Projecoes de saldo diario atualizadas. | Volume de atualizacoes efetivas em `daily_balances`; nao conta eventos duplicados. |
+| `balance.apply.duration` | Histogram | `ms` | `event_type`, `result` | Duracao da aplicacao do evento financeiro na projecao. | Latencia de dominio do update de saldo, separada da duracao operacional do processamento Kafka. |
+
+Resultados padronizados usados nas metricas de dominio:
+
+- `success`: operacao aceita e concluida no ponto medido;
+- `rejected`: regra, autorizacao contextual ou conflito impediu a operacao;
+- `failed`: falha tecnica ou impossibilidade de replay;
+- `duplicate`: evento ou requisicao repetida tratada por idempotencia;
+- `not_found`: recurso de dominio esperado nao foi localizado;
+- `completed`: processamento assincrono concluido;
+- `completed_with_warnings`: processamento concluido sem todos os efeitos esperados, por exemplo reprocessamento sem lancamentos elegiveis.
 
 Metricas operacionais do `LedgerService.Api`:
 

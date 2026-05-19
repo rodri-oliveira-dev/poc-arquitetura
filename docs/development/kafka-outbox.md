@@ -142,6 +142,8 @@ O envelope da DLQ preserva payload original quando disponivel, topico, particao,
 
 A mensageria publica metricas customizadas via `System.Diagnostics.Metrics` quando OpenTelemetry Metrics esta habilitado na API. A instrumentacao nao altera payloads, headers, topicos, contratos de evento, politica de retry ou politica de DLQ. Sem OpenTelemetry habilitado, as chamadas aos instrumentos continuam seguras, mas nao ha coleta/exportacao.
 
+Metricas de dominio de lancamentos, estornos, reprocessamentos e projecoes de saldo ficam documentadas em [observabilidade](../observability.md#metricas-de-dominio). Este documento lista apenas metricas operacionais de mensageria para evitar duplicacao de vocabulario.
+
 Metricas do `LedgerService.Api`:
 
 - Outbox: `ledger.outbox.messages.created`, `ledger.outbox.messages.published`, `ledger.outbox.publish.duration`, `ledger.outbox.messages.pending`, `ledger.outbox.messages.failed`, `ledger.outbox.publish.attempts`.

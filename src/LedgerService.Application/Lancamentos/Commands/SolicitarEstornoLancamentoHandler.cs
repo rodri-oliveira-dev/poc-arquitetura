@@ -21,19 +21,22 @@ public sealed class SolicitarEstornoLancamentoHandler
     private readonly IIdempotencyRecordRepository _idempotencyRecordRepository;
     private readonly IOutboxMessageRepository _outboxMessageRepository;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly LedgerDomainMetrics? _metrics;
 
     public SolicitarEstornoLancamentoHandler(
         ILedgerEntryRepository ledgerEntryRepository,
         IEstornoLancamentoRepository estornoRepository,
         IIdempotencyRecordRepository idempotencyRecordRepository,
         IOutboxMessageRepository outboxMessageRepository,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        LedgerDomainMetrics? metrics = null)
     {
         _ledgerEntryRepository = ledgerEntryRepository;
         _estornoRepository = estornoRepository;
         _idempotencyRecordRepository = idempotencyRecordRepository;
         _outboxMessageRepository = outboxMessageRepository;
         _unitOfWork = unitOfWork;
+        _metrics = metrics;
     }
 
     public async Task<SolicitarEstornoLancamentoResult> Handle(
@@ -47,10 +50,16 @@ public sealed class SolicitarEstornoLancamentoHandler
 
         var lancamentoOriginal = await _ledgerEntryRepository.GetByIdAsync(request.LancamentoId, cancellationToken);
         if (lancamentoOriginal is null)
+        {
+            _metrics?.RecordReversalRequested("not_found");
             throw new NotFoundException("Lancamento original nao encontrado.");
+        }
 
         if (!IsMerchantAuthorized(request.AuthorizedMerchantIds, lancamentoOriginal.MerchantId))
+        {
+            _metrics?.RecordReversalRequested("rejected");
             throw new ForbiddenException("Token sem autorizacao para o merchant do lancamento original.");
+        }
 
         var existing = await _idempotencyRecordRepository
             .GetByMerchantAndKeyAsync(lancamentoOriginal.MerchantId, request.IdempotencyKey, cancellationToken);
@@ -58,15 +67,22 @@ public sealed class SolicitarEstornoLancamentoHandler
         if (existing is not null)
         {
             if (!string.Equals(existing.RequestHash, requestHash, StringComparison.Ordinal))
+            {
+                _metrics?.RecordReversalRequested("rejected");
                 throw new ConflictException("Idempotency-Key already used with a different payload.");
+            }
 
             if (!string.IsNullOrWhiteSpace(existing.ResponseBody))
             {
                 var replay = JsonSerializer.Deserialize<SolicitarEstornoLancamentoResult>(existing.ResponseBody, JsonOptions);
                 if (replay is not null)
+                {
+                    _metrics?.RecordIdempotencyHit("request_reversal");
                     return replay;
+                }
             }
 
+            _metrics?.RecordReversalRequested("failed");
             throw new ConflictException("Unable to replay idempotent response.");
         }
 
@@ -74,7 +90,10 @@ public sealed class SolicitarEstornoLancamentoHandler
             .GetActiveByLancamentoOriginalIdAsync(request.LancamentoId, cancellationToken);
 
         if (activeEstorno is not null)
+        {
+            _metrics?.RecordReversalRequested("rejected");
             throw new ConflictException("Lancamento ja possui solicitacao ativa de estorno.");
+        }
 
         var estorno = new EstornoLancamento(
             request.LancamentoId,
@@ -125,6 +144,8 @@ public sealed class SolicitarEstornoLancamentoHandler
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+
+        _metrics?.RecordReversalRequested("success");
 
         return response;
     }
