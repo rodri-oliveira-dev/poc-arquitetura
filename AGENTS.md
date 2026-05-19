@@ -161,8 +161,17 @@ dotnet test ./LedgerService.slnx --configuration Release --no-build --settings .
 
 - Use as skills em `.agents/skills/` quando o pedido combinar com o `description` da skill.
 - Mantenha `AGENTS.md` como orientacao global; fluxos detalhados devem ficar nas skills.
+- Em caso de conflito entre `AGENTS.md` e uma skill, preserve `AGENTS.md` como orientacao global do repositorio.
 - Prefira poucas skills especificas a muitas skills genericas.
 - Nao use orientacoes externas ao Codex ou arquivos de outros agentes, salvo se estiverem documentadas em `.agents/` ou neste arquivo.
+
+### Roteamento de skills
+
+- Use `dotnet-service-change` para mudancas funcionais nos servicos .NET.
+- Use `integration-tests-dotnet` quando o foco principal for teste de integracao ou quando uma mudanca funcional exigir estrategia especifica de integracao.
+- Use `ci-release-governance` para workflows, GitVersion, releases, coverage, hooks e automacoes.
+- Use `repository-governance-sdd` para `AGENTS.md`, skills, ADRs, prompts, documentacao de processo e governanca assistida por Codex.
+- Quando mais de uma skill parecer aplicavel, use a skill da mudanca principal e consulte a skill especializada apenas para o trecho especifico.
 
 ## Comunicacao e seguranca operacional
 
