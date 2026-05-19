@@ -131,6 +131,7 @@ public sealed class OutboxKafkaPublisherService : BackgroundService
         var repo = scope.ServiceProvider.GetRequiredService<IOutboxMessageRepository>();
         var uow = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
         var producer = scope.ServiceProvider.GetRequiredService<IOutboxEventProducer>();
+        var metrics = scope.ServiceProvider.GetRequiredService<OutboxMetrics>();
 
         var options = _options.Value;
 
@@ -172,6 +173,9 @@ public sealed class OutboxKafkaPublisherService : BackgroundService
         if (message.CorrelationId is not null)
             activity?.SetTag("correlation_id", message.CorrelationId.ToString());
 
+        var topic = producer.ResolveTopic(message);
+        var startedAt = Stopwatch.GetTimestamp();
+
         try
         {
             await producer.ProduceAsync(message, ct);
@@ -180,10 +184,14 @@ public sealed class OutboxKafkaPublisherService : BackgroundService
             await repo.MarkSentAsync(message.Id, DateTime.Now, ct);
             await uow.SaveChangesAsync(ct);
 
+            metrics.RecordPublishAttempt(message.EventType, "success");
+            metrics.RecordOutboxMessagePublished(message.EventType, topic, "success");
+            metrics.RecordOutboxPublishDuration(Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds, message.EventType, topic, "success");
             _logger.OutboxMessageMarkedAsSent();
         }
         catch (ProduceException<string, string> ex)
         {
+            RecordOutboxPublishFailure(metrics, topic, message.EventType, startedAt);
             var nextAttemptAt = ComputeNextAttempt(DateTime.Now, message.Attempts + 1, options.BaseBackoffSeconds);
             await repo.MarkFailedAttemptAsync(message.Id, options.MaxAttempts, nextAttemptAt, ex.Message, ct);
             await uow.SaveChangesAsync(ct);
@@ -192,6 +200,7 @@ public sealed class OutboxKafkaPublisherService : BackgroundService
         }
         catch (KafkaException ex)
         {
+            RecordOutboxPublishFailure(metrics, topic, message.EventType, startedAt);
             var nextAttemptAt = ComputeNextAttempt(DateTime.Now, message.Attempts + 1, options.BaseBackoffSeconds);
             await repo.MarkFailedAttemptAsync(message.Id, options.MaxAttempts, nextAttemptAt, ex.Message, ct);
             await uow.SaveChangesAsync(ct);
@@ -200,12 +209,24 @@ public sealed class OutboxKafkaPublisherService : BackgroundService
         }
         catch (TimeoutException ex)
         {
+            RecordOutboxPublishFailure(metrics, topic, message.EventType, startedAt);
             var nextAttemptAt = ComputeNextAttempt(DateTime.Now, message.Attempts + 1, options.BaseBackoffSeconds);
             await repo.MarkFailedAttemptAsync(message.Id, options.MaxAttempts, nextAttemptAt, ex.Message, ct);
             await uow.SaveChangesAsync(ct);
 
             _logger.OutboxPublishFailed(ex, nextAttemptAt);
         }
+    }
+
+    private static void RecordOutboxPublishFailure(
+        OutboxMetrics metrics,
+        string topic,
+        string eventType,
+        long startedAt)
+    {
+        metrics.RecordPublishAttempt(eventType, "failure");
+        metrics.RecordOutboxMessagePublished(eventType, topic, "failure");
+        metrics.RecordOutboxPublishDuration(Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds, eventType, topic, "failure");
     }
 
     private static DateTime ComputeNextAttempt(DateTime now, int attemptNumber, int baseBackoffSeconds)

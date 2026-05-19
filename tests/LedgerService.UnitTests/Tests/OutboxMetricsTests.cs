@@ -45,15 +45,12 @@ public sealed class OutboxMetricsTests
 
         listener.Start();
 
-        metrics.RecordPublishAttempt("LedgerEntryCreated.v1", "ledger.ledgerentry.created");
+        metrics.RecordPublishAttempt("LedgerEntryCreated.v1", "success");
 
         measurement.Should().Be(1);
         observedTags.Should().NotBeNull();
-        observedTags.Should().Contain("service", "LedgerService.Api");
-        observedTags.Should().Contain("operation", "outbox.publish");
         observedTags.Should().Contain("event_type", "LedgerEntryCreated.v1");
-        observedTags.Should().Contain("topic", "ledger.ledgerentry.created");
-        observedTags.Should().Contain("status", "attempted");
+        observedTags.Should().Contain("result", "success");
         observedTags!.Keys.Should().NotContain(ProhibitedTags);
     }
 }

@@ -4,4 +4,4 @@ using MediatR;
 
 namespace BalanceService.Application.Balances.Commands;
 
-public sealed record ApplyLedgerEntryCreatedCommand(LedgerEntryCreatedEvent Event) : IRequest;
+public sealed record ApplyLedgerEntryCreatedCommand(LedgerEntryCreatedEvent Event) : IRequest<ApplyLedgerEntryCreatedResult>;

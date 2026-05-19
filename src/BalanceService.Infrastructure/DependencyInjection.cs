@@ -1,5 +1,6 @@
 using BalanceService.Application.Abstractions.Persistence;
 using BalanceService.Infrastructure.Messaging.Kafka;
+using BalanceService.Infrastructure.Observability;
 using BalanceService.Infrastructure.Persistence;
 using BalanceService.Infrastructure.Persistence.Repositories;
 
@@ -27,6 +28,7 @@ public static class DependencyInjection
         services.AddScoped<IDailyBalanceRepository, DailyBalanceRepository>();
         services.AddScoped<IDailyBalanceReadRepository, DailyBalanceReadRepository>();
         services.AddScoped<IProcessedEventRepository, ProcessedEventRepository>();
+        services.AddSingleton<KafkaMessagingMetrics>();
 
         // Kafka consumer é opcional no ambiente de testes de integração/locais.
         // Caso contrário, o ValidateOnStart + HostedService impedem a API de subir sem Kafka.

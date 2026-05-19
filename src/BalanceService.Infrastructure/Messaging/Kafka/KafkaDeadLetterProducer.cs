@@ -4,6 +4,8 @@ using System.Text.Json;
 
 using Confluent.Kafka;
 
+using BalanceService.Infrastructure.Observability;
+
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -13,12 +15,17 @@ public sealed class KafkaDeadLetterProducer : IKafkaDeadLetterProducer, IDisposa
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly KafkaConsumerOptions _options;
+    private readonly KafkaMessagingMetrics _metrics;
     private readonly ILogger<KafkaDeadLetterProducer> _logger;
     private readonly IProducer<string, string> _producer;
 
-    public KafkaDeadLetterProducer(IOptions<KafkaConsumerOptions> options, ILogger<KafkaDeadLetterProducer> logger)
+    public KafkaDeadLetterProducer(
+        IOptions<KafkaConsumerOptions> options,
+        KafkaMessagingMetrics metrics,
+        ILogger<KafkaDeadLetterProducer> logger)
     {
         _options = options.Value;
+        _metrics = metrics;
         _logger = logger;
 
         var config = new ProducerConfig
@@ -59,25 +66,65 @@ public sealed class KafkaDeadLetterProducer : IKafkaDeadLetterProducer, IDisposa
         KafkaTraceContext.CopyHeaderIfPresent(message.OriginalHeaders, headers, KafkaHeaderNames.TraceState);
         KafkaTraceContext.CopyHeaderIfPresent(message.OriginalHeaders, headers, KafkaHeaderNames.Baggage);
 
-        var result = await _producer.ProduceAsync(
-            _options.DeadLetterTopic,
-            new Message<string, string>
-            {
-                Key = $"{message.OriginalTopic}:{message.OriginalPartition}:{message.OriginalOffset}",
-                Value = JsonSerializer.Serialize(message, JsonOptions),
-                Headers = headers,
-                Timestamp = new Timestamp(message.Timestamp.UtcDateTime)
-            },
-            cancellationToken);
+        try
+        {
+            var result = await _producer.ProduceAsync(
+                _options.DeadLetterTopic,
+                new Message<string, string>
+                {
+                    Key = $"{message.OriginalTopic}:{message.OriginalPartition}:{message.OriginalOffset}",
+                    Value = JsonSerializer.Serialize(message, JsonOptions),
+                    Headers = headers,
+                    Timestamp = new Timestamp(message.Timestamp.UtcDateTime)
+                },
+                cancellationToken);
 
-        _logger.LogWarning(
-            "Kafka message published to DLQ {DeadLetterTopic} [partition={Partition}, offset={Offset}] from {OriginalTopic}/{OriginalPartition}/{OriginalOffset}",
-            _options.DeadLetterTopic,
-            result.Partition.Value,
-            result.Offset.Value,
-            message.OriginalTopic,
-            message.OriginalPartition,
-            message.OriginalOffset);
+            _metrics.RecordDlqMessagePublished(
+                message.OriginalTopic,
+                ResolveEventType(message.OriginalHeaders),
+                ClassifyReason(message.Reason));
+
+            _logger.LogWarning(
+                "Kafka message published to DLQ {DeadLetterTopic} [partition={Partition}, offset={Offset}] from {OriginalTopic}/{OriginalPartition}/{OriginalOffset}",
+                _options.DeadLetterTopic,
+                result.Partition.Value,
+                result.Offset.Value,
+                message.OriginalTopic,
+                message.OriginalPartition,
+                message.OriginalOffset);
+        }
+        catch (Exception ex) when (ex is ProduceException<string, string> or KafkaException or TimeoutException or InvalidOperationException)
+        {
+            _metrics.RecordDlqPublishError(
+                message.OriginalTopic,
+                ResolveEventType(message.OriginalHeaders),
+                ex.GetType().Name);
+
+            throw;
+        }
+    }
+
+    private static string ResolveEventType(IReadOnlyDictionary<string, string> headers)
+        => headers.TryGetValue(KafkaHeaderNames.EventType, out var eventType) && !string.IsNullOrWhiteSpace(eventType)
+            ? eventType
+            : "unknown";
+
+    private static string ClassifyReason(string reason)
+    {
+        if (string.Equals(reason, "Deserialization failed.", StringComparison.Ordinal))
+            return "deserialization_failed";
+
+        if (string.Equals(reason, "Non-recoverable processing failure.", StringComparison.Ordinal))
+            return "non_recoverable_processing_failure";
+
+        if (reason.StartsWith("Missing required Kafka header", StringComparison.Ordinal) ||
+            reason.StartsWith("Unsupported Kafka event_type", StringComparison.Ordinal) ||
+            reason.StartsWith("Message payload", StringComparison.Ordinal))
+        {
+            return "validation_failed";
+        }
+
+        return "unknown";
     }
 
     public void Dispose()

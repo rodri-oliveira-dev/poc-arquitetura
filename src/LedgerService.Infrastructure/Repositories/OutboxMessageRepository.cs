@@ -1,5 +1,6 @@
 using LedgerService.Domain.Entities;
 using LedgerService.Domain.Repositories;
+using LedgerService.Infrastructure.Observability;
 using LedgerService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -11,15 +12,18 @@ namespace LedgerService.Infrastructure.Repositories;
 public sealed class OutboxMessageRepository : IOutboxMessageRepository
 {
     private readonly AppDbContext _context;
+    private readonly OutboxMetrics? _metrics;
 
-    public OutboxMessageRepository(AppDbContext context)
+    public OutboxMessageRepository(AppDbContext context, OutboxMetrics? metrics = null)
     {
         _context = context;
+        _metrics = metrics;
     }
 
     public async Task AddAsync(OutboxMessage outboxMessage, CancellationToken cancellationToken = default)
     {
         await _context.OutboxMessages.AddAsync(outboxMessage, cancellationToken);
+        _metrics?.RecordMessageCreated(outboxMessage.EventType);
     }
 
     public async Task<IReadOnlyList<OutboxMessage>> ClaimPendingAsync(

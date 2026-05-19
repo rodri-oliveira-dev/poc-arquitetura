@@ -11,7 +11,7 @@ using System.Globalization;
 
 namespace BalanceService.Application.Balances.Commands;
 
-public sealed class ApplyLedgerEntryCreatedHandler : IRequestHandler<ApplyLedgerEntryCreatedCommand>
+public sealed class ApplyLedgerEntryCreatedHandler : IRequestHandler<ApplyLedgerEntryCreatedCommand, ApplyLedgerEntryCreatedResult>
 {
     private static readonly ActivitySource _activitySource = new("BalanceService.Application");
 
@@ -39,7 +39,7 @@ public sealed class ApplyLedgerEntryCreatedHandler : IRequestHandler<ApplyLedger
         _logger = logger;
     }
 
-    public async Task Handle(ApplyLedgerEntryCreatedCommand command, CancellationToken cancellationToken)
+    public async Task<ApplyLedgerEntryCreatedResult> Handle(ApplyLedgerEntryCreatedCommand command, CancellationToken cancellationToken)
     {
         var evt = command.Event;
 
@@ -88,7 +88,7 @@ public sealed class ApplyLedgerEntryCreatedHandler : IRequestHandler<ApplyLedger
         {
             _logger.LogDebug("Evento já processado (idempotência). Nenhuma alteração aplicada.");
             await transaction.CommitAsync(cancellationToken);
-            return;
+            return ApplyLedgerEntryCreatedResult.IgnoredDuplicate;
         }
 
         await _dailyBalanceRepository.LockByMerchantDateAndCurrencyAsync(
@@ -119,5 +119,7 @@ public sealed class ApplyLedgerEntryCreatedHandler : IRequestHandler<ApplyLedger
             dailyBalance.TotalCredits,
             dailyBalance.TotalDebits,
             dailyBalance.NetBalance);
+
+        return ApplyLedgerEntryCreatedResult.Processed;
     }
 }

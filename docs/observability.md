@@ -213,7 +213,58 @@ Labels proibidas por alta cardinalidade:
 - payloads;
 - valores unicos por requisicao.
 
-A primeira metrica customizada e `ledger.outbox.publish.attempts`, registrada pelo `Meter` `LedgerService.Outbox`. Ela conta tentativas tecnicas de publicacao de mensagens Outbox no Kafka com tags `service`, `operation`, `event_type`, `topic` e `status`. Essa metrica valida o pipeline sem medir regra de negocio, sem consultar banco e sem alterar contrato Kafka ou payload de eventos.
+A primeira metrica customizada foi `ledger.outbox.publish.attempts`, registrada pelo `Meter` `LedgerService.Outbox`. A etapa atual expande a instrumentacao operacional para Outbox, producer Kafka, consumer Kafka e DLQ usando `System.Diagnostics.Metrics`, sem alterar regra de negocio, contrato Kafka, payload, topicos ou stack local.
+
+Meters customizados registrados no OpenTelemetry Metrics quando `Observability:OpenTelemetry:Enabled=true`:
+
+- `LedgerService.Outbox`, emitido pelo `LedgerService.Api`;
+- `BalanceService.Kafka`, emitido pelo `BalanceService.Api`.
+
+Com OpenTelemetry desabilitado, os instrumentos continuam sendo chamados pela aplicacao, mas nao ha provider/exporter ativo coletando as series. O fluxo funcional permanece inalterado.
+
+Metricas operacionais do `LedgerService.Api`:
+
+| Metrica | Instrumento | Unidade | Tags permitidas | Interpretacao |
+| --- | --- | --- | --- | --- |
+| `ledger.outbox.messages.created` | Counter | `1` | `event_type` | Volume de mensagens gravadas na Outbox. Ajuda a comparar entrada da Outbox com publicacao. |
+| `ledger.outbox.messages.published` | Counter | `1` | `event_type`, `topic`, `result` | Volume de publicacoes Outbox por resultado (`success` ou `failure`). |
+| `ledger.outbox.publish.duration` | Histogram | `ms` | `event_type`, `topic`, `result` | Latencia tecnica da publicacao Outbox, incluindo confirmacao Kafka e marcacao de status. |
+| `ledger.outbox.messages.pending` | ObservableGauge | `1` | `event_type` | Quantidade atual de mensagens `Pending` por tipo de evento. Indica backlog acumulado. |
+| `ledger.outbox.messages.failed` | ObservableGauge | `1` | `event_type` | Quantidade atual de mensagens `Failed` por tipo de evento. Indica mensagens que exigem acao operacional. |
+| `ledger.outbox.publish.attempts` | Counter | `1` | `event_type`, `result` | Tentativas finalizadas de publicacao Outbox por resultado. |
+| `ledger.kafka.producer.messages.published` | Counter | `1` | `topic`, `event_type`, `result` | Resultado das chamadas do producer Kafka do Ledger. |
+| `ledger.kafka.producer.publish.duration` | Histogram | `ms` | `topic`, `event_type`, `result` | Latencia da chamada `ProduceAsync` do producer Kafka. |
+| `ledger.kafka.producer.errors` | Counter | `1` | `topic`, `event_type`, `error_type` | Erros do producer Kafka por tipo estavel de excecao. |
+
+Metricas operacionais do `BalanceService.Api`:
+
+| Metrica | Instrumento | Unidade | Tags permitidas | Interpretacao |
+| --- | --- | --- | --- | --- |
+| `balance.kafka.consumer.messages.consumed` | Counter | `1` | `topic`, `event_type`, `result` | Mensagens consumidas por resultado (`success`, `duplicate` ou `dlq`). |
+| `balance.kafka.consumer.processing.duration` | Histogram | `ms` | `topic`, `event_type`, `result` | Duracao do processamento do evento Kafka ate sucesso, duplicidade ou DLQ. |
+| `balance.kafka.consumer.errors` | Counter | `1` | `topic`, `event_type`, `error_type` | Falhas recuperaveis ou tecnicas do consumer que seguem para retry. |
+| `balance.kafka.consumer.duplicates` | Counter | `1` | `topic`, `event_type` | Mensagens ignoradas pela idempotencia de `processed_events`. |
+| `balance.kafka.dlq.messages.published` | Counter | `1` | `source_topic`, `event_type`, `reason` | Mensagens publicadas na DLQ por motivo classificado. |
+| `balance.kafka.dlq.publish.errors` | Counter | `1` | `source_topic`, `event_type`, `error_type` | Falhas ao publicar na DLQ; nesse caso o offset original nao deve ser commitado. |
+
+Os gauges da Outbox executam consultas agregadas simples por `status` e `event_type`; eles nao fazem consulta por mensagem nem participam do fluxo critico de publicacao. Em caso de falha na observacao do gauge, a coleta retorna vazia e nao bloqueia o processamento.
+
+Tags proibidas em metricas customizadas:
+
+- `correlation_id`;
+- `trace_id`;
+- `span_id`;
+- `event_id`;
+- `outbox_message_id`;
+- `merchant_id`;
+- offsets Kafka;
+- particao Kafka especifica;
+- payload;
+- mensagem completa de exception.
+
+Para erros, `error_type` usa o nome estavel da excecao, por exemplo `KafkaException`, `ProduceException` ou `TimeoutException`. Para DLQ, `reason` usa classificacoes estaveis: `deserialization_failed`, `validation_failed`, `non_recoverable_processing_failure` ou `unknown`.
+
+Estas metricas ainda nao possuem dashboard, alerta, Prometheus scrape config, Grafana ou OpenTelemetry Collector versionados nesta etapa.
 
 Referencias relacionadas:
 

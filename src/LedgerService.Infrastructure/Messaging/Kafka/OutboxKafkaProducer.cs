@@ -71,19 +71,36 @@ public sealed class OutboxKafkaProducer : IOutboxEventProducer, IDisposable
             Timestamp = new Timestamp(message.OccurredAt)
         };
 
-        _metrics.RecordPublishAttempt(message.EventType, topic);
+        var startedAt = Stopwatch.GetTimestamp();
+        try
+        {
+            var result = await _producer.ProduceAsync(topic, kafkaMessage, cancellationToken);
+            var elapsedMilliseconds = Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds;
 
-        var result = await _producer.ProduceAsync(topic, kafkaMessage, cancellationToken);
+            _metrics.RecordKafkaProducerMessagePublished(topic, message.EventType, "success");
+            _metrics.RecordKafkaProducerPublishDuration(elapsedMilliseconds, topic, message.EventType, "success");
 
-        _logger.LogDebug(
-            "Kafka published outbox message {OutboxId} to {Topic} [partition={Partition}, offset={Offset}]",
-            message.Id,
-            topic,
-            result.Partition.Value,
-            result.Offset.Value);
+            _logger.LogDebug(
+                "Kafka published outbox message {OutboxId} to {Topic} [partition={Partition}, offset={Offset}]",
+                message.Id,
+                topic,
+                result.Partition.Value,
+                result.Offset.Value);
+        }
+        catch (Exception ex) when (ex is ProduceException<string, string> or KafkaException or TimeoutException)
+        {
+            var elapsedMilliseconds = Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds;
+            var errorType = ex.GetType().Name;
+
+            _metrics.RecordKafkaProducerMessagePublished(topic, message.EventType, "failure");
+            _metrics.RecordKafkaProducerPublishDuration(elapsedMilliseconds, topic, message.EventType, "failure");
+            _metrics.RecordKafkaProducerError(topic, message.EventType, errorType);
+
+            throw;
+        }
     }
 
-    private string ResolveTopic(OutboxMessage message)
+    public string ResolveTopic(OutboxMessage message)
     {
         if (_options.TopicMap.TryGetValue(message.EventType, out var mapped) && !string.IsNullOrWhiteSpace(mapped))
             return mapped;
