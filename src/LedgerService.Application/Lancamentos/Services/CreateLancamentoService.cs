@@ -9,6 +9,7 @@ using LedgerService.Application.Common.Observability;
 using LedgerService.Application.Lancamentos.Events;
 using LedgerService.Application.Lancamentos.Inputs.CreateLancamento;
 using LedgerService.Domain.Entities;
+using LedgerService.Domain.Exceptions;
 using LedgerService.Domain.Repositories;
 
 namespace LedgerService.Application.Lancamentos.Services;
@@ -16,22 +17,26 @@ namespace LedgerService.Application.Lancamentos.Services;
 public sealed class CreateLancamentoService
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private const string DefaultCurrency = "BRL";
 
     private readonly ILedgerEntryRepository _ledgerEntryRepository;
     private readonly IIdempotencyRecordRepository _idempotencyRecordRepository;
     private readonly IOutboxMessageRepository _outboxMessageRepository;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly LedgerDomainMetrics? _metrics;
 
     public CreateLancamentoService(
         ILedgerEntryRepository ledgerEntryRepository,
         IIdempotencyRecordRepository idempotencyRecordRepository,
         IOutboxMessageRepository outboxMessageRepository,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        LedgerDomainMetrics? metrics = null)
     {
         _ledgerEntryRepository = ledgerEntryRepository;
         _idempotencyRecordRepository = idempotencyRecordRepository;
         _outboxMessageRepository = outboxMessageRepository;
         _unitOfWork = unitOfWork;
+        _metrics = metrics;
     }
 
     public async Task<LancamentoDto> ExecuteAsync(CreateLancamentoInput request, CancellationToken cancellationToken)
@@ -46,15 +51,22 @@ public sealed class CreateLancamentoService
         if (existing is not null)
         {
             if (!string.Equals(existing.RequestHash, requestHash, StringComparison.Ordinal))
+            {
+                _metrics?.RecordEntryRejected("idempotency_conflict");
                 throw new ConflictException("Idempotency-Key already used with a different payload.");
+            }
 
             if (!string.IsNullOrWhiteSpace(existing.ResponseBody))
             {
                 var replay = JsonSerializer.Deserialize<LancamentoDto>(existing.ResponseBody, JsonOptions);
                 if (replay is not null)
+                {
+                    _metrics?.RecordIdempotencyHit("create_entry");
                     return replay;
+                }
             }
 
+            _metrics?.RecordEntryRejected("idempotency_unreplayable");
             throw new ConflictException("Unable to replay idempotent response.");
         }
 
@@ -66,14 +78,23 @@ public sealed class CreateLancamentoService
         var occurredAt = DateTime.Now;
         var correlationId = Guid.Parse(request.CorrelationId);
 
-        var ledgerEntry = new LedgerEntry(
-            request.MerchantId,
-            parsedType,
-            amount,
-            occurredAt,
-            request.Description,
-            request.ExternalReference,
-            correlationId);
+        LedgerEntry ledgerEntry;
+        try
+        {
+            ledgerEntry = new LedgerEntry(
+                request.MerchantId,
+                parsedType,
+                amount,
+                occurredAt,
+                request.Description,
+                request.ExternalReference,
+                correlationId);
+        }
+        catch (DomainException)
+        {
+            _metrics?.RecordEntryRejected("domain_rule_violation");
+            throw;
+        }
 
         await _ledgerEntryRepository.AddAsync(ledgerEntry, cancellationToken);
 
@@ -120,6 +141,8 @@ public sealed class CreateLancamentoService
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+
+        _metrics?.RecordEntryCreated(response.Type, DefaultCurrency, "success");
 
         return response;
     }

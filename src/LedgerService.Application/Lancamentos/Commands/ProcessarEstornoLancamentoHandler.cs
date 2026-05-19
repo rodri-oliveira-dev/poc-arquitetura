@@ -23,19 +23,22 @@ public sealed class ProcessarEstornoLancamentoHandler : IRequestHandler<Processa
     private readonly IOutboxMessageRepository _outboxMessageRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<ProcessarEstornoLancamentoHandler> _logger;
+    private readonly LedgerDomainMetrics? _metrics;
 
     public ProcessarEstornoLancamentoHandler(
         IEstornoLancamentoRepository estornoRepository,
         ILedgerEntryRepository ledgerEntryRepository,
         IOutboxMessageRepository outboxMessageRepository,
         IUnitOfWork unitOfWork,
-        ILogger<ProcessarEstornoLancamentoHandler> logger)
+        ILogger<ProcessarEstornoLancamentoHandler> logger,
+        LedgerDomainMetrics? metrics = null)
     {
         _estornoRepository = estornoRepository;
         _ledgerEntryRepository = ledgerEntryRepository;
         _outboxMessageRepository = outboxMessageRepository;
         _unitOfWork = unitOfWork;
         _logger = logger;
+        _metrics = metrics;
     }
 
     public async Task Handle(ProcessarEstornoLancamentoCommand request, CancellationToken cancellationToken)
@@ -70,12 +73,14 @@ public sealed class ProcessarEstornoLancamentoHandler : IRequestHandler<Processa
         if (estorno.IsCompleted())
         {
             await transaction.CommitAsync(cancellationToken);
+            _metrics?.RecordReversalProcessed("completed");
             return;
         }
 
         if (estorno.Status is EstornoLancamentoStatus.Rejected or EstornoLancamentoStatus.Failed)
         {
             await transaction.CommitAsync(cancellationToken);
+            _metrics?.RecordReversalProcessed(ToMetricResult(estorno.Status));
             return;
         }
 
@@ -123,6 +128,8 @@ public sealed class ProcessarEstornoLancamentoHandler : IRequestHandler<Processa
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
+        _metrics?.RecordReversalProcessed("completed");
+
         _logger.LogInformation(
             "Estorno processado. estornoId={EstornoId} lancamentoOriginalId={LancamentoOriginalId} lancamentoCompensatorioId={LancamentoCompensatorioId} statusAnterior={StatusAnterior} statusNovo={StatusNovo}",
             estorno.Id,
@@ -143,6 +150,7 @@ public sealed class ProcessarEstornoLancamentoHandler : IRequestHandler<Processa
         }
 
         await transaction.CommitAsync(cancellationToken);
+        _metrics?.RecordReversalProcessed("rejected");
         _logger.LogWarning("Estorno rejeitado. estornoId={EstornoId} motivo={Motivo}", estornoId, reason);
     }
 
@@ -157,6 +165,7 @@ public sealed class ProcessarEstornoLancamentoHandler : IRequestHandler<Processa
         }
 
         await transaction.CommitAsync(cancellationToken);
+        _metrics?.RecordReversalProcessed("failed");
     }
 
     private static LedgerEntryCreatedV1 ToLedgerEntryCreated(LedgerEntry entry)
@@ -170,4 +179,13 @@ public sealed class ProcessarEstornoLancamentoHandler : IRequestHandler<Processa
             entry.Description,
             entry.CorrelationId.ToString(),
             entry.ExternalReference);
+
+    private static string ToMetricResult(EstornoLancamentoStatus status)
+        => status switch
+        {
+            EstornoLancamentoStatus.Completed => "completed",
+            EstornoLancamentoStatus.Rejected => "rejected",
+            EstornoLancamentoStatus.Failed => "failed",
+            _ => "failed"
+        };
 }

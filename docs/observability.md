@@ -2,7 +2,7 @@
 
 Este documento define o inventario operacional minimo da POC para `Auth.Api`, `LedgerService.Api` e `BalanceService.Api`.
 
-OpenTelemetry fica desabilitado por padrao. A correlacao via `X-Correlation-Id` permanece sempre ativa nas APIs e e usada para conectar logs, respostas HTTP e mensagens Kafka. A operacao local usa `docker compose`, PostgreSQL e Kafka conforme documentado em [desenvolvimento local](development/local-development.md).
+OpenTelemetry fica desabilitado por padrao. A correlacao via `X-Correlation-Id` permanece sempre ativa nas APIs e e usada para conectar logs, respostas HTTP e mensagens Kafka. A operacao local usa `docker compose`, PostgreSQL, Kafka, OpenTelemetry Collector e Jaeger conforme documentado em [desenvolvimento local](development/local-development.md).
 
 ## Baseline
 
@@ -12,6 +12,7 @@ OpenTelemetry fica desabilitado por padrao. A correlacao via `X-Correlation-Id` 
 - Exporters: console para validacao local e OTLP quando `OtlpEndpoint` estiver configurado.
 - Correlacao: header HTTP `X-Correlation-Id`, campo `CorrelationId` em logs e `correlation_id` em eventos Kafka.
 - Health: `GET /health` em `LedgerService.Api` e `BalanceService.Api`.
+- Health simples tambem existe em `Auth.Api` para liveness do processo.
 - Readiness: `GET /ready` em `LedgerService.Api` e `BalanceService.Api`.
 - Mensageria: Kafka com topico principal `ledger.ledgerentry.created` e DLQ `ledger.ledgerentry.created.dlq`.
 - Outbox: publicacao assincrona do Ledger com polling, lock, tentativas e backoff configuraveis.
@@ -29,7 +30,7 @@ OpenTelemetry fica desabilitado por padrao. A correlacao via `X-Correlation-Id` 
 - nao verifica PostgreSQL nem Kafka;
 - uso esperado: liveness simples do processo HTTP.
 
-`Auth.Api` nao expoe endpoint dedicado de health/readiness nesta POC. A validacao operacional minima do Auth e feita por `POST /auth/login` e `GET /.well-known/jwks.json`.
+`Auth.Api` expoe `GET /health` como liveness simples. Ele nao expoe `GET /ready`; a validacao operacional minima do fluxo de autenticacao continua sendo feita por `POST /auth/login` e `GET /.well-known/jwks.json`.
 
 ### Readiness
 
@@ -94,7 +95,7 @@ $env:Observability__OpenTelemetry__Enabled = "true"
 $env:Observability__OpenTelemetry__UseConsoleExporter = "true"
 ```
 
-Para enviar traces e metricas para um collector OTLP local:
+Para enviar traces e metricas para um collector OTLP local no host:
 
 ```powershell
 $env:Observability__OpenTelemetry__Enabled = "true"
@@ -115,7 +116,7 @@ $env:Observability__OpenTelemetry__OtlpEndpoint = "https://otel-collector.exampl
 $env:Observability__OpenTelemetry__UseConsoleExporter = "false"
 ```
 
-O endpoint real deve ser fornecido pela plataforma de execucao ou secret/config store. Este repositorio nao provisiona collector, dashboard, Jaeger, Tempo, Prometheus ou stack equivalente.
+O endpoint real deve ser fornecido pela plataforma de execucao ou secret/config store. Este repositorio provisiona apenas a stack local de desenvolvimento com OpenTelemetry Collector e Jaeger; dashboard, Tempo, Prometheus, Grafana, Loki e stack produtiva equivalente continuam fora do escopo.
 
 ## Logs
 
@@ -170,7 +171,146 @@ Quando OpenTelemetry esta habilitado, as APIs registram metricas de:
 
 As metricas sao exportadas para console quando `UseConsoleExporter=true` e para OTLP quando `OtlpEndpoint` esta preenchido.
 
-Metricas atuais sao tecnicas e geradas pela instrumentacao OpenTelemetry. O repositorio nao define metricas de negocio customizadas, dashboards, alertas ou Prometheus scrape config.
+As metricas automaticas sao tecnicas e geradas pela instrumentacao OpenTelemetry. No compose local, elas chegam ao OpenTelemetry Collector pelo mesmo endpoint OTLP das APIs, mas sao descartadas explicitamente por pipeline `metrics` com exporter `nop`. Dashboards, alertas, Prometheus scrape config e Grafana continuam fora do escopo desta etapa.
+
+### Metricas customizadas
+
+Metricas customizadas devem medir sinais tecnicos ou operacionais que nao aparecem nas instrumentacoes automaticas. Elas complementam traces e logs:
+
+- metrica: serie temporal agregavel para volume, taxa, duracao ou estado observado;
+- trace: linha do tempo de uma execucao especifica, com spans e causalidade;
+- log: registro textual/estruturado de eventos pontuais para diagnostico.
+
+A fundacao de metricas customizadas usa `System.Diagnostics.Metrics`. Cada servico ou componente tecnico deve declarar `Meter` pequeno e explicito perto da camada que conhece a operacao medida, sem criar framework interno. O `Meter` precisa ser registrado no pipeline OpenTelemetry Metrics com `AddMeter(...)` na API responsavel.
+
+Convencoes:
+
+- nomes em lowercase separados por ponto: `<service_or_domain>.<component>.<operation>.<measure>`;
+- contadores usam plural quando representam ocorrencias, por exemplo `ledger.outbox.publish.attempts`;
+- unidades seguem UCUM quando aplicavel; contadores de ocorrencias usam `1`;
+- descricoes devem explicar o evento medido, o escopo e se a metrica e tecnica ou de negocio;
+- instrumentos preferenciais nesta fase: `Counter<T>` para eventos/ocorrencias e, quando necessario em evolucoes futuras, histogramas para duracoes ou tamanhos.
+
+Labels/tags permitidas devem ter baixa cardinalidade. Exemplos aceitos:
+
+- `service`;
+- `operation`;
+- `event_type`;
+- `topic`;
+- `status`;
+- `result`.
+
+Labels proibidas por alta cardinalidade:
+
+- `correlation_id`;
+- `trace_id`;
+- `span_id`;
+- `event_id`;
+- `outbox_message_id`;
+- `merchant_id`;
+- identificadores de usuario;
+- documentos;
+- payloads;
+- valores unicos por requisicao.
+
+A primeira metrica customizada foi `ledger.outbox.publish.attempts`, registrada pelo `Meter` `LedgerService.Outbox`. A etapa atual expande a instrumentacao operacional para Outbox, producer Kafka, consumer Kafka e DLQ usando `System.Diagnostics.Metrics`, sem alterar regra de negocio, contrato Kafka, payload, topicos ou stack local.
+
+Meters customizados registrados no OpenTelemetry Metrics quando `Observability:OpenTelemetry:Enabled=true`:
+
+- `LedgerService.Domain`, emitido pelo `LedgerService.Api`;
+- `LedgerService.Outbox`, emitido pelo `LedgerService.Api`;
+- `BalanceService.Domain`, emitido pelo `BalanceService.Api`;
+- `BalanceService.Kafka`, emitido pelo `BalanceService.Api`.
+
+Com OpenTelemetry desabilitado, os instrumentos continuam sendo chamados pela aplicacao, mas nao ha provider/exporter ativo coletando as series. O fluxo funcional permanece inalterado.
+
+### Metricas de dominio
+
+Metricas tecnicas medem comportamento da plataforma ou runtime, como HTTP, `HttpClient` e runtime .NET. Metricas operacionais medem componentes de entrega e confiabilidade, como Outbox, producer Kafka, consumer Kafka e DLQ. Metricas de dominio medem fatos de negocio observaveis pelos casos de uso, como lancamentos criados, estornos processados, reprocessamentos e atualizacao de projecoes de saldo.
+
+As metricas de dominio sao emitidas em pontos de orquestracao da camada de aplicacao ou no processamento de mensagens que chama casos de uso. Elas nao fazem parte do dominio puro: entidades, value objects e regras de dominio nao dependem de `System.Diagnostics.Metrics`, OpenTelemetry, exporters ou infraestrutura de observabilidade.
+
+Metricas de dominio nao devem carregar identificadores individuais nem valores de alta cardinalidade. Tags como `merchant_id`, `ledger_entry_id`, `event_id`, `correlation_id`, `trace_id`, `span_id`, `document`, `external_reference`, `idempotency_key`, valor monetario, descricao e mensagem de exception continuam proibidas. Tags como `result`, `reason`, `operation`, `entry_type`, `event_type` e `currency` devem usar conjuntos pequenos e estaveis. A tag `reason` deve ser classificacao estavel, nunca mensagem livre.
+
+Metricas de dominio do `LedgerService.Api`:
+
+| Metrica | Instrumento | Unidade | Tags permitidas | Significado | Interpretacao operacional |
+| --- | --- | --- | --- | --- | --- |
+| `ledger.entries.created` | Counter | `1` | `entry_type`, `currency`, `result` | Lancamentos financeiros criados pelo caso de uso de criacao. | Volume de entrada financeira aceita por tipo (`CREDIT`/`DEBIT`) e moeda. `result=success` indica persistencia e Outbox gravadas com sucesso. |
+| `ledger.entries.rejected` | Counter | `1` | `reason` | Lancamentos rejeitados por classificacao estavel. | Ajuda a diferenciar rejeicoes de dominio ou idempotencia sem expor payload, documento, valor ou mensagem livre. |
+| `ledger.reversals.requested` | Counter | `1` | `result` | Solicitacoes de estorno recebidas pelo Ledger. | Indica volume de solicitacoes aceitas, rejeitadas, nao encontradas ou falhas no fluxo de entrada do estorno. |
+| `ledger.reversals.processed` | Counter | `1` | `result` | Solicitacoes de estorno processadas pelo worker/caso de uso. | Indica conclusao, rejeicao ou falha tecnica no processamento financeiro do estorno. |
+| `ledger.reprocess.requests.created` | Counter | `1` | `result` | Solicitacoes de reprocessamento recebidas pelo Ledger. | Indica volume de pedidos de replay aceitos, rejeitados ou com falha no fluxo de entrada. |
+| `ledger.reprocess.requests.processed` | Counter | `1` | `result` | Solicitacoes de reprocessamento processadas pelo Ledger. | Indica se o replay terminou como `completed`, `completed_with_warnings`, `rejected` ou `failed`. |
+| `ledger.idempotency.hits` | Counter | `1` | `operation` | Replays atendidos por idempotencia no Ledger. | Sinaliza repeticao esperada de operacoes sem contar a `Idempotency-Key`; `operation` usa nomes estaveis como `create_entry`, `request_reversal` e `request_reprocess`. |
+
+Metricas de dominio do `BalanceService.Api`:
+
+| Metrica | Instrumento | Unidade | Tags permitidas | Significado | Interpretacao operacional |
+| --- | --- | --- | --- | --- | --- |
+| `balance.events.applied` | Counter | `1` | `event_type`, `result` | Eventos financeiros tratados pela aplicacao da projecao. | `success` indica evento aplicado, `duplicate` indica entrega repetida ignorada com seguranca e `failed` indica falha antes da conclusao. |
+| `balance.events.duplicates` | Counter | `1` | `event_type` | Eventos duplicados ignorados pela idempotencia da projecao. | Mede duplicidade de fatos financeiros no nivel de dominio/projecao, separada da metrica operacional do consumer Kafka. |
+| `balance.projections.updated` | Counter | `1` | `currency` | Projecoes de saldo diario atualizadas. | Volume de atualizacoes efetivas em `daily_balances`; nao conta eventos duplicados. |
+| `balance.apply.duration` | Histogram | `ms` | `event_type`, `result` | Duracao da aplicacao do evento financeiro na projecao. | Latencia de dominio do update de saldo, separada da duracao operacional do processamento Kafka. |
+
+Resultados padronizados usados nas metricas de dominio:
+
+- `success`: operacao aceita e concluida no ponto medido;
+- `rejected`: regra, autorizacao contextual ou conflito impediu a operacao;
+- `failed`: falha tecnica ou impossibilidade de replay;
+- `duplicate`: evento ou requisicao repetida tratada por idempotencia;
+- `not_found`: recurso de dominio esperado nao foi localizado;
+- `completed`: processamento assincrono concluido;
+- `completed_with_warnings`: processamento concluido sem todos os efeitos esperados, por exemplo reprocessamento sem lancamentos elegiveis.
+
+Metricas operacionais do `LedgerService.Api`:
+
+| Metrica | Instrumento | Unidade | Tags permitidas | Interpretacao |
+| --- | --- | --- | --- | --- |
+| `ledger.outbox.messages.created` | Counter | `1` | `event_type` | Volume de mensagens gravadas na Outbox. Ajuda a comparar entrada da Outbox com publicacao. |
+| `ledger.outbox.messages.published` | Counter | `1` | `event_type`, `topic`, `result` | Volume de publicacoes Outbox por resultado (`success` ou `failure`). |
+| `ledger.outbox.publish.duration` | Histogram | `ms` | `event_type`, `topic`, `result` | Latencia tecnica da publicacao Outbox, incluindo confirmacao Kafka e marcacao de status. |
+| `ledger.outbox.messages.pending` | ObservableGauge | `1` | `event_type` | Quantidade atual de mensagens `Pending` por tipo de evento. Indica backlog acumulado. |
+| `ledger.outbox.messages.failed` | ObservableGauge | `1` | `event_type` | Quantidade atual de mensagens `Failed` por tipo de evento. Indica mensagens que exigem acao operacional. |
+| `ledger.outbox.publish.attempts` | Counter | `1` | `event_type`, `result` | Tentativas finalizadas de publicacao Outbox por resultado. |
+| `ledger.kafka.producer.messages.published` | Counter | `1` | `topic`, `event_type`, `result` | Resultado das chamadas do producer Kafka do Ledger. |
+| `ledger.kafka.producer.publish.duration` | Histogram | `ms` | `topic`, `event_type`, `result` | Latencia da chamada `ProduceAsync` do producer Kafka. |
+| `ledger.kafka.producer.errors` | Counter | `1` | `topic`, `event_type`, `error_type` | Erros do producer Kafka por tipo estavel de excecao. |
+
+Metricas operacionais do `BalanceService.Api`:
+
+| Metrica | Instrumento | Unidade | Tags permitidas | Interpretacao |
+| --- | --- | --- | --- | --- |
+| `balance.kafka.consumer.messages.consumed` | Counter | `1` | `topic`, `event_type`, `result` | Mensagens consumidas por resultado (`success`, `duplicate` ou `dlq`). |
+| `balance.kafka.consumer.processing.duration` | Histogram | `ms` | `topic`, `event_type`, `result` | Duracao do processamento do evento Kafka ate sucesso, duplicidade ou DLQ. |
+| `balance.kafka.consumer.errors` | Counter | `1` | `topic`, `event_type`, `error_type` | Falhas recuperaveis ou tecnicas do consumer que seguem para retry. |
+| `balance.kafka.consumer.duplicates` | Counter | `1` | `topic`, `event_type` | Mensagens ignoradas pela idempotencia de `processed_events`. |
+| `balance.kafka.dlq.messages.published` | Counter | `1` | `source_topic`, `event_type`, `reason` | Mensagens publicadas na DLQ por motivo classificado. |
+| `balance.kafka.dlq.publish.errors` | Counter | `1` | `source_topic`, `event_type`, `error_type` | Falhas ao publicar na DLQ; nesse caso o offset original nao deve ser commitado. |
+
+Os gauges da Outbox executam consultas agregadas simples por `status` e `event_type`; eles nao fazem consulta por mensagem nem participam do fluxo critico de publicacao. Em caso de falha na observacao do gauge, a coleta retorna vazia e nao bloqueia o processamento.
+
+Tags proibidas em metricas customizadas:
+
+- `correlation_id`;
+- `trace_id`;
+- `span_id`;
+- `event_id`;
+- `outbox_message_id`;
+- `merchant_id`;
+- offsets Kafka;
+- particao Kafka especifica;
+- payload;
+- mensagem completa de exception.
+
+Para erros, `error_type` usa o nome estavel da excecao, por exemplo `KafkaException`, `ProduceException` ou `TimeoutException`. Para DLQ, `reason` usa classificacoes estaveis: `deserialization_failed`, `validation_failed`, `non_recoverable_processing_failure` ou `unknown`.
+
+Estas metricas ainda nao possuem dashboard, alerta, Prometheus scrape config ou Grafana nesta etapa. No compose local, o OpenTelemetry Collector recebe metricas OTLP e as descarta via exporter `nop` ate existir um backend de metricas decidido.
+
+Referencias relacionadas:
+
+- Kafka, Outbox e DLQ: [docs/development/kafka-outbox.md](development/kafka-outbox.md)
+- Decisao arquitetural: [ADR-0059](adrs/0059-metricas-customizadas-system-diagnostics.md)
 
 ## Kafka
 
@@ -263,12 +403,23 @@ Portas expostas no host:
 - PostgreSQL Ledger: `localhost:15432`;
 - PostgreSQL Balance: `localhost:15433`;
 - Kafka: `localhost:19092`.
+- Jaeger UI: `http://localhost:16686`;
+- Jaeger OTLP gRPC/HTTP: `localhost:4317` e `localhost:4318`, expostos para diagnostico direto;
+- OpenTelemetry Collector OTLP gRPC/HTTP: `otel-collector:4317` e `otel-collector:4318` apenas na rede interna do compose.
 
-O compose sobrescreve configuracoes por variaveis de ambiente para usar os nomes internos `ledger-db`, `balance-db` e `kafka`. Aplique migrations manualmente antes de usar as APIs em banco vazio.
+O compose sobrescreve configuracoes por variaveis de ambiente para usar os nomes internos `ledger-db`, `balance-db`, `kafka` e `otel-collector`. Aplique migrations manualmente antes de usar as APIs em banco vazio.
 
 ### Validacao local com Jaeger
 
-O compose local inclui Jaeger all-in-one com OTLP habilitado. `LedgerService.Api` e `BalanceService.Api` sobem com OpenTelemetry habilitado e exportam para `http://jaeger:4317` dentro da rede do compose.
+O compose local inclui OpenTelemetry Collector e Jaeger all-in-one com OTLP habilitado. O desenho local passa a ser:
+
+```text
+Aplicacoes -> OpenTelemetry Collector -> Jaeger
+```
+
+`Auth.Api`, `LedgerService.Api` e `BalanceService.Api` sobem com OpenTelemetry habilitado e exportam para `http://otel-collector:4317` dentro da rede do compose. O Collector recebe OTLP via gRPC em `4317` e HTTP em `4318`, aplica `batch` e encaminha traces para `jaeger:4317` usando o exporter `otlp_grpc`.
+
+O Jaeger local continua sendo o backend de visualizacao de traces. As APIs tambem possuem exporter de metricas OTLP quando `OtlpEndpoint` esta configurado; nesta etapa, o Collector recebe essas metricas e as descarta explicitamente com exporter `nop`. A validacao local com Jaeger deve focar traces; dashboards, alertas, Prometheus, Grafana e Loki continuam fora do escopo desta POC.
 
 Suba a stack:
 
@@ -278,6 +429,13 @@ docker compose up -d --build
 
 Acesse a UI do Jaeger em `http://localhost:16686`.
 
+Para conferir os componentes de observabilidade:
+
+```bash
+docker compose logs otel-collector
+docker compose logs jaeger
+```
+
 Para gerar traces HTTP simples, sem Kafka, Outbox ou autenticacao, chame os endpoints operacionais:
 
 ```bash
@@ -285,14 +443,16 @@ curl http://localhost:5226/health
 curl http://localhost:5226/ready
 curl http://localhost:5228/health
 curl http://localhost:5228/ready
+curl http://localhost:5030/health
 ```
 
 Na UI do Jaeger, use o seletor de servico para procurar:
 
+- `Auth.Api`
 - `LedgerService.Api`
 - `BalanceService.Api`
 
-Ao consultar traces, o esperado e visualizar spans de entrada HTTP gerados pela instrumentacao ASP.NET Core para `GET /health` e `GET /ready`. A validacao confirma apenas o caminho minimo de traces HTTP; ela nao depende de eventos Kafka, Outbox, endpoints autenticados, spans customizados ou metricas customizadas.
+Ao consultar traces, o esperado e visualizar spans de entrada HTTP gerados pela instrumentacao ASP.NET Core para `GET /health` e `GET /ready` nos servicos que expoem esses endpoints. A validacao confirma apenas o caminho minimo de traces HTTP; ela nao depende de eventos Kafka, Outbox, endpoints autenticados, spans customizados ou metricas customizadas.
 
 ### Validacao Auth -> Ledger -> Outbox -> Kafka -> Balance
 
@@ -312,7 +472,7 @@ Pre-requisitos:
 
 - Docker-compatible API disponivel;
 - stack local com migrations aplicadas;
-- portas do compose livres: `5030`, `5226`, `5228`, `15432`, `15433`, `16686` e `19092`;
+- portas do compose livres: `5030`, `5226`, `5228`, `15432`, `15433`, `16686`, `19092`, `4317` e `4318`;
 - OpenTelemetry habilitado pelo compose para `Auth.Api`, `LedgerService.Api` e `BalanceService.Api`.
 
 Suba a stack local completa. O script aplica migrations antes de iniciar Ledger e Balance:
@@ -359,6 +519,67 @@ O script:
 10. tenta localizar o `CorrelationId` nos logs recentes de `ledger-service` e `balance-service`.
 
 O script usa polling curto configuravel por `-PollingTimeoutSeconds` e `-PollingIntervalSeconds`. Ele nao usa sleeps longos para mascarar consistencia eventual; se o Outbox ou o consumer nao avancarem dentro do timeout, a validacao falha com o ultimo estado observado.
+
+### Validacao local de estorno e reprocessamento
+
+Fluxos assincronos derivados do Ledger possuem scripts dedicados para validacao operacional local:
+
+```powershell
+./scripts/validate-ledger-reversal-flow.ps1
+./scripts/validate-ledger-reprocess-flow.ps1
+```
+
+Se a politica local do PowerShell bloquear a execucao direta de scripts, execute de forma pontual com:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/validate-ledger-reversal-flow.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/validate-ledger-reprocess-flow.ps1
+```
+
+Pre-requisitos:
+
+- stack local completa iniciada, preferencialmente com `./scripts/start-local-stack.ps1`;
+- migrations aplicadas pelo startup local;
+- Docker-compatible API disponivel para `docker compose exec -T ... psql`;
+- portas do compose livres e acessiveis: `5030`, `5226`, `5228`, `16686`;
+- OpenTelemetry habilitado pelo compose para consulta de traces no Jaeger.
+
+Os dois scripts usam `scripts/get-token.ps1`, enviam `Authorization`, `Idempotency-Key` e `X-Correlation-Id` explicito, fazem polling curto configuravel e falham com erro quando um estado esperado nao aparece.
+
+`validate-ledger-reversal-flow.ps1` valida:
+
+- criacao de um lancamento base em `POST /api/v1/lancamentos`;
+- chegada do evento base `LedgerEntryCreated.v1` a `outbox_messages.status=Sent`;
+- processamento inicial no Balance via `processed_events` e `daily_balances`;
+- solicitacao real de estorno em `POST /api/v1/lancamentos/{lancamentoId}/estornos`;
+- persistencia em `estornos_lancamentos`;
+- publicacao do evento operacional `LancamentoEstornoSolicitado.v1`;
+- evolucao do estorno ate `Completed`;
+- criacao do lancamento compensatorio com `external_reference=estorno:{lancamentoOriginalId}`;
+- publicacao do `LedgerEntryCreated.v1` compensatorio;
+- consumo do compensatorio pelo Balance e delta compensatorio no consolidado diario;
+- traces recentes no Jaeger e presenca do `CorrelationId` em logs recentes de `ledger-service` e `balance-service`.
+
+`validate-ledger-reprocess-flow.ps1` valida:
+
+- criacao de um lancamento base em `POST /api/v1/lancamentos`;
+- fluxo normal ate Outbox `Sent`, `processed_events` e `daily_balances`;
+- solicitacao real de reprocessamento em `POST /api/v1/lancamentos/reprocessar`;
+- persistencia em `reprocessamentos_lancamentos`;
+- publicacao do evento operacional `ReprocessamentoLancamentosSolicitado.v1`;
+- evolucao do reprocessamento ate `Completed`;
+- republicacao de `LedgerEntryCreated.v1` para o lancamento elegivel;
+- idempotencia do Balance mantendo uma unica linha em `processed_events` para o mesmo evento financeiro;
+- consolidado diario inalterado apos a reentrega idempotente;
+- traces recentes no Jaeger e presenca do `CorrelationId` em logs recentes de `ledger-service` e `balance-service`.
+
+Limitacoes conhecidas:
+
+- os scripts assumem o compose local e os nomes de servico `ledger-db`, `balance-db`, `ledger-service` e `balance-service`;
+- os scripts consultam bancos diretamente para validar estados assincronos e identificadores internos que nao fazem parte do contrato publico de criacao de lancamento;
+- a validacao do Jaeger confirma traces recentes por servico, nao uma busca por `CorrelationId` na UI;
+- a politica local do PowerShell pode exigir `-ExecutionPolicy Bypass` na invocacao do processo;
+- o token local padrao usa os scopes aceitos pelo `Auth.Api` nesta POC (`ledger.write balance.read`), por isso os scripts validam estados de estorno/reprocessamento pelo banco em vez dos endpoints de status protegidos por `ledger.read`.
 
 Tambem e possivel executar manualmente com `curl`:
 
@@ -493,7 +714,7 @@ docker compose exec -T kafka /opt/kafka/bin/kafka-console-consumer.sh \
 
 Procure headers `event_id`, `event_type`, `correlation_id` e, quando tracing estiver ativo no publisher, `traceparent`.
 
-Se o Jaeger ficar temporariamente indisponivel depois que a aplicacao ja iniciou, o exporter OTLP pode registrar falhas de exportacao, mas o processamento HTTP deve continuar. Nesse periodo os traces podem ser perdidos ou aparecer com atraso ate o backend voltar a receber dados.
+Se o Collector ou o Jaeger ficar temporariamente indisponivel depois que a aplicacao ja iniciou, o exporter OTLP pode registrar falhas de exportacao, mas o processamento HTTP deve continuar. Nesse periodo os traces podem ser perdidos ou aparecer com atraso ate o backend voltar a receber dados.
 
 ### Host
 
@@ -529,7 +750,7 @@ O header padrao e `X-Correlation-Id`:
    - header `X-Correlation-Id` no response;
    - logs com `CorrelationId`;
    - spans e metricas no console, quando `UseConsoleExporter=true`;
-   - chegada de traces e metricas no collector, quando `OtlpEndpoint` estiver configurado.
+   - chegada de traces no Collector e visualizacao no Jaeger, quando `OtlpEndpoint` estiver configurado.
 6. Para fluxos Kafka, crie um lancamento e confirme publicacao Outbox, consumo pelo Balance e ausencia de mensagens inesperadas na DLQ.
 
 ## Governanca

@@ -4,6 +4,7 @@ using System.Text.Json;
 using BalanceService.Application.Balances.Commands;
 using BalanceService.Domain.Balances;
 using BalanceService.Domain.Exceptions;
+using BalanceService.Infrastructure.Observability;
 
 using Confluent.Kafka;
 
@@ -21,21 +22,26 @@ public sealed class LedgerKafkaMessageProcessor
 
     private readonly IServiceProvider _serviceProvider;
     private readonly IKafkaDeadLetterProducer _deadLetterProducer;
+    private readonly KafkaMessagingMetrics _metrics;
     private readonly ILogger<LedgerKafkaMessageProcessor> _logger;
 
     public LedgerKafkaMessageProcessor(
         IServiceProvider serviceProvider,
         IKafkaDeadLetterProducer deadLetterProducer,
+        KafkaMessagingMetrics metrics,
         ILogger<LedgerKafkaMessageProcessor> logger)
     {
         _serviceProvider = serviceProvider;
         _deadLetterProducer = deadLetterProducer;
+        _metrics = metrics;
         _logger = logger;
     }
 
     public async Task<bool> ProcessAsync(ConsumeResult<string, string> result, CancellationToken cancellationToken)
     {
         var headers = KafkaTraceContext.ReadHeaders(result.Message.Headers);
+        var eventType = ResolveEventType(headers);
+        var startedAt = Stopwatch.GetTimestamp();
 
         try
         {
@@ -58,42 +64,54 @@ public sealed class LedgerKafkaMessageProcessor
             });
 
             using var activity = StartConsumerActivity(result, headers, evt);
-            await ProcessMessageAsync(evt, cancellationToken);
+            var processingResult = await ProcessMessageAsync(evt, cancellationToken);
+            var metricResult = processingResult.Duplicate ? "duplicate" : "success";
+            _metrics.RecordConsumerMessageConsumed(result.Topic, eventType, metricResult);
+            _metrics.RecordConsumerProcessingDuration(Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds, result.Topic, eventType, metricResult);
+
+            if (processingResult.Duplicate)
+                _metrics.RecordConsumerDuplicate(result.Topic, eventType);
+
             return true;
         }
         catch (JsonException ex)
         {
             await PublishToDeadLetterAsync(result, headers, "Deserialization failed.", ex, cancellationToken);
+            RecordDlqConsumerResult(result.Topic, eventType, startedAt);
             return true;
         }
         catch (KafkaMessageValidationException ex)
         {
             await PublishToDeadLetterAsync(result, headers, ex.Message, ex, cancellationToken);
+            RecordDlqConsumerResult(result.Topic, eventType, startedAt);
             return true;
         }
         catch (DomainException ex)
         {
             await PublishToDeadLetterAsync(result, headers, "Non-recoverable processing failure.", ex, cancellationToken);
+            RecordDlqConsumerResult(result.Topic, eventType, startedAt);
             return true;
         }
         catch (ArgumentException ex)
         {
             await PublishToDeadLetterAsync(result, headers, "Non-recoverable processing failure.", ex, cancellationToken);
+            RecordDlqConsumerResult(result.Topic, eventType, startedAt);
             return true;
         }
         catch (InvalidOperationException ex) when (IsNonRecoverableProcessingFailure(ex))
         {
             await PublishToDeadLetterAsync(result, headers, "Non-recoverable processing failure.", ex, cancellationToken);
+            RecordDlqConsumerResult(result.Topic, eventType, startedAt);
             return true;
         }
     }
 
-    private async Task ProcessMessageAsync(LedgerEntryCreatedEvent evt, CancellationToken ct)
+    private async Task<ApplyLedgerEntryCreatedResult> ProcessMessageAsync(LedgerEntryCreatedEvent evt, CancellationToken ct)
     {
         using var scope = _serviceProvider.CreateScope();
         var sender = scope.ServiceProvider.GetRequiredService<ISender>();
 
-        await sender.Send(new ApplyLedgerEntryCreatedCommand(evt), ct);
+        return await sender.Send(new ApplyLedgerEntryCreatedCommand(evt), ct);
     }
 
     private async Task PublishToDeadLetterAsync(
@@ -122,6 +140,12 @@ public sealed class LedgerKafkaMessageProcessor
             result.Partition.Value,
             result.Offset.Value,
             reason);
+    }
+
+    private void RecordDlqConsumerResult(string topic, string eventType, long startedAt)
+    {
+        _metrics.RecordConsumerMessageConsumed(topic, eventType, "dlq");
+        _metrics.RecordConsumerProcessingDuration(Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds, topic, eventType, "dlq");
     }
 
     private static Activity? StartConsumerActivity(
@@ -183,6 +207,11 @@ public sealed class LedgerKafkaMessageProcessor
         => headers.TryGetValue(KafkaHeaderNames.EventId, out var eventId) && !string.IsNullOrWhiteSpace(eventId)
             ? eventId
             : payloadEventId;
+
+    private static string ResolveEventType(IReadOnlyDictionary<string, string> headers)
+        => headers.TryGetValue(KafkaHeaderNames.EventType, out var eventType) && !string.IsNullOrWhiteSpace(eventType)
+            ? eventType
+            : "unknown";
 
     private static bool IsNonRecoverableProcessingFailure(InvalidOperationException ex)
         => ex.Source?.Contains("EntityFramework", StringComparison.OrdinalIgnoreCase) != true;

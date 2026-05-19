@@ -12,15 +12,18 @@ public sealed class LedgerEventsConsumer : BackgroundService
 {
     private readonly KafkaConsumerOptions _options;
     private readonly LedgerKafkaMessageProcessor _messageProcessor;
+    private readonly KafkaMessagingMetrics _metrics;
     private readonly ILogger<LedgerEventsConsumer> _logger;
 
     public LedgerEventsConsumer(
         IOptions<KafkaConsumerOptions> options,
         LedgerKafkaMessageProcessor messageProcessor,
+        KafkaMessagingMetrics metrics,
         ILogger<LedgerEventsConsumer> logger)
     {
         _options = options.Value;
         _messageProcessor = messageProcessor;
+        _metrics = metrics;
         _logger = logger;
     }
 
@@ -74,6 +77,7 @@ public sealed class LedgerEventsConsumer : BackgroundService
             }
             catch (ConsumeException ex)
             {
+                RecordConsumerError(result, ex);
                 _logger.KafkaConsumeError(ex);
                 await Task.Delay(_options.ConsumeErrorRetryDelay, stoppingToken);
             }
@@ -83,18 +87,21 @@ public sealed class LedgerEventsConsumer : BackgroundService
             }
             catch (DbUpdateException ex)
             {
+                RecordConsumerError(result, ex);
                 _logger.KafkaProcessingError(ex, result?.Topic, result?.Partition.Value, result?.Offset.Value);
 
                 await Task.Delay(_options.ProcessingErrorRetryDelay, stoppingToken);
             }
             catch (TimeoutException ex)
             {
+                RecordConsumerError(result, ex);
                 _logger.KafkaProcessingError(ex, result?.Topic, result?.Partition.Value, result?.Offset.Value);
 
                 await Task.Delay(_options.ProcessingErrorRetryDelay, stoppingToken);
             }
             catch (KafkaException ex)
             {
+                RecordConsumerError(result, ex);
                 _logger.KafkaProcessingErrorWithKafkaException(ex, result?.Topic, result?.Partition.Value, result?.Offset.Value);
 
                 await Task.Delay(_options.ProcessingErrorRetryDelay, stoppingToken);
@@ -145,6 +152,24 @@ public sealed class LedgerEventsConsumer : BackgroundService
             "latest" => AutoOffsetReset.Latest,
             _ => AutoOffsetReset.Earliest
         };
+    }
+
+    private void RecordConsumerError(ConsumeResult<string, string>? result, Exception exception)
+    {
+        var topic = result?.Topic ?? "unknown";
+        var eventType = "unknown";
+
+        if (result?.Message?.Headers is not null)
+        {
+            var headers = KafkaTraceContext.ReadHeaders(result.Message.Headers);
+            if (headers.TryGetValue(KafkaHeaderNames.EventType, out var headerEventType) &&
+                !string.IsNullOrWhiteSpace(headerEventType))
+            {
+                eventType = headerEventType;
+            }
+        }
+
+        _metrics.RecordConsumerError(topic, eventType, exception.GetType().Name);
     }
 
 }

@@ -6,6 +6,7 @@ using BalanceService.Application.Balances.Commands;
 using BalanceService.Domain.Balances;
 using BalanceService.Domain.Exceptions;
 using BalanceService.Infrastructure.Messaging.Kafka;
+using BalanceService.Infrastructure.Observability;
 
 using Confluent.Kafka;
 
@@ -129,9 +130,9 @@ public sealed class LedgerKafkaMessageProcessorTests
         ApplyLedgerEntryCreatedCommand? command = null;
         var sender = new Mock<ISender>();
         sender
-            .Setup(x => x.Send(It.IsAny<IRequest>(), It.IsAny<CancellationToken>()))
-            .Callback<IRequest, CancellationToken>((request, _) => command = request as ApplyLedgerEntryCreatedCommand)
-            .Returns(Task.CompletedTask);
+            .Setup(x => x.Send(It.IsAny<ApplyLedgerEntryCreatedCommand>(), It.IsAny<CancellationToken>()))
+            .Callback<IRequest<ApplyLedgerEntryCreatedResult>, CancellationToken>((request, _) => command = request as ApplyLedgerEntryCreatedCommand)
+            .ReturnsAsync(ApplyLedgerEntryCreatedResult.Processed);
 
         var sut = CreateSut(dlq, sender.Object);
         var result = CreateResult(ValidPayload(), HeadersWith(EventId: null));
@@ -159,8 +160,8 @@ public sealed class LedgerKafkaMessageProcessorTests
         var dlq = new CapturingDeadLetterProducer();
         var sender = new Mock<ISender>();
         sender
-            .Setup(x => x.Send(It.IsAny<IRequest>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
+            .Setup(x => x.Send(It.IsAny<ApplyLedgerEntryCreatedCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ApplyLedgerEntryCreatedResult.Processed);
 
         var sut = CreateSut(dlq, sender.Object);
         var result = CreateResult(
@@ -186,7 +187,7 @@ public sealed class LedgerKafkaMessageProcessorTests
         var dlq = new CapturingDeadLetterProducer();
         var sender = new Mock<ISender>();
         sender
-            .Setup(x => x.Send(It.IsAny<IRequest>(), It.IsAny<CancellationToken>()))
+            .Setup(x => x.Send(It.IsAny<ApplyLedgerEntryCreatedCommand>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new DomainException("Invalid amount format."));
 
         var sut = CreateSut(dlq, sender.Object);
@@ -218,12 +219,25 @@ public sealed class LedgerKafkaMessageProcessorTests
         ISender? sender = null)
     {
         var services = new ServiceCollection();
-        services.AddSingleton(sender ?? Mock.Of<ISender>());
+        services.AddSingleton(sender ?? CreateDefaultSender());
 
+#pragma warning disable CA2000
         return new LedgerKafkaMessageProcessor(
             services.BuildServiceProvider(),
             dlq,
+            new KafkaMessagingMetrics($"{KafkaMessagingMetrics.MeterName}.Tests.{Guid.NewGuid():N}"),
             NullLogger<LedgerKafkaMessageProcessor>.Instance);
+#pragma warning restore CA2000
+    }
+
+    private static ISender CreateDefaultSender()
+    {
+        var sender = new Mock<ISender>();
+        sender
+            .Setup(x => x.Send(It.IsAny<ApplyLedgerEntryCreatedCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ApplyLedgerEntryCreatedResult.Processed);
+
+        return sender.Object;
     }
 
     private static ConsumeResult<string, string> CreateResult(string payload, Headers headers)

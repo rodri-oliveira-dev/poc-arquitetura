@@ -138,6 +138,43 @@ Politica de commit:
 
 O envelope da DLQ preserva payload original quando disponivel, topico, particao, offset, headers relevantes, motivo, tipo da excecao e timestamp.
 
+## Metricas operacionais
+
+A mensageria publica metricas customizadas via `System.Diagnostics.Metrics` quando OpenTelemetry Metrics esta habilitado na API. A instrumentacao nao altera payloads, headers, topicos, contratos de evento, politica de retry ou politica de DLQ. Sem OpenTelemetry habilitado, as chamadas aos instrumentos continuam seguras, mas nao ha coleta/exportacao.
+
+Metricas de dominio de lancamentos, estornos, reprocessamentos e projecoes de saldo ficam documentadas em [observabilidade](../observability.md#metricas-de-dominio). Este documento lista apenas metricas operacionais de mensageria para evitar duplicacao de vocabulario.
+
+Metricas do `LedgerService.Api`:
+
+- Outbox: `ledger.outbox.messages.created`, `ledger.outbox.messages.published`, `ledger.outbox.publish.duration`, `ledger.outbox.messages.pending`, `ledger.outbox.messages.failed`, `ledger.outbox.publish.attempts`.
+- Kafka Producer: `ledger.kafka.producer.messages.published`, `ledger.kafka.producer.publish.duration`, `ledger.kafka.producer.errors`.
+
+Metricas do `BalanceService.Api`:
+
+- Kafka Consumer: `balance.kafka.consumer.messages.consumed`, `balance.kafka.consumer.processing.duration`, `balance.kafka.consumer.errors`, `balance.kafka.consumer.duplicates`.
+- DLQ: `balance.kafka.dlq.messages.published`, `balance.kafka.dlq.publish.errors`.
+
+Tags permitidas:
+
+- Outbox: `event_type`, `topic`, `result`.
+- Kafka Producer: `topic`, `event_type`, `result`, `error_type`.
+- Kafka Consumer: `topic`, `event_type`, `result`, `error_type`.
+- DLQ: `source_topic`, `event_type`, `reason`, `error_type`.
+
+Tags proibidas por alta cardinalidade: `correlation_id`, `trace_id`, `span_id`, `event_id`, `outbox_message_id`, `merchant_id`, offsets, particoes especificas, payload e mensagem completa de exception. Para DLQ, a tag `reason` usa classificacao estavel (`deserialization_failed`, `validation_failed`, `non_recoverable_processing_failure`, `unknown`), nao texto livre.
+
+Interpretacao rapida:
+
+- backlog crescente: observe `ledger.outbox.messages.pending` por `event_type`;
+- mensagens travadas: observe `ledger.outbox.messages.failed` e `ledger.outbox.messages.published{result="failure"}`;
+- falhas de producer: observe `ledger.kafka.producer.errors`;
+- consumo saudavel: observe `balance.kafka.consumer.messages.consumed{result="success"}`;
+- duplicidade esperada por at-least-once: observe `balance.kafka.consumer.duplicates`;
+- desvio para DLQ: observe `balance.kafka.dlq.messages.published` por `reason`;
+- falha critica de DLQ: observe `balance.kafka.dlq.publish.errors`, pois o offset original nao deve ser commitado.
+
+Estas metricas ainda nao possuem dashboard, alertas, Prometheus ou Grafana nesta etapa. No compose local, o OpenTelemetry Collector recebe metricas OTLP e as descarta via exporter `nop`; a validacao operacional continua focada em traces no Jaeger.
+
 ## Configuracao
 
 Configuracoes ficam nos `appsettings*.json` dos projetos de API.
@@ -171,6 +208,13 @@ Para o roteiro operacional completo Auth -> Ledger -> Outbox -> Kafka -> Balance
 
 ```powershell
 ./scripts/validate-auth-ledger-trace.ps1
+```
+
+Para validar os fluxos derivados de estorno e reprocessamento com os mesmos componentes operacionais, use a secao [Validacao local de estorno e reprocessamento](../observability.md#validacao-local-de-estorno-e-reprocessamento). Os scripts dedicados sao:
+
+```powershell
+./scripts/validate-ledger-reversal-flow.ps1
+./scripts/validate-ledger-reprocess-flow.ps1
 ```
 
 ## Processamento de estornos

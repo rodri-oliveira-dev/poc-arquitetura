@@ -1,5 +1,6 @@
 using FluentValidation;
 using LedgerService.Application.Common.Behaviors;
+using LedgerService.Application.Common.Observability;
 using Microsoft.Extensions.DependencyInjection;
 using LedgerService.Application.Lancamentos.Services;
 using MediatR;
@@ -18,6 +19,7 @@ public static class DependencyInjection
 
         services.AddValidatorsFromAssembly(typeof(DependencyInjection).Assembly);
 
+        services.AddSingleton<LedgerDomainMetrics>();
         services.AddScoped<CreateLancamentoService>();
 
         return services;

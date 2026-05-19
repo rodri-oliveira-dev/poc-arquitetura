@@ -4,6 +4,7 @@ using System.Text;
 using Confluent.Kafka;
 
 using LedgerService.Domain.Entities;
+using LedgerService.Infrastructure.Observability;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -14,12 +15,17 @@ public sealed class OutboxKafkaProducer : IOutboxEventProducer, IDisposable
 {
     private readonly KafkaProducerOptions _options;
     private readonly ILogger<OutboxKafkaProducer> _logger;
+    private readonly OutboxMetrics _metrics;
     private readonly IProducer<string, string> _producer;
 
-    public OutboxKafkaProducer(IOptions<KafkaProducerOptions> options, ILogger<OutboxKafkaProducer> logger)
+    public OutboxKafkaProducer(
+        IOptions<KafkaProducerOptions> options,
+        ILogger<OutboxKafkaProducer> logger,
+        OutboxMetrics metrics)
     {
         _options = options.Value;
         _logger = logger;
+        _metrics = metrics;
 
         var config = new ProducerConfig
         {
@@ -65,17 +71,36 @@ public sealed class OutboxKafkaProducer : IOutboxEventProducer, IDisposable
             Timestamp = new Timestamp(message.OccurredAt)
         };
 
-        var result = await _producer.ProduceAsync(topic, kafkaMessage, cancellationToken);
+        var startedAt = Stopwatch.GetTimestamp();
+        try
+        {
+            var result = await _producer.ProduceAsync(topic, kafkaMessage, cancellationToken);
+            var elapsedMilliseconds = Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds;
 
-        _logger.LogDebug(
-            "Kafka published outbox message {OutboxId} to {Topic} [partition={Partition}, offset={Offset}]",
-            message.Id,
-            topic,
-            result.Partition.Value,
-            result.Offset.Value);
+            _metrics.RecordKafkaProducerMessagePublished(topic, message.EventType, "success");
+            _metrics.RecordKafkaProducerPublishDuration(elapsedMilliseconds, topic, message.EventType, "success");
+
+            _logger.LogDebug(
+                "Kafka published outbox message {OutboxId} to {Topic} [partition={Partition}, offset={Offset}]",
+                message.Id,
+                topic,
+                result.Partition.Value,
+                result.Offset.Value);
+        }
+        catch (Exception ex) when (ex is ProduceException<string, string> or KafkaException or TimeoutException)
+        {
+            var elapsedMilliseconds = Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds;
+            var errorType = ex.GetType().Name;
+
+            _metrics.RecordKafkaProducerMessagePublished(topic, message.EventType, "failure");
+            _metrics.RecordKafkaProducerPublishDuration(elapsedMilliseconds, topic, message.EventType, "failure");
+            _metrics.RecordKafkaProducerError(topic, message.EventType, errorType);
+
+            throw;
+        }
     }
 
-    private string ResolveTopic(OutboxMessage message)
+    public string ResolveTopic(OutboxMessage message)
     {
         if (_options.TopicMap.TryGetValue(message.EventType, out var mapped) && !string.IsNullOrWhiteSpace(mapped))
             return mapped;

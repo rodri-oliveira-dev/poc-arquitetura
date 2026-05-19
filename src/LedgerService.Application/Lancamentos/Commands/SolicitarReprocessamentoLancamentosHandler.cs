@@ -20,17 +20,20 @@ public sealed class SolicitarReprocessamentoLancamentosHandler
     private readonly IIdempotencyRecordRepository _idempotencyRecordRepository;
     private readonly IOutboxMessageRepository _outboxMessageRepository;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly LedgerDomainMetrics? _metrics;
 
     public SolicitarReprocessamentoLancamentosHandler(
         IReprocessamentoLancamentosRepository reprocessamentoRepository,
         IIdempotencyRecordRepository idempotencyRecordRepository,
         IOutboxMessageRepository outboxMessageRepository,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        LedgerDomainMetrics? metrics = null)
     {
         _reprocessamentoRepository = reprocessamentoRepository;
         _idempotencyRecordRepository = idempotencyRecordRepository;
         _outboxMessageRepository = outboxMessageRepository;
         _unitOfWork = unitOfWork;
+        _metrics = metrics;
     }
 
     public async Task<SolicitarReprocessamentoLancamentosResult> Handle(
@@ -38,7 +41,10 @@ public sealed class SolicitarReprocessamentoLancamentosHandler
         CancellationToken cancellationToken)
     {
         if (!IsMerchantAuthorized(request.AuthorizedMerchantIds, request.MerchantId))
+        {
+            _metrics?.RecordReprocessRequestCreated("rejected");
             throw new ForbiddenException("Token sem autorizacao para o merchant informado.");
+        }
 
         var requestHash = GenerateRequestHash(request);
         var correlationId = Guid.Parse(request.CorrelationId);
@@ -51,7 +57,10 @@ public sealed class SolicitarReprocessamentoLancamentosHandler
         if (existing is not null)
         {
             if (!string.Equals(existing.RequestHash, requestHash, StringComparison.Ordinal))
+            {
+                _metrics?.RecordReprocessRequestCreated("rejected");
                 throw new ConflictException("Idempotency-Key already used with a different payload.");
+            }
 
             if (!string.IsNullOrWhiteSpace(existing.ResponseBody))
             {
@@ -59,9 +68,13 @@ public sealed class SolicitarReprocessamentoLancamentosHandler
                     existing.ResponseBody,
                     JsonOptions);
                 if (replay is not null)
+                {
+                    _metrics?.RecordIdempotencyHit("request_reprocess");
                     return replay;
+                }
             }
 
+            _metrics?.RecordReprocessRequestCreated("failed");
             throw new ConflictException("Unable to replay idempotent response.");
         }
 
@@ -116,6 +129,8 @@ public sealed class SolicitarReprocessamentoLancamentosHandler
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+
+        _metrics?.RecordReprocessRequestCreated("success");
 
         return response;
     }

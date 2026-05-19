@@ -7,6 +7,8 @@ using BalanceService.Api.Observability;
 using BalanceService.Api.Options;
 using BalanceService.Api.Security;
 using BalanceService.Api.Swagger;
+using BalanceService.Application.Common.Observability;
+using BalanceService.Infrastructure.Observability;
 
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
@@ -189,7 +191,9 @@ public static class ServiceCollectionExtensions
                     metrics
                         .AddAspNetCoreInstrumentation()
                         .AddHttpClientInstrumentation()
-                        .AddRuntimeInstrumentation();
+                        .AddRuntimeInstrumentation()
+                        .AddMeter(BalanceDomainMetrics.MeterName)
+                        .AddMeter(KafkaMessagingMetrics.MeterName);
 
                     if (otelOptions.UseConsoleExporter)
                         metrics.AddConsoleExporter();
