@@ -15,6 +15,7 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 
 | ADR                                                                   | Status      | Resumo                                                                                           |
 | --------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------ |
+| [ADR-0061](./0061-prometheus-grafana-metricas-tecnicas-locais.md) | Aceito | Adiciona Prometheus e Grafana locais para metricas tecnicas via OpenTelemetry Collector. |
 | [ADR-0060](./0060-opentelemetry-collector-local.md) | Aceito | Introduz OpenTelemetry Collector no compose local entre as APIs e o Jaeger. |
 | [ADR-0059](./0059-metricas-customizadas-system-diagnostics.md) | Aceito | Padroniza metricas customizadas com `System.Diagnostics.Metrics` e baixa cardinalidade. |
 | [ADR-0058](./0058-propagacao-w3c-outbox-kafka.md) | Aceito | Persiste contexto W3C na Outbox para continuidade HTTP -> Outbox -> Kafka -> Balance. |

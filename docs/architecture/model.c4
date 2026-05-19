@@ -19,16 +19,26 @@ model {
   }
 
   observability = softwareSystem "Observabilidade" {
-    description "Stack local de tracing distribuido com OpenTelemetry Collector e Jaeger."
+    description "Stack local de tracing distribuido e metricas tecnicas com OpenTelemetry Collector, Jaeger, Prometheus e Grafana."
 
     collector = container "OpenTelemetry Collector" {
       technology "OpenTelemetry Collector / OTLP"
-      description "Ponto local de entrada de telemetria; recebe OTLP das APIs em 4317/4318 e encaminha traces para o Jaeger."
+      description "Ponto local de entrada de telemetria; recebe OTLP das APIs em 4317/4318, encaminha traces para o Jaeger e expoe metricas em 9464 para scrape interno."
     }
 
     jaeger = container "Jaeger all-in-one" {
       technology "Jaeger / OTLP"
       description "Backend local de tracing com receiver OTLP interno e UI em 16686."
+    }
+
+    prometheus = container "Prometheus" {
+      technology "Prometheus"
+      description "Coleta metricas tecnicas expostas pelo OpenTelemetry Collector e disponibiliza UI local em 9090."
+    }
+
+    grafana = container "Grafana" {
+      technology "Grafana"
+      description "Visualiza metricas do Prometheus por datasource provisionado e UI local em 3000."
     }
   }
 
@@ -180,6 +190,8 @@ model {
   ledger.ledgerApi -> observability.collector "Exporta telemetria quando habilitado no compose" "OTLP"
   balance.balanceApi -> observability.collector "Exporta telemetria quando habilitado no compose" "OTLP"
   observability.collector -> observability.jaeger "Encaminha traces" "OTLP"
+  observability.prometheus -> observability.collector "Coleta metricas tecnicas" "Prometheus scrape"
+  observability.grafana -> observability.prometheus "Consulta metricas" "PromQL"
 
   ledger.ledgerApiLayer -> ledger.ledgerApplication "Chama caso de uso"
   ledger.ledgerApplication -> ledger.ledgerDomain "Cria agregados e usa contratos de repositorio"

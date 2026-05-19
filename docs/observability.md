@@ -116,7 +116,7 @@ $env:Observability__OpenTelemetry__OtlpEndpoint = "https://otel-collector.exampl
 $env:Observability__OpenTelemetry__UseConsoleExporter = "false"
 ```
 
-O endpoint real deve ser fornecido pela plataforma de execucao ou secret/config store. Este repositorio provisiona apenas a stack local de desenvolvimento com OpenTelemetry Collector e Jaeger; dashboard, Tempo, Prometheus, Grafana, Loki e stack produtiva equivalente continuam fora do escopo.
+O endpoint real deve ser fornecido pela plataforma de execucao ou secret/config store. Este repositorio provisiona apenas a stack local de desenvolvimento com OpenTelemetry Collector, Jaeger, Prometheus e Grafana. Tempo, Loki, Alertmanager, centralizacao de logs e stack produtiva equivalente continuam fora do escopo.
 
 ## Logs
 
@@ -171,7 +171,7 @@ Quando OpenTelemetry esta habilitado, as APIs registram metricas de:
 
 As metricas sao exportadas para console quando `UseConsoleExporter=true` e para OTLP quando `OtlpEndpoint` esta preenchido.
 
-As metricas automaticas sao tecnicas e geradas pela instrumentacao OpenTelemetry. No compose local, elas chegam ao OpenTelemetry Collector pelo mesmo endpoint OTLP das APIs, mas sao descartadas explicitamente por pipeline `metrics` com exporter `nop`. Dashboards, alertas, Prometheus scrape config e Grafana continuam fora do escopo desta etapa.
+As metricas automaticas sao tecnicas e geradas pela instrumentacao OpenTelemetry. No compose local, elas chegam ao OpenTelemetry Collector pelo mesmo endpoint OTLP das APIs. O Collector expoe essas series em formato Prometheus no endpoint interno `otel-collector:9464`, e o Prometheus faz scrape desse endpoint. O Grafana usa o Prometheus como datasource provisionado.
 
 ### Metricas customizadas
 
@@ -305,7 +305,7 @@ Tags proibidas em metricas customizadas:
 
 Para erros, `error_type` usa o nome estavel da excecao, por exemplo `KafkaException`, `ProduceException` ou `TimeoutException`. Para DLQ, `reason` usa classificacoes estaveis: `deserialization_failed`, `validation_failed`, `non_recoverable_processing_failure` ou `unknown`.
 
-Estas metricas ainda nao possuem dashboard, alerta, Prometheus scrape config ou Grafana nesta etapa. No compose local, o OpenTelemetry Collector recebe metricas OTLP e as descarta via exporter `nop` ate existir um backend de metricas decidido.
+Estas metricas ainda nao possuem dashboard especifico nem alertas nesta etapa. No compose local, o OpenTelemetry Collector recebe metricas OTLP e as expoe no exporter Prometheus junto das metricas tecnicas automaticas. Prometheus e Grafana foram adicionados para validacao tecnica da coleta, nao para definir SLOs, regras de alerta ou operacao produtiva.
 
 Referencias relacionadas:
 
@@ -402,24 +402,34 @@ Portas expostas no host:
 - BalanceService.Api: `http://localhost:5228/`;
 - PostgreSQL Ledger: `localhost:15432`;
 - PostgreSQL Balance: `localhost:15433`;
-- Kafka: `localhost:19092`.
+- Kafka: `localhost:19092`;
 - Jaeger UI: `http://localhost:16686`;
 - Jaeger OTLP gRPC/HTTP: `localhost:4317` e `localhost:4318`, expostos para diagnostico direto;
-- OpenTelemetry Collector OTLP gRPC/HTTP: `otel-collector:4317` e `otel-collector:4318` apenas na rede interna do compose.
+- OpenTelemetry Collector OTLP gRPC/HTTP: `otel-collector:4317` e `otel-collector:4318` apenas na rede interna do compose;
+- OpenTelemetry Collector Prometheus exporter: `otel-collector:9464` apenas na rede interna do compose;
+- Prometheus: `http://localhost:9090`;
+- Grafana: `http://localhost:3000`.
 
 O compose sobrescreve configuracoes por variaveis de ambiente para usar os nomes internos `ledger-db`, `balance-db`, `kafka` e `otel-collector`. Aplique migrations manualmente antes de usar as APIs em banco vazio.
 
-### Validacao local com Jaeger
+### Validacao local com Jaeger, Prometheus e Grafana
 
-O compose local inclui OpenTelemetry Collector e Jaeger all-in-one com OTLP habilitado. O desenho local passa a ser:
+O compose local inclui OpenTelemetry Collector, Jaeger all-in-one com OTLP habilitado, Prometheus e Grafana. O desenho local passa a ser:
 
 ```text
 Aplicacoes -> OpenTelemetry Collector -> Jaeger
+Aplicacoes -> OpenTelemetry Collector -> Prometheus endpoint
+Prometheus -> OpenTelemetry Collector
+Grafana -> Prometheus
 ```
 
-`Auth.Api`, `LedgerService.Api` e `BalanceService.Api` sobem com OpenTelemetry habilitado e exportam para `http://otel-collector:4317` dentro da rede do compose. O Collector recebe OTLP via gRPC em `4317` e HTTP em `4318`, aplica `batch` e encaminha traces para `jaeger:4317` usando o exporter `otlp_grpc`.
+`Auth.Api`, `LedgerService.Api` e `BalanceService.Api` sobem com OpenTelemetry habilitado e exportam para `http://otel-collector:4317` dentro da rede do compose. As APIs continuam apontando somente para o Collector, nao para Prometheus ou Grafana.
 
-O Jaeger local continua sendo o backend de visualizacao de traces. As APIs tambem possuem exporter de metricas OTLP quando `OtlpEndpoint` esta configurado; nesta etapa, o Collector recebe essas metricas e as descarta explicitamente com exporter `nop`. A validacao local com Jaeger deve focar traces; dashboards, alertas, Prometheus, Grafana e Loki continuam fora do escopo desta POC.
+O Collector recebe OTLP via gRPC em `4317` e HTTP em `4318`, aplica `batch`, encaminha traces para `jaeger:4317` usando o exporter `otlp_grpc` e expoe metricas no exporter `prometheus` em `0.0.0.0:9464`. Essa porta nao e publicada no host; o Prometheus acessa `otel-collector:9464` pela rede Docker.
+
+O Jaeger local continua sendo o backend de visualizacao de traces. O Prometheus coleta apenas o Collector pelo job `otel-collector` a cada `15s`. O Grafana recebe um datasource Prometheus provisionado apontando para `http://prometheus:9090` e marcado como default.
+
+As metricas desta etapa sao tecnicas automaticas da instrumentacao OpenTelemetry, como ASP.NET Core, `HttpClient` e runtime .NET. Metricas customizadas de negocio, Outbox, Kafka e DLQ, dashboards complexos, alertas, Alertmanager, Loki e centralizacao de logs continuam fora do escopo desta etapa.
 
 Suba a stack:
 
@@ -434,6 +444,8 @@ Para conferir os componentes de observabilidade:
 ```bash
 docker compose logs otel-collector
 docker compose logs jaeger
+docker compose logs prometheus
+docker compose logs grafana
 ```
 
 Para gerar traces HTTP simples, sem Kafka, Outbox ou autenticacao, chame os endpoints operacionais:
@@ -454,6 +466,10 @@ Na UI do Jaeger, use o seletor de servico para procurar:
 
 Ao consultar traces, o esperado e visualizar spans de entrada HTTP gerados pela instrumentacao ASP.NET Core para `GET /health` e `GET /ready` nos servicos que expoem esses endpoints. A validacao confirma apenas o caminho minimo de traces HTTP; ela nao depende de eventos Kafka, Outbox, endpoints autenticados, spans customizados ou metricas customizadas.
 
+No Prometheus, acesse `http://localhost:9090/targets` e confirme que o target `otel-collector:9464` esta `UP`. Depois gere chamadas HTTP para as APIs e pesquise metricas tecnicas automaticas. Os nomes podem variar conforme a versao dos pacotes OpenTelemetry e do runtime .NET, mas normalmente incluem series relacionadas a HTTP server, HTTP client e runtime/processo .NET. Prometheus nao deve ter targets diretos para `Auth.Api`, `LedgerService.Api` ou `BalanceService.Api` nesta etapa.
+
+No Grafana, acesse `http://localhost:3000` com as credenciais locais de POC `admin`/`admin`. Em `Connections` ou `Data sources`, confirme o datasource `Prometheus` apontando para `http://prometheus:9090`. Para validar a consulta, use Explore com uma metrica tecnica que ja exista no Prometheus.
+
 ### Validacao Auth -> Ledger -> Outbox -> Kafka -> Balance
 
 Para validar o fluxo distribuido completo com chamada autenticada, Outbox, Kafka, Balance, logs e Jaeger, use `Auth.Api` para obter um JWT RS256 e chame o endpoint protegido `POST /api/v1/lancamentos` no `LedgerService.Api`.
@@ -472,7 +488,7 @@ Pre-requisitos:
 
 - Docker-compatible API disponivel;
 - stack local com migrations aplicadas;
-- portas do compose livres: `5030`, `5226`, `5228`, `15432`, `15433`, `16686`, `19092`, `4317` e `4318`;
+- portas do compose livres: `5030`, `5226`, `5228`, `15432`, `15433`, `16686`, `19092`, `4317`, `4318`, `9090` e `3000`;
 - OpenTelemetry habilitado pelo compose para `Auth.Api`, `LedgerService.Api` e `BalanceService.Api`.
 
 Suba a stack local completa. O script aplica migrations antes de iniciar Ledger e Balance:
@@ -541,7 +557,7 @@ Pre-requisitos:
 - stack local completa iniciada, preferencialmente com `./scripts/start-local-stack.ps1`;
 - migrations aplicadas pelo startup local;
 - Docker-compatible API disponivel para `docker compose exec -T ... psql`;
-- portas do compose livres e acessiveis: `5030`, `5226`, `5228`, `16686`;
+- portas do compose livres e acessiveis: `5030`, `5226`, `5228`, `16686`, `9090` e `3000`;
 - OpenTelemetry habilitado pelo compose para consulta de traces no Jaeger.
 
 Os dois scripts usam `scripts/get-token.ps1`, enviam `Authorization`, `Idempotency-Key` e `X-Correlation-Id` explicito, fazem polling curto configuravel e falham com erro quando um estado esperado nao aparece.

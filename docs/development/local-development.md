@@ -36,7 +36,9 @@ O `compose.yaml` sobe:
 - Kafka single node em KRaft;
 - job de inicializacao dos topicos Kafka;
 - OpenTelemetry Collector como entrada local de telemetria OTLP;
-- Jaeger all-in-one como backend local de visualizacao de traces.
+- Jaeger all-in-one como backend local de visualizacao de traces;
+- Prometheus para coletar metricas tecnicas expostas pelo Collector;
+- Grafana com datasource Prometheus provisionado.
 
 Subir a stack:
 
@@ -84,8 +86,11 @@ Portas expostas no host:
 | Jaeger UI | `http://localhost:16686/` |
 | Jaeger OTLP | `localhost:4317` e `localhost:4318` para diagnostico direto |
 | OpenTelemetry Collector OTLP | `otel-collector:4317` e `otel-collector:4318` na rede interna do compose |
+| OpenTelemetry Collector metrics | `otel-collector:9464` na rede interna do compose |
+| Prometheus | `http://localhost:9090/` |
+| Grafana | `http://localhost:3000/` |
 
-O compose sobrescreve configuracoes por variaveis de ambiente para usar hosts internos como `ledger-db`, `balance-db`, `kafka` e `otel-collector`. No compose, as APIs enviam OTLP para o Collector, e o Collector encaminha traces para o Jaeger. O ambiente local do compose roda como `Development`.
+O compose sobrescreve configuracoes por variaveis de ambiente para usar hosts internos como `ledger-db`, `balance-db`, `kafka` e `otel-collector`. No compose, as APIs enviam OTLP somente para o Collector. O Collector encaminha traces para o Jaeger e expoe metricas em formato Prometheus para scrape interno. Prometheus coleta o Collector, e Grafana consulta o Prometheus. O ambiente local do compose roda como `Development`.
 
 ## Migrations via compose
 

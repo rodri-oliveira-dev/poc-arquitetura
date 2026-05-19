@@ -21,6 +21,8 @@ views {
     include kafka.ledgerDlq
     include observability.collector
     include observability.jaeger
+    include observability.prometheus
+    include observability.grafana
     autoLayout LeftRight
   }
 
@@ -37,6 +39,8 @@ views {
     include balance.balanceApi
     include observability.collector
     include observability.jaeger
+    include observability.prometheus
+    include observability.grafana
     autoLayout LeftRight
   }
 

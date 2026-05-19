@@ -162,7 +162,7 @@ services:
       - poc-net
 
   otel-collector:
-    image: docker.io/otel/opentelemetry-collector:0.152.0
+    image: docker.io/otel/opentelemetry-collector-contrib:0.152.0
     container_name: poc-otel-collector
     command: [ "--config=/etc/otelcol/config.yaml" ]
     depends_on:
@@ -172,6 +172,49 @@ services:
     expose:
       - "4317"
       - "4318"
+      - "9464"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256m
+          pids: 128
+    networks:
+      - poc-net
+
+  prometheus:
+    image: docker.io/prom/prometheus:v3.8.0
+    container_name: poc-prometheus
+    depends_on:
+      - otel-collector
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256m
+          pids: 128
+    networks:
+      - poc-net
+
+  grafana:
+    image: docker.io/grafana/grafana:12.3.0
+    container_name: poc-grafana
+    depends_on:
+      - prometheus
+    environment:
+      GF_SECURITY_ADMIN_USER: "admin"
+      GF_SECURITY_ADMIN_PASSWORD: "admin"
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./observability/grafana/provisioning/datasources/prometheus.yml:/etc/grafana/provisioning/datasources/prometheus.yml:ro
     deploy:
       resources:
         limits:
