@@ -6,7 +6,7 @@ OpenTelemetry fica desabilitado por padrao. A correlacao via `X-Correlation-Id` 
 
 ## Baseline
 
-- Logs: console logging do ASP.NET Core, com escopo de `CorrelationId` nos middlewares de correlacao.
+- Logs: console logging do ASP.NET Core, com escopo de `CorrelationId` nos middlewares de correlacao, coletado centralmente por Grafana Alloy e consultavel no Loki no compose local.
 - Traces: OpenTelemetry opcional para ASP.NET Core e `HttpClient`.
 - Metricas: OpenTelemetry opcional para ASP.NET Core, `HttpClient` e runtime .NET.
 - Exporters: console para validacao local e OTLP quando `OtlpEndpoint` estiver configurado.
@@ -116,7 +116,7 @@ $env:Observability__OpenTelemetry__OtlpEndpoint = "https://otel-collector.exampl
 $env:Observability__OpenTelemetry__UseConsoleExporter = "false"
 ```
 
-O endpoint real deve ser fornecido pela plataforma de execucao ou secret/config store. Este repositorio provisiona apenas a stack local de desenvolvimento com OpenTelemetry Collector, Jaeger, Prometheus, Alertmanager e Grafana. Tempo, Loki, centralizacao de logs, notificacoes externas e stack produtiva equivalente continuam fora do escopo.
+O endpoint real deve ser fornecido pela plataforma de execucao ou secret/config store. Este repositorio provisiona apenas a stack local de desenvolvimento com OpenTelemetry Collector, Jaeger, Prometheus, Loki, Grafana Alloy, Alertmanager e Grafana. Tempo, notificacoes externas e stack produtiva equivalente continuam fora do escopo.
 
 ## Logs
 
@@ -142,6 +142,53 @@ Logs relevantes para operacao:
 - producer Kafka do Ledger, incluindo topico, particao e offset apos publicacao;
 - consumer Kafka do Balance, incluindo processamento, commits, retries e envio para DLQ;
 - erros de DLQ no Balance, especialmente quando a publicacao na DLQ falhar e o offset original nao for commitado.
+
+### Logs centralizados com Loki e Alloy
+
+O compose local adiciona Loki e Grafana Alloy para centralizar logs dos containers sem alterar o provider de logging das aplicacoes. As APIs continuam escrevendo no console; o Alloy le os logs dos containers pela Docker API e envia para o Loki.
+
+Desenho local:
+
+```text
+Containers Docker -> Grafana Alloy -> Loki
+Grafana -> Loki
+```
+
+O Alloy descobre apenas containers do projeto compose `poc-arquitetura` e aplica labels estaveis de baixa cardinalidade:
+
+| Label | Origem | Exemplo |
+| --- | --- | --- |
+| `service` | label `com.docker.compose.service` | `ledger-service` |
+| `container` | nome do container Docker | `poc-ledger-service` |
+| `compose_project` | label `com.docker.compose.project` | `poc-arquitetura` |
+| `environment` | valor fixo local | `local` |
+
+No Loki local, a descoberta automatica de `service_name` e `detected_level` fica desabilitada para manter a lista de labels controlada pela POC.
+
+`CorrelationId`, `TraceId`, `SpanId`, `event_id`, `outbox_message_id`, `merchant_id`, `idempotency_key`, payloads e mensagens de excecao nao sao labels do Loki. Esses valores podem ter alta cardinalidade e devem permanecer no conteudo pesquisavel do log. Isso preserva streams estaveis e evita explosao de cardinalidade no Loki.
+
+Consultas LogQL uteis no Grafana Explore com datasource `Loki`:
+
+```logql
+{service="ledger-service"}
+{service="balance-service"}
+{container="poc-auth-api"}
+{service="ledger-service"} |= "CorrelationId=<valor>"
+{service="ledger-service"} |= "TraceId=<valor>"
+{service="balance-service"} |= "CorrelationId=<valor>"
+{service="ledger-service"} |= "fail"
+{compose_project="poc-arquitetura", environment="local"}
+```
+
+Para uma janela recente, use o seletor de tempo do Grafana, por exemplo "Last 15 minutes". Pela API do Loki, a validacao basica pode usar `query_range`:
+
+```bash
+curl -G "http://localhost:3100/loki/api/v1/query_range" \
+  --data-urlencode 'query={service="ledger-service"}' \
+  --data-urlencode 'limit=20'
+```
+
+Se Loki ou Alloy ficarem indisponiveis, a aplicacao continua funcionando porque nao envia logs diretamente para Loki. O impacto esperado e apenas perda ou atraso na centralizacao dos logs enquanto a coleta/backend estiver indisponivel. Traces e metricas seguem pelo OpenTelemetry Collector; logs nao substituem traces nem metricas.
 
 ## Traces
 
@@ -408,36 +455,40 @@ Portas expostas no host:
 - OpenTelemetry Collector OTLP gRPC/HTTP: `otel-collector:4317` e `otel-collector:4318` apenas na rede interna do compose;
 - OpenTelemetry Collector Prometheus exporter: `otel-collector:9464` apenas na rede interna do compose;
 - Prometheus: `http://localhost:9090`;
+- Loki: `http://localhost:3100`;
+- Grafana Alloy: `http://localhost:12345`;
 - Alertmanager: `http://localhost:9093`;
 - Grafana: `http://localhost:3000`.
 
 O compose sobrescreve configuracoes por variaveis de ambiente para usar os nomes internos `ledger-db`, `balance-db`, `kafka` e `otel-collector`. Aplique migrations manualmente antes de usar as APIs em banco vazio.
 
-### Validacao local com Jaeger, Prometheus e Grafana
+### Validacao local com Jaeger, Prometheus, Loki e Grafana
 
-O compose local inclui OpenTelemetry Collector, Jaeger all-in-one com OTLP habilitado, Prometheus e Grafana. O desenho local passa a ser:
+O compose local inclui OpenTelemetry Collector, Jaeger all-in-one com OTLP habilitado, Prometheus, Loki, Grafana Alloy e Grafana. O desenho local passa a ser:
 
 ```text
 Aplicacoes -> OpenTelemetry Collector -> Jaeger
 Aplicacoes -> OpenTelemetry Collector -> Prometheus endpoint
 Prometheus -> OpenTelemetry Collector
 Prometheus -> Alertmanager
+Containers Docker -> Grafana Alloy -> Loki
 Grafana -> Prometheus
+Grafana -> Loki
 ```
 
 `Auth.Api`, `LedgerService.Api` e `BalanceService.Api` sobem com OpenTelemetry habilitado e exportam para `http://otel-collector:4317` dentro da rede do compose. As APIs continuam apontando somente para o Collector, nao para Prometheus ou Grafana.
 
 O Collector recebe OTLP via gRPC em `4317` e HTTP em `4318`, aplica `batch`, encaminha traces para `jaeger:4317` usando o exporter `otlp_grpc` e expoe metricas no exporter `prometheus` em `0.0.0.0:9464`. Essa porta nao e publicada no host; o Prometheus acessa `otel-collector:9464` pela rede Docker.
 
-O Jaeger local continua sendo o backend de visualizacao de traces. O Prometheus coleta o Collector pelo job `otel-collector` a cada `15s` e tambem coleta `prometheus` e `alertmanager` para sinais tecnicos da propria stack de alerting. O Grafana recebe um datasource Prometheus provisionado com uid `prometheus`, apontando para `http://prometheus:9090` e marcado como default.
+O Jaeger local continua sendo o backend de visualizacao de traces. O Prometheus coleta o Collector pelo job `otel-collector` a cada `15s` e tambem coleta `prometheus` e `alertmanager` para sinais tecnicos da propria stack de alerting. O Alloy coleta logs dos containers do compose local e envia para o Loki. O Grafana recebe datasources provisionados para Prometheus, com uid `prometheus`, apontando para `http://prometheus:9090` e marcado como default, e Loki, com uid `loki`, apontando para `http://loki:3100`.
 
 O Alertmanager local recebe alertas do Prometheus pelo endereco interno `alertmanager:9093`. Ele usa receiver local sem envio externo; a UI fica disponivel em `http://localhost:9093`.
 
-As metricas desta etapa sao tecnicas automaticas da instrumentacao OpenTelemetry, como ASP.NET Core, `HttpClient` e runtime .NET. Metricas customizadas de negocio, Outbox, Kafka e DLQ, dashboards complexos, SLOs, Loki, centralizacao de logs e notificacoes externas continuam fora do escopo desta etapa.
+As metricas desta etapa continuam sendo tecnicas automaticas da instrumentacao OpenTelemetry, como ASP.NET Core, `HttpClient` e runtime .NET. A centralizacao de logs adiciona coleta e consulta textual no Loki, sem criar metricas customizadas, dashboards complexos, SLOs ou notificacoes externas.
 
 ### Dashboards Grafana provisionados
 
-Os dashboards locais ficam versionados em `observability/grafana/dashboards/` e sao carregados por provisioning em `observability/grafana/provisioning/dashboards/dashboards.yml`. O `compose.yaml` monta esses arquivos no container Grafana em modo somente leitura, entao nao ha configuracao manual pos-subida.
+Os dashboards locais ficam versionados em `observability/grafana/dashboards/` e sao carregados por provisioning em `observability/grafana/provisioning/dashboards/dashboards.yml`. Os datasources ficam em `observability/grafana/provisioning/datasources/datasources.yml`. O `compose.yaml` monta esses arquivos no container Grafana em modo somente leitura, entao nao ha configuracao manual pos-subida.
 
 Dashboards criados:
 
@@ -502,6 +553,8 @@ Para conferir os componentes de observabilidade:
 docker compose logs otel-collector
 docker compose logs jaeger
 docker compose logs prometheus
+docker compose logs loki
+docker compose logs alloy
 docker compose logs alertmanager
 docker compose logs grafana
 ```
@@ -528,7 +581,17 @@ No Prometheus, acesse `http://localhost:9090/targets` e confirme que os targets 
 
 No Alertmanager, acesse `http://localhost:9093/#/alerts` para visualizar alertas recebidos do Prometheus. A configuracao local nao envia notificacoes para sistemas externos.
 
-No Grafana, acesse `http://localhost:3000` com as credenciais locais de POC `admin`/`admin`. Em `Connections` ou `Data sources`, confirme o datasource `Prometheus` apontando para `http://prometheus:9090`. Em `Dashboards`, abra a pasta `Observability` e confirme que os dashboards `APIs - Visão Geral` e `Runtime .NET - Visão Geral` foram carregados automaticamente. Para validar a consulta, use Explore com uma das metricas tecnicas listadas acima.
+No Loki, acesse `http://localhost:3100/ready` e espere resposta `ready`. Para validar ingestion sem depender do Grafana:
+
+```bash
+curl -G "http://localhost:3100/loki/api/v1/query_range" \
+  --data-urlencode 'query={service="auth-api"}' \
+  --data-urlencode 'limit=20'
+```
+
+No Alloy, acesse `http://localhost:12345` para diagnostico local do agente. O container precisa ter acesso somente leitura a `/var/run/docker.sock`; sem esse socket, a coleta de logs falha, mas as APIs continuam funcionando.
+
+No Grafana, acesse `http://localhost:3000` com as credenciais locais de POC `admin`/`admin`. Em `Connections` ou `Data sources`, confirme os datasources `Prometheus` apontando para `http://prometheus:9090` e `Loki` apontando para `http://loki:3100`. Em `Dashboards`, abra a pasta `Observability` e confirme que os dashboards `APIs - Visão Geral` e `Runtime .NET - Visão Geral` foram carregados automaticamente. Para validar metricas, use Explore com uma das metricas tecnicas listadas acima. Para validar logs, use Explore com o datasource `Loki` e a query `{service="ledger-service"}`.
 
 ### Validacao Auth -> Ledger -> Outbox -> Kafka -> Balance
 
@@ -718,6 +781,25 @@ docker compose logs ledger-service --since 10m | grep 11111111-1111-4111-8111-11
 docker compose logs balance-service --since 10m | grep 11111111-1111-4111-8111-111111111111
 ```
 
+Logs centralizados no Loki:
+
+```bash
+curl -G "http://localhost:3100/loki/api/v1/query_range" \
+  --data-urlencode 'query={service="ledger-service"} |= "CorrelationId=11111111-1111-4111-8111-111111111111"' \
+  --data-urlencode 'limit=20'
+
+curl -G "http://localhost:3100/loki/api/v1/query_range" \
+  --data-urlencode 'query={service="balance-service"} |= "CorrelationId=11111111-1111-4111-8111-111111111111"' \
+  --data-urlencode 'limit=20'
+```
+
+Para buscar pelo `TraceId`, copie o valor da UI/API do Jaeger ou do logging scope e pesquise no conteudo do log:
+
+```logql
+{service="ledger-service"} |= "TraceId=<trace-id>"
+{service="balance-service"} |= "TraceId=<trace-id>"
+```
+
 Resultado esperado:
 
 - `POST /auth/login` retorna `access_token`;
@@ -725,10 +807,12 @@ Resultado esperado:
 - o header `X-Correlation-Id` do response preserva o UUID enviado;
 - a tabela `outbox_messages` contem `LedgerEntryCreated.v1` com o mesmo `correlation_id` e status final `Sent`;
 - os logs do Ledger mostram o `CorrelationId` na requisicao e/ou no publisher;
+- o Loki retorna logs do Ledger com o `CorrelationId` dentro do conteudo do log;
 - `processed_events` contem o `id` do evento financeiro retornado no payload do Ledger;
 - `daily_balances` reflete o credito ou debito criado;
 - `GET /v1/consolidados/diario/{date}` retorna o consolidado atualizado;
 - os logs do Balance mostram o mesmo `CorrelationId` durante o consumo;
+- o Loki retorna logs do Balance com o `CorrelationId` dentro do conteudo do log;
 - a UI do Jaeger em `http://localhost:16686` mostra traces recentes para `Auth.Api`, `LedgerService.Api` e `BalanceService.Api`.
 
 Na UI do Jaeger:

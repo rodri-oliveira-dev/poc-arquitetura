@@ -45,7 +45,19 @@ if [[ "$NO_BUILD" != "true" ]]; then
   compose_up+=(--build)
 fi
 
-"${compose_up[@]}" ledger-db balance-db kafka kafka-init-topics auth-api
+"${compose_up[@]}" \
+  ledger-db \
+  balance-db \
+  kafka \
+  kafka-init-topics \
+  jaeger \
+  otel-collector \
+  prometheus \
+  alertmanager \
+  loki \
+  alloy \
+  grafana \
+  auth-api
 
 wait_database ledger-db appuser appdb
 wait_database balance-db userBalance dbBalance

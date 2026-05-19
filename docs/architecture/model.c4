@@ -19,7 +19,7 @@ model {
   }
 
   observability = softwareSystem "Observabilidade" {
-    description "Stack local de tracing distribuido, metricas tecnicas e alertas basicos com OpenTelemetry Collector, Jaeger, Prometheus, Alertmanager e Grafana."
+    description "Stack local de tracing distribuido, metricas tecnicas, logs centralizados e alertas basicos com OpenTelemetry Collector, Jaeger, Prometheus, Loki, Grafana Alloy, Alertmanager e Grafana."
 
     collector = container "OpenTelemetry Collector" {
       technology "OpenTelemetry Collector / OTLP"
@@ -36,6 +36,16 @@ model {
       description "Coleta metricas tecnicas expostas pelo OpenTelemetry Collector, carrega regras de alerta e disponibiliza UI local em 9090."
     }
 
+    loki = container "Loki" {
+      technology "Grafana Loki"
+      description "Armazena logs centralizados dos containers da stack local, recebidos do Grafana Alloy, com API em 3100."
+    }
+
+    alloy = container "Grafana Alloy" {
+      technology "Grafana Alloy / loki.source.docker"
+      description "Descobre containers Docker do compose local, aplica labels estaveis e envia logs para o Loki sem alterar o provider de logging das aplicacoes."
+    }
+
     alertmanager = container "Alertmanager" {
       technology "Prometheus Alertmanager"
       description "Recebe alertas tecnicos do Prometheus para visualizacao local, sem integracoes externas, com UI em 9093."
@@ -43,7 +53,7 @@ model {
 
     grafana = container "Grafana" {
       technology "Grafana"
-      description "Visualiza metricas do Prometheus por datasource provisionado e UI local em 3000."
+      description "Visualiza metricas do Prometheus e logs do Loki por datasources provisionados e UI local em 3000."
     }
   }
 
@@ -197,7 +207,9 @@ model {
   observability.collector -> observability.jaeger "Encaminha traces" "OTLP"
   observability.prometheus -> observability.collector "Coleta metricas tecnicas" "Prometheus scrape"
   observability.prometheus -> observability.alertmanager "Envia alertas tecnicos" "Alertmanager API"
+  observability.alloy -> observability.loki "Envia logs dos containers" "Loki push API"
   observability.grafana -> observability.prometheus "Consulta metricas" "PromQL"
+  observability.grafana -> observability.loki "Consulta logs" "LogQL"
 
   ledger.ledgerApiLayer -> ledger.ledgerApplication "Chama caso de uso"
   ledger.ledgerApplication -> ledger.ledgerDomain "Cria agregados e usa contratos de repositorio"

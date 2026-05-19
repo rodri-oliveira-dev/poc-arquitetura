@@ -15,6 +15,7 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 
 | ADR                                                                   | Status      | Resumo                                                                                           |
 | --------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------ |
+| [ADR-0063](./0063-loki-alloy-logs-centralizados-locais.md) | Aceito | Adiciona Loki e Grafana Alloy para centralizacao local de logs dos containers com labels de baixa cardinalidade. |
 | [ADR-0062](./0062-alertas-tecnicos-prometheus-alertmanager-locais.md) | Aceito | Adiciona regras de alertas tecnicos locais no Prometheus e Alertmanager sem integracoes externas. |
 | [ADR-0061](./0061-prometheus-grafana-metricas-tecnicas-locais.md) | Aceito | Adiciona Prometheus e Grafana locais para metricas tecnicas via OpenTelemetry Collector. |
 | [ADR-0060](./0060-opentelemetry-collector-local.md) | Aceito | Introduz OpenTelemetry Collector no compose local entre as APIs e o Jaeger. |
