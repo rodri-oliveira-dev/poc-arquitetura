@@ -17,6 +17,7 @@ Ela preserva a estrategia incremental descrita nas ADRs e evita transformar test
 - Introduzir ou revisar Testcontainers PostgreSQL em escopo pequeno.
 - Testar endpoints HTTP, autenticacao/autorizacao, readiness, migrations, constraints, queries ou transacoes.
 - Ajustar fixtures, seeds, limpeza de banco ou desligamento de hosted services em testes.
+- Complementar mudancas funcionais implementadas via `dotnet-service-change` quando houver necessidade de estrategia especifica de integracao.
 
 # Quando nao usar
 
@@ -24,6 +25,7 @@ Ela preserva a estrategia incremental descrita nas ADRs e evita transformar test
 - Mudancas sem interacao HTTP, persistencia real, DI completo ou infraestrutura de teste.
 - Testes e2e com Kafka, Compose ou Aspire sem decisao arquitetural explicita.
 - Alteracoes em pipelines de teste sem mudar a estrategia de testes de integracao.
+- Implementacoes funcionais amplas em servicos .NET cujo foco principal nao seja a estrategia de testes; nesse caso, use `dotnet-service-change` como skill principal.
 
 # Entradas esperadas
 
@@ -44,14 +46,15 @@ Ela preserva a estrategia incremental descrita nas ADRs e evita transformar test
 
 1. Identifique se o teste exige pipeline HTTP real, DI completo, provider de banco real ou apenas comportamento isolado.
 2. Consulte `AGENTS.md`, README, `docs/development/test-coverage.md` e ADRs relevantes antes de mudar a estrategia.
-3. Localize a factory existente do servico e preserve seu padrao quando suficiente.
-4. Desligue hosted services externos em testes quando eles nao forem parte do comportamento validado.
-5. Use EF InMemory apenas quando constraints, SQL, transacoes, migrations e provider Npgsql nao forem o alvo do teste.
-6. Use Testcontainers PostgreSQL somente quando a fidelidade do provider real aumentar claramente a confianca.
-7. Mantenha containers, seeds e limpeza com ciclo de vida explicito e previsivel.
-8. Evite dependencias externas nao controladas e portas fixas inventadas.
-9. Revise se o teste cobre o risco real sem aumentar flakiness ou tempo desnecessariamente.
-10. Documente impacto quando a estrategia oficial de testes mudar.
+3. Quando a tarefa incluir mudanca funcional relevante, alinhe a estrategia com `dotnet-service-change` antes de alterar factories, providers ou fixtures.
+4. Localize a factory existente do servico e preserve seu padrao quando suficiente.
+5. Desligue hosted services externos em testes quando eles nao forem parte do comportamento validado.
+6. Use EF InMemory apenas quando constraints, SQL, transacoes, migrations e provider Npgsql nao forem o alvo do teste.
+7. Use Testcontainers PostgreSQL somente quando a fidelidade do provider real aumentar claramente a confianca.
+8. Mantenha containers, seeds e limpeza com ciclo de vida explicito e previsivel.
+9. Evite dependencias externas nao controladas e portas fixas inventadas.
+10. Revise se o teste cobre o risco real sem aumentar flakiness ou tempo desnecessariamente.
+11. Documente impacto quando a estrategia oficial de testes mudar.
 
 # Validacao
 

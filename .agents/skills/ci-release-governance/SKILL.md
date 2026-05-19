@@ -6,16 +6,17 @@ description: Use esta skill para revisar ou ajustar GitHub Actions, GitVersion, 
 # Objetivo
 
 Orientar mudancas em CI/CD, versionamento, releases e automacoes do repositorio com seguranca e rastreabilidade.
-Esta skill concentra regras de GitHub Actions, GitVersion, hooks locais, artifacts, cobertura e mutation testing sem poluir `AGENTS.md`.
+Esta skill concentra regras de GitHub Actions, GitVersion, hooks locais, artifacts, cobertura, testes de carga e mutation testing sem poluir `AGENTS.md`.
 Ela deve evitar drift entre pipeline, README, docs de desenvolvimento e ADRs.
 
 # Quando usar
 
 - Alterar ou revisar workflows em `.github/workflows/`.
 - Ajustar `GitVersion.yml`, convencoes de release ou mensagens semanticas.
-- Revisar `.githooks/`, validacoes locais, artifacts, cobertura ou mutation testing.
+- Revisar `.githooks/`, validacoes locais, artifacts, cobertura, testes de carga ou mutation testing.
 - Avaliar hardening de automacoes, permissoes, retencao, publicacao ou triggers.
 - Atualizar documentacao de desenvolvimento relacionada a CI/CD ou release.
+- Alterar triggers, execucao, thresholds, artifacts ou estrategia de testes de carga.
 
 # Quando nao usar
 
@@ -40,16 +41,18 @@ Ela deve evitar drift entre pipeline, README, docs de desenvolvimento e ADRs.
 
 # Passos
 
-1. Identifique se a mudanca e CI, release, versionamento, hook, coverage, mutation testing ou seguranca de automacao.
+1. Identifique se a mudanca e CI, release, versionamento, hook, coverage, mutation testing, testes de carga ou seguranca de automacao.
 2. Consulte `AGENTS.md`, README, `docs/development/`, ADRs relevantes, `GitVersion.yml` e workflows afetados.
 3. Compare o comportamento documentado com o comportamento configurado.
 4. Preserve comandos oficiais e Central Package Management.
 5. Reduza permissoes, escopos e artifacts somente com criterio explicito.
 6. Evite triggers amplos ou jobs caros sem necessidade comprovada.
-7. Atualize documentacao quando mudar fluxo oficial, requisito local, release ou validacao.
-8. Valide sintaxe e consistencia dos arquivos alterados.
-9. Revise diff e confirme que nao houve alteracao de codigo de producao ou testes de aplicacao.
-10. Relate impacto, validacoes e riscos.
+7. Testes de carga nao devem rodar em todo build, PR ou validacao local padrao.
+8. Quando existirem workflows de load test, mantenha execucao manual, agendada, informativa ou restrita a cenarios explicitamente definidos.
+9. Atualize documentacao quando mudar fluxo oficial, requisito local, release, validacao ou estrategia de testes de carga.
+10. Valide sintaxe e consistencia dos arquivos alterados.
+11. Revise diff e confirme que nao houve alteracao de codigo de producao ou testes de aplicacao.
+12. Relate impacto, validacoes e riscos.
 
 # Validacao
 
@@ -75,6 +78,6 @@ dotnet build ./LedgerService.slnx --configuration Release --no-restore
 - Nao executar publish, deploy, release real ou push.
 - Nao criar branch sem pedido explicito.
 - Nao ampliar permissoes de workflow sem justificativa clara.
-- Nao remover validacoes de seguranca, cobertura ou testes para contornar falha.
+- Nao remover validacoes de seguranca, cobertura, testes ou cenarios de carga para contornar falha.
 - Nao alterar codigo de producao ou testes de aplicacao fora do escopo.
 - Nao introduzir segredos em workflows, scripts ou documentacao.
