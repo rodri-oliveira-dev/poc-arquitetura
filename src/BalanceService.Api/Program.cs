@@ -35,7 +35,9 @@ builder.Services
 builder.Services.AddApiJwtAuth(builder.Configuration, builder.Environment);
 
 builder.Services.AddApplication();
-builder.Services.AddInfrastructure(builder.Configuration, builder.Environment);
+builder.Services
+    .AddBalanceApiInfrastructure(builder.Configuration, builder.Environment)
+    .AddBalanceLedgerEventsWorker(builder.Configuration);
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();

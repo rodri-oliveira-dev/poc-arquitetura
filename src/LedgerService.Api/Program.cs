@@ -35,7 +35,11 @@ builder.Services
 builder.Services.AddApiJwtAuth(builder.Configuration, builder.Environment);
 
 builder.Services.AddApplication();
-builder.Services.AddInfrastructure(builder.Configuration, builder.Environment);
+builder.Services
+    .AddLedgerApiInfrastructure(builder.Configuration, builder.Environment)
+    .AddLedgerEstornoWorker(builder.Configuration)
+    .AddLedgerOutboxWorker(builder.Configuration)
+    .AddLedgerReprocessamentoWorker(builder.Configuration, builder.Environment);
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
