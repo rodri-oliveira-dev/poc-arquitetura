@@ -50,11 +50,14 @@ Ela deve reduzir risco de violar fronteiras entre camadas ou alterar comportamen
 4. Verifique impacto em contrato HTTP, autenticacao/autorizacao, EF Core, Kafka/Outbox, observabilidade e documentacao.
 5. Decida se a mudanca exige ADR nova ou atualizacao de documentacao.
 6. Quando houver teste de integracao relevante, consulte `integration-tests-dotnet` antes de definir provider, factory, fixture, seed ou Testcontainers.
-7. Aplique a menor alteracao coerente com os padroes existentes.
-8. Preserve fronteiras: `Api` orquestra HTTP, `Application` coordena casos de uso, `Domain` guarda regras, `Infrastructure` concentra detalhes tecnicos.
-9. Revise o diff e confirme que nao houve refactor, formatacao ou renomeacao fora do escopo.
-10. Valide com comandos proporcionais ao impacto.
-11. Relate resultado, validacoes e incertezas.
+7. Quando alterar endpoint, contrato HTTP, payload, status code, autenticacao, autorizacao, headers ou fluxo critico de API, avalie impacto nos testes de carga existentes.
+8. Atualize scripts, cenarios ou documentacao de testes de carga quando o contrato alterado for usado por eles.
+9. Nao execute testes de carga por padrao; eles devem rodar apenas quando houver pedido explicito, workflow dedicado ou validacao documentada.
+10. Aplique a menor alteracao coerente com os padroes existentes.
+11. Preserve fronteiras: `Api` orquestra HTTP, `Application` coordena casos de uso, `Domain` guarda regras, `Infrastructure` concentra detalhes tecnicos.
+12. Revise o diff e confirme que nao houve refactor, formatacao ou renomeacao fora do escopo.
+13. Valide com comandos proporcionais ao impacto.
+14. Relate resultado, validacoes e incertezas.
 
 # Validacao
 
