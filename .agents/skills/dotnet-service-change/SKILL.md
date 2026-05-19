@@ -18,6 +18,7 @@ Ela deve reduzir risco de violar fronteiras entre camadas ou alterar comportamen
 - Alteracoes em Kafka, Outbox, DLQ, hosted services, idempotencia ou contratos de eventos.
 - Alteracoes em autenticacao, autorizacao, scopes, policies, JWT, JWKS ou headers de seguranca.
 - Criacao ou ajuste de testes ligados diretamente ao comportamento dos servicos.
+- Mudancas funcionais que tambem exigem testes de integracao; nesse caso, use esta skill como orientacao principal e consulte `integration-tests-dotnet` para a estrategia especifica dos testes.
 
 # Quando nao usar
 
@@ -25,6 +26,7 @@ Ela deve reduzir risco de violar fronteiras entre camadas ou alterar comportamen
 - Revisoes puramente de CI/CD, GitVersion, releases, hooks ou artifacts.
 - Commits sem alteracao funcional pendente.
 - Documentacao geral sem impacto em contrato, arquitetura, setup local ou comportamento dos servicos.
+- Tarefas cujo foco principal seja apenas criar, revisar ou reorganizar testes de integracao; nesse caso, use `integration-tests-dotnet`.
 
 # Entradas esperadas
 
@@ -47,11 +49,12 @@ Ela deve reduzir risco de violar fronteiras entre camadas ou alterar comportamen
 3. Localize implementacao, DI, contratos, configuracoes e testes relacionados.
 4. Verifique impacto em contrato HTTP, autenticacao/autorizacao, EF Core, Kafka/Outbox, observabilidade e documentacao.
 5. Decida se a mudanca exige ADR nova ou atualizacao de documentacao.
-6. Aplique a menor alteracao coerente com os padroes existentes.
-7. Preserve fronteiras: `Api` orquestra HTTP, `Application` coordena casos de uso, `Domain` guarda regras, `Infrastructure` concentra detalhes tecnicos.
-8. Revise o diff e confirme que nao houve refactor, formatacao ou renomeacao fora do escopo.
-9. Valide com comandos proporcionais ao impacto.
-10. Relate resultado, validacoes e incertezas.
+6. Quando houver teste de integracao relevante, consulte `integration-tests-dotnet` antes de definir provider, factory, fixture, seed ou Testcontainers.
+7. Aplique a menor alteracao coerente com os padroes existentes.
+8. Preserve fronteiras: `Api` orquestra HTTP, `Application` coordena casos de uso, `Domain` guarda regras, `Infrastructure` concentra detalhes tecnicos.
+9. Revise o diff e confirme que nao houve refactor, formatacao ou renomeacao fora do escopo.
+10. Valide com comandos proporcionais ao impacto.
+11. Relate resultado, validacoes e incertezas.
 
 # Validacao
 
