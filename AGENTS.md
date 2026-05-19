@@ -81,9 +81,11 @@ Os principais componentes estão organizados em:
 - `Infrastructure` deve conter EF Core, integrações externas, Kafka, persistência e detalhes técnicos.
 
 ### EF Core
-- Verifique se a mudança exige migration.
+- Sempre que alterar entidades persistidas, mappings, configurations, `DbContext`, índices, constraints, relacionamentos ou tipos de coluna, avalie se a mudança exige migration.
+- Se a mudança alterar o schema do banco, crie uma nova migration.
 - Preserve compatibilidade entre entidades, mapeamentos e `DbContext`.
 - Não modifique migrations antigas apenas para “organizar”.
+- Toda mudança de persistência com impacto estrutural, transacional, relacional ou comportamental deve avaliar criação ou atualização de ADR.
 - Se criar migration, ela deve refletir uma mudança real de schema.
 
 ### Kafka e Outbox
@@ -95,6 +97,13 @@ Os principais componentes estão organizados em:
 - Preserve o comportamento de JWT Bearer e JWKS.
 - Revise `issuer`, `audience`, scopes e policies ao alterar endpoints protegidos.
 - Não relaxe segurança sem instrução explícita.
+
+## Documentacao arquitetural
+
+- Sempre que inserir, remover ou alterar serviço, worker, API, banco, cache, fila, tópico, componente de observabilidade, integração externa ou relação relevante entre componentes, atualize a documentação arquitetural correspondente.
+- Para mudanças estruturais de arquitetura, atualize os arquivos LikeC4 em `docs/architecture/`, incluindo modelo e views quando aplicável.
+- Quando a mudança alterar decisões arquiteturais, crie ou atualize a ADR correspondente.
+- Não deixe código, ADR e documentação LikeC4 divergentes.
 
 ## Fluxo padrão antes de editar
 
@@ -108,12 +117,14 @@ Os principais componentes estão organizados em:
    - Kafka / Outbox
    - testes
    - documentação
+   - LikeC4 / documentação arquitetural
 4. Localize os testes existentes relacionados à mudança.
 5. Faça a menor alteração possível.
 
 ## Commits
 
-- Quando o usuário solicitar que os ajustes sejam commitados, criar commits usando Conventional Commits.
+- Sempre que houver alteração em arquivos do repositório, crie commit semântico ao final da tarefa, salvo instrução explícita do usuário para não commitar.
+- Criar commits usando Conventional Commits.
 - Usar o formato:
   - feat: para novas funcionalidades
   - fix: para correções
