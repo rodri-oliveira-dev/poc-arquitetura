@@ -26,7 +26,7 @@ public sealed class BalanceAuthorizationTests : IClassFixture<BalanceApiFactory>
     }
 
     [Fact]
-    public async Task Ready_should_return_200_without_token_when_db_is_available_and_kafka_is_disabled()
+    public async Task Ready_should_return_200_without_token_when_db_is_available()
     {
         var res = await _client.GetAsync("/ready");
 
@@ -34,7 +34,7 @@ public sealed class BalanceAuthorizationTests : IClassFixture<BalanceApiFactory>
         var body = await res.Content.ReadAsStringAsync();
         body.Should().Contain("\"status\":\"ready\"");
         body.Should().Contain("\"db\":\"ok\"");
-        body.Should().Contain("\"kafka\":\"disabled\"");
+        body.Should().NotContain("\"kafka\"");
     }
 
     [Fact]

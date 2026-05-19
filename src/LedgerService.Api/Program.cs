@@ -1,11 +1,8 @@
-using Confluent.Kafka;
-
 using LedgerService.Api.Extensions;
 using LedgerService.Api.Middlewares;
 using LedgerService.Api.Options;
 using LedgerService.Application;
 using LedgerService.Infrastructure;
-using LedgerService.Infrastructure.Messaging.Kafka;
 using LedgerService.Infrastructure.Persistence;
 
 using Microsoft.AspNetCore.Authorization;
@@ -36,10 +33,9 @@ builder.Services.AddApiJwtAuth(builder.Configuration, builder.Environment);
 
 builder.Services.AddApplication();
 builder.Services
-    .AddLedgerApiInfrastructure(builder.Configuration, builder.Environment)
-    .AddLedgerEstornoWorker(builder.Configuration)
-    .AddLedgerOutboxWorker(builder.Configuration)
-    .AddLedgerReprocessamentoWorker(builder.Configuration, builder.Environment);
+    .AddLedgerInfrastructureCommon()
+    .AddLedgerPersistence(builder.Configuration)
+    .AddLedgerRepositories();
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -77,7 +73,6 @@ app.MapGet("/health", [AllowAnonymous] () => Results.Text("ok"))
 
 app.MapGet("/ready", [AllowAnonymous] async (
     AppDbContext db,
-    IConfiguration configuration,
     CancellationToken cancellationToken) =>
 {
     var checks = new Dictionary<string, string>
@@ -85,10 +80,7 @@ app.MapGet("/ready", [AllowAnonymous] async (
         ["db"] = await db.Database.CanConnectAsync(cancellationToken) ? "ok" : "unavailable"
     };
 
-    var kafkaEnabled = configuration.GetValue<bool>("Kafka:Enabled", defaultValue: true);
-    checks["kafka"] = kafkaEnabled ? CheckKafkaProducerReadiness(configuration) : "disabled";
-
-    var ready = checks.Values.All(v => v is "ok" or "disabled");
+    var ready = checks.Values.All(v => v is "ok");
     return ready
         ? Results.Ok(new { status = "ready", checks })
         : Results.Json(new { status = "not_ready", checks }, statusCode: StatusCodes.Status503ServiceUnavailable);
@@ -96,7 +88,7 @@ app.MapGet("/ready", [AllowAnonymous] async (
     .WithGroupName("v1")
     .WithName("Ready")
     .WithSummary("Readiness check")
-    .WithDescription("Valida dependências necessárias para aceitar tráfego: banco e Kafka quando habilitado.")
+    .WithDescription("Valida dependências necessárias para aceitar tráfego HTTP: banco.")
     .Produces(StatusCodes.Status200OK)
     .Produces(StatusCodes.Status503ServiceUnavailable)
     .DisableRateLimiting();
@@ -104,43 +96,5 @@ app.MapGet("/ready", [AllowAnonymous] async (
 app.MapControllers().RequireRateLimiting("fixed");
 
 app.Run();
-
-static string CheckKafkaProducerReadiness(IConfiguration configuration)
-{
-    var options = configuration.GetSection(KafkaProducerOptions.SectionName).Get<KafkaProducerOptions>()
-        ?? new KafkaProducerOptions();
-
-    if (string.IsNullOrWhiteSpace(options.BootstrapServers))
-        return "unconfigured";
-
-    try
-    {
-        var adminConfig = new AdminClientConfig
-        {
-            BootstrapServers = options.BootstrapServers,
-            ClientId = $"{options.ClientId}-readiness"
-        };
-        adminConfig.ApplySecurity(options);
-
-        using var admin = new AdminClientBuilder(adminConfig).Build();
-
-        var topics = options.TopicMap.Values
-            .Where(v => !string.IsNullOrWhiteSpace(v))
-            .Distinct(StringComparer.Ordinal)
-            .ToList();
-
-        if (topics.Count == 0)
-            topics.Add(options.DefaultTopic);
-
-        foreach (var topic in topics)
-            admin.GetMetadata(topic, TimeSpan.FromSeconds(3));
-
-        return "ok";
-    }
-    catch (KafkaException)
-    {
-        return "unavailable";
-    }
-}
 
 public partial class Program { }
