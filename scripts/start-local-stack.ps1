@@ -104,7 +104,7 @@ try {
     $apiArgs += "--build"
   }
 
-  $apiArgs += @("ledger-service", "balance-service")
+  $apiArgs += @("ledger-service", "ledger-worker", "balance-service")
   Invoke-DockerCompose $apiArgs
 
   Write-Host "OK. Stack local pronta."

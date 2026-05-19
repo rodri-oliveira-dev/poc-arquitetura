@@ -102,8 +102,13 @@ model {
       }
 
       ledgerInfrastructure = component "Infrastructure Layer" {
-        description "EF Core, AppDbContext, repositories concretos, migrations, produtor Kafka, hosted service de Outbox e workers/consumers de estorno e reprocessamento."
+        description "EF Core, AppDbContext, repositories concretos, migrations, produtor Kafka e implementacoes tecnicas compartilhadas com o Worker."
       }
+    }
+
+    ledgerWorker = container "LedgerService.Worker" {
+      technology ".NET Worker Service"
+      description "Processo dedicado sem HTTP que hospeda os workers do Ledger para Outbox, estornos e reprocessamentos."
 
       ledgerOutbox = component "Outbox publisher" {
         description "BackgroundService que faz claim de mensagens, publica no Kafka e marca SENT/FAILED com retry/backoff."
@@ -190,15 +195,15 @@ model {
   balance.balanceApi -> auth.authApi "Obtem JWKS para validar JWT" "HTTP cacheado"
 
   ledger.ledgerApi -> ledger.ledgerDb "Persiste lancamento, estorno, reprocessamento, idempotencia e outbox" "EF Core"
-  ledger.ledgerEstornoProcessor -> ledger.ledgerDb "Busca estornos Pending e atualiza status" "EF Core / SQL"
-  ledger.ledgerEstornoProcessor -> ledger.ledgerApplication "Envia ProcessarEstornoLancamentoCommand" "MediatR"
-  ledger.ledgerOutbox -> ledger.ledgerDb "Le e atualiza outbox_messages" "EF Core / SQL"
-  ledger.ledgerOutbox -> kafka.ledgerTopic "Publica LedgerEntryCreated.v1" "Kafka"
-  ledger.ledgerOutbox -> kafka.ledgerEstornoTopic "Publica LancamentoEstornoSolicitado.v1" "Kafka"
-  ledger.ledgerOutbox -> kafka.ledgerReprocessamentoTopic "Publica ReprocessamentoLancamentosSolicitado.v1" "Kafka"
-  ledger.ledgerReprocessamentoConsumer -> kafka.ledgerReprocessamentoTopic "Consome ReprocessamentoLancamentosSolicitado.v1" "Kafka"
-  ledger.ledgerReprocessamentoConsumer -> ledger.ledgerApplication "Envia ProcessarReprocessamentoLancamentosCommand" "MediatR"
-  ledger.ledgerReprocessamentoConsumer -> ledger.ledgerDb "Atualiza status e registra eventos finais no Outbox" "EF Core / SQL"
+  ledger.ledgerWorker.ledgerEstornoProcessor -> ledger.ledgerDb "Busca estornos Pending e atualiza status" "EF Core / SQL"
+  ledger.ledgerWorker.ledgerEstornoProcessor -> ledger.ledgerApi.ledgerApplication "Envia ProcessarEstornoLancamentoCommand" "MediatR"
+  ledger.ledgerWorker.ledgerOutbox -> ledger.ledgerDb "Le e atualiza outbox_messages" "EF Core / SQL"
+  ledger.ledgerWorker.ledgerOutbox -> kafka.ledgerTopic "Publica LedgerEntryCreated.v1" "Kafka"
+  ledger.ledgerWorker.ledgerOutbox -> kafka.ledgerEstornoTopic "Publica LancamentoEstornoSolicitado.v1" "Kafka"
+  ledger.ledgerWorker.ledgerOutbox -> kafka.ledgerReprocessamentoTopic "Publica ReprocessamentoLancamentosSolicitado.v1" "Kafka"
+  ledger.ledgerWorker.ledgerReprocessamentoConsumer -> kafka.ledgerReprocessamentoTopic "Consome ReprocessamentoLancamentosSolicitado.v1" "Kafka"
+  ledger.ledgerWorker.ledgerReprocessamentoConsumer -> ledger.ledgerApi.ledgerApplication "Envia ProcessarReprocessamentoLancamentosCommand" "MediatR"
+  ledger.ledgerWorker.ledgerReprocessamentoConsumer -> ledger.ledgerDb "Atualiza status e registra eventos finais no Outbox" "EF Core / SQL"
 
   balance.balanceConsumer -> kafka.ledgerTopic "Consome LedgerEntryCreated.v1, inclusive compensatorios e replays de reprocessamento" "Kafka"
   balance.balanceConsumer -> kafka.ledgerDlq "Publica mensagens invalidas" "Kafka"
@@ -223,6 +228,8 @@ model {
   ledger.ledgerApplication -> ledger.ledgerDomain "Cria agregados e usa contratos de repositorio"
   ledger.ledgerInfrastructure -> ledger.ledgerApplication "Implementa composicao e hosted services"
   ledger.ledgerInfrastructure -> ledger.ledgerDomain "Mapeia entidades e implementa repositorios"
+  ledger.ledgerWorker -> ledger.ledgerApi.ledgerApplication "Usa handlers e casos de uso" "MediatR"
+  ledger.ledgerWorker -> ledger.ledgerApi.ledgerInfrastructure "Usa persistence, repositories, Kafka e hosted services" "DI"
 
   balance.balanceApiLayer -> balance.balanceApplication "Envia queries via MediatR"
   balance.balanceConsumer -> balance.balanceApplication "Envia comando de aplicacao de evento"

@@ -21,6 +21,7 @@ Principais servicos:
 | --- | --- |
 | `Auth.Api` | Emite JWT RS256 por `POST /auth/login` e publica JWKS em `GET /.well-known/jwks.json`. |
 | `LedgerService.Api` | API de escrita para lancamentos, estornos, reprocessamentos, Outbox e status operacionais. |
+| `LedgerService.Worker` | Processo dedicado para publicar Outbox no Kafka e processar estornos/reprocessamentos do Ledger. |
 | `BalanceService.Api` | API de leitura de saldos consolidados, alimentada por eventos Kafka do Ledger. |
 
 ## Arquitetura
@@ -28,6 +29,7 @@ Principais servicos:
 `LedgerService` e `BalanceService` usam projetos por camada:
 
 - `Api`: entrada HTTP, autenticacao, autorizacao, Swagger, health/readiness e composicao via DI.
+- `Worker`: host de `BackgroundService` sem superficie HTTP.
 - `Application`: casos de uso, handlers, validacao de entrada, idempotencia e orquestracao.
 - `Domain`: entidades, invariantes e regras de dominio sem dependencia de infraestrutura.
 - `Infrastructure`: EF Core, PostgreSQL, Kafka, Outbox, DLQ, hosted services e implementacoes tecnicas.

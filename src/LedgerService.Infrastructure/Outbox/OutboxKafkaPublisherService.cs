@@ -60,6 +60,10 @@ public sealed class OutboxKafkaPublisherService : BackgroundService
             {
                 _logger.UnhandledPublisherError(ex);
             }
+            catch (Exception ex)
+            {
+                _logger.UnhandledPublisherError(ex);
+            }
 
             try
             {

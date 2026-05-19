@@ -30,6 +30,7 @@ O `compose.yaml` sobe:
 
 - `Auth.Api`;
 - `LedgerService.Api`;
+- `LedgerService.Worker`;
 - `BalanceService.Api`;
 - PostgreSQL Ledger;
 - PostgreSQL Balance;
@@ -55,7 +56,7 @@ No Linux/macOS:
 ./scripts/start-local-stack.sh
 ```
 
-Esse fluxo sobe bancos, Kafka, observabilidade e `Auth.Api`, aplica migrations pelo host e depois inicia `LedgerService.Api` e `BalanceService.Api`.
+Esse fluxo sobe bancos, Kafka, observabilidade e `Auth.Api`, aplica migrations pelo host e depois inicia `LedgerService.Api`, `LedgerService.Worker` e `BalanceService.Api`.
 
 Para subir somente o compose, sem aplicar migrations:
 
@@ -74,6 +75,7 @@ Ver status e logs:
 ```bash
 docker compose ps
 docker compose logs -f ledger-service
+docker compose logs -f ledger-worker
 ```
 
 Portas expostas no host:
@@ -128,7 +130,7 @@ dotnet tool run dotnet-ef -- database update `
 
 ## Execucao no host
 
-Use este modo quando PostgreSQL e Kafka ja estiverem disponiveis e voce quiser rodar ou depurar as APIs no processo local.
+Use este modo quando PostgreSQL e Kafka ja estiverem disponiveis e voce quiser rodar ou depurar os processos no host.
 
 Restaure as ferramentas:
 
@@ -141,6 +143,7 @@ Suba as APIs:
 ```bash
 dotnet run --project src\Auth.Api\Auth.Api.csproj
 dotnet run --project src\LedgerService.Api\LedgerService.Api.csproj
+dotnet run --project src\LedgerService.Worker\LedgerService.Worker.csproj
 dotnet run --project src\BalanceService.Api\BalanceService.Api.csproj
 ```
 
@@ -150,9 +153,11 @@ As portas padrao sao:
 - LedgerService.Api: `http://localhost:5226/`;
 - BalanceService.Api: `http://localhost:5228/`.
 
+`LedgerService.Worker` nao expoe porta HTTP; acompanhe pelo console ou logs do container.
+
 ## Configuracao
 
-Configuracoes versionadas ficam nos `appsettings*.json` dos projetos de API. Para sobrescrever valores localmente, use variaveis de ambiente com `__` como separador de secoes:
+Configuracoes versionadas ficam nos `appsettings*.json` dos projetos de API e do Worker. Para sobrescrever valores localmente, use variaveis de ambiente com `__` como separador de secoes:
 
 ```powershell
 $env:ConnectionStrings__DefaultConnection = "Host=127.0.0.1;Port=5432;Database=appdb;Username=appuser;Password=__REDACTED__"
@@ -243,7 +248,7 @@ Swagger/OpenAPI fica habilitado por padrao somente em `Development`. Fora desse 
 Endpoints operacionais:
 
 - `GET /health`: liveness simples, publico nesta POC, sem depender de DB ou Kafka.
-- `GET /ready`: readiness operacional, publico nesta POC, validando DB e Kafka quando `Kafka:Enabled=true`.
+- `GET /ready`: readiness operacional, publico nesta POC. No `LedgerService.Api`, valida o banco necessario para aceitar comandos HTTP; no `BalanceService.Api`, valida as dependencias operacionais do processo HTTP/consumer.
 
 Detalhes de operacao ficam em [observabilidade e operacao minima](../observability.md).
 

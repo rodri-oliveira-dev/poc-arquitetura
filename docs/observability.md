@@ -1,6 +1,6 @@
 # Observabilidade e operacao minima
 
-Este documento define o inventario operacional minimo da POC para `Auth.Api`, `LedgerService.Api` e `BalanceService.Api`.
+Este documento define o inventario operacional minimo da POC para `Auth.Api`, `LedgerService.Api`, `LedgerService.Worker` e `BalanceService.Api`.
 
 OpenTelemetry fica desabilitado por padrao. A correlacao via `X-Correlation-Id` permanece sempre ativa nas APIs e e usada para conectar logs, respostas HTTP e mensagens Kafka. A operacao local usa `docker compose`, PostgreSQL, Kafka, OpenTelemetry Collector, Jaeger, Prometheus, Loki, Grafana Alloy, Alertmanager e Grafana conforme documentado em [desenvolvimento local](development/local-development.md).
 
@@ -57,7 +57,7 @@ Checks atuais:
 - `kafka`: valida metadados dos topicos Kafka quando `Kafka:Enabled=true`.
 - `kafka=disabled`: indica que o Kafka foi explicitamente desabilitado por configuracao.
 
-No `LedgerService.Api`, readiness valida os topicos resolvidos por `Kafka:Producer:TopicMap` ou `Kafka:Producer:DefaultTopic`. No `BalanceService.Api`, readiness valida `Kafka:Consumer:Topics` e `Kafka:Consumer:DeadLetterTopic`.
+No `LedgerService.Api`, readiness valida o PostgreSQL necessario para aceitar comandos HTTP. No `BalanceService.Api`, readiness valida `Kafka:Consumer:Topics` e `Kafka:Consumer:DeadLetterTopic`.
 
 ## Configuracao
 
@@ -89,6 +89,7 @@ Use `ServiceName` conforme o servico:
 
 - `Auth.Api`
 - `LedgerService.Api`
+- `LedgerService.Worker`
 - `BalanceService.Api`
 
 ## Ambientes
@@ -341,10 +342,10 @@ Labels proibidas por alta cardinalidade:
 
 A primeira metrica customizada foi `ledger.outbox.publish.attempts`, registrada pelo `Meter` `LedgerService.Outbox`. A etapa atual expande a instrumentacao operacional para Outbox, producer Kafka, consumer Kafka e DLQ usando `System.Diagnostics.Metrics`, sem alterar regra de negocio, contrato Kafka, payload, topicos ou stack local.
 
-Meters customizados registrados no OpenTelemetry Metrics quando `Observability:OpenTelemetry:Enabled=true`:
+Meters customizados registrados no OpenTelemetry Metrics quando `Observability:OpenTelemetry:Enabled=true` no processo host:
 
 - `LedgerService.Domain`, emitido pelo `LedgerService.Api`;
-- `LedgerService.Outbox`, emitido pelo `LedgerService.Api`;
+- `LedgerService.Outbox`, emitido pelo `LedgerService.Worker` quando a instrumentacao de Generic Host for ativada;
 - `BalanceService.Domain`, emitido pelo `BalanceService.Api`;
 - `BalanceService.Kafka`, emitido pelo `BalanceService.Api`.
 
@@ -389,7 +390,7 @@ Resultados padronizados usados nas metricas de dominio:
 - `completed`: processamento assincrono concluido;
 - `completed_with_warnings`: processamento concluido sem todos os efeitos esperados, por exemplo reprocessamento sem lancamentos elegiveis.
 
-Metricas operacionais do `LedgerService.Api`:
+Metricas operacionais do `LedgerService.Worker`:
 
 | Metrica | Instrumento | Unidade | Tags permitidas | Interpretacao |
 | --- | --- | --- | --- | --- |
@@ -442,7 +443,7 @@ Referencias relacionadas:
 
 Kafka e usado como barramento entre escrita e leitura:
 
-- produtor: `LedgerService.Api` via Outbox publisher;
+- produtor: `LedgerService.Worker` via Outbox publisher;
 - consumidor: `BalanceService.Api`;
 - topico principal: `ledger.ledgerentry.created`;
 - evento atual: `LedgerEntryCreated.v1`;
@@ -481,7 +482,7 @@ Validacao minima:
 
 ## Outbox
 
-O `LedgerService.Api` grava mensagens em `outbox_messages` na mesma transacao da escrita de lancamento. O hosted service `OutboxKafkaPublisherService` publica mensagens pendentes no Kafka e marca o status conforme o resultado.
+O `LedgerService.Api` grava mensagens em `outbox_messages` na mesma transacao da escrita de lancamento. O `LedgerService.Worker` hospeda `OutboxKafkaPublisherService`, publica mensagens pendentes no Kafka e marca o status conforme o resultado.
 
 Estados esperados:
 
@@ -504,7 +505,7 @@ Configuracoes principais em `Outbox:Publisher`:
 Validacao minima:
 
 1. Aplicar migrations.
-2. Subir `LedgerService.Api` com PostgreSQL e Kafka acessiveis.
+2. Subir `LedgerService.Api` e `LedgerService.Worker` com PostgreSQL e Kafka acessiveis.
 3. Criar um lancamento em `POST /api/v1/lancamentos`.
 4. Verificar linha em `outbox_messages` com `Pending`.
 5. Aguardar o polling e verificar transicao para `Sent`.
@@ -555,7 +556,7 @@ Grafana -> Prometheus
 Grafana -> Loki
 ```
 
-`Auth.Api`, `LedgerService.Api` e `BalanceService.Api` sobem com OpenTelemetry habilitado e exportam para `http://otel-collector:4317` dentro da rede do compose. As APIs continuam apontando somente para o Collector, nao para Prometheus ou Grafana.
+`Auth.Api`, `LedgerService.Api` e `BalanceService.Api` sobem com OpenTelemetry habilitado e exportam para `http://otel-collector:4317` dentro da rede do compose. O `LedgerService.Worker` possui configuracao propria com `ServiceName=LedgerService.Worker`, mas a instrumentacao OpenTelemetry de Generic Host fica para etapa posterior para evitar acoplamento com as extensoes ASP.NET Core. As APIs continuam apontando somente para o Collector, nao para Prometheus ou Grafana.
 
 O Collector recebe OTLP via gRPC em `4317` e HTTP em `4318`, aplica `batch`, encaminha traces para `jaeger:4317` usando o exporter `otlp_grpc` e expoe metricas no exporter `prometheus` em `0.0.0.0:9464`. Essa porta nao e publicada no host; o Prometheus acessa `otel-collector:9464` pela rede Docker.
 
@@ -692,7 +693,7 @@ Esse endpoint foi escolhido porque:
 - aceita e devolve `X-Correlation-Id`;
 - usa `merchantId` no contrato real e valida esse valor contra a claim `merchant_id` emitida pelo `Auth.Api`;
 - grava `LedgerEntryCreated.v1` em `outbox_messages` na mesma transacao da escrita;
-- aciona o `OutboxKafkaPublisherService`, que publica no topico `ledger.ledgerentry.created`;
+- depende do `LedgerService.Worker`, que hospeda `OutboxKafkaPublisherService` e publica no topico `ledger.ledgerentry.created`;
 - alimenta o `BalanceService.Api`, que atualiza `processed_events` e `daily_balances`.
 
 Pre-requisitos:
@@ -906,7 +907,7 @@ Resultado esperado:
 Na UI do Jaeger:
 
 1. selecione `Auth.Api` e procure `POST /auth/login`;
-2. selecione `LedgerService.Api` e procure `POST /api/v1/lancamentos` e spans `outbox.publish`;
+2. selecione `LedgerService.Api` e procure `POST /api/v1/lancamentos`;
 3. selecione `BalanceService.Api` e procure spans `kafka.consume`, `balance.apply` e a consulta `GET /v1/consolidados/diario/{date}`;
 4. use o `TraceID` para analise temporal e o `CorrelationId` nos logs/SQL para conectar a operacao de negocio.
 
@@ -920,7 +921,7 @@ Trace distribuido no fluxo autenticado:
 
 ### Diagnostico de propagacao Kafka
 
-Estado atual auditado no fluxo `LedgerService.Api` -> Outbox -> Kafka -> `BalanceService.Api`:
+Estado atual auditado no fluxo `LedgerService.Api` -> `LedgerService.Worker` -> Kafka -> `BalanceService.Api`:
 
 - O `CorrelationIdMiddleware` das APIs resolve `X-Correlation-Id`, gera UUID quando o header esta ausente ou invalido, injeta o valor no request/response HTTP e cria scope de log com `CorrelationId`, `TraceId` e `SpanId` quando ha `Activity` ativa.
 - O caso de uso de criacao de lancamento grava o `correlationId` no payload `LedgerEntryCreated.v1` e na coluna `outbox_messages.correlation_id`.

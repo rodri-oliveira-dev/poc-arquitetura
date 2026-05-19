@@ -14,6 +14,7 @@
     <Project Path="src/LedgerService.Application/LedgerService.Application.csproj" />
     <Project Path="src/LedgerService.Domain/LedgerService.Domain.csproj" />
     <Project Path="src/LedgerService.Infrastructure/LedgerService.Infrastructure.csproj" />
+    <Project Path="src/LedgerService.Worker/LedgerService.Worker.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/LedgerService.Tests/LedgerService.Tests.csproj" />

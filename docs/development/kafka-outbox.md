@@ -1,15 +1,15 @@
 # Kafka, Outbox e DLQ
 
-Este documento concentra a referencia de mensageria entre `LedgerService.Api` e `BalanceService.Api`.
+Este documento concentra a referencia de mensageria entre `LedgerService.Api`, `LedgerService.Worker` e `BalanceService.Api`.
 
 ## Fluxo
 
 1. `LedgerService.Api` cria um lancamento, registra uma solicitacao de estorno ou registra uma solicitacao de reprocessamento.
 2. A mesma transacao grava a mensagem em `outbox_messages`.
-3. `OutboxKafkaPublisherService` le mensagens pendentes e publica no Kafka.
-4. `EstornoLancamentoProcessorService`, no proprio Ledger, processa solicitacoes `Pending` e cria lancamentos compensatorios.
+3. `LedgerService.Worker` hospeda `OutboxKafkaPublisherService`, que le mensagens pendentes e publica no Kafka.
+4. `LedgerService.Worker` hospeda `EstornoLancamentoProcessorService`, que processa solicitacoes `Pending` e cria lancamentos compensatorios.
 5. O estorno concluido grava `LedgerEntryCreated.v1` do lancamento compensatorio no Outbox.
-6. `ReprocessamentoLancamentosConsumerService`, no proprio Ledger, consome `ledger.lancamentos.reprocessamento.solicitado`, chama o caso de uso de reprocessamento e registra eventos financeiros finais no Outbox quando houver lancamentos elegiveis.
+6. `LedgerService.Worker` hospeda `ReprocessamentoLancamentosConsumerService`, que consome `ledger.lancamentos.reprocessamento.solicitado`, chama o caso de uso de reprocessamento e registra eventos financeiros finais no Outbox quando houver lancamentos elegiveis.
 7. `BalanceService.Api` consome apenas `LedgerEntryCreated.v1` e atualiza a projecao `daily_balances`.
 8. Mensagens invalidas ou nao recuperaveis do fluxo consumido pelo Balance sao publicadas na DLQ.
 
@@ -177,7 +177,7 @@ Estas metricas nao possuem dashboard especifico nem alertas nesta etapa. No comp
 
 ## Configuracao
 
-Configuracoes ficam nos `appsettings*.json` dos projetos de API.
+Configuracoes de mensageria do Ledger ficam em `src/LedgerService.Worker/appsettings.json`. A API do Ledger mantem apenas configuracoes HTTP, JWT, hardening, observabilidade da API e banco.
 
 Ledger:
 
