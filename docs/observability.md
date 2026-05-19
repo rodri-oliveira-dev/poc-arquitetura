@@ -4,6 +4,13 @@ Este documento define o inventario operacional minimo da POC para `Auth.Api`, `L
 
 OpenTelemetry fica desabilitado por padrao. A correlacao via `X-Correlation-Id` permanece sempre ativa nas APIs e e usada para conectar logs, respostas HTTP e mensagens Kafka. A operacao local usa `docker compose`, PostgreSQL, Kafka, OpenTelemetry Collector e Jaeger conforme documentado em [desenvolvimento local](development/local-development.md).
 
+## Como navegar
+
+- Para estado operacional rapido, leia [Baseline](#baseline), [Endpoints operacionais](#endpoints-operacionais) e [Validacao rapida](#validacao-rapida).
+- Para setup local de observabilidade, leia [Configuracao local](#configuracao-local), [Dashboards Grafana provisionados](#dashboards-grafana-provisionados) e [Alertas tecnicos Prometheus](#alertas-tecnicos-prometheus).
+- Para diagnostico ponta a ponta, leia [Validacao Auth -> Ledger -> Outbox -> Kafka -> Balance](#validacao-auth---ledger---outbox---kafka---balance) e [Diagnostico de propagacao Kafka](#diagnostico-de-propagacao-kafka).
+- Para instrumentacao, leia [Logs](#logs), [Traces](#traces), [Metricas](#metricas), [Kafka](#kafka), [DLQ](#dlq) e [Outbox](#outbox).
+
 ## Baseline
 
 - Logs: console logging do ASP.NET Core, com escopo de `CorrelationId` nos middlewares de correlacao, coletado centralmente por Grafana Alloy e consultavel no Loki no compose local.
