@@ -105,6 +105,13 @@ Os principais componentes estão organizados em:
 - Quando a mudança alterar decisões arquiteturais, crie ou atualize a ADR correspondente.
 - Não deixe código, ADR e documentação LikeC4 divergentes.
 
+## Testes de carga
+
+- Quando alterar endpoints, contratos HTTP, payloads, status codes, autenticação, autorização ou headers usados por cenários de carga, avalie se os testes de carga existentes precisam ser atualizados.
+- Testes de carga não fazem parte da validação padrão de toda alteração, pois têm custo alto de execução.
+- Execute testes de carga apenas quando houver pedido explícito, workflow dedicado, validação manual documentada ou mudança diretamente relacionada aos cenários de carga.
+- Não remova, reduza ou ignore cenários de carga para contornar falhas sem justificativa explícita.
+
 ## Fluxo padrão antes de editar
 
 1. Identifique a área afetada.
@@ -116,6 +123,7 @@ Os principais componentes estão organizados em:
    - EF Core / migrations
    - Kafka / Outbox
    - testes
+   - testes de carga
    - documentação
    - LikeC4 / documentação arquitetural
 4. Localize os testes existentes relacionados à mudança.
