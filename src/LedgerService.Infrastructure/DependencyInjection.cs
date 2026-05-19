@@ -6,6 +6,7 @@ using LedgerService.Infrastructure.Estornos;
 using LedgerService.Infrastructure.Persistence;
 using LedgerService.Infrastructure.Repositories;
 using LedgerService.Infrastructure.Messaging.Kafka;
+using LedgerService.Infrastructure.Observability;
 using LedgerService.Infrastructure.Outbox;
 using LedgerService.Infrastructure.Reprocessamentos;
 using Microsoft.Extensions.Hosting;
@@ -31,6 +32,7 @@ public static class DependencyInjection
         services.AddScoped<IReprocessamentoLancamentosRepository, ReprocessamentoLancamentosRepository>();
         services.AddScoped<IIdempotencyRecordRepository, IdempotencyRecordRepository>();
         services.AddScoped<IOutboxMessageRepository, OutboxMessageRepository>();
+        services.AddSingleton<OutboxMetrics>();
 
         var estornoProcessorEnabled = configuration.GetValue<bool>("Estornos:Processor:Enabled", defaultValue: true);
         if (estornoProcessorEnabled)

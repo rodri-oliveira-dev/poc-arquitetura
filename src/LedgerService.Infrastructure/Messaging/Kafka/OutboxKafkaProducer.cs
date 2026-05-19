@@ -4,6 +4,7 @@ using System.Text;
 using Confluent.Kafka;
 
 using LedgerService.Domain.Entities;
+using LedgerService.Infrastructure.Observability;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -14,12 +15,17 @@ public sealed class OutboxKafkaProducer : IOutboxEventProducer, IDisposable
 {
     private readonly KafkaProducerOptions _options;
     private readonly ILogger<OutboxKafkaProducer> _logger;
+    private readonly OutboxMetrics _metrics;
     private readonly IProducer<string, string> _producer;
 
-    public OutboxKafkaProducer(IOptions<KafkaProducerOptions> options, ILogger<OutboxKafkaProducer> logger)
+    public OutboxKafkaProducer(
+        IOptions<KafkaProducerOptions> options,
+        ILogger<OutboxKafkaProducer> logger,
+        OutboxMetrics metrics)
     {
         _options = options.Value;
         _logger = logger;
+        _metrics = metrics;
 
         var config = new ProducerConfig
         {
@@ -64,6 +70,8 @@ public sealed class OutboxKafkaProducer : IOutboxEventProducer, IDisposable
             Headers = headers,
             Timestamp = new Timestamp(message.OccurredAt)
         };
+
+        _metrics.RecordPublishAttempt(message.EventType, topic);
 
         var result = await _producer.ProduceAsync(topic, kafkaMessage, cancellationToken);
 

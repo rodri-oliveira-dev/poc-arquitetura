@@ -15,6 +15,7 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 
 | ADR                                                                   | Status      | Resumo                                                                                           |
 | --------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------ |
+| [ADR-0059](./0059-metricas-customizadas-system-diagnostics.md) | Aceito | Padroniza metricas customizadas com `System.Diagnostics.Metrics` e baixa cardinalidade. |
 | [ADR-0058](./0058-propagacao-w3c-outbox-kafka.md) | Aceito | Persiste contexto W3C na Outbox para continuidade HTTP -> Outbox -> Kafka -> Balance. |
 | [ADR-0057](./0057-requeue-administrativo-outbox-failed.md) | Aceito | Cria endpoint administrativo protegido para recolocar mensagens Outbox Failed em Pending com auditoria operacional. |
 | [ADR-0056](./0056-testcontainers-postgresql-testes-integracao.md) | Aceito | Padroniza Testcontainers para testes de integracao que dependem de PostgreSQL real, com porta dinamica e isolamento por collection. |

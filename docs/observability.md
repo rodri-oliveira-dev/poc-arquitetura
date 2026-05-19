@@ -171,7 +171,54 @@ Quando OpenTelemetry esta habilitado, as APIs registram metricas de:
 
 As metricas sao exportadas para console quando `UseConsoleExporter=true` e para OTLP quando `OtlpEndpoint` esta preenchido.
 
-Metricas atuais sao tecnicas e geradas pela instrumentacao OpenTelemetry. O repositorio nao define metricas de negocio customizadas, dashboards, alertas ou Prometheus scrape config.
+As metricas automaticas sao tecnicas e geradas pela instrumentacao OpenTelemetry. Dashboards, alertas, Prometheus scrape config, Grafana e OpenTelemetry Collector continuam fora do escopo desta etapa.
+
+### Metricas customizadas
+
+Metricas customizadas devem medir sinais tecnicos ou operacionais que nao aparecem nas instrumentacoes automaticas. Elas complementam traces e logs:
+
+- metrica: serie temporal agregavel para volume, taxa, duracao ou estado observado;
+- trace: linha do tempo de uma execucao especifica, com spans e causalidade;
+- log: registro textual/estruturado de eventos pontuais para diagnostico.
+
+A fundacao de metricas customizadas usa `System.Diagnostics.Metrics`. Cada servico ou componente tecnico deve declarar `Meter` pequeno e explicito perto da camada que conhece a operacao medida, sem criar framework interno. O `Meter` precisa ser registrado no pipeline OpenTelemetry Metrics com `AddMeter(...)` na API responsavel.
+
+Convencoes:
+
+- nomes em lowercase separados por ponto: `<service_or_domain>.<component>.<operation>.<measure>`;
+- contadores usam plural quando representam ocorrencias, por exemplo `ledger.outbox.publish.attempts`;
+- unidades seguem UCUM quando aplicavel; contadores de ocorrencias usam `1`;
+- descricoes devem explicar o evento medido, o escopo e se a metrica e tecnica ou de negocio;
+- instrumentos preferenciais nesta fase: `Counter<T>` para eventos/ocorrencias e, quando necessario em evolucoes futuras, histogramas para duracoes ou tamanhos.
+
+Labels/tags permitidas devem ter baixa cardinalidade. Exemplos aceitos:
+
+- `service`;
+- `operation`;
+- `event_type`;
+- `topic`;
+- `status`;
+- `result`.
+
+Labels proibidas por alta cardinalidade:
+
+- `correlation_id`;
+- `trace_id`;
+- `span_id`;
+- `event_id`;
+- `outbox_message_id`;
+- `merchant_id`;
+- identificadores de usuario;
+- documentos;
+- payloads;
+- valores unicos por requisicao.
+
+A primeira metrica customizada e `ledger.outbox.publish.attempts`, registrada pelo `Meter` `LedgerService.Outbox`. Ela conta tentativas tecnicas de publicacao de mensagens Outbox no Kafka com tags `service`, `operation`, `event_type`, `topic` e `status`. Essa metrica valida o pipeline sem medir regra de negocio, sem consultar banco e sem alterar contrato Kafka ou payload de eventos.
+
+Referencias relacionadas:
+
+- Kafka, Outbox e DLQ: [docs/development/kafka-outbox.md](development/kafka-outbox.md)
+- Decisao arquitetural: [ADR-0059](adrs/0059-metricas-customizadas-system-diagnostics.md)
 
 ## Kafka
 
