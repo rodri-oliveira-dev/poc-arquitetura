@@ -81,9 +81,11 @@ Os principais componentes estão organizados em:
 - `Infrastructure` deve conter EF Core, integrações externas, Kafka, persistência e detalhes técnicos.
 
 ### EF Core
-- Verifique se a mudança exige migration.
+- Sempre que alterar entidades persistidas, mappings, configurations, `DbContext`, índices, constraints, relacionamentos ou tipos de coluna, avalie se a mudança exige migration.
+- Se a mudança alterar o schema do banco, crie uma nova migration.
 - Preserve compatibilidade entre entidades, mapeamentos e `DbContext`.
 - Não modifique migrations antigas apenas para “organizar”.
+- Toda mudança de persistência com impacto estrutural, transacional, relacional ou comportamental deve avaliar criação ou atualização de ADR.
 - Se criar migration, ela deve refletir uma mudança real de schema.
 
 ### Kafka e Outbox
@@ -96,6 +98,20 @@ Os principais componentes estão organizados em:
 - Revise `issuer`, `audience`, scopes e policies ao alterar endpoints protegidos.
 - Não relaxe segurança sem instrução explícita.
 
+## Documentacao arquitetural
+
+- Sempre que inserir, remover ou alterar serviço, worker, API, banco, cache, fila, tópico, componente de observabilidade, integração externa ou relação relevante entre componentes, atualize a documentação arquitetural correspondente.
+- Para mudanças estruturais de arquitetura, atualize os arquivos LikeC4 em `docs/architecture/`, incluindo modelo e views quando aplicável.
+- Quando a mudança alterar decisões arquiteturais, crie ou atualize a ADR correspondente.
+- Não deixe código, ADR e documentação LikeC4 divergentes.
+
+## Testes de carga
+
+- Quando alterar endpoints, contratos HTTP, payloads, status codes, autenticação, autorização ou headers usados por cenários de carga, avalie se os testes de carga existentes precisam ser atualizados.
+- Testes de carga não fazem parte da validação padrão de toda alteração, pois têm custo alto de execução.
+- Execute testes de carga apenas quando houver pedido explícito, workflow dedicado, validação manual documentada ou mudança diretamente relacionada aos cenários de carga.
+- Não remova, reduza ou ignore cenários de carga para contornar falhas sem justificativa explícita.
+
 ## Fluxo padrão antes de editar
 
 1. Identifique a área afetada.
@@ -107,13 +123,16 @@ Os principais componentes estão organizados em:
    - EF Core / migrations
    - Kafka / Outbox
    - testes
+   - testes de carga
    - documentação
+   - LikeC4 / documentação arquitetural
 4. Localize os testes existentes relacionados à mudança.
 5. Faça a menor alteração possível.
 
 ## Commits
 
-- Quando o usuário solicitar que os ajustes sejam commitados, criar commits usando Conventional Commits.
+- Sempre que houver alteração em arquivos do repositório, crie commit semântico ao final da tarefa, salvo instrução explícita do usuário para não commitar.
+- Criar commits usando Conventional Commits.
 - Usar o formato:
   - feat: para novas funcionalidades
   - fix: para correções
@@ -161,8 +180,17 @@ dotnet test ./LedgerService.slnx --configuration Release --no-build --settings .
 
 - Use as skills em `.agents/skills/` quando o pedido combinar com o `description` da skill.
 - Mantenha `AGENTS.md` como orientacao global; fluxos detalhados devem ficar nas skills.
+- Em caso de conflito entre `AGENTS.md` e uma skill, preserve `AGENTS.md` como orientacao global do repositorio.
 - Prefira poucas skills especificas a muitas skills genericas.
 - Nao use orientacoes externas ao Codex ou arquivos de outros agentes, salvo se estiverem documentadas em `.agents/` ou neste arquivo.
+
+### Roteamento de skills
+
+- Use `dotnet-service-change` para mudancas funcionais nos servicos .NET.
+- Use `integration-tests-dotnet` quando o foco principal for teste de integracao ou quando uma mudanca funcional exigir estrategia especifica de integracao.
+- Use `ci-release-governance` para workflows, GitVersion, releases, coverage, hooks e automacoes.
+- Use `repository-governance-sdd` para `AGENTS.md`, skills, ADRs, prompts, documentacao de processo e governanca assistida por Codex.
+- Quando mais de uma skill parecer aplicavel, use a skill da mudanca principal e consulte a skill especializada apenas para o trecho especifico.
 
 ## Comunicacao e seguranca operacional
 
