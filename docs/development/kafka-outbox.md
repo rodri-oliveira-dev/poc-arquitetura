@@ -210,6 +210,13 @@ Para o roteiro operacional completo Auth -> Ledger -> Outbox -> Kafka -> Balance
 ./scripts/validate-auth-ledger-trace.ps1
 ```
 
+Para validar os fluxos derivados de estorno e reprocessamento com os mesmos componentes operacionais, use a secao [Validacao local de estorno e reprocessamento](../observability.md#validacao-local-de-estorno-e-reprocessamento). Os scripts dedicados sao:
+
+```powershell
+./scripts/validate-ledger-reversal-flow.ps1
+./scripts/validate-ledger-reprocess-flow.ps1
+```
+
 ## Processamento de estornos
 
 O worker `EstornoLancamentoProcessorService` usa polling da tabela `estornos_lancamentos`, mas a selecao nao e apenas uma leitura. Cada ciclo reclama pendentes com `UPDATE ... FOR UPDATE SKIP LOCKED ... RETURNING`, mudando as linhas para `Processing` antes de delegar ao Mediator. Isso permite workers concorrentes sem processar o mesmo estorno ao mesmo tempo.

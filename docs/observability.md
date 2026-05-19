@@ -506,6 +506,67 @@ O script:
 
 O script usa polling curto configuravel por `-PollingTimeoutSeconds` e `-PollingIntervalSeconds`. Ele nao usa sleeps longos para mascarar consistencia eventual; se o Outbox ou o consumer nao avancarem dentro do timeout, a validacao falha com o ultimo estado observado.
 
+### Validacao local de estorno e reprocessamento
+
+Fluxos assincronos derivados do Ledger possuem scripts dedicados para validacao operacional local:
+
+```powershell
+./scripts/validate-ledger-reversal-flow.ps1
+./scripts/validate-ledger-reprocess-flow.ps1
+```
+
+Se a politica local do PowerShell bloquear a execucao direta de scripts, execute de forma pontual com:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/validate-ledger-reversal-flow.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/validate-ledger-reprocess-flow.ps1
+```
+
+Pre-requisitos:
+
+- stack local completa iniciada, preferencialmente com `./scripts/start-local-stack.ps1`;
+- migrations aplicadas pelo startup local;
+- Docker-compatible API disponivel para `docker compose exec -T ... psql`;
+- portas do compose livres e acessiveis: `5030`, `5226`, `5228`, `16686`;
+- OpenTelemetry habilitado pelo compose para consulta de traces no Jaeger.
+
+Os dois scripts usam `scripts/get-token.ps1`, enviam `Authorization`, `Idempotency-Key` e `X-Correlation-Id` explicito, fazem polling curto configuravel e falham com erro quando um estado esperado nao aparece.
+
+`validate-ledger-reversal-flow.ps1` valida:
+
+- criacao de um lancamento base em `POST /api/v1/lancamentos`;
+- chegada do evento base `LedgerEntryCreated.v1` a `outbox_messages.status=Sent`;
+- processamento inicial no Balance via `processed_events` e `daily_balances`;
+- solicitacao real de estorno em `POST /api/v1/lancamentos/{lancamentoId}/estornos`;
+- persistencia em `estornos_lancamentos`;
+- publicacao do evento operacional `LancamentoEstornoSolicitado.v1`;
+- evolucao do estorno ate `Completed`;
+- criacao do lancamento compensatorio com `external_reference=estorno:{lancamentoOriginalId}`;
+- publicacao do `LedgerEntryCreated.v1` compensatorio;
+- consumo do compensatorio pelo Balance e delta compensatorio no consolidado diario;
+- traces recentes no Jaeger e presenca do `CorrelationId` em logs recentes de `ledger-service` e `balance-service`.
+
+`validate-ledger-reprocess-flow.ps1` valida:
+
+- criacao de um lancamento base em `POST /api/v1/lancamentos`;
+- fluxo normal ate Outbox `Sent`, `processed_events` e `daily_balances`;
+- solicitacao real de reprocessamento em `POST /api/v1/lancamentos/reprocessar`;
+- persistencia em `reprocessamentos_lancamentos`;
+- publicacao do evento operacional `ReprocessamentoLancamentosSolicitado.v1`;
+- evolucao do reprocessamento ate `Completed`;
+- republicacao de `LedgerEntryCreated.v1` para o lancamento elegivel;
+- idempotencia do Balance mantendo uma unica linha em `processed_events` para o mesmo evento financeiro;
+- consolidado diario inalterado apos a reentrega idempotente;
+- traces recentes no Jaeger e presenca do `CorrelationId` em logs recentes de `ledger-service` e `balance-service`.
+
+Limitacoes conhecidas:
+
+- os scripts assumem o compose local e os nomes de servico `ledger-db`, `balance-db`, `ledger-service` e `balance-service`;
+- os scripts consultam bancos diretamente para validar estados assincronos e identificadores internos que nao fazem parte do contrato publico de criacao de lancamento;
+- a validacao do Jaeger confirma traces recentes por servico, nao uma busca por `CorrelationId` na UI;
+- a politica local do PowerShell pode exigir `-ExecutionPolicy Bypass` na invocacao do processo;
+- o token local padrao usa os scopes aceitos pelo `Auth.Api` nesta POC (`ledger.write balance.read`), por isso os scripts validam estados de estorno/reprocessamento pelo banco em vez dos endpoints de status protegidos por `ledger.read`.
+
 Tambem e possivel executar manualmente com `curl`:
 
 ```bash
