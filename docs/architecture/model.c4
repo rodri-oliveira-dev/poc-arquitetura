@@ -53,7 +53,11 @@ model {
 
     grafana = container "Grafana" {
       technology "Grafana"
-      description "Visualiza metricas do Prometheus e logs do Loki por datasources provisionados e UI local em 3000."
+      description "Visualiza metricas do Prometheus, logs do Loki, traces do Jaeger e dashboards provisionados pela UI local em 3000."
+
+      dashboards = component "Dashboards provisionados" {
+        description "Dashboards versionados em observability/grafana/dashboards para visao tecnica minima das APIs e do runtime .NET, com link para logs no Loki."
+      }
     }
   }
 
@@ -210,6 +214,10 @@ model {
   observability.alloy -> observability.loki "Envia logs dos containers" "Loki push API"
   observability.grafana -> observability.prometheus "Consulta metricas" "PromQL"
   observability.grafana -> observability.loki "Consulta logs" "LogQL"
+  observability.grafana -> observability.jaeger "Abre traces por TraceId" "Jaeger datasource"
+  observability.grafana.dashboards -> observability.prometheus "Consulta metricas tecnicas" "PromQL"
+  observability.grafana.dashboards -> observability.loki "Linka logs por servico e janela" "Grafana Explore"
+  observability.grafana.dashboards -> observability.jaeger "Navega para traces via TraceId dos logs" "Derived field"
 
   ledger.ledgerApiLayer -> ledger.ledgerApplication "Chama caso de uso"
   ledger.ledgerApplication -> ledger.ledgerDomain "Cria agregados e usa contratos de repositorio"

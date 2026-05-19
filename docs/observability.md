@@ -2,7 +2,7 @@
 
 Este documento define o inventario operacional minimo da POC para `Auth.Api`, `LedgerService.Api` e `BalanceService.Api`.
 
-OpenTelemetry fica desabilitado por padrao. A correlacao via `X-Correlation-Id` permanece sempre ativa nas APIs e e usada para conectar logs, respostas HTTP e mensagens Kafka. A operacao local usa `docker compose`, PostgreSQL, Kafka, OpenTelemetry Collector e Jaeger conforme documentado em [desenvolvimento local](development/local-development.md).
+OpenTelemetry fica desabilitado por padrao. A correlacao via `X-Correlation-Id` permanece sempre ativa nas APIs e e usada para conectar logs, respostas HTTP e mensagens Kafka. A operacao local usa `docker compose`, PostgreSQL, Kafka, OpenTelemetry Collector, Jaeger, Prometheus, Loki, Grafana Alloy, Alertmanager e Grafana conforme documentado em [desenvolvimento local](development/local-development.md).
 
 ## Como navegar
 
@@ -699,7 +699,7 @@ Pre-requisitos:
 
 - Docker-compatible API disponivel;
 - stack local com migrations aplicadas;
-- portas do compose livres: `5030`, `5226`, `5228`, `15432`, `15433`, `16686`, `19092`, `4317`, `4318`, `9090`, `9093` e `3000`;
+- portas do compose livres: `5030`, `5226`, `5228`, `15432`, `15433`, `16686`, `19092`, `4317`, `4318`, `9090`, `3100`, `12345`, `9093` e `3000`;
 - OpenTelemetry habilitado pelo compose para `Auth.Api`, `LedgerService.Api` e `BalanceService.Api`.
 
 Suba a stack local completa. O script aplica migrations antes de iniciar Ledger e Balance:
@@ -768,7 +768,7 @@ Pre-requisitos:
 - stack local completa iniciada, preferencialmente com `./scripts/start-local-stack.ps1`;
 - migrations aplicadas pelo startup local;
 - Docker-compatible API disponivel para `docker compose exec -T ... psql`;
-- portas do compose livres e acessiveis: `5030`, `5226`, `5228`, `16686`, `9090`, `9093` e `3000`;
+- portas do compose livres e acessiveis: `5030`, `5226`, `5228`, `16686`, `9090`, `3100`, `12345`, `9093` e `3000`;
 - OpenTelemetry habilitado pelo compose para consulta de traces no Jaeger.
 
 Os dois scripts usam `scripts/get-token.ps1`, enviam `Authorization`, `Idempotency-Key` e `X-Correlation-Id` explicito, fazem polling curto configuravel e falham com erro quando um estado esperado nao aparece.

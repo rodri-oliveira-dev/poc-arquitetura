@@ -26,11 +26,12 @@ views {
     include observability.alloy
     include observability.alertmanager
     include observability.grafana
+    include observability.grafana.dashboards
     autoLayout LeftRight
   }
 
   view distributedFlow {
-    title "Fluxo distribuido - Auth, Ledger, Outbox, Kafka, Balance, Collector e Jaeger"
+    title "Fluxo distribuido - Auth, Ledger, Outbox, Kafka e Balance"
     include customer
     include auth.authApi
     include ledger.ledgerApi
@@ -42,11 +43,22 @@ views {
     include balance.balanceApi
     include observability.collector
     include observability.jaeger
+    autoLayout LeftRight
+  }
+
+  view observabilityFlow {
+    title "Observabilidade local - traces, metricas, logs, dashboards e alertas"
+    include auth.authApi
+    include ledger.ledgerApi
+    include balance.balanceApi
+    include observability.collector
+    include observability.jaeger
     include observability.prometheus
     include observability.loki
     include observability.alloy
     include observability.alertmanager
     include observability.grafana
+    include observability.grafana.dashboards
     autoLayout LeftRight
   }
 
