@@ -161,6 +161,26 @@ services:
     networks:
       - poc-net
 
+  otel-collector:
+    image: docker.io/otel/opentelemetry-collector:0.152.0
+    container_name: poc-otel-collector
+    command: [ "--config=/etc/otelcol/config.yaml" ]
+    depends_on:
+      - jaeger
+    volumes:
+      - ./observability/otel-collector-config.yaml:/etc/otelcol/config.yaml:ro
+    expose:
+      - "4317"
+      - "4318"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256m
+          pids: 128
+    networks:
+      - poc-net
+
   # --- Microservices ---
   ledger-service:
     build:
@@ -171,7 +191,7 @@ services:
       - ledger-db
       - kafka
       - kafka-init-topics
-      - jaeger
+      - otel-collector
     environment:
       ASPNETCORE_URLS: "http://+:8080"
       ASPNETCORE_ENVIRONMENT: "Development"
@@ -190,7 +210,7 @@ services:
       Reprocessamentos__Consumer__SecurityProtocol: "Plaintext"
       Observability__OpenTelemetry__Enabled: "true"
       Observability__OpenTelemetry__UseConsoleExporter: "false"
-      Observability__OpenTelemetry__OtlpEndpoint: "http://jaeger:4317"
+      Observability__OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"
       Observability__OpenTelemetry__ServiceName: "LedgerService.Api"
     ports:
       # Mantém a mesma porta do launchSettings para facilitar uso local
@@ -213,7 +233,7 @@ services:
       - balance-db
       - kafka
       - kafka-init-topics
-      - jaeger
+      - otel-collector
     environment:
       ASPNETCORE_URLS: "http://+:8080"
       ASPNETCORE_ENVIRONMENT: "Development"
@@ -229,7 +249,7 @@ services:
       Kafka__Consumer__SecurityProtocol: "Plaintext"
       Observability__OpenTelemetry__Enabled: "true"
       Observability__OpenTelemetry__UseConsoleExporter: "false"
-      Observability__OpenTelemetry__OtlpEndpoint: "http://jaeger:4317"
+      Observability__OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"
       Observability__OpenTelemetry__ServiceName: "BalanceService.Api"
     ports:
       - "5228:8080"
@@ -248,7 +268,7 @@ services:
       dockerfile: src/Auth.Api/Dockerfile
     container_name: poc-auth-api
     depends_on:
-      - jaeger
+      - otel-collector
     environment:
       ASPNETCORE_URLS: "http://+:8080"
       ASPNETCORE_ENVIRONMENT: "Development"
@@ -259,7 +279,7 @@ services:
       Auth__DevelopmentUser__Password: "Poc#123"
       Observability__OpenTelemetry__Enabled: "true"
       Observability__OpenTelemetry__UseConsoleExporter: "false"
-      Observability__OpenTelemetry__OtlpEndpoint: "http://jaeger:4317"
+      Observability__OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"
       Observability__OpenTelemetry__ServiceName: "Auth.Api"
     ports:
       - "5030:8080"

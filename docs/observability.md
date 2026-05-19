@@ -2,7 +2,7 @@
 
 Este documento define o inventario operacional minimo da POC para `Auth.Api`, `LedgerService.Api` e `BalanceService.Api`.
 
-OpenTelemetry fica desabilitado por padrao. A correlacao via `X-Correlation-Id` permanece sempre ativa nas APIs e e usada para conectar logs, respostas HTTP e mensagens Kafka. A operacao local usa `docker compose`, PostgreSQL e Kafka conforme documentado em [desenvolvimento local](development/local-development.md).
+OpenTelemetry fica desabilitado por padrao. A correlacao via `X-Correlation-Id` permanece sempre ativa nas APIs e e usada para conectar logs, respostas HTTP e mensagens Kafka. A operacao local usa `docker compose`, PostgreSQL, Kafka, OpenTelemetry Collector e Jaeger conforme documentado em [desenvolvimento local](development/local-development.md).
 
 ## Baseline
 
@@ -95,7 +95,7 @@ $env:Observability__OpenTelemetry__Enabled = "true"
 $env:Observability__OpenTelemetry__UseConsoleExporter = "true"
 ```
 
-Para enviar traces e metricas para um collector OTLP local:
+Para enviar traces e metricas para um collector OTLP local no host:
 
 ```powershell
 $env:Observability__OpenTelemetry__Enabled = "true"
@@ -116,7 +116,7 @@ $env:Observability__OpenTelemetry__OtlpEndpoint = "https://otel-collector.exampl
 $env:Observability__OpenTelemetry__UseConsoleExporter = "false"
 ```
 
-O endpoint real deve ser fornecido pela plataforma de execucao ou secret/config store. Este repositorio nao provisiona collector, dashboard, Jaeger, Tempo, Prometheus ou stack equivalente.
+O endpoint real deve ser fornecido pela plataforma de execucao ou secret/config store. Este repositorio provisiona apenas a stack local de desenvolvimento com OpenTelemetry Collector e Jaeger; dashboard, Tempo, Prometheus, Grafana, Loki e stack produtiva equivalente continuam fora do escopo.
 
 ## Logs
 
@@ -171,7 +171,7 @@ Quando OpenTelemetry esta habilitado, as APIs registram metricas de:
 
 As metricas sao exportadas para console quando `UseConsoleExporter=true` e para OTLP quando `OtlpEndpoint` esta preenchido.
 
-As metricas automaticas sao tecnicas e geradas pela instrumentacao OpenTelemetry. Dashboards, alertas, Prometheus scrape config, Grafana e OpenTelemetry Collector continuam fora do escopo desta etapa.
+As metricas automaticas sao tecnicas e geradas pela instrumentacao OpenTelemetry. No compose local, elas chegam ao OpenTelemetry Collector pelo mesmo endpoint OTLP das APIs, mas sao descartadas explicitamente por pipeline `metrics` com exporter `nop`. Dashboards, alertas, Prometheus scrape config e Grafana continuam fora do escopo desta etapa.
 
 ### Metricas customizadas
 
@@ -305,7 +305,7 @@ Tags proibidas em metricas customizadas:
 
 Para erros, `error_type` usa o nome estavel da excecao, por exemplo `KafkaException`, `ProduceException` ou `TimeoutException`. Para DLQ, `reason` usa classificacoes estaveis: `deserialization_failed`, `validation_failed`, `non_recoverable_processing_failure` ou `unknown`.
 
-Estas metricas ainda nao possuem dashboard, alerta, Prometheus scrape config, Grafana ou OpenTelemetry Collector versionados nesta etapa.
+Estas metricas ainda nao possuem dashboard, alerta, Prometheus scrape config ou Grafana nesta etapa. No compose local, o OpenTelemetry Collector recebe metricas OTLP e as descarta via exporter `nop` ate existir um backend de metricas decidido.
 
 Referencias relacionadas:
 
@@ -404,15 +404,22 @@ Portas expostas no host:
 - PostgreSQL Balance: `localhost:15433`;
 - Kafka: `localhost:19092`.
 - Jaeger UI: `http://localhost:16686`;
-- Jaeger OTLP gRPC/HTTP: `localhost:4317` e `localhost:4318`.
+- Jaeger OTLP gRPC/HTTP: `localhost:4317` e `localhost:4318`, expostos para diagnostico direto;
+- OpenTelemetry Collector OTLP gRPC/HTTP: `otel-collector:4317` e `otel-collector:4318` apenas na rede interna do compose.
 
-O compose sobrescreve configuracoes por variaveis de ambiente para usar os nomes internos `ledger-db`, `balance-db` e `kafka`. Aplique migrations manualmente antes de usar as APIs em banco vazio.
+O compose sobrescreve configuracoes por variaveis de ambiente para usar os nomes internos `ledger-db`, `balance-db`, `kafka` e `otel-collector`. Aplique migrations manualmente antes de usar as APIs em banco vazio.
 
 ### Validacao local com Jaeger
 
-O compose local inclui Jaeger all-in-one com OTLP habilitado. `Auth.Api`, `LedgerService.Api` e `BalanceService.Api` sobem com OpenTelemetry habilitado e exportam para `http://jaeger:4317` dentro da rede do compose.
+O compose local inclui OpenTelemetry Collector e Jaeger all-in-one com OTLP habilitado. O desenho local passa a ser:
 
-O Jaeger local e usado como backend de tracing. As APIs tambem possuem exporter de metricas OTLP quando `OtlpEndpoint` esta configurado, mas a validacao local com Jaeger deve focar traces; dashboards, alertas, Prometheus e Grafana continuam fora do escopo desta POC.
+```text
+Aplicacoes -> OpenTelemetry Collector -> Jaeger
+```
+
+`Auth.Api`, `LedgerService.Api` e `BalanceService.Api` sobem com OpenTelemetry habilitado e exportam para `http://otel-collector:4317` dentro da rede do compose. O Collector recebe OTLP via gRPC em `4317` e HTTP em `4318`, aplica `batch` e encaminha traces para `jaeger:4317` usando o exporter `otlp_grpc`.
+
+O Jaeger local continua sendo o backend de visualizacao de traces. As APIs tambem possuem exporter de metricas OTLP quando `OtlpEndpoint` esta configurado; nesta etapa, o Collector recebe essas metricas e as descarta explicitamente com exporter `nop`. A validacao local com Jaeger deve focar traces; dashboards, alertas, Prometheus, Grafana e Loki continuam fora do escopo desta POC.
 
 Suba a stack:
 
@@ -421,6 +428,13 @@ docker compose up -d --build
 ```
 
 Acesse a UI do Jaeger em `http://localhost:16686`.
+
+Para conferir os componentes de observabilidade:
+
+```bash
+docker compose logs otel-collector
+docker compose logs jaeger
+```
 
 Para gerar traces HTTP simples, sem Kafka, Outbox ou autenticacao, chame os endpoints operacionais:
 
@@ -458,7 +472,7 @@ Pre-requisitos:
 
 - Docker-compatible API disponivel;
 - stack local com migrations aplicadas;
-- portas do compose livres: `5030`, `5226`, `5228`, `15432`, `15433`, `16686` e `19092`;
+- portas do compose livres: `5030`, `5226`, `5228`, `15432`, `15433`, `16686`, `19092`, `4317` e `4318`;
 - OpenTelemetry habilitado pelo compose para `Auth.Api`, `LedgerService.Api` e `BalanceService.Api`.
 
 Suba a stack local completa. O script aplica migrations antes de iniciar Ledger e Balance:
@@ -700,7 +714,7 @@ docker compose exec -T kafka /opt/kafka/bin/kafka-console-consumer.sh \
 
 Procure headers `event_id`, `event_type`, `correlation_id` e, quando tracing estiver ativo no publisher, `traceparent`.
 
-Se o Jaeger ficar temporariamente indisponivel depois que a aplicacao ja iniciou, o exporter OTLP pode registrar falhas de exportacao, mas o processamento HTTP deve continuar. Nesse periodo os traces podem ser perdidos ou aparecer com atraso ate o backend voltar a receber dados.
+Se o Collector ou o Jaeger ficar temporariamente indisponivel depois que a aplicacao ja iniciou, o exporter OTLP pode registrar falhas de exportacao, mas o processamento HTTP deve continuar. Nesse periodo os traces podem ser perdidos ou aparecer com atraso ate o backend voltar a receber dados.
 
 ### Host
 
@@ -736,7 +750,7 @@ O header padrao e `X-Correlation-Id`:
    - header `X-Correlation-Id` no response;
    - logs com `CorrelationId`;
    - spans e metricas no console, quando `UseConsoleExporter=true`;
-   - chegada de traces e metricas no collector, quando `OtlpEndpoint` estiver configurado.
+   - chegada de traces no Collector e visualizacao no Jaeger, quando `OtlpEndpoint` estiver configurado.
 6. Para fluxos Kafka, crie um lancamento e confirme publicacao Outbox, consumo pelo Balance e ausencia de mensagens inesperadas na DLQ.
 
 ## Governanca

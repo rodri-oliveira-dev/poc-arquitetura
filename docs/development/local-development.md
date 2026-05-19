@@ -35,7 +35,8 @@ O `compose.yaml` sobe:
 - PostgreSQL Balance;
 - Kafka single node em KRaft;
 - job de inicializacao dos topicos Kafka;
-- Jaeger all-in-one para tracing local via OTLP.
+- OpenTelemetry Collector como entrada local de telemetria OTLP;
+- Jaeger all-in-one como backend local de visualizacao de traces.
 
 Subir a stack:
 
@@ -81,9 +82,10 @@ Portas expostas no host:
 | PostgreSQL Balance | `localhost:15433` |
 | Kafka | `localhost:19092` |
 | Jaeger UI | `http://localhost:16686/` |
-| Jaeger OTLP | `localhost:4317` e `localhost:4318` |
+| Jaeger OTLP | `localhost:4317` e `localhost:4318` para diagnostico direto |
+| OpenTelemetry Collector OTLP | `otel-collector:4317` e `otel-collector:4318` na rede interna do compose |
 
-O compose sobrescreve configuracoes por variaveis de ambiente para usar hosts internos como `ledger-db`, `balance-db` e `kafka`. O ambiente local do compose roda como `Development`.
+O compose sobrescreve configuracoes por variaveis de ambiente para usar hosts internos como `ledger-db`, `balance-db`, `kafka` e `otel-collector`. No compose, as APIs enviam OTLP para o Collector, e o Collector encaminha traces para o Jaeger. O ambiente local do compose roda como `Development`.
 
 ## Migrations via compose
 

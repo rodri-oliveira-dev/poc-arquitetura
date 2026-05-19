@@ -19,12 +19,13 @@ views {
     include kafka.ledgerEstornoTopic
     include kafka.ledgerReprocessamentoTopic
     include kafka.ledgerDlq
+    include observability.collector
     include observability.jaeger
     autoLayout LeftRight
   }
 
   view distributedFlow {
-    title "Fluxo distribuido - Auth, Ledger, Outbox, Kafka, Balance e Jaeger"
+    title "Fluxo distribuido - Auth, Ledger, Outbox, Kafka, Balance, Collector e Jaeger"
     include customer
     include auth.authApi
     include ledger.ledgerApi
@@ -34,6 +35,7 @@ views {
     include balance.balanceConsumer
     include balance.balanceDb
     include balance.balanceApi
+    include observability.collector
     include observability.jaeger
     autoLayout LeftRight
   }
@@ -74,6 +76,7 @@ views {
     include auth.authEndpoints
     include auth.authSecurity
     include auth.authPipeline
+    include observability.collector
     include observability.jaeger
     autoLayout LeftRight
   }

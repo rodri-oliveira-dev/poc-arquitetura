@@ -173,7 +173,7 @@ Interpretacao rapida:
 - desvio para DLQ: observe `balance.kafka.dlq.messages.published` por `reason`;
 - falha critica de DLQ: observe `balance.kafka.dlq.publish.errors`, pois o offset original nao deve ser commitado.
 
-Estas metricas ainda nao possuem dashboard, alertas, Prometheus, Grafana ou OpenTelemetry Collector nesta etapa.
+Estas metricas ainda nao possuem dashboard, alertas, Prometheus ou Grafana nesta etapa. No compose local, o OpenTelemetry Collector recebe metricas OTLP e as descarta via exporter `nop`; a validacao operacional continua focada em traces no Jaeger.
 
 ## Configuracao
 

@@ -19,11 +19,16 @@ model {
   }
 
   observability = softwareSystem "Observabilidade" {
-    description "Stack local de tracing distribuido e exporters OpenTelemetry opcionais via console ou OTLP."
+    description "Stack local de tracing distribuido com OpenTelemetry Collector e Jaeger."
+
+    collector = container "OpenTelemetry Collector" {
+      technology "OpenTelemetry Collector / OTLP"
+      description "Ponto local de entrada de telemetria; recebe OTLP das APIs em 4317/4318 e encaminha traces para o Jaeger."
+    }
 
     jaeger = container "Jaeger all-in-one" {
       technology "Jaeger / OTLP"
-      description "Backend local de tracing com receiver OTLP em 4317/4318 e UI em 16686."
+      description "Backend local de tracing com receiver OTLP interno e UI em 16686."
     }
   }
 
@@ -171,9 +176,10 @@ model {
   balance.balanceConsumer -> balance.balanceDb "Atualiza daily_balances e processed_events" "EF Core"
   balance.balanceApi -> balance.balanceDb "Consulta projecao" "EF Core"
 
-  auth.authApi -> observability.jaeger "Exporta telemetria quando habilitado no compose" "OTLP"
-  ledger.ledgerApi -> observability.jaeger "Exporta telemetria quando habilitado no compose" "OTLP"
-  balance.balanceApi -> observability.jaeger "Exporta telemetria quando habilitado no compose" "OTLP"
+  auth.authApi -> observability.collector "Exporta telemetria quando habilitado no compose" "OTLP"
+  ledger.ledgerApi -> observability.collector "Exporta telemetria quando habilitado no compose" "OTLP"
+  balance.balanceApi -> observability.collector "Exporta telemetria quando habilitado no compose" "OTLP"
+  observability.collector -> observability.jaeger "Encaminha traces" "OTLP"
 
   ledger.ledgerApiLayer -> ledger.ledgerApplication "Chama caso de uso"
   ledger.ledgerApplication -> ledger.ledgerDomain "Cria agregados e usa contratos de repositorio"
