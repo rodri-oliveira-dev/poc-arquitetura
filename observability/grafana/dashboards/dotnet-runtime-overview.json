@@ -19,7 +19,20 @@
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
   "id": null,
-  "links": [],
+  "links": [
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": false,
+      "title": "Logs no Loki",
+      "tooltip": "Abrir Explore com logs dos servicos selecionados.",
+      "type": "link",
+      "url": "/explore?orgId=1&left={\"datasource\":\"loki\",\"queries\":[{\"refId\":\"A\",\"expr\":\"{compose_project=\\\"poc-arquitetura\\\", environment=\\\"${environment}\\\", service=~\\\"${loki_service:regex}\\\"}\"}],\"range\":{\"from\":\"${__from}\",\"to\":\"${__to}\"}}"
+    }
+  ],
   "panels": [
     {
       "gridPos": {
@@ -35,7 +48,7 @@
           "showLineNumbers": false,
           "showMiniMap": false
         },
-        "content": "Visao tecnica minima do runtime .NET das APIs usando metricas automaticas System.Runtime exportadas via OpenTelemetry. Os paineis ajudam a observar memoria, GC, ThreadPool e excecoes sem metricas customizadas.",
+        "content": "Visao tecnica minima do runtime .NET das APIs usando metricas automaticas System.Runtime exportadas via OpenTelemetry. Use o link Logs no Loki para abrir o Explore na mesma janela de tempo. Os paineis ajudam a observar memoria, GC, ThreadPool e excecoes sem metricas customizadas.",
         "mode": "markdown"
       },
       "pluginVersion": "12.3.0",
@@ -86,7 +99,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "max by (exported_job) (dotnet_process_memory_working_set_bytes{exported_job=~\"Auth.Api|LedgerService.Api|BalanceService.Api\"})",
+          "expr": "max by (exported_job) (dotnet_process_memory_working_set_bytes{exported_job=~\"${service:regex}\"})",
           "legendFormat": "{{exported_job}}",
           "range": true,
           "refId": "A"
@@ -139,7 +152,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum by (exported_job, gc_heap_generation) (rate(dotnet_gc_collections_total{exported_job=~\"Auth.Api|LedgerService.Api|BalanceService.Api\"}[$__rate_interval]))",
+          "expr": "sum by (exported_job, gc_heap_generation) (rate(dotnet_gc_collections_total{exported_job=~\"${service:regex}\"}[$__rate_interval]))",
           "legendFormat": "{{exported_job}} {{gc_heap_generation}}",
           "range": true,
           "refId": "A"
@@ -192,7 +205,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "max by (exported_job) (dotnet_thread_pool_queue_length_total{exported_job=~\"Auth.Api|LedgerService.Api|BalanceService.Api\"})",
+          "expr": "max by (exported_job) (dotnet_thread_pool_queue_length_total{exported_job=~\"${service:regex}\"})",
           "legendFormat": "{{exported_job}}",
           "range": true,
           "refId": "A"
@@ -245,7 +258,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum by (exported_job, error_type) (rate(dotnet_exceptions_total{exported_job=~\"Auth.Api|LedgerService.Api|BalanceService.Api\"}[$__rate_interval]))",
+          "expr": "sum by (exported_job, error_type) (rate(dotnet_exceptions_total{exported_job=~\"${service:regex}\"}[$__rate_interval]))",
           "legendFormat": "{{exported_job}} {{error_type}}",
           "range": true,
           "refId": "A"
@@ -265,7 +278,49 @@
     "prometheus"
   ],
   "templating": {
-    "list": []
+    "list": [
+      {
+        "allValue": "Auth.Api|LedgerService.Api|BalanceService.Api",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "name": "service",
+        "options": [],
+        "query": "Auth.Api,LedgerService.Api,BalanceService.Api",
+        "type": "custom"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "local",
+          "value": "local"
+        },
+        "hide": 0,
+        "name": "environment",
+        "query": "local",
+        "type": "constant"
+      },
+      {
+        "allValue": "auth-api|ledger-service|balance-service",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "name": "loki_service",
+        "options": [],
+        "query": "auth-api,ledger-service,balance-service",
+        "type": "custom"
+      }
+    ]
   },
   "time": {
     "from": "now-30m",
@@ -273,7 +328,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "Runtime .NET - Visão Geral",
+  "title": "Runtime .NET - Visao Geral",
   "uid": "runtime-dotnet-visao-geral",
   "version": 1
 }

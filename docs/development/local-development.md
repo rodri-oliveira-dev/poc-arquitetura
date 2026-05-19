@@ -41,7 +41,7 @@ O `compose.yaml` sobe:
 - Loki para armazenar logs centralizados dos containers;
 - Grafana Alloy para coletar logs dos containers via Docker API;
 - Alertmanager local para visualizar alertas tecnicos basicos sem envio externo;
-- Grafana com datasources Prometheus e Loki e dashboards minimos provisionados.
+- Grafana com datasources Prometheus, Loki e Jaeger e dashboards minimos provisionados.
 
 Subir a stack:
 
@@ -96,7 +96,7 @@ Portas expostas no host:
 | Alertmanager | `http://localhost:9093/` |
 | Grafana | `http://localhost:3000/` |
 
-O compose sobrescreve configuracoes por variaveis de ambiente para usar hosts internos como `ledger-db`, `balance-db`, `kafka` e `otel-collector`. No compose, as APIs enviam OTLP somente para o Collector. O Collector encaminha traces para o Jaeger e expoe metricas em formato Prometheus para scrape interno. Prometheus coleta o Collector, Alloy coleta logs dos containers e envia para Loki, e Grafana consulta Prometheus e Loki. O Grafana carrega automaticamente a pasta `Observability` com os dashboards `APIs - Visão Geral` e `Runtime .NET - Visão Geral`, versionados em `observability/grafana/dashboards/`. O ambiente local do compose roda como `Development`.
+O compose sobrescreve configuracoes por variaveis de ambiente para usar hosts internos como `ledger-db`, `balance-db`, `kafka` e `otel-collector`. No compose, as APIs enviam OTLP somente para o Collector. O Collector encaminha traces para o Jaeger e expoe metricas em formato Prometheus para scrape interno. Prometheus coleta o Collector, Alloy coleta logs dos containers e envia para Loki, e Grafana consulta Prometheus, Loki e Jaeger. O Grafana carrega automaticamente a pasta `Observability` com os dashboards `APIs - Visao Geral` e `Runtime .NET - Visao Geral`, versionados em `observability/grafana/dashboards/`. O datasource Loki possui derived field para abrir traces no datasource interno Jaeger a partir de logs com `TraceId=<valor>`. O ambiente local do compose roda como `Development`.
 
 Prometheus tambem carrega regras locais em `observability/prometheus/rules/` e envia alertas para o Alertmanager local. A UI do Alertmanager fica em `http://localhost:9093/` e nao possui integracao externa configurada.
 

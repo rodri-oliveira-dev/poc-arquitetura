@@ -19,7 +19,20 @@
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
   "id": null,
-  "links": [],
+  "links": [
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": false,
+      "title": "Logs no Loki",
+      "tooltip": "Abrir Explore com logs dos servicos selecionados.",
+      "type": "link",
+      "url": "/explore?orgId=1&left={\"datasource\":\"loki\",\"queries\":[{\"refId\":\"A\",\"expr\":\"{compose_project=\\\"poc-arquitetura\\\", environment=\\\"${environment}\\\", service=~\\\"${loki_service:regex}\\\"}\"}],\"range\":{\"from\":\"${__from}\",\"to\":\"${__to}\"}}"
+    }
+  ],
   "panels": [
     {
       "gridPos": {
@@ -35,7 +48,7 @@
           "showLineNumbers": false,
           "showMiniMap": false
         },
-        "content": "Visao tecnica minima das APIs Auth.Api, LedgerService.Api e BalanceService.Api usando metricas automaticas HTTP exportadas via OpenTelemetry Collector para Prometheus. Nao inclui metricas de negocio, Outbox, Kafka ou DLQ.",
+        "content": "Visao tecnica minima das APIs Auth.Api, LedgerService.Api e BalanceService.Api usando metricas automaticas HTTP exportadas via OpenTelemetry Collector para Prometheus. Use o link Logs no Loki para abrir o Explore na mesma janela de tempo. Nao inclui metricas de negocio, Outbox, Kafka ou DLQ.",
         "mode": "markdown"
       },
       "pluginVersion": "12.3.0",
@@ -86,7 +99,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum by (exported_job) (rate(http_server_request_duration_seconds_count{exported_job=~\"Auth.Api|LedgerService.Api|BalanceService.Api\"}[$__rate_interval]))",
+          "expr": "sum by (exported_job) (rate(http_server_request_duration_seconds_count{exported_job=~\"${service:regex}\"}[$__rate_interval]))",
           "legendFormat": "{{exported_job}}",
           "range": true,
           "refId": "A"
@@ -139,13 +152,13 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum by (exported_job) (rate(http_server_request_duration_seconds_count{exported_job=~\"Auth.Api|LedgerService.Api|BalanceService.Api\", http_response_status_code=~\"5..\"}[$__rate_interval]))",
-          "legendFormat": "{{exported_job}}",
+          "expr": "sum by (exported_job, http_response_status_code) (rate(http_server_request_duration_seconds_count{exported_job=~\"${service:regex}\", http_response_status_code=~\"${status:regex}\"}[$__rate_interval]))",
+          "legendFormat": "{{exported_job}} {{http_response_status_code}}",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Erros HTTP 5xx por servico",
+      "title": "Respostas HTTP por status",
       "type": "timeseries"
     },
     {
@@ -192,7 +205,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.95, sum by (exported_job, le) (rate(http_server_request_duration_seconds_bucket{exported_job=~\"Auth.Api|LedgerService.Api|BalanceService.Api\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (exported_job, le) (rate(http_server_request_duration_seconds_bucket{exported_job=~\"${service:regex}\"}[$__rate_interval])))",
           "legendFormat": "{{exported_job}} p95",
           "range": true,
           "refId": "A"
@@ -245,7 +258,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum by (exported_job, http_request_method, http_route) (rate(http_server_request_duration_seconds_count{exported_job=~\"Auth.Api|LedgerService.Api|BalanceService.Api\"}[$__rate_interval]))",
+          "expr": "sum by (exported_job, http_request_method, http_route) (rate(http_server_request_duration_seconds_count{exported_job=~\"${service:regex}\"}[$__rate_interval]))",
           "legendFormat": "{{exported_job}} {{http_request_method}} {{http_route}}",
           "range": true,
           "refId": "A"
@@ -264,7 +277,64 @@
     "prometheus"
   ],
   "templating": {
-    "list": []
+    "list": [
+      {
+        "allValue": "Auth.Api|LedgerService.Api|BalanceService.Api",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "name": "service",
+        "options": [],
+        "query": "Auth.Api,LedgerService.Api,BalanceService.Api",
+        "type": "custom"
+      },
+      {
+        "allValue": "2..|3..|4..|5..",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "name": "status",
+        "options": [],
+        "query": "2..,3..,4..,5..",
+        "type": "custom"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "local",
+          "value": "local"
+        },
+        "hide": 0,
+        "name": "environment",
+        "query": "local",
+        "type": "constant"
+      },
+      {
+        "allValue": "auth-api|ledger-service|balance-service",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "name": "loki_service",
+        "options": [],
+        "query": "auth-api,ledger-service,balance-service",
+        "type": "custom"
+      }
+    ]
   },
   "time": {
     "from": "now-30m",
@@ -272,7 +342,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "APIs - Visão Geral",
+  "title": "APIs - Visao Geral",
   "uid": "apis-visao-geral",
   "version": 1
 }

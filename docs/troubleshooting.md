@@ -97,6 +97,16 @@ Confirme se a stack local foi iniciada pelo script recomendado e se as portas es
 
 O desenho da stack e as validacoes ficam em [observabilidade](observability.md#configuracao-local).
 
+Para investigar a partir de um dashboard:
+
+1. Abra `http://localhost:3000`.
+2. Acesse a pasta `Observability`.
+3. Abra `APIs - Visao Geral` ou `Runtime .NET - Visao Geral`.
+4. Ajuste o periodo e clique em `Logs no Loki`.
+5. No Explore, pesquise `CorrelationId=<valor>` ou `TraceId=<valor>`.
+
+Quando o log contem `TraceId=<valor>`, o datasource Loki mostra o link `Abrir trace no Jaeger`. Use `TraceId` para navegar para a arvore de spans no Jaeger e use `CorrelationId` para conectar logs, responses HTTP, Outbox, Kafka e consultas SQL do fluxo funcional.
+
 ## Load tests falham
 
 Os testes k6 rodam em container dentro da rede do compose e exigem a stack local ativa. Comece pelo modo smoke:

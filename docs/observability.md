@@ -183,6 +183,8 @@ Consultas LogQL uteis no Grafana Explore com datasource `Loki`:
 {service="ledger-service"} |= "CorrelationId=<valor>"
 {service="ledger-service"} |= "TraceId=<valor>"
 {service="balance-service"} |= "CorrelationId=<valor>"
+{service=~"ledger-service|balance-service"} |= "TraceId=<trace-id>"
+{service=~"ledger-service|balance-service"} |= "CorrelationId=<correlation-id>"
 {service="ledger-service"} |= "fail"
 {compose_project="poc-arquitetura", environment="local"}
 ```
@@ -196,6 +198,76 @@ curl -G "http://localhost:3100/loki/api/v1/query_range" \
 ```
 
 Se Loki ou Alloy ficarem indisponiveis, a aplicacao continua funcionando porque nao envia logs diretamente para Loki. O impacto esperado e apenas perda ou atraso na centralizacao dos logs enquanto a coleta/backend estiver indisponivel. Traces e metricas seguem pelo OpenTelemetry Collector; logs nao substituem traces nem metricas.
+
+### Correlacao operacional no Grafana
+
+O Grafana local e configurado por provisioning. O datasource `Loki` possui um derived field chamado `TraceId` que extrai valores no formato real emitido pelos logging scopes das APIs:
+
+```text
+TraceId=<32 caracteres hexadecimais>
+```
+
+Quando uma linha de log contem esse valor, o Explore do Grafana exibe o link `Abrir trace no Jaeger`. O link usa o datasource interno `Jaeger` com uid `jaeger`, nao uma URL externa fixa. Esse e o caminho preferencial para navegar de logs para traces na stack local:
+
+```text
+Dashboard -> Logs no Loki -> linha com TraceId -> Abrir trace no Jaeger
+```
+
+O `TraceId` e a ponte tecnica entre logs e traces. Use-o quando a pergunta for temporal ou causal: qual span demorou, onde a chamada falhou, se o contexto HTTP -> Outbox -> Kafka -> Balance foi preservado e quais spans fazem parte da mesma arvore distribuida.
+
+O `CorrelationId` e a ponte operacional da operacao de negocio. Use-o quando a pergunta for funcional ou de suporte: qual requisicao gerou o lancamento, qual response HTTP devolveu o identificador, qual linha da Outbox possui `correlation_id`, quais mensagens Kafka carregaram `correlation_id` e quais logs do Ledger/Balance pertencem ao mesmo fluxo. Ele nao substitui o `TraceId`.
+
+O `SpanId` identifica um span especifico dentro de um trace. Ele ajuda a comparar uma linha de log com um trecho pontual da execucao, mas nao identifica a operacao inteira.
+
+Caminho a partir de um dashboard:
+
+1. Abra `http://localhost:3000`.
+2. Entre na pasta `Observability`.
+3. Abra `APIs - Visao Geral` ou `Runtime .NET - Visao Geral`.
+4. Ajuste o periodo no seletor de tempo.
+5. Use os filtros `service`, `status`, `environment` e `loki_service` quando aplicavel.
+6. Clique em `Logs no Loki` para abrir o Explore com a mesma janela de tempo e labels estaveis do compose local.
+7. Procure por erro, latencia, `CorrelationId=<valor>` ou `TraceId=<valor>`.
+
+Caminho a partir de um `TraceId`:
+
+1. No Explore com datasource `Loki`, rode uma query por servico e periodo, por exemplo:
+
+   ```logql
+   {service="ledger-service", environment="local"} |= "TraceId=<trace-id>"
+   ```
+
+2. Abra uma linha que contenha `TraceId=<trace-id>`.
+3. Clique em `Abrir trace no Jaeger`.
+4. No trace, confira os spans HTTP, `outbox.publish`, `kafka.consume` e `balance.apply` quando existirem.
+
+Caminho a partir de um `CorrelationId`:
+
+1. Pesquise o identificador nos logs:
+
+   ```logql
+   {service=~"auth-api|ledger-service|balance-service", environment="local"} |= "CorrelationId=<correlation-id>"
+   ```
+
+2. Use o mesmo valor em consultas SQL operacionais quando precisar conectar logs, Outbox e Balance:
+
+   ```sql
+   SELECT id, event_type, status, correlation_id, traceparent
+   FROM outbox_messages
+   WHERE correlation_id = '<correlation-id>'
+   ORDER BY occurred_at DESC
+   LIMIT 5;
+   ```
+
+3. Se uma linha de log tambem trouxer `TraceId=<trace-id>`, use o link do derived field para abrir o trace correspondente.
+
+Limitacoes conhecidas:
+
+- o derived field depende do texto `TraceId=<valor>` aparecer no conteudo do log;
+- logs sem `Activity` ativa podem ter `TraceId` e `SpanId` vazios;
+- `POST /auth/login` e `POST /api/v1/lancamentos` sao chamadas HTTP separadas, portanto nao formam uma unica arvore de trace por causa do token JWT;
+- mensagens antigas sem `traceparent` preservado na Outbox podem gerar spans raiz no Balance;
+- `CorrelationId`, `TraceId` e `SpanId` continuam no conteudo do log e nao viram labels do Loki.
 
 ## Traces
 
@@ -487,7 +559,7 @@ Grafana -> Loki
 
 O Collector recebe OTLP via gRPC em `4317` e HTTP em `4318`, aplica `batch`, encaminha traces para `jaeger:4317` usando o exporter `otlp_grpc` e expoe metricas no exporter `prometheus` em `0.0.0.0:9464`. Essa porta nao e publicada no host; o Prometheus acessa `otel-collector:9464` pela rede Docker.
 
-O Jaeger local continua sendo o backend de visualizacao de traces. O Prometheus coleta o Collector pelo job `otel-collector` a cada `15s` e tambem coleta `prometheus` e `alertmanager` para sinais tecnicos da propria stack de alerting. O Alloy coleta logs dos containers do compose local e envia para o Loki. O Grafana recebe datasources provisionados para Prometheus, com uid `prometheus`, apontando para `http://prometheus:9090` e marcado como default, e Loki, com uid `loki`, apontando para `http://loki:3100`.
+O Jaeger local continua sendo o backend de visualizacao de traces. O Prometheus coleta o Collector pelo job `otel-collector` a cada `15s` e tambem coleta `prometheus` e `alertmanager` para sinais tecnicos da propria stack de alerting. O Alloy coleta logs dos containers do compose local e envia para o Loki. O Grafana recebe datasources provisionados para Prometheus, com uid `prometheus`, apontando para `http://prometheus:9090` e marcado como default; Loki, com uid `loki`, apontando para `http://loki:3100`; e Jaeger, com uid `jaeger`, apontando para `http://jaeger:16686`.
 
 O Alertmanager local recebe alertas do Prometheus pelo endereco interno `alertmanager:9093`. Ele usa receiver local sem envio externo; a UI fica disponivel em `http://localhost:9093`.
 
@@ -497,10 +569,19 @@ As metricas desta etapa continuam sendo tecnicas automaticas da instrumentacao O
 
 Os dashboards locais ficam versionados em `observability/grafana/dashboards/` e sao carregados por provisioning em `observability/grafana/provisioning/dashboards/dashboards.yml`. Os datasources ficam em `observability/grafana/provisioning/datasources/datasources.yml`. O `compose.yaml` monta esses arquivos no container Grafana em modo somente leitura, entao nao ha configuracao manual pos-subida.
 
-Dashboards criados:
+Dashboards provisionados:
 
-- `APIs - Visão Geral`: visao tecnica minima das APIs usando metricas automaticas HTTP.
-- `Runtime .NET - Visão Geral`: visao tecnica minima do runtime .NET usando metricas automaticas `System.Runtime`.
+- `APIs - Visao Geral`: visao tecnica minima das APIs usando metricas automaticas HTTP.
+- `Runtime .NET - Visao Geral`: visao tecnica minima do runtime .NET usando metricas automaticas `System.Runtime`.
+
+Os dashboards mantem filtros pequenos para investigacao:
+
+- `service`: filtra as series Prometheus por `exported_job` (`Auth.Api`, `LedgerService.Api` ou `BalanceService.Api`).
+- `status`: filtra o painel de respostas HTTP por classe de status (`2..`, `3..`, `4..` ou `5..`).
+- `environment`: valor local usado nos labels do Loki.
+- `loki_service`: filtra o link para Explore/Loki pelos nomes de servico do compose (`auth-api`, `ledger-service` ou `balance-service`).
+
+O link `Logs no Loki` abre o Explore com a mesma janela de tempo do dashboard e uma query LogQL baseada nos labels estaveis `compose_project`, `environment` e `service`. A partir dos logs, linhas com `TraceId=<valor>` exibem o link interno para o datasource `Jaeger`.
 
 Metricas usadas nos dashboards:
 
@@ -598,7 +679,7 @@ curl -G "http://localhost:3100/loki/api/v1/query_range" \
 
 No Alloy, acesse `http://localhost:12345` para diagnostico local do agente. O container precisa ter acesso somente leitura a `/var/run/docker.sock`; sem esse socket, a coleta de logs falha, mas as APIs continuam funcionando.
 
-No Grafana, acesse `http://localhost:3000` com as credenciais locais de POC `admin`/`admin`. Em `Connections` ou `Data sources`, confirme os datasources `Prometheus` apontando para `http://prometheus:9090` e `Loki` apontando para `http://loki:3100`. Em `Dashboards`, abra a pasta `Observability` e confirme que os dashboards `APIs - Visão Geral` e `Runtime .NET - Visão Geral` foram carregados automaticamente. Para validar metricas, use Explore com uma das metricas tecnicas listadas acima. Para validar logs, use Explore com o datasource `Loki` e a query `{service="ledger-service"}`.
+No Grafana, acesse `http://localhost:3000` com as credenciais locais de POC `admin`/`admin`. Em `Connections` ou `Data sources`, confirme os datasources `Prometheus` apontando para `http://prometheus:9090`, `Loki` apontando para `http://loki:3100` e `Jaeger` apontando para `http://jaeger:16686`. Em `Dashboards`, abra a pasta `Observability` e confirme que os dashboards `APIs - Visao Geral` e `Runtime .NET - Visao Geral` foram carregados automaticamente. Para validar metricas, use Explore com uma das metricas tecnicas listadas acima. Para validar logs, use Explore com o datasource `Loki` e a query `{service="ledger-service"}`. Para validar o link log -> trace, abra uma linha com `TraceId=<valor>` e clique em `Abrir trace no Jaeger`.
 
 ### Validacao Auth -> Ledger -> Outbox -> Kafka -> Balance
 

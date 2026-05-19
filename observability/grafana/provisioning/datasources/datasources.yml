@@ -16,3 +16,18 @@ datasources:
     url: http://loki:3100
     isDefault: false
     editable: true
+    jsonData:
+      derivedFields:
+        - name: TraceId
+          matcherRegex: "TraceId=([0-9a-fA-F]{32})"
+          datasourceUid: jaeger
+          url: '$${__value.raw}'
+          urlDisplayLabel: "Abrir trace no Jaeger"
+
+  - name: Jaeger
+    uid: jaeger
+    type: jaeger
+    access: proxy
+    url: http://jaeger:16686
+    isDefault: false
+    editable: true

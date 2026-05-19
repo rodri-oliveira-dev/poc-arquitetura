@@ -272,6 +272,7 @@ services:
     depends_on:
       - prometheus
       - loki
+      - jaeger
     environment:
       GF_SECURITY_ADMIN_USER: "admin"
       GF_SECURITY_ADMIN_PASSWORD: "admin"
