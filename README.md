@@ -7,31 +7,49 @@
 
 POC de microservicos em .NET para validar Clean Architecture, DDD, PostgreSQL, Kafka, Outbox, autenticacao JWT com JWKS, observabilidade e testes automatizados.
 
-O repositorio e um laboratorio tecnico. Algumas decisoes estao aceitas, outras aparecem como propostas ou pontos de melhoria nas ADRs.
+## Problema
 
-## Servicos
+O projeto modela um cenario comum em sistemas financeiros: registrar lancamentos de forma transacional, publicar eventos de forma confiavel e manter uma projecao de saldo separada para consulta. A solucao tambem cobre preocupacoes de revisao tecnica que costumam aparecer nesse tipo de arquitetura: idempotencia, autorizacao por merchant, consistencia eventual, reprocessamento, estorno, observabilidade e validacao automatizada.
 
-- `Auth.Api`: emite JWT RS256 por `POST /auth/login` e publica JWKS em `GET /.well-known/jwks.json`.
-- `LedgerService.Api`: API de escrita para lancamentos em `POST /api/v1/lancamentos`, solicitacao/processamento de estorno, solicitacao/processamento de reprocessamento em `POST /api/v1/lancamentos/reprocessar` e consultas de status, com idempotencia e Outbox.
-- `BalanceService.Api`: API de leitura de consolidados, alimentada por eventos Kafka do Ledger.
+## Solucao
 
-Componentes principais:
+A POC separa escrita e leitura em servicos distintos. O `LedgerService` recebe comandos de lancamento, estorno e reprocessamento, persiste os dados e grava eventos em Outbox na mesma transacao. Um publisher assincrono envia os eventos ao Kafka. O `BalanceService` consome os eventos financeiros e atualiza saldos consolidados. O `Auth.Api` emite tokens JWT RS256 e publica JWKS para validacao offline pelas APIs de negocio.
 
-- `src/Auth.Api`
-- `src/LedgerService.Api`, `src/LedgerService.Application`, `src/LedgerService.Domain`, `src/LedgerService.Infrastructure`
-- `src/BalanceService.Api`, `src/BalanceService.Application`, `src/BalanceService.Domain`, `src/BalanceService.Infrastructure`
-- `tests/*`
+Principais servicos:
 
-## Primeiros passos
+| Servico | Papel |
+| --- | --- |
+| `Auth.Api` | Emite JWT RS256 por `POST /auth/login` e publica JWKS em `GET /.well-known/jwks.json`. |
+| `LedgerService.Api` | API de escrita para lancamentos, estornos, reprocessamentos, Outbox e status operacionais. |
+| `BalanceService.Api` | API de leitura de saldos consolidados, alimentada por eventos Kafka do Ledger. |
 
-Pre-requisitos principais:
+## Arquitetura
+
+`LedgerService` e `BalanceService` usam projetos por camada:
+
+- `Api`: entrada HTTP, autenticacao, autorizacao, Swagger, health/readiness e composicao via DI.
+- `Application`: casos de uso, handlers, validacao de entrada, idempotencia e orquestracao.
+- `Domain`: entidades, invariantes e regras de dominio sem dependencia de infraestrutura.
+- `Infrastructure`: EF Core, PostgreSQL, Kafka, Outbox, DLQ, hosted services e implementacoes tecnicas.
+
+`Auth.Api` permanece em projeto unico porque o escopo atual de autenticacao da POC e pequeno. A leitura arquitetural completa fica em [docs/architecture](docs/architecture/README.md) e as decisoes historicas ficam em [docs/adrs](docs/adrs/README.md).
+
+Documentacao arquitetural publicada:
+
+<https://rodri-oliveira-dev.github.io/poc-arquitetura/>
+
+## Pre-requisitos
 
 - .NET SDK conforme `global.json`.
 - Docker-compatible API para Testcontainers e stack local.
 - CLI `docker` com suporte a `docker compose` para a stack completa local.
-- PostgreSQL e Kafka, quando rodar as APIs fora de container.
+- PostgreSQL e Kafka acessiveis quando rodar as APIs fora de container.
 
-Comandos mais usados:
+O projeto nao exige Docker Desktop como premissa. No Windows sem Docker Desktop, o ambiente recomendado e Rancher Desktop com `moby/dockerd`.
+
+## Quickstart
+
+Restaure ferramentas, dependencias, build e testes:
 
 ```powershell
 dotnet tool restore
@@ -40,7 +58,7 @@ dotnet build ./LedgerService.slnx --configuration Release --no-restore
 dotnet test ./LedgerService.slnx --configuration Release --no-build --settings ./coverlet.runsettings
 ```
 
-Fluxo local completo:
+Suba a stack local completa no Windows:
 
 ```powershell
 ./scripts/start-local-stack.ps1
@@ -52,9 +70,35 @@ No Linux/macOS:
 ./scripts/start-local-stack.sh
 ```
 
-Esse script sobe a infraestrutura, aplica as migrations pelo host e inicia as APIs depois do schema estar pronto. O passo a passo manual fica em [desenvolvimento local](docs/development/local-development.md).
+Esse script sobe infraestrutura, aplica migrations pelo host e inicia as APIs depois do schema estar pronto. O passo a passo manual fica em [desenvolvimento local](docs/development/local-development.md).
 
-Testes de integracao selecionados usam Testcontainers com PostgreSQL real. O Testcontainers precisa de uma Docker-compatible API, nao da CLI `docker` nem de Docker Desktop especificamente. No Windows sem Docker Desktop, o ambiente recomendado e Rancher Desktop com `moby/dockerd`.
+## Comandos principais
+
+| Tarefa | Comando |
+| --- | --- |
+| Restaurar tools | `dotnet tool restore` |
+| Restaurar pacotes | `dotnet restore ./LedgerService.slnx` |
+| Build Release | `dotnet build ./LedgerService.slnx --configuration Release --no-restore` |
+| Testes sem rebuild | `dotnet test ./LedgerService.slnx --configuration Release --no-build --settings ./coverlet.runsettings` |
+| Testes com cobertura e gate | `./test.ps1` ou `./test.sh` |
+| Stack local completa | `./scripts/start-local-stack.ps1` ou `./scripts/start-local-stack.sh` |
+| Load test smoke | `./scripts/run-loadtests.ps1 -Mode smoke` ou `./scripts/run-loadtests.sh smoke` |
+
+## Testes
+
+O fluxo recomendado para validar uma mudanca localmente e:
+
+```powershell
+./test.ps1
+```
+
+No Linux/macOS:
+
+```bash
+./test.sh
+```
+
+Os scripts executam testes com cobertura e aplicam gate minimo de 80% de cobertura total de linhas. Alguns testes de integracao usam Testcontainers com PostgreSQL real e precisam acessar uma Docker-compatible API. Detalhes ficam em [cobertura de testes](docs/development/test-coverage.md) e [desenvolvimento local](docs/development/local-development.md#testcontainers-e-docker-compatible-api).
 
 ## Documentacao
 
@@ -67,59 +111,29 @@ Testes de integracao selecionados usam Testcontainers com PostgreSQL real. O Tes
 - [Autenticacao e autorizacao](docs/development/authentication.md)
 - [Kafka, Outbox e DLQ](docs/development/kafka-outbox.md)
 - [Observabilidade e operacao minima](docs/observability.md)
-- [Cobertura de testes](docs/development/test-coverage.md)
-- [Validacao de pull requests](docs/development/pull-request-validation.md)
-- [Mutation testing](docs/development/mutation-testing-stryker.md)
-- [GitHub Pages e LikeC4](docs/development/github-pages.md)
+- [Testes e cobertura](docs/development/test-coverage.md)
+- [Troubleshooting](docs/troubleshooting.md)
+- [FAQ](docs/faq.md)
+- [Instrucoes para Codex e agentes](AGENTS.md)
 
-Documentacao arquitetural publicada:
+## FAQ
 
-<https://rodri-oliveira-dev.github.io/poc-arquitetura/>
+**O que este projeto demonstra tecnicamente?**
 
-## Qualidade e validacao
+Microservicos .NET com separacao de escrita/leitura, Clean Architecture/DDD, Outbox, Kafka, PostgreSQL, JWT/JWKS, idempotencia, observabilidade e validacao automatizada. Veja [FAQ completa](docs/faq.md).
 
-O fluxo recomendado para validar uma mudanca e:
+**Como executo localmente?**
 
-```powershell
-./test.ps1
-```
+Use `./scripts/start-local-stack.ps1` no Windows ou `./scripts/start-local-stack.sh` no Linux/macOS. O guia completo fica em [desenvolvimento local](docs/development/local-development.md).
 
-Esse script executa testes com cobertura e aplica o gate minimo de 80% de cobertura total de linhas. Detalhes ficam em [cobertura de testes](docs/development/test-coverage.md).
+**Onde encontro as decisoes arquiteturais?**
 
-Pull requests devem passar pelo check `Build and test`, definido no workflow `pull-request-validation`. A validacao completa pos-merge/manual fica no workflow `dotnet-ci`.
+Use o indice de [ADRs](docs/adrs/README.md) e a leitura de [arquitetura](docs/architecture/README.md).
 
-## Load tests com k6
+**Como resolvo erros comuns?**
 
-Os testes de carga ficam em `loadtests/k6` e rodam em container dentro da rede do compose, usando `compose.k6.yaml`.
+Consulte [troubleshooting](docs/troubleshooting.md), especialmente para migrations, Docker-compatible API, Testcontainers, Swagger, Kafka/Outbox e observabilidade local.
 
-Fluxo local resumido:
+## Observacoes
 
-```powershell
-./scripts/start-local-stack.ps1
-```
-
-Em seguida, execute o modo curto:
-
-```powershell
-./scripts/run-loadtests.ps1 -Mode smoke
-```
-
-No Linux/macOS:
-
-```bash
-./scripts/start-local-stack.sh
-./scripts/run-loadtests.sh smoke
-```
-
-Os runners geram `.env.k6.auto`, obtêm o JWT no `Auth.Api`, executam os cenarios `ledger_resilience` e `balance_daily_50rps` no modo `smoke` e exportam summaries JSON em `artifacts/k6`. Esses arquivos gerados nao devem ser versionados.
-
-## Decisoes arquiteturais
-
-As decisoes do projeto ficam em [docs/adrs](docs/adrs/README.md). Use as ADRs como fonte de verdade para historico, trade-offs, decisoes aceitas e pontos de melhoria.
-
-## Troubleshooting rapido
-
-- Erro ao aplicar migrations: confira a connection string e se o PostgreSQL esta acessivel.
-- Swagger nao abre: confirme se a API esta rodando e se Swagger esta habilitado para o ambiente.
-- Outbox com logs repetidos: comportamento esperado do polling configurado em `Outbox:Publisher`.
-- Testcontainers nao encontra o Docker daemon: confira `docker version`, `docker ps` e o `DOCKER_HOST` documentado em [desenvolvimento local](docs/development/local-development.md).
+Os testes de carga ficam em `loadtests/k6` e rodam em container dentro da rede do compose, usando `compose.k6.yaml`. Arquivos gerados como `.env.k6.auto`, `artifacts/k6` e `TestResults` nao devem ser versionados.

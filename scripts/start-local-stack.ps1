@@ -68,7 +68,20 @@ try {
     $infraArgs += "--build"
   }
 
-  $infraArgs += @("ledger-db", "balance-db", "kafka", "kafka-init-topics", "auth-api")
+  $infraArgs += @(
+    "ledger-db",
+    "balance-db",
+    "kafka",
+    "kafka-init-topics",
+    "jaeger",
+    "otel-collector",
+    "prometheus",
+    "alertmanager",
+    "loki",
+    "alloy",
+    "grafana",
+    "auth-api"
+  )
   Invoke-DockerCompose $infraArgs
 
   Wait-Database "ledger-db" "appuser" "appdb"

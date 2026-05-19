@@ -19,16 +19,45 @@ model {
   }
 
   observability = softwareSystem "Observabilidade" {
-    description "Stack local de tracing distribuido com OpenTelemetry Collector e Jaeger."
+    description "Stack local de tracing distribuido, metricas tecnicas, logs centralizados e alertas basicos com OpenTelemetry Collector, Jaeger, Prometheus, Loki, Grafana Alloy, Alertmanager e Grafana."
 
     collector = container "OpenTelemetry Collector" {
       technology "OpenTelemetry Collector / OTLP"
-      description "Ponto local de entrada de telemetria; recebe OTLP das APIs em 4317/4318 e encaminha traces para o Jaeger."
+      description "Ponto local de entrada de telemetria; recebe OTLP das APIs em 4317/4318, encaminha traces para o Jaeger e expoe metricas em 9464 para scrape interno."
     }
 
     jaeger = container "Jaeger all-in-one" {
       technology "Jaeger / OTLP"
       description "Backend local de tracing com receiver OTLP interno e UI em 16686."
+    }
+
+    prometheus = container "Prometheus" {
+      technology "Prometheus"
+      description "Coleta metricas tecnicas expostas pelo OpenTelemetry Collector, carrega regras de alerta e disponibiliza UI local em 9090."
+    }
+
+    loki = container "Loki" {
+      technology "Grafana Loki"
+      description "Armazena logs centralizados dos containers da stack local, recebidos do Grafana Alloy, com API em 3100."
+    }
+
+    alloy = container "Grafana Alloy" {
+      technology "Grafana Alloy / loki.source.docker"
+      description "Descobre containers Docker do compose local, aplica labels estaveis e envia logs para o Loki sem alterar o provider de logging das aplicacoes."
+    }
+
+    alertmanager = container "Alertmanager" {
+      technology "Prometheus Alertmanager"
+      description "Recebe alertas tecnicos do Prometheus para visualizacao local, sem integracoes externas, com UI em 9093."
+    }
+
+    grafana = container "Grafana" {
+      technology "Grafana"
+      description "Visualiza metricas do Prometheus, logs do Loki, traces do Jaeger e dashboards provisionados pela UI local em 3000."
+
+      dashboards = component "Dashboards provisionados" {
+        description "Dashboards versionados em observability/grafana/dashboards para visao tecnica minima das APIs e do runtime .NET, com link para logs no Loki."
+      }
     }
   }
 
@@ -180,6 +209,15 @@ model {
   ledger.ledgerApi -> observability.collector "Exporta telemetria quando habilitado no compose" "OTLP"
   balance.balanceApi -> observability.collector "Exporta telemetria quando habilitado no compose" "OTLP"
   observability.collector -> observability.jaeger "Encaminha traces" "OTLP"
+  observability.prometheus -> observability.collector "Coleta metricas tecnicas" "Prometheus scrape"
+  observability.prometheus -> observability.alertmanager "Envia alertas tecnicos" "Alertmanager API"
+  observability.alloy -> observability.loki "Envia logs dos containers" "Loki push API"
+  observability.grafana -> observability.prometheus "Consulta metricas" "PromQL"
+  observability.grafana -> observability.loki "Consulta logs" "LogQL"
+  observability.grafana -> observability.jaeger "Abre traces por TraceId" "Jaeger datasource"
+  observability.grafana.dashboards -> observability.prometheus "Consulta metricas tecnicas" "PromQL"
+  observability.grafana.dashboards -> observability.loki "Linka logs por servico e janela" "Grafana Explore"
+  observability.grafana.dashboards -> observability.jaeger "Navega para traces via TraceId dos logs" "Derived field"
 
   ledger.ledgerApiLayer -> ledger.ledgerApplication "Chama caso de uso"
   ledger.ledgerApplication -> ledger.ledgerDomain "Cria agregados e usa contratos de repositorio"

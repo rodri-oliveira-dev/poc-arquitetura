@@ -8,6 +8,7 @@ volumes:
   ledger-postgres-data:
   balance-postgres-data:
   auth-api-data:
+  alloy-data:
 
 
 services:
@@ -162,7 +163,7 @@ services:
       - poc-net
 
   otel-collector:
-    image: docker.io/otel/opentelemetry-collector:0.152.0
+    image: docker.io/otel/opentelemetry-collector-contrib:0.152.0
     container_name: poc-otel-collector
     command: [ "--config=/etc/otelcol/config.yaml" ]
     depends_on:
@@ -172,6 +173,116 @@ services:
     expose:
       - "4317"
       - "4318"
+      - "9464"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256m
+          pids: 128
+    networks:
+      - poc-net
+
+  prometheus:
+    image: docker.io/prom/prometheus:v3.8.0
+    container_name: poc-prometheus
+    depends_on:
+      - otel-collector
+      - alertmanager
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./observability/prometheus:/etc/prometheus:ro
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256m
+          pids: 128
+    networks:
+      - poc-net
+
+  loki:
+    image: docker.io/grafana/loki:3.7.0
+    container_name: poc-loki
+    command:
+      - "-config.file=/etc/loki/loki-config.yaml"
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./observability/loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256m
+          pids: 128
+    networks:
+      - poc-net
+
+  alloy:
+    image: docker.io/grafana/alloy:v1.16.0
+    container_name: poc-alloy
+    command:
+      - "run"
+      - "--server.http.listen-addr=0.0.0.0:12345"
+      - "--storage.path=/var/lib/alloy/data"
+      - "/etc/alloy/config.alloy"
+    depends_on:
+      - loki
+    ports:
+      - "12345:12345"
+    volumes:
+      - ./observability/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - alloy-data:/var/lib/alloy/data
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256m
+          pids: 128
+    networks:
+      - poc-net
+
+  alertmanager:
+    image: docker.io/prom/alertmanager:v0.29.0
+    container_name: poc-alertmanager
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./observability/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128m
+          pids: 128
+    networks:
+      - poc-net
+
+  grafana:
+    image: docker.io/grafana/grafana:12.3.0
+    container_name: poc-grafana
+    depends_on:
+      - prometheus
+      - loki
+      - jaeger
+    environment:
+      GF_SECURITY_ADMIN_USER: "admin"
+      GF_SECURITY_ADMIN_PASSWORD: "admin"
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./observability/grafana/provisioning/datasources/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - ./observability/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
     deploy:
       resources:
         limits:
