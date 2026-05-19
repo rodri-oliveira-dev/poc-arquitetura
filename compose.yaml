@@ -187,17 +187,37 @@ services:
     container_name: poc-prometheus
     depends_on:
       - otel-collector
+      - alertmanager
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
     ports:
       - "9090:9090"
     volumes:
-      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/prometheus:/etc/prometheus:ro
     deploy:
       resources:
         limits:
           cpus: "0.25"
           memory: 256m
+          pids: 128
+    networks:
+      - poc-net
+
+  alertmanager:
+    image: docker.io/prom/alertmanager:v0.29.0
+    container_name: poc-alertmanager
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./observability/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128m
           pids: 128
     networks:
       - poc-net

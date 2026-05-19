@@ -116,7 +116,7 @@ $env:Observability__OpenTelemetry__OtlpEndpoint = "https://otel-collector.exampl
 $env:Observability__OpenTelemetry__UseConsoleExporter = "false"
 ```
 
-O endpoint real deve ser fornecido pela plataforma de execucao ou secret/config store. Este repositorio provisiona apenas a stack local de desenvolvimento com OpenTelemetry Collector, Jaeger, Prometheus e Grafana. Tempo, Loki, Alertmanager, centralizacao de logs e stack produtiva equivalente continuam fora do escopo.
+O endpoint real deve ser fornecido pela plataforma de execucao ou secret/config store. Este repositorio provisiona apenas a stack local de desenvolvimento com OpenTelemetry Collector, Jaeger, Prometheus, Alertmanager e Grafana. Tempo, Loki, centralizacao de logs, notificacoes externas e stack produtiva equivalente continuam fora do escopo.
 
 ## Logs
 
@@ -305,7 +305,7 @@ Tags proibidas em metricas customizadas:
 
 Para erros, `error_type` usa o nome estavel da excecao, por exemplo `KafkaException`, `ProduceException` ou `TimeoutException`. Para DLQ, `reason` usa classificacoes estaveis: `deserialization_failed`, `validation_failed`, `non_recoverable_processing_failure` ou `unknown`.
 
-Estas metricas ainda nao possuem dashboard especifico nem alertas nesta etapa. No compose local, o OpenTelemetry Collector recebe metricas OTLP e as expoe no exporter Prometheus junto das metricas tecnicas automaticas. Prometheus e Grafana foram adicionados para validacao tecnica da coleta, nao para definir SLOs, regras de alerta ou operacao produtiva.
+Estas metricas ainda nao possuem dashboard especifico nem alertas proprios nesta etapa. No compose local, o OpenTelemetry Collector recebe metricas OTLP e as expoe no exporter Prometheus junto das metricas tecnicas automaticas. Prometheus, Alertmanager e Grafana foram adicionados para validacao tecnica local, nao para definir SLOs, alertas de negocio ou operacao produtiva.
 
 Referencias relacionadas:
 
@@ -408,6 +408,7 @@ Portas expostas no host:
 - OpenTelemetry Collector OTLP gRPC/HTTP: `otel-collector:4317` e `otel-collector:4318` apenas na rede interna do compose;
 - OpenTelemetry Collector Prometheus exporter: `otel-collector:9464` apenas na rede interna do compose;
 - Prometheus: `http://localhost:9090`;
+- Alertmanager: `http://localhost:9093`;
 - Grafana: `http://localhost:3000`.
 
 O compose sobrescreve configuracoes por variaveis de ambiente para usar os nomes internos `ledger-db`, `balance-db`, `kafka` e `otel-collector`. Aplique migrations manualmente antes de usar as APIs em banco vazio.
@@ -420,6 +421,7 @@ O compose local inclui OpenTelemetry Collector, Jaeger all-in-one com OTLP habil
 Aplicacoes -> OpenTelemetry Collector -> Jaeger
 Aplicacoes -> OpenTelemetry Collector -> Prometheus endpoint
 Prometheus -> OpenTelemetry Collector
+Prometheus -> Alertmanager
 Grafana -> Prometheus
 ```
 
@@ -427,9 +429,11 @@ Grafana -> Prometheus
 
 O Collector recebe OTLP via gRPC em `4317` e HTTP em `4318`, aplica `batch`, encaminha traces para `jaeger:4317` usando o exporter `otlp_grpc` e expoe metricas no exporter `prometheus` em `0.0.0.0:9464`. Essa porta nao e publicada no host; o Prometheus acessa `otel-collector:9464` pela rede Docker.
 
-O Jaeger local continua sendo o backend de visualizacao de traces. O Prometheus coleta apenas o Collector pelo job `otel-collector` a cada `15s`. O Grafana recebe um datasource Prometheus provisionado com uid `prometheus`, apontando para `http://prometheus:9090` e marcado como default.
+O Jaeger local continua sendo o backend de visualizacao de traces. O Prometheus coleta o Collector pelo job `otel-collector` a cada `15s` e tambem coleta `prometheus` e `alertmanager` para sinais tecnicos da propria stack de alerting. O Grafana recebe um datasource Prometheus provisionado com uid `prometheus`, apontando para `http://prometheus:9090` e marcado como default.
 
-As metricas desta etapa sao tecnicas automaticas da instrumentacao OpenTelemetry, como ASP.NET Core, `HttpClient` e runtime .NET. Metricas customizadas de negocio, Outbox, Kafka e DLQ, dashboards complexos, alertas, Alertmanager, Loki e centralizacao de logs continuam fora do escopo desta etapa.
+O Alertmanager local recebe alertas do Prometheus pelo endereco interno `alertmanager:9093`. Ele usa receiver local sem envio externo; a UI fica disponivel em `http://localhost:9093`.
+
+As metricas desta etapa sao tecnicas automaticas da instrumentacao OpenTelemetry, como ASP.NET Core, `HttpClient` e runtime .NET. Metricas customizadas de negocio, Outbox, Kafka e DLQ, dashboards complexos, SLOs, Loki, centralizacao de logs e notificacoes externas continuam fora do escopo desta etapa.
 
 ### Dashboards Grafana provisionados
 
@@ -457,6 +461,33 @@ Limitacoes conhecidas:
 - os dashboards nao definem SLO, alerta, regra de negocio, retencao ou operacao produtiva;
 - se a versao futura da instrumentacao alterar nomes ou labels das metricas automaticas, os JSONs devem ser revisados junto com a validacao no Prometheus.
 
+### Alertas tecnicos Prometheus
+
+As regras locais ficam em `observability/prometheus/rules/technical-alerts.yml` e sao carregadas pelo Prometheus por `rule_files`. O Prometheus envia os alertas para o Alertmanager local configurado em `observability/alertmanager/alertmanager.yml`.
+
+Alertas criados:
+
+| Alerta | Objetivo | Expressao PromQL | Severidade | `for` |
+| --- | --- | --- | --- | --- |
+| `CollectorDown` | Detectar indisponibilidade do OpenTelemetry Collector como target de metricas. | `up{job="otel-collector"} == 0` | `critical` | `1m` |
+| `AlertmanagerDown` | Detectar indisponibilidade do Alertmanager local. | `up{job="alertmanager"} == 0` | `critical` | `1m` |
+| `PrometheusConfigReloadFailed` | Detectar falha de reload da configuracao do Prometheus. | `prometheus_config_last_reload_successful == 0` | `critical` | `1m` |
+| `HighHttp5xxRate` | Detectar taxa elevada de respostas HTTP 5xx nas APIs. | `sum by (exported_job) (rate(http_server_request_duration_seconds_count{exported_job=~"Auth.Api\|LedgerService.Api\|BalanceService.Api", http_response_status_code=~"5.."}[5m])) > 0.1` | `warning` | `2m` |
+| `HighHttpRequestDuration` | Detectar p95 de latencia HTTP elevado nas APIs. | `histogram_quantile(0.95, sum by (exported_job, le) (rate(http_server_request_duration_seconds_bucket{exported_job=~"Auth.Api\|LedgerService.Api\|BalanceService.Api"}[5m]))) > 2` | `warning` | `5m` |
+| `ReadinessEndpointFailing` | Detectar respostas 5xx observadas em `GET /ready` no Ledger ou Balance. | `sum by (exported_job) (increase(http_server_request_duration_seconds_count{exported_job=~"LedgerService.Api\|BalanceService.Api", http_route="/ready", http_response_status_code=~"5.."}[5m])) > 0` | `warning` | `1m` |
+| `HighDotnetExceptionRate` | Detectar taxa elevada de excecoes .NET observadas pelo runtime. | `sum by (exported_job) (rate(dotnet_exceptions_total{exported_job=~"Auth.Api\|LedgerService.Api\|BalanceService.Api"}[5m])) > 1` | `warning` | `5m` |
+
+Esses alertas usam somente labels de baixa cardinalidade ja presentes nas metricas tecnicas atuais, como `job`, `instance`, `service`, `exported_job`, `http_response_status_code` e `http_route`. Eles nao usam `CorrelationId`, `TraceId`, `SpanId`, `event_id`, `merchant_id` ou identificadores por requisicao.
+
+Alertas evitados nesta etapa:
+
+- `ServiceDown` generico e `PrometheusTargetMissing`: ficariam redundantes com alertas especificos para `CollectorDown` e `AlertmanagerDown` na topologia atual.
+- `JaegerDown` e `GrafanaDown`: Jaeger e Grafana nao sao targets Prometheus configurados nesta etapa.
+- Alertas de Outbox, Kafka, DLQ, dominio ou SLO: ficam fora do escopo enquanto nao houver criterio operacional e metricas adequadas para alerta.
+- Alertas de readiness por sonda ativa: o Prometheus atual nao faz probe HTTP direto dos endpoints; `ReadinessEndpointFailing` depende de chamadas reais a `GET /ready` gerarem metricas HTTP.
+
+Para visualizar as regras, acesse `http://localhost:9090/alerts`. Para ver o estado entregue ao Alertmanager, acesse `http://localhost:9093/#/alerts`. Silences locais podem ser criados pela UI do Alertmanager durante investigacoes manuais; nao ha roteamento para e-mail, Slack, Teams, PagerDuty ou webhook externo.
+
 Suba a stack:
 
 ```bash
@@ -471,6 +502,7 @@ Para conferir os componentes de observabilidade:
 docker compose logs otel-collector
 docker compose logs jaeger
 docker compose logs prometheus
+docker compose logs alertmanager
 docker compose logs grafana
 ```
 
@@ -492,7 +524,9 @@ Na UI do Jaeger, use o seletor de servico para procurar:
 
 Ao consultar traces, o esperado e visualizar spans de entrada HTTP gerados pela instrumentacao ASP.NET Core para `GET /health` e `GET /ready` nos servicos que expoem esses endpoints. A validacao confirma apenas o caminho minimo de traces HTTP; ela nao depende de eventos Kafka, Outbox, endpoints autenticados, spans customizados ou metricas customizadas.
 
-No Prometheus, acesse `http://localhost:9090/targets` e confirme que o target `otel-collector:9464` esta `UP`. Depois gere chamadas HTTP para as APIs e pesquise metricas tecnicas automaticas. Os nomes podem variar conforme a versao dos pacotes OpenTelemetry e do runtime .NET, mas normalmente incluem series relacionadas a HTTP server, HTTP client e runtime/processo .NET. Prometheus nao deve ter targets diretos para `Auth.Api`, `LedgerService.Api` ou `BalanceService.Api` nesta etapa.
+No Prometheus, acesse `http://localhost:9090/targets` e confirme que os targets `otel-collector:9464`, `alertmanager:9093` e `localhost:9090` estao `UP`. Em `http://localhost:9090/alerts`, confirme que o grupo `technical-alerts` foi carregado. Depois gere chamadas HTTP para as APIs e pesquise metricas tecnicas automaticas. Os nomes podem variar conforme a versao dos pacotes OpenTelemetry e do runtime .NET, mas normalmente incluem series relacionadas a HTTP server, HTTP client e runtime/processo .NET. Prometheus nao deve ter targets diretos para `Auth.Api`, `LedgerService.Api` ou `BalanceService.Api` nesta etapa.
+
+No Alertmanager, acesse `http://localhost:9093/#/alerts` para visualizar alertas recebidos do Prometheus. A configuracao local nao envia notificacoes para sistemas externos.
 
 No Grafana, acesse `http://localhost:3000` com as credenciais locais de POC `admin`/`admin`. Em `Connections` ou `Data sources`, confirme o datasource `Prometheus` apontando para `http://prometheus:9090`. Em `Dashboards`, abra a pasta `Observability` e confirme que os dashboards `APIs - Visão Geral` e `Runtime .NET - Visão Geral` foram carregados automaticamente. Para validar a consulta, use Explore com uma das metricas tecnicas listadas acima.
 
@@ -514,7 +548,7 @@ Pre-requisitos:
 
 - Docker-compatible API disponivel;
 - stack local com migrations aplicadas;
-- portas do compose livres: `5030`, `5226`, `5228`, `15432`, `15433`, `16686`, `19092`, `4317`, `4318`, `9090` e `3000`;
+- portas do compose livres: `5030`, `5226`, `5228`, `15432`, `15433`, `16686`, `19092`, `4317`, `4318`, `9090`, `9093` e `3000`;
 - OpenTelemetry habilitado pelo compose para `Auth.Api`, `LedgerService.Api` e `BalanceService.Api`.
 
 Suba a stack local completa. O script aplica migrations antes de iniciar Ledger e Balance:
@@ -583,7 +617,7 @@ Pre-requisitos:
 - stack local completa iniciada, preferencialmente com `./scripts/start-local-stack.ps1`;
 - migrations aplicadas pelo startup local;
 - Docker-compatible API disponivel para `docker compose exec -T ... psql`;
-- portas do compose livres e acessiveis: `5030`, `5226`, `5228`, `16686`, `9090` e `3000`;
+- portas do compose livres e acessiveis: `5030`, `5226`, `5228`, `16686`, `9090`, `9093` e `3000`;
 - OpenTelemetry habilitado pelo compose para consulta de traces no Jaeger.
 
 Os dois scripts usam `scripts/get-token.ps1`, enviam `Authorization`, `Idempotency-Key` e `X-Correlation-Id` explicito, fazem polling curto configuravel e falham com erro quando um estado esperado nao aparece.

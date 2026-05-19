@@ -22,6 +22,7 @@ views {
     include observability.collector
     include observability.jaeger
     include observability.prometheus
+    include observability.alertmanager
     include observability.grafana
     autoLayout LeftRight
   }
@@ -40,6 +41,7 @@ views {
     include observability.collector
     include observability.jaeger
     include observability.prometheus
+    include observability.alertmanager
     include observability.grafana
     autoLayout LeftRight
   }

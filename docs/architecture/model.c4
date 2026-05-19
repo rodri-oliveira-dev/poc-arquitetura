@@ -19,7 +19,7 @@ model {
   }
 
   observability = softwareSystem "Observabilidade" {
-    description "Stack local de tracing distribuido e metricas tecnicas com OpenTelemetry Collector, Jaeger, Prometheus e Grafana."
+    description "Stack local de tracing distribuido, metricas tecnicas e alertas basicos com OpenTelemetry Collector, Jaeger, Prometheus, Alertmanager e Grafana."
 
     collector = container "OpenTelemetry Collector" {
       technology "OpenTelemetry Collector / OTLP"
@@ -33,7 +33,12 @@ model {
 
     prometheus = container "Prometheus" {
       technology "Prometheus"
-      description "Coleta metricas tecnicas expostas pelo OpenTelemetry Collector e disponibiliza UI local em 9090."
+      description "Coleta metricas tecnicas expostas pelo OpenTelemetry Collector, carrega regras de alerta e disponibiliza UI local em 9090."
+    }
+
+    alertmanager = container "Alertmanager" {
+      technology "Prometheus Alertmanager"
+      description "Recebe alertas tecnicos do Prometheus para visualizacao local, sem integracoes externas, com UI em 9093."
     }
 
     grafana = container "Grafana" {
@@ -191,6 +196,7 @@ model {
   balance.balanceApi -> observability.collector "Exporta telemetria quando habilitado no compose" "OTLP"
   observability.collector -> observability.jaeger "Encaminha traces" "OTLP"
   observability.prometheus -> observability.collector "Coleta metricas tecnicas" "Prometheus scrape"
+  observability.prometheus -> observability.alertmanager "Envia alertas tecnicos" "Alertmanager API"
   observability.grafana -> observability.prometheus "Consulta metricas" "PromQL"
 
   ledger.ledgerApiLayer -> ledger.ledgerApplication "Chama caso de uso"

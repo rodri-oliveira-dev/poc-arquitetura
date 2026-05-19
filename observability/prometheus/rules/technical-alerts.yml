@@ -1,0 +1,94 @@
+groups:
+  - name: technical-alerts
+    rules:
+      - alert: CollectorDown
+        expr: up{job="otel-collector"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: otel-collector
+        annotations:
+          summary: "OpenTelemetry Collector indisponivel"
+          description: "O Prometheus nao consegue coletar metricas do target {{ $labels.instance }} do job {{ $labels.job }}. Verifique o container otel-collector, a porta interna 9464 e os logs do Collector."
+
+      - alert: AlertmanagerDown
+        expr: up{job="alertmanager"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: alertmanager
+        annotations:
+          summary: "Alertmanager indisponivel"
+          description: "O Prometheus nao consegue coletar metricas do Alertmanager em {{ $labels.instance }}. Verifique o container alertmanager e a porta interna 9093."
+
+      - alert: PrometheusConfigReloadFailed
+        expr: prometheus_config_last_reload_successful == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: prometheus
+        annotations:
+          summary: "Reload da configuracao do Prometheus falhou"
+          description: "O ultimo reload de configuracao do Prometheus falhou. Verifique a sintaxe de prometheus.yml e dos arquivos em /etc/prometheus/rules."
+
+      - alert: HighHttp5xxRate
+        expr: |
+          sum by (exported_job) (
+            rate(http_server_request_duration_seconds_count{
+              exported_job=~"Auth.Api|LedgerService.Api|BalanceService.Api",
+              http_response_status_code=~"5.."
+            }[5m])
+          ) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Taxa elevada de HTTP 5xx em {{ $labels.exported_job }}"
+          description: "{{ $labels.exported_job }} esta retornando mais de 0.1 resposta 5xx por segundo na janela de 5 minutos. Verifique logs, traces no Jaeger e dependencias do servico."
+
+      - alert: HighHttpRequestDuration
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (exported_job, le) (
+              rate(http_server_request_duration_seconds_bucket{
+                exported_job=~"Auth.Api|LedgerService.Api|BalanceService.Api"
+              }[5m])
+            )
+          ) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Latencia HTTP p95 elevada em {{ $labels.exported_job }}"
+          description: "O p95 de latencia HTTP de {{ $labels.exported_job }} ficou acima de 2 segundos por 5 minutos. Verifique rotas lentas no Grafana e spans recentes no Jaeger."
+
+      - alert: ReadinessEndpointFailing
+        expr: |
+          sum by (exported_job) (
+            increase(http_server_request_duration_seconds_count{
+              exported_job=~"LedgerService.Api|BalanceService.Api",
+              http_route="/ready",
+              http_response_status_code=~"5.."
+            }[5m])
+          ) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Readiness falhando em {{ $labels.exported_job }}"
+          description: "{{ $labels.exported_job }} retornou falha em GET /ready na janela de 5 minutos. Verifique PostgreSQL, Kafka, topicos configurados e logs do servico."
+
+      - alert: HighDotnetExceptionRate
+        expr: |
+          sum by (exported_job) (
+            rate(dotnet_exceptions_total{
+              exported_job=~"Auth.Api|LedgerService.Api|BalanceService.Api"
+            }[5m])
+          ) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Taxa elevada de excecoes .NET em {{ $labels.exported_job }}"
+          description: "{{ $labels.exported_job }} esta observando mais de 1 excecao por segundo na janela de 5 minutos. Verifique logs, traces e tipos de excecao no dashboard de runtime."
