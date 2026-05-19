@@ -427,9 +427,35 @@ Grafana -> Prometheus
 
 O Collector recebe OTLP via gRPC em `4317` e HTTP em `4318`, aplica `batch`, encaminha traces para `jaeger:4317` usando o exporter `otlp_grpc` e expoe metricas no exporter `prometheus` em `0.0.0.0:9464`. Essa porta nao e publicada no host; o Prometheus acessa `otel-collector:9464` pela rede Docker.
 
-O Jaeger local continua sendo o backend de visualizacao de traces. O Prometheus coleta apenas o Collector pelo job `otel-collector` a cada `15s`. O Grafana recebe um datasource Prometheus provisionado apontando para `http://prometheus:9090` e marcado como default.
+O Jaeger local continua sendo o backend de visualizacao de traces. O Prometheus coleta apenas o Collector pelo job `otel-collector` a cada `15s`. O Grafana recebe um datasource Prometheus provisionado com uid `prometheus`, apontando para `http://prometheus:9090` e marcado como default.
 
 As metricas desta etapa sao tecnicas automaticas da instrumentacao OpenTelemetry, como ASP.NET Core, `HttpClient` e runtime .NET. Metricas customizadas de negocio, Outbox, Kafka e DLQ, dashboards complexos, alertas, Alertmanager, Loki e centralizacao de logs continuam fora do escopo desta etapa.
+
+### Dashboards Grafana provisionados
+
+Os dashboards locais ficam versionados em `observability/grafana/dashboards/` e sao carregados por provisioning em `observability/grafana/provisioning/dashboards/dashboards.yml`. O `compose.yaml` monta esses arquivos no container Grafana em modo somente leitura, entao nao ha configuracao manual pos-subida.
+
+Dashboards criados:
+
+- `APIs - Visão Geral`: visao tecnica minima das APIs usando metricas automaticas HTTP.
+- `Runtime .NET - Visão Geral`: visao tecnica minima do runtime .NET usando metricas automaticas `System.Runtime`.
+
+Metricas usadas nos dashboards:
+
+- `http_server_request_duration_seconds_count`: volume e taxa de requisicoes HTTP por servico, status, metodo e rota normalizada.
+- `http_server_request_duration_seconds_bucket`: percentil 95 de duracao HTTP por servico.
+- `dotnet_process_memory_working_set_bytes`: memoria do processo por servico.
+- `dotnet_gc_collections_total`: coletas de GC por geracao.
+- `dotnet_thread_pool_queue_length_total`: tamanho da fila do ThreadPool.
+- `dotnet_exceptions_total`: excecoes observadas pelo runtime por tipo estavel.
+
+As queries agrupam principalmente por `exported_job`, que representa `Auth.Api`, `LedgerService.Api` ou `BalanceService.Api` nas series exportadas pelo Collector. O painel por rota usa `http_route` somente porque a instrumentacao ASP.NET Core exporta rotas normalizadas, como `/health`, `/ready` e templates de rota, evitando identificadores unicos.
+
+Limitacoes conhecidas:
+
+- dashboards de Outbox, Kafka, DLQ e dominio dependem de metricas customizadas especificas e ficam para etapas futuras;
+- os dashboards nao definem SLO, alerta, regra de negocio, retencao ou operacao produtiva;
+- se a versao futura da instrumentacao alterar nomes ou labels das metricas automaticas, os JSONs devem ser revisados junto com a validacao no Prometheus.
 
 Suba a stack:
 
@@ -468,7 +494,7 @@ Ao consultar traces, o esperado e visualizar spans de entrada HTTP gerados pela 
 
 No Prometheus, acesse `http://localhost:9090/targets` e confirme que o target `otel-collector:9464` esta `UP`. Depois gere chamadas HTTP para as APIs e pesquise metricas tecnicas automaticas. Os nomes podem variar conforme a versao dos pacotes OpenTelemetry e do runtime .NET, mas normalmente incluem series relacionadas a HTTP server, HTTP client e runtime/processo .NET. Prometheus nao deve ter targets diretos para `Auth.Api`, `LedgerService.Api` ou `BalanceService.Api` nesta etapa.
 
-No Grafana, acesse `http://localhost:3000` com as credenciais locais de POC `admin`/`admin`. Em `Connections` ou `Data sources`, confirme o datasource `Prometheus` apontando para `http://prometheus:9090`. Para validar a consulta, use Explore com uma metrica tecnica que ja exista no Prometheus.
+No Grafana, acesse `http://localhost:3000` com as credenciais locais de POC `admin`/`admin`. Em `Connections` ou `Data sources`, confirme o datasource `Prometheus` apontando para `http://prometheus:9090`. Em `Dashboards`, abra a pasta `Observability` e confirme que os dashboards `APIs - Visão Geral` e `Runtime .NET - Visão Geral` foram carregados automaticamente. Para validar a consulta, use Explore com uma das metricas tecnicas listadas acima.
 
 ### Validacao Auth -> Ledger -> Outbox -> Kafka -> Balance
 

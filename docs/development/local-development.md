@@ -38,7 +38,7 @@ O `compose.yaml` sobe:
 - OpenTelemetry Collector como entrada local de telemetria OTLP;
 - Jaeger all-in-one como backend local de visualizacao de traces;
 - Prometheus para coletar metricas tecnicas expostas pelo Collector;
-- Grafana com datasource Prometheus provisionado.
+- Grafana com datasource Prometheus e dashboards minimos provisionados.
 
 Subir a stack:
 
@@ -90,7 +90,7 @@ Portas expostas no host:
 | Prometheus | `http://localhost:9090/` |
 | Grafana | `http://localhost:3000/` |
 
-O compose sobrescreve configuracoes por variaveis de ambiente para usar hosts internos como `ledger-db`, `balance-db`, `kafka` e `otel-collector`. No compose, as APIs enviam OTLP somente para o Collector. O Collector encaminha traces para o Jaeger e expoe metricas em formato Prometheus para scrape interno. Prometheus coleta o Collector, e Grafana consulta o Prometheus. O ambiente local do compose roda como `Development`.
+O compose sobrescreve configuracoes por variaveis de ambiente para usar hosts internos como `ledger-db`, `balance-db`, `kafka` e `otel-collector`. No compose, as APIs enviam OTLP somente para o Collector. O Collector encaminha traces para o Jaeger e expoe metricas em formato Prometheus para scrape interno. Prometheus coleta o Collector, e Grafana consulta o Prometheus. O Grafana carrega automaticamente a pasta `Observability` com os dashboards `APIs - Visão Geral` e `Runtime .NET - Visão Geral`, versionados em `observability/grafana/dashboards/`. O ambiente local do compose roda como `Development`.
 
 ## Migrations via compose
 

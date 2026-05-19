@@ -20,6 +20,8 @@ O OpenTelemetry Collector continua sendo o ponto central de entrada da telemetri
 
 O Prometheus faz scrape somente do Collector, usando o job `otel-collector`. O Grafana e provisionado com datasource Prometheus apontando para `http://prometheus:9090`.
 
+O Grafana tambem carrega dashboards minimos versionados por provisioning de arquivos: `APIs - Visão Geral` e `Runtime .NET - Visão Geral`. Eles usam apenas metricas tecnicas automaticas ja exportadas para o Prometheus, sem metricas customizadas, alertas ou acoplamento das aplicacoes ao Grafana.
+
 A imagem do Collector passa para `otel/opentelemetry-collector-contrib` na mesma versao ja usada pela stack local para disponibilizar o exporter Prometheus.
 
 ## Consequencias
@@ -27,13 +29,14 @@ A imagem do Collector passa para `otel/opentelemetry-collector-contrib` na mesma
 - As APIs continuam exportando OTLP apenas para o Collector.
 - Jaeger continua recebendo traces pelo pipeline existente.
 - Prometheus nao coleta diretamente de `Auth.Api`, `LedgerService.Api` ou `BalanceService.Api`.
-- Grafana usa Prometheus como datasource local provisionado.
+- Grafana usa Prometheus como datasource local provisionado e carrega dashboards minimos por arquivos versionados.
 - A porta `9464` do Collector fica exposta apenas internamente para o Prometheus.
-- Logs, Loki, Alertmanager, alertas, remote write e dashboards complexos continuam fora do escopo.
+- Logs, Loki, Alertmanager, alertas, remote write, dashboards de negocio e dashboards complexos continuam fora do escopo.
 
 ## Beneficios
 
 - Permite validar metricas tecnicas automaticas sem alterar codigo C#.
+- Permite inspecionar rapidamente volume HTTP, erros 5xx, latencia HTTP e sinais basicos do runtime .NET.
 - Mantem o Collector como camada de desacoplamento entre aplicacoes e backends de observabilidade.
 - Preserva a possibilidade de trocar ou adicionar backends no futuro por configuracao de infraestrutura.
 - Mantem a stack simples e adequada para POC local.
@@ -44,6 +47,7 @@ A imagem do Collector passa para `otel/opentelemetry-collector-contrib` na mesma
 - Grafana local usa credenciais simples de POC (`admin`/`admin`), sem pretensao de ambiente compartilhado ou produtivo.
 - As metricas ficam em memoria/armazenamento efemero do container Prometheus, pois persistencia de dados e retencao operacional nao fazem parte desta etapa.
 - A disponibilidade do Grafana depende do Prometheus, e o Prometheus depende do endpoint de metricas do Collector.
+- Mudancas futuras nos nomes ou labels das metricas automaticas podem exigir revisao dos JSONs de dashboard.
 
 ## Alternativas consideradas
 
@@ -57,4 +61,7 @@ A imagem do Collector passa para `otel/opentelemetry-collector-contrib` na mesma
    - Rejeitado porque impede validar metricas tecnicas automaticas na POC local.
 
 4. **Criar dashboards complexos agora**
-   - Rejeitado porque a etapa atual e apenas habilitar coleta e datasource para validacao tecnica.
+   - Rejeitado porque a etapa atual e apenas habilitar visualizacao tecnica minima para validacao local.
+
+5. **Criar dashboards de Outbox, Kafka, DLQ ou dominio**
+   - Rejeitado porque esses dashboards dependem de metricas customizadas e criterios operacionais futuros.

@@ -215,6 +215,8 @@ services:
       - "3000:3000"
     volumes:
       - ./observability/grafana/provisioning/datasources/prometheus.yml:/etc/grafana/provisioning/datasources/prometheus.yml:ro
+      - ./observability/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
     deploy:
       resources:
         limits:
