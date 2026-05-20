@@ -102,7 +102,7 @@ model {
       }
 
       ledgerInfrastructure = component "Infrastructure Layer" {
-        description "EF Core, AppDbContext, repositories concretos, migrations e implementacoes tecnicas da API, sem registrar HostedServices de Worker."
+        description "EF Core, AppDbContext, repositories concretos, migrations e implementacoes tecnicas compartilhadas pela API, sem adapters Kafka nem HostedServices de Worker."
       }
     }
 
@@ -119,7 +119,7 @@ model {
       }
 
       ledgerWorkerInfrastructure = component "Worker infrastructure" {
-        description "EF Core, repositories, produtor Kafka, consumers, metrics e implementacoes tecnicas registradas no Worker."
+        description "Adapters exclusivos do Worker: produtor Kafka, consumers, metrics e HostedServices registrados pelo processo Worker."
       }
 
       ledgerOutbox = component "Outbox publisher" {
@@ -161,7 +161,7 @@ model {
       }
 
       balanceInfrastructure = component "Infrastructure Layer" {
-        description "EF Core, BalanceDbContext, repositories concretos, migrations e implementacoes tecnicas da API, sem registrar consumer Kafka."
+        description "EF Core, BalanceDbContext, repositories concretos, migrations e implementacoes tecnicas compartilhadas pela API, sem adapters Kafka nem HostedServices."
       }
     }
 
@@ -178,7 +178,7 @@ model {
       }
 
       balanceWorkerInfrastructure = component "Worker infrastructure" {
-        description "EF Core, repositories, consumer Kafka, produtor DLQ, metrics e implementacoes tecnicas registradas no Worker."
+        description "Adapters exclusivos do Worker: consumer Kafka, produtor DLQ, metrics e HostedService registrados pelo processo Worker."
       }
 
       balanceConsumer = component "Kafka consumer" {

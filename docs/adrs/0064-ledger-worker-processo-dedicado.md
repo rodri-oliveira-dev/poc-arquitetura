@@ -8,6 +8,8 @@ Aceito
 
 O `LedgerService.Api` passou a hospedar apenas a superficie HTTP do Ledger. Os componentes assincronos do Ledger continuavam implementados em `LedgerService.Infrastructure`, mas precisavam de um host proprio para evitar que a API HTTP tambem executasse polling de Outbox, processamento de estornos e consumo Kafka de reprocessamentos.
 
+Nota de evolucao: em reorganizacao posterior, os HostedServices e adapters tecnicos exclusivos de background foram movidos fisicamente para `LedgerService.Worker`; `LedgerService.Infrastructure` ficou com persistencia, repositories e componentes compartilhados.
+
 ## Decisao
 
 Criar `LedgerService.Worker` como processo .NET Worker Service separado da API.

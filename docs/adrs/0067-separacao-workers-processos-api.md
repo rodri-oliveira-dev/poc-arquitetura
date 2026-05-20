@@ -16,7 +16,7 @@ Separar APIs e workers em processos distintos.
 
 APIs devem servir HTTP. Workers devem executar processamento assincrono continuo.
 
-A camada `Application` continua compartilhada entre API e Worker para preservar casos de uso, validacoes e orquestracao. A camada `Infrastructure` pode ser compartilhada, mas o composition root deve ser explicito por processo, evitando que a API registre HostedServices que pertencem ao Worker.
+A camada `Application` continua compartilhada entre API e Worker para preservar casos de uso, validacoes e orquestracao. A camada `Infrastructure` pode ser compartilhada para persistencia, repositories e componentes realmente comuns. HostedServices e adapters tecnicos exclusivos de background devem ficar fisicamente no projeto Worker correspondente, com composition root explicito por processo.
 
 Workers separados nesta decisao:
 

@@ -5,8 +5,8 @@ using System.Diagnostics;
 using BalanceService.Application.Balances.Commands;
 using BalanceService.Domain.Balances;
 using BalanceService.Domain.Exceptions;
-using BalanceService.Infrastructure.Messaging.Kafka;
-using BalanceService.Infrastructure.Observability;
+using BalanceService.Worker.Messaging.Kafka;
+using BalanceService.Worker.Observability;
 
 using Confluent.Kafka;
 

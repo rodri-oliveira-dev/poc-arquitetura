@@ -1,5 +1,5 @@
-using LedgerService.Infrastructure;
-using LedgerService.Infrastructure.Messaging.Kafka;
+using LedgerService.Worker.Extensions;
+using LedgerService.Worker.Messaging.Kafka;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;

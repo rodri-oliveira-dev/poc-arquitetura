@@ -32,9 +32,11 @@ Componentes principais:
 
 - `src/Auth.Api`: emite JWT RS256, publica JWKS em `/.well-known/jwks.json`, usa usuario/senha fixos de POC e persiste chave RSA em arquivo.
 - `src/LedgerService.Api`: endpoint de escrita `POST /api/v1/lancamentos`, JWT Bearer via JWKS, scopes, CORS, rate limiting, security headers, ProblemDetails, `/health`, `/ready`.
-- `src/LedgerService.Infrastructure`: EF Core/PostgreSQL, Outbox, Kafka producer com idempotencia habilitada, headers de evento e correlacao.
+- `src/LedgerService.Infrastructure`: EF Core/PostgreSQL, repositories, migrations e Outbox persistida.
+- `src/LedgerService.Worker`: Outbox publisher, Kafka producer com idempotencia habilitada, headers de evento/correlacao e processamentos assincronos.
 - `src/BalanceService.Api`: endpoints de leitura de consolidados, JWT Bearer via JWKS, scopes, CORS, rate limiting, security headers, ProblemDetails, `/health`, `/ready`.
-- `src/BalanceService.Infrastructure`: Kafka consumer, processamento idempotente por evento, DLQ e persistencia de projecao em PostgreSQL.
+- `src/BalanceService.Infrastructure`: persistencia de projecao em PostgreSQL e repositories.
+- `src/BalanceService.Worker`: Kafka consumer, processamento idempotente por evento e DLQ.
 - `compose.yaml`: PostgreSQL Ledger, PostgreSQL Balance, Kafka single node KRaft, job de init de topicos, Ledger, Balance e Auth.
 - `.github/workflows`: CI .NET com restore/build/test/coverage, CodeQL e dependency review.
 

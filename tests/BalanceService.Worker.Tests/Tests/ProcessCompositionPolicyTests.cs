@@ -1,7 +1,7 @@
 using BalanceService.Api.Extensions;
 using BalanceService.Application.Abstractions.Persistence;
-using BalanceService.Infrastructure.Messaging.Kafka;
-using BalanceService.Infrastructure.Observability;
+using BalanceService.Worker.Messaging.Kafka;
+using BalanceService.Worker.Observability;
 using BalanceService.Worker.Extensions;
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;

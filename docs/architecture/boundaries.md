@@ -101,8 +101,7 @@ Deve conter:
 
 - EF Core, DbContext, migrations e configurations;
 - repositories concretos;
-- Kafka producer/consumer, DLQ, headers, retry, commit e clients;
-- hosted services e configuracoes tecnicas;
+- configuracoes e implementacoes tecnicas compartilhadas pelos processos;
 - implementacoes de portas da Application/Domain.
 
 Nao deve conter:
@@ -111,8 +110,9 @@ Nao deve conter:
 - decisao de autorizacao de usuario;
 - contrato HTTP;
 - invariantes que deveriam estar nas entidades.
+- HostedServices e adapters Kafka/DLQ exclusivos de workers.
 
-Observacao real: BalanceService.Infrastructure faz a traducao do contrato Kafka para o evento de dominio/aplicacao e decide DLQ. Isso faz sentido, porque e fronteira de transporte.
+Observacao real: `BalanceService.Infrastructure` concentra persistencia e repositorios. A traducao do contrato Kafka, o consumer e a DLQ pertencem ao `BalanceService.Worker`, porque sao adapters tecnicos exclusivos do processamento em background.
 
 ## Servico por servico
 
@@ -125,7 +125,7 @@ Operacionalmente, `LedgerService.Api` recebe HTTP e grava Outbox; `LedgerService
 Pontos de atencao:
 
 - `CreateLancamentoService` faz bastante coisa: hash de idempotencia, parse de input, criacao de entidade, response DTO, evento e outbox. Ainda e aceitavel, mas e o primeiro ponto a decompor se o caso de uso crescer.
-- Evento `LedgerEntryCreatedV1` fica em Application, enquanto o consumidor tem outro contrato em Infrastructure. Isso evita referencia cruzada entre servicos, mas exige documentacao e testes de contrato.
+- Evento `LedgerEntryCreatedV1` fica em Application, enquanto o consumidor tem outro contrato no `BalanceService.Worker`. Isso evita referencia cruzada entre servicos, mas exige documentacao e testes de contrato.
 - Uso de `DateTime.Now` aparece em dominio/aplicacao/outbox. Para regras temporais e testes mais fortes, um clock explicito seria melhor, como ja existe no BalanceService.
 
 ### BalanceService

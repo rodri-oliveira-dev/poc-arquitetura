@@ -12,7 +12,9 @@ A ADR-0049 introduziu a solicitacao assincrona de estorno via `POST /api/v1/lanc
 O processamento precisa manter o `LedgerService` como dono das regras de lancamento, preservar consistencia eventual via Outbox e impedir que o `BalanceService` decida se um estorno e valido. Tambem precisa ser idempotente para retries do worker e reexecucao do comando.
 
 ## Decisao
-As solicitacoes de estorno serao processadas pelo proprio `LedgerService`, por meio de worker/background processing registrado em `LedgerService.Infrastructure`.
+As solicitacoes de estorno serao processadas pelo proprio `LedgerService`, por meio de worker/background processing.
+
+Nota de evolucao: apos a separacao fisica entre APIs e Workers, o `EstornoLancamentoProcessorService` passou a residir no projeto `LedgerService.Worker`; `LedgerService.Infrastructure` permanece com persistencia e repositories compartilhados.
 
 O worker (`EstornoLancamentoProcessorService`) faz polling de solicitacoes `Pending` em `estornos_lancamentos` e delega cada item ao Mediator com `ProcessarEstornoLancamentoCommand`. O handler em `LedgerService.Application` executa o caso de uso em uma unidade transacional:
 

@@ -6,7 +6,7 @@ using Confluent.Kafka;
 using FluentAssertions;
 using LedgerService.Application.Lancamentos.Commands;
 using LedgerService.Application.Lancamentos.Events;
-using LedgerService.Infrastructure.Reprocessamentos;
+using LedgerService.Worker.Reprocessamentos;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;

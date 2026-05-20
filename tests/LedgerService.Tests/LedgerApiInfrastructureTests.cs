@@ -1,11 +1,8 @@
 using LedgerService.Infrastructure;
-using LedgerService.Infrastructure.Estornos;
-using LedgerService.Infrastructure.Messaging.Kafka;
-using LedgerService.Infrastructure.Outbox;
-using LedgerService.Infrastructure.Reprocessamentos;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using Moq;
 
 namespace LedgerService.Tests;
@@ -20,10 +17,12 @@ public sealed class LedgerApiInfrastructureTests
         services.AddLedgerApiInfrastructure(CreateConfiguration(), CreateEnvironment());
 
         Assert.DoesNotContain(services, descriptor =>
-            descriptor.ServiceType == typeof(IOutboxEventProducer));
+            descriptor.ServiceType.Name == "IOutboxEventProducer");
 
         Assert.DoesNotContain(services, descriptor =>
-            descriptor.ServiceType.GenericTypeArguments.Contains(typeof(KafkaProducerOptions)));
+            descriptor.ServiceType.IsGenericType &&
+            descriptor.ServiceType.GetGenericTypeDefinition() == typeof(IConfigureOptions<>) &&
+            descriptor.ServiceType.GenericTypeArguments[0].Name == "KafkaProducerOptions");
     }
 
     [Fact]
@@ -33,15 +32,7 @@ public sealed class LedgerApiInfrastructureTests
 
         services.AddInfrastructure(CreateConfiguration(), CreateEnvironment());
 
-        Assert.DoesNotContain(services, descriptor =>
-            descriptor.ServiceType == typeof(IHostedService) &&
-            descriptor.ImplementationType == typeof(OutboxKafkaPublisherService));
-        Assert.DoesNotContain(services, descriptor =>
-            descriptor.ServiceType == typeof(IHostedService) &&
-            descriptor.ImplementationType == typeof(EstornoLancamentoProcessorService));
-        Assert.DoesNotContain(services, descriptor =>
-            descriptor.ServiceType == typeof(IHostedService) &&
-            descriptor.ImplementationType == typeof(ReprocessamentoLancamentosConsumerService));
+        Assert.DoesNotContain(services, descriptor => descriptor.ServiceType == typeof(IHostedService));
     }
 
     private static IConfiguration CreateConfiguration()

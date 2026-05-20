@@ -18,7 +18,7 @@ Padronizar a linha de base de transporte seguro:
 - `Jwt:RequireHttpsMetadata=false` e JWKS via HTTP sao permitidos apenas em `Development`/`Local`;
 - `Test` tambem e aceito como excecao tecnica para `WebApplicationFactory` e testes automatizados em memoria;
 - Kafka `Plaintext` e compose com Kafka/bancos expostos no host ficam restritos ao ambiente local da POC;
-- `LedgerService.Infrastructure` e `BalanceService.Infrastructure` rejeitam Kafka `Plaintext` fora de `Development`/`Local`/`Test`;
+- os projetos Worker que hospedam Kafka rejeitam `Plaintext` fora de `Development`/`Local`/`Test`;
 - os clientes Kafka passam a mapear `SecurityProtocol`, `SslCaLocation`, `SaslMechanism`, `SaslUsername` e `SaslPassword` para permitir `SSL` ou `SASL_SSL` em ambientes nao locais;
 - readiness Kafka usa a mesma configuracao de seguranca dos clientes de producer/consumer.
 

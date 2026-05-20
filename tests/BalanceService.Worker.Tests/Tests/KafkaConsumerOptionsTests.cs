@@ -1,5 +1,6 @@
-using BalanceService.Infrastructure;
-using BalanceService.Infrastructure.Messaging.Kafka;
+using BalanceService.Api.Extensions;
+using BalanceService.Worker.Extensions;
+using BalanceService.Worker.Messaging.Kafka;
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -79,10 +80,10 @@ public sealed class KafkaConsumerOptionsTests
     }
 
     [Fact]
-    public void AddInfrastructure_should_not_host_ledger_events_consumer()
+    public void BalanceServiceApiComposition_should_not_host_ledger_events_consumer()
     {
         var services = new ServiceCollection();
-        services.AddInfrastructure(CreateInfrastructureConfiguration("SSL"), CreateEnvironment(Environments.Production));
+        services.AddBalanceApiComposition(CreateInfrastructureConfiguration("SSL"), CreateEnvironment(Environments.Production));
 
         services.Should().NotContain(descriptor =>
             descriptor.ServiceType == typeof(IHostedService) &&
@@ -102,6 +103,9 @@ public sealed class KafkaConsumerOptionsTests
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["ConnectionStrings:DefaultConnection"] = "Host=unused;Database=ignore;Username=ignore;Password=ignore",
+                ["Jwt:Issuer"] = "https://auth-api",
+                ["Jwt:Audience"] = "balance-api",
+                ["Jwt:JwksUrl"] = "https://localhost/jwks.json",
                 ["Kafka:Enabled"] = "true",
                 ["Kafka:Consumer:BootstrapServers"] = "localhost:9092",
                 ["Kafka:Consumer:SecurityProtocol"] = securityProtocol,

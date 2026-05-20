@@ -14,7 +14,9 @@ Antes desta decisao, o topico existia e era produzido pelo `LedgerService`, mas 
 O dominio atual persiste `LedgerEntry` com os valores financeiros ja calculados no momento da escrita. Nao ha, nesta POC, uma regra separada de recalculo historico de valor nem um mecanismo de rebuild completo de projecao do Balance.
 
 ## Decisao
-O processamento de `ReprocessamentoLancamentosSolicitado.v1` pertence ao proprio `LedgerService`, por meio de um consumer Kafka registrado em `LedgerService.Infrastructure`.
+O processamento de `ReprocessamentoLancamentosSolicitado.v1` pertence ao proprio `LedgerService`, por meio de um consumer Kafka.
+
+Nota de evolucao: apos a separacao fisica entre APIs e Workers, o `ReprocessamentoLancamentosConsumerService` e seu processor passaram a residir no projeto `LedgerService.Worker`; `LedgerService.Infrastructure` permanece com persistencia e repositories compartilhados.
 
 O `ReprocessamentoLancamentosConsumerService` consome `ledger.lancamentos.reprocessamento.solicitado`, valida o header `event_type=ReprocessamentoLancamentosSolicitado.v1` e delega o trabalho ao Mediator com `ProcessarReprocessamentoLancamentosCommand`. O handler em `LedgerService.Application` executa o caso de uso em uma unidade transacional curta:
 

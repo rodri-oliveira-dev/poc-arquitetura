@@ -33,7 +33,7 @@ Principais servicos:
 - `Worker`: host de `BackgroundService` sem superficie HTTP.
 - `Application`: casos de uso, handlers, validacao de entrada, idempotencia e orquestracao.
 - `Domain`: entidades, invariantes e regras de dominio sem dependencia de infraestrutura.
-- `Infrastructure`: EF Core, PostgreSQL, Kafka, Outbox, DLQ, hosted services e implementacoes tecnicas.
+- `Infrastructure`: EF Core, PostgreSQL, repositorios, migrations e implementacoes tecnicas compartilhadas pelos processos.
 
 `Auth.Api` permanece em projeto unico porque o escopo atual de autenticacao da POC e pequeno. A leitura arquitetural completa fica em [docs/architecture](docs/architecture/README.md) e as decisoes historicas ficam em [docs/adrs](docs/adrs/README.md).
 

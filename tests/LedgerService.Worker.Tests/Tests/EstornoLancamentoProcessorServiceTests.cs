@@ -2,7 +2,7 @@ using FluentAssertions;
 using LedgerService.Application.Lancamentos.Commands;
 using LedgerService.Domain.Entities;
 using LedgerService.Domain.Repositories;
-using LedgerService.Infrastructure.Estornos;
+using LedgerService.Worker.Estornos;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;

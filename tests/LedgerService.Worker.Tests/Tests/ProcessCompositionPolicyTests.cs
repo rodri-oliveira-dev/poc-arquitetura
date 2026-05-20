@@ -1,8 +1,8 @@
 using FluentAssertions;
 using LedgerService.Api.Extensions;
-using LedgerService.Infrastructure.Estornos;
-using LedgerService.Infrastructure.Outbox;
-using LedgerService.Infrastructure.Reprocessamentos;
+using LedgerService.Worker.Estornos;
+using LedgerService.Worker.Outbox;
+using LedgerService.Worker.Reprocessamentos;
 using LedgerService.Worker.Extensions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
