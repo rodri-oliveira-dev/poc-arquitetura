@@ -10,7 +10,7 @@ Este documento concentra a referencia de mensageria entre `LedgerService.Api`, `
 4. `LedgerService.Worker` hospeda `EstornoLancamentoProcessorService`, que processa solicitacoes `Pending` e cria lancamentos compensatorios.
 5. O estorno concluido grava `LedgerEntryCreated.v1` do lancamento compensatorio no Outbox.
 6. `LedgerService.Worker` hospeda `ReprocessamentoLancamentosConsumerService`, que consome `ledger.lancamentos.reprocessamento.solicitado`, chama o caso de uso de reprocessamento e registra eventos financeiros finais no Outbox quando houver lancamentos elegiveis.
-7. `BalanceService.Api` consome apenas `LedgerEntryCreated.v1` e atualiza a projecao `daily_balances`.
+7. `BalanceService.Worker` consome apenas `LedgerEntryCreated.v1` e atualiza a projecao `daily_balances`.
 8. Mensagens invalidas ou nao recuperaveis do fluxo consumido pelo Balance sao publicadas na DLQ.
 
 ## Topicos e evento
@@ -28,7 +28,7 @@ Este documento concentra a referencia de mensageria entre `LedgerService.Api`, `
 
 `LancamentoEstornoSolicitado.v1` e gravado pelo Ledger no Outbox e publicado pelo mesmo worker. Ele representa a intencao operacional de estorno, nao um fato financeiro final. O processamento financeiro nao depende do `BalanceService`: o proprio Ledger processa a solicitacao persistida e, ao concluir, registra um `LedgerEntryCreated.v1` para o lancamento compensatorio.
 
-O `BalanceService.Api` deve ignorar/rejeitar `LancamentoEstornoSolicitado.v1` como evento financeiro. Saldos so mudam com `LedgerEntryCreated.v1`, inclusive quando esse evento representa o lancamento compensatorio de um estorno.
+O `BalanceService.Worker` deve ignorar/rejeitar `LancamentoEstornoSolicitado.v1` como evento financeiro. Saldos so mudam com `LedgerEntryCreated.v1`, inclusive quando esse evento representa o lancamento compensatorio de um estorno.
 
 `ReprocessamentoLancamentosSolicitado.v1` tambem e evento operacional/intencao interna. Ele nao representa conclusao nem alteracao direta de saldo. O `LedgerService` e o dono do processamento: o consumer de reprocessamento le esse topico, localiza a solicitacao persistida, muda o status e republica `LedgerEntryCreated.v1` para os lancamentos elegiveis como evento financeiro final. O `BalanceService` nao consome a solicitacao operacional.
 
@@ -45,7 +45,7 @@ Headers publicados pelo producer:
 - `tracestate`, quando houver contexto W3C com tracestate;
 - `baggage`, quando houver baggage persistido na Outbox ou `Activity` atual.
 
-O `BalanceService.Api` exige `event_type=LedgerEntryCreated.v1`, usa `event_id` para rastreabilidade e idempotencia quando presente, restaura `traceparent`/`tracestate` como parent do span `kafka.consume`, reidrata `baggage` quando possivel e preserva headers relevantes ao enviar mensagens para a DLQ. Mensagens antigas sem headers W3C continuam validas; nesse caso, o consumo segue pelo fallback funcional e pode criar um span raiz quando OpenTelemetry estiver habilitado.
+O `BalanceService.Worker` exige `event_type=LedgerEntryCreated.v1`, usa `event_id` para rastreabilidade e idempotencia quando presente, restaura `traceparent`/`tracestate` como parent do span `kafka.consume`, reidrata `baggage` quando possivel e preserva headers relevantes ao enviar mensagens para a DLQ. Mensagens antigas sem headers W3C continuam validas; nesse caso, o consumo segue pelo fallback funcional e pode criar um span raiz quando OpenTelemetry estiver habilitado.
 
 ## Outbox
 
@@ -185,10 +185,12 @@ Ledger:
 - `Outbox:Publisher`.
 - `Reprocessamentos:Consumer`.
 
+Configuracoes de mensageria do Balance ficam em `src/BalanceService.Worker/appsettings.json`. A API do Balance mantem apenas configuracoes HTTP, JWT, hardening, observabilidade da API e banco.
+
 Balance:
 
 - `Kafka:Consumer`;
-- `Kafka:DeadLetterProducer`.
+- `Kafka:Consumer:DeadLetterTopic`.
 
 `SecurityProtocol=Plaintext` existe apenas para execucao local (`Development`/`Local`) e para o ambiente `Test`. Em ambientes compartilhados ou produtivos, configure `SSL` ou `SASL_SSL` com os parametros operacionais por variaveis de ambiente ou secret store.
 

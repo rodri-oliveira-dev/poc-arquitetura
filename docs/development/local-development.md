@@ -248,7 +248,7 @@ Swagger/OpenAPI fica habilitado por padrao somente em `Development`. Fora desse 
 Endpoints operacionais:
 
 - `GET /health`: liveness simples, publico nesta POC, sem depender de DB ou Kafka.
-- `GET /ready`: readiness operacional, publico nesta POC. No `LedgerService.Api`, valida o banco necessario para aceitar comandos HTTP; no `BalanceService.Api`, valida as dependencias operacionais do processo HTTP/consumer.
+- `GET /ready`: readiness operacional, publico nesta POC. No `LedgerService.Api` e no `BalanceService.Api`, valida o banco necessario para aceitar trafego HTTP.
 
 Detalhes de operacao ficam em [observabilidade e operacao minima](../observability.md).
 

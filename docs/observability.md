@@ -54,10 +54,10 @@ OpenTelemetry fica desabilitado por padrao. A correlacao via `X-Correlation-Id` 
 Checks atuais:
 
 - `db`: valida conexao com o PostgreSQL do respectivo servico.
-- `kafka`: valida metadados dos topicos Kafka quando `Kafka:Enabled=true`.
+- `kafka`: reservado para processos que validam metadados dos topicos Kafka quando `Kafka:Enabled=true`.
 - `kafka=disabled`: indica que o Kafka foi explicitamente desabilitado por configuracao.
 
-No `LedgerService.Api`, readiness valida o PostgreSQL necessario para aceitar comandos HTTP. No `BalanceService.Api`, readiness valida `Kafka:Consumer:Topics` e `Kafka:Consumer:DeadLetterTopic`.
+No `LedgerService.Api` e no `BalanceService.Api`, readiness valida o PostgreSQL necessario para aceitar trafego HTTP. Configuracoes `Kafka:Consumer`, incluindo `Topics` e `DeadLetterTopic`, pertencem ao `BalanceService.Worker`.
 
 ## Configuracao
 
@@ -284,7 +284,7 @@ Quando `Observability:OpenTelemetry:Enabled=true`, as APIs registram:
 - `BalanceService.Application`, para aplicacao do evento no consolidado;
 - `BalanceService.Api`, para consultas de consolidado.
 
-Quando ha `Activity` ativa no request HTTP, o Ledger persiste `traceparent`, `tracestate` e `baggage` em colunas opcionais da `outbox_messages`. O publisher restaura esse contexto antes de criar o span `outbox.publish` e publica os mesmos headers W3C no Kafka. O `BalanceService.Api` usa `traceparent`/`tracestate` como parent do span `kafka.consume` e reidrata o header `baggage` como baggage da `Activity` quando possivel.
+Quando ha `Activity` ativa no request HTTP, o Ledger persiste `traceparent`, `tracestate` e `baggage` em colunas opcionais da `outbox_messages`. O publisher restaura esse contexto antes de criar o span `outbox.publish` e publica os mesmos headers W3C no Kafka. O `BalanceService.Worker` usa `traceparent`/`tracestate` como parent do span `kafka.consume` e reidrata o header `baggage` como baggage da `Activity` quando possivel.
 
 O `CorrelationId` continua sendo um identificador operacional separado do `TraceId`. Mensagens antigas, ou criadas sem `Activity`, ficam sem os campos W3C e seguem pelo fallback atual: o processamento continua, e spans Kafka podem nascer como raiz quando houver listener OpenTelemetry.
 
@@ -444,7 +444,7 @@ Referencias relacionadas:
 Kafka e usado como barramento entre escrita e leitura:
 
 - produtor: `LedgerService.Worker` via Outbox publisher;
-- consumidor: `BalanceService.Api`;
+- consumidor: `BalanceService.Worker`;
 - topico principal: `ledger.ledgerentry.created`;
 - evento atual: `LedgerEntryCreated.v1`;
 - DLQ do Balance: `ledger.ledgerentry.created.dlq`;
@@ -459,7 +459,7 @@ Headers relevantes:
 - `tracestate`;
 - `baggage`.
 
-O `BalanceService.Api` exige `event_type=LedgerEntryCreated.v1`. Mensagens com contrato invalido, payload invalido ou falha nao recuperavel sao desviadas para a DLQ.
+O `BalanceService.Worker` exige `event_type=LedgerEntryCreated.v1`. Mensagens com contrato invalido, payload invalido ou falha nao recuperavel sao desviadas para a DLQ.
 
 ## DLQ
 
@@ -908,7 +908,7 @@ Na UI do Jaeger:
 
 1. selecione `Auth.Api` e procure `POST /auth/login`;
 2. selecione `LedgerService.Api` e procure `POST /api/v1/lancamentos`;
-3. selecione `BalanceService.Api` e procure spans `kafka.consume`, `balance.apply` e a consulta `GET /v1/consolidados/diario/{date}`;
+3. selecione `BalanceService.Worker` e procure spans `kafka.consume` e `balance.apply`; para consulta HTTP, selecione `BalanceService.Api` e procure `GET /v1/consolidados/diario/{date}`;
 4. use o `TraceID` para analise temporal e o `CorrelationId` nos logs/SQL para conectar a operacao de negocio.
 
 Trace distribuido no fluxo autenticado:
