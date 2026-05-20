@@ -14,7 +14,7 @@ Na revisao OWASP foram encontrados **0 achados criticos, 4 altos, 8 medios e 3 b
 
 Justificativa:
 
-- A solucao tem tres processos HTTP (`Auth.Api`, `LedgerService.Api`, `BalanceService.Api`) e duas responsabilidades em background embutidas (`OutboxKafkaPublisherService` e `LedgerEventsConsumer`).
+- A solucao tem tres processos HTTP (`Auth.Api`, `LedgerService.Api`, `BalanceService.Api`) e workers dedicados (`LedgerService.Worker`, `BalanceService.Worker`) para responsabilidades em background.
 - A stack local depende de PostgreSQL, Kafka/KRaft, criacao de topicos, JWKS, portas expostas e overrides por variaveis de ambiente.
 - Ja existe compose funcional e documentado; Aspire agregaria valor para orquestracao local, service discovery, dashboard e defaults de observabilidade, mas tambem criaria uma segunda forma de executar a stack.
 - `ServiceDefaults` tende a exigir alteracoes pequenas nos projetos de API, mas transversais. Essas alteracoes precisam preservar hardening, JWT/JWKS, CORS, Swagger, readiness e configuracao atual.

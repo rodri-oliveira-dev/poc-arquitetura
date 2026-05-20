@@ -1,5 +1,8 @@
 using LedgerService.Infrastructure;
+using LedgerService.Infrastructure.Estornos;
 using LedgerService.Infrastructure.Messaging.Kafka;
+using LedgerService.Infrastructure.Outbox;
+using LedgerService.Infrastructure.Reprocessamentos;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -21,6 +24,24 @@ public sealed class LedgerApiInfrastructureTests
 
         Assert.DoesNotContain(services, descriptor =>
             descriptor.ServiceType.GenericTypeArguments.Contains(typeof(KafkaProducerOptions)));
+    }
+
+    [Fact]
+    public void AddInfrastructure_should_not_register_worker_hosted_services()
+    {
+        var services = new ServiceCollection();
+
+        services.AddInfrastructure(CreateConfiguration(), CreateEnvironment());
+
+        Assert.DoesNotContain(services, descriptor =>
+            descriptor.ServiceType == typeof(IHostedService) &&
+            descriptor.ImplementationType == typeof(OutboxKafkaPublisherService));
+        Assert.DoesNotContain(services, descriptor =>
+            descriptor.ServiceType == typeof(IHostedService) &&
+            descriptor.ImplementationType == typeof(EstornoLancamentoProcessorService));
+        Assert.DoesNotContain(services, descriptor =>
+            descriptor.ServiceType == typeof(IHostedService) &&
+            descriptor.ImplementationType == typeof(ReprocessamentoLancamentosConsumerService));
     }
 
     private static IConfiguration CreateConfiguration()

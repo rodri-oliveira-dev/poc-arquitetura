@@ -20,14 +20,10 @@ public static class DependencyInjection
         IConfiguration configuration,
         IHostEnvironment environment)
     {
-        services
-            .AddLedgerApiInfrastructure(configuration, environment)
-            .AddLedgerKafkaProducer(configuration, environment)
-            .AddLedgerEstornoWorker(configuration)
-            .AddLedgerOutboxWorker(configuration)
-            .AddLedgerReprocessamentoWorker(configuration, environment);
-
-        return services;
+        // Fachada de compatibilidade para consumidores antigos da Infrastructure.
+        // Composition roots novos devem usar AddLedgerApiInfrastructure ou os metodos
+        // explicitos de Worker para evitar HostedServices acidentais em processos HTTP.
+        return services.AddLedgerApiInfrastructure(configuration, environment);
     }
 
     public static IServiceCollection AddLedgerApiInfrastructure(

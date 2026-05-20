@@ -11,7 +11,7 @@ namespace LedgerService.Worker.Tests.Tests;
 public sealed class KafkaTransportSecurityTests
 {
     [Fact]
-    public void AddInfrastructure_should_allow_plaintext_kafka_in_development()
+    public void AddLedgerKafkaProducer_should_allow_plaintext_kafka_in_development()
     {
         using var provider = CreateProvider(Environments.Development, "Plaintext");
 
@@ -21,7 +21,7 @@ public sealed class KafkaTransportSecurityTests
     }
 
     [Fact]
-    public void AddInfrastructure_should_reject_plaintext_kafka_in_production()
+    public void AddLedgerKafkaProducer_should_reject_plaintext_kafka_in_production()
     {
         using var provider = CreateProvider(Environments.Production, "Plaintext");
 
@@ -29,7 +29,7 @@ public sealed class KafkaTransportSecurityTests
     }
 
     [Fact]
-    public void AddInfrastructure_should_allow_ssl_kafka_in_production()
+    public void AddLedgerKafkaProducer_should_allow_ssl_kafka_in_production()
     {
         using var provider = CreateProvider(Environments.Production, "SSL");
 
@@ -41,7 +41,7 @@ public sealed class KafkaTransportSecurityTests
     private static ServiceProvider CreateProvider(string environmentName, string securityProtocol)
     {
         var services = new ServiceCollection();
-        services.AddInfrastructure(CreateConfiguration(securityProtocol), CreateEnvironment(environmentName));
+        services.AddLedgerKafkaProducer(CreateConfiguration(securityProtocol), CreateEnvironment(environmentName));
         return services.BuildServiceProvider();
     }
 
