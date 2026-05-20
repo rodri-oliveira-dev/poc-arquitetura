@@ -26,6 +26,7 @@
     <ProjectReference Include="..\..\src\BalanceService.Domain\BalanceService.Domain.csproj" />
     <ProjectReference Include="..\..\src\BalanceService.Infrastructure\BalanceService.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\BalanceService.Api\BalanceService.Api.csproj" />
+    <ProjectReference Include="..\..\src\BalanceService.Worker\BalanceService.Worker.csproj" />
   </ItemGroup>
 
 </Project>

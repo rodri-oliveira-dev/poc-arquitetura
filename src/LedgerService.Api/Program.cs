@@ -1,8 +1,6 @@
 using LedgerService.Api.Extensions;
 using LedgerService.Api.Middlewares;
 using LedgerService.Api.Options;
-using LedgerService.Application;
-using LedgerService.Infrastructure;
 using LedgerService.Infrastructure.Persistence;
 
 using Microsoft.AspNetCore.Authorization;
@@ -21,24 +19,7 @@ builder.WebHost.ConfigureKestrel((context, options) =>
         options.Limits.MaxRequestBodySize = maxRequestBodySizeBytes;
 });
 
-builder.Services
-    .AddApiHardening(builder.Configuration)
-    .AddApiRateLimiting(builder.Configuration)
-    .AddApiCors()
-    .AddApiVersioningAndExplorer()
-    .AddApiSwagger()
-    .AddApiObservability(builder.Configuration);
-
-builder.Services.AddApiJwtAuth(builder.Configuration, builder.Environment);
-
-builder.Services.AddApplication();
-builder.Services
-    .AddLedgerInfrastructureCommon()
-    .AddLedgerPersistence(builder.Configuration)
-    .AddLedgerRepositories();
-
-builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddLedgerApiComposition(builder.Configuration, builder.Environment);
 
 var app = builder.Build();
 

@@ -1,8 +1,6 @@
 using BalanceService.Api.Extensions;
 using BalanceService.Api.Middlewares;
 using BalanceService.Api.Options;
-using BalanceService.Application;
-using BalanceService.Infrastructure;
 using BalanceService.Infrastructure.Persistence;
 
 using Microsoft.AspNetCore.Authorization;
@@ -21,24 +19,7 @@ builder.WebHost.ConfigureKestrel((context, options) =>
         options.Limits.MaxRequestBodySize = maxRequestBodySizeBytes;
 });
 
-builder.Services
-    .AddApiHardening(builder.Configuration)
-    .AddApiRateLimiting(builder.Configuration)
-    .AddApiCors()
-    .AddApiVersioningAndExplorer()
-    .AddApiSwagger()
-    .AddApiObservability(builder.Configuration);
-
-builder.Services.AddApiJwtAuth(builder.Configuration, builder.Environment);
-
-builder.Services.AddApplication();
-builder.Services
-    .AddBalanceInfrastructureCommon()
-    .AddBalancePersistence(builder.Configuration)
-    .AddBalanceRepositories();
-
-builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddBalanceApiComposition(builder.Configuration, builder.Environment);
 
 var app = builder.Build();
 
