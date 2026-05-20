@@ -91,4 +91,15 @@ public sealed class KafkaMessagingMetricsTests
         observedTags.Should().Contain("reason", "validation_failed");
         observedTags!.Keys.Should().NotContain(ProhibitedTags);
     }
+
+    [Fact]
+    public void KafkaMessagingMetrics_should_record_remaining_low_cardinality_metrics()
+    {
+        using var metrics = new KafkaMessagingMetrics($"{KafkaMessagingMetrics.MeterName}.Tests.{Guid.NewGuid():N}");
+
+        metrics.RecordConsumerProcessingDuration(12.5, "ledger.ledgerentry.created", "LedgerEntryCreated.v1", "success");
+        metrics.RecordConsumerError("ledger.ledgerentry.created", "LedgerEntryCreated.v1", "TimeoutException");
+        metrics.RecordConsumerDuplicate("ledger.ledgerentry.created", "LedgerEntryCreated.v1");
+        metrics.RecordDlqPublishError("ledger.ledgerentry.created", "LedgerEntryCreated.v1", "KafkaException");
+    }
 }

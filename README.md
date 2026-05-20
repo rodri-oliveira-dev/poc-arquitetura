@@ -2,7 +2,7 @@
 
 [![Build](https://img.shields.io/github/actions/workflow/status/rodri-oliveira-dev/poc-arquitetura/dotnet.yml?branch=main&label=build)](https://github.com/rodri-oliveira-dev/poc-arquitetura/actions/workflows/dotnet.yml)
 [![Tests](https://img.shields.io/github/actions/workflow/status/rodri-oliveira-dev/poc-arquitetura/dotnet.yml?branch=main&label=tests)](https://github.com/rodri-oliveira-dev/poc-arquitetura/actions/workflows/dotnet.yml)
-[![Coverage](https://img.shields.io/badge/coverage-%3E%3D80%25-brightgreen)](docs/development/test-coverage.md)
+[![Coverage](https://img.shields.io/badge/coverage-%3E%3D85%25-brightgreen)](docs/development/test-coverage.md)
 [![Architecture Docs](https://img.shields.io/github/actions/workflow/status/rodri-oliveira-dev/poc-arquitetura/pages-architecture.yml?branch=main&label=architecture%20docs)](https://rodri-oliveira-dev.github.io/poc-arquitetura/)
 
 POC de microservicos em .NET para validar Clean Architecture, DDD, PostgreSQL, Kafka, Outbox, autenticacao JWT com JWKS, observabilidade e testes automatizados.
@@ -101,7 +101,7 @@ No Linux/macOS:
 ./test.sh
 ```
 
-Os scripts executam testes com cobertura e aplicam gate minimo de 80% de cobertura total de linhas e dos assemblies Worker. Alguns testes de integracao usam Testcontainers com PostgreSQL real e precisam acessar uma Docker-compatible API. Detalhes ficam em [cobertura de testes](docs/development/test-coverage.md) e [desenvolvimento local](docs/development/local-development.md#testcontainers-e-docker-compatible-api).
+Os scripts executam testes com cobertura e aplicam gate minimo de 85% de cobertura total de linhas e dos assemblies Worker. Alguns testes de integracao usam Testcontainers com PostgreSQL real e precisam acessar uma Docker-compatible API. Detalhes ficam em [cobertura de testes](docs/development/test-coverage.md) e [desenvolvimento local](docs/development/local-development.md#testcontainers-e-docker-compatible-api).
 
 ## Documentacao
 

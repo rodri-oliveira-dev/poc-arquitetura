@@ -234,7 +234,7 @@ public sealed class OutboxKafkaPublisherService : BackgroundService
         metrics.RecordOutboxPublishDuration(Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds, eventType, topic, "failure");
     }
 
-    private static DateTime ComputeNextAttempt(DateTime now, int attemptNumber, int baseBackoffSeconds)
+    internal static DateTime ComputeNextAttempt(DateTime now, int attemptNumber, int baseBackoffSeconds)
     {
         var baseDelay = TimeSpan.FromSeconds(Math.Max(1, baseBackoffSeconds));
         var exp = Math.Pow(2, Math.Min(10, Math.Max(0, attemptNumber - 1)));

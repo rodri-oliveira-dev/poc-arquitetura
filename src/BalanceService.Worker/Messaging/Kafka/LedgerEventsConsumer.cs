@@ -120,7 +120,7 @@ public sealed class LedgerEventsConsumer : BackgroundService
         _logger.ConsumerStopped();
     }
 
-    private static void ValidateOptions(KafkaConsumerOptions options)
+    internal static void ValidateOptions(KafkaConsumerOptions options)
     {
         if (string.IsNullOrWhiteSpace(options.BootstrapServers))
             throw new InvalidOperationException("Kafka BootstrapServers não configurado.");
@@ -144,7 +144,7 @@ public sealed class LedgerEventsConsumer : BackgroundService
             throw new InvalidOperationException("Kafka ProcessingErrorRetryDelay deve ser maior que zero.");
     }
 
-    private static AutoOffsetReset ParseAutoOffsetReset(string value)
+    internal static AutoOffsetReset ParseAutoOffsetReset(string value)
     {
         return value.Trim().ToLowerInvariant() switch
         {

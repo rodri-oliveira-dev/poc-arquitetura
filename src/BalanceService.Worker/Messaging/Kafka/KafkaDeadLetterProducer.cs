@@ -104,12 +104,12 @@ public sealed class KafkaDeadLetterProducer : IKafkaDeadLetterProducer, IDisposa
         }
     }
 
-    private static string ResolveEventType(IReadOnlyDictionary<string, string> headers)
+    internal static string ResolveEventType(IReadOnlyDictionary<string, string> headers)
         => headers.TryGetValue(KafkaHeaderNames.EventType, out var eventType) && !string.IsNullOrWhiteSpace(eventType)
             ? eventType
             : "unknown";
 
-    private static string ClassifyReason(string reason)
+    internal static string ClassifyReason(string reason)
     {
         if (string.Equals(reason, "Deserialization failed.", StringComparison.Ordinal))
             return "deserialization_failed";

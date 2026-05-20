@@ -122,7 +122,7 @@ public sealed class ReprocessamentoLancamentosConsumerService : BackgroundServic
         _logger.LogInformation("Consumer de reprocessamento parado.");
     }
 
-    private static void ValidateOptions(ReprocessamentoLancamentosConsumerOptions options)
+    internal static void ValidateOptions(ReprocessamentoLancamentosConsumerOptions options)
     {
         if (string.IsNullOrWhiteSpace(options.BootstrapServers))
             throw new InvalidOperationException("Reprocessamentos Consumer BootstrapServers nao configurado.");
@@ -140,7 +140,7 @@ public sealed class ReprocessamentoLancamentosConsumerService : BackgroundServic
             throw new InvalidOperationException("Reprocessamentos Consumer ProcessingErrorRetryDelay deve ser maior que zero.");
     }
 
-    private static AutoOffsetReset ParseAutoOffsetReset(string value)
+    internal static AutoOffsetReset ParseAutoOffsetReset(string value)
     {
         return value.Trim().ToLowerInvariant() switch
         {

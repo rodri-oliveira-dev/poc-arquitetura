@@ -2,6 +2,7 @@ using BalanceService.Api.Extensions;
 using BalanceService.Worker.Extensions;
 using BalanceService.Worker.Messaging.Kafka;
 using FluentAssertions;
+using Confluent.Kafka;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -77,6 +78,59 @@ public sealed class KafkaConsumerOptionsTests
         var options = provider.GetRequiredService<IOptions<KafkaConsumerOptions>>().Value;
 
         options.SecurityProtocol.Should().Be("SSL");
+    }
+
+    [Fact]
+    public void ApplySecurity_should_configure_consumer_security_fields()
+    {
+        var config = new ConsumerConfig();
+        var options = new KafkaConsumerOptions
+        {
+            SecurityProtocol = "SASL_SSL",
+            SaslMechanism = "Scram-Sha-512",
+            SaslUsername = "user",
+            SaslPassword = "secret",
+            SslCaLocation = "/certs/ca.pem"
+        };
+
+        config.ApplySecurity(options);
+
+        config.SecurityProtocol.Should().Be(SecurityProtocol.SaslSsl);
+        config.SaslMechanism.Should().Be(SaslMechanism.ScramSha512);
+        config.SaslUsername.Should().Be("user");
+        config.SaslPassword.Should().Be("secret");
+        config.SslCaLocation.Should().Be("/certs/ca.pem");
+        KafkaClientConfigExtensions.IsPlaintext(options).Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData("invalid")]
+    [InlineData("")]
+    public void ApplySecurity_should_reject_invalid_security_protocol(string securityProtocol)
+    {
+        var config = new ConsumerConfig();
+        var options = new KafkaConsumerOptions { SecurityProtocol = securityProtocol };
+
+        var act = () => config.ApplySecurity(options);
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*SecurityProtocol*");
+    }
+
+    [Fact]
+    public void ApplySecurity_should_reject_invalid_sasl_mechanism()
+    {
+        var config = new ConsumerConfig();
+        var options = new KafkaConsumerOptions
+        {
+            SecurityProtocol = "SSL",
+            SaslMechanism = "invalid"
+        };
+
+        var act = () => config.ApplySecurity(options);
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*SaslMechanism*");
     }
 
     [Fact]

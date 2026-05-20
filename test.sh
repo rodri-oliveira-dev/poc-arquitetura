@@ -2,7 +2,7 @@
 set -euo pipefail
 
 CONFIGURATION="${1:-Release}"
-THRESHOLD="${2:-80}"
+THRESHOLD="${2:-85}"
 
 echo "==> Running solution tests with coverage gate (line >= ${THRESHOLD}%)"
 

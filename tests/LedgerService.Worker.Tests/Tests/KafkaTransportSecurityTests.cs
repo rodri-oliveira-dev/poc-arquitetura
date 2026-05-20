@@ -1,5 +1,7 @@
 using LedgerService.Worker.Extensions;
 using LedgerService.Worker.Messaging.Kafka;
+using LedgerService.Worker.Reprocessamentos;
+using Confluent.Kafka;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -36,6 +38,76 @@ public sealed class KafkaTransportSecurityTests
         var options = provider.GetRequiredService<IOptions<KafkaProducerOptions>>().Value;
 
         Assert.Equal("SSL", options.SecurityProtocol);
+    }
+
+    [Fact]
+    public void ApplySecurity_should_configure_producer_security_fields()
+    {
+        var config = new ProducerConfig();
+        var options = new KafkaProducerOptions
+        {
+            SecurityProtocol = "SASL_SSL",
+            SaslMechanism = "Scram-Sha-256",
+            SaslUsername = "user",
+            SaslPassword = "secret",
+            SslCaLocation = "/certs/ca.pem"
+        };
+
+        config.ApplySecurity(options);
+
+        Assert.Equal(SecurityProtocol.SaslSsl, config.SecurityProtocol);
+        Assert.Equal(SaslMechanism.ScramSha256, config.SaslMechanism);
+        Assert.Equal("user", config.SaslUsername);
+        Assert.Equal("secret", config.SaslPassword);
+        Assert.Equal("/certs/ca.pem", config.SslCaLocation);
+        Assert.False(KafkaClientConfigExtensions.IsPlaintext(options));
+    }
+
+    [Fact]
+    public void ApplySecurity_should_configure_reprocessamento_consumer_security_fields()
+    {
+        var config = new ConsumerConfig();
+        var options = new ReprocessamentoLancamentosConsumerOptions
+        {
+            SecurityProtocol = "SASL_PLAINTEXT",
+            SaslMechanism = "OAuthBearer",
+            SaslUsername = "user",
+            SaslPassword = "secret",
+            SslCaLocation = "/certs/ca.pem"
+        };
+
+        config.ApplySecurity(options);
+
+        Assert.Equal(SecurityProtocol.SaslPlaintext, config.SecurityProtocol);
+        Assert.Equal(SaslMechanism.OAuthBearer, config.SaslMechanism);
+        Assert.Equal("user", config.SaslUsername);
+        Assert.Equal("secret", config.SaslPassword);
+        Assert.Equal("/certs/ca.pem", config.SslCaLocation);
+        Assert.False(KafkaClientConfigExtensions.IsPlaintext(options));
+    }
+
+    [Theory]
+    [InlineData("invalid")]
+    [InlineData("")]
+    public void ApplySecurity_should_reject_invalid_security_protocol(string securityProtocol)
+    {
+        var config = new ProducerConfig();
+        var options = new KafkaProducerOptions { SecurityProtocol = securityProtocol };
+
+        Assert.Throws<InvalidOperationException>(() => config.ApplySecurity(options));
+    }
+
+    [Fact]
+    public void ApplySecurity_should_reject_invalid_sasl_mechanism()
+    {
+        var config = new ProducerConfig();
+        var options = new KafkaProducerOptions
+        {
+            SecurityProtocol = "SSL",
+            SaslMechanism = "invalid"
+        };
+
+        Assert.Throws<InvalidOperationException>(() => config.ApplySecurity(options));
     }
 
     private static ServiceProvider CreateProvider(string environmentName, string securityProtocol)

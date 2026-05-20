@@ -1,6 +1,6 @@
 param(
   [string]$Configuration = "Release",
-  [int]$Threshold = 80
+  [int]$Threshold = 85
 )
 
 $ErrorActionPreference = "Stop"
