@@ -15,6 +15,7 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 
 | ADR                                                                   | Status      | Resumo                                                                                           |
 | --------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------ |
+| [ADR-0067](./0067-separacao-workers-processos-api.md) | Aceito | Separa APIs e workers em processos distintos, com composition root explicito e validacao contra HostedServices duplicados. |
 | [ADR-0066](./0066-cobertura-minima-workers.md) | Aceito | Exige cobertura minima dedicada para os assemblies `LedgerService.Worker` e `BalanceService.Worker`. |
 | [ADR-0065](./0065-workers-dedicados-no-compose-local.md) | Aceito | Sobe APIs e workers em containers dedicados no Docker Compose local. |
 | [ADR-0064](./0064-ledger-worker-processo-dedicado.md) | Aceito | Separa os workers do Ledger em `LedgerService.Worker`, sem hospedar background services na API HTTP. |
