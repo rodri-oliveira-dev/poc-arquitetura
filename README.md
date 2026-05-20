@@ -23,6 +23,7 @@ Principais servicos:
 | `LedgerService.Api` | API de escrita para lancamentos, estornos, reprocessamentos, Outbox e status operacionais. |
 | `LedgerService.Worker` | Processo dedicado para publicar Outbox no Kafka e processar estornos/reprocessamentos do Ledger. |
 | `BalanceService.Api` | API de leitura de saldos consolidados, alimentada por eventos Kafka do Ledger. |
+| `BalanceService.Worker` | Processo dedicado para consumir eventos Kafka do Ledger e atualizar a projecao de saldos. |
 
 ## Arquitetura
 

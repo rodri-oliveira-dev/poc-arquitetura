@@ -134,7 +134,7 @@ model {
 
     balanceApi = container "BalanceService.Api" {
       technology "ASP.NET Core"
-      description "HTTP API de consulta e composicao do consumidor Kafka."
+      description "HTTP API de consulta de saldos consolidados."
 
       balanceApiLayer = component "API Layer" {
         description "Controllers, contracts, mappers, Swagger, JWT/JWKS, policies, correlation id e middlewares."
@@ -149,8 +149,13 @@ model {
       }
 
       balanceInfrastructure = component "Infrastructure Layer" {
-        description "EF Core, BalanceDbContext, repositories concretos, migrations, consumidor Kafka e produtor DLQ."
+        description "EF Core, BalanceDbContext, repositories concretos, migrations e implementacoes tecnicas compartilhadas com o Worker."
       }
+    }
+
+    balanceWorker = container "BalanceService.Worker" {
+      technology ".NET Worker Service"
+      description "Processo dedicado sem HTTP que hospeda o consumidor Kafka do Balance para projetar saldos."
 
       balanceConsumer = component "Kafka consumer" {
         description "BackgroundService que consome LedgerEntryCreated.v1, valida headers/payload, aplica projecao ou envia para DLQ."
@@ -205,9 +210,9 @@ model {
   ledger.ledgerWorker.ledgerReprocessamentoConsumer -> ledger.ledgerApi.ledgerApplication "Envia ProcessarReprocessamentoLancamentosCommand" "MediatR"
   ledger.ledgerWorker.ledgerReprocessamentoConsumer -> ledger.ledgerDb "Atualiza status e registra eventos finais no Outbox" "EF Core / SQL"
 
-  balance.balanceConsumer -> kafka.ledgerTopic "Consome LedgerEntryCreated.v1, inclusive compensatorios e replays de reprocessamento" "Kafka"
-  balance.balanceConsumer -> kafka.ledgerDlq "Publica mensagens invalidas" "Kafka"
-  balance.balanceConsumer -> balance.balanceDb "Atualiza daily_balances e processed_events" "EF Core"
+  balance.balanceWorker.balanceConsumer -> kafka.ledgerTopic "Consome LedgerEntryCreated.v1, inclusive compensatorios e replays de reprocessamento" "Kafka"
+  balance.balanceWorker.balanceConsumer -> kafka.ledgerDlq "Publica mensagens invalidas" "Kafka"
+  balance.balanceWorker.balanceConsumer -> balance.balanceDb "Atualiza daily_balances e processed_events" "EF Core"
   balance.balanceApi -> balance.balanceDb "Consulta projecao" "EF Core"
 
   auth.authApi -> observability.collector "Exporta telemetria quando habilitado no compose" "OTLP"
@@ -232,8 +237,9 @@ model {
   ledger.ledgerWorker -> ledger.ledgerApi.ledgerInfrastructure "Usa persistence, repositories, Kafka e hosted services" "DI"
 
   balance.balanceApiLayer -> balance.balanceApplication "Envia queries via MediatR"
-  balance.balanceConsumer -> balance.balanceApplication "Envia comando de aplicacao de evento"
+  balance.balanceWorker.balanceConsumer -> balance.balanceApplication "Envia comando de aplicacao de evento"
   balance.balanceApplication -> balance.balanceDomain "Aplica regras de consolidacao"
   balance.balanceInfrastructure -> balance.balanceApplication "Implementa repositorios e processador de mensagens"
   balance.balanceInfrastructure -> balance.balanceDomain "Mapeia entidades e contrato consumido"
+  balance.balanceWorker -> balance.balanceInfrastructure "Usa persistence, repositories, Kafka e hosted services" "DI"
 }

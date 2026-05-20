@@ -15,6 +15,7 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 
 | ADR                                                                   | Status      | Resumo                                                                                           |
 | --------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------ |
+| [ADR-0065](./0065-workers-dedicados-no-compose-local.md) | Aceito | Sobe APIs e workers em containers dedicados no Docker Compose local. |
 | [ADR-0064](./0064-ledger-worker-processo-dedicado.md) | Aceito | Separa os workers do Ledger em `LedgerService.Worker`, sem hospedar background services na API HTTP. |
 | [ADR-0063](./0063-loki-alloy-logs-centralizados-locais.md) | Aceito | Adiciona Loki e Grafana Alloy para centralizacao local de logs dos containers com labels de baixa cardinalidade. |
 | [ADR-0062](./0062-alertas-tecnicos-prometheus-alertmanager-locais.md) | Aceito | Adiciona regras de alertas tecnicos locais no Prometheus e Alertmanager sem integracoes externas. |

@@ -79,6 +79,6 @@ if [[ "$NO_BUILD" != "true" ]]; then
   api_up+=(--build)
 fi
 
-"${api_up[@]}" ledger-service ledger-worker balance-service
+"${api_up[@]}" ledger-service ledger-worker balance-service balance-worker
 
 echo "OK. Stack local pronta."

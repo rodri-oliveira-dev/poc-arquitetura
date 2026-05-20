@@ -32,6 +32,7 @@ O `compose.yaml` sobe:
 - `LedgerService.Api`;
 - `LedgerService.Worker`;
 - `BalanceService.Api`;
+- `BalanceService.Worker`;
 - PostgreSQL Ledger;
 - PostgreSQL Balance;
 - Kafka single node em KRaft;
@@ -56,7 +57,7 @@ No Linux/macOS:
 ./scripts/start-local-stack.sh
 ```
 
-Esse fluxo sobe bancos, Kafka, observabilidade e `Auth.Api`, aplica migrations pelo host e depois inicia `LedgerService.Api`, `LedgerService.Worker` e `BalanceService.Api`.
+Esse fluxo sobe bancos, Kafka, observabilidade e `Auth.Api`, aplica migrations pelo host e depois inicia `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker`.
 
 Para subir somente o compose, sem aplicar migrations:
 
@@ -76,6 +77,7 @@ Ver status e logs:
 docker compose ps
 docker compose logs -f ledger-service
 docker compose logs -f ledger-worker
+docker compose logs -f balance-worker
 ```
 
 Portas expostas no host:
@@ -145,6 +147,7 @@ dotnet run --project src\Auth.Api\Auth.Api.csproj
 dotnet run --project src\LedgerService.Api\LedgerService.Api.csproj
 dotnet run --project src\LedgerService.Worker\LedgerService.Worker.csproj
 dotnet run --project src\BalanceService.Api\BalanceService.Api.csproj
+dotnet run --project src\BalanceService.Worker\BalanceService.Worker.csproj
 ```
 
 As portas padrao sao:
@@ -153,7 +156,7 @@ As portas padrao sao:
 - LedgerService.Api: `http://localhost:5226/`;
 - BalanceService.Api: `http://localhost:5228/`.
 
-`LedgerService.Worker` nao expoe porta HTTP; acompanhe pelo console ou logs do container.
+`LedgerService.Worker` e `BalanceService.Worker` nao expoem porta HTTP; acompanhe pelo console ou logs dos containers.
 
 ## Configuracao
 
