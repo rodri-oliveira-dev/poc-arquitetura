@@ -294,6 +294,7 @@ Os testes de carga ficam em `loadtests/k6` e rodam dentro da rede do compose.
 Pre-requisitos:
 
 1. Suba a stack local com `./scripts/start-local-stack.ps1` ou `./scripts/start-local-stack.sh`.
+2. Mantenha `Auth.Api`, `LedgerService.Api`, `BalanceService.Api`, `LedgerService.Worker` e `BalanceService.Worker` em execucao quando validar cenarios que dependem de efeitos assincronos.
 
 Windows:
 
@@ -312,6 +313,8 @@ Linux/macOS:
 ```
 
 Arquivos gerados em `artifacts/k6` e `.env.k6.auto` nao sao versionados.
+
+Os runners aplicam `compose.k6.yaml` antes do k6 para manter os testes HTTP apontando para as APIs e aumentar apenas limites tecnicos de rate limiting durante a carga. Os workers continuam sem endpoint HTTP nos cenarios de carga.
 
 ## Migrations de referencia
 

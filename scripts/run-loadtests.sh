@@ -23,12 +23,41 @@ mkdir -p "$ARTIFACTS_DIR"
 # a) gerar env
 COMPOSE_FILE="$COMPOSE_FILE" OUT_FILE="$ENV_FILE" "$ROOT_DIR/scripts/compose-env.sh" >/dev/null
 
+# Aplica o override de carga nas APIs antes de executar o k6. O compose.k6.yaml
+# mantem os testes apontando para as APIs HTTP e aumenta apenas limites tecnicos
+# que poderiam transformar o cenario de throughput em teste de rate limiting.
+docker compose -f "$COMPOSE_FILE" -f "$COMPOSE_K6_FILE" up -d --no-build ledger-service balance-service
+
 # b) obter token (por padrão via localhost conforme README)
 TOKEN="$($ROOT_DIR/scripts/get-token.sh)"
 if [[ -z "$TOKEN" ]]; then
   echo "Falha ao obter TOKEN. Você pode informar manualmente via env TOKEN=..." 1>&2
   exit 1
 fi
+
+warmup_balance() {
+  local date_value="${DATE:-$(date +%F)}"
+  local merchant_id="${MERCHANT_ID:-tese}"
+  local encoded_merchant
+  encoded_merchant="$(python3 - "$merchant_id" <<'PY'
+import sys
+from urllib.parse import quote
+print(quote(sys.argv[1], safe=""))
+PY
+)"
+  local url="http://localhost:5228/v1/consolidados/diario/$date_value?merchantId=$encoded_merchant"
+
+  for _ in $(seq 1 30); do
+    if curl -fsS -H "Authorization: Bearer $TOKEN" "$url" >/dev/null; then
+      return 0
+    fi
+    sleep 1
+  done
+
+  curl -fsS -H "Authorization: Bearer $TOKEN" "$url" >/dev/null
+}
+
+warmup_balance
 
 ts="$(date +%Y%m%d-%H%M%S)"
 
