@@ -3,7 +3,7 @@ using LedgerService.Domain.Repositories;
 using LedgerService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
-namespace LedgerService.Infrastructure.Repositories;
+namespace LedgerService.Infrastructure.Persistence.Repositories;
 
 public sealed class LedgerEntryRepository : ILedgerEntryRepository
 {

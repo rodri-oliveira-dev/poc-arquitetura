@@ -1,7 +1,7 @@
 using LedgerService.Domain.Entities;
 using LedgerService.Domain.Exceptions;
 
-namespace LedgerService.Tests;
+namespace LedgerService.UnitTests.Tests;
 
 public sealed class LedgerEntryAmountRulesTests
 {

@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using NpgsqlTypes;
 
-namespace LedgerService.Infrastructure.Repositories;
+namespace LedgerService.Infrastructure.Persistence.Repositories;
 
 public sealed class EstornoLancamentoRepository : IEstornoLancamentoRepository
 {

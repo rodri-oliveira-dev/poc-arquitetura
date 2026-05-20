@@ -1,9 +1,9 @@
 using LedgerService.Domain.Entities;
 using LedgerService.Infrastructure.Persistence;
-using LedgerService.Infrastructure.Repositories;
+using LedgerService.Infrastructure.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
 
-namespace LedgerService.Tests;
+namespace LedgerService.UnitTests.Tests;
 
 public sealed class OutboxMessageClaimTests
 {

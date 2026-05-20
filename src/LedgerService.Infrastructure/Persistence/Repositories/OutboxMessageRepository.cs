@@ -7,7 +7,7 @@ using Npgsql;
 using NpgsqlTypes;
 using System;
 
-namespace LedgerService.Infrastructure.Repositories;
+namespace LedgerService.Infrastructure.Persistence.Repositories;
 
 public sealed class OutboxMessageRepository : IOutboxMessageRepository
 {

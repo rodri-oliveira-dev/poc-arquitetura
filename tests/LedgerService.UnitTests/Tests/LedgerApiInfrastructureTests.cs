@@ -5,7 +5,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Moq;
 
-namespace LedgerService.Tests;
+namespace LedgerService.UnitTests.Tests;
 
 public sealed class LedgerApiInfrastructureTests
 {

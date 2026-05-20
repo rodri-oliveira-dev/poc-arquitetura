@@ -18,7 +18,6 @@
     <Project Path="src/LedgerService.Worker/LedgerService.Worker.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/LedgerService.Tests/LedgerService.Tests.csproj" />
     <Project Path="tests/LedgerService.UnitTests/LedgerService.UnitTests.csproj" />
     <Project Path="tests/LedgerService.IntegrationTests/LedgerService.IntegrationTests.csproj" />
     <Project Path="tests/LedgerService.Worker.Tests/LedgerService.Worker.Tests.csproj" />

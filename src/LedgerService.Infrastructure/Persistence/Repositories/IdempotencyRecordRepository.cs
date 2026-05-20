@@ -3,7 +3,7 @@ using LedgerService.Domain.Entities;
 using LedgerService.Domain.Repositories;
 using LedgerService.Infrastructure.Persistence;
 
-namespace LedgerService.Infrastructure.Repositories;
+namespace LedgerService.Infrastructure.Persistence.Repositories;
 
 public sealed class IdempotencyRecordRepository : IIdempotencyRecordRepository
 {
