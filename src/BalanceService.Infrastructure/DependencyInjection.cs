@@ -68,8 +68,8 @@ public static class DependencyInjection
         IConfiguration configuration,
         IHostEnvironment environment)
     {
-        // Kafka consumer e opcional no ambiente de testes de integracao/locais.
-        // Caso contrario, o ValidateOnStart + HostedService impedem a API de subir sem Kafka.
+        // Kafka consumer e registrado apenas por processos que consomem eventos.
+        // Caso contrario, o ValidateOnStart impede o worker de subir sem configuracao critica.
         var kafkaEnabled = configuration.GetValue<bool>("Kafka:Enabled", defaultValue: true);
         if (!kafkaEnabled)
         {

@@ -22,6 +22,7 @@ public static class DependencyInjection
     {
         services
             .AddLedgerApiInfrastructure(configuration, environment)
+            .AddLedgerKafkaProducer(configuration, environment)
             .AddLedgerEstornoWorker(configuration)
             .AddLedgerOutboxWorker(configuration)
             .AddLedgerReprocessamentoWorker(configuration, environment);
@@ -37,8 +38,7 @@ public static class DependencyInjection
         services
             .AddLedgerInfrastructureCommon()
             .AddLedgerPersistence(configuration)
-            .AddLedgerRepositories()
-            .AddLedgerKafkaProducer(configuration, environment);
+            .AddLedgerRepositories();
 
         return services;
     }
@@ -102,7 +102,7 @@ public static class DependencyInjection
         IConfiguration configuration)
     {
         // Outbox/Kafka e opcional no ambiente de testes de integracao/locais.
-        // Caso contrario, o ValidateOnStart + HostedService impedem a API de subir sem Kafka.
+        // Caso contrario, o ValidateOnStart + HostedService impedem o worker de subir sem configuracao critica.
         var kafkaEnabled = configuration.GetValue<bool>("Kafka:Enabled", defaultValue: true);
         if (!kafkaEnabled)
         {
@@ -111,6 +111,12 @@ public static class DependencyInjection
 
         services.AddOptions<OutboxPublisherOptions>()
             .Bind(configuration.GetSection(OutboxPublisherOptions.SectionName))
+            .Validate(o => o.PollingIntervalSeconds > 0, "Outbox Publisher PollingIntervalSeconds deve ser maior que zero.")
+            .Validate(o => o.BatchSize > 0, "Outbox Publisher BatchSize deve ser maior que zero.")
+            .Validate(o => o.MaxParallelism > 0, "Outbox Publisher MaxParallelism deve ser maior que zero.")
+            .Validate(o => o.MaxAttempts > 0, "Outbox Publisher MaxAttempts deve ser maior que zero.")
+            .Validate(o => o.BaseBackoffSeconds > 0, "Outbox Publisher BaseBackoffSeconds deve ser maior que zero.")
+            .Validate(o => o.LockDurationSeconds > 0, "Outbox Publisher LockDurationSeconds deve ser maior que zero.")
             .ValidateOnStart();
 
         services.AddHostedService<OutboxKafkaPublisherService>();

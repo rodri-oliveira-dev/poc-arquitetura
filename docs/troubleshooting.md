@@ -46,12 +46,12 @@ Veja [Swagger e endpoints operacionais](development/local-development.md#swagger
 
 ## Readiness retorna 503
 
-`GET /ready` valida dependencias obrigatorias do servico. Em geral, investigue:
+`GET /ready` nas APIs valida dependencias obrigatorias para trafego HTTP. Em geral, investigue:
 
 - conexao com PostgreSQL;
-- topicos Kafka esperados;
-- `Kafka:Enabled`;
-- connection strings e bootstrap servers usados no ambiente.
+- connection strings usadas no ambiente.
+
+Kafka, topicos, `Kafka:Enabled`, bootstrap servers e DLQ pertencem aos workers. Quando houver falha de consumo ou publicacao, investigue logs e metricas de `LedgerService.Worker` e `BalanceService.Worker`; a indisponibilidade do Kafka consumer nao deve derrubar o readiness do `BalanceService.Api`.
 
 Detalhes ficam em [observabilidade](observability.md#readiness) e [Kafka, Outbox e DLQ](development/kafka-outbox.md).
 

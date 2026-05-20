@@ -1,6 +1,6 @@
 # Observabilidade e operacao minima
 
-Este documento define o inventario operacional minimo da POC para `Auth.Api`, `LedgerService.Api`, `LedgerService.Worker` e `BalanceService.Api`.
+Este documento define o inventario operacional minimo da POC para `Auth.Api`, `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker`.
 
 OpenTelemetry fica desabilitado por padrao. A correlacao via `X-Correlation-Id` permanece sempre ativa nas APIs e e usada para conectar logs, respostas HTTP e mensagens Kafka. A operacao local usa `docker compose`, PostgreSQL, Kafka, OpenTelemetry Collector, Jaeger, Prometheus, Loki, Grafana Alloy, Alertmanager e Grafana conforme documentado em [desenvolvimento local](development/local-development.md).
 
@@ -14,8 +14,8 @@ OpenTelemetry fica desabilitado por padrao. A correlacao via `X-Correlation-Id` 
 ## Baseline
 
 - Logs: console logging do ASP.NET Core, com escopo de `CorrelationId` nos middlewares de correlacao, coletado centralmente por Grafana Alloy e consultavel no Loki no compose local.
-- Traces: OpenTelemetry opcional para ASP.NET Core e `HttpClient`.
-- Metricas: OpenTelemetry opcional para ASP.NET Core, `HttpClient` e runtime .NET.
+- Traces: OpenTelemetry opcional para ASP.NET Core e `HttpClient` nas APIs, e `ActivitySource` explicito nos workers.
+- Metricas: OpenTelemetry opcional para ASP.NET Core, `HttpClient` e runtime .NET nas APIs, e runtime/custom metrics nos workers.
 - Exporters: console para validacao local e OTLP quando `OtlpEndpoint` estiver configurado.
 - Correlacao: header HTTP `X-Correlation-Id`, campo `CorrelationId` em logs e `correlation_id` em eventos Kafka.
 - Health: `GET /health` em `LedgerService.Api` e `BalanceService.Api`.
@@ -51,13 +51,13 @@ OpenTelemetry fica desabilitado por padrao. A correlacao via `X-Correlation-Id` 
 - body esperado em sucesso: `status=ready` e `checks`;
 - body esperado em falha: `status=not_ready` e `checks`.
 
-Checks atuais:
+Checks atuais nas APIs:
 
 - `db`: valida conexao com o PostgreSQL do respectivo servico.
-- `kafka`: reservado para processos que validam metadados dos topicos Kafka quando `Kafka:Enabled=true`.
-- `kafka=disabled`: indica que o Kafka foi explicitamente desabilitado por configuracao.
 
-No `LedgerService.Api` e no `BalanceService.Api`, readiness valida o PostgreSQL necessario para aceitar trafego HTTP. Configuracoes `Kafka:Consumer`, incluindo `Topics` e `DeadLetterTopic`, pertencem ao `BalanceService.Worker`.
+No `LedgerService.Api` e no `BalanceService.Api`, readiness valida somente o PostgreSQL necessario para aceitar trafego HTTP. O `LedgerService.Api` grava eventos na Outbox dentro da transacao de banco; Kafka e publicacao da Outbox pertencem ao `LedgerService.Worker` e nao bloqueiam readiness da API. Configuracoes `Kafka:Consumer`, incluindo `Topics` e `DeadLetterTopic`, pertencem ao `BalanceService.Worker`.
+
+Os workers nao expoem `/health` ou `/ready`, porque sao Generic Hosts sem ASP.NET Core. Saude operacional fica em validacao de options no startup, falha do processo quando configuracoes obrigatorias sao invalidas, logs de ciclo de vida com `serviceName` e logs/metricas dos componentes Kafka, Outbox, DLQ e processamento.
 
 ## Configuracao
 
@@ -91,6 +91,7 @@ Use `ServiceName` conforme o servico:
 - `LedgerService.Api`
 - `LedgerService.Worker`
 - `BalanceService.Api`
+- `BalanceService.Worker`
 
 ## Ambientes
 
@@ -277,7 +278,7 @@ Quando `Observability:OpenTelemetry:Enabled=true`, as APIs registram:
 - spans de entrada HTTP via instrumentacao ASP.NET Core;
 - spans de saida HTTP via instrumentacao `HttpClient`.
 
-`LedgerService` e `BalanceService` tambem criam `Activity` em trechos de Kafka/Outbox instrumentados no codigo:
+Quando `Observability:OpenTelemetry:Enabled=true`, os workers registram `Activity` em trechos de Kafka/Outbox instrumentados no codigo:
 
 - `LedgerService.OutboxPublisher`, para publicacao do Outbox no Kafka;
 - `BalanceService.KafkaConsumer`, para consumo Kafka;
@@ -298,7 +299,7 @@ Quando OpenTelemetry esta habilitado, as APIs registram metricas de:
 
 As metricas sao exportadas para console quando `UseConsoleExporter=true` e para OTLP quando `OtlpEndpoint` esta preenchido.
 
-As metricas automaticas sao tecnicas e geradas pela instrumentacao OpenTelemetry. No compose local, elas chegam ao OpenTelemetry Collector pelo mesmo endpoint OTLP das APIs. O Collector expoe essas series em formato Prometheus no endpoint interno `otel-collector:9464`, e o Prometheus faz scrape desse endpoint. O Grafana usa o Prometheus como datasource provisionado.
+As metricas automaticas sao tecnicas e geradas pela instrumentacao OpenTelemetry. No compose local, elas chegam ao OpenTelemetry Collector pelo mesmo endpoint OTLP das aplicacoes. O Collector expoe essas series em formato Prometheus no endpoint interno `otel-collector:9464`, e o Prometheus faz scrape desse endpoint. O Grafana usa o Prometheus como datasource provisionado.
 
 ### Metricas customizadas
 
@@ -345,9 +346,9 @@ A primeira metrica customizada foi `ledger.outbox.publish.attempts`, registrada 
 Meters customizados registrados no OpenTelemetry Metrics quando `Observability:OpenTelemetry:Enabled=true` no processo host:
 
 - `LedgerService.Domain`, emitido pelo `LedgerService.Api`;
-- `LedgerService.Outbox`, emitido pelo `LedgerService.Worker` quando a instrumentacao de Generic Host for ativada;
+- `LedgerService.Outbox`, emitido pelo `LedgerService.Worker`;
 - `BalanceService.Domain`, emitido pelo `BalanceService.Api`;
-- `BalanceService.Kafka`, emitido pelo `BalanceService.Api`.
+- `BalanceService.Kafka`, emitido pelo `BalanceService.Worker`.
 
 Com OpenTelemetry desabilitado, os instrumentos continuam sendo chamados pela aplicacao, mas nao ha provider/exporter ativo coletando as series. O fluxo funcional permanece inalterado.
 
@@ -556,7 +557,7 @@ Grafana -> Prometheus
 Grafana -> Loki
 ```
 
-`Auth.Api`, `LedgerService.Api` e `BalanceService.Api` sobem com OpenTelemetry habilitado e exportam para `http://otel-collector:4317` dentro da rede do compose. O `LedgerService.Worker` possui configuracao propria com `ServiceName=LedgerService.Worker`, mas a instrumentacao OpenTelemetry de Generic Host fica para etapa posterior para evitar acoplamento com as extensoes ASP.NET Core. As APIs continuam apontando somente para o Collector, nao para Prometheus ou Grafana.
+`Auth.Api`, `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker` sobem com OpenTelemetry habilitado e exportam para `http://otel-collector:4317` dentro da rede do compose. As APIs usam instrumentacao ASP.NET Core/`HttpClient`; os workers usam instrumentacao de Generic Host sem endpoint HTTP, runtime metrics e os sources/meters operacionais de Outbox/Kafka. Todos apontam somente para o Collector, nao para Prometheus ou Grafana.
 
 O Collector recebe OTLP via gRPC em `4317` e HTTP em `4318`, aplica `batch`, encaminha traces para `jaeger:4317` usando o exporter `otlp_grpc` e expoe metricas no exporter `prometheus` em `0.0.0.0:9464`. Essa porta nao e publicada no host; o Prometheus acessa `otel-collector:9464` pela rede Docker.
 
