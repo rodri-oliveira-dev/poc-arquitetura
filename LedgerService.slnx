@@ -8,6 +8,7 @@
     <Project Path="src/BalanceService.Application/BalanceService.Application.csproj" />
     <Project Path="src/BalanceService.Domain/BalanceService.Domain.csproj" />
     <Project Path="src/BalanceService.Infrastructure/BalanceService.Infrastructure.csproj" />
+    <Project Path="src/BalanceService.Worker/BalanceService.Worker.csproj" />
   </Folder>
   <Folder Name="/src/Ledger/">
     <Project Path="src/LedgerService.Api/LedgerService.Api.csproj" />

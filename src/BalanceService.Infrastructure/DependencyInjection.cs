@@ -17,11 +17,7 @@ public static class DependencyInjection
         IConfiguration configuration,
         IHostEnvironment environment)
     {
-        services
-            .AddBalanceApiInfrastructure(configuration, environment)
-            .AddBalanceLedgerEventsWorker(configuration);
-
-        return services;
+        return services.AddBalanceApiInfrastructure(configuration, environment);
     }
 
     public static IServiceCollection AddBalanceApiInfrastructure(
@@ -32,8 +28,7 @@ public static class DependencyInjection
         services
             .AddBalanceInfrastructureCommon()
             .AddBalancePersistence(configuration)
-            .AddBalanceRepositories()
-            .AddBalanceKafkaConsumer(configuration, environment);
+            .AddBalanceRepositories();
 
         return services;
     }

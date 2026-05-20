@@ -48,7 +48,7 @@ public sealed class KafkaConsumerOptionsTests
     }
 
     [Fact]
-    public void AddInfrastructure_should_allow_plaintext_kafka_in_development()
+    public void AddBalanceKafkaConsumer_should_allow_plaintext_kafka_in_development()
     {
         using var provider = CreateProvider(Environments.Development, "Plaintext");
 
@@ -58,7 +58,7 @@ public sealed class KafkaConsumerOptionsTests
     }
 
     [Fact]
-    public void AddInfrastructure_should_reject_plaintext_kafka_in_production()
+    public void AddBalanceKafkaConsumer_should_reject_plaintext_kafka_in_production()
     {
         using var provider = CreateProvider(Environments.Production, "Plaintext");
 
@@ -69,7 +69,7 @@ public sealed class KafkaConsumerOptionsTests
     }
 
     [Fact]
-    public void AddInfrastructure_should_allow_ssl_kafka_in_production()
+    public void AddBalanceKafkaConsumer_should_allow_ssl_kafka_in_production()
     {
         using var provider = CreateProvider(Environments.Production, "SSL");
 
@@ -78,10 +78,21 @@ public sealed class KafkaConsumerOptionsTests
         options.SecurityProtocol.Should().Be("SSL");
     }
 
+    [Fact]
+    public void AddInfrastructure_should_not_host_ledger_events_consumer()
+    {
+        var services = new ServiceCollection();
+        services.AddInfrastructure(CreateInfrastructureConfiguration("SSL"), CreateEnvironment(Environments.Production));
+
+        services.Should().NotContain(descriptor =>
+            descriptor.ServiceType == typeof(IHostedService) &&
+            descriptor.ImplementationType == typeof(LedgerEventsConsumer));
+    }
+
     private static ServiceProvider CreateProvider(string environmentName, string securityProtocol)
     {
         var services = new ServiceCollection();
-        services.AddInfrastructure(CreateInfrastructureConfiguration(securityProtocol), CreateEnvironment(environmentName));
+        services.AddBalanceKafkaConsumer(CreateInfrastructureConfiguration(securityProtocol), CreateEnvironment(environmentName));
         return services.BuildServiceProvider();
     }
 
