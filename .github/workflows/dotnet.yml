@@ -150,6 +150,25 @@ jobs:
           if line < threshold:
               print(f"Coverage below threshold ({threshold}%).", file=sys.stderr)
               sys.exit(1)
+
+          assemblies = {
+              assembly["name"]: float(assembly["coverage"])
+              for assembly in data.get("coverage", {}).get("assemblies", [])
+          }
+
+          for assembly_name in ("LedgerService.Worker", "BalanceService.Worker"):
+              if assembly_name not in assemblies:
+                  print(f"Coverage assembly not found: {assembly_name}", file=sys.stderr)
+                  sys.exit(1)
+
+              assembly_line = assemblies[assembly_name]
+              print(f"{assembly_name} line coverage: {assembly_line}%")
+              if assembly_line < threshold:
+                  print(
+                      f"{assembly_name} coverage below threshold ({threshold}%).",
+                      file=sys.stderr,
+                  )
+                  sys.exit(1)
           PY
 
       - name: Write summary
@@ -171,11 +190,20 @@ jobs:
               raise SystemExit(0)
 
           with path.open(encoding="utf-8") as f:
-              data = json.load(f)["summary"]
+              payload = json.load(f)
+
+          data = payload["summary"]
+          assemblies = {
+              assembly["name"]: assembly["coverage"]
+              for assembly in payload.get("coverage", {}).get("assemblies", [])
+          }
 
           print(f"- Cobertura de linhas: {data['linecoverage']}%")
           print(f"- Cobertura de branches: {data['branchcoverage']}%")
           print(f"- Cobertura de metodos: {data['methodcoverage']}%")
+          for assembly_name in ("LedgerService.Worker", "BalanceService.Worker"):
+              if assembly_name in assemblies:
+                  print(f"- {assembly_name}: {assemblies[assembly_name]}% de linhas")
           PY
 
       - name: Upload test results and coverage

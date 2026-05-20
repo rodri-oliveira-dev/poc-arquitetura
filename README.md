@@ -101,7 +101,7 @@ No Linux/macOS:
 ./test.sh
 ```
 
-Os scripts executam testes com cobertura e aplicam gate minimo de 80% de cobertura total de linhas. Alguns testes de integracao usam Testcontainers com PostgreSQL real e precisam acessar uma Docker-compatible API. Detalhes ficam em [cobertura de testes](docs/development/test-coverage.md) e [desenvolvimento local](docs/development/local-development.md#testcontainers-e-docker-compatible-api).
+Os scripts executam testes com cobertura e aplicam gate minimo de 80% de cobertura total de linhas e dos assemblies Worker. Alguns testes de integracao usam Testcontainers com PostgreSQL real e precisam acessar uma Docker-compatible API. Detalhes ficam em [cobertura de testes](docs/development/test-coverage.md) e [desenvolvimento local](docs/development/local-development.md#testcontainers-e-docker-compatible-api).
 
 ## Documentacao
 

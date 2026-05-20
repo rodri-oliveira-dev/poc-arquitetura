@@ -5,7 +5,8 @@ Este repositorio valida cobertura de testes na solution inteira (`LedgerService.
 - `dotnet test` com `--collect:"XPlat Code Coverage"`;
 - `coverlet.runsettings` como configuracao unica de coleta;
 - ReportGenerator para consolidar os arquivos `coverage.cobertura.xml`;
-- gate minimo de 80% de cobertura total de linhas.
+- gate minimo de 80% de cobertura total de linhas;
+- gate minimo de 80% de cobertura de linhas para `LedgerService.Worker` e `BalanceService.Worker`.
 
 ## Comando oficial
 
@@ -48,8 +49,9 @@ Depois da coleta, os scripts executam o ReportGenerator e leem `TestResults/cove
 
 ## Regra de cobertura
 
-- A validacao considera a cobertura consolidada da solution inteira, nao projeto por projeto.
-- O minimo aceito e 80% de cobertura total de linhas.
+- A validacao considera a cobertura consolidada da solution inteira.
+- `LedgerService.Worker` e `BalanceService.Worker` tambem precisam atingir 80% de cobertura de linhas por assembly.
+- O minimo aceito e 80% de cobertura de linhas.
 - O mesmo limite deve ser usado localmente, no `pre-push` e no CI.
 - Relatorios ficam em `TestResults/`, que nao e versionado.
 

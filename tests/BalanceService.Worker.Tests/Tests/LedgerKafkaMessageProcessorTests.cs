@@ -19,7 +19,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 using Moq;
 
-namespace BalanceService.UnitTests.Tests;
+namespace BalanceService.Worker.Tests.Tests;
 
 public sealed class LedgerKafkaMessageProcessorTests
 {

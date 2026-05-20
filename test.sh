@@ -47,4 +47,24 @@ echo "==> Global line coverage: ${LINE_COVERAGE}%"
 
 awk -v coverage="$LINE_COVERAGE" -v threshold="$THRESHOLD" 'BEGIN { exit (coverage + 0 >= threshold + 0 ? 0 : 1) }'
 
+assert_assembly_coverage() {
+  assembly_name="$1"
+
+  assembly_coverage="$(awk -v assembly="$assembly_name" '$1 == assembly { gsub(/%/, "", $NF); print $NF; exit }' "$SUMMARY_TXT")"
+  if [[ -z "$assembly_coverage" ]]; then
+    echo "Nao foi possivel encontrar a cobertura de $assembly_name em $SUMMARY_TXT" >&2
+    exit 1
+  fi
+
+  echo "==> ${assembly_name} line coverage: ${assembly_coverage}%"
+
+  awk -v coverage="$assembly_coverage" -v threshold="$THRESHOLD" 'BEGIN { exit (coverage + 0 >= threshold + 0 ? 0 : 1) }' || {
+    echo "Coverage de $assembly_name abaixo do threshold. Atual=${assembly_coverage}% Threshold=${THRESHOLD}%" >&2
+    exit 1
+  }
+}
+
+assert_assembly_coverage "LedgerService.Worker"
+assert_assembly_coverage "BalanceService.Worker"
+
 echo "==> Done"

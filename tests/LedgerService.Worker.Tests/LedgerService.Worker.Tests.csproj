@@ -12,7 +12,6 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="Moq" />
     <PackageReference Include="FluentAssertions" />
-    <PackageReference Include="YamlDotNet" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />
   </ItemGroup>
@@ -22,10 +21,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\LedgerService.Application\LedgerService.Application.csproj" />
-    <ProjectReference Include="..\..\src\LedgerService.Domain\LedgerService.Domain.csproj" />
-    <ProjectReference Include="..\..\src\LedgerService.Infrastructure\LedgerService.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\LedgerService.Api\LedgerService.Api.csproj" />
+    <ProjectReference Include="..\..\src\LedgerService.Worker\LedgerService.Worker.csproj" />
   </ItemGroup>
 
 </Project>

@@ -6,7 +6,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Moq;
 
-namespace LedgerService.Tests;
+namespace LedgerService.Worker.Tests.Tests;
 
 public sealed class KafkaTransportSecurityTests
 {

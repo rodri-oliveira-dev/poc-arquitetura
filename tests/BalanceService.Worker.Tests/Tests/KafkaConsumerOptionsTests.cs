@@ -7,7 +7,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Moq;
 
-namespace BalanceService.UnitTests.Tests;
+namespace BalanceService.Worker.Tests.Tests;
 
 public sealed class KafkaConsumerOptionsTests
 {

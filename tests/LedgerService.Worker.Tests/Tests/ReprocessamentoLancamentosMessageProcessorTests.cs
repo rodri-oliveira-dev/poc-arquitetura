@@ -12,7 +12,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
-namespace LedgerService.UnitTests.Tests;
+namespace LedgerService.Worker.Tests.Tests;
 
 public sealed class ReprocessamentoLancamentosMessageProcessorTests
 {

@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
 
-namespace LedgerService.UnitTests.Tests;
+namespace LedgerService.Worker.Tests.Tests;
 
 public sealed class EstornoLancamentoProcessorServiceTests
 {

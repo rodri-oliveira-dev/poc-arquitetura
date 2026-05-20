@@ -12,7 +12,7 @@ O target e idempotente, roda apos o build, ignora CI (`CI=true`) e nao falha o b
 
 - `commit-msg`: valida a primeira linha da mensagem de commit com Conventional Commits.
 - `post-merge`: apos `git merge` ou `git pull`, restaura as tools locais e as dependencias da solution.
-- `pre-push`: executa restore, build, testes com cobertura e falha se a cobertura total de linhas ficar abaixo de 80% quando houver alteracoes impactantes.
+- `pre-push`: executa restore, build, testes com cobertura e falha se a cobertura total de linhas ou a cobertura dos assemblies Worker ficar abaixo de 80% quando houver alteracoes impactantes.
 
 ## Politica do post-merge
 
