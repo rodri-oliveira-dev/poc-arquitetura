@@ -1,6 +1,6 @@
 # Kafka, Outbox e DLQ
 
-Este documento concentra a referencia de mensageria entre `LedgerService.Api`, `LedgerService.Worker` e `BalanceService.Api`.
+Este documento concentra a referencia de mensageria entre `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Worker` e `BalanceService.Api`.
 
 ## Fluxo
 
@@ -140,16 +140,20 @@ O envelope da DLQ preserva payload original quando disponivel, topico, particao,
 
 ## Metricas operacionais
 
-A mensageria publica metricas customizadas via `System.Diagnostics.Metrics` quando OpenTelemetry Metrics esta habilitado na API. A instrumentacao nao altera payloads, headers, topicos, contratos de evento, politica de retry ou politica de DLQ. Sem OpenTelemetry habilitado, as chamadas aos instrumentos continuam seguras, mas nao ha coleta/exportacao.
+A mensageria publica metricas customizadas via `System.Diagnostics.Metrics` quando OpenTelemetry Metrics esta habilitado no processo host correspondente. A instrumentacao nao altera payloads, headers, topicos, contratos de evento, politica de retry ou politica de DLQ. Sem OpenTelemetry habilitado, as chamadas aos instrumentos continuam seguras, mas nao ha coleta/exportacao.
 
 Metricas de dominio de lancamentos, estornos, reprocessamentos e projecoes de saldo ficam documentadas em [observabilidade](../observability.md#metricas-de-dominio). Este documento lista apenas metricas operacionais de mensageria para evitar duplicacao de vocabulario.
 
 Metricas do `LedgerService.Api`:
 
-- Outbox: `ledger.outbox.messages.created`, `ledger.outbox.messages.published`, `ledger.outbox.publish.duration`, `ledger.outbox.messages.pending`, `ledger.outbox.messages.failed`, `ledger.outbox.publish.attempts`.
+- Outbox criada pela escrita HTTP: `ledger.outbox.messages.created`.
+
+Metricas do `LedgerService.Worker`:
+
+- Outbox publisher: `ledger.outbox.messages.published`, `ledger.outbox.publish.duration`, `ledger.outbox.messages.pending`, `ledger.outbox.messages.failed`, `ledger.outbox.publish.attempts`.
 - Kafka Producer: `ledger.kafka.producer.messages.published`, `ledger.kafka.producer.publish.duration`, `ledger.kafka.producer.errors`.
 
-Metricas do `BalanceService.Api`:
+Metricas do `BalanceService.Worker`:
 
 - Kafka Consumer: `balance.kafka.consumer.messages.consumed`, `balance.kafka.consumer.processing.duration`, `balance.kafka.consumer.errors`, `balance.kafka.consumer.duplicates`.
 - DLQ: `balance.kafka.dlq.messages.published`, `balance.kafka.dlq.publish.errors`.
@@ -204,7 +208,7 @@ Balance:
 6. Aguarde o polling e confirme transicao para `Sent`.
 7. Consulte o Balance para confirmar atualizacao da projecao.
 
-Em falha do Kafka, o servico nao deve cair: ele registra erro, incrementa tentativas e agenda `next_attempt_at` com backoff.
+Em falha do Kafka, as APIs HTTP nao devem cair por causa do processamento assincrono. O Worker registra erro, incrementa tentativas e agenda `next_attempt_at` com backoff.
 
 Para o roteiro operacional completo Auth -> Ledger -> Outbox -> Kafka -> Balance, incluindo `X-Correlation-Id`, logs, consultas SQL, Balance e Jaeger, use a secao [Validacao Auth -> Ledger -> Outbox -> Kafka -> Balance](../observability.md#validacao-auth---ledger---outbox---kafka---balance). O script recomendado e:
 

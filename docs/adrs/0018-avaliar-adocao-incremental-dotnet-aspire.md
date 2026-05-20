@@ -5,9 +5,9 @@ Proposto
 
 ## Contexto
 
-O projeto possui uma POC de microservicos .NET com `Auth.Api`, `LedgerService.Api`, `BalanceService.Api`, PostgreSQL por servico, Kafka, Outbox, DLQ, health/readiness e OpenTelemetry opcional. O fluxo local principal esta documentado via `compose.yaml`, scripts e README.
+O projeto possui uma POC de microservicos .NET com `Auth.Api`, `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api`, `BalanceService.Worker`, PostgreSQL por contexto, Kafka, Outbox, DLQ, health/readiness das APIs e OpenTelemetry opcional com `ServiceName` por processo. O fluxo local principal esta documentado via `compose.yaml`, scripts e README.
 
-.NET Aspire pode melhorar a experiencia local com `AppHost`, dashboard, orquestracao de recursos e `ServiceDefaults`. Ao mesmo tempo, criaria uma segunda representacao da topologia, com risco de drift em relacao ao compose e aos scripts atuais.
+.NET Aspire pode melhorar a experiencia local com `AppHost`, dashboard, orquestracao de recursos e `ServiceDefaults`. Ao mesmo tempo, criaria uma segunda representacao da topologia, com risco de drift em relacao ao compose, aos scripts atuais e a separacao operacional entre APIs e workers.
 
 ## Decisao proposta
 

@@ -8,12 +8,14 @@ views {
   }
 
   view containers {
-    title "Container View - APIs, bancos, Kafka e observabilidade"
+    title "Container View - APIs, workers, bancos, Kafka e observabilidade"
     include customer
     include auth.authApi
     include ledger.ledgerApi
+    include ledger.ledgerWorker
     include ledger.ledgerDb
     include balance.balanceApi
+    include balance.balanceWorker
     include balance.balanceDb
     include kafka.ledgerTopic
     include kafka.ledgerEstornoTopic
@@ -36,8 +38,10 @@ views {
     include auth.authApi
     include ledger.ledgerApi
     include ledger.ledgerDb
+    include ledger.ledgerWorker
     include ledger.ledgerOutbox
     include kafka.ledgerTopic
+    include balance.balanceWorker
     include balance.balanceConsumer
     include balance.balanceDb
     include balance.balanceApi
@@ -50,7 +54,9 @@ views {
     title "Observabilidade local - traces, metricas, logs, dashboards e alertas"
     include auth.authApi
     include ledger.ledgerApi
+    include ledger.ledgerWorker
     include balance.balanceApi
+    include balance.balanceWorker
     include observability.collector
     include observability.jaeger
     include observability.prometheus
@@ -62,12 +68,22 @@ views {
     autoLayout LeftRight
   }
 
-  view ledgerComponents of ledger.ledgerApi {
-    title "Component View - LedgerService"
+  view ledgerApiComponents of ledger.ledgerApi {
+    title "Component View - LedgerService.Api"
     include ledger.ledgerApiLayer
     include ledger.ledgerApplication
     include ledger.ledgerDomain
     include ledger.ledgerInfrastructure
+    include ledger.ledgerDb
+    include auth.authApi
+    autoLayout LeftRight
+  }
+
+  view ledgerWorkerComponents of ledger.ledgerWorker {
+    title "Component View - LedgerService.Worker"
+    include ledger.ledgerWorkerComposition
+    include ledger.ledgerWorkerApplication
+    include ledger.ledgerWorkerInfrastructure
     include ledger.ledgerOutbox
     include ledger.ledgerEstornoProcessor
     include ledger.ledgerReprocessamentoConsumer
@@ -75,21 +91,29 @@ views {
     include kafka.ledgerTopic
     include kafka.ledgerEstornoTopic
     include kafka.ledgerReprocessamentoTopic
-    include auth.authApi
     autoLayout LeftRight
   }
 
-  view balanceComponents of balance.balanceApi {
-    title "Component View - BalanceService"
+  view balanceApiComponents of balance.balanceApi {
+    title "Component View - BalanceService.Api"
     include balance.balanceApiLayer
     include balance.balanceApplication
     include balance.balanceDomain
     include balance.balanceInfrastructure
+    include balance.balanceDb
+    include auth.authApi
+    autoLayout LeftRight
+  }
+
+  view balanceWorkerComponents of balance.balanceWorker {
+    title "Component View - BalanceService.Worker"
+    include balance.balanceWorkerComposition
+    include balance.balanceWorkerApplication
+    include balance.balanceWorkerInfrastructure
     include balance.balanceConsumer
     include balance.balanceDb
     include kafka.ledgerTopic
     include kafka.ledgerDlq
-    include auth.authApi
     autoLayout LeftRight
   }
 

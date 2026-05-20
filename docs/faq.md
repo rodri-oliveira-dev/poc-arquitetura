@@ -4,6 +4,8 @@
 
 Ele demonstra uma arquitetura de microservicos em .NET com escrita e leitura separadas, Clean Architecture/DDD, PostgreSQL por servico, Kafka, Outbox, DLQ, autenticacao JWT com JWKS, autorizacao por merchant, observabilidade local e testes automatizados. A visao resumida fica no [README](../README.md) e a leitura arquitetural fica em [docs/architecture](architecture/README.md).
 
+No estado atual, APIs HTTP e workers rodam como processos separados: `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker`. Essa separacao torna escala, deploy, readiness, troubleshooting e observabilidade independentes por `ServiceName`.
+
 ## Qual problema este projeto resolve?
 
 O projeto resolve, em formato de POC, o fluxo de registrar lancamentos financeiros com consistencia transacional local, publicar eventos de forma confiavel e manter uma projecao de saldo para consulta. O desenho evita atualizar saldo diretamente no mesmo request de escrita e usa consistencia eventual via Kafka.
@@ -79,3 +81,7 @@ Use [Kafka, Outbox e DLQ](development/kafka-outbox.md). O documento descreve top
 ## Onde vejo observabilidade?
 
 Use [observabilidade e operacao minima](observability.md). O documento cobre health/readiness, logs, traces, metricas, dashboards Grafana, Prometheus, Loki, Alertmanager e validacoes operacionais.
+
+## Workers expoem endpoints HTTP?
+
+Nao. `LedgerService.Worker` e `BalanceService.Worker` sao Generic Hosts sem superficie HTTP nesta POC. Health/readiness HTTP pertencem as APIs; a saude operacional dos workers deve ser acompanhada por startup, logs, metricas, traces e efeitos em Outbox/Kafka/bancos.

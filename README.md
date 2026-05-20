@@ -13,7 +13,7 @@ O projeto modela um cenario comum em sistemas financeiros: registrar lancamentos
 
 ## Solucao
 
-A POC separa escrita e leitura em servicos distintos. O `LedgerService` recebe comandos de lancamento, estorno e reprocessamento, persiste os dados e grava eventos em Outbox na mesma transacao. Um publisher assincrono envia os eventos ao Kafka. O `BalanceService` consome os eventos financeiros e atualiza saldos consolidados. O `Auth.Api` emite tokens JWT RS256 e publica JWKS para validacao offline pelas APIs de negocio.
+A POC separa escrita e leitura em servicos distintos e separa APIs HTTP de workers. O `LedgerService.Api` recebe comandos de lancamento, estorno e reprocessamento, persiste os dados e grava eventos em Outbox na mesma transacao. O `LedgerService.Worker` publica a Outbox no Kafka e executa processamentos assincronos do Ledger. O `BalanceService.Worker` consome os eventos financeiros e atualiza saldos consolidados; o `BalanceService.Api` atende consultas HTTP. O `Auth.Api` emite tokens JWT RS256 e publica JWKS para validacao offline pelas APIs de negocio.
 
 Principais servicos:
 
@@ -22,7 +22,7 @@ Principais servicos:
 | `Auth.Api` | Emite JWT RS256 por `POST /auth/login` e publica JWKS em `GET /.well-known/jwks.json`. |
 | `LedgerService.Api` | API de escrita para lancamentos, estornos, reprocessamentos, Outbox e status operacionais. |
 | `LedgerService.Worker` | Processo dedicado para publicar Outbox no Kafka e processar estornos/reprocessamentos do Ledger. |
-| `BalanceService.Api` | API de leitura de saldos consolidados, alimentada por eventos Kafka do Ledger. |
+| `BalanceService.Api` | API de leitura de saldos consolidados projetados pelo Worker. |
 | `BalanceService.Worker` | Processo dedicado para consumir eventos Kafka do Ledger e atualizar a projecao de saldos. |
 
 ## Arquitetura
@@ -46,7 +46,7 @@ Documentacao arquitetural publicada:
 - .NET SDK conforme `global.json`.
 - Docker-compatible API para Testcontainers e stack local.
 - CLI `docker` com suporte a `docker compose` para a stack completa local.
-- PostgreSQL e Kafka acessiveis quando rodar as APIs fora de container.
+- PostgreSQL e Kafka acessiveis quando rodar APIs e workers fora de container.
 
 O projeto nao exige Docker Desktop como premissa. No Windows sem Docker Desktop, o ambiente recomendado e Rancher Desktop com `moby/dockerd`.
 

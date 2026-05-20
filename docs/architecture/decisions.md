@@ -2,7 +2,7 @@
 
 ## Resumo executivo
 
-A arquitetura atual esta mais proxima de Clean Architecture/DDD por microservico, mas nao e pura. Na pratica, e uma arquitetura hibrida e coerente com uma POC de microservicos: camadas internas nos servicos com dominio relevante, Kafka/Outbox para consistencia eventual e Auth.Api simplificado.
+A arquitetura atual esta mais proxima de Clean Architecture/DDD por microservico, mas nao e pura. Na pratica, e uma arquitetura hibrida e coerente com uma POC de microservicos: camadas internas nos servicos com dominio relevante, APIs HTTP e workers separados por processo, Kafka/Outbox para consistencia eventual e Auth.Api simplificado.
 
 A recomendacao e nao aumentar o numero de camadas agora. O melhor caminho e preservar a estrutura atual, corrigir assimetrias pontuais e fortalecer contratos/eventos/documentacao antes de qualquer reestruturacao.
 
@@ -12,7 +12,7 @@ A recomendacao e nao aumentar o numero de camadas agora. O melhor caminho e pres
 
 Camadas atuais: adequadas.
 
-O servico tem complexidade suficiente para justificar separacao: endpoint protegido, idempotencia, transacao, dominio com invariantes, persistencia e Outbox com Kafka. A separacao ajuda testes e manutencao.
+O servico tem complexidade suficiente para justificar separacao: endpoint protegido, idempotencia, transacao, dominio com invariantes, persistencia e Outbox com Kafka. A separacao em `LedgerService.Api` e `LedgerService.Worker` ajuda escala independente, troubleshooting, readiness e observabilidade.
 
 Excessos ou sinais de atencao:
 
@@ -30,7 +30,7 @@ Simplificacoes recomendadas:
 
 Camadas atuais: adequadas, com algum overhead aceitavel.
 
-Balance possui leitura HTTP, consumer Kafka, DLQ, idempotencia de eventos e projecao. A separacao em Application/Domain/Infrastructure e justificavel.
+Balance possui leitura HTTP, consumer Kafka, DLQ, idempotencia de eventos e projecao. A separacao em `BalanceService.Api` e `BalanceService.Worker`, compartilhando Application/Domain/Infrastructure por composition roots explicitos, e justificavel.
 
 Excessos ou sinais de atencao:
 
@@ -66,7 +66,8 @@ Simplificacoes recomendadas:
 - Inconsistencia de posicao das portas de persistencia: Ledger coloca repositories no Domain; Balance coloca em Application.
 - Contrato de evento ainda depende de disciplina manual entre produtor e consumidor.
 - Currency ausente em `LedgerEntryCreated.v1` gera default no Balance, com risco de semantica incorreta.
-- Readiness mistura checks de infraestrutura no `Program.cs`; aceitavel, mas pode crescer demais se novos checks forem adicionados.
+- Readiness das APIs ainda mistura checks de infraestrutura no `Program.cs`; aceitavel enquanto validar apenas dependencias do trafego HTTP, mas pode crescer demais se novos checks forem adicionados.
+- Rollout entre API antiga e Worker novo exige cuidado para evitar HostedServices duplicados publicando Outbox, consumindo Kafka ou processando pendencias simultaneamente.
 - Alguma logica temporal usa `DateTime.Now`; Balance ja tem `IClock`, Ledger ainda nao.
 - Observabilidade esta presente, mas tags e ActivitySource podem se espalhar pela Application se nao houver criterio.
 
@@ -108,20 +109,21 @@ Simplificacoes recomendadas:
 - Introduzir clock abstrato no LedgerService para reduzir uso de `DateTime.Now`.
 - Isolar montagem de evento/outbox se `CreateLancamentoService` crescer.
 - Definir politica de evolucao de eventos: JSON Schema/contratos versionados ou schema registry se a POC virar baseline.
-- Extrair readiness checks para componentes pequenos se os checks passarem de DB/Kafka basico.
+- Extrair readiness checks para componentes pequenos se os checks das APIs passarem de banco e dependencias diretas do trafego HTTP.
 
 ### Longo prazo
 
 - Substituir Auth.Api por provedor OIDC real, como ja proposto em ADR.
 - Definir estrategia de replay/re-drive de DLQ e reconstrucao de projecoes.
 - Avaliar .NET Aspire apenas se a operacao local/orquestracao se tornar gargalo real.
-- Avaliar separar workers de API se escala operacional exigir ciclos independentes de deploy/replicas.
+- Evoluir orquestracao/deploy para tratar APIs e workers como unidades operacionais independentes, incluindo rollout sem duplicidade de HostedServices.
 
 ## Decisao recomendada
 
 Adotar arquitetura minimalista e pragmatica, robusta onde a complexidade e real:
 
 - LedgerService e BalanceService continuam com camadas `Api`, `Application`, `Domain` e `Infrastructure`.
+- `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker` sao processos separados, com composition roots explicitos e `ServiceName` proprio.
 - Auth.Api continua como servico simples em projeto unico.
 - Boundaries devem ser reforcados por documentacao, testes de contrato e revisao de dependencias, nao por novas camadas preventivas.
 - Refactors estruturais devem ser planejados em etapas pequenas, com motivo concreto e ADR propria quando alterarem a decisao.

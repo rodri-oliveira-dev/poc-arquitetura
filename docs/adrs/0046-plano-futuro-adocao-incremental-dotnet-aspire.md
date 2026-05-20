@@ -7,9 +7,9 @@ Proposto
 2026-05-06
 
 ## Contexto
-O projeto e uma POC distribuida em .NET 10 com tres APIs (`Auth.Api`, `LedgerService.Api` e `BalanceService.Api`), dois bancos PostgreSQL, Kafka em KRaft, Outbox, DLQ, JWT via JWKS, health/readiness, OpenTelemetry opcional, Docker Compose via `docker compose`, testes automatizados e pipelines GitHub Actions.
+O projeto e uma POC distribuida em .NET 10 com `Auth.Api`, `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker`, dois bancos PostgreSQL, Kafka em KRaft, Outbox, DLQ, JWT via JWKS, health/readiness nas APIs, OpenTelemetry opcional com `ServiceName` por processo, Docker Compose via `docker compose`, testes automatizados e pipelines GitHub Actions.
 
-O ambiente local completo ja esta documentado em `README.md` e `docs/development/local-development.md`, usando `compose.yaml` para subir APIs, bancos, Kafka e o job de criacao de topicos. As migrations continuam manuais por decisao existente. Os testes de integracao atuais usam `WebApplicationFactory`, substituem persistencia por EF InMemory em parte do escopo HTTP e desligam Kafka por configuracao.
+O ambiente local completo ja esta documentado em `README.md` e `docs/development/local-development.md`, usando `compose.yaml` para subir APIs, workers, bancos, Kafka e o job de criacao de topicos. As migrations continuam manuais por decisao existente. Os testes de integracao atuais usam `WebApplicationFactory`, substituem persistencia por EF InMemory em parte do escopo HTTP e desligam Kafka por configuracao.
 
 Ja existe a ADR-0018 propondo avaliar a adocao incremental do .NET Aspire. O levantamento tecnico posterior reforcou que Aspire pode agregar valor, mas tambem confirmou riscos de drift entre `compose.yaml`, scripts, documentacao, configuracoes locais, observabilidade e CI/CD.
 
@@ -24,7 +24,7 @@ O primeiro passo futuro deve ser um spike em branch separada, com escopo minimo:
 
 - validar compatibilidade e templates Aspire com o SDK .NET usado pelo repositorio;
 - criar um AppHost experimental apenas para desenvolvimento local;
-- modelar inicialmente `Auth.Api`, `LedgerService.Api` e PostgreSQL Ledger;
+- modelar inicialmente `Auth.Api`, `LedgerService.Api`, `LedgerService.Worker` e PostgreSQL Ledger, preservando a separacao API/Worker desde o primeiro spike;
 - preservar migrations manuais ate decisao explicita em contrario;
 - validar Aspire Dashboard, logs, traces, health/readiness e configuracao local;
 - comparar o fluxo com o `docker compose` atual;
@@ -32,7 +32,7 @@ O primeiro passo futuro deve ser um spike em branch separada, com escopo minimo:
 
 Somente apos esse spike deve ser avaliado:
 
-- incluir Kafka, topicos, DLQ e `BalanceService.Api` no AppHost;
+- incluir Kafka, topicos, DLQ, `BalanceService.Api` e `BalanceService.Worker` no AppHost;
 - criar um projeto `ServiceDefaults`;
 - padronizar OpenTelemetry, health checks, service discovery e resiliencia HTTP;
 - introduzir testes baseados em Aspire;

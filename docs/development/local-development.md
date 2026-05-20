@@ -77,6 +77,7 @@ Ver status e logs:
 docker compose ps
 docker compose logs -f ledger-service
 docker compose logs -f ledger-worker
+docker compose logs -f balance-service
 docker compose logs -f balance-worker
 ```
 

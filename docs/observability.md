@@ -167,8 +167,8 @@ O Alloy descobre apenas containers do projeto compose `poc-arquitetura` e aplica
 
 | Label | Origem | Exemplo |
 | --- | --- | --- |
-| `service` | label `com.docker.compose.service` | `ledger-service` |
-| `container` | nome do container Docker | `poc-ledger-service` |
+| `service` | label `com.docker.compose.service` | `ledger-service`, `ledger-worker`, `balance-service`, `balance-worker` |
+| `container` | nome do container Docker | `poc-ledger-service`, `poc-ledger-worker` |
 | `compose_project` | label `com.docker.compose.project` | `poc-arquitetura` |
 | `environment` | valor fixo local | `local` |
 
@@ -180,14 +180,16 @@ Consultas LogQL uteis no Grafana Explore com datasource `Loki`:
 
 ```logql
 {service="ledger-service"}
+{service="ledger-worker"}
 {service="balance-service"}
+{service="balance-worker"}
 {container="poc-auth-api"}
 {service="ledger-service"} |= "CorrelationId=<valor>"
-{service="ledger-service"} |= "TraceId=<valor>"
-{service="balance-service"} |= "CorrelationId=<valor>"
-{service=~"ledger-service|balance-service"} |= "TraceId=<trace-id>"
-{service=~"ledger-service|balance-service"} |= "CorrelationId=<correlation-id>"
-{service="ledger-service"} |= "fail"
+{service="ledger-worker"} |= "TraceId=<valor>"
+{service="balance-worker"} |= "CorrelationId=<valor>"
+{service=~"ledger-service|ledger-worker|balance-service|balance-worker"} |= "TraceId=<trace-id>"
+{service=~"ledger-service|ledger-worker|balance-service|balance-worker"} |= "CorrelationId=<correlation-id>"
+{service=~"ledger-worker|balance-worker"} |= "fail"
 {compose_project="poc-arquitetura", environment="local"}
 ```
 
@@ -195,7 +197,7 @@ Para uma janela recente, use o seletor de tempo do Grafana, por exemplo "Last 15
 
 ```bash
 curl -G "http://localhost:3100/loki/api/v1/query_range" \
-  --data-urlencode 'query={service="ledger-service"}' \
+  --data-urlencode 'query={service="ledger-worker"}' \
   --data-urlencode 'limit=20'
 ```
 
@@ -236,7 +238,7 @@ Caminho a partir de um `TraceId`:
 1. No Explore com datasource `Loki`, rode uma query por servico e periodo, por exemplo:
 
    ```logql
-   {service="ledger-service", environment="local"} |= "TraceId=<trace-id>"
+   {service=~"ledger-service|ledger-worker", environment="local"} |= "TraceId=<trace-id>"
    ```
 
 2. Abra uma linha que contenha `TraceId=<trace-id>`.
@@ -248,7 +250,7 @@ Caminho a partir de um `CorrelationId`:
 1. Pesquise o identificador nos logs:
 
    ```logql
-   {service=~"auth-api|ledger-service|balance-service", environment="local"} |= "CorrelationId=<correlation-id>"
+   {service=~"auth-api|ledger-service|ledger-worker|balance-service|balance-worker", environment="local"} |= "CorrelationId=<correlation-id>"
    ```
 
 2. Use o mesmo valor em consultas SQL operacionais quando precisar conectar logs, Outbox e Balance:
@@ -281,9 +283,9 @@ Quando `Observability:OpenTelemetry:Enabled=true`, as APIs registram:
 Quando `Observability:OpenTelemetry:Enabled=true`, os workers registram `Activity` em trechos de Kafka/Outbox instrumentados no codigo:
 
 - `LedgerService.OutboxPublisher`, para publicacao do Outbox no Kafka;
-- `BalanceService.KafkaConsumer`, para consumo Kafka;
-- `BalanceService.Application`, para aplicacao do evento no consolidado;
-- `BalanceService.Api`, para consultas de consolidado.
+- `BalanceService.KafkaConsumer`, para consumo Kafka.
+
+As APIs registram spans HTTP e `HttpClient`; o `BalanceService.Api` tambem registra `BalanceService.Application` para consultas de consolidado.
 
 Quando ha `Activity` ativa no request HTTP, o Ledger persiste `traceparent`, `tracestate` e `baggage` em colunas opcionais da `outbox_messages`. O publisher restaura esse contexto antes de criar o span `outbox.publish` e publica os mesmos headers W3C no Kafka. O `BalanceService.Worker` usa `traceparent`/`tracestate` como parent do span `kafka.consume` e reidrata o header `baggage` como baggage da `Activity` quando possivel.
 
@@ -347,7 +349,7 @@ Meters customizados registrados no OpenTelemetry Metrics quando `Observability:O
 
 - `LedgerService.Domain`, emitido pelo `LedgerService.Api`;
 - `LedgerService.Outbox`, emitido pelo `LedgerService.Worker`;
-- `BalanceService.Domain`, emitido pelo `BalanceService.Api`;
+- `BalanceService.Domain`, emitido pelos casos de uso do Balance quando registrado no processo host;
 - `BalanceService.Kafka`, emitido pelo `BalanceService.Worker`.
 
 Com OpenTelemetry desabilitado, os instrumentos continuam sendo chamados pela aplicacao, mas nao ha provider/exporter ativo coletando as series. O fluxo funcional permanece inalterado.
@@ -360,7 +362,7 @@ As metricas de dominio sao emitidas em pontos de orquestracao da camada de aplic
 
 Metricas de dominio nao devem carregar identificadores individuais nem valores de alta cardinalidade. Tags como `merchant_id`, `ledger_entry_id`, `event_id`, `correlation_id`, `trace_id`, `span_id`, `document`, `external_reference`, `idempotency_key`, valor monetario, descricao e mensagem de exception continuam proibidas. Tags como `result`, `reason`, `operation`, `entry_type`, `event_type` e `currency` devem usar conjuntos pequenos e estaveis. A tag `reason` deve ser classificacao estavel, nunca mensagem livre.
 
-Metricas de dominio do `LedgerService.Api`:
+Metricas de dominio do `LedgerService.Application`:
 
 | Metrica | Instrumento | Unidade | Tags permitidas | Significado | Interpretacao operacional |
 | --- | --- | --- | --- | --- | --- |
@@ -372,7 +374,7 @@ Metricas de dominio do `LedgerService.Api`:
 | `ledger.reprocess.requests.processed` | Counter | `1` | `result` | Solicitacoes de reprocessamento processadas pelo Ledger. | Indica se o replay terminou como `completed`, `completed_with_warnings`, `rejected` ou `failed`. |
 | `ledger.idempotency.hits` | Counter | `1` | `operation` | Replays atendidos por idempotencia no Ledger. | Sinaliza repeticao esperada de operacoes sem contar a `Idempotency-Key`; `operation` usa nomes estaveis como `create_entry`, `request_reversal` e `request_reprocess`. |
 
-Metricas de dominio do `BalanceService.Api`:
+Metricas de dominio do `BalanceService.Application`:
 
 | Metrica | Instrumento | Unidade | Tags permitidas | Significado | Interpretacao operacional |
 | --- | --- | --- | --- | --- | --- |
@@ -405,7 +407,7 @@ Metricas operacionais do `LedgerService.Worker`:
 | `ledger.kafka.producer.publish.duration` | Histogram | `ms` | `topic`, `event_type`, `result` | Latencia da chamada `ProduceAsync` do producer Kafka. |
 | `ledger.kafka.producer.errors` | Counter | `1` | `topic`, `event_type`, `error_type` | Erros do producer Kafka por tipo estavel de excecao. |
 
-Metricas operacionais do `BalanceService.Api`:
+Metricas operacionais do `BalanceService.Worker`:
 
 | Metrica | Instrumento | Unidade | Tags permitidas | Interpretacao |
 | --- | --- | --- | --- | --- |
@@ -578,10 +580,10 @@ Dashboards provisionados:
 
 Os dashboards mantem filtros pequenos para investigacao:
 
-- `service`: filtra as series Prometheus por `exported_job` (`Auth.Api`, `LedgerService.Api` ou `BalanceService.Api`).
+- `service`: filtra as series Prometheus por `exported_job` (`Auth.Api`, `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` ou `BalanceService.Worker`).
 - `status`: filtra o painel de respostas HTTP por classe de status (`2..`, `3..`, `4..` ou `5..`).
 - `environment`: valor local usado nos labels do Loki.
-- `loki_service`: filtra o link para Explore/Loki pelos nomes de servico do compose (`auth-api`, `ledger-service` ou `balance-service`).
+- `loki_service`: filtra o link para Explore/Loki pelos nomes de servico do compose (`auth-api`, `ledger-service`, `ledger-worker`, `balance-service` ou `balance-worker`).
 
 O link `Logs no Loki` abre o Explore com a mesma janela de tempo do dashboard e uma query LogQL baseada nos labels estaveis `compose_project`, `environment` e `service`. A partir dos logs, linhas com `TraceId=<valor>` exibem o link interno para o datasource `Jaeger`.
 
@@ -594,7 +596,7 @@ Metricas usadas nos dashboards:
 - `dotnet_thread_pool_queue_length_total`: tamanho da fila do ThreadPool.
 - `dotnet_exceptions_total`: excecoes observadas pelo runtime por tipo estavel.
 
-As queries agrupam principalmente por `exported_job`, que representa `Auth.Api`, `LedgerService.Api` ou `BalanceService.Api` nas series exportadas pelo Collector. O painel por rota usa `http_route` somente porque a instrumentacao ASP.NET Core exporta rotas normalizadas, como `/health`, `/ready` e templates de rota, evitando identificadores unicos.
+As queries agrupam principalmente por `exported_job`, que representa `Auth.Api`, `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` ou `BalanceService.Worker` nas series exportadas pelo Collector. O painel por rota usa `http_route` somente para processos HTTP, porque a instrumentacao ASP.NET Core exporta rotas normalizadas, como `/health`, `/ready` e templates de rota, evitando identificadores unicos.
 
 Limitacoes conhecidas:
 
@@ -667,7 +669,7 @@ Na UI do Jaeger, use o seletor de servico para procurar:
 
 Ao consultar traces, o esperado e visualizar spans de entrada HTTP gerados pela instrumentacao ASP.NET Core para `GET /health` e `GET /ready` nos servicos que expoem esses endpoints. A validacao confirma apenas o caminho minimo de traces HTTP; ela nao depende de eventos Kafka, Outbox, endpoints autenticados, spans customizados ou metricas customizadas.
 
-No Prometheus, acesse `http://localhost:9090/targets` e confirme que os targets `otel-collector:9464`, `alertmanager:9093` e `localhost:9090` estao `UP`. Em `http://localhost:9090/alerts`, confirme que o grupo `technical-alerts` foi carregado. Depois gere chamadas HTTP para as APIs e pesquise metricas tecnicas automaticas. Os nomes podem variar conforme a versao dos pacotes OpenTelemetry e do runtime .NET, mas normalmente incluem series relacionadas a HTTP server, HTTP client e runtime/processo .NET. Prometheus nao deve ter targets diretos para `Auth.Api`, `LedgerService.Api` ou `BalanceService.Api` nesta etapa.
+No Prometheus, acesse `http://localhost:9090/targets` e confirme que os targets `otel-collector:9464`, `alertmanager:9093` e `localhost:9090` estao `UP`. Em `http://localhost:9090/alerts`, confirme que o grupo `technical-alerts` foi carregado. Depois gere chamadas HTTP para as APIs e eventos para os workers, e pesquise metricas tecnicas automaticas. Os nomes podem variar conforme a versao dos pacotes OpenTelemetry e do runtime .NET, mas normalmente incluem series relacionadas a HTTP server, HTTP client e runtime/processo .NET. Prometheus nao deve ter targets diretos para `Auth.Api`, `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` ou `BalanceService.Worker` nesta etapa.
 
 No Alertmanager, acesse `http://localhost:9093/#/alerts` para visualizar alertas recebidos do Prometheus. A configuracao local nao envia notificacoes para sistemas externos.
 
@@ -681,7 +683,7 @@ curl -G "http://localhost:3100/loki/api/v1/query_range" \
 
 No Alloy, acesse `http://localhost:12345` para diagnostico local do agente. O container precisa ter acesso somente leitura a `/var/run/docker.sock`; sem esse socket, a coleta de logs falha, mas as APIs continuam funcionando.
 
-No Grafana, acesse `http://localhost:3000` com as credenciais locais de POC `admin`/`admin`. Em `Connections` ou `Data sources`, confirme os datasources `Prometheus` apontando para `http://prometheus:9090`, `Loki` apontando para `http://loki:3100` e `Jaeger` apontando para `http://jaeger:16686`. Em `Dashboards`, abra a pasta `Observability` e confirme que os dashboards `APIs - Visao Geral` e `Runtime .NET - Visao Geral` foram carregados automaticamente. Para validar metricas, use Explore com uma das metricas tecnicas listadas acima. Para validar logs, use Explore com o datasource `Loki` e a query `{service="ledger-service"}`. Para validar o link log -> trace, abra uma linha com `TraceId=<valor>` e clique em `Abrir trace no Jaeger`.
+No Grafana, acesse `http://localhost:3000` com as credenciais locais de POC `admin`/`admin`. Em `Connections` ou `Data sources`, confirme os datasources `Prometheus` apontando para `http://prometheus:9090`, `Loki` apontando para `http://loki:3100` e `Jaeger` apontando para `http://jaeger:16686`. Em `Dashboards`, abra a pasta `Observability` e confirme que os dashboards `APIs - Visao Geral` e `Runtime .NET - Visao Geral` foram carregados automaticamente. Para validar metricas, use Explore com uma das metricas tecnicas listadas acima. Para validar logs, use Explore com o datasource `Loki` e queries por processo, por exemplo `{service="ledger-service"}` para HTTP e `{service="ledger-worker"}` para Outbox/Kafka. Para validar o link log -> trace, abra uma linha com `TraceId=<valor>` e clique em `Abrir trace no Jaeger`.
 
 ### Validacao Auth -> Ledger -> Outbox -> Kafka -> Balance
 
@@ -695,14 +697,14 @@ Esse endpoint foi escolhido porque:
 - usa `merchantId` no contrato real e valida esse valor contra a claim `merchant_id` emitida pelo `Auth.Api`;
 - grava `LedgerEntryCreated.v1` em `outbox_messages` na mesma transacao da escrita;
 - depende do `LedgerService.Worker`, que hospeda `OutboxKafkaPublisherService` e publica no topico `ledger.ledgerentry.created`;
-- alimenta o `BalanceService.Api`, que atualiza `processed_events` e `daily_balances`.
+- alimenta o `BalanceService.Worker`, que atualiza `processed_events` e `daily_balances`; o `BalanceService.Api` apenas consulta a projecao.
 
 Pre-requisitos:
 
 - Docker-compatible API disponivel;
 - stack local com migrations aplicadas;
 - portas do compose livres: `5030`, `5226`, `5228`, `15432`, `15433`, `16686`, `19092`, `4317`, `4318`, `9090`, `3100`, `12345`, `9093` e `3000`;
-- OpenTelemetry habilitado pelo compose para `Auth.Api`, `LedgerService.Api` e `BalanceService.Api`.
+- OpenTelemetry habilitado pelo compose para `Auth.Api`, `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker`.
 
 Suba a stack local completa. O script aplica migrations antes de iniciar Ledger e Balance:
 
@@ -745,7 +747,7 @@ O script:
 7. consulta `processed_events` e `daily_balances` no PostgreSQL do Balance;
 8. chama `GET /v1/consolidados/diario/{date}?merchantId={merchantId}` no Balance com o mesmo `X-Correlation-Id`;
 9. consulta traces recentes no Jaeger;
-10. tenta localizar o `CorrelationId` nos logs recentes de `ledger-service` e `balance-service`.
+10. tenta localizar o `CorrelationId` nos logs recentes de `ledger-service`, `ledger-worker`, `balance-service` e `balance-worker`.
 
 O script usa polling curto configuravel por `-PollingTimeoutSeconds` e `-PollingIntervalSeconds`. Ele nao usa sleeps longos para mascarar consistencia eventual; se o Outbox ou o consumer nao avancarem dentro do timeout, a validacao falha com o ultimo estado observado.
 
@@ -787,7 +789,7 @@ Os dois scripts usam `scripts/get-token.ps1`, enviam `Authorization`, `Idempoten
 - criacao do lancamento compensatorio com `external_reference=estorno:{lancamentoOriginalId}`;
 - publicacao do `LedgerEntryCreated.v1` compensatorio;
 - consumo do compensatorio pelo Balance e delta compensatorio no consolidado diario;
-- traces recentes no Jaeger e presenca do `CorrelationId` em logs recentes de `ledger-service` e `balance-service`.
+- traces recentes no Jaeger e presenca do `CorrelationId` em logs recentes de `ledger-service`, `ledger-worker`, `balance-service` e `balance-worker`.
 
 `validate-ledger-reprocess-flow.ps1` valida:
 
@@ -800,11 +802,11 @@ Os dois scripts usam `scripts/get-token.ps1`, enviam `Authorization`, `Idempoten
 - republicacao de `LedgerEntryCreated.v1` para o lancamento elegivel;
 - idempotencia do Balance mantendo uma unica linha em `processed_events` para o mesmo evento financeiro;
 - consolidado diario inalterado apos a reentrega idempotente;
-- traces recentes no Jaeger e presenca do `CorrelationId` em logs recentes de `ledger-service` e `balance-service`.
+- traces recentes no Jaeger e presenca do `CorrelationId` em logs recentes de `ledger-service`, `ledger-worker`, `balance-service` e `balance-worker`.
 
 Limitacoes conhecidas:
 
-- os scripts assumem o compose local e os nomes de servico `ledger-db`, `balance-db`, `ledger-service` e `balance-service`;
+- os scripts assumem o compose local e os nomes de servico `ledger-db`, `balance-db`, `ledger-service`, `ledger-worker`, `balance-service` e `balance-worker`;
 - os scripts consultam bancos diretamente para validar estados assincronos e identificadores internos que nao fazem parte do contrato publico de criacao de lancamento;
 - a validacao do Jaeger confirma traces recentes por servico, nao uma busca por `CorrelationId` na UI;
 - a politica local do PowerShell pode exigir `-ExecutionPolicy Bypass` na invocacao do processo;
@@ -868,7 +870,9 @@ Logs:
 
 ```bash
 docker compose logs ledger-service --since 10m | grep 11111111-1111-4111-8111-111111111111
+docker compose logs ledger-worker --since 10m | grep 11111111-1111-4111-8111-111111111111
 docker compose logs balance-service --since 10m | grep 11111111-1111-4111-8111-111111111111
+docker compose logs balance-worker --since 10m | grep 11111111-1111-4111-8111-111111111111
 ```
 
 Logs centralizados no Loki:
@@ -879,7 +883,7 @@ curl -G "http://localhost:3100/loki/api/v1/query_range" \
   --data-urlencode 'limit=20'
 
 curl -G "http://localhost:3100/loki/api/v1/query_range" \
-  --data-urlencode 'query={service="balance-service"} |= "CorrelationId=11111111-1111-4111-8111-111111111111"' \
+  --data-urlencode 'query={service=~"ledger-worker|balance-service|balance-worker"} |= "CorrelationId=11111111-1111-4111-8111-111111111111"' \
   --data-urlencode 'limit=20'
 ```
 
@@ -887,7 +891,9 @@ Para buscar pelo `TraceId`, copie o valor da UI/API do Jaeger ou do logging scop
 
 ```logql
 {service="ledger-service"} |= "TraceId=<trace-id>"
+{service="ledger-worker"} |= "TraceId=<trace-id>"
 {service="balance-service"} |= "TraceId=<trace-id>"
+{service="balance-worker"} |= "TraceId=<trace-id>"
 ```
 
 Resultado esperado:
@@ -903,13 +909,13 @@ Resultado esperado:
 - `GET /v1/consolidados/diario/{date}` retorna o consolidado atualizado;
 - os logs do Balance mostram o mesmo `CorrelationId` durante o consumo;
 - o Loki retorna logs do Balance com o `CorrelationId` dentro do conteudo do log;
-- a UI do Jaeger em `http://localhost:16686` mostra traces recentes para `Auth.Api`, `LedgerService.Api` e `BalanceService.Api`.
+- a UI do Jaeger em `http://localhost:16686` mostra traces recentes para `Auth.Api`, `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Worker` e `BalanceService.Api`.
 
 Na UI do Jaeger:
 
 1. selecione `Auth.Api` e procure `POST /auth/login`;
 2. selecione `LedgerService.Api` e procure `POST /api/v1/lancamentos`;
-3. selecione `BalanceService.Worker` e procure spans `kafka.consume` e `balance.apply`; para consulta HTTP, selecione `BalanceService.Api` e procure `GET /v1/consolidados/diario/{date}`;
+3. selecione `LedgerService.Worker` para spans `outbox.publish` e `BalanceService.Worker` para spans `kafka.consume`; para consulta HTTP, selecione `BalanceService.Api` e procure `GET /v1/consolidados/diario/{date}`;
 4. use o `TraceID` para analise temporal e o `CorrelationId` nos logs/SQL para conectar a operacao de negocio.
 
 Trace distribuido no fluxo autenticado:
@@ -922,14 +928,14 @@ Trace distribuido no fluxo autenticado:
 
 ### Diagnostico de propagacao Kafka
 
-Estado atual auditado no fluxo `LedgerService.Api` -> `LedgerService.Worker` -> Kafka -> `BalanceService.Api`:
+Estado atual auditado no fluxo `LedgerService.Api` -> `LedgerService.Worker` -> Kafka -> `BalanceService.Worker` -> `BalanceService.Api`:
 
 - O `CorrelationIdMiddleware` das APIs resolve `X-Correlation-Id`, gera UUID quando o header esta ausente ou invalido, injeta o valor no request/response HTTP e cria scope de log com `CorrelationId`, `TraceId` e `SpanId` quando ha `Activity` ativa.
 - O caso de uso de criacao de lancamento grava o `correlationId` no payload `LedgerEntryCreated.v1` e na coluna `outbox_messages.correlation_id`.
 - Quando existe `Activity.Current`, o caso de uso tambem grava `traceparent`, `tracestate` e `baggage` nas colunas opcionais da Outbox.
 - O `OutboxKafkaPublisherService` restaura o parent W3C salvo na Outbox ao criar a `Activity` `outbox.publish` com `ActivityKind.Producer`.
 - O `OutboxKafkaProducer` publica `event_id`, `event_type`, `correlation_id`, `traceparent`, `tracestate` e `baggage` quando esse contexto existe na Outbox ou na `Activity.Current`.
-- O `BalanceService` le headers Kafka em dicionario case-insensitive, valida `event_type=LedgerEntryCreated.v1`, usa `event_id` do header quando presente e faz fallback para o `id` do payload.
+- O `BalanceService.Worker` le headers Kafka em dicionario case-insensitive, valida `event_type=LedgerEntryCreated.v1`, usa `event_id` do header quando presente e faz fallback para o `id` do payload.
 - O consumer tenta restaurar o parent do span `kafka.consume` com `ActivityContext.TryParse(traceparent, tracestate)`. Se o `traceparent` estiver ausente ou invalido, o consumo continua com uma nova Activity raiz quando OpenTelemetry esta habilitado.
 - O `correlation_id` do header Kafka nao e usado como fonte primaria no Balance; a correlacao operacional vem do campo `correlationId` do payload. Por isso, mensagens sem header `correlation_id`, mas com payload valido e `event_type`, continuam sendo processadas.
 - O header `baggage` recebido e reidratado como baggage da `Activity` quando possivel. O consumer tambem adiciona `correlation_id` como baggage local.

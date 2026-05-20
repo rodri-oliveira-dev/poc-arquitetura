@@ -7,6 +7,7 @@ A solucao atual e uma arquitetura hibrida:
 - Clean Architecture/DDD em LedgerService e BalanceService, com projetos `Api`, `Application`, `Domain` e `Infrastructure`.
 - Elementos hexagonais onde existem contratos de persistencia e implementacoes em Infrastructure.
 - Layered architecture na entrega HTTP, porque controllers, middlewares, swagger, auth e composicao ficam concentrados nos projetos `*.Api`.
+- Workers dedicados (`LedgerService.Worker` e `BalanceService.Worker`) para processamento assincrono continuo, sem superficie HTTP.
 - CQRS pragmatico entre servicos: Ledger escreve e publica eventos; Balance consome e mantem uma projecao de leitura.
 - Auth.Api e deliberadamente mais simples, em projeto unico, coerente com uma API de autenticacao de POC.
 
@@ -27,9 +28,27 @@ Nao deve conter:
 - regra de negocio de lancamento ou consolidacao;
 - acesso direto a repositories de negocio para executar caso de uso;
 - regra de retry/outbox/DLQ que pertenca ao pipeline de mensageria;
+- registro de `HostedService` de worker, consumer Kafka ou publisher Outbox;
 - detalhes de schema relacional alem de checks operacionais inevitaveis.
 
-Observacao real: os endpoints `/ready` acessam `DbContext` e Kafka options diretamente no `Program.cs`. Isso e aceitavel para readiness operacional desta POC, mas deve permanecer limitado a checks operacionais.
+Observacao real: os endpoints `/ready` acessam `DbContext` diretamente no `Program.cs`. Isso e aceitavel para readiness operacional desta POC, mas deve permanecer limitado a dependencias necessarias para trafego HTTP.
+
+### Worker
+
+Deve conter:
+
+- composition root explicito do processo de background;
+- registro de `BackgroundService`/`IHostedService`;
+- configuracao de Kafka, Outbox, DLQ, polling, retry, locks e consumers;
+- observabilidade do processo com `ServiceName` proprio.
+
+Nao deve conter:
+
+- controllers, Swagger, CORS, rate limit ou superficie HTTP;
+- validacao de JWT/JWKS de requests HTTP;
+- regras de negocio duplicadas fora da Application/Domain.
+
+Observacao real: `LedgerService.Worker` registra Outbox, estorno e reprocessamento; `BalanceService.Worker` registra o consumer Kafka e DLQ. APIs e workers compartilham Application/Infrastructure, mas cada processo decide explicitamente quais adapters e HostedServices registra.
 
 ### Application
 
@@ -101,6 +120,8 @@ Observacao real: BalanceService.Infrastructure faz a traducao do contrato Kafka 
 
 Camadas atuais fazem sentido para o objetivo da POC. O servico tem transacao, idempotencia, entidade com invariantes, persistencia relacional e Outbox. Separar `Application`, `Domain` e `Infrastructure` agrega valor real.
 
+Operacionalmente, `LedgerService.Api` recebe HTTP e grava Outbox; `LedgerService.Worker` publica a Outbox, processa estornos e consome solicitacoes de reprocessamento. Durante rollout, API antiga e Worker novo nao devem executar os mesmos HostedServices simultaneamente.
+
 Pontos de atencao:
 
 - `CreateLancamentoService` faz bastante coisa: hash de idempotencia, parse de input, criacao de entidade, response DTO, evento e outbox. Ainda e aceitavel, mas e o primeiro ponto a decompor se o caso de uso crescer.
@@ -110,6 +131,8 @@ Pontos de atencao:
 ### BalanceService
 
 Camadas tambem fazem sentido, porque o servico possui leitura HTTP, consumidor Kafka, idempotencia por evento, projecao e DLQ.
+
+Operacionalmente, `BalanceService.Api` atende consultas HTTP sobre a projecao; `BalanceService.Worker` consome `LedgerEntryCreated.v1`, aplica idempotencia, atualiza `daily_balances`/`processed_events` e envia mensagens invalidas para DLQ.
 
 Pontos de atencao:
 
@@ -142,6 +165,7 @@ Pontos de atencao:
 A arquitetura ideal para este projeto deve ser minimalista e pragmatica, com robustez seletiva:
 
 - manter quatro camadas para LedgerService e BalanceService;
+- manter APIs e workers como processos separados, com composition root e `ServiceName` explicitos por processo;
 - manter Auth.Api em projeto unico enquanto for POC;
 - reforcar boundaries onde ha risco real: contratos de eventos, tempo/clock, outbox e idempotencia;
 - evitar novas camadas genericas, shared kernel prematuro ou frameworks adicionais sem dor concreta;
