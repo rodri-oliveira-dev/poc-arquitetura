@@ -31,6 +31,12 @@ public sealed class SolicitarEstornoLancamentoHandler
         IUnitOfWork unitOfWork,
         LedgerDomainMetrics? metrics = null)
     {
+        ArgumentNullException.ThrowIfNull(ledgerEntryRepository);
+        ArgumentNullException.ThrowIfNull(estornoRepository);
+        ArgumentNullException.ThrowIfNull(idempotencyRecordRepository);
+        ArgumentNullException.ThrowIfNull(outboxMessageRepository);
+        ArgumentNullException.ThrowIfNull(unitOfWork);
+
         _ledgerEntryRepository = ledgerEntryRepository;
         _estornoRepository = estornoRepository;
         _idempotencyRecordRepository = idempotencyRecordRepository;
@@ -43,6 +49,8 @@ public sealed class SolicitarEstornoLancamentoHandler
         SolicitarEstornoLancamentoCommand request,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
+
         var requestHash = GenerateRequestHash(request);
         var correlationId = Guid.Parse(request.CorrelationId);
 

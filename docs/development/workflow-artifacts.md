@@ -22,7 +22,7 @@ Conteudo publicado:
 Motivo:
 
 - os arquivos `.trx` ajudam a diagnosticar falhas de teste;
-- o XML Cobertura e os summaries permitem validar a cobertura consolidada e investigar o gate minimo de 80%;
+- o XML Cobertura e os summaries permitem validar a cobertura consolidada, a cobertura dos assemblies Worker e investigar os gates minimos de 80%;
 - o relatorio HTML completo do ReportGenerator nao e publicado como artifact, porque os summaries e o XML ja atendem ao diagnostico principal com menor exposicao de paths e trechos renderizados.
 
 ## Mutation Tests

@@ -6,7 +6,6 @@ using LedgerService.Api.Options;
 using LedgerService.Api.Security;
 using LedgerService.Api.Swagger;
 using LedgerService.Application.Common.Observability;
-using LedgerService.Infrastructure.Observability;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
@@ -179,8 +178,7 @@ public static class ServiceCollectionExtensions
                 {
                     tracing
                         .AddAspNetCoreInstrumentation()
-                        .AddHttpClientInstrumentation()
-                        .AddSource("LedgerService.OutboxPublisher");
+                        .AddHttpClientInstrumentation();
 
                     if (otelOptions.UseConsoleExporter)
                         tracing.AddConsoleExporter();
@@ -194,8 +192,7 @@ public static class ServiceCollectionExtensions
                         .AddAspNetCoreInstrumentation()
                         .AddHttpClientInstrumentation()
                         .AddRuntimeInstrumentation()
-                        .AddMeter(LedgerDomainMetrics.MeterName)
-                        .AddMeter(OutboxMetrics.MeterName);
+                        .AddMeter(LedgerDomainMetrics.MeterName);
 
                     if (otelOptions.UseConsoleExporter)
                         metrics.AddConsoleExporter();

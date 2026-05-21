@@ -8,6 +8,9 @@ namespace Auth.IntegrationTests.Infrastructure;
 public sealed class AuthApiFactory : WebApplicationFactory<Program>
 {
     private readonly IReadOnlyDictionary<string, string?> _configurationOverrides;
+    private readonly string _keyPath = Path.Combine(
+        Path.GetTempPath(),
+        $"auth-integration-key-{Guid.NewGuid():N}.json");
 
     public AuthApiFactory()
         : this(new Dictionary<string, string?>())
@@ -39,7 +42,7 @@ public sealed class AuthApiFactory : WebApplicationFactory<Program>
             {
                 ["Auth:Issuer"] = "https://auth-api",
                 ["Auth:TokenLifetimeMinutes"] = "10",
-                ["Auth:KeyPath"] = ".\\TestResults\\auth-test-key.json",
+                ["Auth:KeyPath"] = _keyPath,
                 ["Auth:DevelopmentUser:Username"] = "poc-usuario",
                 ["Auth:DevelopmentUser:Password"] = "Poc#123",
                 ["Auth:LoginRateLimit:PermitLimit"] = "100",

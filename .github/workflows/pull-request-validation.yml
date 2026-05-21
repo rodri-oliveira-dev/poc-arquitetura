@@ -20,6 +20,7 @@ env:
   BUILD_CONFIGURATION: Release
   SOLUTION_PATH: ./LedgerService.slnx
   NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+  COVERAGE_THRESHOLD: "85"
 
 jobs:
   build-test:
@@ -105,9 +106,7 @@ jobs:
         if: ${{ steps.changes.outputs.run_validation == 'true' }}
         run: dotnet build $SOLUTION_PATH --configuration $BUILD_CONFIGURATION --no-restore
 
-      - name: Test
+      - name: Test with coverage gate
         if: ${{ steps.changes.outputs.run_validation == 'true' }}
-        run: >
-          dotnet test $SOLUTION_PATH
-          --configuration $BUILD_CONFIGURATION
-          --no-build
+        shell: bash
+        run: bash ./test.sh "$BUILD_CONFIGURATION" "$COVERAGE_THRESHOLD"

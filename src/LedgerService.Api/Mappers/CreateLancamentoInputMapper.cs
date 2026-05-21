@@ -1,6 +1,7 @@
 using System.Globalization;
 
-using LedgerService.Api.Contracts;
+using LedgerService.Api.Contracts.Requests;
+using LedgerService.Api.Contracts.Responses;
 using LedgerService.Application.Lancamentos.Inputs.CreateLancamento;
 
 namespace LedgerService.Api.Mappers;

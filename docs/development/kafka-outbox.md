@@ -1,16 +1,16 @@
 # Kafka, Outbox e DLQ
 
-Este documento concentra a referencia de mensageria entre `LedgerService.Api` e `BalanceService.Api`.
+Este documento concentra a referencia de mensageria entre `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Worker` e `BalanceService.Api`.
 
 ## Fluxo
 
 1. `LedgerService.Api` cria um lancamento, registra uma solicitacao de estorno ou registra uma solicitacao de reprocessamento.
 2. A mesma transacao grava a mensagem em `outbox_messages`.
-3. `OutboxKafkaPublisherService` le mensagens pendentes e publica no Kafka.
-4. `EstornoLancamentoProcessorService`, no proprio Ledger, processa solicitacoes `Pending` e cria lancamentos compensatorios.
+3. `LedgerService.Worker` hospeda `OutboxKafkaPublisherService`, que le mensagens pendentes e publica no Kafka.
+4. `LedgerService.Worker` hospeda `EstornoLancamentoProcessorService`, que processa solicitacoes `Pending` e cria lancamentos compensatorios.
 5. O estorno concluido grava `LedgerEntryCreated.v1` do lancamento compensatorio no Outbox.
-6. `ReprocessamentoLancamentosConsumerService`, no proprio Ledger, consome `ledger.lancamentos.reprocessamento.solicitado`, chama o caso de uso de reprocessamento e registra eventos financeiros finais no Outbox quando houver lancamentos elegiveis.
-7. `BalanceService.Api` consome apenas `LedgerEntryCreated.v1` e atualiza a projecao `daily_balances`.
+6. `LedgerService.Worker` hospeda `ReprocessamentoLancamentosConsumerService`, que consome `ledger.lancamentos.reprocessamento.solicitado`, chama o caso de uso de reprocessamento e registra eventos financeiros finais no Outbox quando houver lancamentos elegiveis.
+7. `BalanceService.Worker` consome apenas `LedgerEntryCreated.v1` e atualiza a projecao `daily_balances`.
 8. Mensagens invalidas ou nao recuperaveis do fluxo consumido pelo Balance sao publicadas na DLQ.
 
 ## Topicos e evento
@@ -28,7 +28,7 @@ Este documento concentra a referencia de mensageria entre `LedgerService.Api` e 
 
 `LancamentoEstornoSolicitado.v1` e gravado pelo Ledger no Outbox e publicado pelo mesmo worker. Ele representa a intencao operacional de estorno, nao um fato financeiro final. O processamento financeiro nao depende do `BalanceService`: o proprio Ledger processa a solicitacao persistida e, ao concluir, registra um `LedgerEntryCreated.v1` para o lancamento compensatorio.
 
-O `BalanceService.Api` deve ignorar/rejeitar `LancamentoEstornoSolicitado.v1` como evento financeiro. Saldos so mudam com `LedgerEntryCreated.v1`, inclusive quando esse evento representa o lancamento compensatorio de um estorno.
+O `BalanceService.Worker` deve ignorar/rejeitar `LancamentoEstornoSolicitado.v1` como evento financeiro. Saldos so mudam com `LedgerEntryCreated.v1`, inclusive quando esse evento representa o lancamento compensatorio de um estorno.
 
 `ReprocessamentoLancamentosSolicitado.v1` tambem e evento operacional/intencao interna. Ele nao representa conclusao nem alteracao direta de saldo. O `LedgerService` e o dono do processamento: o consumer de reprocessamento le esse topico, localiza a solicitacao persistida, muda o status e republica `LedgerEntryCreated.v1` para os lancamentos elegiveis como evento financeiro final. O `BalanceService` nao consome a solicitacao operacional.
 
@@ -45,7 +45,7 @@ Headers publicados pelo producer:
 - `tracestate`, quando houver contexto W3C com tracestate;
 - `baggage`, quando houver baggage persistido na Outbox ou `Activity` atual.
 
-O `BalanceService.Api` exige `event_type=LedgerEntryCreated.v1`, usa `event_id` para rastreabilidade e idempotencia quando presente, restaura `traceparent`/`tracestate` como parent do span `kafka.consume`, reidrata `baggage` quando possivel e preserva headers relevantes ao enviar mensagens para a DLQ. Mensagens antigas sem headers W3C continuam validas; nesse caso, o consumo segue pelo fallback funcional e pode criar um span raiz quando OpenTelemetry estiver habilitado.
+O `BalanceService.Worker` exige `event_type=LedgerEntryCreated.v1`, usa `event_id` para rastreabilidade e idempotencia quando presente, restaura `traceparent`/`tracestate` como parent do span `kafka.consume`, reidrata `baggage` quando possivel e preserva headers relevantes ao enviar mensagens para a DLQ. Mensagens antigas sem headers W3C continuam validas; nesse caso, o consumo segue pelo fallback funcional e pode criar um span raiz quando OpenTelemetry estiver habilitado.
 
 ## Outbox
 
@@ -140,16 +140,20 @@ O envelope da DLQ preserva payload original quando disponivel, topico, particao,
 
 ## Metricas operacionais
 
-A mensageria publica metricas customizadas via `System.Diagnostics.Metrics` quando OpenTelemetry Metrics esta habilitado na API. A instrumentacao nao altera payloads, headers, topicos, contratos de evento, politica de retry ou politica de DLQ. Sem OpenTelemetry habilitado, as chamadas aos instrumentos continuam seguras, mas nao ha coleta/exportacao.
+A mensageria publica metricas customizadas via `System.Diagnostics.Metrics` quando OpenTelemetry Metrics esta habilitado no processo host correspondente. A instrumentacao nao altera payloads, headers, topicos, contratos de evento, politica de retry ou politica de DLQ. Sem OpenTelemetry habilitado, as chamadas aos instrumentos continuam seguras, mas nao ha coleta/exportacao.
 
 Metricas de dominio de lancamentos, estornos, reprocessamentos e projecoes de saldo ficam documentadas em [observabilidade](../observability.md#metricas-de-dominio). Este documento lista apenas metricas operacionais de mensageria para evitar duplicacao de vocabulario.
 
 Metricas do `LedgerService.Api`:
 
-- Outbox: `ledger.outbox.messages.created`, `ledger.outbox.messages.published`, `ledger.outbox.publish.duration`, `ledger.outbox.messages.pending`, `ledger.outbox.messages.failed`, `ledger.outbox.publish.attempts`.
+- Outbox criada pela escrita HTTP: `ledger.outbox.messages.created`.
+
+Metricas do `LedgerService.Worker`:
+
+- Outbox publisher: `ledger.outbox.messages.published`, `ledger.outbox.publish.duration`, `ledger.outbox.messages.pending`, `ledger.outbox.messages.failed`, `ledger.outbox.publish.attempts`.
 - Kafka Producer: `ledger.kafka.producer.messages.published`, `ledger.kafka.producer.publish.duration`, `ledger.kafka.producer.errors`.
 
-Metricas do `BalanceService.Api`:
+Metricas do `BalanceService.Worker`:
 
 - Kafka Consumer: `balance.kafka.consumer.messages.consumed`, `balance.kafka.consumer.processing.duration`, `balance.kafka.consumer.errors`, `balance.kafka.consumer.duplicates`.
 - DLQ: `balance.kafka.dlq.messages.published`, `balance.kafka.dlq.publish.errors`.
@@ -177,7 +181,7 @@ Estas metricas nao possuem dashboard especifico nem alertas nesta etapa. No comp
 
 ## Configuracao
 
-Configuracoes ficam nos `appsettings*.json` dos projetos de API.
+Configuracoes de mensageria do Ledger ficam em `src/LedgerService.Worker/appsettings.json`. A API do Ledger mantem apenas configuracoes HTTP, JWT, hardening, observabilidade da API e banco.
 
 Ledger:
 
@@ -185,10 +189,12 @@ Ledger:
 - `Outbox:Publisher`.
 - `Reprocessamentos:Consumer`.
 
+Configuracoes de mensageria do Balance ficam em `src/BalanceService.Worker/appsettings.json`. A API do Balance mantem apenas configuracoes HTTP, JWT, hardening, observabilidade da API e banco.
+
 Balance:
 
 - `Kafka:Consumer`;
-- `Kafka:DeadLetterProducer`.
+- `Kafka:Consumer:DeadLetterTopic`.
 
 `SecurityProtocol=Plaintext` existe apenas para execucao local (`Development`/`Local`) e para o ambiente `Test`. Em ambientes compartilhados ou produtivos, configure `SSL` ou `SASL_SSL` com os parametros operacionais por variaveis de ambiente ou secret store.
 
@@ -202,7 +208,7 @@ Balance:
 6. Aguarde o polling e confirme transicao para `Sent`.
 7. Consulte o Balance para confirmar atualizacao da projecao.
 
-Em falha do Kafka, o servico nao deve cair: ele registra erro, incrementa tentativas e agenda `next_attempt_at` com backoff.
+Em falha do Kafka, as APIs HTTP nao devem cair por causa do processamento assincrono. O Worker registra erro, incrementa tentativas e agenda `next_attempt_at` com backoff.
 
 Para o roteiro operacional completo Auth -> Ledger -> Outbox -> Kafka -> Balance, incluindo `X-Correlation-Id`, logs, consultas SQL, Balance e Jaeger, use a secao [Validacao Auth -> Ledger -> Outbox -> Kafka -> Balance](../observability.md#validacao-auth---ledger---outbox---kafka---balance). O script recomendado e:
 
@@ -239,7 +245,7 @@ A idempotencia e garantida por indice unico filtrado para uma solicitacao ativa 
 
 `POST /api/v1/lancamentos/reprocessar` persiste solicitacoes em `reprocessamentos_lancamentos` e grava `ReprocessamentoLancamentosSolicitado.v1` no Outbox na mesma transacao. O status inicial e `Pending`, com periodo maximo inclusivo de 31 dias e idempotencia por `merchantId` + `Idempotency-Key`.
 
-O processamento efetivo ocorre no `ReprocessamentoLancamentosConsumerService`, em `LedgerService.Infrastructure`. O hosted service usa as configuracoes de `Reprocessamentos:Consumer`, assina o topico `ledger.lancamentos.reprocessamento.solicitado`, valida `event_type=ReprocessamentoLancamentosSolicitado.v1` e delega o trabalho ao Mediator com `ProcessarReprocessamentoLancamentosCommand`.
+O processamento efetivo ocorre no `ReprocessamentoLancamentosConsumerService`, em `LedgerService.Worker`. O hosted service usa as configuracoes de `Reprocessamentos:Consumer`, assina o topico `ledger.lancamentos.reprocessamento.solicitado`, valida `event_type=ReprocessamentoLancamentosSolicitado.v1` e delega o trabalho ao Mediator com `ProcessarReprocessamentoLancamentosCommand`.
 
 O handler:
 

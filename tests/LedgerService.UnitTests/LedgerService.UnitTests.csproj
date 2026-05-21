@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="Moq" />
     <PackageReference Include="FluentAssertions" />
@@ -24,6 +25,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\LedgerService.Application\LedgerService.Application.csproj" />
     <ProjectReference Include="..\..\src\LedgerService.Domain\LedgerService.Domain.csproj" />
+    <ProjectReference Include="..\..\src\LedgerService.Infrastructure\LedgerService.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\LedgerService.Api\LedgerService.Api.csproj" />
   </ItemGroup>
 

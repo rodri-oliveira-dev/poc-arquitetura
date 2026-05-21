@@ -1,5 +1,6 @@
 using Asp.Versioning;
-using LedgerService.Api.Contracts;
+using LedgerService.Api.Contracts.Requests;
+using LedgerService.Api.Contracts.Responses;
 using LedgerService.Api.Controllers.Binds;
 using LedgerService.Api.Mappers;
 using LedgerService.Api.Middlewares;

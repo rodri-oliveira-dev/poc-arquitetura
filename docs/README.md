@@ -12,7 +12,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 
 - [Autenticacao e autorizacao](development/authentication.md): obter token local, validar scopes, audiences e autorizacao por merchant.
 - [Kafka, Outbox e DLQ](development/kafka-outbox.md): validar publicacao, consumo, DLQ, requeue e fluxos assincronos.
-- [Cobertura de testes](development/test-coverage.md): executar testes com cobertura, interpretar falhas e entender o gate de 80%.
+- [Cobertura de testes](development/test-coverage.md): executar testes com cobertura, interpretar falhas e entender os gates de 85% global e dos workers.
 - [Mutation testing com Stryker.NET](development/mutation-testing-stryker.md): executar mutation testing local e interpretar relatorios.
 - [Git hooks locais](development/git-hooks.md): instalar e entender `commit-msg`, `post-merge` e `pre-push`.
 - [Validacao de pull requests](development/pull-request-validation.md): entender checks obrigatorios, workflows e branch protection.

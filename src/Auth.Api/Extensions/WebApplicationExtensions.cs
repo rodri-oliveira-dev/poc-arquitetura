@@ -1,4 +1,5 @@
-using Auth.Api.Contracts;
+using Auth.Api.Contracts.Requests;
+using Auth.Api.Contracts.Responses;
 using Auth.Api.Middlewares;
 using Auth.Api.Options;
 using Auth.Api.Security;

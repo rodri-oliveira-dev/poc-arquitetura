@@ -2,7 +2,7 @@
 
 [![Build](https://img.shields.io/github/actions/workflow/status/rodri-oliveira-dev/poc-arquitetura/dotnet.yml?branch=main&label=build)](https://github.com/rodri-oliveira-dev/poc-arquitetura/actions/workflows/dotnet.yml)
 [![Tests](https://img.shields.io/github/actions/workflow/status/rodri-oliveira-dev/poc-arquitetura/dotnet.yml?branch=main&label=tests)](https://github.com/rodri-oliveira-dev/poc-arquitetura/actions/workflows/dotnet.yml)
-[![Coverage](https://img.shields.io/badge/coverage-%3E%3D80%25-brightgreen)](docs/development/test-coverage.md)
+[![Coverage](https://img.shields.io/badge/coverage-%3E%3D85%25-brightgreen)](docs/development/test-coverage.md)
 [![Architecture Docs](https://img.shields.io/github/actions/workflow/status/rodri-oliveira-dev/poc-arquitetura/pages-architecture.yml?branch=main&label=architecture%20docs)](https://rodri-oliveira-dev.github.io/poc-arquitetura/)
 
 POC de microservicos em .NET para validar Clean Architecture, DDD, PostgreSQL, Kafka, Outbox, autenticacao JWT com JWKS, observabilidade e testes automatizados.
@@ -13,7 +13,7 @@ O projeto modela um cenario comum em sistemas financeiros: registrar lancamentos
 
 ## Solucao
 
-A POC separa escrita e leitura em servicos distintos. O `LedgerService` recebe comandos de lancamento, estorno e reprocessamento, persiste os dados e grava eventos em Outbox na mesma transacao. Um publisher assincrono envia os eventos ao Kafka. O `BalanceService` consome os eventos financeiros e atualiza saldos consolidados. O `Auth.Api` emite tokens JWT RS256 e publica JWKS para validacao offline pelas APIs de negocio.
+A POC separa escrita e leitura em servicos distintos e separa APIs HTTP de workers. O `LedgerService.Api` recebe comandos de lancamento, estorno e reprocessamento, persiste os dados e grava eventos em Outbox na mesma transacao. O `LedgerService.Worker` publica a Outbox no Kafka e executa processamentos assincronos do Ledger. O `BalanceService.Worker` consome os eventos financeiros e atualiza saldos consolidados; o `BalanceService.Api` atende consultas HTTP. O `Auth.Api` emite tokens JWT RS256 e publica JWKS para validacao offline pelas APIs de negocio.
 
 Principais servicos:
 
@@ -21,16 +21,19 @@ Principais servicos:
 | --- | --- |
 | `Auth.Api` | Emite JWT RS256 por `POST /auth/login` e publica JWKS em `GET /.well-known/jwks.json`. |
 | `LedgerService.Api` | API de escrita para lancamentos, estornos, reprocessamentos, Outbox e status operacionais. |
-| `BalanceService.Api` | API de leitura de saldos consolidados, alimentada por eventos Kafka do Ledger. |
+| `LedgerService.Worker` | Processo dedicado para publicar Outbox no Kafka e processar estornos/reprocessamentos do Ledger. |
+| `BalanceService.Api` | API de leitura de saldos consolidados projetados pelo Worker. |
+| `BalanceService.Worker` | Processo dedicado para consumir eventos Kafka do Ledger e atualizar a projecao de saldos. |
 
 ## Arquitetura
 
 `LedgerService` e `BalanceService` usam projetos por camada:
 
 - `Api`: entrada HTTP, autenticacao, autorizacao, Swagger, health/readiness e composicao via DI.
+- `Worker`: host de `BackgroundService` sem superficie HTTP.
 - `Application`: casos de uso, handlers, validacao de entrada, idempotencia e orquestracao.
 - `Domain`: entidades, invariantes e regras de dominio sem dependencia de infraestrutura.
-- `Infrastructure`: EF Core, PostgreSQL, Kafka, Outbox, DLQ, hosted services e implementacoes tecnicas.
+- `Infrastructure`: EF Core, PostgreSQL, repositorios, migrations e implementacoes tecnicas compartilhadas pelos processos.
 
 `Auth.Api` permanece em projeto unico porque o escopo atual de autenticacao da POC e pequeno. A leitura arquitetural completa fica em [docs/architecture](docs/architecture/README.md) e as decisoes historicas ficam em [docs/adrs](docs/adrs/README.md).
 
@@ -43,7 +46,7 @@ Documentacao arquitetural publicada:
 - .NET SDK conforme `global.json`.
 - Docker-compatible API para Testcontainers e stack local.
 - CLI `docker` com suporte a `docker compose` para a stack completa local.
-- PostgreSQL e Kafka acessiveis quando rodar as APIs fora de container.
+- PostgreSQL e Kafka acessiveis quando rodar APIs e workers fora de container.
 
 O projeto nao exige Docker Desktop como premissa. No Windows sem Docker Desktop, o ambiente recomendado e Rancher Desktop com `moby/dockerd`.
 
@@ -98,7 +101,7 @@ No Linux/macOS:
 ./test.sh
 ```
 
-Os scripts executam testes com cobertura e aplicam gate minimo de 80% de cobertura total de linhas. Alguns testes de integracao usam Testcontainers com PostgreSQL real e precisam acessar uma Docker-compatible API. Detalhes ficam em [cobertura de testes](docs/development/test-coverage.md) e [desenvolvimento local](docs/development/local-development.md#testcontainers-e-docker-compatible-api).
+Os scripts executam testes com cobertura e aplicam gate minimo de 85% de cobertura total de linhas e dos assemblies Worker. Alguns testes de integracao usam Testcontainers com PostgreSQL real e precisam acessar uma Docker-compatible API. Detalhes ficam em [cobertura de testes](docs/development/test-coverage.md) e [desenvolvimento local](docs/development/local-development.md#testcontainers-e-docker-compatible-api).
 
 ## Documentacao
 

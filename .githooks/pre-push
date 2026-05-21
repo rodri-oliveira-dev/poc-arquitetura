@@ -2,7 +2,7 @@
 set -eu
 
 CONFIGURATION="${CONFIGURATION:-Release}"
-THRESHOLD="${COVERAGE_THRESHOLD:-80}"
+THRESHOLD="${COVERAGE_THRESHOLD:-85}"
 ZERO_SHA="0000000000000000000000000000000000000000"
 
 if command -v git >/dev/null 2>&1; then
@@ -158,5 +158,26 @@ if ! awk -v coverage="$coverage" -v threshold="$THRESHOLD" 'BEGIN { exit (covera
   echo "Corrija os testes ou revise a necessidade da mudanca antes de enviar o push." >&2
   exit 1
 fi
+
+assert_assembly_coverage() {
+  assembly_name="$1"
+
+  assembly_coverage="$(awk -v assembly="$assembly_name" '$1 == assembly { gsub(/%/, "", $NF); print $NF; exit }' "$summary_txt")"
+  if [ -z "$assembly_coverage" ]; then
+    echo "pre-push: nao foi possivel encontrar a cobertura de $assembly_name em $summary_txt." >&2
+    exit 1
+  fi
+
+  echo "==> pre-push: cobertura de linhas de $assembly_name: $assembly_coverage%"
+
+  if ! awk -v coverage="$assembly_coverage" -v threshold="$THRESHOLD" 'BEGIN { exit (coverage + 0 >= threshold + 0 ? 0 : 1) }'; then
+    echo "pre-push: cobertura de $assembly_name abaixo do minimo. Atual=$assembly_coverage% Minimo=$THRESHOLD%" >&2
+    echo "Corrija os testes ou revise a necessidade da mudanca antes de enviar o push." >&2
+    exit 1
+  fi
+}
+
+assert_assembly_coverage "LedgerService.Worker"
+assert_assembly_coverage "BalanceService.Worker"
 
 echo "==> pre-push: build, testes e cobertura aprovados"

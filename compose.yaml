@@ -315,10 +315,6 @@ services:
 
       # Overrides dos appsettings (no container, 127.0.0.1 aponta para ele mesmo)
       ConnectionStrings__DefaultConnection: "Host=ledger-db;Port=5432;Database=appdb;Username=appuser;Password=app123"
-      Kafka__Producer__BootstrapServers: "kafka:9092"
-      Kafka__Producer__SecurityProtocol: "Plaintext"
-      Reprocessamentos__Consumer__BootstrapServers: "kafka:9092"
-      Reprocessamentos__Consumer__SecurityProtocol: "Plaintext"
       Observability__OpenTelemetry__Enabled: "true"
       Observability__OpenTelemetry__UseConsoleExporter: "false"
       Observability__OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"
@@ -326,6 +322,38 @@ services:
     ports:
       # Mantém a mesma porta do launchSettings para facilitar uso local
       - "5226:8080"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512m
+          pids: 256
+    networks:
+      - poc-net
+
+  ledger-worker:
+    build:
+      context: .
+      dockerfile: src/LedgerService.Worker/Dockerfile
+    container_name: poc-ledger-worker
+    depends_on:
+      - ledger-db
+      - kafka
+      - kafka-init-topics
+      - otel-collector
+    environment:
+      DOTNET_ENVIRONMENT: "Development"
+
+      # Overrides dos appsettings (no container, 127.0.0.1 aponta para ele mesmo)
+      ConnectionStrings__DefaultConnection: "Host=ledger-db;Port=5432;Database=appdb;Username=appuser;Password=app123"
+      Kafka__Producer__BootstrapServers: "kafka:9092"
+      Kafka__Producer__SecurityProtocol: "Plaintext"
+      Reprocessamentos__Consumer__BootstrapServers: "kafka:9092"
+      Reprocessamentos__Consumer__SecurityProtocol: "Plaintext"
+      Observability__OpenTelemetry__Enabled: "true"
+      Observability__OpenTelemetry__UseConsoleExporter: "false"
+      Observability__OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"
+      Observability__OpenTelemetry__ServiceName: "LedgerService.Worker"
     deploy:
       resources:
         limits:
@@ -356,14 +384,42 @@ services:
 
       # Overrides dos appsettings
       ConnectionStrings__DefaultConnection: "Host=balance-db;Port=5432;Database=dbBalance;Username=userBalance;Password=Balance123"
-      Kafka__Consumer__BootstrapServers: "kafka:9092"
-      Kafka__Consumer__SecurityProtocol: "Plaintext"
       Observability__OpenTelemetry__Enabled: "true"
       Observability__OpenTelemetry__UseConsoleExporter: "false"
       Observability__OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"
       Observability__OpenTelemetry__ServiceName: "BalanceService.Api"
     ports:
       - "5228:8080"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512m
+          pids: 256
+    networks:
+      - poc-net
+
+  balance-worker:
+    build:
+      context: .
+      dockerfile: src/BalanceService.Worker/Dockerfile
+    container_name: poc-balance-worker
+    depends_on:
+      - balance-db
+      - kafka
+      - kafka-init-topics
+      - otel-collector
+    environment:
+      DOTNET_ENVIRONMENT: "Development"
+
+      # Overrides dos appsettings (no container, 127.0.0.1 aponta para ele mesmo)
+      ConnectionStrings__DefaultConnection: "Host=balance-db;Port=5432;Database=dbBalance;Username=userBalance;Password=Balance123"
+      Kafka__Consumer__BootstrapServers: "kafka:9092"
+      Kafka__Consumer__SecurityProtocol: "Plaintext"
+      Observability__OpenTelemetry__Enabled: "true"
+      Observability__OpenTelemetry__UseConsoleExporter: "false"
+      Observability__OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"
+      Observability__OpenTelemetry__ServiceName: "BalanceService.Worker"
     deploy:
       resources:
         limits:

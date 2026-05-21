@@ -159,7 +159,7 @@ A solicitacao de estorno grava uma linha em `estornos_lancamentos` e outra em `o
 
 Esse evento representa uma mensagem operacional/intencao interna. Ele nao e fato financeiro final e nao deve ser consumido pelo `BalanceService` para alterar saldo.
 
-O processamento efetivo ocorre no `EstornoLancamentoProcessorService`, em `LedgerService.Infrastructure`. O worker:
+O processamento efetivo ocorre no `EstornoLancamentoProcessorService`, em `LedgerService.Worker`. O worker:
 
 1. reclama solicitacoes `Pending` de forma atomica, mudando-as para `Processing` com lock por linha no PostgreSQL;
 2. delega cada `estornoId` ao Mediator com `ProcessarEstornoLancamentoCommand`;
@@ -303,7 +303,7 @@ A solicitacao de reprocessamento grava uma linha em `reprocessamentos_lancamento
 
 Esse evento representa uma intencao operacional interna. Ele nao e fato financeiro final e nao deve ser consumido pelo `BalanceService` para alterar saldo.
 
-O processamento efetivo ocorre no `ReprocessamentoLancamentosConsumerService`, em `LedgerService.Infrastructure`. O consumer:
+O processamento efetivo ocorre no `ReprocessamentoLancamentosConsumerService`, em `LedgerService.Worker`. O consumer:
 
 1. consome `ledger.lancamentos.reprocessamento.solicitado`;
 2. valida `event_type=ReprocessamentoLancamentosSolicitado.v1`;

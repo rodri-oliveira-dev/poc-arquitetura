@@ -1,4 +1,5 @@
-using LedgerService.Api.Contracts;
+using LedgerService.Api.Contracts.Requests;
+using LedgerService.Api.Contracts.Responses;
 using LedgerService.Application.Lancamentos.Commands;
 
 namespace LedgerService.Api.Mappers;

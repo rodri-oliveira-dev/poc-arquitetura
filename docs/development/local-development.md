@@ -30,7 +30,9 @@ O `compose.yaml` sobe:
 
 - `Auth.Api`;
 - `LedgerService.Api`;
+- `LedgerService.Worker`;
 - `BalanceService.Api`;
+- `BalanceService.Worker`;
 - PostgreSQL Ledger;
 - PostgreSQL Balance;
 - Kafka single node em KRaft;
@@ -55,7 +57,7 @@ No Linux/macOS:
 ./scripts/start-local-stack.sh
 ```
 
-Esse fluxo sobe bancos, Kafka, observabilidade e `Auth.Api`, aplica migrations pelo host e depois inicia `LedgerService.Api` e `BalanceService.Api`.
+Esse fluxo sobe bancos, Kafka, observabilidade e `Auth.Api`, aplica migrations pelo host e depois inicia `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker`.
 
 Para subir somente o compose, sem aplicar migrations:
 
@@ -74,6 +76,9 @@ Ver status e logs:
 ```bash
 docker compose ps
 docker compose logs -f ledger-service
+docker compose logs -f ledger-worker
+docker compose logs -f balance-service
+docker compose logs -f balance-worker
 ```
 
 Portas expostas no host:
@@ -128,7 +133,7 @@ dotnet tool run dotnet-ef -- database update `
 
 ## Execucao no host
 
-Use este modo quando PostgreSQL e Kafka ja estiverem disponiveis e voce quiser rodar ou depurar as APIs no processo local.
+Use este modo quando PostgreSQL e Kafka ja estiverem disponiveis e voce quiser rodar ou depurar os processos no host.
 
 Restaure as ferramentas:
 
@@ -141,7 +146,9 @@ Suba as APIs:
 ```bash
 dotnet run --project src\Auth.Api\Auth.Api.csproj
 dotnet run --project src\LedgerService.Api\LedgerService.Api.csproj
+dotnet run --project src\LedgerService.Worker\LedgerService.Worker.csproj
 dotnet run --project src\BalanceService.Api\BalanceService.Api.csproj
+dotnet run --project src\BalanceService.Worker\BalanceService.Worker.csproj
 ```
 
 As portas padrao sao:
@@ -150,9 +157,11 @@ As portas padrao sao:
 - LedgerService.Api: `http://localhost:5226/`;
 - BalanceService.Api: `http://localhost:5228/`.
 
+`LedgerService.Worker` e `BalanceService.Worker` nao expoem porta HTTP; acompanhe pelo console ou logs dos containers.
+
 ## Configuracao
 
-Configuracoes versionadas ficam nos `appsettings*.json` dos projetos de API. Para sobrescrever valores localmente, use variaveis de ambiente com `__` como separador de secoes:
+Configuracoes versionadas ficam nos `appsettings*.json` dos projetos de API e do Worker. Para sobrescrever valores localmente, use variaveis de ambiente com `__` como separador de secoes:
 
 ```powershell
 $env:ConnectionStrings__DefaultConnection = "Host=127.0.0.1;Port=5432;Database=appdb;Username=appuser;Password=__REDACTED__"
@@ -243,7 +252,7 @@ Swagger/OpenAPI fica habilitado por padrao somente em `Development`. Fora desse 
 Endpoints operacionais:
 
 - `GET /health`: liveness simples, publico nesta POC, sem depender de DB ou Kafka.
-- `GET /ready`: readiness operacional, publico nesta POC, validando DB e Kafka quando `Kafka:Enabled=true`.
+- `GET /ready`: readiness operacional, publico nesta POC. No `LedgerService.Api` e no `BalanceService.Api`, valida o banco necessario para aceitar trafego HTTP.
 
 Detalhes de operacao ficam em [observabilidade e operacao minima](../observability.md).
 
@@ -285,6 +294,7 @@ Os testes de carga ficam em `loadtests/k6` e rodam dentro da rede do compose.
 Pre-requisitos:
 
 1. Suba a stack local com `./scripts/start-local-stack.ps1` ou `./scripts/start-local-stack.sh`.
+2. Mantenha `Auth.Api`, `LedgerService.Api`, `BalanceService.Api`, `LedgerService.Worker` e `BalanceService.Worker` em execucao quando validar cenarios que dependem de efeitos assincronos.
 
 Windows:
 
@@ -303,6 +313,8 @@ Linux/macOS:
 ```
 
 Arquivos gerados em `artifacts/k6` e `.env.k6.auto` nao sao versionados.
+
+Os runners aplicam `compose.k6.yaml` antes do k6 para manter os testes HTTP apontando para as APIs e aumentar apenas limites tecnicos de rate limiting durante a carga. Os workers continuam sem endpoint HTTP nos cenarios de carga.
 
 ## Migrations de referencia
 

@@ -14,7 +14,7 @@ Na revisao OWASP foram encontrados **0 achados criticos, 4 altos, 8 medios e 3 b
 
 Justificativa:
 
-- A solucao tem tres processos HTTP (`Auth.Api`, `LedgerService.Api`, `BalanceService.Api`) e duas responsabilidades em background embutidas (`OutboxKafkaPublisherService` e `LedgerEventsConsumer`).
+- A solucao tem tres processos HTTP (`Auth.Api`, `LedgerService.Api`, `BalanceService.Api`) e workers dedicados (`LedgerService.Worker`, `BalanceService.Worker`) para responsabilidades em background.
 - A stack local depende de PostgreSQL, Kafka/KRaft, criacao de topicos, JWKS, portas expostas e overrides por variaveis de ambiente.
 - Ja existe compose funcional e documentado; Aspire agregaria valor para orquestracao local, service discovery, dashboard e defaults de observabilidade, mas tambem criaria uma segunda forma de executar a stack.
 - `ServiceDefaults` tende a exigir alteracoes pequenas nos projetos de API, mas transversais. Essas alteracoes precisam preservar hardening, JWT/JWKS, CORS, Swagger, readiness e configuracao atual.
@@ -32,9 +32,11 @@ Componentes principais:
 
 - `src/Auth.Api`: emite JWT RS256, publica JWKS em `/.well-known/jwks.json`, usa usuario/senha fixos de POC e persiste chave RSA em arquivo.
 - `src/LedgerService.Api`: endpoint de escrita `POST /api/v1/lancamentos`, JWT Bearer via JWKS, scopes, CORS, rate limiting, security headers, ProblemDetails, `/health`, `/ready`.
-- `src/LedgerService.Infrastructure`: EF Core/PostgreSQL, Outbox, Kafka producer com idempotencia habilitada, headers de evento e correlacao.
+- `src/LedgerService.Infrastructure`: EF Core/PostgreSQL, repositories, migrations e Outbox persistida.
+- `src/LedgerService.Worker`: Outbox publisher, Kafka producer com idempotencia habilitada, headers de evento/correlacao e processamentos assincronos.
 - `src/BalanceService.Api`: endpoints de leitura de consolidados, JWT Bearer via JWKS, scopes, CORS, rate limiting, security headers, ProblemDetails, `/health`, `/ready`.
-- `src/BalanceService.Infrastructure`: Kafka consumer, processamento idempotente por evento, DLQ e persistencia de projecao em PostgreSQL.
+- `src/BalanceService.Infrastructure`: persistencia de projecao em PostgreSQL e repositories.
+- `src/BalanceService.Worker`: Kafka consumer, processamento idempotente por evento e DLQ.
 - `compose.yaml`: PostgreSQL Ledger, PostgreSQL Balance, Kafka single node KRaft, job de init de topicos, Ledger, Balance e Auth.
 - `.github/workflows`: CI .NET com restore/build/test/coverage, CodeQL e dependency review.
 

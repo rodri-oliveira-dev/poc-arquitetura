@@ -1,12 +1,7 @@
 using BalanceService.Api.Extensions;
 using BalanceService.Api.Middlewares;
 using BalanceService.Api.Options;
-using BalanceService.Application;
-using BalanceService.Infrastructure;
-using BalanceService.Infrastructure.Messaging.Kafka;
 using BalanceService.Infrastructure.Persistence;
-
-using Confluent.Kafka;
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
@@ -24,21 +19,7 @@ builder.WebHost.ConfigureKestrel((context, options) =>
         options.Limits.MaxRequestBodySize = maxRequestBodySizeBytes;
 });
 
-builder.Services
-    .AddApiHardening(builder.Configuration)
-    .AddApiRateLimiting(builder.Configuration)
-    .AddApiCors()
-    .AddApiVersioningAndExplorer()
-    .AddApiSwagger()
-    .AddApiObservability(builder.Configuration);
-
-builder.Services.AddApiJwtAuth(builder.Configuration, builder.Environment);
-
-builder.Services.AddApplication();
-builder.Services.AddInfrastructure(builder.Configuration, builder.Environment);
-
-builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddBalanceApiComposition(builder.Configuration, builder.Environment);
 
 var app = builder.Build();
 
@@ -73,7 +54,6 @@ app.MapGet("/health", [AllowAnonymous] () => Results.Text("ok"))
 
 app.MapGet("/ready", [AllowAnonymous] async (
     BalanceDbContext db,
-    IConfiguration configuration,
     CancellationToken cancellationToken) =>
 {
     var checks = new Dictionary<string, string>
@@ -81,10 +61,7 @@ app.MapGet("/ready", [AllowAnonymous] async (
         ["db"] = await db.Database.CanConnectAsync(cancellationToken) ? "ok" : "unavailable"
     };
 
-    var kafkaEnabled = configuration.GetValue<bool>("Kafka:Enabled", defaultValue: true);
-    checks["kafka"] = kafkaEnabled ? CheckKafkaConsumerReadiness(configuration) : "disabled";
-
-    var ready = checks.Values.All(v => v is "ok" or "disabled");
+    var ready = checks.Values.All(v => v is "ok");
     return ready
         ? Results.Ok(new { status = "ready", checks })
         : Results.Json(new { status = "not_ready", checks }, statusCode: StatusCodes.Status503ServiceUnavailable);
@@ -92,7 +69,7 @@ app.MapGet("/ready", [AllowAnonymous] async (
     .WithGroupName("v1")
     .WithName("Ready")
     .WithSummary("Readiness check")
-    .WithDescription("Valida dependências necessárias para aceitar tráfego: banco e Kafka quando habilitado.")
+    .WithDescription("Valida dependências necessárias para aceitar tráfego HTTP: banco.")
     .Produces(StatusCodes.Status200OK)
     .Produces(StatusCodes.Status503ServiceUnavailable)
     .DisableRateLimiting();
@@ -100,40 +77,5 @@ app.MapGet("/ready", [AllowAnonymous] async (
 app.MapControllers().RequireRateLimiting("fixed");
 
 app.Run();
-
-static string CheckKafkaConsumerReadiness(IConfiguration configuration)
-{
-    var options = configuration.GetSection(KafkaConsumerOptions.SectionName).Get<KafkaConsumerOptions>()
-        ?? new KafkaConsumerOptions();
-
-    if (string.IsNullOrWhiteSpace(options.BootstrapServers) || options.Topics.Count == 0)
-        return "unconfigured";
-
-    try
-    {
-        var adminConfig = new AdminClientConfig
-        {
-            BootstrapServers = options.BootstrapServers,
-            ClientId = $"{options.ClientId}-readiness"
-        };
-        adminConfig.ApplySecurity(options);
-
-        using var admin = new AdminClientBuilder(adminConfig).Build();
-
-        var topics = options.Topics
-            .Append(options.DeadLetterTopic)
-            .Where(t => !string.IsNullOrWhiteSpace(t))
-            .Distinct(StringComparer.Ordinal);
-
-        foreach (var topic in topics)
-            admin.GetMetadata(topic, TimeSpan.FromSeconds(3));
-
-        return "ok";
-    }
-    catch (KafkaException)
-    {
-        return "unavailable";
-    }
-}
 
 public partial class Program { }

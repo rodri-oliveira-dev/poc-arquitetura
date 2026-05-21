@@ -24,6 +24,12 @@ if ([string]::IsNullOrWhiteSpace($EnvFile)) { $EnvFile = (Join-Path $root ".env.
 # a) gerar env
 powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "scripts\compose-env.ps1") -ComposeFile $ComposeFile -OutFile $EnvFile | Out-Host
 
+# Aplica o override de carga nas APIs antes de executar o k6. O compose.k6.yaml
+# mantem os testes apontando para as APIs HTTP e aumenta apenas limites tecnicos
+# que poderiam transformar o cenario de throughput em teste de rate limiting.
+& docker compose -f $ComposeFile -f $ComposeK6File up -d --no-build ledger-service balance-service
+if ($LASTEXITCODE -ne 0) { throw "docker compose falhou ao aplicar override k6: $LASTEXITCODE" }
+
 # b) obter token (por padrão via localhost conforme README). Pode sobrescrever via env AUTH_BASE_URL.
 $token = powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "scripts\get-token.ps1")
 $token = ($token | Out-String).Trim()
@@ -31,6 +37,35 @@ if ([string]::IsNullOrWhiteSpace($token)) {
   Write-Error "Falha ao obter TOKEN. Você pode informar manualmente via env TOKEN=..."
   exit 1
 }
+
+function Invoke-BalanceWarmup([string]$token) {
+  $date = [System.Environment]::GetEnvironmentVariable("DATE")
+  if ([string]::IsNullOrWhiteSpace($date)) {
+    $date = (Get-Date).ToString("yyyy-MM-dd")
+  }
+
+  $merchantId = [System.Environment]::GetEnvironmentVariable("MERCHANT_ID")
+  if ([string]::IsNullOrWhiteSpace($merchantId)) {
+    $merchantId = "tese"
+  }
+
+  $encodedMerchantId = [System.Uri]::EscapeDataString($merchantId)
+  $url = "http://localhost:5228/v1/consolidados/diario/${date}?merchantId=$encodedMerchantId"
+  $headers = @{ Authorization = "Bearer $token" }
+
+  for ($i = 1; $i -le 30; $i++) {
+    try {
+      Invoke-WebRequest -Method Get -Uri $url -Headers $headers -UseBasicParsing | Out-Null
+      return
+    }
+    catch {
+      if ($i -eq 30) { throw }
+      Start-Sleep -Seconds 1
+    }
+  }
+}
+
+Invoke-BalanceWarmup $token
 
 New-Item -ItemType Directory -Force -Path $ArtifactsDir | Out-Null
 $ts = Get-Date -Format "yyyyMMdd-HHmmss"

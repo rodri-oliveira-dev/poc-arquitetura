@@ -23,7 +23,7 @@ model {
 
     collector = container "OpenTelemetry Collector" {
       technology "OpenTelemetry Collector / OTLP"
-      description "Ponto local de entrada de telemetria; recebe OTLP das APIs em 4317/4318, encaminha traces para o Jaeger e expoe metricas em 9464 para scrape interno."
+      description "Ponto local de entrada de telemetria; recebe OTLP das APIs e workers em 4317/4318, encaminha traces para o Jaeger e expoe metricas em 9464 para scrape interno."
     }
 
     jaeger = container "Jaeger all-in-one" {
@@ -56,7 +56,7 @@ model {
       description "Visualiza metricas do Prometheus, logs do Loki, traces do Jaeger e dashboards provisionados pela UI local em 3000."
 
       dashboards = component "Dashboards provisionados" {
-        description "Dashboards versionados em observability/grafana/dashboards para visao tecnica minima das APIs e do runtime .NET, com link para logs no Loki."
+        description "Dashboards versionados em observability/grafana/dashboards para visao tecnica minima das APIs, workers e runtime .NET, com link para logs no Loki."
       }
     }
   }
@@ -83,18 +83,18 @@ model {
   }
 
   ledger = softwareSystem "LedgerService" {
-    description "Servico de escrita do ledger. Cria lancamentos, solicita/processa estornos e reprocessamentos, garante idempotencia e publica eventos via Outbox."
+    description "Servico de escrita do ledger. A API recebe comandos HTTP e grava estado/Outbox; o Worker executa publicacao Kafka, estornos e reprocessamentos em processo separado."
 
     ledgerApi = container "LedgerService.Api" {
       technology "ASP.NET Core"
-      description "HTTP API para criacao de lancamentos, solicitacao de estorno, solicitacao de reprocessamento, consulta de status e composicao do processo."
+      description "HTTP API para criacao de lancamentos, solicitacao de estorno, solicitacao de reprocessamento, consulta de status e composition root HTTP."
 
       ledgerApiLayer = component "API Layer" {
         description "Controllers, contracts, binders, mappers, Swagger, JWT/JWKS, policies, correlation id e middlewares."
       }
 
       ledgerApplication = component "Application Layer" {
-        description "CreateLancamentoService, handlers MediatR de estorno/reprocessamento/status/processamento, validacao, idempotencia, transacoes, criacao de lancamento e registro de Outbox."
+        description "CreateLancamentoService, handlers MediatR usados pela superficie HTTP de lancamento/estorno/reprocessamento/status, validacao, idempotencia, transacoes e registro de Outbox."
       }
 
       ledgerDomain = component "Domain Layer" {
@@ -102,7 +102,24 @@ model {
       }
 
       ledgerInfrastructure = component "Infrastructure Layer" {
-        description "EF Core, AppDbContext, repositories concretos, migrations, produtor Kafka, hosted service de Outbox e workers/consumers de estorno e reprocessamento."
+        description "EF Core, AppDbContext, repositories concretos, migrations e implementacoes tecnicas compartilhadas pela API, sem adapters Kafka nem HostedServices de Worker."
+      }
+    }
+
+    ledgerWorker = container "LedgerService.Worker" {
+      technology ".NET Worker Service"
+      description "Processo dedicado sem HTTP que hospeda os workers do Ledger para Outbox, estornos e reprocessamentos, com composition root proprio."
+
+      ledgerWorkerComposition = component "Worker composition root" {
+        description "Registra Application, persistencia, repositorios, produtor Kafka e HostedServices explicitamente no processo Worker."
+      }
+
+      ledgerWorkerApplication = component "Application handlers" {
+        description "Casos de uso e handlers MediatR reutilizados pelo Worker para processar estornos e reprocessamentos sem depender do processo HTTP."
+      }
+
+      ledgerWorkerInfrastructure = component "Worker infrastructure" {
+        description "Adapters exclusivos do Worker: produtor Kafka, consumers, metrics e HostedServices registrados pelo processo Worker."
       }
 
       ledgerOutbox = component "Outbox publisher" {
@@ -125,18 +142,18 @@ model {
   }
 
   balance = softwareSystem "BalanceService" {
-    description "Servico de leitura/projecao. Consome eventos do Ledger e expoe consolidado diario/periodo."
+    description "Servico de leitura/projecao. O Worker consome eventos do Ledger e atualiza a projecao; a API expoe consultas HTTP de saldo."
 
     balanceApi = container "BalanceService.Api" {
       technology "ASP.NET Core"
-      description "HTTP API de consulta e composicao do consumidor Kafka."
+      description "HTTP API de consulta de saldos consolidados."
 
       balanceApiLayer = component "API Layer" {
         description "Controllers, contracts, mappers, Swagger, JWT/JWKS, policies, correlation id e middlewares."
       }
 
       balanceApplication = component "Application Layer" {
-        description "Handlers MediatR, queries, comando de aplicacao de evento, validadores e servicos de consolidacao."
+        description "Handlers MediatR, queries, validadores e servicos de consolidacao usados pela superficie HTTP de leitura."
       }
 
       balanceDomain = component "Domain Layer" {
@@ -144,7 +161,24 @@ model {
       }
 
       balanceInfrastructure = component "Infrastructure Layer" {
-        description "EF Core, BalanceDbContext, repositories concretos, migrations, consumidor Kafka e produtor DLQ."
+        description "EF Core, BalanceDbContext, repositories concretos, migrations e implementacoes tecnicas compartilhadas pela API, sem adapters Kafka nem HostedServices."
+      }
+    }
+
+    balanceWorker = container "BalanceService.Worker" {
+      technology ".NET Worker Service"
+      description "Processo dedicado sem HTTP que hospeda o consumidor Kafka do Balance para projetar saldos, com composition root proprio."
+
+      balanceWorkerComposition = component "Worker composition root" {
+        description "Registra Application, persistencia, repositorios, consumer Kafka, DLQ e HostedServices explicitamente no processo Worker."
+      }
+
+      balanceWorkerApplication = component "Application handlers" {
+        description "Comando de aplicacao de evento e regras de consolidacao reutilizados pelo Worker sem depender do processo HTTP."
+      }
+
+      balanceWorkerInfrastructure = component "Worker infrastructure" {
+        description "Adapters exclusivos do Worker: consumer Kafka, produtor DLQ, metrics e HostedService registrados pelo processo Worker."
       }
 
       balanceConsumer = component "Kafka consumer" {
@@ -190,24 +224,33 @@ model {
   balance.balanceApi -> auth.authApi "Obtem JWKS para validar JWT" "HTTP cacheado"
 
   ledger.ledgerApi -> ledger.ledgerDb "Persiste lancamento, estorno, reprocessamento, idempotencia e outbox" "EF Core"
-  ledger.ledgerEstornoProcessor -> ledger.ledgerDb "Busca estornos Pending e atualiza status" "EF Core / SQL"
-  ledger.ledgerEstornoProcessor -> ledger.ledgerApplication "Envia ProcessarEstornoLancamentoCommand" "MediatR"
-  ledger.ledgerOutbox -> ledger.ledgerDb "Le e atualiza outbox_messages" "EF Core / SQL"
-  ledger.ledgerOutbox -> kafka.ledgerTopic "Publica LedgerEntryCreated.v1" "Kafka"
-  ledger.ledgerOutbox -> kafka.ledgerEstornoTopic "Publica LancamentoEstornoSolicitado.v1" "Kafka"
-  ledger.ledgerOutbox -> kafka.ledgerReprocessamentoTopic "Publica ReprocessamentoLancamentosSolicitado.v1" "Kafka"
-  ledger.ledgerReprocessamentoConsumer -> kafka.ledgerReprocessamentoTopic "Consome ReprocessamentoLancamentosSolicitado.v1" "Kafka"
-  ledger.ledgerReprocessamentoConsumer -> ledger.ledgerApplication "Envia ProcessarReprocessamentoLancamentosCommand" "MediatR"
-  ledger.ledgerReprocessamentoConsumer -> ledger.ledgerDb "Atualiza status e registra eventos finais no Outbox" "EF Core / SQL"
+  ledger.ledgerWorker.ledgerWorkerComposition -> ledger.ledgerWorker.ledgerWorkerApplication "Registra casos de uso e handlers" "DI / MediatR"
+  ledger.ledgerWorker.ledgerWorkerComposition -> ledger.ledgerWorker.ledgerWorkerInfrastructure "Registra adapters e HostedServices" "DI"
+  ledger.ledgerWorker.ledgerWorkerInfrastructure -> ledger.ledgerDb "Usa persistence e repositories" "EF Core / SQL"
+  ledger.ledgerWorker.ledgerEstornoProcessor -> ledger.ledgerDb "Busca estornos Pending e atualiza status" "EF Core / SQL"
+  ledger.ledgerWorker.ledgerEstornoProcessor -> ledger.ledgerWorker.ledgerWorkerApplication "Envia ProcessarEstornoLancamentoCommand" "MediatR"
+  ledger.ledgerWorker.ledgerOutbox -> ledger.ledgerDb "Le e atualiza outbox_messages" "EF Core / SQL"
+  ledger.ledgerWorker.ledgerOutbox -> kafka.ledgerTopic "Publica LedgerEntryCreated.v1" "Kafka"
+  ledger.ledgerWorker.ledgerOutbox -> kafka.ledgerEstornoTopic "Publica LancamentoEstornoSolicitado.v1" "Kafka"
+  ledger.ledgerWorker.ledgerOutbox -> kafka.ledgerReprocessamentoTopic "Publica ReprocessamentoLancamentosSolicitado.v1" "Kafka"
+  ledger.ledgerWorker.ledgerReprocessamentoConsumer -> kafka.ledgerReprocessamentoTopic "Consome ReprocessamentoLancamentosSolicitado.v1" "Kafka"
+  ledger.ledgerWorker.ledgerReprocessamentoConsumer -> ledger.ledgerWorker.ledgerWorkerApplication "Envia ProcessarReprocessamentoLancamentosCommand" "MediatR"
+  ledger.ledgerWorker.ledgerReprocessamentoConsumer -> ledger.ledgerDb "Atualiza status e registra eventos finais no Outbox" "EF Core / SQL"
 
-  balance.balanceConsumer -> kafka.ledgerTopic "Consome LedgerEntryCreated.v1, inclusive compensatorios e replays de reprocessamento" "Kafka"
-  balance.balanceConsumer -> kafka.ledgerDlq "Publica mensagens invalidas" "Kafka"
-  balance.balanceConsumer -> balance.balanceDb "Atualiza daily_balances e processed_events" "EF Core"
+  balance.balanceWorker.balanceWorkerComposition -> balance.balanceWorker.balanceWorkerApplication "Registra casos de uso e handlers" "DI / MediatR"
+  balance.balanceWorker.balanceWorkerComposition -> balance.balanceWorker.balanceWorkerInfrastructure "Registra adapters e HostedServices" "DI"
+  balance.balanceWorker.balanceWorkerInfrastructure -> balance.balanceDb "Usa persistence e repositories" "EF Core"
+  balance.balanceWorker.balanceConsumer -> kafka.ledgerTopic "Consome LedgerEntryCreated.v1, inclusive compensatorios e replays de reprocessamento" "Kafka"
+  balance.balanceWorker.balanceConsumer -> kafka.ledgerDlq "Publica mensagens invalidas" "Kafka"
+  balance.balanceWorker.balanceConsumer -> balance.balanceWorker.balanceWorkerApplication "Envia comando de aplicacao de evento" "MediatR"
+  balance.balanceWorker.balanceConsumer -> balance.balanceDb "Atualiza daily_balances e processed_events" "EF Core"
   balance.balanceApi -> balance.balanceDb "Consulta projecao" "EF Core"
 
   auth.authApi -> observability.collector "Exporta telemetria quando habilitado no compose" "OTLP"
   ledger.ledgerApi -> observability.collector "Exporta telemetria quando habilitado no compose" "OTLP"
+  ledger.ledgerWorker -> observability.collector "Exporta telemetria quando habilitado no compose" "OTLP"
   balance.balanceApi -> observability.collector "Exporta telemetria quando habilitado no compose" "OTLP"
+  balance.balanceWorker -> observability.collector "Exporta telemetria quando habilitado no compose" "OTLP"
   observability.collector -> observability.jaeger "Encaminha traces" "OTLP"
   observability.prometheus -> observability.collector "Coleta metricas tecnicas" "Prometheus scrape"
   observability.prometheus -> observability.alertmanager "Envia alertas tecnicos" "Alertmanager API"
@@ -221,12 +264,17 @@ model {
 
   ledger.ledgerApiLayer -> ledger.ledgerApplication "Chama caso de uso"
   ledger.ledgerApplication -> ledger.ledgerDomain "Cria agregados e usa contratos de repositorio"
-  ledger.ledgerInfrastructure -> ledger.ledgerApplication "Implementa composicao e hosted services"
+  ledger.ledgerInfrastructure -> ledger.ledgerApplication "Implementa persistence e repositories"
   ledger.ledgerInfrastructure -> ledger.ledgerDomain "Mapeia entidades e implementa repositorios"
+  ledger.ledgerWorker.ledgerWorkerApplication -> ledger.ledgerDomain "Cria agregados e usa contratos de repositorio"
+  ledger.ledgerWorker.ledgerWorkerInfrastructure -> ledger.ledgerWorker.ledgerWorkerApplication "Implementa adapters tecnicos"
+  ledger.ledgerWorker.ledgerWorkerInfrastructure -> ledger.ledgerDomain "Mapeia entidades e implementa repositorios"
 
   balance.balanceApiLayer -> balance.balanceApplication "Envia queries via MediatR"
-  balance.balanceConsumer -> balance.balanceApplication "Envia comando de aplicacao de evento"
   balance.balanceApplication -> balance.balanceDomain "Aplica regras de consolidacao"
-  balance.balanceInfrastructure -> balance.balanceApplication "Implementa repositorios e processador de mensagens"
+  balance.balanceInfrastructure -> balance.balanceApplication "Implementa repositorios de leitura"
   balance.balanceInfrastructure -> balance.balanceDomain "Mapeia entidades e contrato consumido"
+  balance.balanceWorker.balanceWorkerApplication -> balance.balanceDomain "Aplica regras de consolidacao"
+  balance.balanceWorker.balanceWorkerInfrastructure -> balance.balanceWorker.balanceWorkerApplication "Implementa adapters tecnicos"
+  balance.balanceWorker.balanceWorkerInfrastructure -> balance.balanceDomain "Mapeia entidades e contrato consumido"
 }

@@ -32,6 +32,11 @@ public sealed class CreateLancamentoService
         IUnitOfWork unitOfWork,
         LedgerDomainMetrics? metrics = null)
     {
+        ArgumentNullException.ThrowIfNull(ledgerEntryRepository);
+        ArgumentNullException.ThrowIfNull(idempotencyRecordRepository);
+        ArgumentNullException.ThrowIfNull(outboxMessageRepository);
+        ArgumentNullException.ThrowIfNull(unitOfWork);
+
         _ledgerEntryRepository = ledgerEntryRepository;
         _idempotencyRecordRepository = idempotencyRecordRepository;
         _outboxMessageRepository = outboxMessageRepository;
@@ -41,6 +46,8 @@ public sealed class CreateLancamentoService
 
     public async Task<LancamentoDto> ExecuteAsync(CreateLancamentoInput request, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
+
         var requestHash = GenerateRequestHash(request);
 
         await using var transaction = await _unitOfWork.BeginTransactionAsync(cancellationToken);

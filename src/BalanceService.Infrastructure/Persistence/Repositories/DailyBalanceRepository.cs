@@ -12,6 +12,8 @@ public sealed class DailyBalanceRepository : IDailyBalanceRepository
 
     public DailyBalanceRepository(BalanceDbContext context)
     {
+        ArgumentNullException.ThrowIfNull(context);
+
         _context = context;
     }
 
@@ -21,6 +23,9 @@ public sealed class DailyBalanceRepository : IDailyBalanceRepository
         string currency,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(merchantId);
+        ArgumentNullException.ThrowIfNull(currency);
+
         if (!IsNpgsql())
             return;
 
@@ -40,6 +45,9 @@ public sealed class DailyBalanceRepository : IDailyBalanceRepository
         string currency,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(merchantId);
+        ArgumentNullException.ThrowIfNull(currency);
+
         var normalizedCurrency = currency.Trim().ToUpperInvariant();
         return await _context.DailyBalances
             .FirstOrDefaultAsync(
@@ -48,7 +56,11 @@ public sealed class DailyBalanceRepository : IDailyBalanceRepository
     }
 
     public Task AddAsync(DailyBalance dailyBalance, CancellationToken cancellationToken = default)
-        => _context.DailyBalances.AddAsync(dailyBalance, cancellationToken).AsTask();
+    {
+        ArgumentNullException.ThrowIfNull(dailyBalance);
+
+        return _context.DailyBalances.AddAsync(dailyBalance, cancellationToken).AsTask();
+    }
 
     private bool IsNpgsql()
         => string.Equals(

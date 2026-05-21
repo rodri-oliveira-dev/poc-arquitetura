@@ -46,18 +46,22 @@ Veja [Swagger e endpoints operacionais](development/local-development.md#swagger
 
 ## Readiness retorna 503
 
-`GET /ready` valida dependencias obrigatorias do servico. Em geral, investigue:
+`GET /ready` nas APIs valida dependencias obrigatorias para trafego HTTP. Em geral, investigue:
 
 - conexao com PostgreSQL;
-- topicos Kafka esperados;
-- `Kafka:Enabled`;
-- connection strings e bootstrap servers usados no ambiente.
+- connection strings usadas no ambiente.
+
+Kafka, topicos, `Kafka:Enabled`, bootstrap servers e DLQ pertencem aos workers. Quando houver falha de consumo ou publicacao, investigue logs e metricas de `LedgerService.Worker` e `BalanceService.Worker`; a indisponibilidade do Kafka consumer nao deve derrubar o readiness do `BalanceService.Api`.
+
+No compose local, use `docker compose logs -f ledger-worker` para Outbox/estornos/reprocessamentos e `docker compose logs -f balance-worker` para consumo Kafka/DLQ. `ledger-service` e `balance-service` representam apenas as APIs HTTP.
 
 Detalhes ficam em [observabilidade](observability.md#readiness) e [Kafka, Outbox e DLQ](development/kafka-outbox.md).
 
 ## Outbox fica em Pending ou Failed
 
 Mensagens `Pending` podem ser normais durante a janela de polling. Se permanecerem acumuladas ou chegarem a `Failed`, investigue Kafka, topic map, ACL/configuracao local, serializacao e `last_error`.
+
+O publisher roda no `LedgerService.Worker`; se o `LedgerService.Api` estiver saudavel mas a Outbox nao avancar, valide primeiro se o container/processo `ledger-worker` esta ativo e com `ServiceName=LedgerService.Worker`.
 
 Use [Kafka, Outbox e DLQ](development/kafka-outbox.md#outbox) para entender estados, backoff e requeue operacional. Nao use requeue para mascarar erro permanente de contrato ou payload.
 
@@ -67,9 +71,9 @@ Confirme a cadeia completa:
 
 1. lancamento criado no Ledger;
 2. mensagem em `outbox_messages`;
-3. status final `Sent`;
-4. evento consumido em `processed_events`;
-5. atualizacao em `daily_balances`;
+3. `ledger-worker` publicou a mensagem e ela chegou ao status final `Sent`;
+4. `balance-worker` consumiu o evento e registrou `processed_events`;
+5. `balance-worker` atualizou `daily_balances`;
 6. ausencia de mensagem inesperada na DLQ.
 
 O roteiro operacional completo fica em [validacao Auth -> Ledger -> Outbox -> Kafka -> Balance](observability.md#validacao-auth---ledger---outbox---kafka---balance).

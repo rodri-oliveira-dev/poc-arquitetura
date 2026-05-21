@@ -52,6 +52,9 @@ Componentes principais:
 - Nao altere testes apenas para faze-los passar.
 - Nao faca push.
 - Nao crie branch sem solicitacao explicita.
+- Em refatoracoes, preserve o comportamento observavel existente, salvo quando a tarefa pedir explicitamente uma mudanca funcional.
+- Nao misture refatoracao estrutural com mudanca funcional sem explicar claramente o motivo.
+- Antes de finalizar alteracoes, verifique se a tarefa deixou arquivos vazios ou contendo apenas whitespace. Remova arquivos vazios sem funcao clara, especialmente classes, testes, documentacao ou configuracoes abandonadas por refatoracao. Preserve apenas placeholders intencionais, como `.gitkeep`, ou arquivos vazios exigidos por ferramenta e com proposito evidente. Nao crie arquivos vazios apenas para reservar estrutura.
 
 ## Arquitetura
 
@@ -82,13 +85,40 @@ Mudancas de persistencia com impacto estrutural, transacional, relacional ou com
 ## Skills do Codex
 
 Use skills em `.agents/skills/` quando o pedido combinar com o `description` da skill.
+Antes de executar tarefas especializadas, verifique se ha uma skill aplicavel em `.agents/skills/`.
+Use a skill como orientacao complementar ao `AGENTS.md`, preservando as regras especificas deste repositorio.
+Quando uma skill externa conflitar com padroes locais, os padroes locais prevalecem.
 
 Roteamento atual:
 
 - `dotnet-service-change`: mudancas funcionais nos servicos .NET.
+- `dotnet-refactoring-engineer`: refatoracoes, code review tecnico, melhoria de design, reducao de acoplamento, melhoria de coesao, extracao de responsabilidades, revisao de DI, revisao de endpoints, EF Core, legibilidade, testabilidade, performance e aplicacao cuidadosa de boas praticas de engenharia de software.
 - `integration-tests-dotnet`: testes de integracao .NET ou estrategia especifica de integracao.
 - `ci-release-governance`: GitHub Actions, GitVersion, releases, coverage, hooks e automacoes.
 - `repository-governance-sdd`: `AGENTS.md`, skills, ADRs, prompts, documentacao de processo e governanca.
+- `configuring-opentelemetry-dotnet`: instrumentacao, troubleshooting e evolucao de traces, metricas e logs OpenTelemetry.
+- `optimizing-ef-core-queries`: diagnostico e otimizacao de queries EF Core, N+1, tracking, projecoes e armadilhas de performance.
+- `coverage-analysis`: analise de cobertura, CRAP score e hotspots de risco para priorizar testes.
+- `test-anti-patterns`: auditoria pragmatica de qualidade de testes, flakiness, asserts fracos, over-mocking e acoplamento.
+
+Use `dotnet-refactoring-engineer` quando a tarefa pedir melhorar codigo existente sem alterar comportamento externo. Exemplos:
+
+- reduzir complexidade de uma classe, handler, service ou endpoint;
+- separar responsabilidades;
+- melhorar nomes e intencao do codigo;
+- remover duplicacao real;
+- melhorar testabilidade;
+- revisar uso de DI;
+- revisar queries EF Core;
+- transformar codigo procedural em uma estrutura mais coesa;
+- revisar se uma abstracao, interface, pattern ou camada faz sentido;
+- preparar codigo para uma mudanca funcional futura.
+
+Quando uma mudanca funcional tambem exigir refatoracao, combine `dotnet-service-change` com `dotnet-refactoring-engineer`, mas mantenha a refatoracao pequena, justificada e proporcional ao objetivo da tarefa.
+
+Quando a refatoracao impactar testes, combine `dotnet-refactoring-engineer` com `integration-tests-dotnet`.
+
+Quando a refatoracao alterar decisao arquitetural, contrato entre servicos, estrategia de persistencia, mensageria, observabilidade, seguranca, estrutura do projeto ou comportamento relevante, avalie tambem `repository-governance-sdd` para atualizar documentacao ou ADR.
 
 Em caso de conflito entre este arquivo e uma skill, preserve este arquivo como orientacao global do repositorio.
 
@@ -99,7 +129,7 @@ dotnet tool restore
 dotnet restore ./LedgerService.slnx
 dotnet build ./LedgerService.slnx --configuration Release --no-restore
 dotnet test ./LedgerService.slnx --configuration Release --no-build --settings ./coverlet.runsettings
-```
+````
 
 Para cobertura com gate:
 
@@ -126,12 +156,12 @@ Sempre que houver alteracao em arquivos do repositorio, crie commit semantico ao
 
 Use Conventional Commits:
 
-- `feat:`
-- `fix:`
-- `refactor:`
-- `test:`
-- `docs:`
-- `chore:`
-- `ci:`
+* `feat:`
+* `fix:`
+* `refactor:`
+* `test:`
+* `docs:`
+* `chore:`
+* `ci:`
 
 Antes de commitar, revise o diff e execute validacoes proporcionais ao impacto. Nao crie commit se houver falha de build/teste sem registrar claramente o motivo.

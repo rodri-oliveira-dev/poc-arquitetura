@@ -29,6 +29,11 @@ public sealed class SolicitarReprocessamentoLancamentosHandler
         IUnitOfWork unitOfWork,
         LedgerDomainMetrics? metrics = null)
     {
+        ArgumentNullException.ThrowIfNull(reprocessamentoRepository);
+        ArgumentNullException.ThrowIfNull(idempotencyRecordRepository);
+        ArgumentNullException.ThrowIfNull(outboxMessageRepository);
+        ArgumentNullException.ThrowIfNull(unitOfWork);
+
         _reprocessamentoRepository = reprocessamentoRepository;
         _idempotencyRecordRepository = idempotencyRecordRepository;
         _outboxMessageRepository = outboxMessageRepository;
@@ -40,6 +45,8 @@ public sealed class SolicitarReprocessamentoLancamentosHandler
         SolicitarReprocessamentoLancamentosCommand request,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
+
         if (!IsMerchantAuthorized(request.AuthorizedMerchantIds, request.MerchantId))
         {
             _metrics?.RecordReprocessRequestCreated("rejected");

@@ -21,12 +21,19 @@ public sealed class JwtIssuer : IJwtIssuer
 
     public JwtIssuer(IOptions<AuthOptions> options, IRsaKeyProvider keys)
     {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(keys);
+
         _options = options.Value;
         _keys = keys;
     }
 
     public string IssueAccessToken(string subject, string preferredUsername, string scopes, out DateTimeOffset expiresAtUtc)
     {
+        ArgumentNullException.ThrowIfNull(subject);
+        ArgumentNullException.ThrowIfNull(preferredUsername);
+        ArgumentNullException.ThrowIfNull(scopes);
+
         var now = DateTimeOffset.UtcNow;
         var lifetimeMinutes = _options.TokenLifetimeMinutes <= 0 ? 10 : _options.TokenLifetimeMinutes;
         expiresAtUtc = now.AddMinutes(lifetimeMinutes);

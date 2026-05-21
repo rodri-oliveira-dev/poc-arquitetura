@@ -35,6 +35,12 @@ public sealed class ProcessarReprocessamentoLancamentosHandler
         ILogger<ProcessarReprocessamentoLancamentosHandler> logger,
         LedgerDomainMetrics? metrics = null)
     {
+        ArgumentNullException.ThrowIfNull(reprocessamentoRepository);
+        ArgumentNullException.ThrowIfNull(ledgerEntryRepository);
+        ArgumentNullException.ThrowIfNull(outboxMessageRepository);
+        ArgumentNullException.ThrowIfNull(unitOfWork);
+        ArgumentNullException.ThrowIfNull(logger);
+
         _reprocessamentoRepository = reprocessamentoRepository;
         _ledgerEntryRepository = ledgerEntryRepository;
         _outboxMessageRepository = outboxMessageRepository;
@@ -45,6 +51,8 @@ public sealed class ProcessarReprocessamentoLancamentosHandler
 
     public async Task Handle(ProcessarReprocessamentoLancamentosCommand request, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
+
         try
         {
             await ProcessInternalAsync(request.ReprocessamentoId, cancellationToken);

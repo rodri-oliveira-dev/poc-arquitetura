@@ -11,8 +11,8 @@ O repositorio e uma POC de microservicos .NET com LedgerService, BalanceService 
 
 A estrutura real da solucao mostra:
 
-- LedgerService com projetos `Api`, `Application`, `Domain` e `Infrastructure`;
-- BalanceService com projetos `Api`, `Application`, `Domain` e `Infrastructure`;
+- LedgerService com projetos `Api`, `Worker`, `Application`, `Domain` e `Infrastructure`;
+- BalanceService com projetos `Api`, `Worker`, `Application`, `Domain` e `Infrastructure`;
 - Auth.Api em projeto unico;
 - Kafka, Outbox, DLQ, PostgreSQL, JWKS/JWT, health/readiness, Swagger, OpenTelemetry e background processing;
 - integracao assincrona entre Ledger e Balance via `LedgerEntryCreated.v1`.
@@ -35,14 +35,14 @@ A arquitetura atual e hibrida:
 
 LedgerService justifica camadas internas por ter idempotencia, transacao, dominio com invariantes, persistencia e Outbox.
 
-BalanceService justifica camadas internas por ter consultas, consumidor Kafka, DLQ, idempotencia de eventos e projecao.
+BalanceService justifica camadas internas por ter consultas, worker Kafka, DLQ, idempotencia de eventos e projecao.
 
 Auth.Api nao justifica camadas adicionais neste momento. Ele e uma API de autenticacao de POC com emissao JWT, JWKS, chave RSA e hardening basico. Dividi-lo em `Auth.Application`, `Auth.Domain` e `Auth.Infrastructure` agora aumentaria custo sem ganho proporcional.
 
 ## Decisao
 Manter a arquitetura como minimalista e pragmatica, com robustez seletiva:
 
-- LedgerService e BalanceService permanecem com `Api`, `Application`, `Domain` e `Infrastructure`.
+- LedgerService e BalanceService permanecem com `Api`, `Worker`, `Application`, `Domain` e `Infrastructure`.
 - Auth.Api permanece em projeto unico enquanto continuar sendo autenticacao de POC.
 - Boundaries serao documentados em `docs/architecture/boundaries.md`.
 - Diagramas LikeC4 serao mantidos em `docs/architecture/model.c4` e `docs/architecture/views.c4`.
@@ -54,7 +54,8 @@ Regras principais:
 - `Api` orquestra HTTP, auth, middlewares, Swagger, health/readiness e DI.
 - `Application` contem casos de uso, handlers, validacao de aplicacao, transacao e idempotencia.
 - `Domain` contem invariantes e comportamento sem depender de ASP.NET, EF Core ou Kafka.
-- `Infrastructure` contem EF Core, migrations, repositories concretos, Kafka, DLQ, Outbox publisher e hosted services.
+- `Infrastructure` contem EF Core, migrations, repositories concretos e implementacoes compartilhadas.
+- `Worker` contem HostedServices e adapters tecnicos exclusivos de processamento em background, como Kafka producer/consumer e DLQ quando nao forem usados pela API.
 
 ## Por que nao usar mais camadas
 Mais camadas agora criariam custo sem evidencia suficiente:
@@ -116,4 +117,3 @@ Menos camadas tambem aumentaria risco:
 - Tratar a ausencia de currency no evento como divida arquitetural explicita.
 - Avaliar clock abstrato no LedgerService em refactor futuro.
 - Reavaliar Auth.Api se a POC evoluir para identidade real ou se ADR de Keycloak for implementada.
-
