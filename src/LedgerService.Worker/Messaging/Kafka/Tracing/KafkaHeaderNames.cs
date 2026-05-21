@@ -1,4 +1,4 @@
-namespace BalanceService.Worker.Messaging.Kafka;
+namespace LedgerService.Worker.Messaging.Kafka.Tracing;
 
 public static class KafkaHeaderNames
 {

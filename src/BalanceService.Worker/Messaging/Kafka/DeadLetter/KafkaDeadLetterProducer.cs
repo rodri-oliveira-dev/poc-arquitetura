@@ -4,12 +4,14 @@ using System.Text.Json;
 
 using Confluent.Kafka;
 
+using BalanceService.Worker.Messaging.Kafka.Configuration;
+using BalanceService.Worker.Messaging.Kafka.Tracing;
 using BalanceService.Worker.Observability;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace BalanceService.Worker.Messaging.Kafka;
+namespace BalanceService.Worker.Messaging.Kafka.DeadLetter;
 
 public sealed class KafkaDeadLetterProducer : IKafkaDeadLetterProducer, IDisposable
 {

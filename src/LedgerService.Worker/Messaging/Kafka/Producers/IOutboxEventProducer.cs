@@ -1,6 +1,6 @@
 using LedgerService.Domain.Entities;
 
-namespace LedgerService.Worker.Messaging.Kafka;
+namespace LedgerService.Worker.Messaging.Kafka.Producers;
 
 public interface IOutboxEventProducer
 {

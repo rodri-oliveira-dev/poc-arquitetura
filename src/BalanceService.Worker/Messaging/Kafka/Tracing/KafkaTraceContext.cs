@@ -3,7 +3,7 @@ using System.Text;
 
 using Confluent.Kafka;
 
-namespace BalanceService.Worker.Messaging.Kafka;
+namespace BalanceService.Worker.Messaging.Kafka.Tracing;
 
 public static class KafkaTraceContext
 {

@@ -1,6 +1,7 @@
 using BalanceService.Api.Extensions;
 using BalanceService.Worker.Extensions;
-using BalanceService.Worker.Messaging.Kafka;
+using BalanceService.Worker.Messaging.Kafka.Configuration;
+using BalanceService.Worker.Messaging.Kafka.Consumers;
 using FluentAssertions;
 using Confluent.Kafka;
 using Microsoft.Extensions.Configuration;

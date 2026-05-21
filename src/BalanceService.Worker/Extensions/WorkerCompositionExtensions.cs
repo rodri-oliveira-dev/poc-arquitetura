@@ -1,6 +1,9 @@
 using BalanceService.Application;
 using BalanceService.Infrastructure;
-using BalanceService.Worker.Messaging.Kafka;
+using BalanceService.Worker.Messaging.Kafka.Configuration;
+using BalanceService.Worker.Messaging.Kafka.Consumers;
+using BalanceService.Worker.Messaging.Kafka.DeadLetter;
+using BalanceService.Worker.Messaging.Kafka.Processors;
 using BalanceService.Worker.Observability;
 
 namespace BalanceService.Worker.Extensions;

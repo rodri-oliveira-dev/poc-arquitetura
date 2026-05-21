@@ -5,7 +5,10 @@ using System.Diagnostics;
 using BalanceService.Application.Balances.Commands;
 using BalanceService.Domain.Balances;
 using BalanceService.Domain.Exceptions;
-using BalanceService.Worker.Messaging.Kafka;
+using BalanceService.Worker.Messaging.Kafka.Contracts;
+using BalanceService.Worker.Messaging.Kafka.DeadLetter;
+using BalanceService.Worker.Messaging.Kafka.Processors;
+using BalanceService.Worker.Messaging.Kafka.Tracing;
 using BalanceService.Worker.Observability;
 
 using Confluent.Kafka;

@@ -1,4 +1,4 @@
-namespace LedgerService.Worker.Messaging.Kafka;
+namespace LedgerService.Worker.Messaging.Kafka.Configuration;
 
 public sealed class KafkaProducerOptions
 {

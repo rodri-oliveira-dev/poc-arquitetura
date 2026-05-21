@@ -1,5 +1,5 @@
 using LedgerService.Worker.Extensions;
-using LedgerService.Worker.Messaging.Kafka;
+using LedgerService.Worker.Messaging.Kafka.Configuration;
 using LedgerService.Worker.Reprocessamentos;
 using Confluent.Kafka;
 using Microsoft.Extensions.Configuration;

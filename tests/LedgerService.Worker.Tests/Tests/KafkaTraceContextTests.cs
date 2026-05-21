@@ -2,7 +2,7 @@ using System.Diagnostics;
 
 using Confluent.Kafka;
 
-using LedgerService.Worker.Messaging.Kafka;
+using LedgerService.Worker.Messaging.Kafka.Tracing;
 
 namespace LedgerService.Worker.Tests.Tests;
 

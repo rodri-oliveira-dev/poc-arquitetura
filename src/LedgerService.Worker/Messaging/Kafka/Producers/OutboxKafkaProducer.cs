@@ -5,11 +5,13 @@ using Confluent.Kafka;
 
 using LedgerService.Domain.Entities;
 using LedgerService.Infrastructure.Observability;
+using LedgerService.Worker.Messaging.Kafka.Configuration;
+using LedgerService.Worker.Messaging.Kafka.Tracing;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace LedgerService.Worker.Messaging.Kafka;
+namespace LedgerService.Worker.Messaging.Kafka.Producers;
 
 public sealed class OutboxKafkaProducer : IOutboxEventProducer, IDisposable
 {

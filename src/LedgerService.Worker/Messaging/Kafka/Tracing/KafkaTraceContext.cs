@@ -3,7 +3,7 @@ using System.Text;
 
 using Confluent.Kafka;
 
-namespace LedgerService.Worker.Messaging.Kafka;
+namespace LedgerService.Worker.Messaging.Kafka.Tracing;
 
 public static class KafkaTraceContext
 {

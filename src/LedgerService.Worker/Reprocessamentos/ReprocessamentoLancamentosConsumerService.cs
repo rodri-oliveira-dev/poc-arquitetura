@@ -1,6 +1,6 @@
 using Confluent.Kafka;
 
-using LedgerService.Worker.Messaging.Kafka;
+using LedgerService.Worker.Messaging.Kafka.Configuration;
 
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;

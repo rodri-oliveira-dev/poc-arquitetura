@@ -1,7 +1,8 @@
 using LedgerService.Domain.Repositories;
 using LedgerService.Infrastructure.Observability;
+using LedgerService.Worker.Messaging.Kafka.Producers;
+using LedgerService.Worker.Messaging.Kafka.Tracing;
 using LedgerService.Worker.Observability;
-using LedgerService.Worker.Messaging.Kafka;
 using LedgerService.Infrastructure.Persistence;
 using Confluent.Kafka;
 using Microsoft.EntityFrameworkCore;

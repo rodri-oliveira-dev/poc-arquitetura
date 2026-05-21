@@ -1,4 +1,4 @@
-namespace BalanceService.Worker.Messaging.Kafka;
+namespace BalanceService.Worker.Messaging.Kafka.Configuration;
 
 public sealed class KafkaConsumerOptions
 {

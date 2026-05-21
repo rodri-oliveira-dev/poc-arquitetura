@@ -4,6 +4,9 @@ using System.Text.Json;
 using BalanceService.Application.Balances.Commands;
 using BalanceService.Domain.Balances;
 using BalanceService.Domain.Exceptions;
+using BalanceService.Worker.Messaging.Kafka.Contracts;
+using BalanceService.Worker.Messaging.Kafka.DeadLetter;
+using BalanceService.Worker.Messaging.Kafka.Tracing;
 using BalanceService.Worker.Observability;
 
 using Confluent.Kafka;
@@ -13,7 +16,7 @@ using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-namespace BalanceService.Worker.Messaging.Kafka;
+namespace BalanceService.Worker.Messaging.Kafka.Processors;
 
 public sealed class LedgerKafkaMessageProcessor
 {

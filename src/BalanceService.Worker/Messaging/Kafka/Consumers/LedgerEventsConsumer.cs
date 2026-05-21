@@ -1,12 +1,15 @@
 using Confluent.Kafka;
 
+using BalanceService.Worker.Messaging.Kafka.Configuration;
+using BalanceService.Worker.Messaging.Kafka.Processors;
+using BalanceService.Worker.Messaging.Kafka.Tracing;
 using BalanceService.Worker.Observability;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace BalanceService.Worker.Messaging.Kafka;
+namespace BalanceService.Worker.Messaging.Kafka.Consumers;
 
 public sealed class LedgerEventsConsumer : BackgroundService
 {

@@ -1,4 +1,7 @@
-using BalanceService.Worker.Messaging.Kafka;
+using BalanceService.Worker.Messaging.Kafka.Configuration;
+using BalanceService.Worker.Messaging.Kafka.Consumers;
+using BalanceService.Worker.Messaging.Kafka.DeadLetter;
+using BalanceService.Worker.Messaging.Kafka.Tracing;
 using BalanceService.Worker.Observability;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;

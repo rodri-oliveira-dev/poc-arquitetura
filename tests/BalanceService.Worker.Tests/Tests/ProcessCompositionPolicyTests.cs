@@ -1,6 +1,8 @@
 using BalanceService.Api.Extensions;
 using BalanceService.Application.Abstractions.Persistence;
-using BalanceService.Worker.Messaging.Kafka;
+using BalanceService.Worker.Messaging.Kafka.Consumers;
+using BalanceService.Worker.Messaging.Kafka.DeadLetter;
+using BalanceService.Worker.Messaging.Kafka.Processors;
 using BalanceService.Worker.Observability;
 using BalanceService.Worker.Extensions;
 using FluentAssertions;
