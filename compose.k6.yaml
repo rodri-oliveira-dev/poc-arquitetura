@@ -28,5 +28,9 @@ services:
       - ./.env.k6.auto:/.env.k6.auto:ro
     env_file:
       - ./.env.k6.auto
+    environment:
+      USERNAME: "${AUTH_POC_USERNAME:-local_user}"
+      PASSWORD: "${AUTH_POC_PASSWORD:-local_password}"
+      SCOPE: "${AUTH_POC_SCOPE:-ledger.write balance.read}"
     networks:
       - poc-net

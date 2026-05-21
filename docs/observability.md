@@ -681,9 +681,9 @@ curl -G "http://localhost:3100/loki/api/v1/query_range" \
   --data-urlencode 'limit=20'
 ```
 
-No Alloy, acesse `http://localhost:12345` para diagnostico local do agente. O container precisa ter acesso somente leitura a `/var/run/docker.sock`; sem esse socket, a coleta de logs falha, mas as APIs continuam funcionando.
+No Alloy, acesse `http://localhost:12345` para diagnostico local do agente quando o profile `observability` estiver ativo. O container precisa ter acesso somente leitura a `/var/run/docker.sock`; sem esse socket, a coleta de logs falha, mas as APIs continuam funcionando. Esse socket continua sendo uma superficie sensivel mesmo em modo somente leitura, por isso o Alloy fica isolado por profile e deve ser usado apenas em maquina local confiavel.
 
-No Grafana, acesse `http://localhost:3000` com as credenciais locais de POC `admin`/`admin`. Em `Connections` ou `Data sources`, confirme os datasources `Prometheus` apontando para `http://prometheus:9090`, `Loki` apontando para `http://loki:3100` e `Jaeger` apontando para `http://jaeger:16686`. Em `Dashboards`, abra a pasta `Observability` e confirme que os dashboards `APIs - Visao Geral` e `Runtime .NET - Visao Geral` foram carregados automaticamente. Para validar metricas, use Explore com uma das metricas tecnicas listadas acima. Para validar logs, use Explore com o datasource `Loki` e queries por processo, por exemplo `{service="ledger-service"}` para HTTP e `{service="ledger-worker"}` para Outbox/Kafka. Para validar o link log -> trace, abra uma linha com `TraceId=<valor>` e clique em `Abrir trace no Jaeger`.
+No Grafana, acesse `http://localhost:3000` com usuario `admin` e senha local definida por `GRAFANA_ADMIN_PASSWORD` ou pelo default ficticio `local_dev_password`. Em `Connections` ou `Data sources`, confirme os datasources `Prometheus` apontando para `http://prometheus:9090`, `Loki` apontando para `http://loki:3100` e `Jaeger` apontando para `http://jaeger:16686`. Em `Dashboards`, abra a pasta `Observability` e confirme que os dashboards `APIs - Visao Geral` e `Runtime .NET - Visao Geral` foram carregados automaticamente. Para validar metricas, use Explore com uma das metricas tecnicas listadas acima. Para validar logs, use Explore com o datasource `Loki` e queries por processo, por exemplo `{service="ledger-service"}` para HTTP e `{service="ledger-worker"}` para Outbox/Kafka. Para validar o link log -> trace, abra uma linha com `TraceId=<valor>` e clique em `Abrir trace no Jaeger`.
 
 ### Validacao Auth -> Ledger -> Outbox -> Kafka -> Balance
 
@@ -722,13 +722,13 @@ Payload real do login, conforme `src/Auth.Api/Contracts/LoginRequest.cs`:
 
 ```json
 {
-  "username": "poc-usuario",
-  "password": "Poc#123",
+  "username": "local_user",
+  "password": "local_password",
   "scope": "ledger.write balance.read"
 }
 ```
 
-O compose local configura essas credenciais de POC em `auth-api` e o `Auth.Api` versionado autoriza os merchants `tese` e `m1`. Para criar um lancamento, use um desses merchants. O contrato real de criacao de lancamento fica em `src/LedgerService.Api/Contracts/CreateLancamentoRequest.cs`; `CREDIT` exige `amount` maior que zero e `DEBIT` exige `amount` menor que zero.
+O compose local configura essas credenciais ficticias em `auth-api` por `AUTH_POC_USERNAME` e `AUTH_POC_PASSWORD`, e o `Auth.Api` versionado autoriza os merchants `tese` e `m1`. Para criar um lancamento, use um desses merchants. O contrato real de criacao de lancamento fica em `src/LedgerService.Api/Contracts/CreateLancamentoRequest.cs`; `CREDIT` exige `amount` maior que zero e `DEBIT` exige `amount` menor que zero.
 
 No Windows/PowerShell, o fluxo completo pode ser executado com:
 
@@ -817,7 +817,7 @@ Tambem e possivel executar manualmente com `curl`:
 ```bash
 TOKEN="$(curl -sS -X POST http://localhost:5030/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"poc-usuario","password":"Poc#123","scope":"ledger.write balance.read"}' \
+  -d '{"username":"local_user","password":"local_password","scope":"ledger.write balance.read"}' \
   | sed -nE 's/.*"access_token"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p')"
 
 CORRELATION_ID="11111111-1111-4111-8111-111111111111"
@@ -977,7 +977,7 @@ Se o Collector ou o Jaeger ficar temporariamente indisponivel depois que a aplic
 Para execucao fora de container, configure PostgreSQL e Kafka locais e use as configuracoes dos `appsettings.json` como baseline. Use variaveis de ambiente para sobrescrever valores por ambiente:
 
 ```powershell
-$env:ConnectionStrings__DefaultConnection = "Host=127.0.0.1;Port=15432;Database=appdb;Username=appuser;Password=app123"
+$env:ConnectionStrings__DefaultConnection = "Host=127.0.0.1;Port=15432;Database=appdb;Username=appuser;Password=local_dev_password"
 $env:Kafka__Producer__BootstrapServers = "127.0.0.1:9092"
 $env:Observability__OpenTelemetry__Enabled = "true"
 $env:Observability__OpenTelemetry__UseConsoleExporter = "true"

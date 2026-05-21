@@ -9,6 +9,40 @@ $ErrorActionPreference = "Stop"
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $root = (Resolve-Path (Join-Path $scriptDir ".."))
 
+function Get-LocalEnvValue([string]$Name) {
+  $envPath = Join-Path $root ".env"
+  if (-not (Test-Path $envPath)) {
+    return ""
+  }
+
+  foreach ($line in Get-Content -Path $envPath) {
+    $trimmed = $line.Trim()
+    if ([string]::IsNullOrWhiteSpace($trimmed) -or $trimmed.StartsWith("#")) {
+      continue
+    }
+
+    $separatorIndex = $trimmed.IndexOf("=")
+    if ($separatorIndex -le 0) {
+      continue
+    }
+
+    $key = $trimmed.Substring(0, $separatorIndex).Trim()
+    if ($key -eq $Name) {
+      return $trimmed.Substring($separatorIndex + 1).Trim()
+    }
+  }
+
+  return ""
+}
+
+$postgresPassword = [System.Environment]::GetEnvironmentVariable("POSTGRES_PASSWORD", "Process")
+if ([string]::IsNullOrWhiteSpace($postgresPassword)) {
+  $postgresPassword = Get-LocalEnvValue "POSTGRES_PASSWORD"
+}
+if ([string]::IsNullOrWhiteSpace($postgresPassword)) {
+  $postgresPassword = "local_dev_password"
+}
+
 if ([string]::IsNullOrWhiteSpace($ComposeFile)) {
   $ComposeFile = (Join-Path $root "compose.yaml")
 }
@@ -88,13 +122,13 @@ try {
   Wait-Database "balance-db" "userBalance" "dbBalance"
 
   Invoke-Migration `
-    "Host=127.0.0.1;Port=15432;Database=appdb;Username=appuser;Password=app123" `
+    "Host=127.0.0.1;Port=15432;Database=appdb;Username=appuser;Password=$postgresPassword" `
     "src/LedgerService.Infrastructure/LedgerService.Infrastructure.csproj" `
     "src/LedgerService.Api/LedgerService.Api.csproj" `
     "AppDbContext"
 
   Invoke-Migration `
-    "Host=127.0.0.1;Port=15433;Database=dbBalance;Username=userBalance;Password=Balance123" `
+    "Host=127.0.0.1;Port=15433;Database=dbBalance;Username=userBalance;Password=$postgresPassword" `
     "src/BalanceService.Infrastructure/BalanceService.Infrastructure.csproj" `
     "src/BalanceService.Api/BalanceService.Api.csproj" `
     "BalanceDbContext"

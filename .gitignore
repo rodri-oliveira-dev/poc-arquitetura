@@ -44,6 +44,11 @@ StrykerOutput/
 Thumbs.db
 Desktop.ini
 
+# Local environment overrides
+.env
+.env.*
+!.env.example
+
 # Testes
 **/TestResults/
 

@@ -24,6 +24,20 @@ Ferramentas opcionais:
 - VS Code, para workspace, tasks e REST Client;
 - Node.js 20+, para gerar a documentacao LikeC4 localmente.
 
+## Escopo local e credenciais
+
+Esta stack e local, descartavel e nao deve ser promovida para ambientes compartilhados, homologacao ou producao sem revisao de seguranca, secrets, transporte, imagens e observabilidade.
+
+O compose usa defaults ficticios para desenvolvimento local. Para sobrescrever, copie `.env.example` para `.env` e ajuste os valores localmente. O arquivo `.env` e ignorado pelo Git e nao deve ser versionado. Os defaults atuais sao intencionalmente obvios e descartaveis:
+
+- `POSTGRES_PASSWORD=local_dev_password`
+- `GRAFANA_ADMIN_PASSWORD=local_dev_password`
+- `AUTH_POC_USERNAME=local_user`
+- `AUTH_POC_PASSWORD=local_password`
+- `AUTH_POC_SCOPE=ledger.write balance.read`
+
+Nao reutilize esses valores fora da maquina local. Em ambientes compartilhados ou produtivos, use um mecanismo proprio de secret/config store e credenciais rotacionaveis.
+
 ## Stack completa com compose
 
 O `compose.yaml` sobe:
@@ -41,7 +55,7 @@ O `compose.yaml` sobe:
 - Jaeger all-in-one como backend local de visualizacao de traces;
 - Prometheus para coletar metricas tecnicas expostas pelo Collector;
 - Loki para armazenar logs centralizados dos containers;
-- Grafana Alloy para coletar logs dos containers via Docker API;
+- Grafana Alloy para coletar logs dos containers via Docker API, isolado no profile `observability`;
 - Alertmanager local para visualizar alertas tecnicos basicos sem envio externo;
 - Grafana com datasources Prometheus, Loki e Jaeger e dashboards minimos provisionados.
 
@@ -64,6 +78,14 @@ Para subir somente o compose, sem aplicar migrations:
 ```bash
 docker compose up -d --build
 ```
+
+Esse comando nao inicia o Alloy por padrao, evitando montar `/var/run/docker.sock` na stack minima. Para habilitar a coleta local de logs via Docker API:
+
+```bash
+docker compose --profile observability up -d --build
+```
+
+O socket Docker, mesmo montado como somente leitura, e uma superficie sensivel. Use esse profile apenas em maquina local confiavel; nao use em ambiente compartilhado ou produtivo sem redesenhar a coleta de logs e revisar permissoes.
 
 Parar a stack:
 
@@ -97,11 +119,11 @@ Portas expostas no host:
 | OpenTelemetry Collector metrics | `otel-collector:9464` na rede interna do compose |
 | Prometheus | `http://localhost:9090/` |
 | Loki | `http://localhost:3100/` |
-| Grafana Alloy | `http://localhost:12345/` |
+| Grafana Alloy | `http://localhost:12345/` quando o profile `observability` estiver ativo |
 | Alertmanager | `http://localhost:9093/` |
 | Grafana | `http://localhost:3000/` |
 
-O compose sobrescreve configuracoes por variaveis de ambiente para usar hosts internos como `ledger-db`, `balance-db`, `kafka` e `otel-collector`. No compose, as APIs enviam OTLP somente para o Collector. O Collector encaminha traces para o Jaeger e expoe metricas em formato Prometheus para scrape interno. Prometheus coleta o Collector, Alloy coleta logs dos containers e envia para Loki, e Grafana consulta Prometheus, Loki e Jaeger. O Grafana carrega automaticamente a pasta `Observability` com os dashboards `APIs - Visao Geral` e `Runtime .NET - Visao Geral`, versionados em `observability/grafana/dashboards/`. O datasource Loki possui derived field para abrir traces no datasource interno Jaeger a partir de logs com `TraceId=<valor>`. O ambiente local do compose roda como `Development`.
+O compose sobrescreve configuracoes por variaveis de ambiente para usar hosts internos como `ledger-db`, `balance-db`, `kafka` e `otel-collector`. No compose, as APIs enviam OTLP somente para o Collector. O Collector encaminha traces para o Jaeger e expoe metricas em formato Prometheus para scrape interno. Prometheus coleta o Collector; quando o profile `observability` esta ativo, Alloy coleta logs dos containers e envia para Loki. Grafana consulta Prometheus, Loki e Jaeger. O Grafana carrega automaticamente a pasta `Observability` com os dashboards `APIs - Visao Geral` e `Runtime .NET - Visao Geral`, versionados em `observability/grafana/dashboards/`. O datasource Loki possui derived field para abrir traces no datasource interno Jaeger a partir de logs com `TraceId=<valor>`. O ambiente local do compose roda como `Development`.
 
 Prometheus tambem carrega regras locais em `observability/prometheus/rules/` e envia alertas para o Alertmanager local. A UI do Alertmanager fica em `http://localhost:9093/` e nao possui integracao externa configurada.
 
@@ -112,7 +134,7 @@ O compose nao aplica migrations automaticamente. Na primeira execucao com banco 
 LedgerService:
 
 ```powershell
-$env:ConnectionStrings__DefaultConnection = "Host=127.0.0.1;Port=15432;Database=appdb;Username=appuser;Password=app123"
+$env:ConnectionStrings__DefaultConnection = "Host=127.0.0.1;Port=15432;Database=appdb;Username=appuser;Password=local_dev_password"
 dotnet tool restore
 dotnet tool run dotnet-ef -- database update `
   -p src\LedgerService.Infrastructure\LedgerService.Infrastructure.csproj `
@@ -123,7 +145,7 @@ dotnet tool run dotnet-ef -- database update `
 BalanceService:
 
 ```powershell
-$env:ConnectionStrings__DefaultConnection = "Host=127.0.0.1;Port=15433;Database=dbBalance;Username=userBalance;Password=Balance123"
+$env:ConnectionStrings__DefaultConnection = "Host=127.0.0.1;Port=15433;Database=dbBalance;Username=userBalance;Password=local_dev_password"
 dotnet tool restore
 dotnet tool run dotnet-ef -- database update `
   -p src\BalanceService.Infrastructure\BalanceService.Infrastructure.csproj `
@@ -169,6 +191,12 @@ $env:Kafka__Producer__BootstrapServers = "127.0.0.1:9092"
 ```
 
 Nao versione segredos. Em ambientes compartilhados ou produtivos, JWKS via HTTP e Kafka `Plaintext` nao devem ser usados.
+
+## Politica local de imagens
+
+O compose local usa imagens com tags versionadas e nao usa `latest`. Essa escolha reduz manutencao para a POC multi-plataforma e preserva a ergonomia local.
+
+Ambientes de CI, homologacao, producao ou qualquer ambiente compartilhado devem aplicar pinagem por digest ou scan de imagens antes da promocao. Atualizacoes de imagem precisam ser intencionais, revisaveis e registradas em diff. Se uma imagem sem digest for promovida para ambiente compartilhado, a promocao deve ser bloqueada ou justificada formalmente.
 
 ## Testcontainers e Docker-compatible API
 

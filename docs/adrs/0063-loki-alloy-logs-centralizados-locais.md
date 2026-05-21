@@ -16,7 +16,7 @@ A POC precisa centralizar logs dos containers para consulta local por servico, c
 
 Adicionar Loki e Grafana Alloy ao `compose.yaml` local.
 
-O Loki armazena logs localmente e expoe a API HTTP em `http://localhost:3100`. O Grafana Alloy coleta logs dos containers Docker do projeto compose `poc-arquitetura` via Docker API, aplica labels estaveis de baixa cardinalidade e envia os logs para o Loki.
+O Loki armazena logs localmente e expoe a API HTTP em `http://localhost:3100`. O Grafana Alloy coleta logs dos containers Docker do projeto compose `poc-arquitetura` via Docker API, aplica labels estaveis de baixa cardinalidade e envia os logs para o Loki. Como o Alloy precisa montar `/var/run/docker.sock`, ele fica isolado no profile `observability` do compose local.
 
 O Grafana existente passa a receber tambem um datasource Loki provisionado em `observability/grafana/provisioning/datasources/datasources.yml`, preservando o datasource Prometheus existente como default.
 
@@ -38,6 +38,7 @@ A descoberta automatica de `service_name` e `detected_level` do Loki fica desabi
 - Grafana passa a consultar metricas no Prometheus e logs no Loki.
 - A stack local passa a ter dois containers adicionais e uma porta local adicional para Loki (`3100`).
 - O Alloy exige acesso somente leitura ao socket Docker para descobrir e ler logs dos containers.
+- A stack minima com `docker compose up -d --build` nao inicia o Alloy por padrao; para coleta de logs via Docker API, use `docker compose --profile observability up -d --build` ou os scripts locais que sobem a stack completa.
 - Nao sao adicionados Promtail, Elasticsearch, OpenSearch, ELK, Serilog, alertas novos, metricas customizadas ou dashboards complexos.
 
 ## Beneficios
@@ -51,7 +52,7 @@ A descoberta automatica de `service_name` e `detected_level` do Loki fica desabi
 ## Trade-offs / custos
 
 - A stack local fica um pouco mais pesada por incluir Loki e Alloy.
-- A coleta depende do socket Docker montado no container Alloy, mesmo em modo somente leitura.
+- A coleta depende do socket Docker montado no container Alloy, mesmo em modo somente leitura. Esse socket e superficie sensivel e nao deve ser usado em ambiente compartilhado ou produtivo sem reavaliar arquitetura, permissoes e isolamento.
 - A retencao e persistencia de logs sao efemeras/simples nesta POC; operacao produtiva de Loki nao faz parte desta decisao.
 - Consultas por `CorrelationId` e `TraceId` usam filtro textual, nao lookup por label, para evitar alta cardinalidade.
 

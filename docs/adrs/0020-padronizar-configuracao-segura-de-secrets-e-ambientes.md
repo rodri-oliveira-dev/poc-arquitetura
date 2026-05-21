@@ -1,7 +1,7 @@
 # ADR-0020: Padronizar configuracao segura de secrets e ambientes
 
 ## Status
-Proposto
+Aceito
 
 ## Contexto
 
@@ -15,9 +15,13 @@ Adotar uma politica unica de configuracao:
 
 - manter somente placeholders ou valores explicitamente locais em arquivos versionados;
 - usar `.env.example` sem segredos para compose;
+- manter `.env` ignorado pelo Git para sobrescritas locais;
+- usar defaults ficticios e descartaveis quando a ergonomia local exigir fallback versionado;
 - usar user-secrets ou variaveis de ambiente para desenvolvimento no host;
 - usar secret manager externo em ambientes compartilhados/produtivos;
 - documentar quais valores sao obrigatorios por servico.
+
+Para a stack local Docker/Compose, os valores versionados devem usar nomes obvios como `local_dev_password`, `local_user` e `local_password`. Esses valores existem apenas para POC local e nao podem ser reutilizados em ambientes compartilhados.
 
 ## Alternativas consideradas
 

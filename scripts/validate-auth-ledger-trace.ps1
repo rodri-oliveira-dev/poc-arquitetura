@@ -4,8 +4,8 @@ param(
   [string]$LedgerBaseUrl = "http://localhost:5226",
   [string]$BalanceBaseUrl = "http://localhost:5228",
   [string]$JaegerBaseUrl = "http://localhost:16686",
-  [string]$Username = "poc-usuario",
-  [string]$Password = "Poc#123",
+  [string]$Username = "local_user",
+  [string]$Password = "local_password",
   [string]$Scope = "ledger.write balance.read",
   [string]$MerchantId = "tese",
   [ValidateSet("CREDIT", "DEBIT")]

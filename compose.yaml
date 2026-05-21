@@ -19,7 +19,7 @@ services:
     environment:
       POSTGRES_DB: appdb
       POSTGRES_USER: appuser
-      POSTGRES_PASSWORD: app123
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-local_dev_password}"
     ports:
       # Porta exposta para uso local (psql, migrations, etc.)
       # Obs: pode conflitar com um Postgres já rodando no host.
@@ -46,7 +46,7 @@ services:
     environment:
       POSTGRES_DB: dbBalance
       POSTGRES_USER: userBalance
-      POSTGRES_PASSWORD: Balance123
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-local_dev_password}"
     ports:
       # Mantém a porta 5433 no host, como no appsettings original (apenas para conveniência local)
       # Obs: pode conflitar com um Postgres já rodando no host.
@@ -225,6 +225,8 @@ services:
   alloy:
     image: docker.io/grafana/alloy:v1.16.0
     container_name: poc-alloy
+    profiles:
+      - observability
     command:
       - "run"
       - "--server.http.listen-addr=0.0.0.0:12345"
@@ -275,7 +277,7 @@ services:
       - jaeger
     environment:
       GF_SECURITY_ADMIN_USER: "admin"
-      GF_SECURITY_ADMIN_PASSWORD: "admin"
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD:-local_dev_password}"
       GF_PLUGINS_PREINSTALL_DISABLED: "true"
     ports:
       - "3000:3000"
@@ -314,7 +316,7 @@ services:
       Jwt__RequireHttpsMetadata: "false"
 
       # Overrides dos appsettings (no container, 127.0.0.1 aponta para ele mesmo)
-      ConnectionStrings__DefaultConnection: "Host=ledger-db;Port=5432;Database=appdb;Username=appuser;Password=app123"
+      ConnectionStrings__DefaultConnection: "Host=ledger-db;Port=5432;Database=appdb;Username=appuser;Password=${POSTGRES_PASSWORD:-local_dev_password}"
       Observability__OpenTelemetry__Enabled: "true"
       Observability__OpenTelemetry__UseConsoleExporter: "false"
       Observability__OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"
@@ -345,7 +347,7 @@ services:
       DOTNET_ENVIRONMENT: "Development"
 
       # Overrides dos appsettings (no container, 127.0.0.1 aponta para ele mesmo)
-      ConnectionStrings__DefaultConnection: "Host=ledger-db;Port=5432;Database=appdb;Username=appuser;Password=app123"
+      ConnectionStrings__DefaultConnection: "Host=ledger-db;Port=5432;Database=appdb;Username=appuser;Password=${POSTGRES_PASSWORD:-local_dev_password}"
       Kafka__Producer__BootstrapServers: "kafka:9092"
       Kafka__Producer__SecurityProtocol: "Plaintext"
       Reprocessamentos__Consumer__BootstrapServers: "kafka:9092"
@@ -383,7 +385,7 @@ services:
       Jwt__RequireHttpsMetadata: "false"
 
       # Overrides dos appsettings
-      ConnectionStrings__DefaultConnection: "Host=balance-db;Port=5432;Database=dbBalance;Username=userBalance;Password=Balance123"
+      ConnectionStrings__DefaultConnection: "Host=balance-db;Port=5432;Database=dbBalance;Username=userBalance;Password=${POSTGRES_PASSWORD:-local_dev_password}"
       Observability__OpenTelemetry__Enabled: "true"
       Observability__OpenTelemetry__UseConsoleExporter: "false"
       Observability__OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"
@@ -413,7 +415,7 @@ services:
       DOTNET_ENVIRONMENT: "Development"
 
       # Overrides dos appsettings (no container, 127.0.0.1 aponta para ele mesmo)
-      ConnectionStrings__DefaultConnection: "Host=balance-db;Port=5432;Database=dbBalance;Username=userBalance;Password=Balance123"
+      ConnectionStrings__DefaultConnection: "Host=balance-db;Port=5432;Database=dbBalance;Username=userBalance;Password=${POSTGRES_PASSWORD:-local_dev_password}"
       Kafka__Consumer__BootstrapServers: "kafka:9092"
       Kafka__Consumer__SecurityProtocol: "Plaintext"
       Observability__OpenTelemetry__Enabled: "true"
@@ -442,8 +444,8 @@ services:
       # Persistência da chave dentro do volume
       Auth__KeyPath: "/data/keys/auth-rsa-key.json"
       # Credenciais locais de POC. Nao ha fallback em appsettings.json/producao.
-      Auth__DevelopmentUser__Username: "poc-usuario"
-      Auth__DevelopmentUser__Password: "Poc#123"
+      Auth__DevelopmentUser__Username: "${AUTH_POC_USERNAME:-local_user}"
+      Auth__DevelopmentUser__Password: "${AUTH_POC_PASSWORD:-local_password}"
       Observability__OpenTelemetry__Enabled: "true"
       Observability__OpenTelemetry__UseConsoleExporter: "false"
       Observability__OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"

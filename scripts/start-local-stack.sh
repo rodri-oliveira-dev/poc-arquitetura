@@ -4,6 +4,10 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_FILE="${COMPOSE_FILE:-$ROOT_DIR/compose.yaml}"
 NO_BUILD="${NO_BUILD:-false}"
+if [[ -z "${POSTGRES_PASSWORD:-}" && -f "$ROOT_DIR/.env" ]]; then
+  POSTGRES_PASSWORD="$(sed -nE 's/^[[:space:]]*POSTGRES_PASSWORD[[:space:]]*=[[:space:]]*(.*)[[:space:]]*$/\1/p' "$ROOT_DIR/.env" | tail -n 1)"
+fi
+POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-local_dev_password}"
 
 wait_database() {
   local service="$1"
@@ -63,13 +67,13 @@ wait_database ledger-db appuser appdb
 wait_database balance-db userBalance dbBalance
 
 run_migration \
-  "Host=127.0.0.1;Port=15432;Database=appdb;Username=appuser;Password=app123" \
+  "Host=127.0.0.1;Port=15432;Database=appdb;Username=appuser;Password=$POSTGRES_PASSWORD" \
   "src/LedgerService.Infrastructure/LedgerService.Infrastructure.csproj" \
   "src/LedgerService.Api/LedgerService.Api.csproj" \
   "AppDbContext"
 
 run_migration \
-  "Host=127.0.0.1;Port=15433;Database=dbBalance;Username=userBalance;Password=Balance123" \
+  "Host=127.0.0.1;Port=15433;Database=dbBalance;Username=userBalance;Password=$POSTGRES_PASSWORD" \
   "src/BalanceService.Infrastructure/BalanceService.Infrastructure.csproj" \
   "src/BalanceService.Api/BalanceService.Api.csproj" \
   "BalanceDbContext"
