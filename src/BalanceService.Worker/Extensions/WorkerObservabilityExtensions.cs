@@ -1,3 +1,4 @@
+using BalanceService.Worker.HostedServices;
 using BalanceService.Worker.Observability;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;

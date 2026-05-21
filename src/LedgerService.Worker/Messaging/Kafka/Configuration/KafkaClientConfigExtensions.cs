@@ -1,5 +1,4 @@
 using Confluent.Kafka;
-using LedgerService.Worker.Reprocessamentos;
 
 namespace LedgerService.Worker.Messaging.Kafka.Configuration;
 

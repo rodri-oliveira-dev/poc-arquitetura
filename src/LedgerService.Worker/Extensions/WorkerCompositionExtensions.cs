@@ -4,7 +4,8 @@ using LedgerService.Worker.Estornos;
 using LedgerService.Worker.Messaging.Kafka.Configuration;
 using LedgerService.Worker.Messaging.Kafka.Producers;
 using LedgerService.Worker.Outbox;
-using LedgerService.Worker.Reprocessamentos;
+using LedgerService.Worker.Messaging.Kafka.Consumers;
+using LedgerService.Worker.Messaging.Kafka.Processors;
 
 namespace LedgerService.Worker.Extensions;
 

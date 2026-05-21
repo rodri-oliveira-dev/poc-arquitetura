@@ -1,5 +1,6 @@
 using Asp.Versioning;
-using LedgerService.Api.Contracts;
+using LedgerService.Api.Contracts.Requests;
+using LedgerService.Api.Contracts.Responses;
 using LedgerService.Api.Security;
 using LedgerService.Application.Outbox.Commands;
 using MediatR;
