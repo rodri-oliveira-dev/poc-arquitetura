@@ -62,8 +62,16 @@ Depois da coleta, os scripts executam o ReportGenerator e leem `TestResults/cove
 
 - `System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverageAttribute`;
 - `ExcludeFromCodeCoverageAttribute`;
+- `System.CodeDom.Compiler.GeneratedCodeAttribute`;
 - `GeneratedCodeAttribute`;
-- `CompilerGeneratedAttribute`.
+- `System.Runtime.CompilerServices.CompilerGeneratedAttribute`;
+- `CompilerGeneratedAttribute`;
+- `System.Runtime.CompilerServices.AsyncStateMachineAttribute`;
+- `AsyncStateMachineAttribute`.
+
+A exclusao de `AsyncStateMachineAttribute` e especifica para state machines geradas pelo compilador em metodos `async`.
+Com `coverlet.collector` 10.0.1, esses metodos podem aparecer como `MoveNext` em classes como `<ExecuteAsync>d__*` e inflar o denominador com linhas geradas, especialmente em workers e consumidores assincronos.
+O gate oficial mede o codigo fonte mantido pelo repositorio, preservando testes reais para o comportamento dos workers sem contar a implementacao gerada pelo compilador como falta de cobertura.
 
 Tambem sao excluidos arquivos de hosting minimo, migrations EF e codigo gerado:
 
