@@ -14,6 +14,8 @@ services:
   k6:
     image: docker.io/grafana/k6:1.7.1
     container_name: poc-k6
+    profiles:
+      - k6
     working_dir: /scripts
     entrypoint: [ "k6" ]
     deploy:

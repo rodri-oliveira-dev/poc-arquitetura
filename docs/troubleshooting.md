@@ -57,6 +57,49 @@ No compose local, use `docker compose logs -f ledger-worker` para Outbox/estorno
 
 Detalhes ficam em [observabilidade](observability.md#readiness) e [Kafka, Outbox e DLQ](development/kafka-outbox.md).
 
+## password authentication failed for user "userBalance"
+
+Esse erro indica que o `BalanceService.Api`, `BalanceService.Worker`, migration ou runner k6 tentou acessar o PostgreSQL do Balance com as credenciais locais configuradas, mas o banco recusou a autenticacao.
+
+A causa mais comum e um volume `balance-postgres-data` inicializado com uma senha antiga. Em containers PostgreSQL, `POSTGRES_USER`, `POSTGRES_PASSWORD` e `POSTGRES_DB` so criam/alteram credenciais quando o diretorio de dados esta vazio. Alterar `.env` ou `compose.yaml` depois que o volume existe nao troca a senha dentro do banco.
+
+Confirme nos logs:
+
+```bash
+docker compose logs balance-db
+docker compose logs balance-service
+```
+
+Valide a autenticacao real com as credenciais configuradas. Se voce usa os defaults locais:
+
+```bash
+docker compose exec -T -e PGPASSWORD=local_dev_password balance-db psql -h balance-db -U userBalance -d dbBalance -c "select 1;"
+```
+
+Se houver `.env`, confira se `BALANCE_DB_NAME`, `BALANCE_DB_USER` e `BALANCE_DB_PASSWORD` batem com a connection string efetiva do compose:
+
+```bash
+docker compose config
+```
+
+Quando a senha antiga for conhecida, atualize a senha manualmente dentro do PostgreSQL. Exemplo usando o usuario configurado do Balance:
+
+```bash
+docker compose exec -T -e PGPASSWORD=<senha-antiga> balance-db psql -h balance-db -U userBalance -d dbBalance -c "ALTER USER \"userBalance\" WITH PASSWORD 'local_dev_password';"
+```
+
+Se os dados locais forem descartaveis, recrie conscientemente apenas o volume do Balance. Esta acao apaga dados locais desse banco:
+
+```bash
+docker compose stop balance-db
+docker compose ps -a
+docker volume ls
+docker volume rm poc-arquitetura_balance-postgres-data
+docker compose up -d balance-db
+```
+
+Use o nome real mostrado por `docker volume ls` caso o projeto Compose tenha outro nome. Nenhum script do repositorio remove volumes automaticamente.
+
 ## Outbox fica em Pending ou Failed
 
 Mensagens `Pending` podem ser normais durante a janela de polling. Se permanecerem acumuladas ou chegarem a `Failed`, investigue Kafka, topic map, ACL/configuracao local, serializacao e `last_error`.
@@ -91,7 +134,23 @@ Veja [autenticacao e autorizacao](development/authentication.md).
 
 ## Grafana, Prometheus, Loki ou Jaeger nao mostram dados
 
-Confirme se a stack local foi iniciada pelo script recomendado e se as portas estao livres:
+Esses componentes ficam no profile `observability` e nao sobem na stack minima. Confirme se a stack local foi iniciada com observabilidade e se as portas estao livres:
+
+```powershell
+./scripts/start-local-stack.ps1 -Observability
+```
+
+No Linux/macOS:
+
+```bash
+OBSERVABILITY=true ./scripts/start-local-stack.sh
+```
+
+Ou diretamente pelo compose:
+
+```bash
+OTEL_ENABLED=true docker compose --profile observability up -d --build
+```
 
 - Jaeger UI: `http://localhost:16686/`
 - Prometheus: `http://localhost:9090/`

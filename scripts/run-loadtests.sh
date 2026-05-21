@@ -20,16 +20,101 @@ ARTIFACTS_DIR="${ARTIFACTS_DIR:-$ROOT_DIR/artifacts/k6}"
 
 mkdir -p "$ARTIFACTS_DIR"
 
+get_local_env_value() {
+  local name="$1"
+  local env_file="$ROOT_DIR/.env"
+
+  if [[ ! -f "$env_file" ]]; then
+    return 0
+  fi
+
+  sed -nE "s/^[[:space:]]*$name[[:space:]]*=[[:space:]]*(.*)[[:space:]]*$/\1/p" "$env_file" |
+    tail -n 1 |
+    sed -E "s/^['\"]//; s/['\"]$//"
+}
+
+get_local_config_value() {
+  local name="$1"
+  local default_value="$2"
+  local value="${!name:-}"
+
+  if [[ -z "$value" ]]; then
+    value="$(get_local_env_value "$name")"
+  fi
+
+  if [[ -z "$value" ]]; then
+    value="$default_value"
+  fi
+
+  printf '%s' "$value"
+}
+
+print_balance_database_auth_failure() {
+  local user="$1"
+  local database="$2"
+  local host_name
+
+  host_name="$(get_local_config_value BALANCE_DB_HOST balance-db)"
+
+  cat >&2 <<EOF
+Falha de autenticacao no banco Balance para o usuario "$user" e database "$database".
+
+O volume local do PostgreSQL pode ter sido inicializado com uma senha diferente.
+Alterar .env ou compose.yaml nao atualiza credenciais dentro de um volume PostgreSQL existente.
+
+Verifique:
+  docker compose logs balance-db
+  docker compose logs balance-service
+  docker compose exec -T balance-db psql -h "$host_name" -U "$user" -d "$database" -c "select 1;"
+
+Para corrigir, atualize a senha manualmente dentro do PostgreSQL quando a senha antiga for conhecida,
+ou recrie somente o volume local do Balance se os dados forem descartaveis.
+Nenhuma acao destrutiva foi executada automaticamente.
+EOF
+}
+
+assert_balance_database_authentication() {
+  local user
+  local database
+  local password
+  local host_name
+
+  host_name="$(get_local_config_value BALANCE_DB_HOST balance-db)"
+  user="$(get_local_config_value BALANCE_DB_USER userBalance)"
+  database="$(get_local_config_value BALANCE_DB_NAME dbBalance)"
+  password="$(get_local_config_value BALANCE_DB_PASSWORD local_dev_password)"
+
+  if ! docker compose -f "$COMPOSE_FILE" exec -T \
+    -e "PGPASSWORD=$password" \
+    balance-db \
+    psql -h "$host_name" -U "$user" -d "$database" -v "ON_ERROR_STOP=1" -c "select 1;" >/dev/null 2>&1; then
+    print_balance_database_auth_failure "$user" "$database"
+    exit 1
+  fi
+}
+
 # a) gerar env
 COMPOSE_FILE="$COMPOSE_FILE" OUT_FILE="$ENV_FILE" "$ROOT_DIR/scripts/compose-env.sh" >/dev/null
 
 # Aplica o override de carga nas APIs antes de executar o k6. O compose.k6.yaml
 # mantem os testes apontando para as APIs HTTP e aumenta apenas limites tecnicos
 # que poderiam transformar o cenario de throughput em teste de rate limiting.
-docker compose -f "$COMPOSE_FILE" -f "$COMPOSE_K6_FILE" up -d --no-build ledger-service balance-service
+docker compose -f "$COMPOSE_FILE" -f "$COMPOSE_K6_FILE" up -d --no-build --force-recreate auth-api ledger-service balance-service
+
+assert_balance_database_authentication
 
 # b) obter token (por padrão via localhost conforme README)
-TOKEN="$($ROOT_DIR/scripts/get-token.sh)"
+TOKEN=""
+for _ in $(seq 1 30); do
+  if TOKEN="$($ROOT_DIR/scripts/get-token.sh 2>/dev/null)" && [[ -n "$TOKEN" ]]; then
+    break
+  fi
+  sleep 2
+done
+
+if [[ -z "$TOKEN" ]]; then
+  TOKEN="$($ROOT_DIR/scripts/get-token.sh)"
+fi
 if [[ -z "$TOKEN" ]]; then
   echo "Falha ao obter TOKEN. Você pode informar manualmente via env TOKEN=..." 1>&2
   exit 1
@@ -67,7 +152,7 @@ run_k6() {
   local summaryFile="summary-$MODE-$scenarioName-$ts.json"
   local hostSummary="$ARTIFACTS_DIR/$summaryFile"
 
-  docker compose -f "$COMPOSE_FILE" -f "$COMPOSE_K6_FILE" run --rm \
+  docker compose -f "$COMPOSE_FILE" -f "$COMPOSE_K6_FILE" --profile k6 run --rm \
     --user "$(id -u):$(id -g)" \
     -e "TOKEN=$TOKEN" \
     "$@" \

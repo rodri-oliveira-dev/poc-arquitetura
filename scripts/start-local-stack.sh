@@ -4,10 +4,46 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_FILE="${COMPOSE_FILE:-$ROOT_DIR/compose.yaml}"
 NO_BUILD="${NO_BUILD:-false}"
-if [[ -z "${POSTGRES_PASSWORD:-}" && -f "$ROOT_DIR/.env" ]]; then
-  POSTGRES_PASSWORD="$(sed -nE 's/^[[:space:]]*POSTGRES_PASSWORD[[:space:]]*=[[:space:]]*(.*)[[:space:]]*$/\1/p' "$ROOT_DIR/.env" | tail -n 1)"
+OBSERVABILITY="${OBSERVABILITY:-false}"
+
+get_local_env_value() {
+  local name="$1"
+  local env_file="$ROOT_DIR/.env"
+
+  if [[ ! -f "$env_file" ]]; then
+    return 0
+  fi
+
+  sed -nE "s/^[[:space:]]*$name[[:space:]]*=[[:space:]]*(.*)[[:space:]]*$/\1/p" "$env_file" |
+    tail -n 1 |
+    sed -E "s/^['\"]//; s/['\"]$//"
+}
+
+get_local_config_value() {
+  local name="$1"
+  local default_value="$2"
+  local value="${!name:-}"
+
+  if [[ -z "$value" ]]; then
+    value="$(get_local_env_value "$name")"
+  fi
+
+  if [[ -z "$value" ]]; then
+    value="$default_value"
+  fi
+
+  printf '%s' "$value"
+}
+
+if [[ -z "${POSTGRES_PASSWORD:-}" ]]; then
+  POSTGRES_PASSWORD="$(get_local_env_value POSTGRES_PASSWORD)"
 fi
 POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-local_dev_password}"
+BALANCE_DB_NAME="$(get_local_config_value BALANCE_DB_NAME dbBalance)"
+BALANCE_DB_HOST="$(get_local_config_value BALANCE_DB_HOST balance-db)"
+BALANCE_DB_USER="$(get_local_config_value BALANCE_DB_USER userBalance)"
+BALANCE_DB_PASSWORD="$(get_local_config_value BALANCE_DB_PASSWORD local_dev_password)"
+BALANCE_DB_HOST_PORT="$(get_local_config_value BALANCE_DB_HOST_PORT 15433)"
 
 wait_database() {
   local service="$1"
@@ -24,6 +60,30 @@ wait_database() {
 
   echo "Banco indisponivel apos timeout: $service" >&2
   return 1
+}
+
+assert_balance_database_authentication() {
+  if ! docker compose -f "$COMPOSE_FILE" exec -T \
+    -e "PGPASSWORD=$BALANCE_DB_PASSWORD" \
+    balance-db \
+    psql -h "$BALANCE_DB_HOST" -U "$BALANCE_DB_USER" -d "$BALANCE_DB_NAME" -v "ON_ERROR_STOP=1" -c "select 1;" >/dev/null 2>&1; then
+    cat >&2 <<EOF
+Falha de autenticacao no banco Balance para o usuario "$BALANCE_DB_USER" e database "$BALANCE_DB_NAME".
+
+O volume local do PostgreSQL pode ter sido inicializado com uma senha diferente.
+Alterar .env ou compose.yaml nao atualiza credenciais dentro de um volume PostgreSQL existente.
+
+Verifique:
+  docker compose logs balance-db
+  docker compose logs balance-service
+  docker compose exec -T balance-db psql -h "$BALANCE_DB_HOST" -U "$BALANCE_DB_USER" -d "$BALANCE_DB_NAME" -c "select 1;"
+
+Para corrigir, atualize a senha manualmente dentro do PostgreSQL quando a senha antiga for conhecida,
+ou recrie somente o volume local do Balance se os dados forem descartaveis.
+Nenhuma acao destrutiva foi executada automaticamente.
+EOF
+    return 1
+  fi
 }
 
 run_migration() {
@@ -45,6 +105,11 @@ cd "$ROOT_DIR"
 dotnet tool restore
 
 compose_up=(docker compose -f "$COMPOSE_FILE" up -d)
+if [[ "$OBSERVABILITY" == "true" ]]; then
+  export OTEL_ENABLED="${OTEL_ENABLED:-true}"
+  compose_up=(docker compose -f "$COMPOSE_FILE" --profile observability up -d)
+fi
+
 if [[ "$NO_BUILD" != "true" ]]; then
   compose_up+=(--build)
 fi
@@ -54,17 +119,15 @@ fi
   balance-db \
   kafka \
   kafka-init-topics \
-  jaeger \
-  otel-collector \
-  prometheus \
-  alertmanager \
-  loki \
-  alloy \
-  grafana \
   auth-api
 
+if [[ "$OBSERVABILITY" == "true" ]]; then
+  "${compose_up[@]}" jaeger otel-collector prometheus alertmanager loki alloy grafana
+fi
+
 wait_database ledger-db appuser appdb
-wait_database balance-db userBalance dbBalance
+wait_database balance-db "$BALANCE_DB_USER" "$BALANCE_DB_NAME"
+assert_balance_database_authentication
 
 run_migration \
   "Host=127.0.0.1;Port=15432;Database=appdb;Username=appuser;Password=$POSTGRES_PASSWORD" \
@@ -73,12 +136,16 @@ run_migration \
   "AppDbContext"
 
 run_migration \
-  "Host=127.0.0.1;Port=15433;Database=dbBalance;Username=userBalance;Password=$POSTGRES_PASSWORD" \
+  "Host=127.0.0.1;Port=$BALANCE_DB_HOST_PORT;Database=$BALANCE_DB_NAME;Username=$BALANCE_DB_USER;Password=$BALANCE_DB_PASSWORD" \
   "src/BalanceService.Infrastructure/BalanceService.Infrastructure.csproj" \
   "src/BalanceService.Api/BalanceService.Api.csproj" \
   "BalanceDbContext"
 
 api_up=(docker compose -f "$COMPOSE_FILE" up -d)
+if [[ "$OBSERVABILITY" == "true" ]]; then
+  api_up=(docker compose -f "$COMPOSE_FILE" --profile observability up -d)
+fi
+
 if [[ "$NO_BUILD" != "true" ]]; then
   api_up+=(--build)
 fi
