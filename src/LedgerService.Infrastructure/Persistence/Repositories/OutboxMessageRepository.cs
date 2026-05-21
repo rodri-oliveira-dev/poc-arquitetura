@@ -16,12 +16,16 @@ public sealed class OutboxMessageRepository : IOutboxMessageRepository
 
     public OutboxMessageRepository(AppDbContext context, OutboxMetrics? metrics = null)
     {
+        ArgumentNullException.ThrowIfNull(context);
+
         _context = context;
         _metrics = metrics;
     }
 
     public async Task AddAsync(OutboxMessage outboxMessage, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(outboxMessage);
+
         await _context.OutboxMessages.AddAsync(outboxMessage, cancellationToken);
         _metrics?.RecordMessageCreated(outboxMessage.EventType);
     }
@@ -33,6 +37,8 @@ public sealed class OutboxMessageRepository : IOutboxMessageRepository
         TimeSpan lockDuration,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(lockOwner);
+
         // Fallback para testes (InMemory provider) ou cenários não-relacionais.
         if (!_context.Database.IsRelational())
         {
@@ -184,6 +190,9 @@ WHERE id = {6};
         string reason,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(requeuedBy);
+        ArgumentNullException.ThrowIfNull(reason);
+
         IQueryable<OutboxMessage> query = _context.OutboxMessages
             .Where(x => x.Status == OutboxStatus.Failed);
 

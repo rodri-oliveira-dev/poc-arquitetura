@@ -16,7 +16,7 @@ namespace Auth.Api.Security;
 /// - Se não existir: gera e salva.
 /// - O kid é estável e derivado do fingerprint SHA-256 do (modulus||exponent) da chave pública.
 /// </summary>
-public sealed class FileBackedRsaKeyProvider : IRsaKeyProvider
+public sealed class FileBackedRsaKeyProvider : IRsaKeyProvider, IDisposable
 {
     private readonly ILogger<FileBackedRsaKeyProvider> _logger;
     private readonly AuthOptions _options;
@@ -25,6 +25,9 @@ public sealed class FileBackedRsaKeyProvider : IRsaKeyProvider
 
     public FileBackedRsaKeyProvider(IOptions<AuthOptions> options, ILogger<FileBackedRsaKeyProvider> logger)
     {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(logger);
+
         _options = options.Value;
         _logger = logger;
         _state = new Lazy<State>(Initialize, isThreadSafe: true);
@@ -147,6 +150,7 @@ public sealed class FileBackedRsaKeyProvider : IRsaKeyProvider
         {
             Private.Dispose();
             Public.Dispose();
+            GC.SuppressFinalize(this);
         }
     }
 }

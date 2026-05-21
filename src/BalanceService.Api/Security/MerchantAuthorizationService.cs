@@ -8,6 +8,9 @@ public sealed class MerchantAuthorizationService : IMerchantAuthorizationService
 
     public bool IsAuthorized(ClaimsPrincipal user, string merchantId)
     {
+        ArgumentNullException.ThrowIfNull(user);
+        ArgumentNullException.ThrowIfNull(merchantId);
+
         if (user.Identity?.IsAuthenticated != true || string.IsNullOrWhiteSpace(merchantId))
             return false;
 

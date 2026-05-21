@@ -10,11 +10,15 @@ public sealed class ProcessedEventRepository : IProcessedEventRepository
 
     public ProcessedEventRepository(BalanceDbContext context)
     {
+        ArgumentNullException.ThrowIfNull(context);
+
         _context = context;
     }
 
     public async Task<bool> TryInsertAsync(ProcessedEvent processedEvent, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(processedEvent);
+
         // Importante: usamos INSERT ... ON CONFLICT DO NOTHING para garantir idempotência
         // sem "quebrar" a transaction do PostgreSQL com unique violation (que exigiria rollback).
         // Retorna 1 quando inseriu, 0 quando já existia.

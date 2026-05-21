@@ -33,6 +33,12 @@ public sealed class ProcessarEstornoLancamentoHandler : IRequestHandler<Processa
         ILogger<ProcessarEstornoLancamentoHandler> logger,
         LedgerDomainMetrics? metrics = null)
     {
+        ArgumentNullException.ThrowIfNull(estornoRepository);
+        ArgumentNullException.ThrowIfNull(ledgerEntryRepository);
+        ArgumentNullException.ThrowIfNull(outboxMessageRepository);
+        ArgumentNullException.ThrowIfNull(unitOfWork);
+        ArgumentNullException.ThrowIfNull(logger);
+
         _estornoRepository = estornoRepository;
         _ledgerEntryRepository = ledgerEntryRepository;
         _outboxMessageRepository = outboxMessageRepository;
@@ -43,6 +49,8 @@ public sealed class ProcessarEstornoLancamentoHandler : IRequestHandler<Processa
 
     public async Task Handle(ProcessarEstornoLancamentoCommand request, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
+
         try
         {
             await ProcessInternalAsync(request.EstornoId, cancellationToken);

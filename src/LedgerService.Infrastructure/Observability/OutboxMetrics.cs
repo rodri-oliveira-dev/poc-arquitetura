@@ -1,3 +1,4 @@
+using System.Data.Common;
 using System.Diagnostics.Metrics;
 
 using LedgerService.Domain.Entities;
@@ -38,6 +39,8 @@ public sealed class OutboxMetrics : IDisposable
 
     public OutboxMetrics(string meterName, IServiceScopeFactory? scopeFactory = null)
     {
+        ArgumentNullException.ThrowIfNull(meterName);
+
         _scopeFactory = scopeFactory;
         _meter = new Meter(meterName);
         _messagesCreated = _meter.CreateCounter<long>(
@@ -170,7 +173,12 @@ public sealed class OutboxMetrics : IDisposable
                 count.Count,
                 new KeyValuePair<string, object?>("event_type", count.EventType)));
         }
-        catch (Exception)
+        // ObservableGauge callbacks must not fail collection when DI or the database is unavailable.
+        catch (InvalidOperationException)
+        {
+            return Array.Empty<Measurement<long>>();
+        }
+        catch (DbException)
         {
             return Array.Empty<Measurement<long>>();
         }

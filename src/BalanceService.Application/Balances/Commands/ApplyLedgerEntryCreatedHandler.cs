@@ -36,6 +36,12 @@ public sealed class ApplyLedgerEntryCreatedHandler : IRequestHandler<ApplyLedger
         ILogger<ApplyLedgerEntryCreatedHandler> logger,
         BalanceDomainMetrics? metrics = null)
     {
+        ArgumentNullException.ThrowIfNull(dailyBalanceRepository);
+        ArgumentNullException.ThrowIfNull(processedEventRepository);
+        ArgumentNullException.ThrowIfNull(unitOfWork);
+        ArgumentNullException.ThrowIfNull(clock);
+        ArgumentNullException.ThrowIfNull(logger);
+
         _dailyBalanceRepository = dailyBalanceRepository;
         _processedEventRepository = processedEventRepository;
         _unitOfWork = unitOfWork;
@@ -48,6 +54,9 @@ public sealed class ApplyLedgerEntryCreatedHandler : IRequestHandler<ApplyLedger
         ApplyLedgerEntryCreatedCommand command,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(command.Event);
+
         var startedAt = Stopwatch.GetTimestamp();
         var evt = command.Event;
 
