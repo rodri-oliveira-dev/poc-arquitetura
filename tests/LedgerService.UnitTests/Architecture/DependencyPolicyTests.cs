@@ -20,7 +20,7 @@ public sealed class DependencyPolicyTests
             .SingleOrDefault(element => (string?)element.Attribute("Include") == CryptographyXmlPackage);
 
         packageVersion.Should().NotBeNull();
-        packageVersion!.Attribute("Version")!.Value.Should().Be("10.0.7");
+        packageVersion!.Attribute("Version")!.Value.Should().Be("10.0.8");
     }
 
     [Fact]
