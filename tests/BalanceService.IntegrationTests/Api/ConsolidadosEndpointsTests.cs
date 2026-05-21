@@ -104,6 +104,23 @@ public sealed class ConsolidadosEndpointsTests : IClassFixture<BalanceApiFactory
     }
 
     [Fact]
+    public async Task Daily_should_return_400_when_required_query_field_is_missing()
+    {
+        var token = TestJwtTokenFactory.CreateToken(
+            issuer: "https://auth-api",
+            audiences: "balance-api",
+            scopes: "balance.read");
+
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var res = await _client.GetAsync("/v1/consolidados/diario/2026-02-10");
+
+        res.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var raw = await res.Content.ReadAsStringAsync();
+        raw.Should().Contain("merchantId");
+    }
+
+    [Fact]
     public async Task Daily_should_return_200_with_totals_when_data_exists()
     {
         // Arrange

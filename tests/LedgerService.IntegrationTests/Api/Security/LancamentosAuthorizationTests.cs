@@ -210,6 +210,48 @@ public sealed class LancamentosAuthorizationTests : IClassFixture<LedgerApiFacto
         body.Should().Contain("amount");
     }
 
+    [Fact]
+    public async Task Post_should_return_400_when_payload_is_absent()
+    {
+        var token = TestJwtTokenFactory.CreateToken(
+            issuer: "https://auth-api",
+            audiences: "ledger-api",
+            scopes: "ledger.write");
+
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        using var req = new HttpRequestMessage(HttpMethod.Post, "/api/v1/lancamentos");
+        req.Content = new StringContent("", Encoding.UTF8, "application/json");
+        req.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+
+        var res = await _client.SendAsync(req);
+
+        res.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task Post_should_return_400_when_required_field_is_missing()
+    {
+        var token = TestJwtTokenFactory.CreateToken(
+            issuer: "https://auth-api",
+            audiences: "ledger-api",
+            scopes: "ledger.write");
+
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        using var req = new HttpRequestMessage(HttpMethod.Post, "/api/v1/lancamentos")
+        {
+            Content = JsonContent.Create(new { type = "CREDIT", amount = 10.00m })
+        };
+        req.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+
+        var res = await _client.SendAsync(req);
+
+        res.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var body = await res.Content.ReadAsStringAsync();
+        body.Should().Contain("MerchantId");
+    }
+
     [Theory]
     [InlineData("desc changed", "ext")]
     [InlineData("desc", "ext changed")]
