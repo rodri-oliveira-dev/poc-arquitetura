@@ -3,7 +3,7 @@ using BalanceService.Api.Swagger;
 using FluentAssertions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using Swashbuckle.AspNetCore.SwaggerGen;
 
 namespace BalanceService.UnitTests.Api.Swagger;
@@ -20,7 +20,7 @@ public sealed class AuthorizeOperationFilterTests
 
         sut.Apply(operation, ctx);
 
-        operation.Security.Should().BeEmpty();
+        operation.Security.Should().BeNull();
     }
 
     [Fact]
@@ -55,7 +55,7 @@ public sealed class AuthorizeOperationFilterTests
     private static OperationFilterContext CreateContext(MethodInfo method)
     {
         var apiDescription = new ApiDescription { RelativePath = "x" };
-        return new OperationFilterContext(apiDescription, new SchemaGenerator(new SchemaGeneratorOptions(), new JsonSerializerDataContractResolver(new System.Text.Json.JsonSerializerOptions())), new SchemaRepository(), method);
+        return new OperationFilterContext(apiDescription, new SchemaGenerator(new SchemaGeneratorOptions(), new JsonSerializerDataContractResolver(new System.Text.Json.JsonSerializerOptions())), new SchemaRepository(), new OpenApiDocument(), method);
     }
 
     private sealed class AnonymousController

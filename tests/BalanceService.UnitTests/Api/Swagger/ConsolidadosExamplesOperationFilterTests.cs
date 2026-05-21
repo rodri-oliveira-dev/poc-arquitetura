@@ -4,9 +4,9 @@ using BalanceService.Api.Swagger;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
-using Microsoft.OpenApi.Any;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using Swashbuckle.AspNetCore.SwaggerGen;
+using System.Text.Json.Nodes;
 
 namespace BalanceService.UnitTests.Api.Swagger;
 
@@ -22,13 +22,13 @@ public sealed class ConsolidadosExamplesOperationFilterTests
         sut.Apply(operation, context);
 
         var successExample = operation.Responses["200"].Content["application/json"].Example
-            .Should().BeOfType<OpenApiObject>().Subject;
-        successExample["date"].Should().BeOfType<OpenApiString>().Which.Value.Should().Be("2026-02-14");
-        successExample["netBalance"].Should().BeOfType<OpenApiString>().Which.Value.Should().Be("150.00");
+            .Should().BeOfType<JsonObject>().Subject;
+        successExample["date"]!.GetValue<string>().Should().Be("2026-02-14");
+        successExample["netBalance"]!.GetValue<string>().Should().Be("150.00");
 
         var errorExample = operation.Responses["400"].Content["application/json"].Example
-            .Should().BeOfType<OpenApiObject>().Subject;
-        errorExample["status"].Should().BeOfType<OpenApiInteger>().Which.Value.Should().Be(StatusCodes.Status400BadRequest);
+            .Should().BeOfType<JsonObject>().Subject;
+        errorExample["status"]!.GetValue<int>().Should().Be(StatusCodes.Status400BadRequest);
     }
 
     [Fact]
@@ -41,13 +41,13 @@ public sealed class ConsolidadosExamplesOperationFilterTests
         sut.Apply(operation, context);
 
         var successExample = operation.Responses["200"].Content["application/json"].Example
-            .Should().BeOfType<OpenApiObject>().Subject;
-        successExample["from"].Should().BeOfType<OpenApiString>().Which.Value.Should().Be("2026-02-10");
-        successExample["items"].Should().BeOfType<OpenApiArray>().Which.Should().HaveCount(2);
+            .Should().BeOfType<JsonObject>().Subject;
+        successExample["from"]!.GetValue<string>().Should().Be("2026-02-10");
+        successExample["items"].Should().BeOfType<JsonArray>().Which.Should().HaveCount(2);
 
         var errorExample = operation.Responses["400"].Content["application/json"].Example
-            .Should().BeOfType<OpenApiObject>().Subject;
-        errorExample["title"].Should().BeOfType<OpenApiString>().Which.Value.Should().Be("Invalid request");
+            .Should().BeOfType<JsonObject>().Subject;
+        errorExample["title"]!.GetValue<string>().Should().Be("Invalid request");
     }
 
     [Fact]
@@ -79,7 +79,7 @@ public sealed class ConsolidadosExamplesOperationFilterTests
     {
         return new OpenApiResponse
         {
-            Content =
+            Content = new Dictionary<string, OpenApiMediaType>
             {
                 ["application/json"] = new OpenApiMediaType()
             }
@@ -89,7 +89,7 @@ public sealed class ConsolidadosExamplesOperationFilterTests
     private static OperationFilterContext CreateContext(MethodInfo method)
     {
         var apiDescription = new ApiDescription { RelativePath = "x" };
-        return new OperationFilterContext(apiDescription, new SchemaGenerator(new SchemaGeneratorOptions(), new JsonSerializerDataContractResolver(new System.Text.Json.JsonSerializerOptions())), new SchemaRepository(), method);
+        return new OperationFilterContext(apiDescription, new SchemaGenerator(new SchemaGeneratorOptions(), new JsonSerializerDataContractResolver(new System.Text.Json.JsonSerializerOptions())), new SchemaRepository(), new OpenApiDocument(), method);
     }
 
     private sealed class OtherController

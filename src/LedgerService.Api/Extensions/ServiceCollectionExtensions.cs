@@ -8,7 +8,7 @@ using LedgerService.Api.Swagger;
 using LedgerService.Application.Common.Observability;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;

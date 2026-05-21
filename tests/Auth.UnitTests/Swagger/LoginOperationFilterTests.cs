@@ -1,7 +1,7 @@
 using Auth.Api.Swagger;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using Swashbuckle.AspNetCore.SwaggerGen;
 using System.Reflection;
 using System.Text.Json;
@@ -35,7 +35,7 @@ public sealed class LoginOperationFilterTests
 
         sut.Apply(operation, context);
 
-        operation.Extensions.ContainsKey("x-valid-scopes").Should().BeFalse();
+        operation.Extensions.Should().BeNull();
         operation.RequestBody.Content["application/json"].Example.Should().BeNull();
     }
 
@@ -82,7 +82,7 @@ public sealed class LoginOperationFilterTests
         // Então usamos um método fake.
         var method = typeof(LoginOperationFilterTests).GetMethod(nameof(Dummy), BindingFlags.NonPublic | BindingFlags.Static)!;
 
-        return new OperationFilterContext(apiDescription, new SchemaGenerator(new SchemaGeneratorOptions(), new JsonSerializerDataContractResolver(new JsonSerializerOptions())), new SchemaRepository(), method);
+        return new OperationFilterContext(apiDescription, new SchemaGenerator(new SchemaGeneratorOptions(), new JsonSerializerDataContractResolver(new JsonSerializerOptions())), new SchemaRepository(), new OpenApiDocument(), method);
     }
 
     private static void Dummy() { }

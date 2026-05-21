@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using Swashbuckle.AspNetCore.SwaggerGen;
 
 namespace LedgerService.Api.Swagger;
@@ -35,10 +35,7 @@ public sealed class AuthorizeOperationFilter : IOperationFilter
         operation.Security ??= [];
         operation.Security.Add(new OpenApiSecurityRequirement
         {
-            [new OpenApiSecurityScheme
-            {
-                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
-            }] = []
+            [new OpenApiSecuritySchemeReference("Bearer", null!)] = []
         });
 
         // Documenta policy/scope esperado

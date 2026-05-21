@@ -1,9 +1,9 @@
 using System.Globalization;
 
-using Microsoft.OpenApi.Any;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 
 using Swashbuckle.AspNetCore.SwaggerGen;
+using System.Text.Json.Nodes;
 
 namespace LedgerService.Api.Swagger;
 
@@ -19,47 +19,47 @@ public sealed class LancamentosExamplesOperationFilter : IOperationFilter
 
         if (operation.RequestBody?.Content.TryGetValue("application/json", out var requestMediaType) == true)
         {
-            requestMediaType.Example = new OpenApiObject
+            ((OpenApiMediaType)requestMediaType).Example = new JsonObject
             {
-                ["merchantId"] = new OpenApiString("tese"),
-                ["type"] = new OpenApiString("CREDIT"),
-                ["amount"] = new OpenApiDouble(150.00d),
-                ["description"] = new OpenApiString("Venda do pedido 12345"),
-                ["externalReference"] = new OpenApiString("order-12345")
+                ["merchantId"] = "tese",
+                ["type"] = "CREDIT",
+                ["amount"] = 150.00d,
+                ["description"] = "Venda do pedido 12345",
+                ["externalReference"] = "order-12345"
             };
         }
 
         if (TryGetJsonResponse(operation, StatusCodes.Status201Created, out var createdMediaType))
         {
-            createdMediaType.Example = new OpenApiObject
+            createdMediaType.Example = new JsonObject
             {
-                ["id"] = new OpenApiString("lan_9f3a1b2c"),
-                ["merchantId"] = new OpenApiString("tese"),
-                ["type"] = new OpenApiString("CREDIT"),
-                ["amount"] = new OpenApiString("150.00"),
-                ["occurredAt"] = new OpenApiString("2026-02-14T21:56:03.8825245-03:00"),
-                ["description"] = new OpenApiString("Venda do pedido 12345"),
-                ["externalReference"] = new OpenApiString("order-12345"),
-                ["createdAt"] = new OpenApiString("2026-02-14T21:56:04.1023456-03:00")
+                ["id"] = "lan_9f3a1b2c",
+                ["merchantId"] = "tese",
+                ["type"] = "CREDIT",
+                ["amount"] = "150.00",
+                ["occurredAt"] = "2026-02-14T21:56:03.8825245-03:00",
+                ["description"] = "Venda do pedido 12345",
+                ["externalReference"] = "order-12345",
+                ["createdAt"] = "2026-02-14T21:56:04.1023456-03:00"
             };
         }
 
         if (TryGetJsonResponse(operation, StatusCodes.Status400BadRequest, out var badRequestMediaType))
         {
-            badRequestMediaType.Example = new OpenApiObject
+            badRequestMediaType.Example = new JsonObject
             {
-                ["type"] = new OpenApiString("https://httpstatuses.com/400"),
-                ["title"] = new OpenApiString("Invalid request"),
-                ["status"] = new OpenApiInteger(StatusCodes.Status400BadRequest),
-                ["detail"] = new OpenApiString("One or more validation errors occurred."),
-                ["errors"] = new OpenApiObject
+                ["type"] = "https://httpstatuses.com/400",
+                ["title"] = "Invalid request",
+                ["status"] = StatusCodes.Status400BadRequest,
+                ["detail"] = "One or more validation errors occurred.",
+                ["errors"] = new JsonObject
                 {
-                    ["amount"] = new OpenApiArray
+                    ["amount"] = new JsonArray
                     {
-                        new OpenApiString("Amount must have at most 18 digits and 2 decimal places.")
+                        "Amount must have at most 18 digits and 2 decimal places."
                     }
                 },
-                ["correlationId"] = new OpenApiString("5b7f7b2d-5bb5-49d2-918d-c5d87ff54e3d")
+                ["correlationId"] = "5b7f7b2d-5bb5-49d2-918d-c5d87ff54e3d"
             };
         }
     }

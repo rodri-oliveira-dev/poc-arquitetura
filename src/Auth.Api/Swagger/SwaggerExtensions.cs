@@ -2,7 +2,7 @@ using System.Reflection;
 
 using Auth.Api.Middlewares;
 
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 
 namespace Auth.Api.Swagger;
 
