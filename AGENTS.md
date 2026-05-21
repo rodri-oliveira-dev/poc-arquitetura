@@ -54,6 +54,7 @@ Componentes principais:
 - Nao crie branch sem solicitacao explicita.
 - Em refatoracoes, preserve o comportamento observavel existente, salvo quando a tarefa pedir explicitamente uma mudanca funcional.
 - Nao misture refatoracao estrutural com mudanca funcional sem explicar claramente o motivo.
+- Antes de finalizar alteracoes, verifique se a tarefa deixou arquivos vazios ou contendo apenas whitespace. Remova arquivos vazios sem funcao clara, especialmente classes, testes, documentacao ou configuracoes abandonadas por refatoracao. Preserve apenas placeholders intencionais, como `.gitkeep`, ou arquivos vazios exigidos por ferramenta e com proposito evidente. Nao crie arquivos vazios apenas para reservar estrutura.
 
 ## Arquitetura
 
