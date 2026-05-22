@@ -68,6 +68,13 @@ views {
     autoLayout LeftRight
   }
 
+  deployment view localDeployment {
+    title "Deployment local - Docker Compose"
+    description "Mostra como os elementos logicos da POC sao implantados no ambiente local via Docker Compose."
+    include local.**
+    autoLayout LeftRight
+  }
+
   view ledgerApiComponents of ledger.ledgerApi {
     title "Component View - LedgerService.Api"
     include ledger.ledgerApiLayer
