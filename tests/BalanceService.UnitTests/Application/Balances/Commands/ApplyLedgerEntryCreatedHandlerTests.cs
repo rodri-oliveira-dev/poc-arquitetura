@@ -5,7 +5,6 @@ using BalanceService.Application.Abstractions.Time;
 using BalanceService.Application.Balances.Commands;
 using BalanceService.Domain.Balances;
 using BalanceService.UnitTests.Fixtures;
-using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Moq;
 
@@ -41,11 +40,11 @@ public sealed class ApplyLedgerEntryCreatedHandlerTests
         await sut.Handle(new ApplyLedgerEntryCreatedCommand(evt), CancellationToken.None);
 
         // Não chama repo/SaveChanges quando já processado.
-        processedEvent.Should().NotBeNull();
-        processedEvent!.EventId.Should().Be(evt.Id);
-        processedEvent.MerchantId.Should().Be(evt.MerchantId);
-        processedEvent.OccurredAt.Should().Be(evt.OccurredAt.ToUniversalTime());
-        processedEvent.ProcessedAt.Should().Be(now);
+        Assert.NotNull(processedEvent);
+        Assert.Equal(evt.Id, processedEvent!.EventId);
+        Assert.Equal(evt.MerchantId, processedEvent.MerchantId);
+        Assert.Equal(evt.OccurredAt.ToUniversalTime(), processedEvent.OccurredAt);
+        Assert.Equal(now, processedEvent.ProcessedAt);
         dailyRepo.VerifyNoOtherCalls();
         uow.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
         tx.Verify(x => x.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
@@ -98,23 +97,21 @@ public sealed class ApplyLedgerEntryCreatedHandlerTests
         var sut = new ApplyLedgerEntryCreatedHandler(dailyRepo.Object, processedRepo.Object, uow.Object, clock.Object, logger.Object);
 
         await sut.Handle(new ApplyLedgerEntryCreatedCommand(evt), CancellationToken.None);
-
-        created.Should().NotBeNull();
-        requestedDate.Should().Be(new DateOnly(2026, 2, 16));
-        processedEvent.Should().NotBeNull();
-        processedEvent!.EventId.Should().Be(evt.Id);
-        processedEvent.MerchantId.Should().Be(evt.MerchantId);
-        processedEvent.OccurredAt.Should().Be(evt.OccurredAt.ToUniversalTime());
-        processedEvent.ProcessedAt.Should().Be(now);
-        created!.MerchantId.Should().Be(evt.MerchantId);
-        created!.Date.Should().Be(new DateOnly(2026, 2, 16));
-        created!.Currency.Should().Be("BRL");
-        created!.TotalCredits.Should().Be(10m);
-        created!.TotalDebits.Should().Be(0m);
-        created!.NetBalance.Should().Be(10m);
-        created!.AsOf.Should().Be(evt.OccurredAt.ToUniversalTime());
-        created!.UpdatedAt.Should().Be(now);
-
+        Assert.NotNull(created);
+        Assert.Equal(new DateOnly(2026, 2, 16), requestedDate);
+        Assert.NotNull(processedEvent);
+        Assert.Equal(evt.Id, processedEvent!.EventId);
+        Assert.Equal(evt.MerchantId, processedEvent.MerchantId);
+        Assert.Equal(evt.OccurredAt.ToUniversalTime(), processedEvent.OccurredAt);
+        Assert.Equal(now, processedEvent.ProcessedAt);
+        Assert.Equal(evt.MerchantId, created!.MerchantId);
+        Assert.Equal(new DateOnly(2026, 2, 16), created!.Date);
+        Assert.Equal("BRL", created!.Currency);
+        Assert.Equal(10m, created!.TotalCredits);
+        Assert.Equal(0m, created!.TotalDebits);
+        Assert.Equal(10m, created!.NetBalance);
+        Assert.Equal(evt.OccurredAt.ToUniversalTime(), created!.AsOf);
+        Assert.Equal(now, created!.UpdatedAt);
         dailyRepo.VerifyAll();
         processedRepo.VerifyAll();
         uow.VerifyAll();

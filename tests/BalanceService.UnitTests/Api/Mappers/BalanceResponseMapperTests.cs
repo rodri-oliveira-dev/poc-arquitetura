@@ -1,7 +1,6 @@
 using BalanceService.Api.Mappers;
 using BalanceService.Application.Balances.Queries.Models;
 
-using FluentAssertions;
 
 namespace BalanceService.UnitTests.Api.Mappers;
 
@@ -22,15 +21,14 @@ public sealed class BalanceResponseMapperTests
             new DateTimeOffset(2026, 2, 10, 9, 0, 0, TimeSpan.Zero));
 
         var result = BalanceResponseMapper.ToResponse(model, calculatedAt);
-
-        result.MerchantId.Should().Be("m1");
-        result.Date.Should().Be("2026-02-10");
-        result.Currency.Should().Be("BRL");
-        result.TotalCredits.Should().Be("150.50");
-        result.TotalDebits.Should().Be("20.00");
-        result.NetBalance.Should().Be("130.50");
-        result.AsOf.Should().Be("2026-02-10T08:00:00.0000000+00:00");
-        result.CalculatedAt.Should().Be("2026-02-16T12:30:00.0000000+00:00");
+        Assert.Equal("m1", result.MerchantId);
+        Assert.Equal("2026-02-10", result.Date);
+        Assert.Equal("BRL", result.Currency);
+        Assert.Equal("150.50", result.TotalCredits);
+        Assert.Equal("20.00", result.TotalDebits);
+        Assert.Equal("130.50", result.NetBalance);
+        Assert.Equal("2026-02-10T08:00:00.0000000+00:00", result.AsOf);
+        Assert.Equal("2026-02-16T12:30:00.0000000+00:00", result.CalculatedAt);
     }
 
     [Fact]
@@ -60,17 +58,16 @@ public sealed class BalanceResponseMapperTests
             new DateTimeOffset(2026, 2, 16, 11, 0, 0, TimeSpan.Zero));
 
         var result = BalanceResponseMapper.ToResponse(model, calculatedAt);
-
-        result.MerchantId.Should().Be("m1");
-        result.From.Should().Be("2026-02-10");
-        result.To.Should().Be("2026-02-12");
-        result.Currency.Should().Be("BRL");
-        result.TotalCredits.Should().Be("150.00");
-        result.TotalDebits.Should().Be("20.00");
-        result.NetBalance.Should().Be("130.00");
-        result.CalculatedAt.Should().Be("2026-02-16T12:30:00.0000000+00:00");
-        result.Items.Should().ContainSingle();
-        result.Items[0].Date.Should().Be("2026-02-10");
-        result.Items[0].AsOf.Should().BeNull();
+        Assert.Equal("m1", result.MerchantId);
+        Assert.Equal("2026-02-10", result.From);
+        Assert.Equal("2026-02-12", result.To);
+        Assert.Equal("BRL", result.Currency);
+        Assert.Equal("150.00", result.TotalCredits);
+        Assert.Equal("20.00", result.TotalDebits);
+        Assert.Equal("130.00", result.NetBalance);
+        Assert.Equal("2026-02-16T12:30:00.0000000+00:00", result.CalculatedAt);
+        Assert.Single(result.Items);
+        Assert.Equal("2026-02-10", result.Items[0].Date);
+        Assert.Null(result.Items[0].AsOf);
     }
 }

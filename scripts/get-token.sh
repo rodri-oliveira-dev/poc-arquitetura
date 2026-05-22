@@ -4,15 +4,29 @@ set -euo pipefail
 # Obtém TOKEN chamando o Auth.Api em POST /auth/login
 # Output: imprime SOMENTE o token em stdout.
 # Overrides via env:
-#   AUTH_BASE_URL, TOKEN_URL, USERNAME, PASSWORD, SCOPE
+#   AUTH_BASE_URL, TOKEN_URL, AUTH_POC_USERNAME, AUTH_POC_PASSWORD, AUTH_POC_SCOPE
+#   USERNAME, PASSWORD e SCOPE continuam aceitos por compatibilidade.
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+read_local_env() {
+  local key="$1"
+  local file="$ROOT_DIR/.env"
+  if [ ! -f "$file" ]; then
+    return 0
+  fi
+
+  sed -nE "s/^[[:space:]]*$key[[:space:]]*=[[:space:]]*(.*)[[:space:]]*$/\\1/p" "$file" | tail -n 1
+}
+
 AUTH_BASE_URL="${AUTH_BASE_URL:-http://localhost:5030}"
 TOKEN_URL="${TOKEN_URL:-/auth/login}"
-USERNAME="${USERNAME:-poc-usuario}"
-PASSWORD="${PASSWORD:-Poc#123}"
-SCOPE="${SCOPE:-ledger.write balance.read}"
+LOCAL_AUTH_POC_USERNAME="$(read_local_env AUTH_POC_USERNAME)"
+LOCAL_AUTH_POC_PASSWORD="$(read_local_env AUTH_POC_PASSWORD)"
+LOCAL_AUTH_POC_SCOPE="$(read_local_env AUTH_POC_SCOPE)"
+USERNAME="${AUTH_POC_USERNAME:-${USERNAME:-${LOCAL_AUTH_POC_USERNAME:-local_user}}}"
+PASSWORD="${AUTH_POC_PASSWORD:-${PASSWORD:-${LOCAL_AUTH_POC_PASSWORD:-local_password}}}"
+SCOPE="${AUTH_POC_SCOPE:-${SCOPE:-${LOCAL_AUTH_POC_SCOPE:-ledger.write balance.read}}}"
 
 URL="${AUTH_BASE_URL%/}/${TOKEN_URL#/}"
 

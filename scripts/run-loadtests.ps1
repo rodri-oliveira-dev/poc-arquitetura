@@ -21,18 +21,120 @@ if ([string]::IsNullOrWhiteSpace($ComposeK6File)) { $ComposeK6File = (Join-Path 
 if ([string]::IsNullOrWhiteSpace($ArtifactsDir)) { $ArtifactsDir = (Join-Path $root "artifacts\k6") }
 if ([string]::IsNullOrWhiteSpace($EnvFile)) { $EnvFile = (Join-Path $root ".env.k6.auto") }
 
+function Get-LocalEnvValue([string]$Name) {
+  $envPath = Join-Path $root ".env"
+  if (-not (Test-Path $envPath)) {
+    return ""
+  }
+
+  foreach ($line in Get-Content -Path $envPath) {
+    $trimmed = $line.Trim()
+    if ([string]::IsNullOrWhiteSpace($trimmed) -or $trimmed.StartsWith("#")) {
+      continue
+    }
+
+    $separatorIndex = $trimmed.IndexOf("=")
+    if ($separatorIndex -le 0) {
+      continue
+    }
+
+    $key = $trimmed.Substring(0, $separatorIndex).Trim()
+    if ($key -eq $Name) {
+      return $trimmed.Substring($separatorIndex + 1).Trim().Trim('"').Trim("'")
+    }
+  }
+
+  return ""
+}
+
+function Get-LocalConfigValue([string]$Name, [string]$DefaultValue) {
+  $value = [System.Environment]::GetEnvironmentVariable($Name, "Process")
+  if ([string]::IsNullOrWhiteSpace($value)) {
+    $value = Get-LocalEnvValue $Name
+  }
+  if ([string]::IsNullOrWhiteSpace($value)) {
+    return $DefaultValue
+  }
+
+  return $value
+}
+
+function Write-BalanceDatabaseAuthFailure([string]$User, [string]$Database) {
+  $hostName = Get-LocalConfigValue "BALANCE_DB_HOST" "balance-db"
+  [Console]::Error.WriteLine(@"
+Falha de autenticacao no banco Balance para o usuario "$User" e database "$Database".
+
+O volume local do PostgreSQL pode ter sido inicializado com uma senha diferente.
+Alterar .env ou compose.yaml nao atualiza credenciais dentro de um volume PostgreSQL existente.
+
+Verifique:
+  docker compose logs balance-db
+  docker compose logs balance-service
+  docker compose exec -T balance-db psql -h "$hostName" -U "$User" -d "$Database" -c "select 1;"
+
+Para corrigir, atualize a senha manualmente dentro do PostgreSQL quando a senha antiga for conhecida,
+ou recrie somente o volume local do Balance se os dados forem descartaveis.
+Nenhuma acao destrutiva foi executada automaticamente.
+"@)
+}
+
+function Assert-BalanceDatabaseAuthentication {
+  $hostName = Get-LocalConfigValue "BALANCE_DB_HOST" "balance-db"
+  $user = Get-LocalConfigValue "BALANCE_DB_USER" "userBalance"
+  $database = Get-LocalConfigValue "BALANCE_DB_NAME" "dbBalance"
+  $password = Get-LocalConfigValue "BALANCE_DB_PASSWORD" "local_dev_password"
+
+  $previousErrorActionPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = "Continue"
+    & docker compose -f $ComposeFile exec -T `
+      -e "PGPASSWORD=$password" `
+      "balance-db" `
+      psql -h $hostName -U $user -d $database -v "ON_ERROR_STOP=1" -c "select 1;" 1>$null 2>$null
+    $exitCode = $LASTEXITCODE
+  }
+  finally {
+    $ErrorActionPreference = $previousErrorActionPreference
+  }
+
+  if ($exitCode -ne 0) {
+    Write-BalanceDatabaseAuthFailure $user $database
+    exit 1
+  }
+}
+
 # a) gerar env
 powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "scripts\compose-env.ps1") -ComposeFile $ComposeFile -OutFile $EnvFile | Out-Host
 
 # Aplica o override de carga nas APIs antes de executar o k6. O compose.k6.yaml
 # mantem os testes apontando para as APIs HTTP e aumenta apenas limites tecnicos
 # que poderiam transformar o cenario de throughput em teste de rate limiting.
-& docker compose -f $ComposeFile -f $ComposeK6File up -d --no-build ledger-service balance-service
+& docker compose -f $ComposeFile -f $ComposeK6File up -d --no-build --force-recreate auth-api ledger-service balance-service
 if ($LASTEXITCODE -ne 0) { throw "docker compose falhou ao aplicar override k6: $LASTEXITCODE" }
 
+Assert-BalanceDatabaseAuthentication
+
 # b) obter token (por padrão via localhost conforme README). Pode sobrescrever via env AUTH_BASE_URL.
-$token = powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "scripts\get-token.ps1")
-$token = ($token | Out-String).Trim()
+function Get-LoadTestToken {
+  $getTokenScript = Join-Path $root "scripts\get-token.ps1"
+
+  for ($i = 1; $i -le 30; $i++) {
+    $candidate = powershell -NoProfile -ExecutionPolicy Bypass -File $getTokenScript 2>$null
+    if ($LASTEXITCODE -eq 0) {
+      $candidate = ($candidate | Out-String).Trim()
+      if (-not [string]::IsNullOrWhiteSpace($candidate)) {
+        return $candidate
+      }
+    }
+
+    Start-Sleep -Seconds 2
+  }
+
+  $finalAttempt = powershell -NoProfile -ExecutionPolicy Bypass -File $getTokenScript
+  return ($finalAttempt | Out-String).Trim()
+}
+
+$token = Get-LoadTestToken
 if ([string]::IsNullOrWhiteSpace($token)) {
   Write-Error "Falha ao obter TOKEN. Você pode informar manualmente via env TOKEN=..."
   exit 1
@@ -104,6 +206,7 @@ function Run-K6([string]$scenarioName, [string]$scriptPath, [hashtable]$envVars)
     "compose",
     "-f", $ComposeFile,
     "-f", $ComposeK6File,
+    "--profile", "k6",
     "run",
     "--interactive=false",
     "--rm"

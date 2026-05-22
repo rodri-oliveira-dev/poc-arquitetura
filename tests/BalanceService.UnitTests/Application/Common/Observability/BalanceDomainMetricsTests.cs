@@ -2,7 +2,6 @@ using System.Diagnostics.Metrics;
 
 using BalanceService.Application.Common.Observability;
 
-using FluentAssertions;
 
 namespace BalanceService.UnitTests.Application.Common.Observability;
 
@@ -52,12 +51,11 @@ public sealed class BalanceDomainMetricsTests
         listener.Start();
 
         metrics.RecordEventApplied("LedgerEntryCreated.v1", "success");
-
-        measurement.Should().Be(1);
-        observedTags.Should().NotBeNull();
-        observedTags.Should().Contain("event_type", "LedgerEntryCreated.v1");
-        observedTags.Should().Contain("result", "success");
-        observedTags!.Keys.Should().NotContain(ProhibitedTags);
+        Assert.Equal(1, measurement);
+        Assert.NotNull(observedTags);
+        Assert.Equal("LedgerEntryCreated.v1", observedTags["event_type"]);
+        Assert.Equal("success", observedTags["result"]);
+        Assert.Empty(ProhibitedTags.Intersect(observedTags!.Keys));
     }
 
     [Fact]
@@ -88,11 +86,10 @@ public sealed class BalanceDomainMetricsTests
         listener.Start();
 
         metrics.RecordApplyDuration(12.5, "LedgerEntryCreated.v1", "success");
-
-        measurement.Should().Be(12.5);
-        observedTags.Should().NotBeNull();
-        observedTags.Should().Contain("event_type", "LedgerEntryCreated.v1");
-        observedTags.Should().Contain("result", "success");
-        observedTags!.Keys.Should().NotContain(ProhibitedTags);
+        Assert.Equal(12.5, measurement);
+        Assert.NotNull(observedTags);
+        Assert.Equal("LedgerEntryCreated.v1", observedTags["event_type"]);
+        Assert.Equal("success", observedTags["result"]);
+        Assert.Empty(ProhibitedTags.Intersect(observedTags!.Keys));
     }
 }

@@ -20,8 +20,11 @@ Adotar o seguinte baseline minimo para containers da POC:
 - definir limites locais de CPU, memoria e processos em `compose.yaml` e `compose.k6.yaml` com `deploy.resources.limits`, conforme validado no `docker compose` usado pelo repositorio;
 - substituir `grafana/k6:latest` por uma tag explicita;
 - manter imagens base e de infraestrutura por tags versionadas, sem digest, nesta POC;
-- exigir digest pinning em ambientes compartilhados/produtivos ou pipelines de publicacao, usando uma lista/lock de imagens por plataforma;
-- documentar scan local de imagens como validacao recomendada antes de publicar ou promover imagens.
+- nao usar `latest` em Dockerfiles, compose local ou overrides de carga;
+- exigir digest pinning ou scan de imagens em CI, homologacao, producao ou qualquer ambiente compartilhado, usando uma lista/lock de imagens por plataforma quando houver promocao;
+- tratar atualizacao de imagem como mudanca intencional e revisavel em diff;
+- documentar scan local de imagens como validacao recomendada antes de publicar ou promover imagens;
+- manter a stack Docker/Compose como ambiente local, nao promovivel diretamente para ambientes compartilhados sem revisao de seguranca.
 
 Arquivos afetados:
 
@@ -47,6 +50,7 @@ Arquivos afetados:
 - Limites locais podem precisar de ajuste em maquinas menores ou em cenarios de carga mais agressivos.
 - Tags sem digest permanecem mutaveis e nao garantem reprodutibilidade binaria perfeita.
 - O scan de imagem continua documentado como validacao operacional, nao como gate automatizado no CI.
+- O compose local continua priorizando ergonomia de desenvolvimento; ambientes compartilhados precisam de politica mais restritiva antes de reutilizar qualquer definicao.
 
 ## Alternativas consideradas
 

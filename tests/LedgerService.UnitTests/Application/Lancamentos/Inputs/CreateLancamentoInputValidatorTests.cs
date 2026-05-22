@@ -1,4 +1,3 @@
-using FluentAssertions;
 using LedgerService.Application.Lancamentos.Inputs.CreateLancamento;
 using LedgerService.UnitTests.Fixtures;
 
@@ -14,8 +13,7 @@ public sealed class CreateLancamentoInputValidatorTests
         var input = LancamentoFixture.ValidInput(type: "CREDIT", amount: "10.00");
 
         var result = _validator.Validate(input);
-
-        result.IsValid.Should().BeTrue();
+        Assert.True(result.IsValid);
     }
 
     [Theory]
@@ -29,9 +27,8 @@ public sealed class CreateLancamentoInputValidatorTests
         var input = LancamentoFixture.ValidInput(type: type, amount: amount);
 
         var result = _validator.Validate(input);
-
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == nameof(CreateLancamentoInput.Amount));
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.PropertyName == nameof(CreateLancamentoInput.Amount));
     }
 
     [Theory]
@@ -42,9 +39,8 @@ public sealed class CreateLancamentoInputValidatorTests
         var input = LancamentoFixture.ValidInput(merchantId: merchantId);
 
         var result = _validator.Validate(input);
-
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == nameof(CreateLancamentoInput.MerchantId));
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.PropertyName == nameof(CreateLancamentoInput.MerchantId));
     }
 
     [Fact]
@@ -53,9 +49,8 @@ public sealed class CreateLancamentoInputValidatorTests
         var input = LancamentoFixture.ValidInput(merchantId: new string('m', 101));
 
         var result = _validator.Validate(input);
-
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == nameof(CreateLancamentoInput.MerchantId));
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.PropertyName == nameof(CreateLancamentoInput.MerchantId));
     }
 
     [Theory]
@@ -66,9 +61,8 @@ public sealed class CreateLancamentoInputValidatorTests
         var input = LancamentoFixture.ValidInput(amount: amount);
 
         var result = _validator.Validate(input);
-
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == nameof(CreateLancamentoInput.Amount));
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.PropertyName == nameof(CreateLancamentoInput.Amount));
     }
 
     [Fact]
@@ -77,9 +71,8 @@ public sealed class CreateLancamentoInputValidatorTests
         var input = LancamentoFixture.ValidInput(amount: "12345678901234567.89");
 
         var result = _validator.Validate(input);
-
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e =>
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e =>
             e.PropertyName == nameof(CreateLancamentoInput.Amount)
             && e.ErrorMessage.Contains("18 digits", StringComparison.Ordinal));
     }
@@ -93,8 +86,7 @@ public sealed class CreateLancamentoInputValidatorTests
         var input = LancamentoFixture.ValidInput(type: type, amount: amount);
 
         var result = _validator.Validate(input);
-
-        result.IsValid.Should().BeTrue();
+        Assert.True(result.IsValid);
     }
 
     [Theory]
@@ -107,9 +99,8 @@ public sealed class CreateLancamentoInputValidatorTests
         var input = LancamentoFixture.ValidInput(type: type, amount: "10");
 
         var result = _validator.Validate(input);
-
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == nameof(CreateLancamentoInput.Type));
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.PropertyName == nameof(CreateLancamentoInput.Type));
     }
 
     [Fact]
@@ -121,9 +112,8 @@ public sealed class CreateLancamentoInputValidatorTests
         };
 
         var result = _validator.Validate(input);
-
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == nameof(CreateLancamentoInput.Description));
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.PropertyName == nameof(CreateLancamentoInput.Description));
     }
 
     [Fact]
@@ -135,9 +125,8 @@ public sealed class CreateLancamentoInputValidatorTests
         };
 
         var result = _validator.Validate(input);
-
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == nameof(CreateLancamentoInput.ExternalReference));
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.PropertyName == nameof(CreateLancamentoInput.ExternalReference));
     }
 
     [Fact]
@@ -148,7 +137,6 @@ public sealed class CreateLancamentoInputValidatorTests
             correlationId: "not-a-guid");
 
         var result = _validator.Validate(input);
-
-        result.IsValid.Should().BeTrue();
+        Assert.True(result.IsValid);
     }
 }

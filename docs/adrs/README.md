@@ -15,6 +15,7 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 
 | ADR                                                                   | Status      | Resumo                                                                                           |
 | --------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------ |
+| [ADR-0069](./0069-remocao-fluentassertions-xunit-nativo.md) | Aceito | Remove FluentAssertions por risco de licenca comercial nas versoes 8+ e padroniza asserts nativos do xUnit. |
 | [ADR-0068](./0068-gate-cobertura-workers-coverlet.md) | Aceito | Eleva o gate para 85% e exige emissao explicita dos assemblies Worker no relatorio Coverlet. |
 | [ADR-0067](./0067-separacao-workers-processos-api.md) | Aceito | Separa APIs e workers em processos distintos, com composition root explicito e validacao contra HostedServices duplicados. |
 | [ADR-0066](./0066-cobertura-minima-workers.md) | Aceito | Exige cobertura minima dedicada para os assemblies `LedgerService.Worker` e `BalanceService.Worker`. |

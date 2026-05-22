@@ -1,5 +1,4 @@
 using BalanceService.Application.Balances.Queries;
-using FluentAssertions;
 
 namespace BalanceService.UnitTests.Application.Balances.Queries;
 
@@ -10,7 +9,7 @@ public sealed class QueryValidatorsTests
     {
         var sut = new GetDailyBalanceQueryValidator();
         var result = sut.Validate(new GetDailyBalanceQuery("", new DateOnly(2026, 2, 10)));
-        result.IsValid.Should().BeFalse();
+        Assert.False(result.IsValid);
     }
 
     [Fact]
@@ -18,7 +17,7 @@ public sealed class QueryValidatorsTests
     {
         var sut = new GetDailyBalanceQueryValidator();
         var result = sut.Validate(new GetDailyBalanceQuery("m1", new DateOnly(2026, 2, 10)));
-        result.IsValid.Should().BeTrue();
+        Assert.True(result.IsValid);
     }
 
     [Fact]
@@ -26,8 +25,8 @@ public sealed class QueryValidatorsTests
     {
         var sut = new GetPeriodBalanceQueryValidator();
         var result = sut.Validate(new GetPeriodBalanceQuery("m1", new DateOnly(2026, 2, 11), new DateOnly(2026, 2, 10)));
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.ErrorMessage.Contains("From must be", StringComparison.Ordinal));
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.ErrorMessage.Contains("From must be", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -35,8 +34,8 @@ public sealed class QueryValidatorsTests
     {
         var sut = new GetPeriodBalanceQueryValidator();
         var result = sut.Validate(new GetPeriodBalanceQuery("", new DateOnly(2026, 2, 10), new DateOnly(2026, 2, 10)));
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == nameof(GetPeriodBalanceQuery.MerchantId));
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.PropertyName == nameof(GetPeriodBalanceQuery.MerchantId));
     }
 
     [Fact]
@@ -44,6 +43,6 @@ public sealed class QueryValidatorsTests
     {
         var sut = new GetPeriodBalanceQueryValidator();
         var result = sut.Validate(new GetPeriodBalanceQuery("m1", new DateOnly(2026, 2, 10), new DateOnly(2026, 2, 10)));
-        result.IsValid.Should().BeTrue();
+        Assert.True(result.IsValid);
     }
 }

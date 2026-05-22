@@ -1,6 +1,5 @@
 using System.Text.Json;
 
-using FluentAssertions;
 using LedgerService.Application.Common.Exceptions;
 using LedgerService.Application.Lancamentos.Commands;
 using LedgerService.Application.Lancamentos.Events;
@@ -51,38 +50,33 @@ public sealed class SolicitarReprocessamentoLancamentosHandlerTests
         var sut = CreateSut(reprocessamentoRepo, idemRepo, outboxRepo, uow);
 
         var result = await sut.Handle(command, CancellationToken.None);
-
-        result.ReprocessamentoId.Should().NotBeEmpty();
-        result.MerchantId.Should().Be(command.MerchantId);
-        result.DataInicial.Should().Be(command.DataInicial);
-        result.DataFinal.Should().Be(command.DataFinal);
-        result.Status.Should().Be(ReprocessamentoLancamentosStatus.Pending.ToString());
-        result.StatusUrl.Should().Be($"/api/v1/lancamentos/reprocessamentos/{result.ReprocessamentoId}");
-
-        createdReprocessamento.Should().NotBeNull();
-        createdReprocessamento!.Status.Should().Be(ReprocessamentoLancamentosStatus.Pending);
-        createdReprocessamento.Motivo.Should().Be(command.Motivo);
-        createdReprocessamento.DataInicial.Should().Be(command.DataInicial);
-        createdReprocessamento.DataFinal.Should().Be(command.DataFinal);
-
-        createdIdem.Should().NotBeNull();
-        createdIdem!.ResponseStatusCode.Should().Be(202);
-        createdIdem.LedgerEntryId.Should().Be(result.ReprocessamentoId);
-        createdIdem.ResponseBody.Should().Contain(result.ReprocessamentoId.ToString());
-
-        createdOutbox.Should().NotBeNull();
-        createdOutbox!.AggregateType.Should().Be("ReprocessamentoLancamentos");
-        createdOutbox.AggregateId.Should().Be(result.ReprocessamentoId);
-        createdOutbox.EventType.Should().Be(ReprocessamentoLancamentosSolicitadoV1.EventType);
-        createdOutbox.CorrelationId.Should().Be(Guid.Parse(command.CorrelationId));
-
+        Assert.NotEqual(Guid.Empty, result.ReprocessamentoId);
+        Assert.Equal(command.MerchantId, result.MerchantId);
+        Assert.Equal(command.DataInicial, result.DataInicial);
+        Assert.Equal(command.DataFinal, result.DataFinal);
+        Assert.Equal(ReprocessamentoLancamentosStatus.Pending.ToString(), result.Status);
+        Assert.Equal($"/api/v1/lancamentos/reprocessamentos/{result.ReprocessamentoId}", result.StatusUrl);
+        Assert.NotNull(createdReprocessamento);
+        Assert.Equal(ReprocessamentoLancamentosStatus.Pending, createdReprocessamento!.Status);
+        Assert.Equal(command.Motivo, createdReprocessamento.Motivo);
+        Assert.Equal(command.DataInicial, createdReprocessamento.DataInicial);
+        Assert.Equal(command.DataFinal, createdReprocessamento.DataFinal);
+        Assert.NotNull(createdIdem);
+        Assert.Equal(202, createdIdem!.ResponseStatusCode);
+        Assert.Equal(result.ReprocessamentoId, createdIdem.LedgerEntryId);
+        Assert.Contains(result.ReprocessamentoId.ToString(), createdIdem.ResponseBody);
+        Assert.NotNull(createdOutbox);
+        Assert.Equal("ReprocessamentoLancamentos", createdOutbox!.AggregateType);
+        Assert.Equal(result.ReprocessamentoId, createdOutbox.AggregateId);
+        Assert.Equal(ReprocessamentoLancamentosSolicitadoV1.EventType, createdOutbox.EventType);
+        Assert.Equal(Guid.Parse(command.CorrelationId), createdOutbox.CorrelationId);
         var outboxEvent = JsonSerializer.Deserialize<ReprocessamentoLancamentosSolicitadoV1>(
             createdOutbox.Payload,
             JsonOptions);
-        outboxEvent.Should().NotBeNull();
-        outboxEvent!.ReprocessamentoId.Should().Be(result.ReprocessamentoId);
-        outboxEvent.Status.Should().Be("Pending");
-        outboxEvent.Motivo.Should().Be(command.Motivo);
+        Assert.NotNull(outboxEvent);
+        Assert.Equal(result.ReprocessamentoId, outboxEvent!.ReprocessamentoId);
+        Assert.Equal("Pending", outboxEvent.Status);
+        Assert.Equal(command.Motivo, outboxEvent.Motivo);
     }
 
     [Fact]
@@ -119,8 +113,7 @@ public sealed class SolicitarReprocessamentoLancamentosHandlerTests
         var sut = CreateSut(reprocessamentoRepo, idemRepo, outboxRepo, uow);
 
         var result = await sut.Handle(command, CancellationToken.None);
-
-        result.Should().Be(expected);
+        Assert.Equal(expected, result);
         reprocessamentoRepo.VerifyNoOtherCalls();
         outboxRepo.VerifyNoOtherCalls();
         uow.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
@@ -137,8 +130,7 @@ public sealed class SolicitarReprocessamentoLancamentosHandlerTests
         var sut = CreateSut(reprocessamentoRepo, idemRepo, outboxRepo, uow);
 
         var act = async () => await sut.Handle(command, CancellationToken.None);
-
-        await act.Should().ThrowAsync<ForbiddenException>();
+        await Assert.ThrowsAsync<ForbiddenException>(act);
         uow.VerifyNoOtherCalls();
     }
 

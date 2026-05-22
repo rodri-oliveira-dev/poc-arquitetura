@@ -6,9 +6,9 @@ O workflow executa:
 
 - `dotnet restore ./LedgerService.slnx`;
 - `dotnet build ./LedgerService.slnx --configuration Release --no-restore`;
-- `dotnet test ./LedgerService.slnx --configuration Release --no-build`.
+- `dotnet test ./LedgerService.slnx --configuration Release --no-build --no-restore`.
 
-Ele nao executa verificacao de vulnerabilidades, cobertura ou publicacao de relatorios. Essas responsabilidades continuam nos workflows especificos, como `dependency-review` e `dotnet-ci`.
+Ele nao executa verificacao de vulnerabilidades, cobertura ou publicacao de relatorios, e nao chama `test.sh`. Essas responsabilidades continuam nos workflows especificos, como `dependency-review` e `dotnet-ci`.
 
 O workflow roda em:
 
@@ -40,8 +40,8 @@ O workflow `dotnet-ci` permanece como validacao completa de `push` na `main` e e
 
 | Workflow | Arquivo | Evento | Papel | Bloqueante / informativo / operacional |
 | --- | --- | --- | --- | --- |
-| `pull-request-validation` | `.github/workflows/pull-request-validation.yml` | `pull_request`, `merge_group`, `workflow_dispatch` | Gate minimo de PR. Executa restore, build e testes sem cobertura para sempre reportar o status esperado pela protecao de branch. | Bloqueante |
-| `dotnet-ci` | `.github/workflows/dotnet.yml` | `push` na `main`, `workflow_dispatch` | Validacao completa pos-merge/manual, com restore, vulnerabilidades NuGet, build, testes, cobertura, gate de 80% e artifacts de diagnostico. | Informativo para PR; bloqueante apenas se uma regra externa decidir exigir esse check |
+| `pull-request-validation` | `.github/workflows/pull-request-validation.yml` | `pull_request`, `merge_group`, `workflow_dispatch` | Gate minimo de PR. Executa restore, build e testes sem cobertura e sem recompilar depois do build para sempre reportar o status esperado pela protecao de branch. | Bloqueante |
+| `dotnet-ci` | `.github/workflows/dotnet.yml` | `push` na `main`, `workflow_dispatch` | Validacao completa pos-merge/manual, com restore, vulnerabilidades NuGet, build, testes, cobertura, gate de 85% e artifacts de diagnostico. | Informativo para PR; bloqueante apenas se uma regra externa decidir exigir esse check |
 | `dependency-review` | `.github/workflows/dependency-review.yml` | `pull_request` para `main` | Revisa dependencias alteradas no PR e falha para vulnerabilidades `moderate` ou superior. | Bloqueante se exigido por branch protection/ruleset |
 | `codeql` | `.github/workflows/codeql.yml` | `push` na `main`, `pull_request` para `main`, `schedule` semanal | Analise estatica de seguranca C# via CodeQL. | Bloqueante se exigido por branch protection/ruleset |
 | `Mutation Tests` | `.github/workflows/mutation-tests.yml` | `push` na `main`, `workflow_dispatch` | Diagnostico de qualidade por Stryker.NET com relatorios HTML publicados como artifacts. Nao roda em PR e nao deve virar gate obrigatorio sem decisao explicita. | Informativo |

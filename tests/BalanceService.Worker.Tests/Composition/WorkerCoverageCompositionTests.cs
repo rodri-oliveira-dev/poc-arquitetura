@@ -3,7 +3,6 @@ using BalanceService.Worker.Messaging.Kafka.Consumers;
 using BalanceService.Worker.Messaging.Kafka.DeadLetter;
 using BalanceService.Worker.Messaging.Kafka.Tracing;
 using BalanceService.Worker.Observability;
-using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -27,9 +26,8 @@ public sealed class WorkerCoverageCompositionTests
         var options = CreateInvalidConsumerOptions(invalidField);
 
         var act = () => LedgerEventsConsumer.ValidateOptions(options);
-
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage($"*{expectedMessage}*");
+        var ex = Assert.Throws<InvalidOperationException>(act);
+        Assert.Matches("^" + System.Text.RegularExpressions.Regex.Escape($"*{expectedMessage}*").Replace("\\*", ".*") + "$", ex.Message);
     }
 
     [Theory]
@@ -39,8 +37,7 @@ public sealed class WorkerCoverageCompositionTests
     public void LedgerEventsConsumer_should_parse_auto_offset_reset(string value, Confluent.Kafka.AutoOffsetReset expected)
     {
         var result = LedgerEventsConsumer.ParseAutoOffsetReset(value);
-
-        result.Should().Be(expected);
+        Assert.Equal(expected, result);
     }
 
     [Fact]
@@ -63,9 +60,8 @@ public sealed class WorkerCoverageCompositionTests
             DateTimeOffset.UtcNow);
 
         var act = () => sut.ProduceAsync(message, CancellationToken.None);
-
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*DeadLetterTopic*");
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(act);
+        Assert.Matches("^" + System.Text.RegularExpressions.Regex.Escape("*DeadLetterTopic*").Replace("\\*", ".*") + "$", ex.Message);
     }
 
     [Theory]
@@ -77,7 +73,7 @@ public sealed class WorkerCoverageCompositionTests
     [InlineData("Transient failure.", "unknown")]
     public void KafkaDeadLetterProducer_should_classify_dlq_reasons(string reason, string expected)
     {
-        KafkaDeadLetterProducer.ClassifyReason(reason).Should().Be(expected);
+        Assert.Equal(expected, KafkaDeadLetterProducer.ClassifyReason(reason));
     }
 
     [Fact]
@@ -89,9 +85,8 @@ public sealed class WorkerCoverageCompositionTests
         });
 
         var unknown = KafkaDeadLetterProducer.ResolveEventType(new Dictionary<string, string>());
-
-        eventType.Should().Be("LedgerEntryCreated.v1");
-        unknown.Should().Be("unknown");
+        Assert.Equal("LedgerEntryCreated.v1", eventType);
+        Assert.Equal("unknown", unknown);
     }
 
     private static KafkaConsumerOptions CreateInvalidConsumerOptions(string invalidField)

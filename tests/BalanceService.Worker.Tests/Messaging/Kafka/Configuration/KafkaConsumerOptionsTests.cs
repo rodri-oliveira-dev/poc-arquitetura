@@ -2,7 +2,6 @@ using BalanceService.Api.Extensions;
 using BalanceService.Worker.Extensions;
 using BalanceService.Worker.Messaging.Kafka.Configuration;
 using BalanceService.Worker.Messaging.Kafka.Consumers;
-using FluentAssertions;
 using Confluent.Kafka;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -18,12 +17,11 @@ public sealed class KafkaConsumerOptionsTests
     public void KafkaConsumerOptions_should_preserve_current_retry_delay_defaults()
     {
         var options = new KafkaConsumerOptions();
-
-        options.SecurityProtocol.Should().Be("Plaintext");
-        options.InvalidMessageRetryDelay.Should().Be(TimeSpan.FromSeconds(2));
-        options.ConsumeErrorRetryDelay.Should().Be(TimeSpan.FromSeconds(2));
-        options.ProcessingErrorRetryDelay.Should().Be(TimeSpan.FromSeconds(5));
-        options.DeadLetterMessageTimeoutMs.Should().Be(30000);
+        Assert.Equal("Plaintext", options.SecurityProtocol);
+        Assert.Equal(TimeSpan.FromSeconds(2), options.InvalidMessageRetryDelay);
+        Assert.Equal(TimeSpan.FromSeconds(2), options.ConsumeErrorRetryDelay);
+        Assert.Equal(TimeSpan.FromSeconds(5), options.ProcessingErrorRetryDelay);
+        Assert.Equal(30000, options.DeadLetterMessageTimeoutMs);
     }
 
     [Fact]
@@ -42,12 +40,11 @@ public sealed class KafkaConsumerOptionsTests
         var options = configuration
             .GetSection(KafkaConsumerOptions.SectionName)
             .Get<KafkaConsumerOptions>();
-
-        options.Should().NotBeNull();
-        options!.InvalidMessageRetryDelay.Should().Be(TimeSpan.FromSeconds(3));
-        options.ConsumeErrorRetryDelay.Should().Be(TimeSpan.FromSeconds(4));
-        options.ProcessingErrorRetryDelay.Should().Be(TimeSpan.FromSeconds(6));
-        options.DeadLetterTopic.Should().Be("ledger.ledgerentry.created.dlq");
+        Assert.NotNull(options);
+        Assert.Equal(TimeSpan.FromSeconds(3), options!.InvalidMessageRetryDelay);
+        Assert.Equal(TimeSpan.FromSeconds(4), options.ConsumeErrorRetryDelay);
+        Assert.Equal(TimeSpan.FromSeconds(6), options.ProcessingErrorRetryDelay);
+        Assert.Equal("ledger.ledgerentry.created.dlq", options.DeadLetterTopic);
     }
 
     [Fact]
@@ -56,8 +53,7 @@ public sealed class KafkaConsumerOptionsTests
         using var provider = CreateProvider(Environments.Development, "Plaintext");
 
         var options = provider.GetRequiredService<IOptions<KafkaConsumerOptions>>().Value;
-
-        options.SecurityProtocol.Should().Be("Plaintext");
+        Assert.Equal("Plaintext", options.SecurityProtocol);
     }
 
     [Fact]
@@ -67,8 +63,8 @@ public sealed class KafkaConsumerOptionsTests
 
         var act = () => provider.GetRequiredService<IOptions<KafkaConsumerOptions>>().Value;
 
-        act.Should().Throw<OptionsValidationException>()
-            .WithMessage("*PLAINTEXT*Development/Local*");
+        var ex = Assert.Throws<OptionsValidationException>(act);
+        Assert.Matches("^.*PLAINTEXT.*Development/Local.*$", ex.Message);
     }
 
     [Fact]
@@ -77,8 +73,7 @@ public sealed class KafkaConsumerOptionsTests
         using var provider = CreateProvider(Environments.Production, "SSL");
 
         var options = provider.GetRequiredService<IOptions<KafkaConsumerOptions>>().Value;
-
-        options.SecurityProtocol.Should().Be("SSL");
+        Assert.Equal("SSL", options.SecurityProtocol);
     }
 
     [Fact]
@@ -95,13 +90,12 @@ public sealed class KafkaConsumerOptionsTests
         };
 
         config.ApplySecurity(options);
-
-        config.SecurityProtocol.Should().Be(SecurityProtocol.SaslSsl);
-        config.SaslMechanism.Should().Be(SaslMechanism.ScramSha512);
-        config.SaslUsername.Should().Be("user");
-        config.SaslPassword.Should().Be("secret");
-        config.SslCaLocation.Should().Be("/certs/ca.pem");
-        KafkaClientConfigExtensions.IsPlaintext(options).Should().BeFalse();
+        Assert.Equal(SecurityProtocol.SaslSsl, config.SecurityProtocol);
+        Assert.Equal(SaslMechanism.ScramSha512, config.SaslMechanism);
+        Assert.Equal("user", config.SaslUsername);
+        Assert.Equal("secret", config.SaslPassword);
+        Assert.Equal("/certs/ca.pem", config.SslCaLocation);
+        Assert.False(KafkaClientConfigExtensions.IsPlaintext(options));
     }
 
     [Theory]
@@ -114,8 +108,8 @@ public sealed class KafkaConsumerOptionsTests
 
         var act = () => config.ApplySecurity(options);
 
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*SecurityProtocol*");
+        var ex = Assert.Throws<InvalidOperationException>(act);
+        Assert.Contains("SecurityProtocol", ex.Message);
     }
 
     [Fact]
@@ -130,8 +124,8 @@ public sealed class KafkaConsumerOptionsTests
 
         var act = () => config.ApplySecurity(options);
 
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*SaslMechanism*");
+        var ex = Assert.Throws<InvalidOperationException>(act);
+        Assert.Contains("SaslMechanism", ex.Message);
     }
 
     [Fact]
@@ -140,7 +134,7 @@ public sealed class KafkaConsumerOptionsTests
         var services = new ServiceCollection();
         services.AddBalanceApiComposition(CreateInfrastructureConfiguration("SSL"), CreateEnvironment(Environments.Production));
 
-        services.Should().NotContain(descriptor =>
+        Assert.DoesNotContain(services, descriptor =>
             descriptor.ServiceType == typeof(IHostedService) &&
             descriptor.ImplementationType == typeof(LedgerEventsConsumer));
     }

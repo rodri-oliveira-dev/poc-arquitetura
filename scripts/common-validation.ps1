@@ -4,7 +4,49 @@ param()
 $ErrorActionPreference = "Stop"
 
 $script:ValidationScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$script:RootDir = (Resolve-Path (Join-Path $script:ValidationScriptDir ".."))
 $script:GetTokenScript = Join-Path $script:ValidationScriptDir "get-token.ps1"
+
+function Get-LocalEnvValue([string]$Name) {
+  $envPath = Join-Path $script:RootDir ".env"
+  if (-not (Test-Path $envPath)) {
+    return ""
+  }
+
+  foreach ($line in Get-Content -Path $envPath) {
+    $trimmed = $line.Trim()
+    if ([string]::IsNullOrWhiteSpace($trimmed) -or $trimmed.StartsWith("#")) {
+      continue
+    }
+
+    $separatorIndex = $trimmed.IndexOf("=")
+    if ($separatorIndex -le 0) {
+      continue
+    }
+
+    $key = $trimmed.Substring(0, $separatorIndex).Trim()
+    if ($key -eq $Name) {
+      return $trimmed.Substring($separatorIndex + 1).Trim().Trim('"').Trim("'")
+    }
+  }
+
+  return ""
+}
+
+function Get-LocalConfigValue([string]$Name, [string]$DefaultValue) {
+  $value = [System.Environment]::GetEnvironmentVariable($Name, "Process")
+  if ([string]::IsNullOrWhiteSpace($value)) {
+    $value = Get-LocalEnvValue $Name
+  }
+  if ([string]::IsNullOrWhiteSpace($value)) {
+    return $DefaultValue
+  }
+
+  return $value
+}
+
+$script:BalanceDbUser = Get-LocalConfigValue "BALANCE_DB_USER" "userBalance"
+$script:BalanceDbName = Get-LocalConfigValue "BALANCE_DB_NAME" "dbBalance"
 
 function Invoke-WithEnv([hashtable]$Values, [scriptblock]$Script) {
   $previous = @{}
@@ -266,7 +308,7 @@ LIMIT 1;
 "@
 
   Wait-Until "processed_events no Balance para event_id=$EventId" $PollingTimeoutSeconds $PollingIntervalSeconds {
-    Invoke-PostgresScalar "balance-db" "userBalance" "dbBalance" $sql
+    Invoke-PostgresScalar "balance-db" $script:BalanceDbUser $script:BalanceDbName $sql
   } {
     param($value)
     $value -match [Regex]::Escape($EventId)
@@ -280,7 +322,7 @@ FROM processed_events
 WHERE event_id = '$EventId';
 "@
 
-  $value = Invoke-PostgresScalar "balance-db" "userBalance" "dbBalance" $sql
+  $value = Invoke-PostgresScalar "balance-db" $script:BalanceDbUser $script:BalanceDbName $sql
   return [int]($value.Trim())
 }
 
@@ -292,7 +334,7 @@ WHERE merchant_id = '$MerchantId' AND date = DATE '$BalanceDate'
 LIMIT 1;
 "@
 
-  Invoke-PostgresScalar "balance-db" "userBalance" "dbBalance" $sql
+  Invoke-PostgresScalar "balance-db" $script:BalanceDbUser $script:BalanceDbName $sql
 }
 
 function Get-DailyBalanceNet([string]$DailyBalanceRow) {

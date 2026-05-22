@@ -4,8 +4,7 @@ namespace LedgerService.IntegrationTests.Infrastructure;
 
 public sealed class PostgresLedgerFixture : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder()
-        .WithImage("docker.io/postgres:16")
+    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("docker.io/postgres:16")
         .WithDatabase("appdb")
         .WithUsername("appuser")
         .WithPassword("app123")
@@ -13,7 +12,7 @@ public sealed class PostgresLedgerFixture : IAsyncLifetime
 
     public string ConnectionString => _postgres.GetConnectionString();
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _postgres.StartAsync();
 
@@ -21,7 +20,7 @@ public sealed class PostgresLedgerFixture : IAsyncLifetime
         await factory.MigrateAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _postgres.DisposeAsync();
     }

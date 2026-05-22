@@ -1,6 +1,5 @@
 using System.Text.Json;
 
-using FluentAssertions;
 using LedgerService.Application.Common.Exceptions;
 using LedgerService.Application.Lancamentos.Commands;
 using LedgerService.Application.Lancamentos.Events;
@@ -58,36 +57,30 @@ public sealed class SolicitarEstornoLancamentoHandlerTests
         var sut = CreateSut(ledgerRepo, estornoRepo, idemRepo, outboxRepo, uow);
 
         var result = await sut.Handle(command, CancellationToken.None);
-
-        result.EstornoId.Should().NotBeEmpty();
-        result.LancamentoOriginalId.Should().Be(lancamento.Id);
-        result.Status.Should().Be(EstornoLancamentoStatus.Pending.ToString());
-        result.StatusUrl.Should().Be($"/api/v1/lancamentos/estornos/{result.EstornoId}");
-        result.MerchantId.Should().Be(lancamento.MerchantId);
-
-        createdEstorno.Should().NotBeNull();
-        createdEstorno!.LancamentoOriginalId.Should().Be(lancamento.Id);
-        createdEstorno.MerchantId.Should().Be(lancamento.MerchantId);
-        createdEstorno.Status.Should().Be(EstornoLancamentoStatus.Pending);
-
-        createdIdem.Should().NotBeNull();
-        createdIdem!.ResponseStatusCode.Should().Be(202);
-        createdIdem.LedgerEntryId.Should().Be(lancamento.Id);
-        createdIdem.ResponseBody.Should().Contain(result.EstornoId.ToString());
-
-        createdOutbox.Should().NotBeNull();
-        createdOutbox!.AggregateType.Should().Be("LancamentoEstorno");
-        createdOutbox.AggregateId.Should().Be(result.EstornoId);
-        createdOutbox.EventType.Should().Be(LancamentoEstornoSolicitadoV1.EventType);
-        createdOutbox.CorrelationId.Should().Be(Guid.Parse(command.CorrelationId));
-
+        Assert.NotEqual(Guid.Empty, result.EstornoId);
+        Assert.Equal(lancamento.Id, result.LancamentoOriginalId);
+        Assert.Equal(EstornoLancamentoStatus.Pending.ToString(), result.Status);
+        Assert.Equal($"/api/v1/lancamentos/estornos/{result.EstornoId}", result.StatusUrl);
+        Assert.Equal(lancamento.MerchantId, result.MerchantId);
+        Assert.NotNull(createdEstorno);
+        Assert.Equal(lancamento.Id, createdEstorno!.LancamentoOriginalId);
+        Assert.Equal(lancamento.MerchantId, createdEstorno.MerchantId);
+        Assert.Equal(EstornoLancamentoStatus.Pending, createdEstorno.Status);
+        Assert.NotNull(createdIdem);
+        Assert.Equal(202, createdIdem!.ResponseStatusCode);
+        Assert.Equal(lancamento.Id, createdIdem.LedgerEntryId);
+        Assert.Contains(result.EstornoId.ToString(), createdIdem.ResponseBody);
+        Assert.NotNull(createdOutbox);
+        Assert.Equal("LancamentoEstorno", createdOutbox!.AggregateType);
+        Assert.Equal(result.EstornoId, createdOutbox.AggregateId);
+        Assert.Equal(LancamentoEstornoSolicitadoV1.EventType, createdOutbox.EventType);
+        Assert.Equal(Guid.Parse(command.CorrelationId), createdOutbox.CorrelationId);
         var outboxEvent = JsonSerializer.Deserialize<LancamentoEstornoSolicitadoV1>(createdOutbox.Payload, JsonOptions);
-        outboxEvent.Should().NotBeNull();
-        outboxEvent!.EstornoId.Should().Be(result.EstornoId);
-        outboxEvent.LancamentoOriginalId.Should().Be(lancamento.Id);
-        outboxEvent.Status.Should().Be("Pending");
-        outboxEvent.Motivo.Should().Be(command.Motivo);
-
+        Assert.NotNull(outboxEvent);
+        Assert.Equal(result.EstornoId, outboxEvent!.EstornoId);
+        Assert.Equal(lancamento.Id, outboxEvent.LancamentoOriginalId);
+        Assert.Equal("Pending", outboxEvent.Status);
+        Assert.Equal(command.Motivo, outboxEvent.Motivo);
         ledgerRepo.VerifyAll();
         estornoRepo.VerifyAll();
         idemRepo.VerifyAll();
@@ -116,8 +109,7 @@ public sealed class SolicitarEstornoLancamentoHandlerTests
         var sut = CreateSut(ledgerRepo, estornoRepo, idemRepo, outboxRepo, uow);
 
         var act = async () => await sut.Handle(command, CancellationToken.None);
-
-        await act.Should().ThrowAsync<NotFoundException>();
+        await Assert.ThrowsAsync<NotFoundException>(act);
     }
 
     [Fact]
@@ -148,8 +140,8 @@ public sealed class SolicitarEstornoLancamentoHandlerTests
 
         var act = async () => await sut.Handle(command, CancellationToken.None);
 
-        await act.Should().ThrowAsync<ConflictException>()
-            .WithMessage("*solicitacao ativa*");
+        var ex = await Assert.ThrowsAsync<ConflictException>(act);
+        Assert.Contains("solicitacao ativa", ex.Message);
     }
 
     [Fact]
@@ -190,8 +182,7 @@ public sealed class SolicitarEstornoLancamentoHandlerTests
         var sut = CreateSut(ledgerRepo, estornoRepo, idemRepo, outboxRepo, uow);
 
         var result = await sut.Handle(command, CancellationToken.None);
-
-        result.Should().Be(expected);
+        Assert.Equal(expected, result);
         estornoRepo.VerifyNoOtherCalls();
         outboxRepo.VerifyNoOtherCalls();
         uow.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);

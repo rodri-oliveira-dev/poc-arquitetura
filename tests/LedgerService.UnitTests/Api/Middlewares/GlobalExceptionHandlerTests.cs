@@ -1,6 +1,5 @@
 using System.Text.Json;
 
-using FluentAssertions;
 
 using FluentValidation;
 using FluentValidation.Results;
@@ -33,15 +32,13 @@ public sealed class GlobalExceptionHandlerTests
         });
 
         var handled = await sut.TryHandleAsync(ctx, ex, CancellationToken.None);
-
-        handled.Should().BeTrue();
-        ctx.Response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
-
+        Assert.True(handled);
+        Assert.Equal(StatusCodes.Status400BadRequest, ctx.Response.StatusCode);
         ctx.Response.Body.Position = 0;
         using var reader = new StreamReader(ctx.Response.Body);
         using var doc = JsonDocument.Parse(await reader.ReadToEndAsync());
-        doc.RootElement.GetProperty("errors").GetProperty("merchantId").GetArrayLength().Should().Be(2);
-        doc.RootElement.GetProperty("correlationId").GetString().Should().NotBeNullOrWhiteSpace();
+        Assert.Equal(2, doc.RootElement.GetProperty("errors").GetProperty("merchantId").GetArrayLength());
+        Assert.False(string.IsNullOrWhiteSpace(doc.RootElement.GetProperty("correlationId").GetString()));
     }
 
     [Theory()]
@@ -59,8 +56,7 @@ public sealed class GlobalExceptionHandlerTests
         var ex = (Exception)Activator.CreateInstance(exType, "boom")!;
 
         var handled = await sut.TryHandleAsync(ctx, ex, CancellationToken.None);
-
-        handled.Should().BeTrue();
-        ctx.Response.StatusCode.Should().Be(expectedStatus);
+        Assert.True(handled);
+        Assert.Equal(expectedStatus, ctx.Response.StatusCode);
     }
 }

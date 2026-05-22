@@ -14,6 +14,8 @@ services:
   k6:
     image: docker.io/grafana/k6:1.7.1
     container_name: poc-k6
+    profiles:
+      - k6
     working_dir: /scripts
     entrypoint: [ "k6" ]
     deploy:
@@ -28,5 +30,9 @@ services:
       - ./.env.k6.auto:/.env.k6.auto:ro
     env_file:
       - ./.env.k6.auto
+    environment:
+      USERNAME: "${AUTH_POC_USERNAME:-local_user}"
+      PASSWORD: "${AUTH_POC_PASSWORD:-local_password}"
+      SCOPE: "${AUTH_POC_SCOPE:-ledger.write balance.read}"
     networks:
       - poc-net

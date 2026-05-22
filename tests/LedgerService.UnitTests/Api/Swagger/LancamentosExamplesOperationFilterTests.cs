@@ -1,12 +1,11 @@
 using System.Reflection;
-using FluentAssertions;
 using LedgerService.Api.Controllers;
 using LedgerService.Api.Swagger;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
-using Microsoft.OpenApi.Any;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using Swashbuckle.AspNetCore.SwaggerGen;
+using System.Text.Json.Nodes;
 
 namespace LedgerService.UnitTests.Api.Swagger;
 
@@ -21,18 +20,13 @@ public sealed class LancamentosExamplesOperationFilterTests
 
         sut.Apply(operation, context);
 
-        var requestExample = operation.RequestBody!.Content["application/json"].Example
-            .Should().BeOfType<OpenApiObject>().Subject;
-        requestExample["merchantId"].Should().BeOfType<OpenApiString>().Which.Value.Should().Be("tese");
-        requestExample["type"].Should().BeOfType<OpenApiString>().Which.Value.Should().Be("CREDIT");
-
-        var createdExample = operation.Responses["201"].Content["application/json"].Example
-            .Should().BeOfType<OpenApiObject>().Subject;
-        createdExample["id"].Should().BeOfType<OpenApiString>().Which.Value.Should().Be("lan_9f3a1b2c");
-
-        var badRequestExample = operation.Responses["400"].Content["application/json"].Example
-            .Should().BeOfType<OpenApiObject>().Subject;
-        badRequestExample["status"].Should().BeOfType<OpenApiInteger>().Which.Value.Should().Be(StatusCodes.Status400BadRequest);
+        var requestExample = Assert.IsType<JsonObject>(operation.RequestBody!.Content["application/json"].Example);
+        Assert.Equal("tese", requestExample["merchantId"]!.GetValue<string>());
+        Assert.Equal("CREDIT", requestExample["type"]!.GetValue<string>());
+        var createdExample = Assert.IsType<JsonObject>(operation.Responses["201"].Content["application/json"].Example);
+        Assert.Equal("lan_9f3a1b2c", createdExample["id"]!.GetValue<string>());
+        var badRequestExample = Assert.IsType<JsonObject>(operation.Responses["400"].Content["application/json"].Example);
+        Assert.Equal(StatusCodes.Status400BadRequest, badRequestExample["status"]!.GetValue<int>());
     }
 
     [Fact]
@@ -44,9 +38,9 @@ public sealed class LancamentosExamplesOperationFilterTests
 
         sut.Apply(operation, context);
 
-        operation.RequestBody!.Content["application/json"].Example.Should().BeNull();
-        operation.Responses["201"].Content["application/json"].Example.Should().BeNull();
-        operation.Responses["400"].Content["application/json"].Example.Should().BeNull();
+        Assert.Null(operation.RequestBody!.Content["application/json"].Example);
+        Assert.Null(operation.Responses["201"].Content["application/json"].Example);
+        Assert.Null(operation.Responses["400"].Content["application/json"].Example);
     }
 
     private static OpenApiOperation CreateOperation()
@@ -55,7 +49,7 @@ public sealed class LancamentosExamplesOperationFilterTests
         {
             RequestBody = new OpenApiRequestBody
             {
-                Content =
+                Content = new Dictionary<string, OpenApiMediaType>
                 {
                     ["application/json"] = new OpenApiMediaType()
                 }
@@ -72,7 +66,7 @@ public sealed class LancamentosExamplesOperationFilterTests
     {
         return new OpenApiResponse
         {
-            Content =
+            Content = new Dictionary<string, OpenApiMediaType>
             {
                 ["application/json"] = new OpenApiMediaType()
             }
@@ -82,7 +76,7 @@ public sealed class LancamentosExamplesOperationFilterTests
     private static OperationFilterContext CreateContext(MethodInfo method)
     {
         var apiDescription = new ApiDescription { RelativePath = "x" };
-        return new OperationFilterContext(apiDescription, new SchemaGenerator(new SchemaGeneratorOptions(), new JsonSerializerDataContractResolver(new System.Text.Json.JsonSerializerOptions())), new SchemaRepository(), method);
+        return new OperationFilterContext(apiDescription, new SchemaGenerator(new SchemaGeneratorOptions(), new JsonSerializerDataContractResolver(new System.Text.Json.JsonSerializerOptions())), new SchemaRepository(), new OpenApiDocument(), method);
     }
 
     private sealed class OtherController

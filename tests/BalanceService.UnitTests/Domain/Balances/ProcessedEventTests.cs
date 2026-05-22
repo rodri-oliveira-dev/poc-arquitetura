@@ -2,7 +2,6 @@ using System.Globalization;
 
 using BalanceService.Domain.Balances;
 using BalanceService.Domain.Exceptions;
-using FluentAssertions;
 
 namespace BalanceService.UnitTests.Domain.Balances;
 
@@ -19,11 +18,10 @@ public sealed class ProcessedEventTests
             merchantId: "merchant-1",
             occurredAt: occurredAt,
             processedAt: processedAt);
-
-        processedEvent.EventId.Should().Be("evt-1");
-        processedEvent.MerchantId.Should().Be("merchant-1");
-        processedEvent.OccurredAt.Should().Be(occurredAt);
-        processedEvent.ProcessedAt.Should().Be(processedAt);
+        Assert.Equal("evt-1", processedEvent.EventId);
+        Assert.Equal("merchant-1", processedEvent.MerchantId);
+        Assert.Equal(occurredAt, processedEvent.OccurredAt);
+        Assert.Equal(processedAt, processedEvent.ProcessedAt);
     }
 
     [Theory]
@@ -38,6 +36,7 @@ public sealed class ProcessedEventTests
 
         var act = () => new ProcessedEvent(eventId, merchantId, occurredAt, processedAt);
 
-        act.Should().Throw<DomainException>().WithMessage($"*{expectedMessage}*");
+        var ex = Assert.Throws<DomainException>(act);
+        Assert.Contains(expectedMessage, ex.Message);
     }
 }

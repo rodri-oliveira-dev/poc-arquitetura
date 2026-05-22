@@ -12,7 +12,7 @@ O target e idempotente, roda apos o build, ignora CI (`CI=true`) e nao falha o b
 
 - `commit-msg`: valida a primeira linha da mensagem de commit com Conventional Commits.
 - `post-merge`: apos `git merge` ou `git pull`, restaura as tools locais e as dependencias da solution.
-- `pre-push`: executa restore, build, testes com cobertura e falha se a cobertura total de linhas ou a cobertura dos assemblies Worker ficar abaixo de 80% quando houver alteracoes impactantes.
+- `pre-push`: executa restore, build e testes sem cobertura quando houver alteracoes impactantes. A cobertura completa e opt-in com `PRE_PUSH_COVERAGE=true`.
 
 ## Politica do post-merge
 
@@ -29,13 +29,15 @@ Isso reinstala ferramentas versionadas em `dotnet-tools.json` quando necessario 
 
 ## Politica do pre-push
 
-Antes de executar validacoes pesadas, o `pre-push` tenta identificar os arquivos alterados entre o branch local e o upstream/remoto:
+Antes de executar validacoes, o `pre-push` tenta identificar os arquivos alterados entre o branch local e o upstream/remoto:
 
 - em pushes normais, usa o intervalo informado pelo Git para comparar o SHA remoto com o SHA local;
-- em execucao manual, compara `@{u}...HEAD`;
-- se nao houver upstream/remoto configurado, ou se o diff nao puder ser calculado com seguranca, executa as validacoes completas.
+- quando o intervalo remoto nao esta disponivel, tenta calcular o merge-base contra o upstream atual;
+- se a branch ainda nao tem upstream configurado, tenta calcular o merge-base contra `origin/HEAD`;
+- se `origin/HEAD` nao estiver disponivel, tenta calcular o merge-base contra `origin/main`;
+- se nenhuma base segura estiver disponivel, executa as validacoes por seguranca.
 
-O hook executa restore, build, testes e cobertura quando encontra qualquer arquivo impactante, incluindo:
+O hook executa restore, build e testes rapidos sem cobertura quando encontra qualquer arquivo impactante, incluindo:
 
 - codigo, projetos e solution: `*.cs`, `*.csproj`, `*.sln`, `*.slnx`;
 - configuracao de build/teste: `*.props`, `*.targets`, `*.runsettings`, `.editorconfig`, `global.json`, `NuGet.config`, `Directory.Build.*`, `Directory.Packages.props`, `dotnet-tools.json`, `coverlet.runsettings`;
@@ -46,7 +48,15 @@ O hook executa restore, build, testes e cobertura quando encontra qualquer arqui
 
 O hook pula build, testes e cobertura quando todas as alteracoes sao claramente nao impactantes, como Markdown, arquivos em `docs/`, imagens de documentacao (`png`, `jpg`, `jpeg`, `gif`, `svg`, `webp`), diagramas Mermaid/LikeC4 e notas textuais que nao entram no build.
 
-Se houver mistura de documentacao com qualquer arquivo impactante, as validacoes completas sao executadas. Em caso de duvida, a regra e validar.
+Se houver mistura de documentacao com qualquer arquivo impactante, as validacoes rapidas sao executadas. Em caso de duvida, a regra e validar.
+
+Para executar tambem o gate completo de cobertura no `pre-push`, habilite explicitamente:
+
+```bash
+PRE_PUSH_COVERAGE=true .githooks/pre-push
+```
+
+Com `PRE_PUSH_COVERAGE=true`, o hook usa `coverlet.runsettings`, grava resultados em `TestResults/pre-push`, consolida a cobertura com ReportGenerator e valida cobertura total e dos assemblies `LedgerService.Worker` e `BalanceService.Worker` contra `COVERAGE_THRESHOLD` (85% por padrao).
 
 ## Padrao de commit
 
@@ -101,7 +111,11 @@ Validar `pre-push`:
 .githooks/pre-push
 ```
 
-O `pre-push` usa `coverlet.runsettings`, grava resultados em `TestResults/pre-push`, consolida a cobertura com ReportGenerator e valida o `Summary.txt`.
+Por padrao, essa execucao manual roda apenas restore, build e testes sem cobertura. Para incluir cobertura:
+
+```bash
+PRE_PUSH_COVERAGE=true .githooks/pre-push
+```
 
 Validar `post-merge` manualmente:
 
@@ -109,13 +123,15 @@ Validar `post-merge` manualmente:
 .githooks/post-merge
 ```
 
-Para forcar a validacao completa manualmente, execute os comandos equivalentes:
+Para executar a validacao rapida manualmente sem passar pelo hook, use os comandos equivalentes:
 
 ```bash
 dotnet restore ./LedgerService.slnx
 dotnet build ./LedgerService.slnx --configuration Release --no-restore
-dotnet test ./LedgerService.slnx --configuration Release --no-build --collect:"XPlat Code Coverage" --settings ./coverlet.runsettings
+dotnet test ./LedgerService.slnx --configuration Release --no-build --no-restore
 ```
+
+Para a validacao completa com cobertura, use `./test.sh`, `./test.ps1` ou `PRE_PUSH_COVERAGE=true .githooks/pre-push`.
 
 ## GitHub Actions
 
@@ -127,7 +143,7 @@ Mudancas em codigo, projetos, solution, build, testes, Docker, workflows, hooks 
 
 - Mensagem de commit invalida: ajuste a primeira linha para `type: descricao` ou `type(scope): descricao`.
 - Build ou testes falhando: corrija o erro local antes de enviar o push.
-- Cobertura abaixo de 80%: adicione ou ajuste testes para cobrir o comportamento alterado.
+- Cobertura abaixo de 85% em execucoes completas: adicione ou ajuste testes para cobrir o comportamento alterado.
 - Ferramentas POSIX indisponiveis: execute os hooks em ambiente compativel com Git Bash no Windows ou shell POSIX no Linux/macOS.
 
 ## Desabilitacao excepcional

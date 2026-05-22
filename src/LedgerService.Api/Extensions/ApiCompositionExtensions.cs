@@ -1,5 +1,6 @@
 using LedgerService.Application;
 using LedgerService.Infrastructure;
+using LedgerService.Api.Contracts.Responses;
 
 namespace LedgerService.Api.Extensions;
 
@@ -25,7 +26,11 @@ public static class ApiCompositionExtensions
             .AddLedgerPersistence(configuration)
             .AddLedgerRepositories();
 
-        services.AddControllers();
+        services.AddControllers()
+            .ConfigureApiBehaviorOptions(options =>
+            {
+                options.InvalidModelStateResponseFactory = ValidationErrorResponseFactory.CreateResult;
+            });
         services.AddEndpointsApiExplorer();
 
         return services;

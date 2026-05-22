@@ -1,7 +1,6 @@
 using Auth.Api.Swagger;
-using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using Swashbuckle.AspNetCore.SwaggerGen;
 using System.Reflection;
 using System.Text.Json;
@@ -34,9 +33,8 @@ public sealed class LoginOperationFilterTests
         var context = CreateContext(relativePath: "health");
 
         sut.Apply(operation, context);
-
-        operation.Extensions.ContainsKey("x-valid-scopes").Should().BeFalse();
-        operation.RequestBody.Content["application/json"].Example.Should().BeNull();
+        Assert.Null(operation.Extensions);
+        Assert.Null(operation.RequestBody.Content["application/json"].Example);
     }
 
     [Fact]
@@ -63,12 +61,11 @@ public sealed class LoginOperationFilterTests
         var context = CreateContext(relativePath: "auth/login");
 
         sut.Apply(operation, context);
-
-        operation.Extensions.ContainsKey("x-valid-scopes").Should().BeTrue();
-        operation.RequestBody.Content["application/json"].Example.Should().NotBeNull();
-        operation.Responses["200"].Content["application/json"].Example.Should().NotBeNull();
-        operation.Responses["400"].Content["application/json"].Example.Should().NotBeNull();
-        operation.Responses["401"].Content["application/json"].Example.Should().NotBeNull();
+        Assert.True(operation.Extensions.ContainsKey("x-valid-scopes"));
+        Assert.NotNull(operation.RequestBody.Content["application/json"].Example);
+        Assert.NotNull(operation.Responses["200"].Content["application/json"].Example);
+        Assert.NotNull(operation.Responses["400"].Content["application/json"].Example);
+        Assert.NotNull(operation.Responses["401"].Content["application/json"].Example);
     }
 
     private static OperationFilterContext CreateContext(string relativePath)
@@ -82,7 +79,7 @@ public sealed class LoginOperationFilterTests
         // Então usamos um método fake.
         var method = typeof(LoginOperationFilterTests).GetMethod(nameof(Dummy), BindingFlags.NonPublic | BindingFlags.Static)!;
 
-        return new OperationFilterContext(apiDescription, new SchemaGenerator(new SchemaGeneratorOptions(), new JsonSerializerDataContractResolver(new JsonSerializerOptions())), new SchemaRepository(), method);
+        return new OperationFilterContext(apiDescription, new SchemaGenerator(new SchemaGeneratorOptions(), new JsonSerializerDataContractResolver(new JsonSerializerOptions())), new SchemaRepository(), new OpenApiDocument(), method);
     }
 
     private static void Dummy() { }

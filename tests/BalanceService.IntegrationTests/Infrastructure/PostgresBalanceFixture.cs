@@ -12,8 +12,7 @@ namespace BalanceService.IntegrationTests.Infrastructure;
 
 public sealed class PostgresBalanceFixture : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder()
-        .WithImage("docker.io/postgres:16")
+    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("docker.io/postgres:16")
         .WithDatabase("dbBalance")
         .WithUsername("userBalance")
         .WithPassword("Balance123")
@@ -21,7 +20,7 @@ public sealed class PostgresBalanceFixture : IAsyncLifetime
 
     public string ConnectionString => _postgres.GetConnectionString();
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _postgres.StartAsync();
 
@@ -29,7 +28,7 @@ public sealed class PostgresBalanceFixture : IAsyncLifetime
         await db.Database.MigrateAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _postgres.DisposeAsync();
     }

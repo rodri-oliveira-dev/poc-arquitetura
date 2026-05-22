@@ -4,8 +4,8 @@ param(
   [string]$LedgerBaseUrl = "http://localhost:5226",
   [string]$BalanceBaseUrl = "http://localhost:5228",
   [string]$JaegerBaseUrl = "http://localhost:16686",
-  [string]$Username = "poc-usuario",
-  [string]$Password = "Poc#123",
+  [string]$Username = "local_user",
+  [string]$Password = "local_password",
   [string]$Scope = "ledger.write balance.read",
   [string]$MerchantId = "tese",
   [ValidateSet("CREDIT", "DEBIT")]
@@ -18,7 +18,49 @@ param(
 $ErrorActionPreference = "Stop"
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$root = (Resolve-Path (Join-Path $scriptDir ".."))
 $getTokenScript = Join-Path $scriptDir "get-token.ps1"
+
+function Get-LocalEnvValue([string]$Name) {
+  $envPath = Join-Path $root ".env"
+  if (-not (Test-Path $envPath)) {
+    return ""
+  }
+
+  foreach ($line in Get-Content -Path $envPath) {
+    $trimmed = $line.Trim()
+    if ([string]::IsNullOrWhiteSpace($trimmed) -or $trimmed.StartsWith("#")) {
+      continue
+    }
+
+    $separatorIndex = $trimmed.IndexOf("=")
+    if ($separatorIndex -le 0) {
+      continue
+    }
+
+    $key = $trimmed.Substring(0, $separatorIndex).Trim()
+    if ($key -eq $Name) {
+      return $trimmed.Substring($separatorIndex + 1).Trim().Trim('"').Trim("'")
+    }
+  }
+
+  return ""
+}
+
+function Get-LocalConfigValue([string]$Name, [string]$DefaultValue) {
+  $value = [System.Environment]::GetEnvironmentVariable($Name, "Process")
+  if ([string]::IsNullOrWhiteSpace($value)) {
+    $value = Get-LocalEnvValue $Name
+  }
+  if ([string]::IsNullOrWhiteSpace($value)) {
+    return $DefaultValue
+  }
+
+  return $value
+}
+
+$balanceDbUser = Get-LocalConfigValue "BALANCE_DB_USER" "userBalance"
+$balanceDbName = Get-LocalConfigValue "BALANCE_DB_NAME" "dbBalance"
 
 function Invoke-WithEnv([hashtable]$Values, [scriptblock]$Script) {
   $previous = @{}
@@ -180,7 +222,7 @@ LIMIT 1;
 "@
 
 $processedRow = Wait-Until "processed_events no Balance" {
-  Invoke-PostgresScalar "balance-db" "userBalance" "dbBalance" $processedSql
+  Invoke-PostgresScalar "balance-db" $balanceDbUser $balanceDbName $processedSql
 } {
   param($value)
   $value -match [Regex]::Escape($ledgerEntryId)
@@ -195,7 +237,7 @@ WHERE merchant_id = '$MerchantId' AND date = DATE '$balanceDate'
 LIMIT 1;
 "@
 
-$balanceRow = Invoke-PostgresScalar "balance-db" "userBalance" "dbBalance" $balanceSql
+$balanceRow = Invoke-PostgresScalar "balance-db" $balanceDbUser $balanceDbName $balanceSql
 Write-Host "Daily balance DB: $balanceRow"
 
 Write-Host "Consultando BalanceService.Api..."

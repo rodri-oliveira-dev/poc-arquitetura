@@ -15,16 +15,19 @@ public static class CreateLancamentoBind
         HttpContext httpContext,
         string idempotencyKey,
         string? correlationId,
-        CreateLancamentoRequest request,
+        CreateLancamentoRequest? request,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(httpContext);
+
         ValidateTransportHeaders(idempotencyKey);
+        var validRequest = ValidateRequestBody(request);
 
         var resolvedCorrelationId = string.IsNullOrWhiteSpace(correlationId)
             ? httpContext.Request.Headers[CorrelationIdMiddleware.HeaderName].ToString()
             : correlationId;
 
-        var input = CreateLancamentoInputMapper.ToInput(request, idempotencyKey, resolvedCorrelationId);
+        var input = CreateLancamentoInputMapper.ToInput(validRequest, idempotencyKey, resolvedCorrelationId);
 
         // Validação de request (payload normalizado), sem regras estritamente de transporte HTTP.
         var validator = httpContext.RequestServices.GetRequiredService<IValidator<CreateLancamentoInput>>();
@@ -50,5 +53,16 @@ public static class CreateLancamentoBind
                 new ValidationFailure(nameof(CreateLancamentoInput.IdempotencyKey), "Idempotency-Key must be a valid UUID.")
             });
         }
+    }
+
+    private static CreateLancamentoRequest ValidateRequestBody(CreateLancamentoRequest? request)
+    {
+        if (request is not null)
+            return request;
+
+        throw new ValidationException(new[]
+        {
+            new ValidationFailure("$", "Request body is required.")
+        });
     }
 }

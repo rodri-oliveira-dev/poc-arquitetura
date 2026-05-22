@@ -61,8 +61,8 @@ Suba o `Auth.Api` via compose ou `dotnet run` e solicite um token:
 curl -s -X POST http://localhost:5030/auth/login \
   -H "Content-Type: application/json" \
   -d '{
-    "username": "poc-usuario",
-    "password": "Poc#123",
+    "username": "local_user",
+    "password": "local_password",
     "scope": "ledger.write balance.read"
   }'
 ```

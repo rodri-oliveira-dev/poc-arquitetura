@@ -1,4 +1,3 @@
-using FluentAssertions;
 using LedgerService.Application.Lancamentos.Commands;
 
 namespace LedgerService.UnitTests.Application.Lancamentos.Commands;
@@ -11,8 +10,7 @@ public sealed class SolicitarReprocessamentoLancamentosCommandValidatorTests
     public void Should_accept_valid_command()
     {
         var result = _validator.Validate(ValidCommand());
-
-        result.IsValid.Should().BeTrue();
+        Assert.True(result.IsValid);
     }
 
     [Theory]
@@ -24,9 +22,8 @@ public sealed class SolicitarReprocessamentoLancamentosCommandValidatorTests
         var command = ValidCommand() with { Motivo = motivo };
 
         var result = _validator.Validate(command);
-
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == nameof(SolicitarReprocessamentoLancamentosCommand.Motivo));
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.PropertyName == nameof(SolicitarReprocessamentoLancamentosCommand.Motivo));
     }
 
     [Fact]
@@ -39,9 +36,8 @@ public sealed class SolicitarReprocessamentoLancamentosCommandValidatorTests
         };
 
         var result = _validator.Validate(command);
-
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == nameof(SolicitarReprocessamentoLancamentosCommand.DataFinal));
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.PropertyName == nameof(SolicitarReprocessamentoLancamentosCommand.DataFinal));
     }
 
     [Fact]
@@ -54,9 +50,8 @@ public sealed class SolicitarReprocessamentoLancamentosCommandValidatorTests
         };
 
         var result = _validator.Validate(command);
-
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == nameof(SolicitarReprocessamentoLancamentosCommand.DataFinal));
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.PropertyName == nameof(SolicitarReprocessamentoLancamentosCommand.DataFinal));
     }
 
     [Fact]
@@ -65,9 +60,8 @@ public sealed class SolicitarReprocessamentoLancamentosCommandValidatorTests
         var command = ValidCommand() with { IdempotencyKey = "invalid" };
 
         var result = _validator.Validate(command);
-
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == nameof(SolicitarReprocessamentoLancamentosCommand.IdempotencyKey));
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.PropertyName == nameof(SolicitarReprocessamentoLancamentosCommand.IdempotencyKey));
     }
 
     private static SolicitarReprocessamentoLancamentosCommand ValidCommand()

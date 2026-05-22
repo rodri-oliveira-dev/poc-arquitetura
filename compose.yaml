@@ -19,7 +19,7 @@ services:
     environment:
       POSTGRES_DB: appdb
       POSTGRES_USER: appuser
-      POSTGRES_PASSWORD: app123
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-local_dev_password}"
     ports:
       # Porta exposta para uso local (psql, migrations, etc.)
       # Obs: pode conflitar com um Postgres já rodando no host.
@@ -44,13 +44,13 @@ services:
     image: docker.io/postgres:16
     container_name: poc-balance-db
     environment:
-      POSTGRES_DB: dbBalance
-      POSTGRES_USER: userBalance
-      POSTGRES_PASSWORD: Balance123
+      POSTGRES_DB: "${BALANCE_DB_NAME:-dbBalance}"
+      POSTGRES_USER: "${BALANCE_DB_USER:-userBalance}"
+      POSTGRES_PASSWORD: "${BALANCE_DB_PASSWORD:-local_dev_password}"
     ports:
-      # Mantém a porta 5433 no host, como no appsettings original (apenas para conveniência local)
+      # Mantem a porta 15433 no host por padrao, apenas para conveniencia local.
       # Obs: pode conflitar com um Postgres já rodando no host.
-      - "15433:5432"
+      - "${BALANCE_DB_HOST_PORT:-15433}:5432"
     deploy:
       resources:
         limits:
@@ -62,7 +62,7 @@ services:
     networks:
       - poc-net
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U userBalance -d dbBalance" ]
+      test: [ "CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\"" ]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -115,7 +115,8 @@ services:
     image: docker.io/apache/kafka:3.7.0
     container_name: poc-kafka-init-topics
     depends_on:
-      - kafka
+      kafka:
+        condition: service_healthy
     deploy:
       resources:
         limits:
@@ -147,6 +148,8 @@ services:
   jaeger:
     image: jaegertracing/all-in-one:1.76.0
     container_name: poc-jaeger
+    profiles:
+      - observability
     environment:
       COLLECTOR_OTLP_ENABLED: "true"
     ports:
@@ -165,9 +168,12 @@ services:
   otel-collector:
     image: docker.io/otel/opentelemetry-collector-contrib:0.152.0
     container_name: poc-otel-collector
+    profiles:
+      - observability
     command: [ "--config=/etc/otelcol/config.yaml" ]
     depends_on:
-      - jaeger
+      jaeger:
+        condition: service_started
     volumes:
       - ./observability/otel-collector-config.yaml:/etc/otelcol/config.yaml:ro
     expose:
@@ -186,9 +192,13 @@ services:
   prometheus:
     image: docker.io/prom/prometheus:v3.8.0
     container_name: poc-prometheus
+    profiles:
+      - observability
     depends_on:
-      - otel-collector
-      - alertmanager
+      otel-collector:
+        condition: service_started
+      alertmanager:
+        condition: service_started
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
     ports:
@@ -207,6 +217,8 @@ services:
   loki:
     image: docker.io/grafana/loki:3.7.0
     container_name: poc-loki
+    profiles:
+      - observability
     command:
       - "-config.file=/etc/loki/loki-config.yaml"
     ports:
@@ -225,13 +237,16 @@ services:
   alloy:
     image: docker.io/grafana/alloy:v1.16.0
     container_name: poc-alloy
+    profiles:
+      - observability
     command:
       - "run"
       - "--server.http.listen-addr=0.0.0.0:12345"
       - "--storage.path=/var/lib/alloy/data"
       - "/etc/alloy/config.alloy"
     depends_on:
-      - loki
+      loki:
+        condition: service_started
     ports:
       - "12345:12345"
     volumes:
@@ -250,6 +265,8 @@ services:
   alertmanager:
     image: docker.io/prom/alertmanager:v0.29.0
     container_name: poc-alertmanager
+    profiles:
+      - observability
     command:
       - "--config.file=/etc/alertmanager/alertmanager.yml"
       - "--storage.path=/alertmanager"
@@ -269,13 +286,18 @@ services:
   grafana:
     image: docker.io/grafana/grafana:12.3.0
     container_name: poc-grafana
+    profiles:
+      - observability
     depends_on:
-      - prometheus
-      - loki
-      - jaeger
+      prometheus:
+        condition: service_started
+      loki:
+        condition: service_started
+      jaeger:
+        condition: service_started
     environment:
       GF_SECURITY_ADMIN_USER: "admin"
-      GF_SECURITY_ADMIN_PASSWORD: "admin"
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD:-local_dev_password}"
       GF_PLUGINS_PREINSTALL_DISABLED: "true"
     ports:
       - "3000:3000"
@@ -299,10 +321,12 @@ services:
       dockerfile: src/LedgerService.Api/Dockerfile
     container_name: poc-ledger-service
     depends_on:
-      - ledger-db
-      - kafka
-      - kafka-init-topics
-      - otel-collector
+      ledger-db:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      kafka-init-topics:
+        condition: service_completed_successfully
     environment:
       ASPNETCORE_URLS: "http://+:8080"
       ASPNETCORE_ENVIRONMENT: "Development"
@@ -314,8 +338,8 @@ services:
       Jwt__RequireHttpsMetadata: "false"
 
       # Overrides dos appsettings (no container, 127.0.0.1 aponta para ele mesmo)
-      ConnectionStrings__DefaultConnection: "Host=ledger-db;Port=5432;Database=appdb;Username=appuser;Password=app123"
-      Observability__OpenTelemetry__Enabled: "true"
+      ConnectionStrings__DefaultConnection: "Host=ledger-db;Port=5432;Database=appdb;Username=appuser;Password=${POSTGRES_PASSWORD:-local_dev_password}"
+      Observability__OpenTelemetry__Enabled: "${OTEL_ENABLED:-false}"
       Observability__OpenTelemetry__UseConsoleExporter: "false"
       Observability__OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"
       Observability__OpenTelemetry__ServiceName: "LedgerService.Api"
@@ -337,20 +361,22 @@ services:
       dockerfile: src/LedgerService.Worker/Dockerfile
     container_name: poc-ledger-worker
     depends_on:
-      - ledger-db
-      - kafka
-      - kafka-init-topics
-      - otel-collector
+      ledger-db:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      kafka-init-topics:
+        condition: service_completed_successfully
     environment:
       DOTNET_ENVIRONMENT: "Development"
 
       # Overrides dos appsettings (no container, 127.0.0.1 aponta para ele mesmo)
-      ConnectionStrings__DefaultConnection: "Host=ledger-db;Port=5432;Database=appdb;Username=appuser;Password=app123"
+      ConnectionStrings__DefaultConnection: "Host=ledger-db;Port=5432;Database=appdb;Username=appuser;Password=${POSTGRES_PASSWORD:-local_dev_password}"
       Kafka__Producer__BootstrapServers: "kafka:9092"
       Kafka__Producer__SecurityProtocol: "Plaintext"
       Reprocessamentos__Consumer__BootstrapServers: "kafka:9092"
       Reprocessamentos__Consumer__SecurityProtocol: "Plaintext"
-      Observability__OpenTelemetry__Enabled: "true"
+      Observability__OpenTelemetry__Enabled: "${OTEL_ENABLED:-false}"
       Observability__OpenTelemetry__UseConsoleExporter: "false"
       Observability__OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"
       Observability__OpenTelemetry__ServiceName: "LedgerService.Worker"
@@ -369,10 +395,12 @@ services:
       dockerfile: src/BalanceService.Api/Dockerfile
     container_name: poc-balance-service
     depends_on:
-      - balance-db
-      - kafka
-      - kafka-init-topics
-      - otel-collector
+      balance-db:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      kafka-init-topics:
+        condition: service_completed_successfully
     environment:
       ASPNETCORE_URLS: "http://+:8080"
       ASPNETCORE_ENVIRONMENT: "Development"
@@ -383,8 +411,8 @@ services:
       Jwt__RequireHttpsMetadata: "false"
 
       # Overrides dos appsettings
-      ConnectionStrings__DefaultConnection: "Host=balance-db;Port=5432;Database=dbBalance;Username=userBalance;Password=Balance123"
-      Observability__OpenTelemetry__Enabled: "true"
+      ConnectionStrings__DefaultConnection: "Host=${BALANCE_DB_HOST:-balance-db};Port=${BALANCE_DB_PORT:-5432};Database=${BALANCE_DB_NAME:-dbBalance};Username=${BALANCE_DB_USER:-userBalance};Password=${BALANCE_DB_PASSWORD:-local_dev_password}"
+      Observability__OpenTelemetry__Enabled: "${OTEL_ENABLED:-false}"
       Observability__OpenTelemetry__UseConsoleExporter: "false"
       Observability__OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"
       Observability__OpenTelemetry__ServiceName: "BalanceService.Api"
@@ -405,18 +433,20 @@ services:
       dockerfile: src/BalanceService.Worker/Dockerfile
     container_name: poc-balance-worker
     depends_on:
-      - balance-db
-      - kafka
-      - kafka-init-topics
-      - otel-collector
+      balance-db:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      kafka-init-topics:
+        condition: service_completed_successfully
     environment:
       DOTNET_ENVIRONMENT: "Development"
 
       # Overrides dos appsettings (no container, 127.0.0.1 aponta para ele mesmo)
-      ConnectionStrings__DefaultConnection: "Host=balance-db;Port=5432;Database=dbBalance;Username=userBalance;Password=Balance123"
+      ConnectionStrings__DefaultConnection: "Host=${BALANCE_DB_HOST:-balance-db};Port=${BALANCE_DB_PORT:-5432};Database=${BALANCE_DB_NAME:-dbBalance};Username=${BALANCE_DB_USER:-userBalance};Password=${BALANCE_DB_PASSWORD:-local_dev_password}"
       Kafka__Consumer__BootstrapServers: "kafka:9092"
       Kafka__Consumer__SecurityProtocol: "Plaintext"
-      Observability__OpenTelemetry__Enabled: "true"
+      Observability__OpenTelemetry__Enabled: "${OTEL_ENABLED:-false}"
       Observability__OpenTelemetry__UseConsoleExporter: "false"
       Observability__OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"
       Observability__OpenTelemetry__ServiceName: "BalanceService.Worker"
@@ -434,17 +464,15 @@ services:
       context: .
       dockerfile: src/Auth.Api/Dockerfile
     container_name: poc-auth-api
-    depends_on:
-      - otel-collector
     environment:
       ASPNETCORE_URLS: "http://+:8080"
       ASPNETCORE_ENVIRONMENT: "Development"
       # Persistência da chave dentro do volume
       Auth__KeyPath: "/data/keys/auth-rsa-key.json"
       # Credenciais locais de POC. Nao ha fallback em appsettings.json/producao.
-      Auth__DevelopmentUser__Username: "poc-usuario"
-      Auth__DevelopmentUser__Password: "Poc#123"
-      Observability__OpenTelemetry__Enabled: "true"
+      Auth__DevelopmentUser__Username: "${AUTH_POC_USERNAME:-local_user}"
+      Auth__DevelopmentUser__Password: "${AUTH_POC_PASSWORD:-local_password}"
+      Observability__OpenTelemetry__Enabled: "${OTEL_ENABLED:-false}"
       Observability__OpenTelemetry__UseConsoleExporter: "false"
       Observability__OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"
       Observability__OpenTelemetry__ServiceName: "Auth.Api"

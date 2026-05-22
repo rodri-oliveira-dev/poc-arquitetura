@@ -1,5 +1,4 @@
 using BalanceService.Application.Abstractions.Time;
-using FluentAssertions;
 
 namespace BalanceService.UnitTests.Application.Common.Time;
 
@@ -12,7 +11,6 @@ public sealed class SystemClockTests
 
         var expected = DateTimeOffset.UtcNow;
         var actual = sut.UtcNow;
-
-        actual.Should().BeCloseTo(expected, precision: TimeSpan.FromSeconds(2));
+        Assert.InRange(actual, expected - TimeSpan.FromSeconds(2), expected + TimeSpan.FromSeconds(2));
     }
 }

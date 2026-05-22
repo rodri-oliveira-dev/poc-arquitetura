@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 
-using FluentAssertions;
 using LedgerService.Api.Contracts.Requests;
 using LedgerService.Api.Contracts.Responses;
 using LedgerService.Application.Lancamentos.Commands;
@@ -28,12 +27,12 @@ public sealed class EstornoLancamentoConcurrencyTests : IAsyncLifetime
         _factory = new PostgresLedgerApiFactory(fixture.ConnectionString);
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _factory.CleanAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _factory.DisposeAsync();
     }
@@ -52,11 +51,9 @@ public sealed class EstornoLancamentoConcurrencyTests : IAsyncLifetime
         gate.SetResult();
         var responses = await Task.WhenAll(first, second);
 
-        responses.Select(x => x.StatusCode).Should().BeEquivalentTo(
-        [
-            HttpStatusCode.Accepted,
-            HttpStatusCode.Conflict
-        ]);
+        Assert.Equivalent(
+            new[] { HttpStatusCode.Accepted, HttpStatusCode.Conflict },
+            responses.Select(x => x.StatusCode));
 
         await using var scope = _factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -64,21 +61,17 @@ public sealed class EstornoLancamentoConcurrencyTests : IAsyncLifetime
             .AsNoTracking()
             .Where(x => x.LancamentoOriginalId == lancamento.Id)
             .ToListAsync();
-
-        estornos.Should().ContainSingle();
-        estornos.Count(x => x.Status is EstornoLancamentoStatus.Pending or EstornoLancamentoStatus.Processing)
-            .Should()
-            .Be(1);
+        Assert.Single(estornos);
+        Assert.Equal(1, estornos.Count(x => x.Status is EstornoLancamentoStatus.Pending or EstornoLancamentoStatus.Processing));
 
         var created = await responses.Single(x => x.StatusCode == HttpStatusCode.Accepted)
             .Content
             .ReadFromJsonAsync<SolicitarEstornoLancamentoResponse>();
-        created.Should().NotBeNull();
-
+        Assert.NotNull(created);
         var requestOutboxCount = await db.OutboxMessages
             .Where(x => x.AggregateId == created!.EstornoId && x.EventType == LancamentoEstornoSolicitadoV1.EventType)
             .CountAsync();
-        requestOutboxCount.Should().Be(1);
+        Assert.Equal(1, requestOutboxCount);
     }
 
     [Fact]
@@ -93,14 +86,13 @@ public sealed class EstornoLancamentoConcurrencyTests : IAsyncLifetime
 
         gate.SetResult();
         var claimed = await Task.WhenAll(first, second);
-
-        claimed.Sum(x => x.Count).Should().Be(1);
-        claimed.SelectMany(x => x).Should().ContainSingle(x => x.Id == estorno.Id);
+        Assert.Equal(1, claimed.Sum(x => x.Count));
+        Assert.Single(claimed.SelectMany(x => x), x => x.Id == estorno.Id);
 
         await using var scope = _factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var persisted = await db.EstornosLancamentos.AsNoTracking().SingleAsync(x => x.Id == estorno.Id);
-        persisted.Status.Should().Be(EstornoLancamentoStatus.Processing);
+        Assert.Equal(EstornoLancamentoStatus.Processing, persisted.Status);
     }
 
     [Fact]
@@ -119,18 +111,16 @@ public sealed class EstornoLancamentoConcurrencyTests : IAsyncLifetime
         await using var scope = _factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var persisted = await db.EstornosLancamentos.AsNoTracking().SingleAsync(x => x.Id == estorno.Id);
-        persisted.Status.Should().Be(EstornoLancamentoStatus.Completed);
-        persisted.LancamentoCompensatorioId.Should().NotBeNull();
-
+        Assert.Equal(EstornoLancamentoStatus.Completed, persisted.Status);
+        Assert.NotNull(persisted.LancamentoCompensatorioId);
         var compensatingEntries = await db.LedgerEntries
             .Where(x => x.ExternalReference == $"estorno:{lancamento.Id:N}")
             .CountAsync();
-        compensatingEntries.Should().Be(1);
-
+        Assert.Equal(1, compensatingEntries);
         var finalOutboxCount = await db.OutboxMessages
             .Where(x => x.AggregateId == persisted.LancamentoCompensatorioId && x.EventType == LedgerEntryCreatedV1.EventType)
             .CountAsync();
-        finalOutboxCount.Should().Be(1);
+        Assert.Equal(1, finalOutboxCount);
     }
 
     private HttpClient CreateAuthenticatedClient()

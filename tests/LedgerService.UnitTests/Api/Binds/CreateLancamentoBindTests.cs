@@ -1,4 +1,3 @@
-using FluentAssertions;
 using FluentValidation;
 using LedgerService.Api.Contracts.Requests;
 using LedgerService.Api.Contracts.Responses;
@@ -23,9 +22,8 @@ public sealed class CreateLancamentoBindTests
             correlationId: Guid.NewGuid().ToString(),
             request: ValidRequest(),
             cancellationToken: CancellationToken.None);
-
-        var ex = await act.Should().ThrowAsync<ValidationException>();
-        ex.Which.Errors.Should().Contain(e => e.PropertyName == nameof(CreateLancamentoInput.IdempotencyKey));
+        var ex = await Assert.ThrowsAsync<ValidationException>(act);
+        Assert.Contains(ex.Errors, e => e.PropertyName == nameof(CreateLancamentoInput.IdempotencyKey));
     }
 
     [Fact]
@@ -39,9 +37,8 @@ public sealed class CreateLancamentoBindTests
             correlationId: Guid.NewGuid().ToString(),
             request: ValidRequest(),
             cancellationToken: CancellationToken.None);
-
-        var ex = await act.Should().ThrowAsync<ValidationException>();
-        ex.Which.Errors.Should().Contain(e => e.PropertyName == nameof(CreateLancamentoInput.IdempotencyKey));
+        var ex = await Assert.ThrowsAsync<ValidationException>(act);
+        Assert.Contains(ex.Errors, e => e.PropertyName == nameof(CreateLancamentoInput.IdempotencyKey));
     }
 
     [Fact]
@@ -57,9 +54,8 @@ public sealed class CreateLancamentoBindTests
             correlationId: null,
             request: ValidRequest(type: "credit"),
             cancellationToken: CancellationToken.None);
-
-        result.CorrelationId.Should().Be(middlewareCorrelationId);
-        result.Type.Should().Be("CREDIT");
+        Assert.Equal(middlewareCorrelationId, result.CorrelationId);
+        Assert.Equal("CREDIT", result.Type);
     }
 
     private static DefaultHttpContext BuildHttpContext()

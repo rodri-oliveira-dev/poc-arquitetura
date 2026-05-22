@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 
-using FluentAssertions;
 using LedgerService.Api.Contracts.Requests;
 using LedgerService.Api.Contracts.Responses;
 using LedgerService.Application.Lancamentos.Commands;
@@ -38,34 +37,31 @@ public sealed class ReprocessamentosLancamentosEndpointTests : IClassFixture<Led
         using var req = CreateRequest(idempotencyKey);
 
         var res = await _client.SendAsync(req);
-
-        res.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        Assert.Equal(HttpStatusCode.Accepted, res.StatusCode);
         var body = await res.Content.ReadFromJsonAsync<SolicitarReprocessamentoLancamentosResponse>();
-        body.Should().NotBeNull();
-        body!.ReprocessamentoId.Should().NotBeEmpty();
-        body.MerchantId.Should().Be("m1");
-        body.DataInicial.Should().Be(new DateOnly(2026, 5, 1));
-        body.DataFinal.Should().Be(new DateOnly(2026, 5, 6));
-        body.Status.Should().Be("Pending");
-        body.StatusUrl.Should().Be($"/api/v1/lancamentos/reprocessamentos/{body.ReprocessamentoId}");
-        res.Headers.Location?.ToString().Should().Be(body.StatusUrl);
-
+        Assert.NotNull(body);
+        Assert.NotEqual(Guid.Empty, body!.ReprocessamentoId);
+        Assert.Equal("m1", body.MerchantId);
+        Assert.Equal(new DateOnly(2026, 5, 1), body.DataInicial);
+        Assert.Equal(new DateOnly(2026, 5, 6), body.DataFinal);
+        Assert.Equal("Pending", body.Status);
+        Assert.Equal($"/api/v1/lancamentos/reprocessamentos/{body.ReprocessamentoId}", body.StatusUrl);
+        Assert.Equal(body.StatusUrl, res.Headers.Location?.ToString());
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        db.ReprocessamentosLancamentos.Single(x => x.Id == body.ReprocessamentoId).Status
-            .Should()
-            .Be(ReprocessamentoLancamentosStatus.Pending);
-        db.OutboxMessages.Single(x => x.AggregateId == body.ReprocessamentoId).EventType
-            .Should()
-            .Be("ReprocessamentoLancamentosSolicitado.v1");
+        Assert.Equal(
+            ReprocessamentoLancamentosStatus.Pending,
+            db.ReprocessamentosLancamentos.Single(x => x.Id == body.ReprocessamentoId).Status);
+        Assert.Equal(
+            "ReprocessamentoLancamentosSolicitado.v1",
+            db.OutboxMessages.Single(x => x.AggregateId == body.ReprocessamentoId).EventType);
 
         using var replayReq = CreateRequest(idempotencyKey);
         var replayRes = await _client.SendAsync(replayReq);
-
-        replayRes.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        Assert.Equal(HttpStatusCode.Accepted, replayRes.StatusCode);
         var replayBody = await replayRes.Content.ReadFromJsonAsync<SolicitarReprocessamentoLancamentosResponse>();
-        replayBody.Should().BeEquivalentTo(body);
-        replayRes.Headers.Location?.ToString().Should().Be(body.StatusUrl);
+        Assert.Equivalent(body, replayBody);
+        Assert.Equal(body.StatusUrl, replayRes.Headers.Location?.ToString());
     }
 
     [Fact]
@@ -79,10 +75,9 @@ public sealed class ReprocessamentosLancamentosEndpointTests : IClassFixture<Led
             dataFinal: new DateOnly(2026, 5, 1));
 
         var res = await _client.SendAsync(req);
-
-        res.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
         var raw = await res.Content.ReadAsStringAsync();
-        raw.Should().Contain("dataFinal");
+        Assert.Contains("dataFinal", raw);
     }
 
     [Fact]
@@ -93,10 +88,9 @@ public sealed class ReprocessamentosLancamentosEndpointTests : IClassFixture<Led
         using var req = CreateRequest(Guid.NewGuid().ToString(), motivo: "");
 
         var res = await _client.SendAsync(req);
-
-        res.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
         var raw = await res.Content.ReadAsStringAsync();
-        raw.Should().Contain("motivo");
+        Assert.Contains("motivo", raw);
     }
 
     [Fact]
@@ -110,10 +104,9 @@ public sealed class ReprocessamentosLancamentosEndpointTests : IClassFixture<Led
             dataFinal: new DateOnly(2026, 6, 1));
 
         var res = await _client.SendAsync(req);
-
-        res.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
         var raw = await res.Content.ReadAsStringAsync();
-        raw.Should().Contain("31");
+        Assert.Contains("31", raw);
     }
 
     [Fact]
@@ -124,8 +117,7 @@ public sealed class ReprocessamentosLancamentosEndpointTests : IClassFixture<Led
         using var req = CreateRequest(Guid.NewGuid().ToString());
 
         var res = await _client.SendAsync(req);
-
-        res.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
     }
 
     [Fact]
@@ -136,8 +128,7 @@ public sealed class ReprocessamentosLancamentosEndpointTests : IClassFixture<Led
         using var req = CreateRequest(Guid.NewGuid().ToString());
 
         var res = await _client.SendAsync(req);
-
-        res.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        Assert.Equal(HttpStatusCode.Unauthorized, res.StatusCode);
     }
 
     [Fact]
@@ -147,20 +138,18 @@ public sealed class ReprocessamentosLancamentosEndpointTests : IClassFixture<Led
 
         using var createReq = CreateRequest(Guid.NewGuid().ToString());
         var createRes = await _client.SendAsync(createReq);
-        createRes.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        Assert.Equal(HttpStatusCode.Accepted, createRes.StatusCode);
         var created = await createRes.Content.ReadFromJsonAsync<SolicitarReprocessamentoLancamentosResponse>();
-        created.Should().NotBeNull();
-
+        Assert.NotNull(created);
         Authenticate(scopes: "ledger.read");
 
         var res = await _client.GetAsync($"/api/v1/lancamentos/reprocessamentos/{created!.ReprocessamentoId}");
-
-        res.StatusCode.Should().Be(HttpStatusCode.OK);
+        Assert.Equal(HttpStatusCode.OK, res.StatusCode);
         var body = await res.Content.ReadFromJsonAsync<ObterStatusReprocessamentoLancamentosResponse>();
-        body.Should().NotBeNull();
-        body!.ReprocessamentoId.Should().Be(created.ReprocessamentoId);
-        body.Status.Should().Be("Pending");
-        body.Motivo.Should().Be("Correcao de regra de consolidacao");
+        Assert.NotNull(body);
+        Assert.Equal(created.ReprocessamentoId, body!.ReprocessamentoId);
+        Assert.Equal("Pending", body.Status);
+        Assert.Equal("Correcao de regra de consolidacao", body.Motivo);
     }
 
     [Fact]
@@ -169,8 +158,7 @@ public sealed class ReprocessamentosLancamentosEndpointTests : IClassFixture<Led
         Authenticate(scopes: "ledger.read");
 
         var res = await _client.GetAsync($"/api/v1/lancamentos/reprocessamentos/{Guid.NewGuid()}");
-
-        res.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        Assert.Equal(HttpStatusCode.NotFound, res.StatusCode);
     }
 
     [Fact]
@@ -180,15 +168,13 @@ public sealed class ReprocessamentosLancamentosEndpointTests : IClassFixture<Led
 
         using var createReq = CreateRequest(Guid.NewGuid().ToString());
         var createRes = await _client.SendAsync(createReq);
-        createRes.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        Assert.Equal(HttpStatusCode.Accepted, createRes.StatusCode);
         var created = await createRes.Content.ReadFromJsonAsync<SolicitarReprocessamentoLancamentosResponse>();
-        created.Should().NotBeNull();
-
+        Assert.NotNull(created);
         Authenticate(scopes: "ledger.read", merchantIds: "m2");
 
         var res = await _client.GetAsync($"/api/v1/lancamentos/reprocessamentos/{created!.ReprocessamentoId}");
-
-        res.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
     }
 
     [Fact]
@@ -201,10 +187,9 @@ public sealed class ReprocessamentosLancamentosEndpointTests : IClassFixture<Led
 
         using var createReq = CreateRequest(Guid.NewGuid().ToString());
         var createRes = await _client.SendAsync(createReq);
-        createRes.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        Assert.Equal(HttpStatusCode.Accepted, createRes.StatusCode);
         var created = await createRes.Content.ReadFromJsonAsync<SolicitarReprocessamentoLancamentosResponse>();
-        created.Should().NotBeNull();
-
+        Assert.NotNull(created);
         using (var scope = _factory.Services.CreateScope())
         {
             var sender = scope.ServiceProvider.GetRequiredService<ISender>();
@@ -215,17 +200,13 @@ public sealed class ReprocessamentosLancamentosEndpointTests : IClassFixture<Led
         using var assertScope = _factory.Services.CreateScope();
         var db = assertScope.ServiceProvider.GetRequiredService<AppDbContext>();
         var reprocessamento = db.ReprocessamentosLancamentos.Single(x => x.Id == created!.ReprocessamentoId);
-        reprocessamento.Status.Should().Be(ReprocessamentoLancamentosStatus.Completed);
-        reprocessamento.ProcessingStartedAt.Should().NotBeNull();
-        reprocessamento.CompletedAt.Should().NotBeNull();
-
-        db.OutboxMessages
-            .Where(x =>
-                x.AggregateType == "LedgerEntryReprocessamento" &&
-                x.EventType == "LedgerEntryCreated.v1")
-            .Should()
-            .ContainSingle()
-            .Which.AggregateId.Should().Be(eligible.Id);
+        Assert.Equal(ReprocessamentoLancamentosStatus.Completed, reprocessamento.Status);
+        Assert.NotNull(reprocessamento.ProcessingStartedAt);
+        Assert.NotNull(reprocessamento.CompletedAt);
+        var outboxMessage = Assert.Single(db.OutboxMessages.Where(x =>
+            x.AggregateType == "LedgerEntryReprocessamento" &&
+            x.EventType == "LedgerEntryCreated.v1"));
+        Assert.Equal(eligible.Id, outboxMessage.AggregateId);
     }
 
     private void Authenticate(string merchantIds = "m1", string scopes = "ledger.write")

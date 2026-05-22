@@ -1,4 +1,3 @@
-using FluentAssertions;
 using LedgerService.Application.Lancamentos.Commands;
 using LedgerService.Domain.Entities;
 using LedgerService.Domain.Repositories;
@@ -66,8 +65,7 @@ public sealed class EstornoLancamentoProcessorServiceTests
         using var sut = CreateSut(repo.Object, sender.Object);
 
         var act = async () => await sut.ProcessOnceAsync(cts.Token);
-
-        await act.Should().ThrowAsync<OperationCanceledException>();
+        await Assert.ThrowsAsync<OperationCanceledException>(act);
     }
 
     private static EstornoLancamentoProcessorService CreateSut(

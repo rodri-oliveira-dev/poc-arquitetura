@@ -14,17 +14,20 @@ public static class SolicitarReprocessamentoLancamentosBind
         HttpContext httpContext,
         string idempotencyKey,
         string? correlationId,
-        SolicitarReprocessamentoLancamentosRequest request,
+        SolicitarReprocessamentoLancamentosRequest? request,
         IReadOnlyCollection<string> authorizedMerchantIds)
     {
+        ArgumentNullException.ThrowIfNull(httpContext);
+
         ValidateTransportHeaders(idempotencyKey);
+        var validRequest = ValidateRequestBody(request);
 
         var resolvedCorrelationId = string.IsNullOrWhiteSpace(correlationId)
             ? httpContext.Request.Headers[CorrelationIdMiddleware.HeaderName].ToString()
             : correlationId;
 
         return SolicitarReprocessamentoLancamentosMapper.ToCommand(
-            request,
+            validRequest,
             idempotencyKey,
             resolvedCorrelationId,
             authorizedMerchantIds);
@@ -51,5 +54,16 @@ public static class SolicitarReprocessamentoLancamentosBind
                     "Idempotency-Key must be a valid UUID.")
             });
         }
+    }
+
+    private static SolicitarReprocessamentoLancamentosRequest ValidateRequestBody(SolicitarReprocessamentoLancamentosRequest? request)
+    {
+        if (request is not null)
+            return request;
+
+        throw new ValidationException(new[]
+        {
+            new ValidationFailure("$", "Request body is required.")
+        });
     }
 }

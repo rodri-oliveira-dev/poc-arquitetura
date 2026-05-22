@@ -50,9 +50,13 @@ if ([string]::IsNullOrWhiteSpace($envFilePath)) {
 }
 
 $envFile = Read-EnvFile $envFilePath
+$localEnvFile = Read-EnvFile (Join-Path $root ".env")
 
 $authBaseUrl = (Get-EnvOrEmpty "AUTH_BASE_URL")
 $tokenUrl = (Get-EnvOrEmpty "TOKEN_URL")
+$authPocUsername = (Get-EnvOrEmpty "AUTH_POC_USERNAME")
+$authPocPassword = (Get-EnvOrEmpty "AUTH_POC_PASSWORD")
+$authPocScope = (Get-EnvOrEmpty "AUTH_POC_SCOPE")
 $username = (Get-EnvOrEmpty "USERNAME")
 $password = (Get-EnvOrEmpty "PASSWORD")
 $scope = (Get-EnvOrEmpty "SCOPE")
@@ -77,12 +81,22 @@ if (-not [string]::IsNullOrWhiteSpace($tokenOverride)) {
 $useEnvFileAuthBaseUrl = (Get-EnvOrEmpty "USE_ENVFILE_AUTH_BASE_URL").ToLowerInvariant() -eq "true"
 if ($useEnvFileAuthBaseUrl -and [string]::IsNullOrWhiteSpace($authBaseUrl) -and $envFile.ContainsKey("AUTH_BASE_URL")) { $authBaseUrl = $envFile["AUTH_BASE_URL"] }
 if ([string]::IsNullOrWhiteSpace($tokenUrl) -and $envFile.ContainsKey("TOKEN_URL")) { $tokenUrl = $envFile["TOKEN_URL"] }
+if ([string]::IsNullOrWhiteSpace($authPocUsername) -and $localEnvFile.ContainsKey("AUTH_POC_USERNAME")) { $authPocUsername = $localEnvFile["AUTH_POC_USERNAME"] }
+if ([string]::IsNullOrWhiteSpace($authPocPassword) -and $localEnvFile.ContainsKey("AUTH_POC_PASSWORD")) { $authPocPassword = $localEnvFile["AUTH_POC_PASSWORD"] }
+if ([string]::IsNullOrWhiteSpace($authPocScope) -and $localEnvFile.ContainsKey("AUTH_POC_SCOPE")) { $authPocScope = $localEnvFile["AUTH_POC_SCOPE"] }
+if ([string]::IsNullOrWhiteSpace($authPocUsername) -and $envFile.ContainsKey("AUTH_POC_USERNAME")) { $authPocUsername = $envFile["AUTH_POC_USERNAME"] }
+if ([string]::IsNullOrWhiteSpace($authPocPassword) -and $envFile.ContainsKey("AUTH_POC_PASSWORD")) { $authPocPassword = $envFile["AUTH_POC_PASSWORD"] }
+if ([string]::IsNullOrWhiteSpace($authPocScope) -and $envFile.ContainsKey("AUTH_POC_SCOPE")) { $authPocScope = $envFile["AUTH_POC_SCOPE"] }
 if ([string]::IsNullOrWhiteSpace($username) -and $envFile.ContainsKey("USERNAME")) { $username = $envFile["USERNAME"] }
 if ([string]::IsNullOrWhiteSpace($password) -and $envFile.ContainsKey("PASSWORD")) { $password = $envFile["PASSWORD"] }
 if ([string]::IsNullOrWhiteSpace($scope) -and $envFile.ContainsKey("SCOPE")) { $scope = $envFile["SCOPE"] }
 
-if ([string]::IsNullOrWhiteSpace($username)) { $username = "poc-usuario" }
-if ([string]::IsNullOrWhiteSpace($password)) { $password = "Poc#123" }
+if ([string]::IsNullOrWhiteSpace($username)) { $username = $authPocUsername }
+if ([string]::IsNullOrWhiteSpace($password)) { $password = $authPocPassword }
+if ([string]::IsNullOrWhiteSpace($scope)) { $scope = $authPocScope }
+
+if ([string]::IsNullOrWhiteSpace($username)) { $username = "local_user" }
+if ([string]::IsNullOrWhiteSpace($password)) { $password = "local_password" }
 if ([string]::IsNullOrWhiteSpace($scope)) { $scope = "ledger.write balance.read" }
 
 if ([string]::IsNullOrWhiteSpace($tokenUrl)) { $tokenUrl = "/auth/login" }

@@ -45,7 +45,7 @@ Documentacao arquitetural publicada:
 
 - .NET SDK conforme `global.json`.
 - Docker-compatible API para Testcontainers e stack local.
-- CLI `docker` com suporte a `docker compose` para a stack completa local.
+- CLI `docker` com suporte a `docker compose` para a stack local.
 - PostgreSQL e Kafka acessiveis quando rodar APIs e workers fora de container.
 
 O projeto nao exige Docker Desktop como premissa. No Windows sem Docker Desktop, o ambiente recomendado e Rancher Desktop com `moby/dockerd`.
@@ -61,7 +61,7 @@ dotnet build ./LedgerService.slnx --configuration Release --no-restore
 dotnet test ./LedgerService.slnx --configuration Release --no-build --settings ./coverlet.runsettings
 ```
 
-Suba a stack local completa no Windows:
+Suba a stack local minima no Windows:
 
 ```powershell
 ./scripts/start-local-stack.ps1
@@ -75,6 +75,18 @@ No Linux/macOS:
 
 Esse script sobe infraestrutura, aplica migrations pelo host e inicia as APIs depois do schema estar pronto. O passo a passo manual fica em [desenvolvimento local](docs/development/local-development.md).
 
+Para incluir observabilidade local completa:
+
+```powershell
+./scripts/start-local-stack.ps1 -Observability
+```
+
+No Linux/macOS:
+
+```bash
+OBSERVABILITY=true ./scripts/start-local-stack.sh
+```
+
 ## Comandos principais
 
 | Tarefa | Comando |
@@ -84,7 +96,8 @@ Esse script sobe infraestrutura, aplica migrations pelo host e inicia as APIs de
 | Build Release | `dotnet build ./LedgerService.slnx --configuration Release --no-restore` |
 | Testes sem rebuild | `dotnet test ./LedgerService.slnx --configuration Release --no-build --settings ./coverlet.runsettings` |
 | Testes com cobertura e gate | `./test.ps1` ou `./test.sh` |
-| Stack local completa | `./scripts/start-local-stack.ps1` ou `./scripts/start-local-stack.sh` |
+| Stack local minima | `./scripts/start-local-stack.ps1` ou `./scripts/start-local-stack.sh` |
+| Stack com observabilidade | `./scripts/start-local-stack.ps1 -Observability` ou `OBSERVABILITY=true ./scripts/start-local-stack.sh` |
 | Load test smoke | `./scripts/run-loadtests.ps1 -Mode smoke` ou `./scripts/run-loadtests.sh smoke` |
 
 ## Testes

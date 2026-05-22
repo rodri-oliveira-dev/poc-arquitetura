@@ -5,7 +5,6 @@ using BalanceService.Worker.Messaging.Kafka.DeadLetter;
 using BalanceService.Worker.Messaging.Kafka.Processors;
 using BalanceService.Worker.Observability;
 using BalanceService.Worker.Extensions;
-using FluentAssertions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -54,12 +53,11 @@ public sealed class ProcessCompositionPolicyTests
         var services = new ServiceCollection();
 
         services.AddBalanceWorkerComposition(CreateConfiguration(), CreateEnvironment());
-
-        services.Should().Contain(d => d.ServiceType == typeof(LedgerKafkaMessageProcessor));
-        services.Should().Contain(d => d.ServiceType == typeof(IKafkaDeadLetterProducer));
-        services.Should().Contain(d => d.ServiceType == typeof(KafkaMessagingMetrics));
-        services.Should().Contain(d => d.ServiceType == typeof(IDailyBalanceRepository));
-        services.Should().Contain(d => d.ServiceType == typeof(IProcessedEventRepository));
+        Assert.Contains(services, d => d.ServiceType == typeof(LedgerKafkaMessageProcessor));
+        Assert.Contains(services, d => d.ServiceType == typeof(IKafkaDeadLetterProducer));
+        Assert.Contains(services, d => d.ServiceType == typeof(KafkaMessagingMetrics));
+        Assert.Contains(services, d => d.ServiceType == typeof(IDailyBalanceRepository));
+        Assert.Contains(services, d => d.ServiceType == typeof(IProcessedEventRepository));
     }
 
     private static IConfiguration CreateConfiguration(Dictionary<string, string?>? overrides = null)
@@ -100,7 +98,7 @@ file static class HostedServiceAssertions
     public static void ContainHostedService<THostedService>(this IServiceCollection services)
         where THostedService : IHostedService
     {
-        services.Should().Contain(d =>
+        Assert.Contains(services, d =>
             d.ServiceType == typeof(IHostedService) &&
             d.ImplementationType == typeof(THostedService));
     }
@@ -108,7 +106,7 @@ file static class HostedServiceAssertions
     public static void NotContainHostedService<THostedService>(this IServiceCollection services)
         where THostedService : IHostedService
     {
-        services.Should().NotContain(d =>
+        Assert.DoesNotContain(services, d =>
             d.ServiceType == typeof(IHostedService) &&
             d.ImplementationType == typeof(THostedService));
     }

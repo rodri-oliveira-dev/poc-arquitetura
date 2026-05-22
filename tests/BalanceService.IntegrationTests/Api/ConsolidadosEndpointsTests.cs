@@ -8,7 +8,6 @@ using BalanceService.IntegrationTests.Infrastructure.Security;
 using BalanceService.Infrastructure.Persistence;
 using BalanceService.Domain.Balances;
 
-using FluentAssertions;
 
 using Microsoft.Extensions.DependencyInjection;
 
@@ -39,7 +38,9 @@ public sealed class ConsolidadosEndpointsTests : IClassFixture<BalanceApiFactory
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
         var res = await _client.GetAsync("/v1/consolidados/periodo?merchantId=m1&from=bad&to=2026-02-12");
-        res.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
+        var body = await AssertValidationErrorResponseAsync(res);
+        Assert.Contains("from", body.Errors.Keys);
     }
 
     [Fact]
@@ -51,12 +52,11 @@ public sealed class ConsolidadosEndpointsTests : IClassFixture<BalanceApiFactory
         req.Headers.Add("Access-Control-Request-Headers", "Idempotency-Key, X-Correlation-Id");
 
         var res = await _client.SendAsync(req);
-
-        res.StatusCode.Should().Be(HttpStatusCode.NoContent);
-        res.Headers.TryGetValues("Access-Control-Allow-Headers", out var values).Should().BeTrue();
+        Assert.Equal(HttpStatusCode.NoContent, res.StatusCode);
+        Assert.True(res.Headers.TryGetValues("Access-Control-Allow-Headers", out var values));
         var allowedHeaders = string.Join(",", values!).ToLowerInvariant();
-        allowedHeaders.Should().Contain("idempotency-key");
-        allowedHeaders.Should().Contain("x-correlation-id");
+        Assert.Contains("idempotency-key", allowedHeaders);
+        Assert.Contains("x-correlation-id", allowedHeaders);
     }
 
     [Fact]
@@ -70,7 +70,9 @@ public sealed class ConsolidadosEndpointsTests : IClassFixture<BalanceApiFactory
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
         var res = await _client.GetAsync("/v1/consolidados/periodo?merchantId=m1&from=2026-02-12&to=2026-02-10");
-        res.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
+        var body = await AssertValidationErrorResponseAsync(res);
+        Assert.NotEmpty(body.Errors);
     }
 
     [Fact]
@@ -84,8 +86,9 @@ public sealed class ConsolidadosEndpointsTests : IClassFixture<BalanceApiFactory
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
         var res = await _client.GetAsync("/v1/consolidados/periodo?merchantId=m1&from=2026-02-01&to=2026-03-05");
-
-        res.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
+        var body = await AssertValidationErrorResponseAsync(res);
+        Assert.Contains("to", body.Errors.Keys);
     }
 
     [Fact]
@@ -100,7 +103,25 @@ public sealed class ConsolidadosEndpointsTests : IClassFixture<BalanceApiFactory
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
         var res = await _client.GetAsync("/v1/consolidados/diario/bad-date?merchantId=m1");
-        res.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
+        var body = await AssertValidationErrorResponseAsync(res);
+        Assert.Contains("date", body.Errors.Keys);
+    }
+
+    [Fact]
+    public async Task Daily_should_return_400_when_required_query_field_is_missing()
+    {
+        var token = TestJwtTokenFactory.CreateToken(
+            issuer: "https://auth-api",
+            audiences: "balance-api",
+            scopes: "balance.read");
+
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var res = await _client.GetAsync("/v1/consolidados/diario/2026-02-10");
+        Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
+        var body = await AssertValidationErrorResponseAsync(res);
+        Assert.Contains("merchantId", body.Errors.Keys);
     }
 
     [Fact]
@@ -158,18 +179,17 @@ public sealed class ConsolidadosEndpointsTests : IClassFixture<BalanceApiFactory
         var res = await _client.GetAsync($"/v1/consolidados/diario/{date:yyyy-MM-dd}?merchantId={merchantId}");
 
         // Assert
-        res.StatusCode.Should().Be(HttpStatusCode.OK);
-
+        Assert.Equal(HttpStatusCode.OK, res.StatusCode);
         var body = await res.Content.ReadFromJsonAsync<DailyBalanceResponse>();
-        body.Should().NotBeNull();
-        body!.MerchantId.Should().Be(merchantId);
-        body.Date.Should().Be("2026-02-14");
-        body.Currency.Should().Be("BRL");
-        body.TotalCredits.Should().Be("150.00");
-        body.TotalDebits.Should().Be("20.00");
-        body.NetBalance.Should().Be("130.00");
-        body.AsOf.Should().NotBeNullOrWhiteSpace();
-        body.CalculatedAt.Should().NotBeNullOrWhiteSpace();
+        Assert.NotNull(body);
+        Assert.Equal(merchantId, body!.MerchantId);
+        Assert.Equal("2026-02-14", body.Date);
+        Assert.Equal("BRL", body.Currency);
+        Assert.Equal("150.00", body.TotalCredits);
+        Assert.Equal("20.00", body.TotalDebits);
+        Assert.Equal("130.00", body.NetBalance);
+        Assert.False(string.IsNullOrWhiteSpace(body.AsOf));
+        Assert.False(string.IsNullOrWhiteSpace(body.CalculatedAt));
     }
 
     [Fact]
@@ -231,31 +251,40 @@ public sealed class ConsolidadosEndpointsTests : IClassFixture<BalanceApiFactory
             $"/v1/consolidados/periodo?merchantId={merchantId}&from={from:yyyy-MM-dd}&to={to:yyyy-MM-dd}");
 
         // Assert
-        res.StatusCode.Should().Be(HttpStatusCode.OK);
-
+        Assert.Equal(HttpStatusCode.OK, res.StatusCode);
         var body = await res.Content.ReadFromJsonAsync<PeriodBalanceResponse>();
-        body.Should().NotBeNull();
-        body!.MerchantId.Should().Be(merchantId);
-        body.From.Should().Be("2026-02-10");
-        body.To.Should().Be("2026-02-14");
-        body.Currency.Should().Be("BRL");
-        body.TotalCredits.Should().Be("150.00");
-        body.TotalDebits.Should().Be("20.00");
-        body.NetBalance.Should().Be("130.00");
-        body.Items.Should().HaveCount(2);
+        Assert.NotNull(body);
+        Assert.Equal(merchantId, body!.MerchantId);
+        Assert.Equal("2026-02-10", body.From);
+        Assert.Equal("2026-02-14", body.To);
+        Assert.Equal("BRL", body.Currency);
+        Assert.Equal("150.00", body.TotalCredits);
+        Assert.Equal("20.00", body.TotalDebits);
+        Assert.Equal("130.00", body.NetBalance);
+        Assert.Equal(2, body.Items.Count);
+        Assert.Equal("2026-02-10", body.Items[0].Date);
+        Assert.Equal("0.00", body.Items[0].TotalCredits);
+        Assert.Equal("20.00", body.Items[0].TotalDebits);
+        Assert.Equal("-20.00", body.Items[0].NetBalance);
+        Assert.False(string.IsNullOrWhiteSpace(body.Items[0].AsOf));
+        Assert.Equal("2026-02-14", body.Items[1].Date);
+        Assert.Equal("150.00", body.Items[1].TotalCredits);
+        Assert.Equal("0.00", body.Items[1].TotalDebits);
+        Assert.Equal("150.00", body.Items[1].NetBalance);
+        Assert.False(string.IsNullOrWhiteSpace(body.Items[1].AsOf));        Assert.False(string.IsNullOrWhiteSpace(body.CalculatedAt));
+    }
 
-        body.Items[0].Date.Should().Be("2026-02-10");
-        body.Items[0].TotalCredits.Should().Be("0.00");
-        body.Items[0].TotalDebits.Should().Be("20.00");
-        body.Items[0].NetBalance.Should().Be("-20.00");
-        body.Items[0].AsOf.Should().NotBeNullOrWhiteSpace();
-
-        body.Items[1].Date.Should().Be("2026-02-14");
-        body.Items[1].TotalCredits.Should().Be("150.00");
-        body.Items[1].TotalDebits.Should().Be("0.00");
-        body.Items[1].NetBalance.Should().Be("150.00");
-        body.Items[1].AsOf.Should().NotBeNullOrWhiteSpace();
-
-        body.CalculatedAt.Should().NotBeNullOrWhiteSpace();
+    private static async Task<ValidationErrorResponse> AssertValidationErrorResponseAsync(HttpResponseMessage response)
+    {
+        Assert.Equal("application/json", response.Content.Headers.ContentType?.MediaType);
+        var body = await response.Content.ReadFromJsonAsync<ValidationErrorResponse>();
+        Assert.NotNull(body);
+        Assert.Equal("https://httpstatuses.com/400", body!.Type);
+        Assert.Equal("Invalid request", body.Title);
+        Assert.Equal(400, body.Status);
+        Assert.Equal("One or more validation errors occurred.", body.Detail);
+        Assert.NotEmpty(body.Errors);
+        Assert.False(string.IsNullOrWhiteSpace(body.CorrelationId));
+        return body;
     }
 }

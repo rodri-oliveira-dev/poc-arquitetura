@@ -1,4 +1,3 @@
-using FluentAssertions;
 using LedgerService.Application.Common.Exceptions;
 using LedgerService.Application.Lancamentos.Queries;
 using LedgerService.Domain.Entities;
@@ -26,10 +25,9 @@ public sealed class ObterStatusReprocessamentoLancamentosHandlerTests
         var result = await sut.Handle(
             new ObterStatusReprocessamentoLancamentosQuery(reprocessamento.Id, ["m1"]),
             CancellationToken.None);
-
-        result.ReprocessamentoId.Should().Be(reprocessamento.Id);
-        result.Status.Should().Be("Pending");
-        result.Motivo.Should().Be(reprocessamento.Motivo);
+        Assert.Equal(reprocessamento.Id, result.ReprocessamentoId);
+        Assert.Equal("Pending", result.Status);
+        Assert.Equal(reprocessamento.Motivo, result.Motivo);
     }
 
     [Fact]
@@ -44,8 +42,7 @@ public sealed class ObterStatusReprocessamentoLancamentosHandlerTests
         var act = async () => await sut.Handle(
             new ObterStatusReprocessamentoLancamentosQuery(id, ["m1"]),
             CancellationToken.None);
-
-        await act.Should().ThrowAsync<NotFoundException>();
+        await Assert.ThrowsAsync<NotFoundException>(act);
     }
 
     [Fact]
@@ -65,7 +62,6 @@ public sealed class ObterStatusReprocessamentoLancamentosHandlerTests
         var act = async () => await sut.Handle(
             new ObterStatusReprocessamentoLancamentosQuery(reprocessamento.Id, ["m2"]),
             CancellationToken.None);
-
-        await act.Should().ThrowAsync<ForbiddenException>();
+        await Assert.ThrowsAsync<ForbiddenException>(act);
     }
 }

@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 
-using FluentAssertions;
 using LedgerService.Api.Contracts.Requests;
 using LedgerService.Api.Contracts.Responses;
 using LedgerService.Application.Lancamentos.Commands;
@@ -40,28 +39,24 @@ public sealed class EstornosLancamentosEndpointTests : IClassFixture<LedgerApiFa
         using var req = CreateRequest(lancamento.Id, idempotencyKey);
 
         var res = await _client.SendAsync(req);
-
-        res.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        Assert.Equal(HttpStatusCode.Accepted, res.StatusCode);
         var body = await res.Content.ReadFromJsonAsync<SolicitarEstornoLancamentoResponse>();
-        body.Should().NotBeNull();
-        body!.EstornoId.Should().NotBeEmpty();
-        body.LancamentoOriginalId.Should().Be(lancamento.Id);
-        body.Status.Should().Be("Pending");
-        body.StatusUrl.Should().Be($"/api/v1/lancamentos/estornos/{body.EstornoId}");
-        res.Headers.Location?.ToString().Should().Be(body.StatusUrl);
-
+        Assert.NotNull(body);
+        Assert.NotEqual(Guid.Empty, body!.EstornoId);
+        Assert.Equal(lancamento.Id, body.LancamentoOriginalId);
+        Assert.Equal("Pending", body.Status);
+        Assert.Equal($"/api/v1/lancamentos/estornos/{body.EstornoId}", body.StatusUrl);
+        Assert.Equal(body.StatusUrl, res.Headers.Location?.ToString());
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        db.EstornosLancamentos.Single(x => x.Id == body.EstornoId).Status.Should().Be(EstornoLancamentoStatus.Pending);
-        db.OutboxMessages.Single(x => x.AggregateId == body.EstornoId).EventType.Should().Be("LancamentoEstornoSolicitado.v1");
-
+        Assert.Equal(EstornoLancamentoStatus.Pending, db.EstornosLancamentos.Single(x => x.Id == body.EstornoId).Status);
+        Assert.Equal("LancamentoEstornoSolicitado.v1", db.OutboxMessages.Single(x => x.AggregateId == body.EstornoId).EventType);
         using var replayReq = CreateRequest(lancamento.Id, idempotencyKey);
         var replayRes = await _client.SendAsync(replayReq);
-
-        replayRes.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        Assert.Equal(HttpStatusCode.Accepted, replayRes.StatusCode);
         var replayBody = await replayRes.Content.ReadFromJsonAsync<SolicitarEstornoLancamentoResponse>();
-        replayBody.Should().BeEquivalentTo(body);
-        replayRes.Headers.Location?.ToString().Should().Be(body.StatusUrl);
+        Assert.Equivalent(body, replayBody);
+        Assert.Equal(body.StatusUrl, replayRes.Headers.Location?.ToString());
     }
 
     [Fact]
@@ -72,10 +67,9 @@ public sealed class EstornosLancamentosEndpointTests : IClassFixture<LedgerApiFa
         using var req = CreateRequest(Guid.NewGuid(), Guid.NewGuid().ToString(), "");
 
         var res = await _client.SendAsync(req);
-
-        res.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
         var raw = await res.Content.ReadAsStringAsync();
-        raw.Should().Contain("motivo");
+        Assert.Contains("motivo", raw);
     }
 
     [Fact]
@@ -86,8 +80,7 @@ public sealed class EstornosLancamentosEndpointTests : IClassFixture<LedgerApiFa
         using var req = CreateRequest(Guid.NewGuid(), Guid.NewGuid().ToString());
 
         var res = await _client.SendAsync(req);
-
-        res.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        Assert.Equal(HttpStatusCode.NotFound, res.StatusCode);
     }
 
     [Fact]
@@ -98,12 +91,10 @@ public sealed class EstornosLancamentosEndpointTests : IClassFixture<LedgerApiFa
 
         using var firstReq = CreateRequest(lancamento.Id, Guid.NewGuid().ToString());
         var firstRes = await _client.SendAsync(firstReq);
-        firstRes.StatusCode.Should().Be(HttpStatusCode.Accepted);
-
+        Assert.Equal(HttpStatusCode.Accepted, firstRes.StatusCode);
         using var duplicateReq = CreateRequest(lancamento.Id, Guid.NewGuid().ToString());
         var duplicateRes = await _client.SendAsync(duplicateReq);
-
-        duplicateRes.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        Assert.Equal(HttpStatusCode.Conflict, duplicateRes.StatusCode);
     }
 
     [Fact]
@@ -115,8 +106,7 @@ public sealed class EstornosLancamentosEndpointTests : IClassFixture<LedgerApiFa
         using var req = CreateRequest(lancamento.Id, Guid.NewGuid().ToString());
 
         var res = await _client.SendAsync(req);
-
-        res.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
     }
 
     [Fact]
@@ -127,10 +117,9 @@ public sealed class EstornosLancamentosEndpointTests : IClassFixture<LedgerApiFa
 
         using var createReq = CreateRequest(lancamento.Id, Guid.NewGuid().ToString());
         var createRes = await _client.SendAsync(createReq);
-        createRes.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        Assert.Equal(HttpStatusCode.Accepted, createRes.StatusCode);
         var created = await createRes.Content.ReadFromJsonAsync<SolicitarEstornoLancamentoResponse>();
-        created.Should().NotBeNull();
-
+        Assert.NotNull(created);
         using (var scope = _factory.Services.CreateScope())
         {
             var sender = scope.ServiceProvider.GetRequiredService<ISender>();
@@ -141,23 +130,15 @@ public sealed class EstornosLancamentosEndpointTests : IClassFixture<LedgerApiFa
         using var assertScope = _factory.Services.CreateScope();
         var db = assertScope.ServiceProvider.GetRequiredService<AppDbContext>();
         var estorno = db.EstornosLancamentos.Single(x => x.Id == created!.EstornoId);
-        estorno.Status.Should().Be(EstornoLancamentoStatus.Completed);
-        estorno.LancamentoCompensatorioId.Should().NotBeNull();
-
+        Assert.Equal(EstornoLancamentoStatus.Completed, estorno.Status);
+        Assert.NotNull(estorno.LancamentoCompensatorioId);
         var compensating = db.LedgerEntries.Single(x => x.Id == estorno.LancamentoCompensatorioId);
-        compensating.Type.Should().Be(LedgerEntryType.Debit);
-        compensating.Amount.Should().Be(-10m);
-        compensating.ExternalReference.Should().Be($"estorno:{lancamento.Id:N}");
+        Assert.Equal(LedgerEntryType.Debit, compensating.Type);
+        Assert.Equal(-10m, compensating.Amount);
+        Assert.Equal($"estorno:{lancamento.Id:N}", compensating.ExternalReference);
+        Assert.Single(db.LedgerEntries.Where(x => x.ExternalReference == $"estorno:{lancamento.Id:N}"));
 
-        db.LedgerEntries
-            .Where(x => x.ExternalReference == $"estorno:{lancamento.Id:N}")
-            .Should()
-            .ContainSingle();
-
-        db.OutboxMessages
-            .Where(x => x.AggregateId == compensating.Id && x.EventType == LedgerEntryCreatedV1.EventType)
-            .Should()
-            .ContainSingle();
+        Assert.Single(db.OutboxMessages.Where(x => x.AggregateId == compensating.Id && x.EventType == LedgerEntryCreatedV1.EventType));
     }
 
     [Fact]
@@ -168,23 +149,20 @@ public sealed class EstornosLancamentosEndpointTests : IClassFixture<LedgerApiFa
 
         using var createReq = CreateRequest(lancamento.Id, Guid.NewGuid().ToString());
         var createRes = await _client.SendAsync(createReq);
-        createRes.StatusCode.Should().Be(HttpStatusCode.Accepted);
-
+        Assert.Equal(HttpStatusCode.Accepted, createRes.StatusCode);
         var created = await createRes.Content.ReadFromJsonAsync<SolicitarEstornoLancamentoResponse>();
-        created.Should().NotBeNull();
-
+        Assert.NotNull(created);
         Authenticate(scopes: "ledger.read");
 
         var res = await _client.GetAsync($"/api/v1/lancamentos/estornos/{created!.EstornoId}");
-
-        res.StatusCode.Should().Be(HttpStatusCode.OK);
+        Assert.Equal(HttpStatusCode.OK, res.StatusCode);
         var body = await res.Content.ReadFromJsonAsync<ObterStatusEstornoLancamentoResponse>();
-        body.Should().NotBeNull();
-        body!.EstornoId.Should().Be(created.EstornoId);
-        body.LancamentoOriginalId.Should().Be(lancamento.Id);
-        body.Status.Should().Be("Pending");
-        body.Motivo.Should().Be("Erro operacional no lancamento original");
-        body.SolicitadoEm.Should().NotBe(default);
+        Assert.NotNull(body);
+        Assert.Equal(created.EstornoId, body!.EstornoId);
+        Assert.Equal(lancamento.Id, body.LancamentoOriginalId);
+        Assert.Equal("Pending", body.Status);
+        Assert.Equal("Erro operacional no lancamento original", body.Motivo);
+        Assert.NotEqual(default, body.SolicitadoEm);
     }
 
     [Fact]
@@ -193,8 +171,7 @@ public sealed class EstornosLancamentosEndpointTests : IClassFixture<LedgerApiFa
         Authenticate(scopes: "ledger.read");
 
         var res = await _client.GetAsync($"/api/v1/lancamentos/estornos/{Guid.NewGuid()}");
-
-        res.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        Assert.Equal(HttpStatusCode.NotFound, res.StatusCode);
     }
 
     [Fact]
@@ -203,8 +180,7 @@ public sealed class EstornosLancamentosEndpointTests : IClassFixture<LedgerApiFa
         Authenticate(scopes: "ledger.read");
 
         var res = await _client.GetAsync("/api/v1/lancamentos/estornos/not-a-guid");
-
-        res.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        Assert.Equal(HttpStatusCode.NotFound, res.StatusCode);
     }
 
     [Fact]
@@ -214,8 +190,7 @@ public sealed class EstornosLancamentosEndpointTests : IClassFixture<LedgerApiFa
         Authenticate(scopes: "ledger.read", merchantIds: "m2");
 
         var res = await _client.GetAsync($"/api/v1/lancamentos/estornos/{estorno.Id}");
-
-        res.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
     }
 
     [Fact]
@@ -224,8 +199,7 @@ public sealed class EstornosLancamentosEndpointTests : IClassFixture<LedgerApiFa
         _client.DefaultRequestHeaders.Authorization = null;
 
         var res = await _client.GetAsync($"/api/v1/lancamentos/estornos/{Guid.NewGuid()}");
-
-        res.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        Assert.Equal(HttpStatusCode.Unauthorized, res.StatusCode);
     }
 
     private void Authenticate(string merchantIds = "m1", string scopes = "ledger.write")

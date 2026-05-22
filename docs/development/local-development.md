@@ -4,7 +4,7 @@ Este guia concentra os passos para executar, validar e depurar a POC localmente.
 
 ## Pre-requisitos
 
-Para a stack completa:
+Para a stack local:
 
 - Docker-compatible API acessivel;
 - CLI `docker` com suporte a `docker compose`;
@@ -24,9 +24,31 @@ Ferramentas opcionais:
 - VS Code, para workspace, tasks e REST Client;
 - Node.js 20+, para gerar a documentacao LikeC4 localmente.
 
-## Stack completa com compose
+## Escopo local e credenciais
 
-O `compose.yaml` sobe:
+Esta stack e local, descartavel e nao deve ser promovida para ambientes compartilhados, homologacao ou producao sem revisao de seguranca, secrets, transporte, imagens e observabilidade.
+
+O compose usa defaults ficticios para desenvolvimento local. Para sobrescrever, copie `.env.example` para `.env` e ajuste os valores localmente. O arquivo `.env` e ignorado pelo Git e nao deve ser versionado. Os defaults atuais sao intencionalmente obvios e descartaveis:
+
+- `POSTGRES_PASSWORD=local_dev_password`
+- `BALANCE_DB_HOST=balance-db`
+- `BALANCE_DB_PORT=5432`
+- `BALANCE_DB_HOST_PORT=15433`
+- `BALANCE_DB_NAME=dbBalance`
+- `BALANCE_DB_USER=userBalance`
+- `BALANCE_DB_PASSWORD=local_dev_password`
+- `GRAFANA_ADMIN_PASSWORD=local_dev_password`
+- `AUTH_POC_USERNAME=local_user`
+- `AUTH_POC_PASSWORD=local_password`
+- `AUTH_POC_SCOPE=ledger.write balance.read`
+
+As variaveis `BALANCE_DB_*` sao a origem local para o PostgreSQL do Balance no compose, para a connection string de `BalanceService.Api` e `BalanceService.Worker` dentro da rede Docker, e para os scripts que aplicam migrations ou executam load tests. Em volumes PostgreSQL existentes, alterar `.env` ou `compose.yaml` nao altera automaticamente a senha ja gravada no banco. Se houver divergencia, veja [troubleshooting](../troubleshooting.md#password-authentication-failed-for-user-userbalance).
+
+Nao reutilize esses valores fora da maquina local. Em ambientes compartilhados ou produtivos, use um mecanismo proprio de secret/config store e credenciais rotacionaveis.
+
+## Stack local com compose
+
+O `compose.yaml` sobe por padrao a stack minima de desenvolvimento:
 
 - `Auth.Api`;
 - `LedgerService.Api`;
@@ -36,16 +58,24 @@ O `compose.yaml` sobe:
 - PostgreSQL Ledger;
 - PostgreSQL Balance;
 - Kafka single node em KRaft;
-- job de inicializacao dos topicos Kafka;
+- job de inicializacao dos topicos Kafka.
+
+Componentes opcionais ficam em profiles:
+
+- profile `observability`: OpenTelemetry Collector, Jaeger, Prometheus, Loki, Grafana Alloy, Alertmanager e Grafana;
+- profile `k6`: container k6 definido em `compose.k6.yaml`.
+
+A observabilidade completa inclui:
+
 - OpenTelemetry Collector como entrada local de telemetria OTLP;
 - Jaeger all-in-one como backend local de visualizacao de traces;
 - Prometheus para coletar metricas tecnicas expostas pelo Collector;
 - Loki para armazenar logs centralizados dos containers;
-- Grafana Alloy para coletar logs dos containers via Docker API;
+- Grafana Alloy para coletar logs dos containers via Docker API, isolado no profile `observability`;
 - Alertmanager local para visualizar alertas tecnicos basicos sem envio externo;
 - Grafana com datasources Prometheus, Loki e Jaeger e dashboards minimos provisionados.
 
-Subir a stack:
+Subir a stack minima com migrations:
 
 ```powershell
 ./scripts/start-local-stack.ps1
@@ -57,13 +87,35 @@ No Linux/macOS:
 ./scripts/start-local-stack.sh
 ```
 
-Esse fluxo sobe bancos, Kafka, observabilidade e `Auth.Api`, aplica migrations pelo host e depois inicia `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker`.
+Esse fluxo sobe bancos, Kafka e `Auth.Api`, aplica migrations pelo host e depois inicia `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker`.
+
+Para subir tambem observabilidade e habilitar exportacao OTLP nas aplicacoes:
+
+```powershell
+./scripts/start-local-stack.ps1 -Observability
+```
+
+No Linux/macOS:
+
+```bash
+OBSERVABILITY=true ./scripts/start-local-stack.sh
+```
 
 Para subir somente o compose, sem aplicar migrations:
 
 ```bash
 docker compose up -d --build
 ```
+
+Esse comando inicia apenas a stack minima. Para habilitar observabilidade completa pelo compose, incluindo coleta local de logs via Docker API, use:
+
+```bash
+OTEL_ENABLED=true docker compose --profile observability up -d --build
+```
+
+`OTEL_ENABLED=true` habilita as aplicacoes a exportarem traces e metricas para `otel-collector:4317`. Sem essa variavel, os backends de observabilidade podem subir, mas as aplicacoes permanecem com OpenTelemetry desabilitado para manter a stack minima leve.
+
+O socket Docker, mesmo montado como somente leitura, e uma superficie sensivel. Use o profile `observability` apenas em maquina local confiavel; nao use em ambiente compartilhado ou produtivo sem redesenhar a coleta de logs e revisar permissoes.
 
 Parar a stack:
 
@@ -91,17 +143,17 @@ Portas expostas no host:
 | PostgreSQL Ledger | `localhost:15432` |
 | PostgreSQL Balance | `localhost:15433` |
 | Kafka | `localhost:19092` |
-| Jaeger UI | `http://localhost:16686/` |
-| Jaeger OTLP | `localhost:4317` e `localhost:4318` para diagnostico direto |
-| OpenTelemetry Collector OTLP | `otel-collector:4317` e `otel-collector:4318` na rede interna do compose |
-| OpenTelemetry Collector metrics | `otel-collector:9464` na rede interna do compose |
-| Prometheus | `http://localhost:9090/` |
-| Loki | `http://localhost:3100/` |
-| Grafana Alloy | `http://localhost:12345/` |
-| Alertmanager | `http://localhost:9093/` |
-| Grafana | `http://localhost:3000/` |
+| Jaeger UI | `http://localhost:16686/` com profile `observability` |
+| Jaeger OTLP | `localhost:4317` e `localhost:4318` com profile `observability`, para diagnostico direto |
+| OpenTelemetry Collector OTLP | `otel-collector:4317` e `otel-collector:4318` na rede interna do compose, com profile `observability` |
+| OpenTelemetry Collector metrics | `otel-collector:9464` na rede interna do compose, com profile `observability` |
+| Prometheus | `http://localhost:9090/` com profile `observability` |
+| Loki | `http://localhost:3100/` com profile `observability` |
+| Grafana Alloy | `http://localhost:12345/` quando o profile `observability` estiver ativo |
+| Alertmanager | `http://localhost:9093/` com profile `observability` |
+| Grafana | `http://localhost:3000/` com profile `observability` |
 
-O compose sobrescreve configuracoes por variaveis de ambiente para usar hosts internos como `ledger-db`, `balance-db`, `kafka` e `otel-collector`. No compose, as APIs enviam OTLP somente para o Collector. O Collector encaminha traces para o Jaeger e expoe metricas em formato Prometheus para scrape interno. Prometheus coleta o Collector, Alloy coleta logs dos containers e envia para Loki, e Grafana consulta Prometheus, Loki e Jaeger. O Grafana carrega automaticamente a pasta `Observability` com os dashboards `APIs - Visao Geral` e `Runtime .NET - Visao Geral`, versionados em `observability/grafana/dashboards/`. O datasource Loki possui derived field para abrir traces no datasource interno Jaeger a partir de logs com `TraceId=<valor>`. O ambiente local do compose roda como `Development`.
+O compose sobrescreve configuracoes por variaveis de ambiente para usar hosts internos como `ledger-db`, `balance-db`, `kafka` e `otel-collector`. Quando `OTEL_ENABLED=true` e o profile `observability` esta ativo, as APIs e workers enviam OTLP somente para o Collector. O Collector encaminha traces para o Jaeger e expoe metricas em formato Prometheus para scrape interno. Prometheus coleta o Collector; Alloy coleta logs dos containers e envia para Loki. Grafana consulta Prometheus, Loki e Jaeger. O Grafana carrega automaticamente a pasta `Observability` com os dashboards `APIs - Visao Geral` e `Runtime .NET - Visao Geral`, versionados em `observability/grafana/dashboards/`. O datasource Loki possui derived field para abrir traces no datasource interno Jaeger a partir de logs com `TraceId=<valor>`. O ambiente local do compose roda como `Development`.
 
 Prometheus tambem carrega regras locais em `observability/prometheus/rules/` e envia alertas para o Alertmanager local. A UI do Alertmanager fica em `http://localhost:9093/` e nao possui integracao externa configurada.
 
@@ -112,7 +164,7 @@ O compose nao aplica migrations automaticamente. Na primeira execucao com banco 
 LedgerService:
 
 ```powershell
-$env:ConnectionStrings__DefaultConnection = "Host=127.0.0.1;Port=15432;Database=appdb;Username=appuser;Password=app123"
+$env:ConnectionStrings__DefaultConnection = "Host=127.0.0.1;Port=15432;Database=appdb;Username=appuser;Password=local_dev_password"
 dotnet tool restore
 dotnet tool run dotnet-ef -- database update `
   -p src\LedgerService.Infrastructure\LedgerService.Infrastructure.csproj `
@@ -123,7 +175,7 @@ dotnet tool run dotnet-ef -- database update `
 BalanceService:
 
 ```powershell
-$env:ConnectionStrings__DefaultConnection = "Host=127.0.0.1;Port=15433;Database=dbBalance;Username=userBalance;Password=Balance123"
+$env:ConnectionStrings__DefaultConnection = "Host=127.0.0.1;Port=15433;Database=dbBalance;Username=userBalance;Password=local_dev_password"
 dotnet tool restore
 dotnet tool run dotnet-ef -- database update `
   -p src\BalanceService.Infrastructure\BalanceService.Infrastructure.csproj `
@@ -169,6 +221,12 @@ $env:Kafka__Producer__BootstrapServers = "127.0.0.1:9092"
 ```
 
 Nao versione segredos. Em ambientes compartilhados ou produtivos, JWKS via HTTP e Kafka `Plaintext` nao devem ser usados.
+
+## Politica local de imagens
+
+O compose local usa imagens com tags versionadas e nao usa `latest`. Essa escolha reduz manutencao para a POC multi-plataforma e preserva a ergonomia local.
+
+Ambientes de CI, homologacao, producao ou qualquer ambiente compartilhado devem aplicar pinagem por digest ou scan de imagens antes da promocao. Atualizacoes de imagem precisam ser intencionais, revisaveis e registradas em diff. Se uma imagem sem digest for promovida para ambiente compartilhado, a promocao deve ser bloqueada ou justificada formalmente.
 
 ## Testcontainers e Docker-compatible API
 
@@ -254,6 +312,8 @@ Endpoints operacionais:
 - `GET /health`: liveness simples, publico nesta POC, sem depender de DB ou Kafka.
 - `GET /ready`: readiness operacional, publico nesta POC. No `LedgerService.Api` e no `BalanceService.Api`, valida o banco necessario para aceitar trafego HTTP.
 
+O compose usa healthchecks nativos para PostgreSQL e Kafka. As imagens runtime `mcr.microsoft.com/dotnet/aspnet:10.0` usadas pelas APIs nao trazem `curl`, `wget` ou `busybox`; por isso os healthchecks HTTP das APIs nao sao declarados no compose nesta etapa para evitar instalar dependencias apenas para sondas locais. Valide as APIs por `GET /health` no host ou pelos scripts/workflows que ja fazem essa chamada.
+
 Detalhes de operacao ficam em [observabilidade e operacao minima](../observability.md).
 
 ## Limites operacionais
@@ -314,7 +374,14 @@ Linux/macOS:
 
 Arquivos gerados em `artifacts/k6` e `.env.k6.auto` nao sao versionados.
 
-Os runners aplicam `compose.k6.yaml` antes do k6 para manter os testes HTTP apontando para as APIs e aumentar apenas limites tecnicos de rate limiting durante a carga. Os workers continuam sem endpoint HTTP nos cenarios de carga.
+Os runners aplicam `compose.k6.yaml` e recriam os containers HTTP alvo antes do k6 para manter os testes apontando para as APIs e garantir que overrides de ambiente entrem em vigor. Os workers continuam sem endpoint HTTP nos cenarios de carga. Antes de obter token e executar o k6, os runners validam uma conexao real no PostgreSQL do Balance usando `BALANCE_DB_USER`, `BALANCE_DB_NAME` e `BALANCE_DB_PASSWORD`; se a senha do volume local divergir da configuracao, o fluxo falha cedo com diagnostico e nenhuma acao destrutiva.
+
+Para validar manualmente a configuracao efetiva do k6:
+
+```bash
+docker compose -f compose.yaml -f compose.k6.yaml --profile k6 config
+docker compose -f compose.yaml -f compose.k6.yaml --profile k6 config --services
+```
 
 ## Migrations de referencia
 

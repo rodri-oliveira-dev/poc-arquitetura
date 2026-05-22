@@ -1,7 +1,6 @@
 using System.Diagnostics;
 
 using BalanceService.Api.Middlewares;
-using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 
@@ -26,17 +25,15 @@ public sealed class CorrelationIdMiddlewareTests
             logger);
 
         await middleware.InvokeAsync(context);
-        context.Request.Headers[CorrelationIdMiddleware.HeaderName].ToString().Should().Be(correlationId);
-
-        var scope = logger.Scopes.Should().ContainSingle().Subject;
-        scope.ToString().Should().Contain($"CorrelationId={correlationId}");
-        scope.ToString().Should().Contain($"TraceId={traceId}");
-        scope.ToString().Should().Contain($"SpanId={spanId}");
-
+        Assert.Equal(correlationId, context.Request.Headers[CorrelationIdMiddleware.HeaderName].ToString());
+        var scope = Assert.Single(logger.Scopes);
+        Assert.Contains($"CorrelationId={correlationId}", scope.ToString());
+        Assert.Contains($"TraceId={traceId}", scope.ToString());
+        Assert.Contains($"SpanId={spanId}", scope.ToString());
         var values = ScopeValues(scope);
-        values["CorrelationId"].Should().Be(correlationId);
-        values["TraceId"].Should().Be(traceId);
-        values["SpanId"].Should().Be(spanId);
+        Assert.Equal(correlationId, values["CorrelationId"]);
+        Assert.Equal(traceId, values["TraceId"]);
+        Assert.Equal(spanId, values["SpanId"]);
     }
 
     [Fact]
@@ -50,21 +47,17 @@ public sealed class CorrelationIdMiddlewareTests
 
         await middleware.InvokeAsync(context);
         var generated = context.Request.Headers[CorrelationIdMiddleware.HeaderName].ToString();
-        Guid.TryParse(generated, out _).Should().BeTrue();
-        context.Request.Headers[CorrelationIdMiddleware.HeaderName].ToString().Should().Be(generated);
-
-        var scope = logger.Scopes.Should().ContainSingle().Subject;
-        scope.ToString().Should().Contain($"CorrelationId={generated}");
-
+        Assert.True(Guid.TryParse(generated, out _));
+        Assert.Equal(generated, context.Request.Headers[CorrelationIdMiddleware.HeaderName].ToString());
+        var scope = Assert.Single(logger.Scopes);
+        Assert.Contains($"CorrelationId={generated}", scope.ToString());
         var values = ScopeValues(scope);
-        values["CorrelationId"].Should().Be(generated);
+        Assert.Equal(generated, values["CorrelationId"]);
     }
 
     private static Dictionary<string, object?> ScopeValues(object scope)
-        => scope
-            .Should()
-            .BeAssignableTo<IEnumerable<KeyValuePair<string, object?>>>()
-            .Subject
+        => Assert
+            .IsAssignableFrom<IEnumerable<KeyValuePair<string, object?>>>(scope)
             .ToDictionary(pair => pair.Key, pair => pair.Value);
 
     private sealed class CapturingLogger<T> : ILogger<T>

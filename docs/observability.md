@@ -2,7 +2,7 @@
 
 Este documento define o inventario operacional minimo da POC para `Auth.Api`, `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker`.
 
-OpenTelemetry fica desabilitado por padrao. A correlacao via `X-Correlation-Id` permanece sempre ativa nas APIs e e usada para conectar logs, respostas HTTP e mensagens Kafka. A operacao local usa `docker compose`, PostgreSQL, Kafka, OpenTelemetry Collector, Jaeger, Prometheus, Loki, Grafana Alloy, Alertmanager e Grafana conforme documentado em [desenvolvimento local](development/local-development.md).
+OpenTelemetry fica desabilitado por padrao. A correlacao via `X-Correlation-Id` permanece sempre ativa nas APIs e e usada para conectar logs, respostas HTTP e mensagens Kafka. A operacao local minima usa `docker compose`, PostgreSQL e Kafka; OpenTelemetry Collector, Jaeger, Prometheus, Loki, Grafana Alloy, Alertmanager e Grafana ficam no profile `observability`, conforme documentado em [desenvolvimento local](development/local-development.md).
 
 ## Como navegar
 
@@ -13,7 +13,7 @@ OpenTelemetry fica desabilitado por padrao. A correlacao via `X-Correlation-Id` 
 
 ## Baseline
 
-- Logs: console logging do ASP.NET Core, com escopo de `CorrelationId` nos middlewares de correlacao, coletado centralmente por Grafana Alloy e consultavel no Loki no compose local.
+- Logs: console logging do ASP.NET Core, com escopo de `CorrelationId` nos middlewares de correlacao, coletado centralmente por Grafana Alloy e consultavel no Loki quando o profile `observability` esta ativo no compose local.
 - Traces: OpenTelemetry opcional para ASP.NET Core e `HttpClient` nas APIs, e `ActivitySource` explicito nos workers.
 - Metricas: OpenTelemetry opcional para ASP.NET Core, `HttpClient` e runtime .NET nas APIs, e runtime/custom metrics nos workers.
 - Exporters: console para validacao local e OTLP quando `OtlpEndpoint` estiver configurado.
@@ -38,6 +38,8 @@ OpenTelemetry fica desabilitado por padrao. A correlacao via `X-Correlation-Id` 
 - uso esperado: liveness simples do processo HTTP.
 
 `Auth.Api` expoe `GET /health` como liveness simples. Ele nao expoe `GET /ready`; a validacao operacional minima do fluxo de autenticacao continua sendo feita por `POST /auth/login` e `GET /.well-known/jwks.json`.
+
+No compose local, PostgreSQL e Kafka possuem healthchecks nativos e sao usados por `depends_on.condition`. As APIs nao recebem healthcheck HTTP no compose porque a imagem runtime .NET usada nesta POC nao inclui `curl`, `wget` ou `busybox`; a sonda HTTP continua disponivel pelo host em `GET /health` e pelos workflows/scripts de validacao.
 
 ### Readiness
 
@@ -154,7 +156,7 @@ Logs relevantes para operacao:
 
 ### Logs centralizados com Loki e Alloy
 
-O compose local adiciona Loki e Grafana Alloy para centralizar logs dos containers sem alterar o provider de logging das aplicacoes. As APIs continuam escrevendo no console; o Alloy le os logs dos containers pela Docker API e envia para o Loki.
+O profile `observability` do compose local adiciona Loki e Grafana Alloy para centralizar logs dos containers sem alterar o provider de logging das aplicacoes. As APIs continuam escrevendo no console; o Alloy le os logs dos containers pela Docker API e envia para o Loki.
 
 Desenho local:
 
@@ -519,10 +521,16 @@ Validacao minima:
 
 ### Compose
 
-O caminho recomendado para a stack completa e:
+O caminho recomendado para a stack minima e:
 
 ```bash
 docker compose up -d --build
+```
+
+Para observabilidade completa com exportacao OTLP das aplicacoes:
+
+```bash
+OTEL_ENABLED=true docker compose --profile observability up -d --build
 ```
 
 Portas expostas no host:
@@ -533,21 +541,21 @@ Portas expostas no host:
 - PostgreSQL Ledger: `localhost:15432`;
 - PostgreSQL Balance: `localhost:15433`;
 - Kafka: `localhost:19092`;
-- Jaeger UI: `http://localhost:16686`;
-- Jaeger OTLP gRPC/HTTP: `localhost:4317` e `localhost:4318`, expostos para diagnostico direto;
-- OpenTelemetry Collector OTLP gRPC/HTTP: `otel-collector:4317` e `otel-collector:4318` apenas na rede interna do compose;
-- OpenTelemetry Collector Prometheus exporter: `otel-collector:9464` apenas na rede interna do compose;
-- Prometheus: `http://localhost:9090`;
-- Loki: `http://localhost:3100`;
-- Grafana Alloy: `http://localhost:12345`;
-- Alertmanager: `http://localhost:9093`;
-- Grafana: `http://localhost:3000`.
+- Jaeger UI: `http://localhost:16686` com profile `observability`;
+- Jaeger OTLP gRPC/HTTP: `localhost:4317` e `localhost:4318`, expostos para diagnostico direto com profile `observability`;
+- OpenTelemetry Collector OTLP gRPC/HTTP: `otel-collector:4317` e `otel-collector:4318` apenas na rede interna do compose, com profile `observability`;
+- OpenTelemetry Collector Prometheus exporter: `otel-collector:9464` apenas na rede interna do compose, com profile `observability`;
+- Prometheus: `http://localhost:9090` com profile `observability`;
+- Loki: `http://localhost:3100` com profile `observability`;
+- Grafana Alloy: `http://localhost:12345` com profile `observability`;
+- Alertmanager: `http://localhost:9093` com profile `observability`;
+- Grafana: `http://localhost:3000` com profile `observability`.
 
-O compose sobrescreve configuracoes por variaveis de ambiente para usar os nomes internos `ledger-db`, `balance-db`, `kafka` e `otel-collector`. Aplique migrations manualmente antes de usar as APIs em banco vazio.
+O compose sobrescreve configuracoes por variaveis de ambiente para usar os nomes internos `ledger-db`, `balance-db`, `kafka` e `otel-collector`. `OTEL_ENABLED=true` habilita a exportacao das aplicacoes para o Collector; sem essa variavel, a stack minima continua sem backend de observabilidade no caminho de startup. Aplique migrations manualmente antes de usar as APIs em banco vazio.
 
 ### Validacao local com Jaeger, Prometheus, Loki e Grafana
 
-O compose local inclui OpenTelemetry Collector, Jaeger all-in-one com OTLP habilitado, Prometheus, Loki, Grafana Alloy e Grafana. O desenho local passa a ser:
+O profile `observability` do compose local inclui OpenTelemetry Collector, Jaeger all-in-one com OTLP habilitado, Prometheus, Loki, Grafana Alloy e Grafana. O desenho local passa a ser:
 
 ```text
 Aplicacoes -> OpenTelemetry Collector -> Jaeger
@@ -559,7 +567,7 @@ Grafana -> Prometheus
 Grafana -> Loki
 ```
 
-`Auth.Api`, `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker` sobem com OpenTelemetry habilitado e exportam para `http://otel-collector:4317` dentro da rede do compose. As APIs usam instrumentacao ASP.NET Core/`HttpClient`; os workers usam instrumentacao de Generic Host sem endpoint HTTP, runtime metrics e os sources/meters operacionais de Outbox/Kafka. Todos apontam somente para o Collector, nao para Prometheus ou Grafana.
+Com `OTEL_ENABLED=true`, `Auth.Api`, `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker` sobem com OpenTelemetry habilitado e exportam para `http://otel-collector:4317` dentro da rede do compose. As APIs usam instrumentacao ASP.NET Core/`HttpClient`; os workers usam instrumentacao de Generic Host sem endpoint HTTP, runtime metrics e os sources/meters operacionais de Outbox/Kafka. Todos apontam somente para o Collector, nao para Prometheus ou Grafana.
 
 O Collector recebe OTLP via gRPC em `4317` e HTTP em `4318`, aplica `batch`, encaminha traces para `jaeger:4317` usando o exporter `otlp_grpc` e expoe metricas no exporter `prometheus` em `0.0.0.0:9464`. Essa porta nao e publicada no host; o Prometheus acessa `otel-collector:9464` pela rede Docker.
 
@@ -631,10 +639,10 @@ Alertas evitados nesta etapa:
 
 Para visualizar as regras, acesse `http://localhost:9090/alerts`. Para ver o estado entregue ao Alertmanager, acesse `http://localhost:9093/#/alerts`. Silences locais podem ser criados pela UI do Alertmanager durante investigacoes manuais; nao ha roteamento para e-mail, Slack, Teams, PagerDuty ou webhook externo.
 
-Suba a stack:
+Suba a stack com observabilidade:
 
 ```bash
-docker compose up -d --build
+OTEL_ENABLED=true docker compose --profile observability up -d --build
 ```
 
 Acesse a UI do Jaeger em `http://localhost:16686`.
@@ -681,9 +689,9 @@ curl -G "http://localhost:3100/loki/api/v1/query_range" \
   --data-urlencode 'limit=20'
 ```
 
-No Alloy, acesse `http://localhost:12345` para diagnostico local do agente. O container precisa ter acesso somente leitura a `/var/run/docker.sock`; sem esse socket, a coleta de logs falha, mas as APIs continuam funcionando.
+No Alloy, acesse `http://localhost:12345` para diagnostico local do agente quando o profile `observability` estiver ativo. O container precisa ter acesso somente leitura a `/var/run/docker.sock`; sem esse socket, a coleta de logs falha, mas as APIs continuam funcionando. Esse socket continua sendo uma superficie sensivel mesmo em modo somente leitura, por isso o Alloy fica isolado por profile e deve ser usado apenas em maquina local confiavel.
 
-No Grafana, acesse `http://localhost:3000` com as credenciais locais de POC `admin`/`admin`. Em `Connections` ou `Data sources`, confirme os datasources `Prometheus` apontando para `http://prometheus:9090`, `Loki` apontando para `http://loki:3100` e `Jaeger` apontando para `http://jaeger:16686`. Em `Dashboards`, abra a pasta `Observability` e confirme que os dashboards `APIs - Visao Geral` e `Runtime .NET - Visao Geral` foram carregados automaticamente. Para validar metricas, use Explore com uma das metricas tecnicas listadas acima. Para validar logs, use Explore com o datasource `Loki` e queries por processo, por exemplo `{service="ledger-service"}` para HTTP e `{service="ledger-worker"}` para Outbox/Kafka. Para validar o link log -> trace, abra uma linha com `TraceId=<valor>` e clique em `Abrir trace no Jaeger`.
+No Grafana, acesse `http://localhost:3000` com usuario `admin` e senha local definida por `GRAFANA_ADMIN_PASSWORD` ou pelo default ficticio `local_dev_password`. Em `Connections` ou `Data sources`, confirme os datasources `Prometheus` apontando para `http://prometheus:9090`, `Loki` apontando para `http://loki:3100` e `Jaeger` apontando para `http://jaeger:16686`. Em `Dashboards`, abra a pasta `Observability` e confirme que os dashboards `APIs - Visao Geral` e `Runtime .NET - Visao Geral` foram carregados automaticamente. Para validar metricas, use Explore com uma das metricas tecnicas listadas acima. Para validar logs, use Explore com o datasource `Loki` e queries por processo, por exemplo `{service="ledger-service"}` para HTTP e `{service="ledger-worker"}` para Outbox/Kafka. Para validar o link log -> trace, abra uma linha com `TraceId=<valor>` e clique em `Abrir trace no Jaeger`.
 
 ### Validacao Auth -> Ledger -> Outbox -> Kafka -> Balance
 
@@ -703,8 +711,8 @@ Pre-requisitos:
 
 - Docker-compatible API disponivel;
 - stack local com migrations aplicadas;
-- portas do compose livres: `5030`, `5226`, `5228`, `15432`, `15433`, `16686`, `19092`, `4317`, `4318`, `9090`, `3100`, `12345`, `9093` e `3000`;
-- OpenTelemetry habilitado pelo compose para `Auth.Api`, `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker`.
+- portas do compose livres: `5030`, `5226`, `5228`, `15432`, `15433`, `19092` e, com profile `observability`, `16686`, `4317`, `4318`, `9090`, `3100`, `12345`, `9093` e `3000`;
+- profile `observability` ativo e `OTEL_ENABLED=true` quando a validacao incluir traces no Jaeger.
 
 Suba a stack local completa. O script aplica migrations antes de iniciar Ledger e Balance:
 
@@ -722,13 +730,13 @@ Payload real do login, conforme `src/Auth.Api/Contracts/LoginRequest.cs`:
 
 ```json
 {
-  "username": "poc-usuario",
-  "password": "Poc#123",
+  "username": "local_user",
+  "password": "local_password",
   "scope": "ledger.write balance.read"
 }
 ```
 
-O compose local configura essas credenciais de POC em `auth-api` e o `Auth.Api` versionado autoriza os merchants `tese` e `m1`. Para criar um lancamento, use um desses merchants. O contrato real de criacao de lancamento fica em `src/LedgerService.Api/Contracts/CreateLancamentoRequest.cs`; `CREDIT` exige `amount` maior que zero e `DEBIT` exige `amount` menor que zero.
+O compose local configura essas credenciais ficticias em `auth-api` por `AUTH_POC_USERNAME` e `AUTH_POC_PASSWORD`, e o `Auth.Api` versionado autoriza os merchants `tese` e `m1`. Para criar um lancamento, use um desses merchants. O contrato real de criacao de lancamento fica em `src/LedgerService.Api/Contracts/CreateLancamentoRequest.cs`; `CREDIT` exige `amount` maior que zero e `DEBIT` exige `amount` menor que zero.
 
 No Windows/PowerShell, o fluxo completo pode ser executado com:
 
@@ -772,8 +780,8 @@ Pre-requisitos:
 - stack local completa iniciada, preferencialmente com `./scripts/start-local-stack.ps1`;
 - migrations aplicadas pelo startup local;
 - Docker-compatible API disponivel para `docker compose exec -T ... psql`;
-- portas do compose livres e acessiveis: `5030`, `5226`, `5228`, `16686`, `9090`, `3100`, `12345`, `9093` e `3000`;
-- OpenTelemetry habilitado pelo compose para consulta de traces no Jaeger.
+- portas do compose livres e acessiveis: `5030`, `5226`, `5228` e, com profile `observability`, `16686`, `9090`, `3100`, `12345`, `9093` e `3000`;
+- profile `observability` ativo e `OTEL_ENABLED=true` para consulta de traces no Jaeger.
 
 Os dois scripts usam `scripts/get-token.ps1`, enviam `Authorization`, `Idempotency-Key` e `X-Correlation-Id` explicito, fazem polling curto configuravel e falham com erro quando um estado esperado nao aparece.
 
@@ -817,7 +825,7 @@ Tambem e possivel executar manualmente com `curl`:
 ```bash
 TOKEN="$(curl -sS -X POST http://localhost:5030/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"poc-usuario","password":"Poc#123","scope":"ledger.write balance.read"}' \
+  -d '{"username":"local_user","password":"local_password","scope":"ledger.write balance.read"}' \
   | sed -nE 's/.*"access_token"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p')"
 
 CORRELATION_ID="11111111-1111-4111-8111-111111111111"
@@ -977,7 +985,7 @@ Se o Collector ou o Jaeger ficar temporariamente indisponivel depois que a aplic
 Para execucao fora de container, configure PostgreSQL e Kafka locais e use as configuracoes dos `appsettings.json` como baseline. Use variaveis de ambiente para sobrescrever valores por ambiente:
 
 ```powershell
-$env:ConnectionStrings__DefaultConnection = "Host=127.0.0.1;Port=15432;Database=appdb;Username=appuser;Password=app123"
+$env:ConnectionStrings__DefaultConnection = "Host=127.0.0.1;Port=15432;Database=appdb;Username=appuser;Password=local_dev_password"
 $env:Kafka__Producer__BootstrapServers = "127.0.0.1:9092"
 $env:Observability__OpenTelemetry__Enabled = "true"
 $env:Observability__OpenTelemetry__UseConsoleExporter = "true"

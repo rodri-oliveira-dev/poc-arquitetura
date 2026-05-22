@@ -1,4 +1,3 @@
-using FluentAssertions;
 using LedgerService.Application.Lancamentos.Commands;
 
 namespace LedgerService.UnitTests.Application.Lancamentos.Commands;
@@ -16,9 +15,8 @@ public sealed class SolicitarEstornoLancamentoCommandValidatorTests
         var command = ValidCommand() with { Motivo = motivo };
 
         var result = _validator.Validate(command);
-
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == nameof(SolicitarEstornoLancamentoCommand.Motivo));
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.PropertyName == nameof(SolicitarEstornoLancamentoCommand.Motivo));
     }
 
     [Fact]
@@ -27,17 +25,15 @@ public sealed class SolicitarEstornoLancamentoCommandValidatorTests
         var command = ValidCommand() with { LancamentoId = Guid.Empty };
 
         var result = _validator.Validate(command);
-
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == nameof(SolicitarEstornoLancamentoCommand.LancamentoId));
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.PropertyName == nameof(SolicitarEstornoLancamentoCommand.LancamentoId));
     }
 
     [Fact]
     public void Should_accept_valid_command()
     {
         var result = _validator.Validate(ValidCommand());
-
-        result.IsValid.Should().BeTrue();
+        Assert.True(result.IsValid);
     }
 
     private static SolicitarEstornoLancamentoCommand ValidCommand()

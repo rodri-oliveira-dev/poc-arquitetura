@@ -1,6 +1,5 @@
 using BalanceService.IntegrationTests.Infrastructure;
 using BalanceService.IntegrationTests.Infrastructure.Security;
-using FluentAssertions;
 using System.Net;
 using System.Net.Http.Headers;
 
@@ -22,26 +21,25 @@ public sealed class BalanceAuthorizationTests : IClassFixture<BalanceApiFactory>
     public async Task Health_should_return_200_without_token()
     {
         var res = await _client.GetAsync("/health");
-        res.StatusCode.Should().Be(HttpStatusCode.OK);
+        Assert.Equal(HttpStatusCode.OK, res.StatusCode);
     }
 
     [Fact]
     public async Task Ready_should_return_200_without_token_when_db_is_available()
     {
         var res = await _client.GetAsync("/ready");
-
-        res.StatusCode.Should().Be(HttpStatusCode.OK);
+        Assert.Equal(HttpStatusCode.OK, res.StatusCode);
         var body = await res.Content.ReadAsStringAsync();
-        body.Should().Contain("\"status\":\"ready\"");
-        body.Should().Contain("\"db\":\"ok\"");
-        body.Should().NotContain("\"kafka\"");
+        Assert.Contains("\"status\":\"ready\"", body);
+        Assert.Contains("\"db\":\"ok\"", body);
+        Assert.DoesNotContain("\"kafka\"", body);
     }
 
     [Fact]
     public async Task Period_endpoint_should_return_401_without_token()
     {
         var res = await _client.GetAsync("/v1/consolidados/periodo?merchantId=m1&from=2026-02-10&to=2026-02-12");
-        res.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        Assert.Equal(HttpStatusCode.Unauthorized, res.StatusCode);
     }
 
     [Fact]
@@ -55,7 +53,7 @@ public sealed class BalanceAuthorizationTests : IClassFixture<BalanceApiFactory>
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
         var res = await _client.GetAsync("/v1/consolidados/periodo?merchantId=m1&from=2026-02-10&to=2026-02-12");
-        res.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
     }
 
     [Fact]
@@ -70,7 +68,7 @@ public sealed class BalanceAuthorizationTests : IClassFixture<BalanceApiFactory>
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
         var res = await _client.GetAsync("/v1/consolidados/periodo?merchantId=m1&from=2026-02-10&to=2026-02-12");
-        res.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
     }
 
     [Fact]
@@ -85,6 +83,6 @@ public sealed class BalanceAuthorizationTests : IClassFixture<BalanceApiFactory>
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
         var res = await _client.GetAsync("/v1/consolidados/diario/2026-02-10?merchantId=m1");
-        res.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
     }
 }

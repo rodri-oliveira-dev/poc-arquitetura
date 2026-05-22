@@ -1,5 +1,4 @@
 using Auth.Api.Extensions;
-using FluentAssertions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Moq;
@@ -14,8 +13,7 @@ public sealed class SwaggerExposurePolicyTests
         var enabled = WebApplicationExtensions.IsSwaggerEnabled(
             CreateEnvironment(Environments.Development),
             CreateConfiguration(swaggerEnabled: null));
-
-        enabled.Should().BeTrue();
+        Assert.True(enabled);
     }
 
     [Fact]
@@ -24,8 +22,7 @@ public sealed class SwaggerExposurePolicyTests
         var enabled = WebApplicationExtensions.IsSwaggerEnabled(
             CreateEnvironment(Environments.Production),
             CreateConfiguration(swaggerEnabled: null));
-
-        enabled.Should().BeFalse();
+        Assert.False(enabled);
     }
 
     [Fact]
@@ -34,8 +31,7 @@ public sealed class SwaggerExposurePolicyTests
         var enabled = WebApplicationExtensions.IsSwaggerEnabled(
             CreateEnvironment(Environments.Staging),
             CreateConfiguration(swaggerEnabled: true));
-
-        enabled.Should().BeTrue();
+        Assert.True(enabled);
     }
 
     private static IHostEnvironment CreateEnvironment(string environmentName)

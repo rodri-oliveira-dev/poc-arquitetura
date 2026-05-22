@@ -1,4 +1,3 @@
-using FluentAssertions;
 using LedgerService.Application.Lancamentos.Queries;
 
 namespace LedgerService.UnitTests.Application.Lancamentos.Queries;
@@ -13,9 +12,8 @@ public sealed class ObterStatusEstornoLancamentoQueryValidatorTests
         var query = new ObterStatusEstornoLancamentoQuery(Guid.Empty, ["m1"]);
 
         var result = _validator.Validate(query);
-
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == nameof(ObterStatusEstornoLancamentoQuery.EstornoId));
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.PropertyName == nameof(ObterStatusEstornoLancamentoQuery.EstornoId));
     }
 
     [Fact]
@@ -24,9 +22,8 @@ public sealed class ObterStatusEstornoLancamentoQueryValidatorTests
         var query = new ObterStatusEstornoLancamentoQuery(Guid.NewGuid(), []);
 
         var result = _validator.Validate(query);
-
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == nameof(ObterStatusEstornoLancamentoQuery.AuthorizedMerchantIds));
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.PropertyName == nameof(ObterStatusEstornoLancamentoQuery.AuthorizedMerchantIds));
     }
 
     [Fact]
@@ -35,7 +32,6 @@ public sealed class ObterStatusEstornoLancamentoQueryValidatorTests
         var query = new ObterStatusEstornoLancamentoQuery(Guid.NewGuid(), ["m1"]);
 
         var result = _validator.Validate(query);
-
-        result.IsValid.Should().BeTrue();
+        Assert.True(result.IsValid);
     }
 }

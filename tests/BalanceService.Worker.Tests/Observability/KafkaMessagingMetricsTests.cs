@@ -2,7 +2,6 @@ using System.Diagnostics.Metrics;
 
 using BalanceService.Worker.Observability;
 
-using FluentAssertions;
 
 namespace BalanceService.Worker.Tests.Observability;
 
@@ -49,13 +48,12 @@ public sealed class KafkaMessagingMetricsTests
         listener.Start();
 
         metrics.RecordConsumerMessageConsumed("ledger.ledgerentry.created", "LedgerEntryCreated.v1", "success");
-
-        measurement.Should().Be(1);
-        observedTags.Should().NotBeNull();
-        observedTags.Should().Contain("topic", "ledger.ledgerentry.created");
-        observedTags.Should().Contain("event_type", "LedgerEntryCreated.v1");
-        observedTags.Should().Contain("result", "success");
-        observedTags!.Keys.Should().NotContain(ProhibitedTags);
+        Assert.Equal(1, measurement);
+        Assert.NotNull(observedTags);
+        Assert.Equal("ledger.ledgerentry.created", observedTags["topic"]);
+        Assert.Equal("LedgerEntryCreated.v1", observedTags["event_type"]);
+        Assert.Equal("success", observedTags["result"]);
+        Assert.Empty(ProhibitedTags.Intersect(observedTags!.Keys));
     }
 
     [Fact]
@@ -84,12 +82,11 @@ public sealed class KafkaMessagingMetricsTests
         listener.Start();
 
         metrics.RecordDlqMessagePublished("ledger.ledgerentry.created", "LedgerEntryCreated.v1", "validation_failed");
-
-        observedTags.Should().NotBeNull();
-        observedTags.Should().Contain("source_topic", "ledger.ledgerentry.created");
-        observedTags.Should().Contain("event_type", "LedgerEntryCreated.v1");
-        observedTags.Should().Contain("reason", "validation_failed");
-        observedTags!.Keys.Should().NotContain(ProhibitedTags);
+        Assert.NotNull(observedTags);
+        Assert.Equal("ledger.ledgerentry.created", observedTags["source_topic"]);
+        Assert.Equal("LedgerEntryCreated.v1", observedTags["event_type"]);
+        Assert.Equal("validation_failed", observedTags["reason"]);
+        Assert.Empty(ProhibitedTags.Intersect(observedTags!.Keys));
     }
 
     [Fact]

@@ -1,6 +1,5 @@
 using BalanceService.Domain.Balances;
 using BalanceService.Infrastructure.Persistence;
-using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 
 namespace BalanceService.UnitTests.Infrastructure.Persistence;
@@ -18,14 +17,11 @@ public sealed class InfrastructureEfCoreConfigurationTests
 
         // dispara OnModelCreating
         var model = db.Model;
-
-        model.FindEntityType(typeof(DailyBalance)).Should().NotBeNull();
-        model.FindEntityType(typeof(ProcessedEvent)).Should().NotBeNull();
-
+        Assert.NotNull(model.FindEntityType(typeof(DailyBalance)));
+        Assert.NotNull(model.FindEntityType(typeof(ProcessedEvent)));
         var daily = model.FindEntityType(typeof(DailyBalance))!;
-        daily.GetIndexes().Should().NotBeEmpty();
-
+        Assert.NotEmpty(daily.GetIndexes());
         var processed = model.FindEntityType(typeof(ProcessedEvent))!;
-        processed.GetIndexes().Should().NotBeEmpty();
+        Assert.NotEmpty(processed.GetIndexes());
     }
 }

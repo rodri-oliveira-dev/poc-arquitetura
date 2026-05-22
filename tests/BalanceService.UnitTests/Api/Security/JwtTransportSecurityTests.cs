@@ -1,5 +1,4 @@
 using BalanceService.Api.Extensions;
-using FluentAssertions;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -21,8 +20,7 @@ public sealed class JwtTransportSecurityTests
         using var provider = services.BuildServiceProvider();
         var options = provider.GetRequiredService<IOptionsMonitor<JwtBearerOptions>>()
             .Get(JwtBearerDefaults.AuthenticationScheme);
-
-        options.RequireHttpsMetadata.Should().BeFalse();
+        Assert.False(options.RequireHttpsMetadata);
     }
 
     [Fact]
@@ -32,8 +30,8 @@ public sealed class JwtTransportSecurityTests
 
         var act = () => services.AddApiJwtAuth(CreateConfiguration("https://auth-api/jwks.json", requireHttpsMetadata: false), CreateEnvironment(Environments.Production));
 
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*RequireHttpsMetadata=false*Development/Local*");
+        var ex = Assert.Throws<InvalidOperationException>(act);
+        Assert.Matches("^.*RequireHttpsMetadata=false.*Development/Local.*$", ex.Message);
     }
 
     [Fact]
@@ -43,8 +41,8 @@ public sealed class JwtTransportSecurityTests
 
         var act = () => services.AddApiJwtAuth(CreateConfiguration("http://auth-api/jwks.json", requireHttpsMetadata: true), CreateEnvironment(Environments.Production));
 
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*JwksUrl*HTTPS*Development/Local*");
+        var ex = Assert.Throws<InvalidOperationException>(act);
+        Assert.Matches("^.*JwksUrl.*HTTPS.*Development/Local.*$", ex.Message);
     }
 
     private static IConfiguration CreateConfiguration(string jwksUrl, bool requireHttpsMetadata)
