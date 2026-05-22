@@ -18,7 +18,7 @@
         "ms-dotnettools.vscode-dotnet-runtime",
         "humao.rest-client",
         "ms-azuretools.vscode-docker",
-        "ms-kubernetes-tools.vscode-kubernetes-tools",
+        "github.vscode-github-actions",
         "redhat.vscode-yaml",
         "yzhang.markdown-all-in-one",
         "davidanson.vscode-markdownlint",
@@ -26,7 +26,7 @@
         "ms-vscode.mermaid-markdown-syntax-highlighting",
         "editorconfig.editorconfig",
         "eamodio.gitlens",
-        "vstirbu.vscode-mermaid-preview"
+        "ryanluker.vscode-coverage-gutters"
       ]
     }
   }

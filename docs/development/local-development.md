@@ -345,6 +345,23 @@ Para abrir:
 2. Selecione `poc-arquitetura.code-workspace`.
 3. Instale as extensoes sugeridas.
 
+As configuracoes do VS Code sao opcionais e apenas facilitam comandos que continuam funcionando pelo terminal. A solution padrao e `LedgerService.slnx`; as exclusoes do workspace escondem diretorios gerados como `bin`, `obj`, `TestResults`, `artifacts/k6`, relatorios de cobertura e `StrykerOutput`.
+
+Tasks uteis:
+
+- `dotnet: tool restore`;
+- `dotnet: restore solution`;
+- `dotnet: build solution`;
+- `dotnet: test solution`;
+- `test: coverage gate`;
+- `local stack: start`;
+- `local stack: start with observability`;
+- `test: load smoke`.
+
+As tasks de stack e k6 chamam os scripts versionados (`scripts/start-local-stack.*` e `scripts/run-loadtests.*`) para evitar duplicar logica. Elas nao executam teardown destrutivo nem migrations fora do fluxo ja definido pelos scripts.
+
+As configuracoes de debug rodam processos no host em `Development` para `Auth.Api`, `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker`. Os nomes indicam que dependencias locais podem ser necessarias quando banco, Kafka ou JWKS forem usados. Se a stack completa do compose estiver em execucao, pare o container equivalente antes de depurar o mesmo processo no host para evitar conflito de porta ou processamento duplicado.
+
 O arquivo `src/LedgerService.Api/LedgerService.Api.http` pode ser usado com a extensao REST Client. Nao coloque segredos em `.vscode/rest-client.env.json`.
 
 ## Load tests com k6

@@ -2,49 +2,131 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "build-ledger-api",
+      "label": "dotnet: tool restore",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "tool",
+        "restore"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "dotnet: restore solution",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "restore",
+        "${workspaceFolder}/LedgerService.slnx"
+      ],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "dotnet: build solution",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "build",
+        "${workspaceFolder}/LedgerService.slnx",
+        "--configuration",
+        "Debug"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "dotnet: test solution",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "test",
+        "${workspaceFolder}/LedgerService.slnx",
+        "--configuration",
+        "Release",
+        "--settings",
+        "${workspaceFolder}/coverlet.runsettings"
+      ],
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      "label": "dotnet: build Auth.Api",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "build",
+        "${workspaceFolder}/src/Auth.Api/Auth.Api.csproj",
+        "--configuration",
+        "Debug"
+      ],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "dotnet: build LedgerService.Api",
       "type": "process",
       "command": "dotnet",
       "args": [
         "build",
         "${workspaceFolder}/src/LedgerService.Api/LedgerService.Api.csproj",
-        "-c",
+        "--configuration",
         "Debug"
       ],
       "problemMatcher": "$msCompile"
     },
     {
-      "label": "build-balance-api",
+      "label": "dotnet: build LedgerService.Worker",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "build",
+        "${workspaceFolder}/src/LedgerService.Worker/LedgerService.Worker.csproj",
+        "--configuration",
+        "Debug"
+      ],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "dotnet: build BalanceService.Api",
       "type": "process",
       "command": "dotnet",
       "args": [
         "build",
         "${workspaceFolder}/src/BalanceService.Api/BalanceService.Api.csproj",
-        "-c",
+        "--configuration",
         "Debug"
       ],
       "problemMatcher": "$msCompile"
     },
     {
-      "label": "test",
+      "label": "dotnet: build BalanceService.Worker",
       "type": "process",
       "command": "dotnet",
       "args": [
-        "test",
-        "${workspaceFolder}",
-        "-c",
+        "build",
+        "${workspaceFolder}/src/BalanceService.Worker/BalanceService.Worker.csproj",
+        "--configuration",
         "Debug"
       ],
       "problemMatcher": "$msCompile"
     },
     {
-      "label": "test:mutation:ledger",
+      "label": "local stack: start",
       "type": "shell",
-      "command": "dotnet tool restore && dotnet stryker; exit_code=$?; echo \"\"; echo \"Relatorio Stryker gerado, se a execucao concluiu com sucesso, em:\"; find StrykerOutput -name mutation-report.html -print 2>/dev/null || true; exit $exit_code",
+      "command": "./scripts/start-local-stack.sh",
       "windows": {
-        "command": "dotnet tool restore; if ($LASTEXITCODE -eq 0) { dotnet stryker }; $exitCode = $LASTEXITCODE; Write-Host ''; Write-Host 'Relatorio Stryker gerado, se a execucao concluiu com sucesso, em:'; Get-ChildItem -Path 'StrykerOutput' -Filter 'mutation-report.html' -Recurse -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName; exit $exitCode",
+        "command": "./scripts/start-local-stack.ps1",
         "options": {
-          "cwd": "${workspaceFolder}/tests/LedgerService.UnitTests",
           "shell": {
             "executable": "powershell.exe",
             "args": [
@@ -57,10 +139,6 @@
           }
         }
       },
-      "options": {
-        "cwd": "${workspaceFolder}/tests/LedgerService.UnitTests"
-      },
-      "group": "test",
       "problemMatcher": [],
       "presentation": {
         "reveal": "always",
@@ -69,13 +147,12 @@
       }
     },
     {
-      "label": "test:mutation:balance",
+      "label": "local stack: start with observability",
       "type": "shell",
-      "command": "dotnet tool restore && dotnet stryker; exit_code=$?; echo \"\"; echo \"Relatorio Stryker gerado, se a execucao concluiu com sucesso, em:\"; find StrykerOutput -name mutation-report.html -print 2>/dev/null || true; exit $exit_code",
+      "command": "OBSERVABILITY=true ./scripts/start-local-stack.sh",
       "windows": {
-        "command": "dotnet tool restore; if ($LASTEXITCODE -eq 0) { dotnet stryker }; $exitCode = $LASTEXITCODE; Write-Host ''; Write-Host 'Relatorio Stryker gerado, se a execucao concluiu com sucesso, em:'; Get-ChildItem -Path 'StrykerOutput' -Filter 'mutation-report.html' -Recurse -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName; exit $exitCode",
+        "command": "./scripts/start-local-stack.ps1 -Observability",
         "options": {
-          "cwd": "${workspaceFolder}/tests/BalanceService.UnitTests",
           "shell": {
             "executable": "powershell.exe",
             "args": [
@@ -88,8 +165,58 @@
           }
         }
       },
-      "options": {
-        "cwd": "${workspaceFolder}/tests/BalanceService.UnitTests"
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      "label": "test: coverage gate",
+      "type": "shell",
+      "command": "./test.sh",
+      "windows": {
+        "command": "./test.ps1",
+        "options": {
+          "shell": {
+            "executable": "powershell.exe",
+            "args": [
+              "-NoLogo",
+              "-NoProfile",
+              "-ExecutionPolicy",
+              "Bypass",
+              "-Command"
+            ]
+          }
+        }
+      },
+      "group": "test",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      "label": "test: load smoke",
+      "type": "shell",
+      "command": "./scripts/run-loadtests.sh smoke",
+      "windows": {
+        "command": "./scripts/run-loadtests.ps1 -Mode smoke",
+        "options": {
+          "shell": {
+            "executable": "powershell.exe",
+            "args": [
+              "-NoLogo",
+              "-NoProfile",
+              "-ExecutionPolicy",
+              "Bypass",
+              "-Command"
+            ]
+          }
+        }
       },
       "group": "test",
       "problemMatcher": [],
@@ -100,12 +227,51 @@
       }
     },
     {
-      "label": "test:mutation:all",
-      "dependsOn": [
-        "test:mutation:ledger",
-        "test:mutation:balance"
-      ],
-      "dependsOrder": "sequence",
+      "label": "test: mutation LedgerService.Application",
+      "type": "shell",
+      "command": "./scripts/run-mutation-tests-ledger-application.sh",
+      "windows": {
+        "command": "./scripts/run-mutation-tests-ledger-application.ps1",
+        "options": {
+          "shell": {
+            "executable": "powershell.exe",
+            "args": [
+              "-NoLogo",
+              "-NoProfile",
+              "-ExecutionPolicy",
+              "Bypass",
+              "-Command"
+            ]
+          }
+        }
+      },
+      "group": "test",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      "label": "test: mutation BalanceService.Application",
+      "type": "shell",
+      "command": "./scripts/run-mutation-tests-balance-application.sh",
+      "windows": {
+        "command": "./scripts/run-mutation-tests-balance-application.ps1",
+        "options": {
+          "shell": {
+            "executable": "powershell.exe",
+            "args": [
+              "-NoLogo",
+              "-NoProfile",
+              "-ExecutionPolicy",
+              "Bypass",
+              "-Command"
+            ]
+          }
+        }
+      },
       "group": "test",
       "problemMatcher": [],
       "presentation": {

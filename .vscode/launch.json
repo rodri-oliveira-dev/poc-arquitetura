@@ -1,41 +1,122 @@
 {
-    "version": "0.2.0",
-    "configurations": [
-        {
-            "name": "LedgerService.Api (dotnet run)",
-            "type": "coreclr",
-            "request": "launch",
-            "preLaunchTask": "build-ledger-api",
-            "program": "dotnet",
-            "args": [
-                "run",
-                "--project",
-                "${workspaceFolder}/src/LedgerService.Api/LedgerService.Api.csproj"
-            ],
-            "cwd": "${workspaceFolder}",
-            "env": {
-                "ASPNETCORE_ENVIRONMENT": "Development"
-            },
-            "console": "integratedTerminal",
-            "stopAtEntry": false
-        },
-        {
-            "name": "BalanceService.Api (dotnet run)",
-            "type": "coreclr",
-            "request": "launch",
-            "preLaunchTask": "build-balance-api",
-            "program": "dotnet",
-            "args": [
-                "run",
-                "--project",
-                "${workspaceFolder}/src/BalanceService.Api/BalanceService.Api.csproj"
-            ],
-            "cwd": "${workspaceFolder}",
-            "env": {
-                "ASPNETCORE_ENVIRONMENT": "Development"
-            },
-            "console": "integratedTerminal",
-            "stopAtEntry": false
-        }
-    ]
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Auth.Api (host, local dependencies required)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "dotnet: build Auth.Api",
+      "program": "dotnet",
+      "args": [
+        "run",
+        "--no-launch-profile",
+        "--project",
+        "${workspaceFolder}/src/Auth.Api/Auth.Api.csproj"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ASPNETCORE_URLS": "http://localhost:5030"
+      },
+      "console": "integratedTerminal",
+      "stopAtEntry": false
+    },
+    {
+      "name": "LedgerService.Api (host, local dependencies required)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "dotnet: build LedgerService.Api",
+      "program": "dotnet",
+      "args": [
+        "run",
+        "--no-launch-profile",
+        "--project",
+        "${workspaceFolder}/src/LedgerService.Api/LedgerService.Api.csproj"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ASPNETCORE_URLS": "http://localhost:5226"
+      },
+      "console": "integratedTerminal",
+      "stopAtEntry": false
+    },
+    {
+      "name": "LedgerService.Worker (host, local dependencies required)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "dotnet: build LedgerService.Worker",
+      "program": "dotnet",
+      "args": [
+        "run",
+        "--project",
+        "${workspaceFolder}/src/LedgerService.Worker/LedgerService.Worker.csproj"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "DOTNET_ENVIRONMENT": "Development"
+      },
+      "console": "integratedTerminal",
+      "stopAtEntry": false
+    },
+    {
+      "name": "BalanceService.Api (host, local dependencies required)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "dotnet: build BalanceService.Api",
+      "program": "dotnet",
+      "args": [
+        "run",
+        "--no-launch-profile",
+        "--project",
+        "${workspaceFolder}/src/BalanceService.Api/BalanceService.Api.csproj"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ASPNETCORE_URLS": "http://localhost:5228"
+      },
+      "console": "integratedTerminal",
+      "stopAtEntry": false
+    },
+    {
+      "name": "BalanceService.Worker (host, local dependencies required)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "dotnet: build BalanceService.Worker",
+      "program": "dotnet",
+      "args": [
+        "run",
+        "--project",
+        "${workspaceFolder}/src/BalanceService.Worker/BalanceService.Worker.csproj"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "DOTNET_ENVIRONMENT": "Development"
+      },
+      "console": "integratedTerminal",
+      "stopAtEntry": false
+    }
+  ],
+  "compounds": [
+    {
+      "name": "APIs (host, local dependencies required)",
+      "configurations": [
+        "Auth.Api (host, local dependencies required)",
+        "LedgerService.Api (host, local dependencies required)",
+        "BalanceService.Api (host, local dependencies required)"
+      ],
+      "stopAll": true
+    },
+    {
+      "name": "Business services (host, local dependencies required)",
+      "configurations": [
+        "LedgerService.Api (host, local dependencies required)",
+        "LedgerService.Worker (host, local dependencies required)",
+        "BalanceService.Api (host, local dependencies required)",
+        "BalanceService.Worker (host, local dependencies required)"
+      ],
+      "stopAll": true
+    }
+  ]
 }
