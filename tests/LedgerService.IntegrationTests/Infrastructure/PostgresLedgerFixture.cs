@@ -12,7 +12,7 @@ public sealed class PostgresLedgerFixture : IAsyncLifetime
 
     public string ConnectionString => _postgres.GetConnectionString();
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _postgres.StartAsync();
 
@@ -20,7 +20,7 @@ public sealed class PostgresLedgerFixture : IAsyncLifetime
         await factory.MigrateAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _postgres.DisposeAsync();
     }

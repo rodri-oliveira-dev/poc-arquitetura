@@ -28,12 +28,12 @@ public sealed class EstornoLancamentoConcurrencyTests : IAsyncLifetime
         _factory = new PostgresLedgerApiFactory(fixture.ConnectionString);
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _factory.CleanAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _factory.DisposeAsync();
     }
