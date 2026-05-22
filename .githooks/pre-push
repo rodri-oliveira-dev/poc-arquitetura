@@ -3,6 +3,7 @@ set -eu
 
 CONFIGURATION="${CONFIGURATION:-Release}"
 THRESHOLD="${COVERAGE_THRESHOLD:-85}"
+PRE_PUSH_COVERAGE="${PRE_PUSH_COVERAGE:-false}"
 ZERO_SHA="0000000000000000000000000000000000000000"
 
 if command -v git >/dev/null 2>&1; then
@@ -50,16 +51,47 @@ append_changed_files_from_ref_range() {
   git diff --name-only "$base_ref" "$head_ref" >>"$changed_files"
 }
 
-append_changed_files_from_upstream() {
-  head_ref="$1"
+append_changed_files_from_base_ref() {
+  base_ref="$1"
+  head_ref="$2"
 
-  upstream_ref="$(git rev-parse --abbrev-ref --symbolic-full-name "@{u}" 2>/dev/null || true)"
-  if [ -z "$upstream_ref" ]; then
-    echo "==> pre-push: upstream/remoto nao configurado; executando validacoes por seguranca"
+  if ! git rev-parse --verify "$base_ref^{commit}" >/dev/null 2>&1; then
     return 1
   fi
 
-  git diff --name-only "$upstream_ref...$head_ref" >>"$changed_files"
+  merge_base="$(git merge-base "$head_ref" "$base_ref" 2>/dev/null || true)"
+  if [ -z "$merge_base" ]; then
+    return 1
+  fi
+
+  git diff --name-only "$merge_base" "$head_ref" >>"$changed_files"
+}
+
+append_changed_files_from_safe_base() {
+  head_ref="$1"
+
+  upstream_ref="$(git rev-parse --abbrev-ref --symbolic-full-name "@{u}" 2>/dev/null || true)"
+  if [ -n "$upstream_ref" ]; then
+    if append_changed_files_from_base_ref "$upstream_ref" "$head_ref"; then
+      echo "==> pre-push: diff calculado contra $upstream_ref"
+      return 0
+    fi
+
+    echo "==> pre-push: nao foi possivel calcular diff contra $upstream_ref"
+  fi
+
+  if append_changed_files_from_base_ref "origin/HEAD" "$head_ref"; then
+    echo "==> pre-push: diff calculado contra origin/HEAD"
+    return 0
+  fi
+
+  if append_changed_files_from_base_ref "origin/main" "$head_ref"; then
+    echo "==> pre-push: diff calculado contra origin/main"
+    return 0
+  fi
+
+  echo "==> pre-push: upstream/remoto/base padrao indisponivel; executando validacoes por seguranca"
+  return 1
 }
 
 diff_is_safe=true
@@ -80,13 +112,13 @@ do
     continue
   fi
 
-  if ! append_changed_files_from_upstream "$local_sha"; then
+  if ! append_changed_files_from_safe_base "$local_sha"; then
     diff_is_safe=false
   fi
 done
 
 if [ "$stdin_seen" = false ]; then
-  if ! append_changed_files_from_upstream "HEAD"; then
+  if ! append_changed_files_from_safe_base "HEAD"; then
     diff_is_safe=false
   fi
 fi
@@ -119,6 +151,27 @@ dotnet restore ./LedgerService.slnx
 echo "==> pre-push: executando build ($CONFIGURATION)"
 dotnet build ./LedgerService.slnx --configuration "$CONFIGURATION" --no-restore
 
+case "$PRE_PUSH_COVERAGE" in
+  true|TRUE|1|yes|YES)
+    coverage_enabled=true
+    ;;
+  *)
+    coverage_enabled=false
+    ;;
+esac
+
+if [ "$coverage_enabled" != true ]; then
+  echo "==> pre-push: executando testes rapidos sem cobertura"
+  dotnet test ./LedgerService.slnx \
+    --configuration "$CONFIGURATION" \
+    --no-build \
+    --no-restore
+
+  echo "==> pre-push: build e testes rapidos aprovados"
+  echo "==> pre-push: para executar cobertura neste hook, use PRE_PUSH_COVERAGE=true"
+  exit 0
+fi
+
 echo "==> pre-push: executando testes com cobertura"
 rm -rf "$results_dir"
 mkdir -p "$results_dir"
@@ -126,6 +179,7 @@ mkdir -p "$results_dir"
 dotnet test ./LedgerService.slnx \
   --configuration "$CONFIGURATION" \
   --no-build \
+  --no-restore \
   --collect:"XPlat Code Coverage" \
   --settings ./coverlet.runsettings \
   --results-directory "$results_dir"

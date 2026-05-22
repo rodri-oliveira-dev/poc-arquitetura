@@ -22,6 +22,12 @@ Linux/macOS:
 ./test.sh
 ```
 
+Esses scripts representam a validacao completa de cobertura. O `pre-push` padrao usa um caminho rapido sem cobertura; para incluir cobertura no hook local, execute:
+
+```bash
+PRE_PUSH_COVERAGE=true .githooks/pre-push
+```
+
 Comando equivalente:
 
 ```bash
@@ -52,7 +58,7 @@ Depois da coleta, os scripts executam o ReportGenerator e leem `TestResults/cove
 - A validacao considera a cobertura consolidada da solution inteira.
 - `LedgerService.Worker` e `BalanceService.Worker` tambem precisam atingir 85% de cobertura de linhas por assembly.
 - O minimo aceito e 85% de cobertura de linhas.
-- O mesmo limite deve ser usado localmente, no `pre-push` e no CI.
+- O mesmo limite deve ser usado localmente, no `pre-push` com `PRE_PUSH_COVERAGE=true` e no CI completo.
 - Se `LedgerService.Worker` ou `BalanceService.Worker` estiver ausente do `Summary.json`/`Summary.txt`, o gate falha; assembly ausente nao e tratado como sucesso.
 - Relatorios ficam em `TestResults/`, que nao e versionado.
 
@@ -93,7 +99,7 @@ Quando o gate falhar:
 3. Priorize testes que validem comportamento de dominio, aplicacao, infraestrutura critica ou contratos HTTP.
 4. Use exclusao somente quando houver justificativa tecnica clara e localizada.
 
-O CI publica os resultados de testes e cobertura como artifact `test-results-and-coverage` por 7 dias quando executado no GitHub Actions.
+O workflow `pull-request-validation` e um gate rapido de PR e executa testes sem cobertura. O workflow `dotnet-ci` continua sendo a validacao completa pos-merge/manual com cobertura, threshold e artifact `test-results-and-coverage` por 7 dias quando executado no GitHub Actions.
 
 O artifact contem arquivos `.trx`, `coverage.cobertura.xml`, `coverage-report/Summary.json` e `coverage-report/Summary.txt`. O HTML completo do ReportGenerator nao e publicado como artifact porque o XML e os summaries atendem ao diagnostico principal com menor exposicao de paths e trechos renderizados.
 
