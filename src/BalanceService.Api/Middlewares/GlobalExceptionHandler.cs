@@ -4,6 +4,7 @@ using BalanceService.Application.Common.Exceptions;
 using BalanceService.Domain.Exceptions;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
+using System.Text.Json;
 
 namespace BalanceService.Api.Middlewares;
 
@@ -18,23 +19,28 @@ public sealed class GlobalExceptionHandler : IExceptionHandler
 
     public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(httpContext);
+        ArgumentNullException.ThrowIfNull(exception);
+
         LogHandledException(exception, httpContext.TraceIdentifier);
 
         var (statusCode, title, detail) = MapException(exception);
 
         if (exception is ValidationException validationException)
         {
-            var errors = validationException.Errors
-                .GroupBy(e => ToCamelCase(e.PropertyName))
-                .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray());
+            var validationResponse = ValidationErrorResponseFactory.Create(httpContext, validationException);
 
-            var correlationId = httpContext.Request.Headers[CorrelationIdMiddleware.HeaderName].FirstOrDefault();
+            httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
+            await httpContext.Response.WriteAsJsonAsync(validationResponse, cancellationToken);
+            return true;
+        }
 
-            var validationResponse = new ValidationErrorResponse
-            {
-                Errors = errors,
-                CorrelationId = correlationId
-            };
+        if (IsJsonRequestException(exception))
+        {
+            var validationResponse = ValidationErrorResponseFactory.Create(
+                httpContext,
+                "$",
+                "Request body must be valid JSON.");
 
             httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
             await httpContext.Response.WriteAsJsonAsync(validationResponse, cancellationToken);
@@ -81,14 +87,8 @@ public sealed class GlobalExceptionHandler : IExceptionHandler
         };
     }
 
-    private static string ToCamelCase(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-            return value;
+    private static bool IsJsonRequestException(Exception exception)
+        => exception is JsonException or BadHttpRequestException ||
+            exception.InnerException is not null && IsJsonRequestException(exception.InnerException);
 
-        if (value.Length == 1)
-            return value.ToLowerInvariant();
-
-        return char.ToLowerInvariant(value[0]) + value[1..];
-    }
 }

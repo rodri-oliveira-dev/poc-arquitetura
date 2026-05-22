@@ -15,10 +15,13 @@ public static class SolicitarEstornoLancamentoBind
         Guid lancamentoId,
         string idempotencyKey,
         string? correlationId,
-        SolicitarEstornoLancamentoRequest request,
+        SolicitarEstornoLancamentoRequest? request,
         IReadOnlyCollection<string> authorizedMerchantIds)
     {
+        ArgumentNullException.ThrowIfNull(httpContext);
+
         ValidateTransportHeaders(idempotencyKey);
+        var validRequest = ValidateRequestBody(request);
 
         var resolvedCorrelationId = string.IsNullOrWhiteSpace(correlationId)
             ? httpContext.Request.Headers[CorrelationIdMiddleware.HeaderName].ToString()
@@ -26,7 +29,7 @@ public static class SolicitarEstornoLancamentoBind
 
         return SolicitarEstornoLancamentoMapper.ToCommand(
             lancamentoId,
-            request,
+            validRequest,
             idempotencyKey,
             resolvedCorrelationId,
             authorizedMerchantIds);
@@ -49,5 +52,16 @@ public static class SolicitarEstornoLancamentoBind
                 new ValidationFailure(nameof(SolicitarEstornoLancamentoCommand.IdempotencyKey), "Idempotency-Key must be a valid UUID.")
             });
         }
+    }
+
+    private static SolicitarEstornoLancamentoRequest ValidateRequestBody(SolicitarEstornoLancamentoRequest? request)
+    {
+        if (request is not null)
+            return request;
+
+        throw new ValidationException(new[]
+        {
+            new ValidationFailure("$", "Request body is required.")
+        });
     }
 }

@@ -5,6 +5,7 @@ using System.Text;
 
 using FluentAssertions;
 
+using LedgerService.Api.Contracts.Responses;
 using LedgerService.Application.Common.Models;
 using LedgerService.IntegrationTests.Infrastructure;
 using LedgerService.IntegrationTests.Infrastructure.Security;
@@ -206,8 +207,74 @@ public sealed class LancamentosAuthorizationTests : IClassFixture<LedgerApiFacto
         var res = await _client.SendAsync(req);
 
         res.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        var body = await res.Content.ReadAsStringAsync();
-        body.Should().Contain("amount");
+        var body = await AssertValidationErrorResponseAsync(res);
+        body.Errors.Should().ContainKey("amount");
+    }
+
+    [Fact]
+    public async Task Post_should_return_validation_contract_when_amount_type_is_invalid()
+    {
+        var token = TestJwtTokenFactory.CreateToken(
+            issuer: "https://auth-api",
+            audiences: "ledger-api",
+            scopes: "ledger.write");
+
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        using var req = new HttpRequestMessage(HttpMethod.Post, "/api/v1/lancamentos")
+        {
+            Content = new StringContent(
+                """
+                {
+                  "merchantId": "m1",
+                  "type": "CREDIT",
+                  "amount": "abc"
+                }
+                """,
+                Encoding.UTF8,
+                "application/json")
+        };
+        req.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+
+        var res = await _client.SendAsync(req);
+
+        res.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var body = await AssertValidationErrorResponseAsync(res);
+        body.Errors.Should().ContainKey("amount");
+    }
+
+    [Fact]
+    public async Task Post_should_return_validation_contract_when_json_is_malformed()
+    {
+        var token = TestJwtTokenFactory.CreateToken(
+            issuer: "https://auth-api",
+            audiences: "ledger-api",
+            scopes: "ledger.write");
+
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        using var req = new HttpRequestMessage(HttpMethod.Post, "/api/v1/lancamentos")
+        {
+            Content = new StringContent(
+                """
+                {
+                  "merchantId": "m1",
+                  "type": "CREDIT",
+                  "amount": 10.00,
+                """,
+                Encoding.UTF8,
+                "application/json")
+        };
+        req.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+
+        var res = await _client.SendAsync(req);
+
+        res.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var body = await AssertValidationErrorResponseAsync(res);
+        body.Errors.Should().NotBeEmpty();
+
+        var raw = await res.Content.ReadAsStringAsync();
+        raw.Should().NotContain("StackTrace");
     }
 
     [Fact]
@@ -227,6 +294,8 @@ public sealed class LancamentosAuthorizationTests : IClassFixture<LedgerApiFacto
         var res = await _client.SendAsync(req);
 
         res.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var body = await AssertValidationErrorResponseAsync(res);
+        body.Errors.Should().ContainKey("$");
     }
 
     [Fact]
@@ -248,8 +317,8 @@ public sealed class LancamentosAuthorizationTests : IClassFixture<LedgerApiFacto
         var res = await _client.SendAsync(req);
 
         res.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        var body = await res.Content.ReadAsStringAsync();
-        body.Should().Contain("MerchantId");
+        var body = await AssertValidationErrorResponseAsync(res);
+        body.Errors.Should().ContainKey("merchantId");
     }
 
     [Theory]
@@ -316,5 +385,20 @@ public sealed class LancamentosAuthorizationTests : IClassFixture<LedgerApiFacto
         var allowedHeaders = string.Join(",", values!).ToLowerInvariant();
         allowedHeaders.Should().Contain("idempotency-key");
         allowedHeaders.Should().Contain("x-correlation-id");
+    }
+
+    private static async Task<ValidationErrorResponse> AssertValidationErrorResponseAsync(HttpResponseMessage response)
+    {
+        response.Content.Headers.ContentType?.MediaType.Should().Be("application/json");
+
+        var body = await response.Content.ReadFromJsonAsync<ValidationErrorResponse>();
+        body.Should().NotBeNull();
+        body!.Type.Should().Be("https://httpstatuses.com/400");
+        body.Title.Should().Be("Invalid request");
+        body.Status.Should().Be(400);
+        body.Detail.Should().Be("One or more validation errors occurred.");
+        body.Errors.Should().NotBeEmpty();
+        body.CorrelationId.Should().NotBeNullOrWhiteSpace();
+        return body;
     }
 }

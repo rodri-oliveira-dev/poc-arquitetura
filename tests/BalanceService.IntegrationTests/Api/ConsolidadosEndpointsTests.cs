@@ -40,6 +40,9 @@ public sealed class ConsolidadosEndpointsTests : IClassFixture<BalanceApiFactory
 
         var res = await _client.GetAsync("/v1/consolidados/periodo?merchantId=m1&from=bad&to=2026-02-12");
         res.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var body = await AssertValidationErrorResponseAsync(res);
+        body.Errors.Should().ContainKey("from");
     }
 
     [Fact]
@@ -71,6 +74,9 @@ public sealed class ConsolidadosEndpointsTests : IClassFixture<BalanceApiFactory
 
         var res = await _client.GetAsync("/v1/consolidados/periodo?merchantId=m1&from=2026-02-12&to=2026-02-10");
         res.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var body = await AssertValidationErrorResponseAsync(res);
+        body.Errors.Should().NotBeEmpty();
     }
 
     [Fact]
@@ -86,6 +92,9 @@ public sealed class ConsolidadosEndpointsTests : IClassFixture<BalanceApiFactory
         var res = await _client.GetAsync("/v1/consolidados/periodo?merchantId=m1&from=2026-02-01&to=2026-03-05");
 
         res.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var body = await AssertValidationErrorResponseAsync(res);
+        body.Errors.Should().ContainKey("to");
     }
 
     [Fact]
@@ -101,6 +110,9 @@ public sealed class ConsolidadosEndpointsTests : IClassFixture<BalanceApiFactory
 
         var res = await _client.GetAsync("/v1/consolidados/diario/bad-date?merchantId=m1");
         res.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var body = await AssertValidationErrorResponseAsync(res);
+        body.Errors.Should().ContainKey("date");
     }
 
     [Fact]
@@ -116,8 +128,8 @@ public sealed class ConsolidadosEndpointsTests : IClassFixture<BalanceApiFactory
         var res = await _client.GetAsync("/v1/consolidados/diario/2026-02-10");
 
         res.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        var raw = await res.Content.ReadAsStringAsync();
-        raw.Should().Contain("merchantId");
+        var body = await AssertValidationErrorResponseAsync(res);
+        body.Errors.Should().ContainKey("merchantId");
     }
 
     [Fact]
@@ -274,5 +286,20 @@ public sealed class ConsolidadosEndpointsTests : IClassFixture<BalanceApiFactory
         body.Items[1].AsOf.Should().NotBeNullOrWhiteSpace();
 
         body.CalculatedAt.Should().NotBeNullOrWhiteSpace();
+    }
+
+    private static async Task<ValidationErrorResponse> AssertValidationErrorResponseAsync(HttpResponseMessage response)
+    {
+        response.Content.Headers.ContentType?.MediaType.Should().Be("application/json");
+
+        var body = await response.Content.ReadFromJsonAsync<ValidationErrorResponse>();
+        body.Should().NotBeNull();
+        body!.Type.Should().Be("https://httpstatuses.com/400");
+        body.Title.Should().Be("Invalid request");
+        body.Status.Should().Be(400);
+        body.Detail.Should().Be("One or more validation errors occurred.");
+        body.Errors.Should().NotBeEmpty();
+        body.CorrelationId.Should().NotBeNullOrWhiteSpace();
+        return body;
     }
 }

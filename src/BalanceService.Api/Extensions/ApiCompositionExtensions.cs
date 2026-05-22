@@ -1,5 +1,6 @@
 using BalanceService.Application;
 using BalanceService.Infrastructure;
+using BalanceService.Api.Contracts;
 
 namespace BalanceService.Api.Extensions;
 
@@ -25,7 +26,11 @@ public static class ApiCompositionExtensions
             .AddBalancePersistence(configuration)
             .AddBalanceRepositories();
 
-        services.AddControllers();
+        services.AddControllers()
+            .ConfigureApiBehaviorOptions(options =>
+            {
+                options.InvalidModelStateResponseFactory = ValidationErrorResponseFactory.CreateResult;
+            });
         services.AddEndpointsApiExplorer();
 
         return services;
