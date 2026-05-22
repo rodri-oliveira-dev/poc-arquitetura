@@ -8,7 +8,7 @@ namespace LedgerService.UnitTests.Infrastructure.Persistence.Repositories;
 public sealed class OutboxMessageRepositoryTests
 {
     [Fact]
-    public async Task MarkSentAsync_DeveAtualizarStatusParaSent()
+    public async Task MarkProcessedAsync_DeveAtualizarStatusParaProcessed()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseInMemoryDatabase($"outbox-db-{Guid.NewGuid():N}")
@@ -25,11 +25,11 @@ public sealed class OutboxMessageRepositoryTests
         await db.SaveChangesAsync();
 
         var processedAt = DateTime.Now;
-        await repo.MarkSentAsync(msg.Id, processedAt);
+        await repo.MarkProcessedAsync(msg.Id, processedAt);
         await db.SaveChangesAsync();
 
         var refreshed = await db.OutboxMessages.SingleAsync(x => x.Id == msg.Id);
-        Assert.Equal(OutboxStatus.Sent, refreshed.Status);
+        Assert.Equal(OutboxStatus.Processed, refreshed.Status);
         Assert.Equal(processedAt, refreshed.ProcessedAt);
     }
 
@@ -64,7 +64,7 @@ public sealed class OutboxMessageRepositoryTests
     }
 
     [Fact]
-    public async Task MarkFailedAttemptAsync_DeveIncrementarAttemptsEManterPendingAteMaxAttempts()
+    public async Task MarkFailedPublishAttemptAsync_DeveIncrementarRetryCountEManterPendingAteMaxRetries()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseInMemoryDatabase($"outbox-db-{Guid.NewGuid():N}")
@@ -78,18 +78,18 @@ public sealed class OutboxMessageRepositoryTests
         await repo.AddAsync(msg);
         await db.SaveChangesAsync();
 
-        await repo.MarkFailedAttemptAsync(msg.Id, maxAttempts: 3, nextAttemptAt: DateTime.Now.AddSeconds(10), lastError: "boom");
+        await repo.MarkFailedPublishAttemptAsync(msg.Id, maxRetries: 3, nextRetryAt: DateTime.Now.AddSeconds(10), lastError: "boom");
         await db.SaveChangesAsync();
 
         var refreshed = await db.OutboxMessages.SingleAsync(x => x.Id == msg.Id);
-        Assert.Equal(1, refreshed.Attempts);
+        Assert.Equal(1, refreshed.RetryCount);
         Assert.Equal(OutboxStatus.Pending, refreshed.Status);
-        Assert.NotNull(refreshed.NextAttemptAt);
+        Assert.NotNull(refreshed.NextRetryAt);
         Assert.Equal("boom", refreshed.LastError);
     }
 
     [Fact]
-    public async Task MarkFailedAttemptAsync_DeveMarcarFailedAoExcederMaxAttempts()
+    public async Task MarkFailedPublishAttemptAsync_DeveMarcarDeadLetterAoExcederMaxRetries()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseInMemoryDatabase($"outbox-db-{Guid.NewGuid():N}")
@@ -103,19 +103,19 @@ public sealed class OutboxMessageRepositoryTests
         await repo.AddAsync(msg);
         await db.SaveChangesAsync();
 
-        await repo.MarkFailedAttemptAsync(msg.Id, maxAttempts: 1, nextAttemptAt: DateTime.Now.AddSeconds(10), lastError: "boom");
+        await repo.MarkFailedPublishAttemptAsync(msg.Id, maxRetries: 1, nextRetryAt: DateTime.Now.AddSeconds(10), lastError: "boom");
         await db.SaveChangesAsync();
 
         var refreshed = await db.OutboxMessages.SingleAsync(x => x.Id == msg.Id);
-        Assert.Equal(1, refreshed.Attempts);
-        Assert.Equal(OutboxStatus.Failed, refreshed.Status);
-        Assert.Null(refreshed.NextAttemptAt);
+        Assert.Equal(1, refreshed.RetryCount);
+        Assert.Equal(OutboxStatus.DeadLetter, refreshed.Status);
+        Assert.Null(refreshed.NextRetryAt);
         Assert.Equal("boom", refreshed.LastError);
-        Assert.NotNull(refreshed.ProcessedAt);
+        Assert.Null(refreshed.ProcessedAt);
     }
 
     [Fact]
-    public async Task RequeueFailedAsync_DeveVoltarFailedParaPendingComAuditoria()
+    public async Task RequeueDeadLettersAsync_DeveVoltarDeadLetterParaPendingComAuditoria()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseInMemoryDatabase($"outbox-db-{Guid.NewGuid():N}")
@@ -128,11 +128,11 @@ public sealed class OutboxMessageRepositoryTests
         await repo.AddAsync(msg);
         await db.SaveChangesAsync();
 
-        await repo.MarkFailedAttemptAsync(msg.Id, maxAttempts: 1, nextAttemptAt: DateTime.Now.AddSeconds(10), lastError: "kafka down");
+        await repo.MarkFailedPublishAttemptAsync(msg.Id, maxRetries: 1, nextRetryAt: DateTime.Now.AddSeconds(10), lastError: "kafka down");
         await db.SaveChangesAsync();
 
         var requeuedAt = DateTime.Now;
-        var requeued = await repo.RequeueFailedAsync(
+        var requeued = await repo.RequeueDeadLettersAsync(
             id: msg.Id,
             eventType: null,
             occurredFrom: null,
@@ -148,18 +148,18 @@ public sealed class OutboxMessageRepositoryTests
 
         var refreshed = await db.OutboxMessages.SingleAsync(x => x.Id == msg.Id);
         Assert.Equal(OutboxStatus.Pending, refreshed.Status);
-        Assert.Equal(0, refreshed.Attempts);
-        Assert.Null(refreshed.NextAttemptAt);
+        Assert.Equal(0, refreshed.RetryCount);
+        Assert.Null(refreshed.NextRetryAt);
         Assert.Null(refreshed.ProcessedAt);
         Assert.Equal(1, refreshed.RequeueCount);
         Assert.Equal(requeuedAt, refreshed.LastRequeuedAt);
         Assert.Equal("operador", refreshed.LastRequeuedBy);
         Assert.Equal("broker recuperado", refreshed.LastRequeueReason);
-        Assert.Equal("kafka down", refreshed.LastError);
+        Assert.Null(refreshed.LastError);
     }
 
     [Fact]
-    public async Task RequeueFailedAsync_NaoDeveReprocessarSent()
+    public async Task RequeueDeadLettersAsync_NaoDeveReprocessarProcessed()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseInMemoryDatabase($"outbox-db-{Guid.NewGuid():N}")
@@ -168,12 +168,12 @@ public sealed class OutboxMessageRepositoryTests
         await using var db = new AppDbContext(options);
         var repo = new OutboxMessageRepository(db);
         var msg = new OutboxMessage("LedgerEntry", Guid.NewGuid(), "LedgerEntryCreated.v1", "{}", DateTime.Now, Guid.NewGuid());
-        msg.MarkSent(DateTime.Now);
+        msg.MarkProcessed(DateTime.Now);
 
         await repo.AddAsync(msg);
         await db.SaveChangesAsync();
 
-        var requeued = await repo.RequeueFailedAsync(
+        var requeued = await repo.RequeueDeadLettersAsync(
             id: msg.Id,
             eventType: null,
             occurredFrom: null,
@@ -187,12 +187,12 @@ public sealed class OutboxMessageRepositoryTests
         Assert.Empty(requeued);
 
         var refreshed = await db.OutboxMessages.SingleAsync(x => x.Id == msg.Id);
-        Assert.Equal(OutboxStatus.Sent, refreshed.Status);
+        Assert.Equal(OutboxStatus.Processed, refreshed.Status);
         Assert.Equal(0, refreshed.RequeueCount);
     }
 
     [Fact]
-    public async Task RequeueFailedAsync_NaoDeveReprocessarProcessingValida()
+    public async Task RequeueDeadLettersAsync_NaoDeveReprocessarProcessingValida()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseInMemoryDatabase($"outbox-db-{Guid.NewGuid():N}")
@@ -206,7 +206,7 @@ public sealed class OutboxMessageRepositoryTests
         await repo.AddAsync(msg);
         await db.SaveChangesAsync();
 
-        var requeued = await repo.RequeueFailedAsync(
+        var requeued = await repo.RequeueDeadLettersAsync(
             id: msg.Id,
             eventType: null,
             occurredFrom: null,
@@ -226,7 +226,7 @@ public sealed class OutboxMessageRepositoryTests
     }
 
     [Fact]
-    public async Task RequeueFailedAsync_DevePermitirClaimEPublicacaoPosterior()
+    public async Task RequeueDeadLettersAsync_DevePermitirClaimEPublicacaoPosterior()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseInMemoryDatabase($"outbox-db-{Guid.NewGuid():N}")
@@ -239,10 +239,10 @@ public sealed class OutboxMessageRepositoryTests
 
         await repo.AddAsync(msg);
         await db.SaveChangesAsync();
-        await repo.MarkFailedAttemptAsync(msg.Id, maxAttempts: 1, nextAttemptAt: now.AddSeconds(10), lastError: "kafka down");
+        await repo.MarkFailedPublishAttemptAsync(msg.Id, maxRetries: 1, nextRetryAt: now.AddSeconds(10), lastError: "kafka down");
         await db.SaveChangesAsync();
 
-        await repo.RequeueFailedAsync(
+        await repo.RequeueDeadLettersAsync(
             id: msg.Id,
             eventType: null,
             occurredFrom: null,
@@ -258,11 +258,11 @@ public sealed class OutboxMessageRepositoryTests
         Assert.Single(claimed);
         Assert.Equal(msg.Id, claimed[0].Id);
 
-        await repo.MarkSentAsync(msg.Id, now.AddSeconds(1));
+        await repo.MarkProcessedAsync(msg.Id, now.AddSeconds(1));
         await db.SaveChangesAsync();
 
         var refreshed = await db.OutboxMessages.SingleAsync(x => x.Id == msg.Id);
-        Assert.Equal(OutboxStatus.Sent, refreshed.Status);
+        Assert.Equal(OutboxStatus.Processed, refreshed.Status);
         Assert.Equal(1, refreshed.RequeueCount);
     }
 }

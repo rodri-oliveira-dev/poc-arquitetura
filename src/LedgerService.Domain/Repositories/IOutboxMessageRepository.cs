@@ -17,16 +17,21 @@ public interface IOutboxMessageRepository
         TimeSpan lockDuration,
         CancellationToken cancellationToken = default);
 
-    Task MarkSentAsync(Guid id, DateTime processedAt, CancellationToken cancellationToken = default);
+    Task MarkProcessedAsync(Guid id, DateTime processedAt, CancellationToken cancellationToken = default);
 
-    Task MarkFailedAttemptAsync(
+    Task<OutboxStatus> MarkFailedPublishAttemptAsync(
         Guid id,
-        int maxAttempts,
-        DateTime nextAttemptAt,
+        int maxRetries,
+        DateTime nextRetryAt,
         string? lastError,
         CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyList<OutboxMessage>> RequeueFailedAsync(
+    Task<(IReadOnlyList<OutboxMessage> Items, int TotalCount)> GetDeadLettersAsync(
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<OutboxMessage>> RequeueDeadLettersAsync(
         Guid? id,
         string? eventType,
         DateTime? occurredFrom,

@@ -100,9 +100,9 @@ docker compose up -d balance-db
 
 Use o nome real mostrado por `docker volume ls` caso o projeto Compose tenha outro nome. Nenhum script do repositorio remove volumes automaticamente.
 
-## Outbox fica em Pending ou Failed
+## Outbox fica em Pending ou DeadLetter
 
-Mensagens `Pending` podem ser normais durante a janela de polling. Se permanecerem acumuladas ou chegarem a `Failed`, investigue Kafka, topic map, ACL/configuracao local, serializacao e `last_error`.
+Mensagens `Pending` podem ser normais durante a janela de polling. Se permanecerem acumuladas ou chegarem a `DeadLetter`, investigue Kafka, topic map, ACL/configuracao local, serializacao e `last_error`.
 
 O publisher roda no `LedgerService.Worker`; se o `LedgerService.Api` estiver saudavel mas a Outbox nao avancar, valide primeiro se o container/processo `ledger-worker` esta ativo e com `ServiceName=LedgerService.Worker`.
 
@@ -114,7 +114,7 @@ Confirme a cadeia completa:
 
 1. lancamento criado no Ledger;
 2. mensagem em `outbox_messages`;
-3. `ledger-worker` publicou a mensagem e ela chegou ao status final `Sent`;
+3. `ledger-worker` publicou a mensagem e ela chegou ao status final `Processed`;
 4. `balance-worker` consumiu o evento e registrou `processed_events`;
 5. `balance-worker` atualizou `daily_balances`;
 6. ausencia de mensagem inesperada na DLQ.

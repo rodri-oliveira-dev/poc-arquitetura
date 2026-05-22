@@ -53,10 +53,10 @@ Estados esperados:
 
 - `Pending`: mensagem criada e aguardando publicacao;
 - `Processing`: mensagem reclamada por um publisher com lock temporario;
-- `Sent`: mensagem publicada com sucesso;
-- `Failed`: mensagem excedeu o limite de tentativas.
+- `Processed`: mensagem publicada com sucesso;
+- `DeadLetter`: mensagem excedeu o limite de retries.
 
-Mensagens `Failed` exigem investigacao antes de qualquer nova tentativa. O requeue operacional recoloca somente mensagens `Failed` em `Pending`; mensagens `Sent` nao sao reprocessadas e mensagens `Processing` validas continuam sob responsabilidade do lock do publisher.
+Mensagens `DeadLetter` exigem investigacao antes de qualquer nova tentativa. O requeue operacional recoloca somente mensagens `DeadLetter` em `Pending`; mensagens `Processed` nao sao reprocessadas e mensagens `Processing` validas continuam sob responsabilidade do lock do publisher.
 
 A Outbox tambem persiste metadados opcionais de propagacao distribuida em `traceparent`, `tracestate` e `baggage`. Esses campos nao fazem parte do payload do evento, nao mudam contrato de negocio e servem apenas para reconstruir a arvore W3C entre o request HTTP original, o polling da Outbox, Kafka e o consumer do Balance. Quando OpenTelemetry esta desligado ou nao existe `Activity.Current`, esses campos ficam nulos e o fluxo continua usando `correlation_id`.
 
@@ -69,61 +69,52 @@ Configuracoes principais em `Outbox:Publisher`:
 - `BaseBackoffSeconds`;
 - `LockDurationSeconds`.
 
-## Requeue operacional de Outbox Failed
+## DLQ em banco e requeue operacional
 
 Use o requeue quando a causa da falha ja tiver sido corrigida ou classificada como transiente, por exemplo indisponibilidade temporaria de Kafka, credenciais/ACL corrigidas, topico recriado ou configuracao de producer ajustada. Nao use para mascarar erro permanente de contrato, payload invalido, topico incorreto ou incompatibilidade de consumidor.
 
 Endpoint administrativo:
 
-- `POST /api/v1/outbox/failed/requeue`;
-- exige JWT valido com scope `ledger.outbox.requeue`;
-- exige `reason` e ao menos um filtro: `outboxMessageId`, `eventType`, `occurredFrom` ou `occurredUntil`;
-- `limit` padrao: `50`; maximo: `100`;
-- altera apenas mensagens com status `Failed`.
+- `GET /api/v1/outbox/dead-letters?page=1&pageSize=50`;
+- `POST /api/v1/outbox/dead-letters/{id}/requeue`;
+- exige JWT valido com scope `outbox.admin`;
+- o requeue exige `reason`;
+- altera apenas mensagens com status `DeadLetter`.
 
 Exemplo controlado por id:
 
 ```bash
-curl -i -X POST http://localhost:5226/api/v1/outbox/failed/requeue \
-  -H "Authorization: Bearer <TOKEN_COM_LEDGER_OUTBOX_REQUEUE>" \
+curl -i -X POST http://localhost:5226/api/v1/outbox/dead-letters/00000000-0000-0000-0000-000000000001/requeue \
+  -H "Authorization: Bearer <TOKEN_COM_OUTBOX_ADMIN>" \
   -H "Content-Type: application/json" \
   -d '{
-    "outboxMessageId": "00000000-0000-0000-0000-000000000001",
     "reason": "Kafka recuperado apos indisponibilidade temporaria"
   }'
 ```
 
-Exemplo por tipo de evento e janela:
+Exemplo de inspecao:
 
 ```bash
-curl -i -X POST http://localhost:5226/api/v1/outbox/failed/requeue \
-  -H "Authorization: Bearer <TOKEN_COM_LEDGER_OUTBOX_REQUEUE>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "eventType": "LedgerEntryCreated.v1",
-    "occurredFrom": "2026-05-08T00:00:00",
-    "occurredUntil": "2026-05-08T23:59:59",
-    "limit": 25,
-    "reason": "Requeue apos correcao de ACL do producer"
-  }'
+curl -i "http://localhost:5226/api/v1/outbox/dead-letters?page=1&pageSize=50" \
+  -H "Authorization: Bearer <TOKEN_COM_OUTBOX_ADMIN>"
 ```
 
 Cada mensagem requeued registra `requeue_count`, `last_requeued_at`, `last_requeued_by` e `last_requeue_reason`. O `OutboxKafkaPublisherService` publica depois pelo fluxo normal de polling, preservando headers, correlacao, retry/backoff e idempotencia at-least-once.
 
 Procedimento recomendado:
 
-1. Identifique a causa do `Failed` em logs, `last_error` e configuracao Kafka.
+1. Identifique a causa do `DeadLetter` em logs, `last_error` e configuracao Kafka.
 2. Corrija a causa raiz antes do requeue.
 3. Prefira `outboxMessageId` para recuperacao pontual; use filtros por `eventType` e data apenas para incidentes conhecidos.
 4. Execute o endpoint com `reason` claro e limite pequeno.
-5. Aguarde o polling e confirme transicao para `Sent`.
+5. Aguarde o polling e confirme transicao para `Processed`.
 6. Confirme no Balance que a projecao foi atualizada ou que `processed_events` manteve idempotencia em caso de reentrega.
 
 Limitacoes e riscos:
 
 - O requeue nao altera payload nem contrato de evento.
 - Requeue de `LedgerEntryCreated.v1` pode gerar reentrega Kafka, esperada no modelo at-least-once; o Balance deve permanecer idempotente.
-- Se a mensagem voltar para `Failed`, nao repita indefinidamente: investigue contrato, topico, ACL, serializacao e disponibilidade do broker.
+- Se a mensagem voltar para `DeadLetter`, nao repita indefinidamente: investigue contrato, topico, ACL, serializacao e disponibilidade do broker.
 - A auditoria persistente guarda o ultimo requeue e o contador; logs da API/publisher complementam a linha do tempo operacional.
 
 ## DLQ
@@ -150,7 +141,7 @@ Metricas do `LedgerService.Api`:
 
 Metricas do `LedgerService.Worker`:
 
-- Outbox publisher: `ledger.outbox.messages.published`, `ledger.outbox.publish.duration`, `ledger.outbox.messages.pending`, `ledger.outbox.messages.failed`, `ledger.outbox.publish.attempts`.
+- Outbox publisher: `ledger.outbox.messages.published`, `ledger.outbox.publish.duration`, `ledger.outbox.messages.pending`, `ledger.outbox.messages.dead_letter`, `ledger.outbox.publish.attempts`.
 - Kafka Producer: `ledger.kafka.producer.messages.published`, `ledger.kafka.producer.publish.duration`, `ledger.kafka.producer.errors`.
 
 Metricas do `BalanceService.Worker`:
@@ -170,7 +161,7 @@ Tags proibidas por alta cardinalidade: `correlation_id`, `trace_id`, `span_id`, 
 Interpretacao rapida:
 
 - backlog crescente: observe `ledger.outbox.messages.pending` por `event_type`;
-- mensagens travadas: observe `ledger.outbox.messages.failed` e `ledger.outbox.messages.published{result="failure"}`;
+- mensagens travadas: observe `ledger.outbox.messages.dead_letter` e `ledger.outbox.messages.published{result="failure"}`;
 - falhas de producer: observe `ledger.kafka.producer.errors`;
 - consumo saudavel: observe `balance.kafka.consumer.messages.consumed{result="success"}`;
 - duplicidade esperada por at-least-once: observe `balance.kafka.consumer.duplicates`;
@@ -205,10 +196,10 @@ Balance:
 3. Obtenha um token conforme [autenticacao e autorizacao](authentication.md).
 4. Crie um lancamento em `POST /api/v1/lancamentos`.
 5. Verifique no banco Ledger uma linha em `outbox_messages` com `Pending`.
-6. Aguarde o polling e confirme transicao para `Sent`.
+6. Aguarde o polling e confirme transicao para `Processed`.
 7. Consulte o Balance para confirmar atualizacao da projecao.
 
-Em falha do Kafka, as APIs HTTP nao devem cair por causa do processamento assincrono. O Worker registra erro, incrementa tentativas e agenda `next_attempt_at` com backoff.
+Em falha do Kafka, as APIs HTTP nao devem cair por causa do processamento assincrono. O Worker registra erro, incrementa `retry_count` e agenda `next_retry_at` com backoff exponencial e jitter. Ao atingir `MaxAttempts`, a mensagem vira `DeadLetter` e sai do processamento automatico ate requeue administrativo.
 
 Para o roteiro operacional completo Auth -> Ledger -> Outbox -> Kafka -> Balance, incluindo `X-Correlation-Id`, logs, consultas SQL, Balance e Jaeger, use a secao [Validacao Auth -> Ledger -> Outbox -> Kafka -> Balance](../observability.md#validacao-auth---ledger---outbox---kafka---balance). O script recomendado e:
 

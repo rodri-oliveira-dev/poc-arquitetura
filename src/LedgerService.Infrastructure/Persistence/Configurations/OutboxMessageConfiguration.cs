@@ -43,12 +43,12 @@ public sealed class OutboxMessageConfiguration : IEntityTypeConfiguration<Outbox
             .HasConversion<string>()
             .IsRequired();
 
-        builder.Property(x => x.Attempts)
-            .HasColumnName("attempts")
+        builder.Property(x => x.RetryCount)
+            .HasColumnName("retry_count")
             .IsRequired();
 
-        builder.Property(x => x.NextAttemptAt)
-            .HasColumnName("next_attempt_at")
+        builder.Property(x => x.NextRetryAt)
+            .HasColumnName("next_retry_at")
             .HasColumnType("timestamp without time zone");
 
         builder.Property(x => x.ProcessedAt)
@@ -96,7 +96,7 @@ public sealed class OutboxMessageConfiguration : IEntityTypeConfiguration<Outbox
             .HasColumnName("last_requeue_reason")
             .HasMaxLength(500);
 
-        builder.HasIndex(x => new { x.Status, x.NextAttemptAt })
+        builder.HasIndex(x => new { x.Status, x.NextRetryAt })
             .HasDatabaseName("idx_outbox_pending");
 
         builder.HasIndex(x => x.LockedUntil)

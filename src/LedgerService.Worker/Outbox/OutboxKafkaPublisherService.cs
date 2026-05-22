@@ -1,17 +1,18 @@
+using Confluent.Kafka;
+using LedgerService.Application.Outbox.Retry;
+using LedgerService.Domain.Entities;
 using LedgerService.Domain.Repositories;
 using LedgerService.Infrastructure.Observability;
+using LedgerService.Infrastructure.Persistence;
 using LedgerService.Worker.Messaging.Kafka.Producers;
 using LedgerService.Worker.Messaging.Kafka.Tracing;
 using LedgerService.Worker.Observability;
-using LedgerService.Infrastructure.Persistence;
-using Confluent.Kafka;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Diagnostics;
-using System.Security.Cryptography;
 
 namespace LedgerService.Worker.Outbox;
 
@@ -20,16 +21,19 @@ public sealed class OutboxKafkaPublisherService : BackgroundService
     private static readonly ActivitySource ActivitySource = new("LedgerService.OutboxPublisher");
     private readonly IServiceProvider _serviceProvider;
     private readonly IOptions<OutboxPublisherOptions> _options;
+    private readonly IRetryStrategy _retryStrategy;
     private readonly ILogger<OutboxKafkaPublisherService> _logger;
     private readonly string _lockOwner;
 
     public OutboxKafkaPublisherService(
         IServiceProvider serviceProvider,
         IOptions<OutboxPublisherOptions> options,
+        IRetryStrategy retryStrategy,
         ILogger<OutboxKafkaPublisherService> logger)
     {
         _serviceProvider = serviceProvider;
         _options = options;
+        _retryStrategy = retryStrategy;
         _logger = logger;
         _lockOwner = $"{Environment.MachineName}:{Guid.NewGuid():N}";
     }
@@ -80,7 +84,7 @@ public sealed class OutboxKafkaPublisherService : BackgroundService
         _logger.PublisherStopped(_lockOwner);
     }
 
-    private async Task ProcessOnceAsync(CancellationToken cancellationToken)
+    internal async Task ProcessOnceAsync(CancellationToken cancellationToken)
     {
         using var scope = _serviceProvider.CreateScope();
 
@@ -101,7 +105,6 @@ public sealed class OutboxKafkaPublisherService : BackgroundService
         if (claimed.Count == 0)
             return;
 
-        // Confirma o claim
         await uow.SaveChangesAsync(cancellationToken);
 
         _logger.OutboxMessagesClaimed(claimed.Count, _lockOwner, options.MaxParallelism);
@@ -130,7 +133,6 @@ public sealed class OutboxKafkaPublisherService : BackgroundService
 
     private async Task PublishOneAsync(Guid outboxId, CancellationToken ct)
     {
-        // Escopo isolado por mensagem para evitar concorrência no DbContext.
         using var scope = _serviceProvider.CreateScope();
 
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -145,8 +147,6 @@ public sealed class OutboxKafkaPublisherService : BackgroundService
         if (message is null)
             return;
 
-        // Segurança extra: se o lock expirou e/ou foi "roubado" por outra instância,
-        // não publicamos para reduzir duplicidade por concorrência.
         var now = DateTime.Now;
         if (!string.Equals(message.LockOwner, _lockOwner, StringComparison.Ordinal) ||
             (message.LockedUntil is not null && message.LockedUntil <= now))
@@ -158,6 +158,7 @@ public sealed class OutboxKafkaPublisherService : BackgroundService
         using var logScope = _logger.BeginScope(new Dictionary<string, object?>
         {
             ["CorrelationId"] = message.CorrelationId,
+            ["TraceId"] = Activity.Current?.TraceId.ToString(),
             ["OutboxId"] = message.Id,
             ["EventType"] = message.EventType,
             ["AggregateId"] = message.AggregateId
@@ -186,42 +187,63 @@ public sealed class OutboxKafkaPublisherService : BackgroundService
         {
             await producer.ProduceAsync(message, ct);
 
-            // importante: só marca SENT após confirmação do ProduceAsync
-            await repo.MarkSentAsync(message.Id, DateTime.Now, ct);
+            await repo.MarkProcessedAsync(message.Id, DateTime.Now, ct);
             await uow.SaveChangesAsync(ct);
 
             metrics.RecordPublishAttempt(message.EventType, "success");
             metrics.RecordOutboxMessagePublished(message.EventType, topic, "success");
             metrics.RecordOutboxPublishDuration(Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds, message.EventType, topic, "success");
-            _logger.OutboxMessageMarkedAsSent();
+            _logger.OutboxMessageMarkedAsProcessed();
         }
         catch (ProduceException<string, string> ex)
         {
-            RecordOutboxPublishFailure(metrics, topic, message.EventType, startedAt);
-            var nextAttemptAt = ComputeNextAttempt(DateTime.Now, message.Attempts + 1, options.BaseBackoffSeconds);
-            await repo.MarkFailedAttemptAsync(message.Id, options.MaxAttempts, nextAttemptAt, ex.Message, ct);
-            await uow.SaveChangesAsync(ct);
-
-            _logger.OutboxPublishFailed(ex, nextAttemptAt);
+            await HandlePublishFailureAsync(repo, uow, metrics, message, topic, startedAt, options, ex, ct);
         }
         catch (KafkaException ex)
         {
-            RecordOutboxPublishFailure(metrics, topic, message.EventType, startedAt);
-            var nextAttemptAt = ComputeNextAttempt(DateTime.Now, message.Attempts + 1, options.BaseBackoffSeconds);
-            await repo.MarkFailedAttemptAsync(message.Id, options.MaxAttempts, nextAttemptAt, ex.Message, ct);
-            await uow.SaveChangesAsync(ct);
-
-            _logger.OutboxPublishFailed(ex, nextAttemptAt);
+            await HandlePublishFailureAsync(repo, uow, metrics, message, topic, startedAt, options, ex, ct);
         }
         catch (TimeoutException ex)
         {
-            RecordOutboxPublishFailure(metrics, topic, message.EventType, startedAt);
-            var nextAttemptAt = ComputeNextAttempt(DateTime.Now, message.Attempts + 1, options.BaseBackoffSeconds);
-            await repo.MarkFailedAttemptAsync(message.Id, options.MaxAttempts, nextAttemptAt, ex.Message, ct);
-            await uow.SaveChangesAsync(ct);
-
-            _logger.OutboxPublishFailed(ex, nextAttemptAt);
+            await HandlePublishFailureAsync(repo, uow, metrics, message, topic, startedAt, options, ex, ct);
         }
+    }
+
+    private async Task HandlePublishFailureAsync(
+        IOutboxMessageRepository repo,
+        IUnitOfWork uow,
+        OutboxMetrics metrics,
+        OutboxMessage message,
+        string topic,
+        long startedAt,
+        OutboxPublisherOptions options,
+        Exception exception,
+        CancellationToken cancellationToken)
+    {
+        RecordOutboxPublishFailure(metrics, topic, message.EventType, startedAt);
+
+        var retryCountAfterFailure = message.RetryCount + 1;
+        var nextRetryAt = _retryStrategy.CalculateNextRetry(
+            DateTime.Now,
+            retryCountAfterFailure,
+            TimeSpan.FromSeconds(options.BaseBackoffSeconds));
+
+        var status = await repo.MarkFailedPublishAttemptAsync(
+            message.Id,
+            options.MaxAttempts,
+            nextRetryAt,
+            exception.ToString(),
+            cancellationToken);
+
+        await uow.SaveChangesAsync(cancellationToken);
+
+        if (status == OutboxStatus.DeadLetter)
+        {
+            _logger.OutboxMessageMovedToDeadLetter(exception, message.Id);
+            return;
+        }
+
+        _logger.OutboxPublishFailed(exception, nextRetryAt);
     }
 
     private static void RecordOutboxPublishFailure(
@@ -234,16 +256,4 @@ public sealed class OutboxKafkaPublisherService : BackgroundService
         metrics.RecordOutboxMessagePublished(eventType, topic, "failure");
         metrics.RecordOutboxPublishDuration(Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds, eventType, topic, "failure");
     }
-
-    internal static DateTime ComputeNextAttempt(DateTime now, int attemptNumber, int baseBackoffSeconds)
-    {
-        var baseDelay = TimeSpan.FromSeconds(Math.Max(1, baseBackoffSeconds));
-        var exp = Math.Pow(2, Math.Min(10, Math.Max(0, attemptNumber - 1)));
-        var delay = TimeSpan.FromMilliseconds(baseDelay.TotalMilliseconds * exp);
-        // CA5394: Random não é considerado seguro. Aqui o valor é apenas "jitter" de retry,
-        // mas usamos RNG criptograficamente seguro para manter o build limpo com analyzers.
-        var jitterMs = RandomNumberGenerator.GetInt32(0, 250);
-        return now.Add(delay).AddMilliseconds(jitterMs);
-    }
-
 }

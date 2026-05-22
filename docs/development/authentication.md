@@ -37,7 +37,8 @@ Nesta POC, o `Auth.Api` pode emitir `aud` como string com audiences separadas po
 | Endpoint | Scope |
 | --- | --- |
 | `POST /api/v1/lancamentos` | `ledger.write` |
-| `POST /api/v1/outbox/failed/requeue` | `ledger.outbox.requeue` |
+| `GET /api/v1/outbox/dead-letters` | `outbox.admin` |
+| `POST /api/v1/outbox/dead-letters/{id}/requeue` | `outbox.admin` |
 | `GET /v1/consolidados/diario/{date}` | `balance.read` |
 | `GET /v1/consolidados/periodo` | `balance.read` |
 

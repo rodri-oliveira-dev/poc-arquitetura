@@ -403,7 +403,7 @@ Metricas operacionais do `LedgerService.Worker`:
 | `ledger.outbox.messages.published` | Counter | `1` | `event_type`, `topic`, `result` | Volume de publicacoes Outbox por resultado (`success` ou `failure`). |
 | `ledger.outbox.publish.duration` | Histogram | `ms` | `event_type`, `topic`, `result` | Latencia tecnica da publicacao Outbox, incluindo confirmacao Kafka e marcacao de status. |
 | `ledger.outbox.messages.pending` | ObservableGauge | `1` | `event_type` | Quantidade atual de mensagens `Pending` por tipo de evento. Indica backlog acumulado. |
-| `ledger.outbox.messages.failed` | ObservableGauge | `1` | `event_type` | Quantidade atual de mensagens `Failed` por tipo de evento. Indica mensagens que exigem acao operacional. |
+| `ledger.outbox.messages.dead_letter` | ObservableGauge | `1` | `event_type` | Quantidade atual de mensagens `DeadLetter` por tipo de evento. Indica mensagens que exigem acao operacional. |
 | `ledger.outbox.publish.attempts` | Counter | `1` | `event_type`, `result` | Tentativas finalizadas de publicacao Outbox por resultado. |
 | `ledger.kafka.producer.messages.published` | Counter | `1` | `topic`, `event_type`, `result` | Resultado das chamadas do producer Kafka do Ledger. |
 | `ledger.kafka.producer.publish.duration` | Histogram | `ms` | `topic`, `event_type`, `result` | Latencia da chamada `ProduceAsync` do producer Kafka. |
@@ -493,10 +493,10 @@ Estados esperados:
 
 - `Pending`: mensagem criada e aguardando publicacao;
 - `Processing`: mensagem reclamada por um publisher com lock temporario;
-- `Sent`: mensagem publicada com sucesso no Kafka;
-- `Failed`: mensagem excedeu o limite configurado de tentativas.
+- `Processed`: mensagem publicada com sucesso no Kafka;
+- `DeadLetter`: mensagem excedeu o limite configurado de retries.
 
-Mensagens em `Failed` podem ser recuperadas por requeue administrativo protegido em `POST /api/v1/outbox/failed/requeue`, com scope `ledger.outbox.requeue`, motivo obrigatorio e filtros por id, tipo de evento ou janela de ocorrencia. O requeue registra contador, operador, data e motivo na linha da mensagem e recoloca somente mensagens `Failed` como `Pending`; mensagens `Sent` e `Processing` validas nao sao alteradas.
+Mensagens em `DeadLetter` podem ser inspecionadas por `GET /api/v1/outbox/dead-letters` e recuperadas por requeue administrativo protegido em `POST /api/v1/outbox/dead-letters/{id}/requeue`, com scope `outbox.admin` e motivo obrigatorio. O requeue registra contador, operador, data e motivo na linha da mensagem, limpa `last_error` e recoloca somente mensagens `DeadLetter` como `Pending`; mensagens `Processed` e `Processing` validas nao sao alteradas.
 
 Configuracoes principais em `Outbox:Publisher`:
 
@@ -513,9 +513,9 @@ Validacao minima:
 2. Subir `LedgerService.Api` e `LedgerService.Worker` com PostgreSQL e Kafka acessiveis.
 3. Criar um lancamento em `POST /api/v1/lancamentos`.
 4. Verificar linha em `outbox_messages` com `Pending`.
-5. Aguardar o polling e verificar transicao para `Sent`.
-6. Em falha de Kafka, verificar incremento de tentativas e agendamento de `next_attempt_at`.
-7. Se a mensagem atingir `Failed`, corrigir a causa raiz e usar o requeue administrativo documentado em `docs/development/kafka-outbox.md`.
+5. Aguardar o polling e verificar transicao para `Processed`.
+6. Em falha de Kafka, verificar incremento de `retry_count` e agendamento de `next_retry_at`.
+7. Se a mensagem atingir `DeadLetter`, corrigir a causa raiz e usar o requeue administrativo documentado em `docs/development/kafka-outbox.md`.
 
 ## Configuracao local
 
@@ -751,7 +751,7 @@ O script:
 3. chama `POST /api/v1/lancamentos` em `http://localhost:5226`;
 4. envia `Authorization`, `Idempotency-Key` e `X-Correlation-Id` explicito;
 5. valida `201 Created` e o `X-Correlation-Id` devolvido;
-6. consulta `outbox_messages` no PostgreSQL do Ledger ate encontrar o evento como `Sent`;
+6. consulta `outbox_messages` no PostgreSQL do Ledger ate encontrar o evento como `Processed`;
 7. consulta `processed_events` e `daily_balances` no PostgreSQL do Balance;
 8. chama `GET /v1/consolidados/diario/{date}?merchantId={merchantId}` no Balance com o mesmo `X-Correlation-Id`;
 9. consulta traces recentes no Jaeger;
@@ -788,7 +788,7 @@ Os dois scripts usam `scripts/get-token.ps1`, enviam `Authorization`, `Idempoten
 `validate-ledger-reversal-flow.ps1` valida:
 
 - criacao de um lancamento base em `POST /api/v1/lancamentos`;
-- chegada do evento base `LedgerEntryCreated.v1` a `outbox_messages.status=Sent`;
+- chegada do evento base `LedgerEntryCreated.v1` a `outbox_messages.status=Processed`;
 - processamento inicial no Balance via `processed_events` e `daily_balances`;
 - solicitacao real de estorno em `POST /api/v1/lancamentos/{lancamentoId}/estornos`;
 - persistencia em `estornos_lancamentos`;
@@ -802,7 +802,7 @@ Os dois scripts usam `scripts/get-token.ps1`, enviam `Authorization`, `Idempoten
 `validate-ledger-reprocess-flow.ps1` valida:
 
 - criacao de um lancamento base em `POST /api/v1/lancamentos`;
-- fluxo normal ate Outbox `Sent`, `processed_events` e `daily_balances`;
+- fluxo normal ate Outbox `Processed`, `processed_events` e `daily_balances`;
 - solicitacao real de reprocessamento em `POST /api/v1/lancamentos/reprocessar`;
 - persistencia em `reprocessamentos_lancamentos`;
 - publicacao do evento operacional `ReprocessamentoLancamentosSolicitado.v1`;
@@ -851,10 +851,10 @@ Consultas SQL uteis pelo compose:
 
 ```bash
 docker compose exec -T ledger-db psql -U appuser -d appdb \
-  -c "SELECT id, event_type, status, attempts, correlation_id, traceparent, tracestate, baggage, processed_at FROM outbox_messages WHERE correlation_id = '11111111-1111-4111-8111-111111111111' ORDER BY occurred_at DESC LIMIT 5;"
+  -c "SELECT id, event_type, status, retry_count, correlation_id, traceparent, tracestate, baggage, processed_at FROM outbox_messages WHERE correlation_id = '11111111-1111-4111-8111-111111111111' ORDER BY occurred_at DESC LIMIT 5;"
 ```
 
-Durante uma janela curta, a mensagem pode aparecer como `Pending` ou `Processing`. Depois do polling do `OutboxKafkaPublisherService`, o esperado e `Sent`. Se Kafka estiver indisponivel, acompanhe `attempts`, `next_attempt_at`, `last_error` e eventual `Failed`.
+Durante uma janela curta, a mensagem pode aparecer como `Pending` ou `Processing`. Depois do polling do `OutboxKafkaPublisherService`, o esperado e `Processed`. Se Kafka estiver indisponivel, acompanhe `retry_count`, `next_retry_at`, `last_error` e eventual `DeadLetter`.
 
 No Balance, confirme o efeito funcional:
 
@@ -909,7 +909,7 @@ Resultado esperado:
 - `POST /auth/login` retorna `access_token`;
 - `POST /api/v1/lancamentos` retorna `201 Created`;
 - o header `X-Correlation-Id` do response preserva o UUID enviado;
-- a tabela `outbox_messages` contem `LedgerEntryCreated.v1` com o mesmo `correlation_id` e status final `Sent`;
+- a tabela `outbox_messages` contem `LedgerEntryCreated.v1` com o mesmo `correlation_id` e status final `Processed`;
 - os logs do Ledger mostram o `CorrelationId` na requisicao e/ou no publisher;
 - o Loki retorna logs do Ledger com o `CorrelationId` dentro do conteudo do log;
 - `processed_events` contem o `id` do evento financeiro retornado no payload do Ledger;

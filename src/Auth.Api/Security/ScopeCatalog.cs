@@ -9,7 +9,7 @@ public static class ScopeCatalog
     public static readonly IReadOnlyList<string> ValidScopes = new[]
     {
         "ledger.write",
-        "ledger.outbox.requeue",
+        "outbox.admin",
         "balance.read"
     };
 

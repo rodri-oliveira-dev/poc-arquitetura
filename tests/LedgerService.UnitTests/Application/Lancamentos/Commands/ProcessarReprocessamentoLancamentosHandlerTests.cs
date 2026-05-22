@@ -182,13 +182,16 @@ public sealed class ProcessarReprocessamentoLancamentosHandlerTests
         public Task<IReadOnlyList<OutboxMessage>> ClaimPendingAsync(int batchSize, DateTime now, string lockOwner, TimeSpan lockDuration, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
 
-        public Task MarkSentAsync(Guid id, DateTime processedAt, CancellationToken cancellationToken = default)
+        public Task MarkProcessedAsync(Guid id, DateTime processedAt, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
 
-        public Task MarkFailedAttemptAsync(Guid id, int maxAttempts, DateTime nextAttemptAt, string? lastError, CancellationToken cancellationToken = default)
+        public Task<OutboxStatus> MarkFailedPublishAttemptAsync(Guid id, int maxRetries, DateTime nextRetryAt, string? lastError, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
 
-        public Task<IReadOnlyList<OutboxMessage>> RequeueFailedAsync(Guid? id, string? eventType, DateTime? occurredFrom, DateTime? occurredUntil, int limit, DateTime requeuedAt, string requeuedBy, string reason, CancellationToken cancellationToken = default)
+        public Task<(IReadOnlyList<OutboxMessage> Items, int TotalCount)> GetDeadLettersAsync(int page, int pageSize, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<OutboxMessage>> RequeueDeadLettersAsync(Guid? id, string? eventType, DateTime? occurredFrom, DateTime? occurredUntil, int limit, DateTime requeuedAt, string requeuedBy, string reason, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
     }
 

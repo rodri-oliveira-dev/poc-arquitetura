@@ -3,11 +3,12 @@ using LedgerService.Api.Contracts.Requests;
 using LedgerService.Api.Contracts.Responses;
 using LedgerService.Api.Security;
 using LedgerService.Application.Outbox.Commands;
+using LedgerService.Application.Outbox.Queries;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.Security.Claims;
 using Swashbuckle.AspNetCore.Annotations;
+using System.Security.Claims;
 
 namespace LedgerService.Api.Controllers;
 
@@ -16,7 +17,8 @@ namespace LedgerService.Api.Controllers;
 [Route("api/v{version:apiVersion}/outbox")]
 public sealed class OutboxAdminController : ControllerBase
 {
-    private const int DefaultLimit = 50;
+    private const int DefaultPage = 1;
+    private const int DefaultPageSize = 50;
     private readonly ISender _sender;
 
     public OutboxAdminController(ISender sender)
@@ -24,36 +26,72 @@ public sealed class OutboxAdminController : ControllerBase
         _sender = sender;
     }
 
-    [HttpPost("failed/requeue")]
-    [Authorize(Policy = ScopePolicies.OutboxRequeuePolicy)]
+    [HttpGet("dead-letters")]
+    [Authorize(Policy = ScopePolicies.OutboxAdminPolicy)]
     [SwaggerOperation(
-        Summary = "Recoloca mensagens Outbox Failed na fila de publicacao.",
-        Description = "Fluxo administrativo protegido para recuperar mensagens Outbox que excederam MaxAttempts. Apenas mensagens Failed sao alteradas; mensagens Sent, Pending ou Processing sao ignoradas.")]
-    [SwaggerResponse(StatusCodes.Status200OK, "Mensagens elegiveis recolocadas como Pending.", typeof(RequeueFailedOutboxMessagesResponse))]
-    [SwaggerResponse(StatusCodes.Status400BadRequest, "Request invalido.", typeof(ValidationErrorResponse))]
+        Summary = "Lista mensagens Outbox em Dead Letter.",
+        Description = "Fluxo administrativo protegido para inspeção paginada de mensagens Outbox que excederam o limite de retries.")]
+    [SwaggerResponse(StatusCodes.Status200OK, "Mensagens DeadLetter retornadas.", typeof(GetDeadLettersResponse))]
     [SwaggerResponse(StatusCodes.Status401Unauthorized, "Token ausente ou invalido.")]
-    [SwaggerResponse(StatusCodes.Status403Forbidden, "Scope insuficiente para requeue de Outbox.")]
+    [SwaggerResponse(StatusCodes.Status403Forbidden, "Scope insuficiente para administrar Outbox.")]
     [SwaggerResponse(StatusCodes.Status429TooManyRequests, "Limite de requisicoes excedido.")]
     [SwaggerResponse(StatusCodes.Status500InternalServerError, "Erro interno.", typeof(ProblemDetails))]
-    public async Task<ActionResult<RequeueFailedOutboxMessagesResponse>> RequeueFailed(
-        [FromBody] RequeueFailedOutboxMessagesRequest request,
+    public async Task<ActionResult<GetDeadLettersResponse>> GetDeadLetters(
+        [FromQuery] int? page,
+        [FromQuery] int? pageSize,
         CancellationToken cancellationToken)
     {
         var result = await _sender.Send(
-            new RequeueFailedOutboxMessagesCommand(
-                request.OutboxMessageId,
-                request.EventType,
-                request.OccurredFrom,
-                request.OccurredUntil,
-                request.Limit ?? DefaultLimit,
+            new GetDeadLettersQuery(page ?? DefaultPage, pageSize ?? DefaultPageSize),
+            cancellationToken);
+
+        return Ok(new GetDeadLettersResponse
+        {
+            Page = result.Page,
+            PageSize = result.PageSize,
+            TotalCount = result.TotalCount,
+            Items = result.Items.Select(x => new DeadLetterOutboxMessageResponse
+            {
+                Id = x.Id,
+                AggregateType = x.AggregateType,
+                AggregateId = x.AggregateId,
+                EventType = x.EventType,
+                OccurredAt = x.OccurredAt,
+                RetryCount = x.RetryCount,
+                LastError = x.LastError,
+                CorrelationId = x.CorrelationId,
+                TraceParent = x.TraceParent
+            }).ToArray()
+        });
+    }
+
+    [HttpPost("dead-letters/{id:guid}/requeue")]
+    [Authorize(Policy = ScopePolicies.OutboxAdminPolicy)]
+    [SwaggerOperation(
+        Summary = "Recoloca uma mensagem Outbox DeadLetter na fila de publicacao.",
+        Description = "Fluxo administrativo protegido para recuperar uma mensagem Outbox envenenada. Apenas mensagens DeadLetter sao alteradas.")]
+    [SwaggerResponse(StatusCodes.Status200OK, "Mensagem recolocada como Pending ou ignorada por nao estar em DeadLetter.", typeof(RequeueDeadLetterResponse))]
+    [SwaggerResponse(StatusCodes.Status400BadRequest, "Request invalido.", typeof(ValidationErrorResponse))]
+    [SwaggerResponse(StatusCodes.Status401Unauthorized, "Token ausente ou invalido.")]
+    [SwaggerResponse(StatusCodes.Status403Forbidden, "Scope insuficiente para administrar Outbox.")]
+    [SwaggerResponse(StatusCodes.Status429TooManyRequests, "Limite de requisicoes excedido.")]
+    [SwaggerResponse(StatusCodes.Status500InternalServerError, "Erro interno.", typeof(ProblemDetails))]
+    public async Task<ActionResult<RequeueDeadLetterResponse>> RequeueDeadLetter(
+        Guid id,
+        [FromBody] RequeueDeadLetterRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _sender.Send(
+            new RequeueDeadLetterCommand(
+                id,
                 request.Reason ?? string.Empty,
                 GetOperator()),
             cancellationToken);
 
-        return Ok(new RequeueFailedOutboxMessagesResponse
+        return Ok(new RequeueDeadLetterResponse
         {
-            RequeuedCount = result.RequeuedCount,
-            OutboxMessageIds = result.OutboxMessageIds
+            Requeued = result.Requeued,
+            OutboxMessageId = result.OutboxMessageId
         });
     }
 

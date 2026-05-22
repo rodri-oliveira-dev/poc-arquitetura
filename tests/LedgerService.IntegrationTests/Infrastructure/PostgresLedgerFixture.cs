@@ -20,6 +20,12 @@ public sealed class PostgresLedgerFixture : IAsyncLifetime
         await factory.MigrateAsync();
     }
 
+    public async Task CleanAsync()
+    {
+        await using var factory = new PostgresLedgerApiFactory(ConnectionString);
+        await factory.CleanAsync();
+    }
+
     public async ValueTask DisposeAsync()
     {
         await _postgres.DisposeAsync();

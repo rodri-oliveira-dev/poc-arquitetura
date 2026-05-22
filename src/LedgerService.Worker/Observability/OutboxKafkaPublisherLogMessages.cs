@@ -25,9 +25,12 @@ internal static partial class OutboxKafkaPublisherLogMessages
     [LoggerMessage(EventId = 1006, Level = LogLevel.Warning, Message = "Outbox message skipped because lock is not owned or expired (currentOwner={CurrentOwner}, expectedOwner={ExpectedOwner}, lockedUntil={LockedUntil})")]
     internal static partial void OutboxMessageSkippedBecauseLockExpired(this ILogger logger, string? currentOwner, string expectedOwner, DateTime? lockedUntil);
 
-    [LoggerMessage(EventId = 1007, Level = LogLevel.Debug, Message = "Outbox message marked as SENT")]
-    internal static partial void OutboxMessageMarkedAsSent(this ILogger logger);
+    [LoggerMessage(EventId = 1007, Level = LogLevel.Debug, Message = "Outbox message marked as Processed")]
+    internal static partial void OutboxMessageMarkedAsProcessed(this ILogger logger);
 
-    [LoggerMessage(EventId = 1008, Level = LogLevel.Warning, Message = "Falha ao publicar outbox message. Proxima tentativa em {NextAttemptAt}")]
-    internal static partial void OutboxPublishFailed(this ILogger logger, Exception exception, DateTime nextAttemptAt);
+    [LoggerMessage(EventId = 1008, Level = LogLevel.Warning, Message = "Falha ao publicar outbox message. Proxima tentativa em {NextRetryAt}")]
+    internal static partial void OutboxPublishFailed(this ILogger logger, Exception exception, DateTime nextRetryAt);
+
+    [LoggerMessage(EventId = 1009, Level = LogLevel.Critical, Message = "Outbox message {OutboxId} movida para DeadLetter apos exceder limite de retries.")]
+    internal static partial void OutboxMessageMovedToDeadLetter(this ILogger logger, Exception exception, Guid outboxId);
 }

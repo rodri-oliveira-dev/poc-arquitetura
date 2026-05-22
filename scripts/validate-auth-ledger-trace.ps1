@@ -195,20 +195,20 @@ $balanceDate = $occurredAt.ToString("yyyy-MM-dd", [Globalization.CultureInfo]::I
 Write-Host "Lancamento criado: $ledgerEntryId"
 Write-Host "Data do consolidado: $balanceDate"
 
-Write-Host "Aguardando Outbox marcar mensagem como Sent..."
+Write-Host "Aguardando Outbox marcar mensagem como Processed..."
 $outboxSql = @"
-SELECT id, event_type, status, attempts, correlation_id, processed_at
+SELECT id, event_type, status, retry_count, correlation_id, processed_at
 FROM outbox_messages
 WHERE correlation_id = '$correlationId'
 ORDER BY occurred_at DESC
 LIMIT 1;
 "@
 
-$outboxRow = Wait-Until "Outbox Sent" {
+$outboxRow = Wait-Until "Outbox Processed" {
   Invoke-PostgresScalar "ledger-db" "appuser" "appdb" $outboxSql
 } {
   param($value)
-  $value -match '\|LedgerEntryCreated\.v1\|Sent\|'
+  $value -match '\|LedgerEntryCreated\.v1\|Processed\|'
 }
 
 Write-Host "Outbox: $outboxRow"

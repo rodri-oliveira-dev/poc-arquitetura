@@ -16,7 +16,7 @@ public sealed class OutboxMetrics : IDisposable
     public const string MessagesPublishedMetricName = "ledger.outbox.messages.published";
     public const string PublishDurationMetricName = "ledger.outbox.publish.duration";
     public const string MessagesPendingMetricName = "ledger.outbox.messages.pending";
-    public const string MessagesFailedMetricName = "ledger.outbox.messages.failed";
+    public const string MessagesDeadLetterMetricName = "ledger.outbox.messages.dead_letter";
     public const string PublishAttemptsMetricName = "ledger.outbox.publish.attempts";
     public const string KafkaProducerMessagesPublishedMetricName = "ledger.kafka.producer.messages.published";
     public const string KafkaProducerPublishDurationMetricName = "ledger.kafka.producer.publish.duration";
@@ -65,10 +65,10 @@ public sealed class OutboxMetrics : IDisposable
             unit: "1",
             description: "Quantidade atual de mensagens pendentes na Outbox por tipo de evento.");
         _meter.CreateObservableGauge(
-            MessagesFailedMetricName,
-            () => ObserveOutboxStatus(OutboxStatus.Failed),
+            MessagesDeadLetterMetricName,
+            () => ObserveOutboxStatus(OutboxStatus.DeadLetter),
             unit: "1",
-            description: "Quantidade atual de mensagens failed na Outbox por tipo de evento.");
+            description: "Quantidade atual de mensagens DeadLetter na Outbox por tipo de evento.");
         _kafkaProducerMessagesPublished = _meter.CreateCounter<long>(
             KafkaProducerMessagesPublishedMetricName,
             unit: "1",

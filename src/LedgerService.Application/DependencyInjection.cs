@@ -1,6 +1,7 @@
 using FluentValidation;
 using LedgerService.Application.Common.Behaviors;
 using LedgerService.Application.Common.Observability;
+using LedgerService.Application.Outbox.Retry;
 using Microsoft.Extensions.DependencyInjection;
 using LedgerService.Application.Lancamentos.Services;
 using MediatR;
@@ -21,6 +22,8 @@ public static class DependencyInjection
 
         services.AddSingleton<LedgerDomainMetrics>();
         services.AddScoped<CreateLancamentoService>();
+        services.AddSingleton<IJitterProvider, CryptographicJitterProvider>();
+        services.AddSingleton<IRetryStrategy, ExponentialBackoffRetryStrategy>();
 
         return services;
     }
