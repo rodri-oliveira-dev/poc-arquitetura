@@ -1,4 +1,3 @@
-using FluentAssertions;
 using System.Xml.Linq;
 
 namespace LedgerService.UnitTests.Architecture;
@@ -18,9 +17,8 @@ public sealed class DependencyPolicyTests
         var packageVersion = packages
             .Descendants("PackageVersion")
             .SingleOrDefault(element => (string?)element.Attribute("Include") == CryptographyXmlPackage);
-
-        packageVersion.Should().NotBeNull();
-        packageVersion!.Attribute("Version")!.Value.Should().Be("10.0.8");
+        Assert.NotNull(packageVersion);
+        Assert.Equal("10.0.8", packageVersion!.Attribute("Version")!.Value);
     }
 
     [Fact]
@@ -32,9 +30,8 @@ public sealed class DependencyPolicyTests
         var packageVersion = packages
             .Descendants("PackageVersion")
             .SingleOrDefault(element => (string?)element.Attribute("Include") == OpenTelemetryApiPackage);
-
-        packageVersion.Should().NotBeNull();
-        packageVersion!.Attribute("Version")!.Value.Should().Be("1.15.3");
+        Assert.NotNull(packageVersion);
+        Assert.Equal("1.15.3", packageVersion!.Attribute("Version")!.Value);
     }
 
     [Fact]
@@ -46,9 +43,8 @@ public sealed class DependencyPolicyTests
         var packageVersion = packages
             .Descendants("PackageVersion")
             .SingleOrDefault(element => (string?)element.Attribute("Include") == OpenTelemetryOtlpExporterPackage);
-
-        packageVersion.Should().NotBeNull();
-        packageVersion!.Attribute("Version").Should().NotBeNull();
+        Assert.NotNull(packageVersion);
+        Assert.NotNull(packageVersion!.Attribute("Version"));
     }
 
     [Fact]
@@ -56,8 +52,7 @@ public sealed class DependencyPolicyTests
     {
         var repositoryRoot = GetRepositoryRoot();
         var workflow = File.ReadAllText(Path.Combine(repositoryRoot.FullName, ".github/workflows/dotnet.yml"));
-
-        workflow.Should().Contain("""blocked_severities = {"moderate", "high", "critical"}""");
+        Assert.Contains("""blocked_severities = {"moderate", "high", "critical"}""", workflow);
     }
 
     [Fact]
@@ -65,8 +60,7 @@ public sealed class DependencyPolicyTests
     {
         var repositoryRoot = GetRepositoryRoot();
         var workflow = File.ReadAllText(Path.Combine(repositoryRoot.FullName, ".github/workflows/dependency-review.yml"));
-
-        workflow.Should().Contain("fail-on-severity: moderate");
+        Assert.Contains("fail-on-severity: moderate", workflow);
     }
 
     [Theory]
@@ -80,10 +74,9 @@ public sealed class DependencyPolicyTests
         var packageReference = project
             .Descendants("PackageReference")
             .SingleOrDefault(element => (string?)element.Attribute("Include") == CryptographyXmlPackage);
-
-        packageReference.Should().NotBeNull();
-        packageReference!.Attribute("Version").Should().BeNull();
-        packageReference.Attribute("PrivateAssets")!.Value.Should().Be("all");
+        Assert.NotNull(packageReference);
+        Assert.Null(packageReference!.Attribute("Version"));
+        Assert.Equal("all", packageReference.Attribute("PrivateAssets")!.Value);
     }
 
     [Theory]
@@ -98,9 +91,8 @@ public sealed class DependencyPolicyTests
         var packageReference = project
             .Descendants("PackageReference")
             .SingleOrDefault(element => (string?)element.Attribute("Include") == OpenTelemetryOtlpExporterPackage);
-
-        packageReference.Should().NotBeNull();
-        packageReference!.Attribute("Version").Should().BeNull();
+        Assert.NotNull(packageReference);
+        Assert.Null(packageReference!.Attribute("Version"));
     }
 
     private static DirectoryInfo GetRepositoryRoot()
@@ -109,8 +101,7 @@ public sealed class DependencyPolicyTests
 
         while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "LedgerService.slnx")))
             directory = directory.Parent;
-
-        directory.Should().NotBeNull("the test must run inside the repository tree");
+        Assert.NotNull(directory);
         return directory!;
     }
 }

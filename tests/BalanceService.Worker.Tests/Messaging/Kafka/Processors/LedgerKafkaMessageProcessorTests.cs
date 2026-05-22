@@ -13,7 +13,6 @@ using BalanceService.Worker.Observability;
 
 using Confluent.Kafka;
 
-using FluentAssertions;
 
 using MediatR;
 
@@ -34,19 +33,18 @@ public sealed class LedgerKafkaMessageProcessorTests
         var result = CreateResult("{invalid-json", HeadersWith(EventId: "evt-1", TraceParent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00", Baggage: "tenant=poc"));
 
         var shouldCommit = await sut.ProcessAsync(result, CancellationToken.None);
-
-        shouldCommit.Should().BeTrue();
-        dlq.Messages.Should().ContainSingle();
-        dlq.Messages[0].OriginalPayload.Should().Be("{invalid-json");
-        dlq.Messages[0].OriginalTopic.Should().Be("ledger.ledgerentry.created");
-        dlq.Messages[0].OriginalPartition.Should().Be(0);
-        dlq.Messages[0].OriginalOffset.Should().Be(42);
-        dlq.Messages[0].Reason.Should().Be("Deserialization failed.");
-        dlq.Messages[0].ExceptionType.Should().Be(nameof(JsonException));
-        dlq.Messages[0].OriginalHeaders[KafkaHeaderNames.EventType].Should().Be(LedgerEntryCreatedV1Contract.EventType);
-        dlq.Messages[0].OriginalHeaders[KafkaHeaderNames.EventId].Should().Be("evt-1");
-        dlq.Messages[0].OriginalHeaders[KafkaHeaderNames.TraceParent].Should().NotBeNullOrWhiteSpace();
-        dlq.Messages[0].OriginalHeaders[KafkaHeaderNames.Baggage].Should().Be("tenant=poc");
+        Assert.True(shouldCommit);
+        Assert.Single(dlq.Messages);
+        Assert.Equal("{invalid-json", dlq.Messages[0].OriginalPayload);
+        Assert.Equal("ledger.ledgerentry.created", dlq.Messages[0].OriginalTopic);
+        Assert.Equal(0, dlq.Messages[0].OriginalPartition);
+        Assert.Equal(42, dlq.Messages[0].OriginalOffset);
+        Assert.Equal("Deserialization failed.", dlq.Messages[0].Reason);
+        Assert.Equal(nameof(JsonException), dlq.Messages[0].ExceptionType);
+        Assert.Equal(LedgerEntryCreatedV1Contract.EventType, dlq.Messages[0].OriginalHeaders[KafkaHeaderNames.EventType]);
+        Assert.Equal("evt-1", dlq.Messages[0].OriginalHeaders[KafkaHeaderNames.EventId]);
+        Assert.False(string.IsNullOrWhiteSpace(dlq.Messages[0].OriginalHeaders[KafkaHeaderNames.TraceParent]));
+        Assert.Equal("tenant=poc", dlq.Messages[0].OriginalHeaders[KafkaHeaderNames.Baggage]);
     }
 
     [Fact]
@@ -57,10 +55,9 @@ public sealed class LedgerKafkaMessageProcessorTests
         var result = CreateResult(ValidPayload(), new Headers());
 
         var shouldCommit = await sut.ProcessAsync(result, CancellationToken.None);
-
-        shouldCommit.Should().BeTrue();
-        dlq.Messages.Should().ContainSingle();
-        dlq.Messages[0].Reason.Should().Be("Missing required Kafka header event_type.");
+        Assert.True(shouldCommit);
+        Assert.Single(dlq.Messages);
+        Assert.Equal("Missing required Kafka header event_type.", dlq.Messages[0].Reason);
     }
 
     [Fact]
@@ -87,10 +84,9 @@ public sealed class LedgerKafkaMessageProcessorTests
         }), headers);
 
         var shouldCommit = await sut.ProcessAsync(result, CancellationToken.None);
-
-        shouldCommit.Should().BeTrue();
-        dlq.Messages.Should().ContainSingle();
-        dlq.Messages[0].Reason.Should().Contain("Unsupported Kafka event_type");
+        Assert.True(shouldCommit);
+        Assert.Single(dlq.Messages);
+        Assert.Contains("Unsupported Kafka event_type", dlq.Messages[0].Reason);
         sender.VerifyNoOtherCalls();
     }
 
@@ -119,10 +115,9 @@ public sealed class LedgerKafkaMessageProcessorTests
         }), headers);
 
         var shouldCommit = await sut.ProcessAsync(result, CancellationToken.None);
-
-        shouldCommit.Should().BeTrue();
-        dlq.Messages.Should().ContainSingle();
-        dlq.Messages[0].Reason.Should().Contain("Unsupported Kafka event_type");
+        Assert.True(shouldCommit);
+        Assert.Single(dlq.Messages);
+        Assert.Contains("Unsupported Kafka event_type", dlq.Messages[0].Reason);
         sender.VerifyNoOtherCalls();
     }
 
@@ -141,11 +136,10 @@ public sealed class LedgerKafkaMessageProcessorTests
         var result = CreateResult(ValidPayload(), HeadersWith(EventId: null));
 
         var shouldCommit = await sut.ProcessAsync(result, CancellationToken.None);
-
-        shouldCommit.Should().BeTrue();
-        dlq.Messages.Should().BeEmpty();
-        command.Should().NotBeNull();
-        command!.Event.Id.Should().Be("lan_12345678");
+        Assert.True(shouldCommit);
+        Assert.Empty(dlq.Messages);
+        Assert.NotNull(command);
+        Assert.Equal("lan_12345678", command!.Event.Id);
     }
 
     [Fact]
@@ -176,12 +170,11 @@ public sealed class LedgerKafkaMessageProcessorTests
                 Baggage: "tenant=poc"));
 
         var shouldCommit = await sut.ProcessAsync(result, CancellationToken.None);
-
-        shouldCommit.Should().BeTrue();
-        stoppedActivity.Should().NotBeNull();
-        stoppedActivity!.TraceId.ToString().Should().Be("4bf92f3577b34da6a3ce929d0e0e4736");
-        stoppedActivity.ParentSpanId.ToString().Should().Be("00f067aa0ba902b7");
-        stoppedActivity.Baggage.Should().Contain(x => x.Key == "tenant" && x.Value == "poc");
+        Assert.True(shouldCommit);
+        Assert.NotNull(stoppedActivity);
+        Assert.Equal("4bf92f3577b34da6a3ce929d0e0e4736", stoppedActivity!.TraceId.ToString());
+        Assert.Equal("00f067aa0ba902b7", stoppedActivity.ParentSpanId.ToString());
+        Assert.Contains(stoppedActivity.Baggage, x => x.Key == "tenant" && x.Value == "poc");
     }
 
     [Fact]
@@ -197,11 +190,10 @@ public sealed class LedgerKafkaMessageProcessorTests
         var result = CreateResult(ValidPayload(amount: "not-a-decimal"), HeadersWith(EventId: "evt-1"));
 
         var shouldCommit = await sut.ProcessAsync(result, CancellationToken.None);
-
-        shouldCommit.Should().BeTrue();
-        dlq.Messages.Should().ContainSingle();
-        dlq.Messages[0].Reason.Should().Be("Non-recoverable processing failure.");
-        dlq.Messages[0].ExceptionType.Should().Be(nameof(DomainException));
+        Assert.True(shouldCommit);
+        Assert.Single(dlq.Messages);
+        Assert.Equal("Non-recoverable processing failure.", dlq.Messages[0].Reason);
+        Assert.Equal(nameof(DomainException), dlq.Messages[0].ExceptionType);
     }
 
     [Fact]
@@ -212,9 +204,8 @@ public sealed class LedgerKafkaMessageProcessorTests
         var result = CreateResult("{invalid-json", HeadersWith(EventId: "evt-1"));
 
         var act = async () => await sut.ProcessAsync(result, CancellationToken.None);
-
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("DLQ unavailable.");
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(act);
+        Assert.Matches("^" + System.Text.RegularExpressions.Regex.Escape("DLQ unavailable.").Replace("\\*", ".*") + "$", ex.Message);
     }
 
     private static LedgerKafkaMessageProcessor CreateSut(

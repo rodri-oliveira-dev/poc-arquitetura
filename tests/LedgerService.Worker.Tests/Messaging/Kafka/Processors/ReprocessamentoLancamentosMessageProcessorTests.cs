@@ -3,7 +3,6 @@ using System.Text.Json;
 
 using Confluent.Kafka;
 
-using FluentAssertions;
 using LedgerService.Application.Lancamentos.Commands;
 using LedgerService.Application.Lancamentos.Events;
 using LedgerService.Worker.Messaging.Kafka.Configuration;
@@ -33,10 +32,9 @@ public sealed class ReprocessamentoLancamentosMessageProcessorTests
         var shouldCommit = await sut.ProcessAsync(
             CreateResult(ValidPayload(reprocessamentoId), HeadersWithEventType()),
             CancellationToken.None);
-
-        shouldCommit.Should().BeTrue();
-        command.Should().NotBeNull();
-        command!.ReprocessamentoId.Should().Be(reprocessamentoId);
+        Assert.True(shouldCommit);
+        Assert.NotNull(command);
+        Assert.Equal(reprocessamentoId, command!.ReprocessamentoId);
     }
 
     [Fact]
@@ -48,8 +46,7 @@ public sealed class ReprocessamentoLancamentosMessageProcessorTests
         var shouldCommit = await sut.ProcessAsync(
             CreateResult("{invalid-json", HeadersWithEventType()),
             CancellationToken.None);
-
-        shouldCommit.Should().BeTrue();
+        Assert.True(shouldCommit);
         sender.VerifyNoOtherCalls();
     }
 
@@ -66,8 +63,7 @@ public sealed class ReprocessamentoLancamentosMessageProcessorTests
         var shouldCommit = await sut.ProcessAsync(
             CreateResult(ValidPayload(Guid.NewGuid()), headers),
             CancellationToken.None);
-
-        shouldCommit.Should().BeTrue();
+        Assert.True(shouldCommit);
         sender.VerifyNoOtherCalls();
     }
 
@@ -83,8 +79,7 @@ public sealed class ReprocessamentoLancamentosMessageProcessorTests
             "ledger.ledgerentry.created");
 
         var shouldCommit = await sut.ProcessAsync(result, CancellationToken.None);
-
-        shouldCommit.Should().BeTrue();
+        Assert.True(shouldCommit);
         sender.VerifyNoOtherCalls();
     }
 

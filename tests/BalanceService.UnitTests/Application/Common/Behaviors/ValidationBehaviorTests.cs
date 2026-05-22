@@ -1,7 +1,6 @@
 using BalanceService.Application.Balances.Queries;
 using BalanceService.Application.Common.Behaviors;
 
-using FluentAssertions;
 
 using FluentValidation;
 
@@ -21,8 +20,7 @@ public sealed class ValidationBehaviorTests
         var query = new GetPeriodBalanceQuery("m1", new DateOnly(2026, 2, 12), new DateOnly(2026, 2, 10));
 
         var act = () => sut.Handle(query, _ => Task.FromResult("ok"), CancellationToken.None);
-
-        await act.Should().ThrowAsync<ValidationException>();
+        await Assert.ThrowsAsync<ValidationException>(act);
     }
 
     [Fact]
@@ -37,7 +35,6 @@ public sealed class ValidationBehaviorTests
         var query = new GetDailyBalanceQuery("m1", new DateOnly(2026, 2, 10));
 
         var result = await sut.Handle(query, _ => Task.FromResult("ok"), CancellationToken.None);
-
-        result.Should().Be("ok");
+        Assert.Equal("ok", result);
     }
 }

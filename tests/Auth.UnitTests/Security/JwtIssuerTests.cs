@@ -1,6 +1,5 @@
 using Auth.Api.Options;
 using Auth.Api.Security;
-using FluentAssertions;
 using Microsoft.Extensions.Options;
 using Moq;
 using System.IdentityModel.Tokens.Jwt;
@@ -38,24 +37,18 @@ public sealed class JwtIssuerTests
 
         var handler = new JwtSecurityTokenHandler();
         var token = handler.ReadJwtToken(jwt);
-
-        token.Issuer.Should().Be("https://auth-api");
-        token.Header.Alg.Should().Be("RS256");
-        token.Header.Kid.Should().Be("kid-123");
-
-        token.Claims.Should().Contain(c => c.Type == JwtRegisteredClaimNames.Sub && c.Value == "poc-usuario");
-        token.Claims.Should().Contain(c => c.Type == "preferred_username" && c.Value == "poc-usuario");
-        token.Claims.Should().Contain(c => c.Type == "scope" && c.Value == "ledger.write balance.read");
-        token.Claims.Should().Contain(c => c.Type == "merchant_id" && c.Value == "m1 tese");
-
+        Assert.Equal("https://auth-api", token.Issuer);
+        Assert.Equal("RS256", token.Header.Alg);
+        Assert.Equal("kid-123", token.Header.Kid);
+        Assert.Contains(token.Claims, c => c.Type == JwtRegisteredClaimNames.Sub && c.Value == "poc-usuario");
+        Assert.Contains(token.Claims, c => c.Type == "preferred_username" && c.Value == "poc-usuario");
+        Assert.Contains(token.Claims, c => c.Type == "scope" && c.Value == "ledger.write balance.read");
+        Assert.Contains(token.Claims, c => c.Type == "merchant_id" && c.Value == "m1 tese");
         // aud é emitido como string única com audiences separadas por espaço
-        token.Claims.Should().Contain(c => c.Type == JwtRegisteredClaimNames.Aud && c.Value == "ledger-api balance-api");
-
-        expiresAt.Should().BeAfter(DateTimeOffset.UtcNow.AddMinutes(9));
-        expiresAt.Should().BeBefore(DateTimeOffset.UtcNow.AddMinutes(11));
-
-        token.ValidTo.Should().BeCloseTo(expiresAt.UtcDateTime, precision: TimeSpan.FromSeconds(2));
-
+        Assert.Contains(token.Claims, c => c.Type == JwtRegisteredClaimNames.Aud && c.Value == "ledger-api balance-api");
+        Assert.True(expiresAt > DateTimeOffset.UtcNow.AddMinutes(9));
+        Assert.True(expiresAt < DateTimeOffset.UtcNow.AddMinutes(11));
+        Assert.InRange(token.ValidTo, expiresAt.UtcDateTime - TimeSpan.FromSeconds(2), expiresAt.UtcDateTime + TimeSpan.FromSeconds(2));
         keys.VerifyAll();
     }
 }

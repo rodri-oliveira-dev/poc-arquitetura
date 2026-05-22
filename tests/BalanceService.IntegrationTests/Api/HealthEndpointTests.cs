@@ -1,5 +1,4 @@
 using BalanceService.IntegrationTests.Infrastructure;
-using FluentAssertions;
 
 namespace BalanceService.IntegrationTests.Api;
 
@@ -19,12 +18,10 @@ public sealed class HealthEndpointTests : IClassFixture<BalanceApiFactory>
     public async Task Health_should_return_200_ok_and_generate_correlation_id()
     {
         var res = await _client.GetAsync("/health");
-
-        res.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
-        (await res.Content.ReadAsStringAsync()).Should().Be("ok");
-
-        res.Headers.TryGetValues("X-Correlation-Id", out var values).Should().BeTrue();
-        Guid.TryParse(values.Should().ContainSingle().Which, out _).Should().BeTrue();
+        Assert.Equal(System.Net.HttpStatusCode.OK, res.StatusCode);
+        Assert.Equal("ok", (await res.Content.ReadAsStringAsync()));
+        Assert.True(res.Headers.TryGetValues("X-Correlation-Id", out var values));
+        Assert.True(Guid.TryParse(Assert.Single(values), out _));
     }
 
     [Fact]
@@ -35,9 +32,8 @@ public sealed class HealthEndpointTests : IClassFixture<BalanceApiFactory>
         request.Headers.Add("X-Correlation-Id", correlationId);
 
         var res = await _client.SendAsync(request);
-
-        res.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
-        res.Headers.TryGetValues("X-Correlation-Id", out var values).Should().BeTrue();
-        values.Should().ContainSingle().Which.Should().Be(correlationId);
+        Assert.Equal(System.Net.HttpStatusCode.OK, res.StatusCode);
+        Assert.True(res.Headers.TryGetValues("X-Correlation-Id", out var values));
+        Assert.Equal(correlationId, Assert.Single(values));
     }
 }

@@ -1,6 +1,5 @@
 using System.Reflection;
 
-using FluentAssertions;
 using LedgerService.Application.Common.Exceptions;
 using LedgerService.Application.Lancamentos.Queries;
 using LedgerService.Domain.Entities;
@@ -22,13 +21,12 @@ public sealed class ObterStatusEstornoLancamentoHandlerTests
         var sut = new ObterStatusEstornoLancamentoHandler(repo.Object);
 
         var result = await sut.Handle(new ObterStatusEstornoLancamentoQuery(estorno.Id, ["m1"]), CancellationToken.None);
-
-        result.EstornoId.Should().Be(estorno.Id);
-        result.LancamentoOriginalId.Should().Be(estorno.LancamentoOriginalId);
-        result.Status.Should().Be("Pending");
-        result.Motivo.Should().Be(estorno.Motivo);
-        result.SolicitadoEm.Should().Be(estorno.CreatedAt);
-        result.Should().NotBeEquivalentTo(estorno);
+        Assert.Equal(estorno.Id, result.EstornoId);
+        Assert.Equal(estorno.LancamentoOriginalId, result.LancamentoOriginalId);
+        Assert.Equal("Pending", result.Status);
+        Assert.Equal(estorno.Motivo, result.Motivo);
+        Assert.Equal(estorno.CreatedAt, result.SolicitadoEm);
+        Assert.NotEqual(estorno.GetType(), result.GetType());
         repo.VerifyAll();
     }
 
@@ -48,8 +46,7 @@ public sealed class ObterStatusEstornoLancamentoHandlerTests
         var sut = new ObterStatusEstornoLancamentoHandler(repo.Object);
 
         var result = await sut.Handle(new ObterStatusEstornoLancamentoQuery(estorno.Id, ["m1"]), CancellationToken.None);
-
-        result.Status.Should().Be(expected);
+        Assert.Equal(expected, result.Status);
     }
 
     [Fact]
@@ -64,8 +61,8 @@ public sealed class ObterStatusEstornoLancamentoHandlerTests
 
         var act = async () => await sut.Handle(new ObterStatusEstornoLancamentoQuery(estornoId, ["m1"]), CancellationToken.None);
 
-        await act.Should().ThrowAsync<NotFoundException>()
-            .WithMessage("*estorno*");
+        var ex = await Assert.ThrowsAsync<NotFoundException>(act);
+        Assert.Contains("estorno", ex.Message);
     }
 
     [Fact]
@@ -80,8 +77,8 @@ public sealed class ObterStatusEstornoLancamentoHandlerTests
 
         var act = async () => await sut.Handle(new ObterStatusEstornoLancamentoQuery(estorno.Id, ["m2"]), CancellationToken.None);
 
-        await act.Should().ThrowAsync<ForbiddenException>()
-            .WithMessage("*merchant*");
+        var ex = await Assert.ThrowsAsync<ForbiddenException>(act);
+        Assert.Contains("merchant", ex.Message);
     }
 
     private static EstornoLancamento CreateEstorno(EstornoLancamentoStatus status)

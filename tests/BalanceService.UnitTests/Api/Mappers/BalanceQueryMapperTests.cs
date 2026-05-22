@@ -1,6 +1,5 @@
 using BalanceService.Api.Mappers;
 
-using FluentAssertions;
 using FluentValidation;
 
 namespace BalanceService.UnitTests.Api.Mappers;
@@ -11,9 +10,8 @@ public sealed class BalanceQueryMapperTests
     public void ToDailyQuery_should_map_valid_request_values()
     {
         var result = BalanceQueryMapper.ToDailyQuery("m1", "2026-02-10");
-
-        result.MerchantId.Should().Be("m1");
-        result.Date.Should().Be(new DateOnly(2026, 2, 10));
+        Assert.Equal("m1", result.MerchantId);
+        Assert.Equal(new DateOnly(2026, 2, 10), result.Date);
     }
 
     [Fact]
@@ -21,18 +19,17 @@ public sealed class BalanceQueryMapperTests
     {
         var act = () => BalanceQueryMapper.ToDailyQuery("m1", "10-02-2026");
 
-        act.Should().Throw<ValidationException>()
-            .Which.Errors.Should().ContainSingle(e => e.PropertyName == "date");
+        var ex = Assert.Throws<ValidationException>(act);
+        Assert.Single(ex.Errors, e => e.PropertyName == "date");
     }
 
     [Fact]
     public void ToPeriodQuery_should_map_valid_request_values()
     {
         var result = BalanceQueryMapper.ToPeriodQuery("m1", "2026-02-10", "2026-02-12", maxPeriodDays: 31);
-
-        result.MerchantId.Should().Be("m1");
-        result.From.Should().Be(new DateOnly(2026, 2, 10));
-        result.To.Should().Be(new DateOnly(2026, 2, 12));
+        Assert.Equal("m1", result.MerchantId);
+        Assert.Equal(new DateOnly(2026, 2, 10), result.From);
+        Assert.Equal(new DateOnly(2026, 2, 12), result.To);
     }
 
     [Fact]
@@ -40,8 +37,8 @@ public sealed class BalanceQueryMapperTests
     {
         var act = () => BalanceQueryMapper.ToPeriodQuery("m1", "2026-02-10", "bad", maxPeriodDays: 31);
 
-        act.Should().Throw<ValidationException>()
-            .Which.Errors.Should().ContainSingle(e => e.PropertyName == "to");
+        var ex = Assert.Throws<ValidationException>(act);
+        Assert.Single(ex.Errors, e => e.PropertyName == "to");
     }
 
     [Fact]
@@ -49,7 +46,7 @@ public sealed class BalanceQueryMapperTests
     {
         var act = () => BalanceQueryMapper.ToPeriodQuery("m1", "2026-02-10", "2026-02-12", maxPeriodDays: 2);
 
-        act.Should().Throw<ValidationException>()
-            .Which.Errors.Should().ContainSingle(e => e.PropertyName == "to");
+        var ex = Assert.Throws<ValidationException>(act);
+        Assert.Single(ex.Errors, e => e.PropertyName == "to");
     }
 }

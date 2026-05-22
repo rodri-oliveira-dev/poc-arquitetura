@@ -1,5 +1,4 @@
 using System.Reflection;
-using FluentAssertions;
 using LedgerService.Api.Controllers;
 using LedgerService.Api.Swagger;
 using Microsoft.AspNetCore.Http;
@@ -21,18 +20,13 @@ public sealed class LancamentosExamplesOperationFilterTests
 
         sut.Apply(operation, context);
 
-        var requestExample = operation.RequestBody!.Content["application/json"].Example
-            .Should().BeOfType<JsonObject>().Subject;
-        requestExample["merchantId"]!.GetValue<string>().Should().Be("tese");
-        requestExample["type"]!.GetValue<string>().Should().Be("CREDIT");
-
-        var createdExample = operation.Responses["201"].Content["application/json"].Example
-            .Should().BeOfType<JsonObject>().Subject;
-        createdExample["id"]!.GetValue<string>().Should().Be("lan_9f3a1b2c");
-
-        var badRequestExample = operation.Responses["400"].Content["application/json"].Example
-            .Should().BeOfType<JsonObject>().Subject;
-        badRequestExample["status"]!.GetValue<int>().Should().Be(StatusCodes.Status400BadRequest);
+        var requestExample = Assert.IsType<JsonObject>(operation.RequestBody!.Content["application/json"].Example);
+        Assert.Equal("tese", requestExample["merchantId"]!.GetValue<string>());
+        Assert.Equal("CREDIT", requestExample["type"]!.GetValue<string>());
+        var createdExample = Assert.IsType<JsonObject>(operation.Responses["201"].Content["application/json"].Example);
+        Assert.Equal("lan_9f3a1b2c", createdExample["id"]!.GetValue<string>());
+        var badRequestExample = Assert.IsType<JsonObject>(operation.Responses["400"].Content["application/json"].Example);
+        Assert.Equal(StatusCodes.Status400BadRequest, badRequestExample["status"]!.GetValue<int>());
     }
 
     [Fact]
@@ -44,9 +38,9 @@ public sealed class LancamentosExamplesOperationFilterTests
 
         sut.Apply(operation, context);
 
-        operation.RequestBody!.Content["application/json"].Example.Should().BeNull();
-        operation.Responses["201"].Content["application/json"].Example.Should().BeNull();
-        operation.Responses["400"].Content["application/json"].Example.Should().BeNull();
+        Assert.Null(operation.RequestBody!.Content["application/json"].Example);
+        Assert.Null(operation.Responses["201"].Content["application/json"].Example);
+        Assert.Null(operation.Responses["400"].Content["application/json"].Example);
     }
 
     private static OpenApiOperation CreateOperation()

@@ -3,7 +3,6 @@ using System.Globalization;
 using BalanceService.Application.Balances.Queries;
 using BalanceService.Application.Balances.Queries.Models;
 using BalanceService.Application.Balances.Services;
-using FluentAssertions;
 using Moq;
 
 namespace BalanceService.UnitTests.Application.Balances.Queries;
@@ -33,8 +32,7 @@ public sealed class GetPeriodBalanceHandlerTests
         var sut = new GetPeriodBalanceHandler(service.Object);
 
         var result = await sut.Handle(query, CancellationToken.None);
-
-        result.Should().Be(expected);
+        Assert.Equal(expected, result);
         service.VerifyAll();
     }
 }

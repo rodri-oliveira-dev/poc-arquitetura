@@ -5,7 +5,6 @@ using BalanceService.Application.Abstractions.Time;
 using BalanceService.Application.Balances.Queries;
 using BalanceService.Application.Balances.Queries.Models;
 using BalanceService.Application.Balances.Services;
-using FluentAssertions;
 using Moq;
 
 namespace BalanceService.UnitTests.Application.Balances.Services;
@@ -36,8 +35,7 @@ public sealed class DailyBalanceServiceTests
         var sut = new DailyBalanceService(repo.Object, clock.Object);
 
         var result = await sut.GetDailyAsync(query.MerchantId, query.Date, CancellationToken.None);
-
-        result.Should().Be(found);
+        Assert.Equal(found, result);
         clock.VerifyNoOtherCalls();
         repo.VerifyAll();
     }
@@ -59,16 +57,14 @@ public sealed class DailyBalanceServiceTests
         var sut = new DailyBalanceService(repo.Object, clock.Object);
 
         var result = await sut.GetDailyAsync(query.MerchantId, query.Date, CancellationToken.None);
-
-        result.MerchantId.Should().Be("m1");
-        result.Date.Should().Be(query.Date);
-        result.Currency.Should().Be("BRL");
-        result.TotalCredits.Should().Be(0m);
-        result.TotalDebits.Should().Be(0m);
-        result.NetBalance.Should().Be(0m);
-        result.AsOf.Should().Be(DateTimeOffset.MinValue);
-        result.UpdatedAt.Should().Be(now);
-
+        Assert.Equal("m1", result.MerchantId);
+        Assert.Equal(query.Date, result.Date);
+        Assert.Equal("BRL", result.Currency);
+        Assert.Equal(0m, result.TotalCredits);
+        Assert.Equal(0m, result.TotalDebits);
+        Assert.Equal(0m, result.NetBalance);
+        Assert.Equal(DateTimeOffset.MinValue, result.AsOf);
+        Assert.Equal(now, result.UpdatedAt);
         repo.VerifyAll();
         clock.VerifyAll();
     }

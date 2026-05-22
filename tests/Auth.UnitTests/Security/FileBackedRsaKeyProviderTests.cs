@@ -1,6 +1,5 @@
 using Auth.Api.Options;
 using Auth.Api.Security;
-using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using System.Security.Cryptography;
@@ -28,18 +27,15 @@ public sealed class FileBackedRsaKeyProviderTests
 
         // A inicialização e persistência acontecem de forma lazy (primeiro acesso à chave).
         var kid1 = provider1.GetKeyId();
-        File.Exists(keyPath).Should().BeTrue();
-        kid1.Should().NotBeNullOrWhiteSpace();
-
+        Assert.True(File.Exists(keyPath));
+        Assert.False(string.IsNullOrWhiteSpace(kid1));
         // A chave pública deve ser consistente com o KID (indiretamente: não deve lançar)
         using var pub1 = provider1.GetPublicKey();
-        pub1.ExportParameters(false).Modulus.Should().NotBeNull();
-
+        Assert.NotNull(pub1.ExportParameters(false).Modulus);
         // Segunda instância deve carregar do arquivo e manter KID
         var provider2 = new FileBackedRsaKeyProvider(options, NullLogger<FileBackedRsaKeyProvider>.Instance);
         var kid2 = provider2.GetKeyId();
-        kid2.Should().Be(kid1);
-
+        Assert.Equal(kid1, kid2);
         provider1.Dispose();
         provider2.Dispose();
     }
@@ -61,9 +57,8 @@ public sealed class FileBackedRsaKeyProviderTests
         });
 
         var act = () => new FileBackedRsaKeyProvider(options, NullLogger<FileBackedRsaKeyProvider>.Instance).GetKeyId();
-
-        act.Should().Throw<Exception>();
-        File.ReadAllText(keyPath).Should().Contain("this-is-not-valid-json");
+        Assert.ThrowsAny<Exception>(act);
+        Assert.Contains("this-is-not-valid-json", File.ReadAllText(keyPath));
     }
 
     [Fact]

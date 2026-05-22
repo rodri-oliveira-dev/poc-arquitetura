@@ -1,6 +1,5 @@
 using System.Diagnostics.Metrics;
 
-using FluentAssertions;
 
 using LedgerService.Application.Common.Observability;
 
@@ -52,13 +51,12 @@ public sealed class LedgerDomainMetricsTests
         listener.Start();
 
         metrics.RecordEntryCreated("CREDIT", "BRL", "success");
-
-        measurement.Should().Be(1);
-        observedTags.Should().NotBeNull();
-        observedTags.Should().Contain("entry_type", "CREDIT");
-        observedTags.Should().Contain("currency", "BRL");
-        observedTags.Should().Contain("result", "success");
-        observedTags!.Keys.Should().NotContain(ProhibitedTags);
+        Assert.Equal(1, measurement);
+        Assert.NotNull(observedTags);
+        Assert.Equal("CREDIT", observedTags["entry_type"]);
+        Assert.Equal("BRL", observedTags["currency"]);
+        Assert.Equal("success", observedTags["result"]);
+        Assert.Empty(ProhibitedTags.Intersect(observedTags!.Keys));
     }
 
     [Fact]
@@ -87,9 +85,8 @@ public sealed class LedgerDomainMetricsTests
         listener.Start();
 
         metrics.RecordIdempotencyHit("create_entry");
-
-        observedTags.Should().NotBeNull();
-        observedTags.Should().Contain("operation", "create_entry");
-        observedTags!.Keys.Should().NotContain(ProhibitedTags);
+        Assert.NotNull(observedTags);
+        Assert.Equal("create_entry", observedTags["operation"]);
+        Assert.Empty(ProhibitedTags.Intersect(observedTags!.Keys));
     }
 }

@@ -1,6 +1,5 @@
 using System.Diagnostics;
 
-using FluentAssertions;
 using LedgerService.Application.Lancamentos.Events;
 using LedgerService.Application.Common.Exceptions;
 using LedgerService.Application.Common.Models;
@@ -55,47 +54,41 @@ public sealed class CreateLancamentoServiceTests
         var sut = new CreateLancamentoService(ledgerRepo.Object, idemRepo.Object, outboxRepo.Object, uow.Object);
 
         var result = await sut.ExecuteAsync(input, CancellationToken.None);
-
-        result.Type.Should().Be("CREDIT");
-        result.MerchantId.Should().Be(input.MerchantId);
-        result.Amount.Should().Be("10.00");
-        result.Id.Should().StartWith("lan_");
-        result.Description.Should().Be(input.Description);
-        result.ExternalReference.Should().Be(input.ExternalReference);
-        result.OccurredAt.Should().NotBeNullOrWhiteSpace();
-        result.CreatedAt.Should().NotBeNullOrWhiteSpace();
-
-        createdEntry.Should().NotBeNull();
-        createdEntry!.MerchantId.Should().Be(input.MerchantId);
-        createdEntry!.Type.Should().Be(LedgerEntryType.Credit);
-        createdEntry!.Amount.Should().Be(10.00m);
-
-        createdIdem.Should().NotBeNull();
-        createdIdem!.MerchantId.Should().Be(input.MerchantId);
-        createdIdem!.IdempotencyKey.Should().Be(input.IdempotencyKey);
-        createdIdem!.ResponseStatusCode.Should().Be(201);
-        createdIdem!.LedgerEntryId.Should().Be(createdEntry!.Id);
-        createdIdem!.ResponseBody.Should().NotBeNullOrWhiteSpace();
-
-        createdOutbox.Should().NotBeNull();
-        createdOutbox!.AggregateType.Should().Be("LedgerEntry");
-        createdOutbox!.AggregateId.Should().Be(createdEntry!.Id);
-        createdOutbox!.EventType.Should().Be(LedgerEntryCreatedV1.EventType);
-        createdOutbox!.Payload.Should().Contain("\"merchantId\"");
-        createdOutbox!.CorrelationId.Should().Be(Guid.Parse(input.CorrelationId));
-
+        Assert.Equal("CREDIT", result.Type);
+        Assert.Equal(input.MerchantId, result.MerchantId);
+        Assert.Equal("10.00", result.Amount);
+        Assert.StartsWith("lan_", result.Id);
+        Assert.Equal(input.Description, result.Description);
+        Assert.Equal(input.ExternalReference, result.ExternalReference);
+        Assert.False(string.IsNullOrWhiteSpace(result.OccurredAt));
+        Assert.False(string.IsNullOrWhiteSpace(result.CreatedAt));
+        Assert.NotNull(createdEntry);
+        Assert.Equal(input.MerchantId, createdEntry!.MerchantId);
+        Assert.Equal(LedgerEntryType.Credit, createdEntry!.Type);
+        Assert.Equal(10.00m, createdEntry!.Amount);
+        Assert.NotNull(createdIdem);
+        Assert.Equal(input.MerchantId, createdIdem!.MerchantId);
+        Assert.Equal(input.IdempotencyKey, createdIdem!.IdempotencyKey);
+        Assert.Equal(201, createdIdem!.ResponseStatusCode);
+        Assert.Equal(createdEntry!.Id, createdIdem!.LedgerEntryId);
+        Assert.False(string.IsNullOrWhiteSpace(createdIdem!.ResponseBody));
+        Assert.NotNull(createdOutbox);
+        Assert.Equal("LedgerEntry", createdOutbox!.AggregateType);
+        Assert.Equal(createdEntry!.Id, createdOutbox!.AggregateId);
+        Assert.Equal(LedgerEntryCreatedV1.EventType, createdOutbox!.EventType);
+        Assert.Contains("\"merchantId\"", createdOutbox!.Payload);
+        Assert.Equal(Guid.Parse(input.CorrelationId), createdOutbox!.CorrelationId);
         var outboxEvent = System.Text.Json.JsonSerializer.Deserialize<LedgerEntryCreatedV1>(createdOutbox.Payload, JsonOptions);
-        outboxEvent.Should().NotBeNull();
-        outboxEvent!.Id.Should().Be(result.Id);
-        outboxEvent.Type.Should().Be("CREDIT");
-        outboxEvent.Amount.Should().Be("10.00");
-        outboxEvent.MerchantId.Should().Be(input.MerchantId);
-        outboxEvent.Description.Should().Be(input.Description);
-        outboxEvent.ExternalReference.Should().Be(input.ExternalReference);
-        outboxEvent.CorrelationId.Should().Be(input.CorrelationId);
-        outboxEvent.OccurredAt.Should().Be(result.OccurredAt);
-        outboxEvent.CreatedAt.Should().Be(result.CreatedAt);
-
+        Assert.NotNull(outboxEvent);
+        Assert.Equal(result.Id, outboxEvent!.Id);
+        Assert.Equal("CREDIT", outboxEvent.Type);
+        Assert.Equal("10.00", outboxEvent.Amount);
+        Assert.Equal(input.MerchantId, outboxEvent.MerchantId);
+        Assert.Equal(input.Description, outboxEvent.Description);
+        Assert.Equal(input.ExternalReference, outboxEvent.ExternalReference);
+        Assert.Equal(input.CorrelationId, outboxEvent.CorrelationId);
+        Assert.Equal(result.OccurredAt, outboxEvent.OccurredAt);
+        Assert.Equal(result.CreatedAt, outboxEvent.CreatedAt);
         ledgerRepo.VerifyAll();
         idemRepo.VerifyAll();
         outboxRepo.VerifyAll();
@@ -115,7 +108,7 @@ public sealed class CreateLancamentoServiceTests
 
         using var source = new ActivitySource("LedgerService.UnitTests");
         using var activity = source.StartActivity("http.request", ActivityKind.Server);
-        activity.Should().NotBeNull();
+        Assert.NotNull(activity);
         activity!.TraceStateString = "vendor=value";
         activity.AddBaggage("tenant", "poc");
 
@@ -148,11 +141,10 @@ public sealed class CreateLancamentoServiceTests
         var sut = new CreateLancamentoService(ledgerRepo.Object, idemRepo.Object, outboxRepo.Object, uow.Object);
 
         await sut.ExecuteAsync(input, CancellationToken.None);
-
-        createdOutbox.Should().NotBeNull();
-        createdOutbox!.TraceParent.Should().Be(activity.Id);
-        createdOutbox.TraceState.Should().Be("vendor=value");
-        createdOutbox.Baggage.Should().Be("tenant=poc");
+        Assert.NotNull(createdOutbox);
+        Assert.Equal(activity.Id, createdOutbox!.TraceParent);
+        Assert.Equal("vendor=value", createdOutbox.TraceState);
+        Assert.Equal("tenant=poc", createdOutbox.Baggage);
     }
 
     [Fact]
@@ -191,19 +183,16 @@ public sealed class CreateLancamentoServiceTests
         var sut = new CreateLancamentoService(ledgerRepo.Object, idemRepo.Object, outboxRepo.Object, uow.Object);
 
         var result = await sut.ExecuteAsync(input, CancellationToken.None);
-
-        result.Type.Should().Be("DEBIT");
-        result.Amount.Should().Be("-15.50");
-        createdEntry.Should().NotBeNull();
-        createdEntry!.Type.Should().Be(LedgerEntryType.Debit);
-        createdEntry.Amount.Should().Be(-15.50m);
-
-        createdOutbox.Should().NotBeNull();
+        Assert.Equal("DEBIT", result.Type);
+        Assert.Equal("-15.50", result.Amount);
+        Assert.NotNull(createdEntry);
+        Assert.Equal(LedgerEntryType.Debit, createdEntry!.Type);
+        Assert.Equal(-15.50m, createdEntry.Amount);
+        Assert.NotNull(createdOutbox);
         var outboxEvent = System.Text.Json.JsonSerializer.Deserialize<LedgerEntryCreatedV1>(createdOutbox!.Payload, JsonOptions);
-        outboxEvent.Should().NotBeNull();
-        outboxEvent!.Type.Should().Be("DEBIT");
-        outboxEvent.Amount.Should().Be("-15.50");
-
+        Assert.NotNull(outboxEvent);
+        Assert.Equal("DEBIT", outboxEvent!.Type);
+        Assert.Equal("-15.50", outboxEvent.Amount);
         ledgerRepo.VerifyAll();
         idemRepo.VerifyAll();
         outboxRepo.VerifyAll();
@@ -244,8 +233,8 @@ public sealed class CreateLancamentoServiceTests
 
         var act = async () => await sut.ExecuteAsync(input, CancellationToken.None);
 
-        await act.Should().ThrowAsync<ConflictException>()
-            .WithMessage("*Idempotency-Key already used with a different payload*");
+        var ex = await Assert.ThrowsAsync<ConflictException>(act);
+        Assert.Contains("Idempotency-Key already used with a different payload", ex.Message);
     }
 
     [Theory]
@@ -289,8 +278,8 @@ public sealed class CreateLancamentoServiceTests
 
         var act = async () => await sut.ExecuteAsync(changedInput, CancellationToken.None);
 
-        await act.Should().ThrowAsync<ConflictException>()
-            .WithMessage("*Idempotency-Key already used with a different payload*");
+        var ex = await Assert.ThrowsAsync<ConflictException>(act);
+        Assert.Contains("Idempotency-Key already used with a different payload", ex.Message);
     }
 
     [Fact]
@@ -328,10 +317,9 @@ public sealed class CreateLancamentoServiceTests
         var sut = new CreateLancamentoService(ledgerRepo.Object, idemRepo.Object, outboxRepo.Object, uow.Object);
 
         var result = await sut.ExecuteAsync(input, CancellationToken.None);
-
-        result.Id.Should().Be("lan_12345678");
-        result.Type.Should().Be("CREDIT");
-        result.Amount.Should().Be("10.00");
+        Assert.Equal("lan_12345678", result.Id);
+        Assert.Equal("CREDIT", result.Type);
+        Assert.Equal("10.00", result.Amount);
     }
 
     [Fact]
@@ -366,8 +354,8 @@ public sealed class CreateLancamentoServiceTests
 
         var act = async () => await sut.ExecuteAsync(input, CancellationToken.None);
 
-        await act.Should().ThrowAsync<ConflictException>()
-            .WithMessage("*Unable to replay idempotent response*");
+        var ex = await Assert.ThrowsAsync<ConflictException>(act);
+        Assert.Contains("Unable to replay idempotent response", ex.Message);
     }
 
     [Fact]
@@ -422,8 +410,7 @@ public sealed class CreateLancamentoServiceTests
         var sut = new CreateLancamentoService(ledgerRepo.Object, idemRepo.Object, outboxRepo.Object, uow.Object);
 
         var result = await sut.ExecuteAsync(replayInput, CancellationToken.None);
-
-        result.Should().Be(expectedReplay);
+        Assert.Equal(expectedReplay, result);
         ledgerRepo.VerifyNoOtherCalls();
         outboxRepo.VerifyNoOtherCalls();
         uow.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);

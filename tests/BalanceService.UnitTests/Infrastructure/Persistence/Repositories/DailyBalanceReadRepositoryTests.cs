@@ -3,7 +3,6 @@ using System.Globalization;
 using BalanceService.Domain.Balances;
 using BalanceService.Infrastructure.Persistence;
 using BalanceService.Infrastructure.Persistence.Repositories;
-using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 
 namespace BalanceService.UnitTests.Infrastructure.Persistence.Repositories;
@@ -21,7 +20,7 @@ public sealed class DailyBalanceReadRepositoryTests
         var sut = new DailyBalanceReadRepository(db);
 
         var res = await sut.GetDailyAsync("m1", new DateOnly(2026, 2, 10));
-        res.Should().BeNull();
+        Assert.Null(res);
     }
 
     [Fact]
@@ -52,12 +51,11 @@ public sealed class DailyBalanceReadRepositoryTests
 
         var sut = new DailyBalanceReadRepository(db);
         var res = await sut.GetDailyAsync("m1", new DateOnly(2026, 2, 10));
-
-        res.Should().NotBeNull();
-        res!.MerchantId.Should().Be("m1");
-        res.Date.Should().Be(new DateOnly(2026, 2, 10));
-        res.Currency.Should().Be("BRL");
-        res.TotalCredits.Should().Be(10m);
+        Assert.NotNull(res);
+        Assert.Equal("m1", res!.MerchantId);
+        Assert.Equal(new DateOnly(2026, 2, 10), res.Date);
+        Assert.Equal("BRL", res.Currency);
+        Assert.Equal(10m, res.TotalCredits);
     }
 
     [Fact]
@@ -77,9 +75,8 @@ public sealed class DailyBalanceReadRepositoryTests
 
         var sut = new DailyBalanceReadRepository(db);
         var res = await sut.ListByPeriodAsync("m1", new DateOnly(2026, 2, 10), new DateOnly(2026, 2, 11));
-
-        res.Should().HaveCount(2);
-        res[0].Date.Should().Be(new DateOnly(2026, 2, 10));
-        res[1].Date.Should().Be(new DateOnly(2026, 2, 11));
+        Assert.Equal(2, res.Count);
+        Assert.Equal(new DateOnly(2026, 2, 10), res[0].Date);
+        Assert.Equal(new DateOnly(2026, 2, 11), res[1].Date);
     }
 }

@@ -1,5 +1,4 @@
 using Auth.Api.Security;
-using FluentAssertions;
 using System.Security.Cryptography;
 
 namespace Auth.UnitTests.Security;
@@ -13,9 +12,8 @@ public sealed class RsaKeyMaterialTests
         var publicOnly = rsa.ExportParameters(includePrivateParameters: false);
 
         var act = () => RsaKeyMaterial.FromParameters(publicOnly);
-
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*incompletos*");
+        var ex = Assert.Throws<InvalidOperationException>(act);
+        Assert.Matches("^" + System.Text.RegularExpressions.Regex.Escape("*incompletos*").Replace("\\*", ".*") + "$", ex.Message);
     }
 
     [Fact]
@@ -26,12 +24,11 @@ public sealed class RsaKeyMaterialTests
 
         var material = RsaKeyMaterial.FromParameters(p);
         var back = material.ToParameters();
-
-        back.Modulus.Should().BeEquivalentTo(p.Modulus);
-        back.Exponent.Should().BeEquivalentTo(p.Exponent);
-        back.D.Should().BeEquivalentTo(p.D);
-        back.P.Should().BeEquivalentTo(p.P);
-        back.Q.Should().BeEquivalentTo(p.Q);
+        Assert.Equivalent(p.Modulus, back.Modulus);
+        Assert.Equivalent(p.Exponent, back.Exponent);
+        Assert.Equivalent(p.D, back.D);
+        Assert.Equivalent(p.P, back.P);
+        Assert.Equivalent(p.Q, back.Q);
     }
 
     [Fact]
@@ -50,8 +47,7 @@ public sealed class RsaKeyMaterialTests
             Q = "@@@"
         };
 
-        var act = () => material.ToParameters();
-
-        act.Should().Throw<FormatException>();
+        void Act() => _ = material.ToParameters();
+        Assert.Throws<FormatException>(Act);
     }
 }

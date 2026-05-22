@@ -1,7 +1,6 @@
 using System.Reflection;
 using BalanceService.Api.Controllers;
 using BalanceService.Api.Swagger;
-using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.OpenApi;
@@ -21,14 +20,11 @@ public sealed class ConsolidadosExamplesOperationFilterTests
 
         sut.Apply(operation, context);
 
-        var successExample = operation.Responses["200"].Content["application/json"].Example
-            .Should().BeOfType<JsonObject>().Subject;
-        successExample["date"]!.GetValue<string>().Should().Be("2026-02-14");
-        successExample["netBalance"]!.GetValue<string>().Should().Be("150.00");
-
-        var errorExample = operation.Responses["400"].Content["application/json"].Example
-            .Should().BeOfType<JsonObject>().Subject;
-        errorExample["status"]!.GetValue<int>().Should().Be(StatusCodes.Status400BadRequest);
+        var successExample = Assert.IsType<JsonObject>(operation.Responses["200"].Content["application/json"].Example);
+        Assert.Equal("2026-02-14", successExample["date"]!.GetValue<string>());
+        Assert.Equal("150.00", successExample["netBalance"]!.GetValue<string>());
+        var errorExample = Assert.IsType<JsonObject>(operation.Responses["400"].Content["application/json"].Example);
+        Assert.Equal(StatusCodes.Status400BadRequest, errorExample["status"]!.GetValue<int>());
     }
 
     [Fact]
@@ -40,14 +36,11 @@ public sealed class ConsolidadosExamplesOperationFilterTests
 
         sut.Apply(operation, context);
 
-        var successExample = operation.Responses["200"].Content["application/json"].Example
-            .Should().BeOfType<JsonObject>().Subject;
-        successExample["from"]!.GetValue<string>().Should().Be("2026-02-10");
-        successExample["items"].Should().BeOfType<JsonArray>().Which.Should().HaveCount(2);
-
-        var errorExample = operation.Responses["400"].Content["application/json"].Example
-            .Should().BeOfType<JsonObject>().Subject;
-        errorExample["title"]!.GetValue<string>().Should().Be("Invalid request");
+        var successExample = Assert.IsType<JsonObject>(operation.Responses["200"].Content["application/json"].Example);
+        Assert.Equal("2026-02-10", successExample["from"]!.GetValue<string>());
+        Assert.Equal(2, Assert.IsType<JsonArray>(successExample["items"]).Count);
+        var errorExample = Assert.IsType<JsonObject>(operation.Responses["400"].Content["application/json"].Example);
+        Assert.Equal("Invalid request", errorExample["title"]!.GetValue<string>());
     }
 
     [Fact]
@@ -59,8 +52,8 @@ public sealed class ConsolidadosExamplesOperationFilterTests
 
         sut.Apply(operation, context);
 
-        operation.Responses["200"].Content["application/json"].Example.Should().BeNull();
-        operation.Responses["400"].Content["application/json"].Example.Should().BeNull();
+        Assert.Null(operation.Responses["200"].Content["application/json"].Example);
+        Assert.Null(operation.Responses["400"].Content["application/json"].Example);
     }
 
     private static OpenApiOperation CreateOperation()

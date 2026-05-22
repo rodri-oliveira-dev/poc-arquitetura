@@ -1,6 +1,5 @@
 using System.Text.Json;
 
-using FluentAssertions;
 using LedgerService.Application.Lancamentos.Commands;
 using LedgerService.Application.Lancamentos.Events;
 using LedgerService.Domain.Entities;
@@ -24,22 +23,19 @@ public sealed class ProcessarReprocessamentoLancamentosHandlerTests
         var sut = CreateSut(state);
 
         await sut.Handle(new ProcessarReprocessamentoLancamentosCommand(reprocessamento.Id), CancellationToken.None);
-
-        reprocessamento.Status.Should().Be(ReprocessamentoLancamentosStatus.Completed);
-        reprocessamento.ProcessingStartedAt.Should().NotBeNull();
-        reprocessamento.CompletedAt.Should().NotBeNull();
-        state.OutboxMessages.Should().ContainSingle();
-
+        Assert.Equal(ReprocessamentoLancamentosStatus.Completed, reprocessamento.Status);
+        Assert.NotNull(reprocessamento.ProcessingStartedAt);
+        Assert.NotNull(reprocessamento.CompletedAt);
+        Assert.Single(state.OutboxMessages);
         var outbox = state.OutboxMessages.Single();
-        outbox.AggregateType.Should().Be("LedgerEntryReprocessamento");
-        outbox.AggregateId.Should().Be(inPeriod.Id);
-        outbox.EventType.Should().Be(LedgerEntryCreatedV1.EventType);
-
+        Assert.Equal("LedgerEntryReprocessamento", outbox.AggregateType);
+        Assert.Equal(inPeriod.Id, outbox.AggregateId);
+        Assert.Equal(LedgerEntryCreatedV1.EventType, outbox.EventType);
         var evt = JsonSerializer.Deserialize<LedgerEntryCreatedV1>(outbox.Payload, JsonOptions);
-        evt.Should().NotBeNull();
-        evt!.Id.Should().Be($"lan_{inPeriod.Id.ToString("N")[..8]}");
-        evt.Amount.Should().Be("100.00");
-        evt.MerchantId.Should().Be("m1");
+        Assert.NotNull(evt);
+        Assert.Equal($"lan_{inPeriod.Id.ToString("N")[..8]}", evt!.Id);
+        Assert.Equal("100.00", evt.Amount);
+        Assert.Equal("m1", evt.MerchantId);
     }
 
     [Fact]
@@ -50,10 +46,9 @@ public sealed class ProcessarReprocessamentoLancamentosHandlerTests
         var sut = CreateSut(state);
 
         await sut.Handle(new ProcessarReprocessamentoLancamentosCommand(reprocessamento.Id), CancellationToken.None);
-
-        reprocessamento.Status.Should().Be(ReprocessamentoLancamentosStatus.CompletedWithWarnings);
-        reprocessamento.FailureReason.Should().Contain("Nenhum lancamento");
-        state.OutboxMessages.Should().BeEmpty();
+        Assert.Equal(ReprocessamentoLancamentosStatus.CompletedWithWarnings, reprocessamento.Status);
+        Assert.Contains("Nenhum lancamento", reprocessamento.FailureReason);
+        Assert.Empty(state.OutboxMessages);
     }
 
     [Fact]
@@ -66,9 +61,8 @@ public sealed class ProcessarReprocessamentoLancamentosHandlerTests
 
         await sut.Handle(new ProcessarReprocessamentoLancamentosCommand(reprocessamento.Id), CancellationToken.None);
         await sut.Handle(new ProcessarReprocessamentoLancamentosCommand(reprocessamento.Id), CancellationToken.None);
-
-        reprocessamento.Status.Should().Be(ReprocessamentoLancamentosStatus.Completed);
-        state.OutboxMessages.Should().ContainSingle();
+        Assert.Equal(ReprocessamentoLancamentosStatus.Completed, reprocessamento.Status);
+        Assert.Single(state.OutboxMessages);
     }
 
     [Fact]
@@ -79,9 +73,8 @@ public sealed class ProcessarReprocessamentoLancamentosHandlerTests
         var sut = CreateSut(state);
 
         await sut.Handle(new ProcessarReprocessamentoLancamentosCommand(reprocessamento.Id), CancellationToken.None);
-
-        reprocessamento.Status.Should().Be(ReprocessamentoLancamentosStatus.Failed);
-        reprocessamento.FailureReason.Should().Contain("Falha tecnica");
+        Assert.Equal(ReprocessamentoLancamentosStatus.Failed, reprocessamento.Status);
+        Assert.Contains("Falha tecnica", reprocessamento.FailureReason);
     }
 
     private static ProcessarReprocessamentoLancamentosHandler CreateSut(State state)

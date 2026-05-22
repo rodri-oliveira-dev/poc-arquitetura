@@ -1,4 +1,3 @@
-using FluentAssertions;
 
 namespace LedgerService.UnitTests.Architecture;
 
@@ -14,17 +13,15 @@ public sealed class ComposeEnvGenYamlTests
         try
         {
             var exitCode = ComposeEnvGen.Program.Main(["--compose", composePath, "--out", outputPath]);
-
-            exitCode.Should().Be(0);
-            File.Exists(outputPath).Should().BeTrue();
-
+        Assert.Equal(0, exitCode);
+        Assert.True(File.Exists(outputPath));
             var generatedEnvironment = File.ReadAllLines(outputPath);
-            generatedEnvironment.Should().Contain("LEDGER_SERVICE_NAME=ledger-service");
-            generatedEnvironment.Should().Contain("BALANCE_SERVICE_NAME=balance-service");
-            generatedEnvironment.Should().Contain("AUTH_SERVICE_NAME=auth-api");
-            generatedEnvironment.Should().Contain("BASE_URL_LEDGER=http://ledger-service:8080");
-            generatedEnvironment.Should().Contain("BASE_URL_BALANCE=http://balance-service:8080");
-            generatedEnvironment.Should().Contain("AUTH_BASE_URL=http://auth-api:8080");
+        Assert.Contains("LEDGER_SERVICE_NAME=ledger-service", generatedEnvironment);
+        Assert.Contains("BALANCE_SERVICE_NAME=balance-service", generatedEnvironment);
+        Assert.Contains("AUTH_SERVICE_NAME=auth-api", generatedEnvironment);
+        Assert.Contains("BASE_URL_LEDGER=http://ledger-service:8080", generatedEnvironment);
+        Assert.Contains("BASE_URL_BALANCE=http://balance-service:8080", generatedEnvironment);
+        Assert.Contains("AUTH_BASE_URL=http://auth-api:8080", generatedEnvironment);
         }
         finally
         {
@@ -39,8 +36,7 @@ public sealed class ComposeEnvGenYamlTests
 
         while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "LedgerService.slnx")))
             directory = directory.Parent;
-
-        directory.Should().NotBeNull("the test must run inside the repository tree");
+        Assert.NotNull(directory);
         return directory!;
     }
 }

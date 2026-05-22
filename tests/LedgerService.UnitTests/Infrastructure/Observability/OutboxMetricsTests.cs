@@ -1,6 +1,5 @@
 using System.Diagnostics.Metrics;
 
-using FluentAssertions;
 
 using LedgerService.Infrastructure.Observability;
 
@@ -46,11 +45,10 @@ public sealed class OutboxMetricsTests
         listener.Start();
 
         metrics.RecordPublishAttempt("LedgerEntryCreated.v1", "success");
-
-        measurement.Should().Be(1);
-        observedTags.Should().NotBeNull();
-        observedTags.Should().Contain("event_type", "LedgerEntryCreated.v1");
-        observedTags.Should().Contain("result", "success");
-        observedTags!.Keys.Should().NotContain(ProhibitedTags);
+        Assert.Equal(1, measurement);
+        Assert.NotNull(observedTags);
+        Assert.Equal("LedgerEntryCreated.v1", observedTags["event_type"]);
+        Assert.Equal("success", observedTags["result"]);
+        Assert.Empty(ProhibitedTags.Intersect(observedTags!.Keys));
     }
 }

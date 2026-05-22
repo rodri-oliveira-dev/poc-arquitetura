@@ -1,4 +1,3 @@
-using FluentAssertions;
 
 namespace LedgerService.UnitTests.Architecture;
 
@@ -28,9 +27,8 @@ public sealed class ContainerSecurityPolicyTests
     {
         var repositoryRoot = GetRepositoryRoot();
         var dockerfile = File.ReadAllText(Path.Combine(repositoryRoot.FullName, dockerfilePath));
-
-        dockerfile.Should().Contain("COPY --from=build --chown=$APP_UID:0 /app/publish ./");
-        dockerfile.Should().Contain("USER $APP_UID");
+        Assert.Contains("COPY --from=build --chown=$APP_UID:0 /app/publish ./", dockerfile);
+        Assert.Contains("USER $APP_UID", dockerfile);
     }
 
     [Fact]
@@ -38,9 +36,8 @@ public sealed class ContainerSecurityPolicyTests
     {
         var repositoryRoot = GetRepositoryRoot();
         var dockerfile = File.ReadAllText(Path.Combine(repositoryRoot.FullName, "src/Auth.Api/Dockerfile"));
-
-        dockerfile.Should().Contain("mkdir -p /data");
-        dockerfile.Should().Contain("chown -R $APP_UID:0 /app /data");
+        Assert.Contains("mkdir -p /data", dockerfile);
+        Assert.Contains("chown -R $APP_UID:0 /app /data", dockerfile);
     }
 
     [Fact]
@@ -51,8 +48,7 @@ public sealed class ContainerSecurityPolicyTests
         foreach (var composePath in new[] { "compose.yaml", "compose.k6.yaml" })
         {
             var compose = File.ReadAllText(Path.Combine(repositoryRoot.FullName, composePath));
-
-            compose.Should().NotContain(":latest");
+        Assert.DoesNotContain(":latest", compose);
         }
     }
 
@@ -65,13 +61,12 @@ public sealed class ContainerSecurityPolicyTests
         foreach (var service in ComposeServicesWithLimits)
         {
             var serviceBlock = GetServiceBlock(compose, service);
-
-            serviceBlock.Should().Contain("deploy:");
-            serviceBlock.Should().Contain("resources:");
-            serviceBlock.Should().Contain("limits:");
-            serviceBlock.Should().Contain("cpus:");
-            serviceBlock.Should().Contain("memory:");
-            serviceBlock.Should().Contain("pids:");
+        Assert.Contains("deploy:", serviceBlock);
+        Assert.Contains("resources:", serviceBlock);
+        Assert.Contains("limits:", serviceBlock);
+        Assert.Contains("cpus:", serviceBlock);
+        Assert.Contains("memory:", serviceBlock);
+        Assert.Contains("pids:", serviceBlock);
         }
     }
 
@@ -81,13 +76,12 @@ public sealed class ContainerSecurityPolicyTests
         var repositoryRoot = GetRepositoryRoot();
         var compose = File.ReadAllText(Path.Combine(repositoryRoot.FullName, "compose.k6.yaml"));
         var serviceBlock = GetServiceBlock(compose, "k6");
-
-        serviceBlock.Should().Contain("deploy:");
-        serviceBlock.Should().Contain("resources:");
-        serviceBlock.Should().Contain("limits:");
-        serviceBlock.Should().Contain("cpus:");
-        serviceBlock.Should().Contain("memory:");
-        serviceBlock.Should().Contain("pids:");
+        Assert.Contains("deploy:", serviceBlock);
+        Assert.Contains("resources:", serviceBlock);
+        Assert.Contains("limits:", serviceBlock);
+        Assert.Contains("cpus:", serviceBlock);
+        Assert.Contains("memory:", serviceBlock);
+        Assert.Contains("pids:", serviceBlock);
     }
 
     public static TheoryData<string> ApiDockerfilePaths()
@@ -105,9 +99,7 @@ public sealed class ContainerSecurityPolicyTests
         var lines = compose.Split('\n');
         var marker = $"  {serviceName}:";
         var start = Array.FindIndex(lines, line => line.TrimEnd('\r') == marker);
-
-        start.Should().BeGreaterThanOrEqualTo(0, $"service {serviceName} must exist in compose");
-
+        Assert.True(start >= 0);
         var end = Array.FindIndex(lines, start + 1, line =>
         {
             var normalized = line.TrimEnd('\r');
@@ -128,8 +120,7 @@ public sealed class ContainerSecurityPolicyTests
 
         while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "LedgerService.slnx")))
             directory = directory.Parent;
-
-        directory.Should().NotBeNull("the test must run inside the repository tree");
+        Assert.NotNull(directory);
         return directory!;
     }
 }

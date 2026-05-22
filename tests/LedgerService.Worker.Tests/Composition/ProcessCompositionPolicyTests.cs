@@ -1,4 +1,3 @@
-using FluentAssertions;
 using LedgerService.Api.Extensions;
 using LedgerService.Worker.Estornos;
 using LedgerService.Worker.Outbox;
@@ -80,9 +79,8 @@ public sealed class ProcessCompositionPolicyTests
         });
 
         var act = () => provider.GetRequiredService<IOptions<OutboxPublisherOptions>>().Value;
-
-        act.Should().Throw<OptionsValidationException>()
-            .WithMessage("*Outbox Publisher BatchSize*");
+        var ex = Assert.Throws<OptionsValidationException>(act);
+        Assert.Matches("^" + System.Text.RegularExpressions.Regex.Escape("*Outbox Publisher BatchSize*").Replace("\\*", ".*") + "$", ex.Message);
     }
 
     [Fact]
@@ -94,9 +92,8 @@ public sealed class ProcessCompositionPolicyTests
         });
 
         var act = () => provider.GetRequiredService<IOptions<EstornoProcessingOptions>>().Value;
-
-        act.Should().Throw<OptionsValidationException>()
-            .WithMessage("*Estornos Processor PollingIntervalSeconds*");
+        var ex = Assert.Throws<OptionsValidationException>(act);
+        Assert.Matches("^" + System.Text.RegularExpressions.Regex.Escape("*Estornos Processor PollingIntervalSeconds*").Replace("\\*", ".*") + "$", ex.Message);
     }
 
     [Fact]
@@ -108,9 +105,8 @@ public sealed class ProcessCompositionPolicyTests
         });
 
         var act = () => provider.GetRequiredService<IOptions<ReprocessamentoLancamentosConsumerOptions>>().Value;
-
-        act.Should().Throw<OptionsValidationException>()
-            .WithMessage("*Reprocessamentos Consumer Topic*");
+        var ex = Assert.Throws<OptionsValidationException>(act);
+        Assert.Matches("^" + System.Text.RegularExpressions.Regex.Escape("*Reprocessamentos Consumer Topic*").Replace("\\*", ".*") + "$", ex.Message);
     }
 
     private static ServiceProvider CreateProvider(Dictionary<string, string?> overrides)
@@ -169,7 +165,7 @@ file static class HostedServiceAssertions
     public static void ContainHostedService<THostedService>(this IServiceCollection services)
         where THostedService : IHostedService
     {
-        services.Should().Contain(d =>
+        Assert.Contains(services, d =>
             d.ServiceType == typeof(IHostedService) &&
             d.ImplementationType == typeof(THostedService));
     }
@@ -177,7 +173,7 @@ file static class HostedServiceAssertions
     public static void NotContainHostedService<THostedService>(this IServiceCollection services)
         where THostedService : IHostedService
     {
-        services.Should().NotContain(d =>
+        Assert.DoesNotContain(services, d =>
             d.ServiceType == typeof(IHostedService) &&
             d.ImplementationType == typeof(THostedService));
     }

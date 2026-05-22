@@ -3,7 +3,6 @@ using BalanceService.Domain.Exceptions;
 using System.Globalization;
 
 using BalanceService.UnitTests.Fixtures;
-using FluentAssertions;
 
 namespace BalanceService.UnitTests.Domain.Balances;
 
@@ -13,10 +12,12 @@ public sealed class DailyBalanceDomainTests
     public void Ctor_should_validate_merchant_and_currency()
     {
         var act1 = () => new DailyBalance(" ", new DateOnly(2026, 2, 16), "BRL", DateTimeOffset.UtcNow);
-        act1.Should().Throw<DomainException>().WithMessage("*MerchantId*");
+        var merchantException = Assert.Throws<DomainException>(act1);
+        Assert.Contains("MerchantId", merchantException.Message);
 
         var act2 = () => new DailyBalance("m1", new DateOnly(2026, 2, 16), "BR", DateTimeOffset.UtcNow);
-        act2.Should().Throw<DomainException>().WithMessage("*Currency*");
+        var currencyException = Assert.Throws<DomainException>(act2);
+        Assert.Contains("Currency", currencyException.Message);
     }
 
     [Fact]
@@ -27,12 +28,11 @@ public sealed class DailyBalanceDomainTests
 
         var evt = BalanceFixture.Event(type: "CREDIT", amount: "10.50", occurredAt: DateTimeOffset.Parse("2026-02-16T10:00:00-03:00", CultureInfo.InvariantCulture));
         balance.Apply(evt, now);
-
-        balance.TotalCredits.Should().Be(10.50m);
-        balance.TotalDebits.Should().Be(0m);
-        balance.NetBalance.Should().Be(10.50m);
-        balance.AsOf.Should().Be(evt.OccurredAt);
-        balance.Currency.Should().Be("BRL");
+        Assert.Equal(10.50m, balance.TotalCredits);
+        Assert.Equal(0m, balance.TotalDebits);
+        Assert.Equal(10.50m, balance.NetBalance);
+        Assert.Equal(evt.OccurredAt, balance.AsOf);
+        Assert.Equal("BRL", balance.Currency);
     }
 
     [Fact]
@@ -44,9 +44,8 @@ public sealed class DailyBalanceDomainTests
         // No Ledger, debit tende a ser negativo.
         var evt = BalanceFixture.Event(type: "DEBIT", amount: "-20.00");
         balance.Apply(evt, now);
-
-        balance.TotalDebits.Should().Be(20.00m);
-        balance.NetBalance.Should().Be(-20.00m);
+        Assert.Equal(20.00m, balance.TotalDebits);
+        Assert.Equal(-20.00m, balance.NetBalance);
     }
 
     [Fact]
@@ -57,10 +56,9 @@ public sealed class DailyBalanceDomainTests
 
         balance.Apply(BalanceFixture.Event(type: "CREDIT", amount: "100.00"), now);
         balance.Apply(BalanceFixture.Event(id: "lan_estorno1", type: "DEBIT", amount: "-100.00"), now);
-
-        balance.TotalCredits.Should().Be(100m);
-        balance.TotalDebits.Should().Be(100m);
-        balance.NetBalance.Should().Be(0m);
+        Assert.Equal(100m, balance.TotalCredits);
+        Assert.Equal(100m, balance.TotalDebits);
+        Assert.Equal(0m, balance.NetBalance);
     }
 
     [Fact]
@@ -71,10 +69,9 @@ public sealed class DailyBalanceDomainTests
 
         balance.Apply(BalanceFixture.Event(type: "DEBIT", amount: "-100.00"), now);
         balance.Apply(BalanceFixture.Event(id: "lan_estorno1", type: "CREDIT", amount: "100.00"), now);
-
-        balance.TotalCredits.Should().Be(100m);
-        balance.TotalDebits.Should().Be(100m);
-        balance.NetBalance.Should().Be(0m);
+        Assert.Equal(100m, balance.TotalCredits);
+        Assert.Equal(100m, balance.TotalDebits);
+        Assert.Equal(0m, balance.NetBalance);
     }
 
     [Theory]
@@ -88,8 +85,7 @@ public sealed class DailyBalanceDomainTests
         var evt = BalanceFixture.Event(type: type, amount: amount);
 
         var act = () => balance.Apply(evt, now);
-
-        act.Should().Throw<DomainException>();
+        Assert.Throws<DomainException>(act);
     }
 
     [Fact]
@@ -100,6 +96,7 @@ public sealed class DailyBalanceDomainTests
         var evt = BalanceFixture.Event(type: "X", amount: "10.00");
 
         var act = () => balance.Apply(evt, now);
-        act.Should().Throw<DomainException>().WithMessage("*CREDIT or DEBIT*");
+        var ex = Assert.Throws<DomainException>(act);
+        Assert.Contains("CREDIT or DEBIT", ex.Message);
     }
 }

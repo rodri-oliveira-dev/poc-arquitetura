@@ -1,4 +1,3 @@
-using FluentAssertions;
 using Confluent.Kafka;
 using LedgerService.Domain.Entities;
 using LedgerService.Infrastructure.Observability;
@@ -34,9 +33,8 @@ public sealed class WorkerCoverageCompositionTests
 
         var mapped = sut.ResolveTopic(CreateOutboxMessage("LedgerEntryCreated"));
         var fallback = sut.ResolveTopic(CreateOutboxMessage("UnknownEvent"));
-
-        mapped.Should().Be("ledger.ledgerentry.created");
-        fallback.Should().Be("ledger.default");
+        Assert.Equal("ledger.ledgerentry.created", mapped);
+        Assert.Equal("ledger.default", fallback);
     }
 
     [Fact]
@@ -45,9 +43,8 @@ public sealed class WorkerCoverageCompositionTests
         var now = new DateTime(2026, 5, 20, 10, 0, 0, DateTimeKind.Utc);
 
         var nextAttempt = OutboxKafkaPublisherService.ComputeNextAttempt(now, attemptNumber: 3, baseBackoffSeconds: 2);
-
-        nextAttempt.Should().BeOnOrAfter(now.AddSeconds(8));
-        nextAttempt.Should().BeBefore(now.AddSeconds(8).AddMilliseconds(250));
+        Assert.True(nextAttempt >= now.AddSeconds(8));
+        Assert.True(nextAttempt < now.AddSeconds(8).AddMilliseconds(250));
     }
 
     [Fact]
@@ -57,8 +54,7 @@ public sealed class WorkerCoverageCompositionTests
             Mock.Of<IServiceProvider>(),
             Options.Create(new OutboxPublisherOptions()),
             Mock.Of<ILogger<OutboxKafkaPublisherService>>());
-
-        sut.Should().NotBeNull();
+        Assert.NotNull(sut);
     }
 
     [Theory]
@@ -74,9 +70,8 @@ public sealed class WorkerCoverageCompositionTests
         var options = CreateInvalidReprocessamentoOptions(invalidField);
 
         var act = () => ReprocessamentoLancamentosConsumerService.ValidateOptions(options);
-
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage($"*{expectedMessage}*");
+        var ex = Assert.Throws<InvalidOperationException>(act);
+        Assert.Matches("^" + System.Text.RegularExpressions.Regex.Escape($"*{expectedMessage}*").Replace("\\*", ".*") + "$", ex.Message);
     }
 
     [Theory]
@@ -86,8 +81,7 @@ public sealed class WorkerCoverageCompositionTests
     public void ReprocessamentoConsumer_should_parse_auto_offset_reset(string value, AutoOffsetReset expected)
     {
         var result = ReprocessamentoLancamentosConsumerService.ParseAutoOffsetReset(value);
-
-        result.Should().Be(expected);
+        Assert.Equal(expected, result);
     }
 
     private static ReprocessamentoLancamentosConsumerOptions CreateInvalidReprocessamentoOptions(string invalidField)

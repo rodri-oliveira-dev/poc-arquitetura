@@ -1,5 +1,4 @@
 using System.Reflection;
-using FluentAssertions;
 using LedgerService.Api.Swagger;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
@@ -19,8 +18,7 @@ public sealed class AuthorizeOperationFilterTests
         var ctx = CreateContext(typeof(AnonymousController).GetMethod(nameof(AnonymousController.Get))!);
 
         sut.Apply(operation, ctx);
-
-        operation.Security.Should().BeNull();
+        Assert.Null(operation.Security);
     }
 
     [Fact]
@@ -32,10 +30,9 @@ public sealed class AuthorizeOperationFilterTests
         var ctx = CreateContext(typeof(SecuredController).GetMethod(nameof(SecuredController.Post))!);
 
         sut.Apply(operation, ctx);
-
-        operation.Security.Should().NotBeNull();
-        operation.Description.Should().Contain("requer scope");
-        operation.Description.Should().Contain("ledger.write");
+        Assert.NotNull(operation.Security);
+        Assert.Contains("requer scope", operation.Description);
+        Assert.Contains("ledger.write", operation.Description);
     }
 
     [Fact]
@@ -47,9 +44,8 @@ public sealed class AuthorizeOperationFilterTests
         var ctx = CreateContext(typeof(NoPolicyController).GetMethod(nameof(NoPolicyController.Get))!);
 
         sut.Apply(operation, ctx);
-
-        operation.Security.Should().NotBeNull();
-        operation.Description.Should().Be("desc");
+        Assert.NotNull(operation.Security);
+        Assert.Equal("desc", operation.Description);
     }
 
     private static OperationFilterContext CreateContext(MethodInfo method)

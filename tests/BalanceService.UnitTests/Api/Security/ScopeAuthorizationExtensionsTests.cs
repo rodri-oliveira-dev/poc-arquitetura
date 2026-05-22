@@ -1,5 +1,4 @@
 using BalanceService.Api.Security;
-using FluentAssertions;
 using System.Security.Claims;
 
 namespace BalanceService.UnitTests.Api.Security;
@@ -24,7 +23,7 @@ public sealed class ScopeAuthorizationExtensionsTests
             .GetMethod("HasScope", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
 
         var result = (bool)method!.Invoke(null, [principal, ScopePolicies.BalanceRead])!;
-        result.Should().BeFalse();
+        Assert.False(result);
     }
 
     [Fact]
@@ -35,6 +34,6 @@ public sealed class ScopeAuthorizationExtensionsTests
             .GetMethod("HasScope", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
 
         var result = (bool)method!.Invoke(null, [principal, ScopePolicies.BalanceRead])!;
-        result.Should().BeTrue();
+        Assert.True(result);
     }
 }

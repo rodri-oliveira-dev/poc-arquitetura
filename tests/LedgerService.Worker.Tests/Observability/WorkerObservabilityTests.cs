@@ -1,4 +1,3 @@
-using FluentAssertions;
 using LedgerService.Worker.HostedServices;
 using LedgerService.Worker.Extensions;
 using LedgerService.Worker.Observability;
@@ -24,8 +23,7 @@ public sealed class WorkerObservabilityTests
             .AddLogging()
             .BuildServiceProvider();
         var hostedServices = provider.GetServices<IHostedService>();
-
-        hostedServices.Should().ContainSingle(x => x is WorkerLifecycleLogService);
+        Assert.Single(hostedServices, x => x is WorkerLifecycleLogService);
     }
 
     [Fact]
@@ -41,9 +39,8 @@ public sealed class WorkerObservabilityTests
 
         using var provider = services.BuildServiceProvider();
         var act = () => provider.GetRequiredService<IOptions<OpenTelemetryOptions>>().Value;
-
-        act.Should().Throw<OptionsValidationException>()
-            .WithMessage("*Observability OpenTelemetry ServiceName*");
+        var ex = Assert.Throws<OptionsValidationException>(act);
+        Assert.Matches("^" + System.Text.RegularExpressions.Regex.Escape("*Observability OpenTelemetry ServiceName*").Replace("\\*", ".*") + "$", ex.Message);
     }
 
     [Fact]
@@ -54,8 +51,7 @@ public sealed class WorkerObservabilityTests
 
         await sut.StartAsync(CancellationToken.None);
         await sut.StopAsync(CancellationToken.None);
-
-        logger.Invocations.Should().HaveCount(2);
+        Assert.Equal(2, logger.Invocations.Count);
     }
 
     private static IConfiguration CreateConfiguration(Dictionary<string, string?>? overrides = null)

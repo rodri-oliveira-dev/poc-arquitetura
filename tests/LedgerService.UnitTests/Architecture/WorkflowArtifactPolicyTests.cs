@@ -1,6 +1,5 @@
 using System.Text.RegularExpressions;
 
-using FluentAssertions;
 using YamlDotNet.RepresentationModel;
 
 namespace LedgerService.UnitTests.Architecture;
@@ -34,7 +33,7 @@ public sealed partial class WorkflowArtifactPolicyTests
         var yaml = new YamlStream();
         var act = () => yaml.Load(new StringReader(workflow));
 
-        act.Should().NotThrow();
+        act();
     }
 
     [Theory]
@@ -44,13 +43,11 @@ public sealed partial class WorkflowArtifactPolicyTests
         var repositoryRoot = GetRepositoryRoot();
         var workflow = File.ReadAllText(Path.Combine(repositoryRoot.FullName, workflowPath));
         var actionReferences = ActionReferenceRegex().Matches(workflow).Cast<Match>().ToArray();
-
-        actionReferences.Should().NotBeEmpty();
-
+        Assert.NotEmpty(actionReferences);
         foreach (Match actionReference in actionReferences)
         {
-            actionReference.Groups["ref"].Value.Should().MatchRegex("^[0-9a-f]{40}$");
-            actionReference.Groups["comment"].Value.Should().MatchRegex(@"^v\d+");
+        Assert.Matches("^[0-9a-f]{40}$", actionReference.Groups["ref"].Value);
+        Assert.Matches(@"^v\d+", actionReference.Groups["comment"].Value);
         }
     }
 
@@ -62,13 +59,11 @@ public sealed partial class WorkflowArtifactPolicyTests
         var workflow = File.ReadAllText(Path.Combine(repositoryRoot.FullName, workflowPath));
 
         var uploadArtifactSteps = UploadArtifactStepRegex().Matches(workflow).Cast<Match>().ToArray();
-
-        uploadArtifactSteps.Should().NotBeEmpty();
-
+        Assert.NotEmpty(uploadArtifactSteps);
         foreach (Match step in uploadArtifactSteps)
         {
-            step.Value.Should().Contain("if-no-files-found: warn");
-            step.Value.Should().MatchRegex(@"retention-days:\s*\d+");
+        Assert.Contains("if-no-files-found: warn", step.Value);
+        Assert.Matches(@"retention-days:\s*\d+", step.Value);
         }
     }
 
@@ -77,10 +72,9 @@ public sealed partial class WorkflowArtifactPolicyTests
     {
         var repositoryRoot = GetRepositoryRoot();
         var workflow = File.ReadAllText(Path.Combine(repositoryRoot.FullName, ".github/workflows/dotnet.yml"));
-
-        workflow.Should().NotContain("${{ env.TEST_RESULTS_DIR }}/coverage-report/**");
-        workflow.Should().Contain("${{ env.TEST_RESULTS_DIR }}/coverage-report/Summary.json");
-        workflow.Should().Contain("${{ env.TEST_RESULTS_DIR }}/coverage-report/Summary.txt");
+        Assert.DoesNotContain("${{ env.TEST_RESULTS_DIR }}/coverage-report/**", workflow);
+        Assert.Contains("${{ env.TEST_RESULTS_DIR }}/coverage-report/Summary.json", workflow);
+        Assert.Contains("${{ env.TEST_RESULTS_DIR }}/coverage-report/Summary.txt", workflow);
     }
 
     [Fact]
@@ -88,12 +82,11 @@ public sealed partial class WorkflowArtifactPolicyTests
     {
         var repositoryRoot = GetRepositoryRoot();
         var workflow = File.ReadAllText(Path.Combine(repositoryRoot.FullName, ".github/workflows/mutation-tests.yml"));
-
-        workflow.Should().Contain("tests/LedgerService.UnitTests/StrykerOutput/**/reports/mutation-report.html");
-        workflow.Should().Contain("tests/BalanceService.UnitTests/StrykerOutput/**/reports/mutation-report.html");
-        OldLedgerStrykerOutputPathRegex().IsMatch(workflow).Should().BeFalse();
-        OldBalanceStrykerOutputPathRegex().IsMatch(workflow).Should().BeFalse();
-        RetentionDaysSevenRegex().Matches(workflow).Should().HaveCountGreaterThanOrEqualTo(2);
+        Assert.Contains("tests/LedgerService.UnitTests/StrykerOutput/**/reports/mutation-report.html", workflow);
+        Assert.Contains("tests/BalanceService.UnitTests/StrykerOutput/**/reports/mutation-report.html", workflow);
+        Assert.False(OldLedgerStrykerOutputPathRegex().IsMatch(workflow));
+        Assert.False(OldBalanceStrykerOutputPathRegex().IsMatch(workflow));
+        Assert.True(RetentionDaysSevenRegex().Matches(workflow).Count >= 2);
     }
 
     public static TheoryData<string> GetWorkflowsWithPublishedArtifacts()
@@ -137,8 +130,7 @@ public sealed partial class WorkflowArtifactPolicyTests
 
         while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "LedgerService.slnx")))
             directory = directory.Parent;
-
-        directory.Should().NotBeNull("the test must run inside the repository tree");
+        Assert.NotNull(directory);
         return directory!;
     }
 }

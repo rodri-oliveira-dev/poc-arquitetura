@@ -3,7 +3,6 @@ using System.Globalization;
 using BalanceService.Application.Balances.Commands;
 using BalanceService.Domain.Balances;
 using BalanceService.IntegrationTests.Infrastructure;
-using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -60,17 +59,16 @@ public sealed class ApplyLedgerEntryCreatedConcurrencyTests
         var processedEvents = await db.ProcessedEvents
             .Where(x => x.MerchantId == merchantId)
             .ToListAsync();
-
-        balances.Should().ContainSingle();
-        processedEvents.Should().HaveCount(2);
-        processedEvents.Select(x => x.EventId).Should().BeEquivalentTo(credit.Id, debit.Id);
+        Assert.Single(balances);
+        Assert.Equal(2, processedEvents.Count);
+        Assert.Equivalent(new[] { credit.Id, debit.Id }, processedEvents.Select(x => x.EventId));
 
         var balance = balances.Single();
-        balance.Date.Should().Be(new DateOnly(2026, 2, 16));
-        balance.Currency.Should().Be("BRL");
-        balance.TotalCredits.Should().Be(100m);
-        balance.TotalDebits.Should().Be(35m);
-        balance.NetBalance.Should().Be(65m);
+        Assert.Equal(new DateOnly(2026, 2, 16), balance.Date);
+        Assert.Equal("BRL", balance.Currency);
+        Assert.Equal(100m, balance.TotalCredits);
+        Assert.Equal(35m, balance.TotalDebits);
+        Assert.Equal(65m, balance.NetBalance);
     }
 
     private static async Task ApplyAsync(

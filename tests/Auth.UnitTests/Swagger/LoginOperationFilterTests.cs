@@ -1,5 +1,4 @@
 using Auth.Api.Swagger;
-using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.OpenApi;
 using Swashbuckle.AspNetCore.SwaggerGen;
@@ -34,9 +33,8 @@ public sealed class LoginOperationFilterTests
         var context = CreateContext(relativePath: "health");
 
         sut.Apply(operation, context);
-
-        operation.Extensions.Should().BeNull();
-        operation.RequestBody.Content["application/json"].Example.Should().BeNull();
+        Assert.Null(operation.Extensions);
+        Assert.Null(operation.RequestBody.Content["application/json"].Example);
     }
 
     [Fact]
@@ -63,12 +61,11 @@ public sealed class LoginOperationFilterTests
         var context = CreateContext(relativePath: "auth/login");
 
         sut.Apply(operation, context);
-
-        operation.Extensions.ContainsKey("x-valid-scopes").Should().BeTrue();
-        operation.RequestBody.Content["application/json"].Example.Should().NotBeNull();
-        operation.Responses["200"].Content["application/json"].Example.Should().NotBeNull();
-        operation.Responses["400"].Content["application/json"].Example.Should().NotBeNull();
-        operation.Responses["401"].Content["application/json"].Example.Should().NotBeNull();
+        Assert.True(operation.Extensions.ContainsKey("x-valid-scopes"));
+        Assert.NotNull(operation.RequestBody.Content["application/json"].Example);
+        Assert.NotNull(operation.Responses["200"].Content["application/json"].Example);
+        Assert.NotNull(operation.Responses["400"].Content["application/json"].Example);
+        Assert.NotNull(operation.Responses["401"].Content["application/json"].Example);
     }
 
     private static OperationFilterContext CreateContext(string relativePath)

@@ -1,6 +1,5 @@
 using System.Text.Json;
 
-using FluentAssertions;
 using LedgerService.Application.Lancamentos.Commands;
 using LedgerService.Application.Lancamentos.Events;
 using LedgerService.Domain.Entities;
@@ -22,28 +21,24 @@ public sealed class ProcessarEstornoLancamentoHandlerTests
         var sut = CreateSut(state);
 
         await sut.Handle(new ProcessarEstornoLancamentoCommand(estorno.Id), CancellationToken.None);
-
-        estorno.Status.Should().Be(EstornoLancamentoStatus.Completed);
-        estorno.ProcessingStartedAt.Should().NotBeNull();
-        estorno.CompletedAt.Should().NotBeNull();
-        estorno.LancamentoCompensatorioId.Should().NotBeNull();
-
+        Assert.Equal(EstornoLancamentoStatus.Completed, estorno.Status);
+        Assert.NotNull(estorno.ProcessingStartedAt);
+        Assert.NotNull(estorno.CompletedAt);
+        Assert.NotNull(estorno.LancamentoCompensatorioId);
         var compensating = state.LedgerEntries.Single(x => x.Id == estorno.LancamentoCompensatorioId);
-        compensating.Type.Should().Be(LedgerEntryType.Debit);
-        compensating.Amount.Should().Be(-100m);
-        compensating.MerchantId.Should().Be(original.MerchantId);
-        compensating.ExternalReference.Should().Be($"estorno:{original.Id:N}");
-
-        state.OutboxMessages.Should().ContainSingle();
+        Assert.Equal(LedgerEntryType.Debit, compensating.Type);
+        Assert.Equal(-100m, compensating.Amount);
+        Assert.Equal(original.MerchantId, compensating.MerchantId);
+        Assert.Equal($"estorno:{original.Id:N}", compensating.ExternalReference);
+        Assert.Single(state.OutboxMessages);
         var outbox = state.OutboxMessages.Single();
-        outbox.EventType.Should().Be(LedgerEntryCreatedV1.EventType);
-        outbox.AggregateId.Should().Be(compensating.Id);
-
+        Assert.Equal(LedgerEntryCreatedV1.EventType, outbox.EventType);
+        Assert.Equal(compensating.Id, outbox.AggregateId);
         var evt = JsonSerializer.Deserialize<LedgerEntryCreatedV1>(outbox.Payload, JsonOptions);
-        evt.Should().NotBeNull();
-        evt!.Type.Should().Be("DEBIT");
-        evt.Amount.Should().Be("-100.00");
-        evt.MerchantId.Should().Be(original.MerchantId);
+        Assert.NotNull(evt);
+        Assert.Equal("DEBIT", evt!.Type);
+        Assert.Equal("-100.00", evt.Amount);
+        Assert.Equal(original.MerchantId, evt.MerchantId);
     }
 
     [Fact]
@@ -54,11 +49,10 @@ public sealed class ProcessarEstornoLancamentoHandlerTests
         var sut = CreateSut(state);
 
         await sut.Handle(new ProcessarEstornoLancamentoCommand(estorno.Id), CancellationToken.None);
-
-        estorno.Status.Should().Be(EstornoLancamentoStatus.Rejected);
-        estorno.RejectionReason.Should().Contain("Lancamento original");
-        state.LedgerEntries.Should().BeEmpty();
-        state.OutboxMessages.Should().BeEmpty();
+        Assert.Equal(EstornoLancamentoStatus.Rejected, estorno.Status);
+        Assert.Contains("Lancamento original", estorno.RejectionReason);
+        Assert.Empty(state.LedgerEntries);
+        Assert.Empty(state.OutboxMessages);
     }
 
     [Fact]
@@ -72,12 +66,10 @@ public sealed class ProcessarEstornoLancamentoHandlerTests
         await sut.Handle(new ProcessarEstornoLancamentoCommand(estorno.Id), CancellationToken.None);
         await sut.Handle(new ProcessarEstornoLancamentoCommand(estorno.Id), CancellationToken.None);
 
-        state.LedgerEntries.Where(x => x.ExternalReference == $"estorno:{original.Id:N}")
-            .Should()
-            .ContainSingle()
-            .Which.Amount.Should().Be(50m);
-        state.OutboxMessages.Should().ContainSingle();
-        estorno.Status.Should().Be(EstornoLancamentoStatus.Completed);
+        var compensatingEntry = Assert.Single(state.LedgerEntries.Where(x => x.ExternalReference == $"estorno:{original.Id:N}"));
+        Assert.Equal(50m, compensatingEntry.Amount);
+        Assert.Single(state.OutboxMessages);
+        Assert.Equal(EstornoLancamentoStatus.Completed, estorno.Status);
     }
 
     [Fact]
@@ -92,11 +84,10 @@ public sealed class ProcessarEstornoLancamentoHandlerTests
         var sut = CreateSut(state);
 
         await sut.Handle(new ProcessarEstornoLancamentoCommand(pending.Id), CancellationToken.None);
-
-        pending.Status.Should().Be(EstornoLancamentoStatus.Rejected);
-        pending.RejectionReason.Should().Contain("ja foi estornado");
-        state.LedgerEntries.Should().ContainSingle(x => x.Id == original.Id);
-        state.OutboxMessages.Should().BeEmpty();
+        Assert.Equal(EstornoLancamentoStatus.Rejected, pending.Status);
+        Assert.Contains("ja foi estornado", pending.RejectionReason);
+        Assert.Single(state.LedgerEntries, x => x.Id == original.Id);
+        Assert.Empty(state.OutboxMessages);
     }
 
     private static ProcessarEstornoLancamentoHandler CreateSut(State state)

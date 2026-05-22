@@ -1,4 +1,3 @@
-using FluentAssertions;
 using LedgerService.Domain.Entities;
 using LedgerService.Infrastructure.Persistence;
 using LedgerService.IntegrationTests.Infrastructure;
@@ -34,8 +33,7 @@ public sealed class OutboxAdminEndpointTests : IClassFixture<LedgerApiFactory>
             outboxMessageId = Guid.NewGuid(),
             reason = "broker recuperado"
         });
-
-        res.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
     }
 
     [Fact]
@@ -49,18 +47,15 @@ public sealed class OutboxAdminEndpointTests : IClassFixture<LedgerApiFactory>
             outboxMessageId = outboxId,
             reason = "broker recuperado"
         });
-
-        res.StatusCode.Should().Be(HttpStatusCode.OK);
-
+        Assert.Equal(HttpStatusCode.OK, res.StatusCode);
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var refreshed = db.OutboxMessages.Single(x => x.Id == outboxId);
-
-        refreshed.Status.Should().Be(OutboxStatus.Pending);
-        refreshed.Attempts.Should().Be(0);
-        refreshed.RequeueCount.Should().Be(1);
-        refreshed.LastRequeuedBy.Should().Be("poc-usuario");
-        refreshed.LastRequeueReason.Should().Be("broker recuperado");
+        Assert.Equal(OutboxStatus.Pending, refreshed.Status);
+        Assert.Equal(0, refreshed.Attempts);
+        Assert.Equal(1, refreshed.RequeueCount);
+        Assert.Equal("poc-usuario", refreshed.LastRequeuedBy);
+        Assert.Equal("broker recuperado", refreshed.LastRequeueReason);
     }
 
     private void Authenticate(string scopes)

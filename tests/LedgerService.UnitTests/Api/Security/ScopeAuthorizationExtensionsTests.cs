@@ -1,4 +1,3 @@
-using FluentAssertions;
 using LedgerService.Api.Security;
 using System.Security.Claims;
 
@@ -22,10 +21,9 @@ public sealed class ScopeAuthorizationExtensionsTests
         var principal = PrincipalWithScope(null);
         var method = typeof(ScopeAuthorizationExtensions)
             .GetMethod("HasScope", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
-        method.Should().NotBeNull();
-
+        Assert.NotNull(method);
         var result = (bool)method!.Invoke(null, [principal, ScopePolicies.LedgerWrite])!;
-        result.Should().BeFalse();
+        Assert.False(result);
     }
 
     [Fact]
@@ -36,6 +34,6 @@ public sealed class ScopeAuthorizationExtensionsTests
             .GetMethod("HasScope", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
 
         var result = (bool)method!.Invoke(null, [principal, ScopePolicies.LedgerWrite])!;
-        result.Should().BeTrue();
+        Assert.True(result);
     }
 }
