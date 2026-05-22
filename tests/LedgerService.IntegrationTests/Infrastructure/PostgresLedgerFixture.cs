@@ -4,8 +4,7 @@ namespace LedgerService.IntegrationTests.Infrastructure;
 
 public sealed class PostgresLedgerFixture : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder()
-        .WithImage("docker.io/postgres:16")
+    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("docker.io/postgres:16")
         .WithDatabase("appdb")
         .WithUsername("appuser")
         .WithPassword("app123")

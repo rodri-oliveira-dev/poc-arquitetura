@@ -12,8 +12,7 @@ namespace BalanceService.IntegrationTests.Infrastructure;
 
 public sealed class PostgresBalanceFixture : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder()
-        .WithImage("docker.io/postgres:16")
+    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("docker.io/postgres:16")
         .WithDatabase("dbBalance")
         .WithUsername("userBalance")
         .WithPassword("Balance123")
