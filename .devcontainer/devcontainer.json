@@ -1,0 +1,33 @@
+{
+  "name": "poc-arquitetura",
+  "image": "mcr.microsoft.com/devcontainers/dotnet:10.0",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
+      "version": "latest",
+      "moby": true,
+      "dockerDashComposeVersion": "v2",
+      "installDockerBuildx": true
+    }
+  },
+  "postCreateCommand": "dotnet --info && dotnet tool restore && dotnet restore ./LedgerService.slnx",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-dotnettools.csharp",
+        "ms-dotnettools.csdevkit",
+        "ms-dotnettools.vscode-dotnet-runtime",
+        "humao.rest-client",
+        "ms-azuretools.vscode-docker",
+        "github.vscode-github-actions",
+        "redhat.vscode-yaml",
+        "yzhang.markdown-all-in-one",
+        "davidanson.vscode-markdownlint",
+        "bierner.markdown-mermaid",
+        "ms-vscode.mermaid-markdown-syntax-highlighting",
+        "editorconfig.editorconfig",
+        "eamodio.gitlens",
+        "ryanluker.vscode-coverage-gutters"
+      ]
+    }
+  }
+}

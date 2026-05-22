@@ -13,29 +13,44 @@
     "**/obj": true,
     "**/.vs": true,
     "**/.git": true,
+    "**/.dotnet": true,
+    "**/.dotnet-home": true,
+    "**/.nuget": true,
     "**/TestResults": true,
     "**/artifacts/test-results": true,
     "**/artifacts/k6": true,
-    "**/coverage-report": true
+    "**/coverage": true,
+    "**/coverage-report": true,
+    "**/StrykerOutput": true
   },
   "search.exclude": {
     "**/bin": true,
     "**/obj": true,
     "**/.vs": true,
     "**/.git": true,
+    "**/.dotnet": true,
+    "**/.dotnet-home": true,
+    "**/.nuget": true,
     "**/TestResults": true,
     "**/artifacts/test-results": true,
     "**/artifacts/k6": true,
-    "**/coverage-report": true
+    "**/coverage": true,
+    "**/coverage-report": true,
+    "**/StrykerOutput": true
   },
   "files.watcherExclude": {
     "**/bin/**": true,
     "**/obj/**": true,
     "**/.vs/**": true,
+    "**/.dotnet/**": true,
+    "**/.dotnet-home/**": true,
+    "**/.nuget/**": true,
     "**/TestResults/**": true,
     "**/artifacts/test-results/**": true,
     "**/artifacts/k6/**": true,
-    "**/coverage-report/**": true
+    "**/coverage/**": true,
+    "**/coverage-report/**": true,
+    "**/StrykerOutput/**": true
   },
   "search.useIgnoreFiles": true,
   "search.useGlobalIgnoreFiles": true,
