@@ -1,11 +1,9 @@
 using LedgerService.Domain.Entities;
 using LedgerService.Domain.Repositories;
 using LedgerService.Infrastructure.Observability;
-using LedgerService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using NpgsqlTypes;
-using System;
 
 namespace LedgerService.Infrastructure.Persistence.Repositories;
 
@@ -39,7 +37,6 @@ public sealed class OutboxMessageRepository : IOutboxMessageRepository
     {
         ArgumentNullException.ThrowIfNull(lockOwner);
 
-        // Fallback para testes (InMemory provider) ou cenários não-relacionais.
         if (!_context.Database.IsRelational())
         {
             var lockedUntilFallback = now.Add(lockDuration);
@@ -47,7 +44,7 @@ public sealed class OutboxMessageRepository : IOutboxMessageRepository
             var candidates = await _context.OutboxMessages
                 .Where(x =>
                     x.Status == OutboxStatus.Pending &&
-                    (x.NextAttemptAt == null || x.NextAttemptAt <= now) &&
+                    (x.NextRetryAt == null || x.NextRetryAt <= now) &&
                     (x.LockedUntil == null || x.LockedUntil <= now))
                 .OrderBy(x => x.OccurredAt)
                 .Take(batchSize)
@@ -61,10 +58,6 @@ public sealed class OutboxMessageRepository : IOutboxMessageRepository
             return candidates;
         }
 
-        // Importante: para evitar dois publishers processarem a mesma linha simultaneamente,
-        // usamos um UPDATE com subquery + FOR UPDATE SKIP LOCKED.
-        // Isso é específico do PostgreSQL.
-
         DateTime lockedUntil = now.Add(lockDuration);
 
         var sql = @"
@@ -75,7 +68,7 @@ WITH cte AS (
             status = @p_pending
             OR (status = @p_processing AND locked_until IS NOT NULL AND locked_until <= @p_now)
           )
-      AND (next_attempt_at IS NULL OR next_attempt_at <= @p_now)
+      AND (next_retry_at IS NULL OR next_retry_at <= @p_now)
       AND (locked_until IS NULL OR locked_until <= @p_now)
     ORDER BY occurred_at
     FOR UPDATE SKIP LOCKED
@@ -90,14 +83,12 @@ WHERE o.id = cte.id
 RETURNING o.*;
 ";
 
-        // O FromSqlRaw retorna entidades rastreadas pelo DbContext.
-        // Garantimos que esse método seja chamado dentro de um escopo por ciclo do BackgroundService.
         var claimed = await _context.OutboxMessages.FromSqlRaw(
             sql,
             new NpgsqlParameter("p_pending", NpgsqlDbType.Text) { Value = OutboxStatus.Pending.ToString() },
             new NpgsqlParameter("p_processing", NpgsqlDbType.Text) { Value = OutboxStatus.Processing.ToString() },
-            new NpgsqlParameter("p_now", NpgsqlDbType.Timestamp) { Value = now },                // UTC
-            new NpgsqlParameter("p_locked_until", NpgsqlDbType.Timestamp) { Value = lockedUntil },// UTC
+            new NpgsqlParameter("p_now", NpgsqlDbType.Timestamp) { Value = now },
+            new NpgsqlParameter("p_locked_until", NpgsqlDbType.Timestamp) { Value = lockedUntil },
             new NpgsqlParameter("p_lock_owner", NpgsqlDbType.Text) { Value = lockOwner },
             new NpgsqlParameter("p_batch", NpgsqlDbType.Integer) { Value = batchSize }
         ).ToListAsync(cancellationToken);
@@ -105,37 +96,37 @@ RETURNING o.*;
         return claimed;
     }
 
-    public async Task MarkSentAsync(Guid id, DateTime processedAt, CancellationToken cancellationToken = default)
+    public async Task MarkProcessedAsync(Guid id, DateTime processedAt, CancellationToken cancellationToken = default)
     {
         if (!_context.Database.IsRelational())
         {
             var entity = await _context.OutboxMessages.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
             if (entity is null)
-                throw new InvalidOperationException($"OutboxMessage {id} não encontrada para MarkSent.");
+                throw new InvalidOperationException($"OutboxMessage {id} nao encontrada para MarkProcessed.");
 
-            entity.MarkSent(processedAt);
+            entity.MarkProcessed(processedAt);
             return;
         }
 
         var rows = await _context.OutboxMessages
             .Where(x => x.Id == id)
             .ExecuteUpdateAsync(setters => setters
-                .SetProperty(x => x.Status, OutboxStatus.Sent)
+                .SetProperty(x => x.Status, OutboxStatus.Processed)
                 .SetProperty(x => x.ProcessedAt, processedAt)
                 .SetProperty(x => x.LastError, (string?)null)
                 .SetProperty(x => x.LockOwner, (string?)null)
                 .SetProperty(x => x.LockedUntil, (DateTime?)null)
-                .SetProperty(x => x.NextAttemptAt, (DateTime?)null),
+                .SetProperty(x => x.NextRetryAt, (DateTime?)null),
                 cancellationToken);
 
         if (rows == 0)
-            throw new InvalidOperationException($"OutboxMessage {id} não encontrada para MarkSent.");
+            throw new InvalidOperationException($"OutboxMessage {id} nao encontrada para MarkProcessed.");
     }
 
-    public async Task MarkFailedAttemptAsync(
+    public async Task<OutboxStatus> MarkFailedPublishAttemptAsync(
         Guid id,
-        int maxAttempts,
-        DateTime nextAttemptAt,
+        int maxRetries,
+        DateTime nextRetryAt,
         string? lastError,
         CancellationToken cancellationToken = default)
     {
@@ -143,43 +134,65 @@ RETURNING o.*;
         {
             var entity = await _context.OutboxMessages.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
             if (entity is null)
-                throw new InvalidOperationException($"OutboxMessage {id} não encontrada para MarkFailedAttempt.");
+                throw new InvalidOperationException($"OutboxMessage {id} nao encontrada para MarkFailedPublishAttempt.");
 
-            entity.MarkFailedAttempt(maxAttempts, nextAttemptAt, lastError);
-            return;
+            entity.MarkFailedPublishAttempt(maxRetries, nextRetryAt, lastError);
+            return entity.Status;
         }
-
-        // Faz uma atualização atômica de attempts + decide status (PENDING ou FAILED)
-        // com base no attempts atual.
-        // Como o attempts é incrementado no banco, não precisamos carregar a entidade.
 
         var sql = @"
 UPDATE outbox_messages
-SET attempts = attempts + 1,
-    last_error = {0},
+SET retry_count = retry_count + 1,
+    last_error = @p_last_error,
     lock_owner = NULL,
     locked_until = NULL,
-    status = CASE WHEN (attempts + 1) >= {1} THEN {2} ELSE {3} END,
-    next_attempt_at = CASE WHEN (attempts + 1) >= {1} THEN NULL ELSE {4} END,
-    processed_at = CASE WHEN (attempts + 1) >= {1} THEN {5} ELSE processed_at END
-WHERE id = {6};
+    status = CASE WHEN (retry_count + 1) >= @p_max_retries THEN @p_dead_letter ELSE @p_pending END,
+    next_retry_at = CASE WHEN (retry_count + 1) >= @p_max_retries THEN NULL ELSE @p_next_retry_at END,
+    processed_at = CASE WHEN (retry_count + 1) >= @p_max_retries THEN @p_processed_at ELSE processed_at END
+WHERE id = @p_id;
 ";
 
         var affected = await _context.Database.ExecuteSqlRawAsync(
             sql,
-            lastError ?? (object)DBNull.Value,
-            maxAttempts,
-            OutboxStatus.Failed.ToString(),
-            OutboxStatus.Pending.ToString(),
-            nextAttemptAt,
-            DateTime.Now,
-            id);
+            new NpgsqlParameter("p_last_error", NpgsqlDbType.Text) { Value = lastError ?? (object)DBNull.Value },
+            new NpgsqlParameter("p_max_retries", NpgsqlDbType.Integer) { Value = maxRetries },
+            new NpgsqlParameter("p_dead_letter", NpgsqlDbType.Text) { Value = OutboxStatus.DeadLetter.ToString() },
+            new NpgsqlParameter("p_pending", NpgsqlDbType.Text) { Value = OutboxStatus.Pending.ToString() },
+            new NpgsqlParameter("p_next_retry_at", NpgsqlDbType.Timestamp) { Value = nextRetryAt },
+            new NpgsqlParameter("p_processed_at", NpgsqlDbType.Timestamp) { Value = DateTime.Now },
+            new NpgsqlParameter("p_id", NpgsqlDbType.Uuid) { Value = id });
 
         if (affected == 0)
-            throw new InvalidOperationException($"OutboxMessage {id} não encontrada para MarkFailedAttempt.");
+            throw new InvalidOperationException($"OutboxMessage {id} nao encontrada para MarkFailedPublishAttempt.");
+
+        return await _context.OutboxMessages
+            .Where(x => x.Id == id)
+            .Select(x => x.Status)
+            .SingleAsync(cancellationToken);
     }
 
-    public async Task<IReadOnlyList<OutboxMessage>> RequeueFailedAsync(
+    public async Task<(IReadOnlyList<OutboxMessage> Items, int TotalCount)> GetDeadLettersAsync(
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        var skip = (Math.Max(1, page) - 1) * pageSize;
+
+        var query = _context.OutboxMessages
+            .AsNoTracking()
+            .Where(x => x.Status == OutboxStatus.DeadLetter);
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var items = await query
+            .OrderBy(x => x.OccurredAt)
+            .Skip(skip)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return (items, totalCount);
+    }
+
+    public async Task<IReadOnlyList<OutboxMessage>> RequeueDeadLettersAsync(
         Guid? id,
         string? eventType,
         DateTime? occurredFrom,
@@ -194,7 +207,7 @@ WHERE id = {6};
         ArgumentNullException.ThrowIfNull(reason);
 
         IQueryable<OutboxMessage> query = _context.OutboxMessages
-            .Where(x => x.Status == OutboxStatus.Failed);
+            .Where(x => x.Status == OutboxStatus.DeadLetter);
 
         if (id is not null)
             query = query.Where(x => x.Id == id);
@@ -215,7 +228,7 @@ WHERE id = {6};
 
         foreach (var message in messages)
         {
-            message.RequeueFailed(requeuedAt, requeuedBy, reason);
+            message.RequeueDeadLetter(requeuedAt, requeuedBy, reason);
         }
 
         return messages;

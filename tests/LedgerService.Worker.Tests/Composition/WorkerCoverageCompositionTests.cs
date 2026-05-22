@@ -1,4 +1,5 @@
 using Confluent.Kafka;
+using LedgerService.Application.Outbox.Retry;
 using LedgerService.Domain.Entities;
 using LedgerService.Infrastructure.Observability;
 using LedgerService.Worker.Messaging.Kafka.Configuration;
@@ -41,8 +42,9 @@ public sealed class WorkerCoverageCompositionTests
     public void OutboxKafkaPublisherService_should_compute_exponential_retry_with_bounded_jitter()
     {
         var now = new DateTime(2026, 5, 20, 10, 0, 0, DateTimeKind.Utc);
+        var sut = new ExponentialBackoffRetryStrategy(new FixedJitterProvider(TimeSpan.FromMilliseconds(100)));
 
-        var nextAttempt = OutboxKafkaPublisherService.ComputeNextAttempt(now, attemptNumber: 3, baseBackoffSeconds: 2);
+        var nextAttempt = sut.CalculateNextRetry(now, retryCount: 2, TimeSpan.FromSeconds(2));
         Assert.True(nextAttempt >= now.AddSeconds(8));
         Assert.True(nextAttempt < now.AddSeconds(8).AddMilliseconds(250));
     }
@@ -53,6 +55,7 @@ public sealed class WorkerCoverageCompositionTests
         using var sut = new OutboxKafkaPublisherService(
             Mock.Of<IServiceProvider>(),
             Options.Create(new OutboxPublisherOptions()),
+            Mock.Of<IRetryStrategy>(),
             Mock.Of<ILogger<OutboxKafkaPublisherService>>());
         Assert.NotNull(sut);
     }
@@ -123,4 +126,13 @@ public sealed class WorkerCoverageCompositionTests
             null,
             null,
             null);
+
+    private sealed class FixedJitterProvider : IJitterProvider
+    {
+        private readonly TimeSpan _jitter;
+
+        public FixedJitterProvider(TimeSpan jitter) => _jitter = jitter;
+
+        public TimeSpan NextJitter() => _jitter;
+    }
 }

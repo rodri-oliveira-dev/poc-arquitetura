@@ -20,9 +20,9 @@ public sealed class OutboxMessageClaimTests
         var older = NewMessage(now.AddMinutes(-20));
         var newer = NewMessage(now.AddMinutes(-10));
         var scheduledForFuture = NewMessage(now.AddMinutes(-30));
-        scheduledForFuture.MarkFailedAttempt(maxAttempts: 3, nextAttemptAt: now.AddMinutes(5), lastError: "retry later");
+        scheduledForFuture.MarkFailedPublishAttempt(maxRetries: 3, nextRetryAt: now.AddMinutes(5), lastError: "retry later");
         var alreadySent = NewMessage(now.AddMinutes(-40));
-        alreadySent.MarkSent(now.AddMinutes(-1));
+        alreadySent.MarkProcessed(now.AddMinutes(-1));
 
         await db.OutboxMessages.AddRangeAsync(newer, scheduledForFuture, older, alreadySent);
         await db.SaveChangesAsync();
@@ -47,10 +47,10 @@ public sealed class OutboxMessageClaimTests
 
         var unchangedFuture = await db.OutboxMessages.SingleAsync(x => x.Id == scheduledForFuture.Id);
         Assert.Equal(OutboxStatus.Pending, unchangedFuture.Status);
-        Assert.Equal(now.AddMinutes(5), unchangedFuture.NextAttemptAt);
+        Assert.Equal(now.AddMinutes(5), unchangedFuture.NextRetryAt);
 
         var unchangedSent = await db.OutboxMessages.SingleAsync(x => x.Id == alreadySent.Id);
-        Assert.Equal(OutboxStatus.Sent, unchangedSent.Status);
+        Assert.Equal(OutboxStatus.Processed, unchangedSent.Status);
         Assert.Null(unchangedSent.LockOwner);
         Assert.Null(unchangedSent.LockedUntil);
     }

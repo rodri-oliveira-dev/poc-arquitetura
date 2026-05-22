@@ -25,6 +25,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\LedgerService.Api\LedgerService.Api.csproj" />
+    <ProjectReference Include="..\..\src\LedgerService.Worker\LedgerService.Worker.csproj" Aliases="LedgerWorker" />
   </ItemGroup>
 
   <ItemGroup>

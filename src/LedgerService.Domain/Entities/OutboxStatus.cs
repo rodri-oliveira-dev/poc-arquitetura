@@ -4,6 +4,6 @@ public enum OutboxStatus
 {
     Pending = 1,
     Processing = 2,
-    Sent = 3,
-    Failed = 4
+    Processed = 3,
+    DeadLetter = 4
 }

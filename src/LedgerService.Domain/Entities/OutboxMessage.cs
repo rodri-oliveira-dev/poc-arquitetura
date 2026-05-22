@@ -10,8 +10,8 @@ public sealed class OutboxMessage : Entity
     public string Payload { get; private set; }
     public DateTime OccurredAt { get; private set; }
     public OutboxStatus Status { get; private set; }
-    public int Attempts { get; private set; }
-    public DateTime? NextAttemptAt { get; private set; }
+    public int RetryCount { get; private set; }
+    public DateTime? NextRetryAt { get; private set; }
     public DateTime? ProcessedAt { get; private set; }
     public string? LastError { get; private set; }
     public Guid? CorrelationId { get; private set; }
@@ -49,7 +49,7 @@ public sealed class OutboxMessage : Entity
         Payload = payload;
         OccurredAt = occurredAt;
         Status = OutboxStatus.Pending;
-        Attempts = 0;
+        RetryCount = 0;
         CorrelationId = correlationId;
         TraceParent = Normalize(traceParent);
         TraceState = Normalize(traceState);
@@ -63,46 +63,46 @@ public sealed class OutboxMessage : Entity
         LockedUntil = lockedUntil;
     }
 
-    public void MarkSent(DateTime processedAt)
+    public void MarkProcessed(DateTime processedAt)
     {
-        Status = OutboxStatus.Sent;
+        Status = OutboxStatus.Processed;
         ProcessedAt = processedAt;
         LockedUntil = null;
         LockOwner = null;
-        NextAttemptAt = null;
+        NextRetryAt = null;
         LastError = null;
     }
 
-    public void MarkFailedAttempt(int maxAttempts, DateTime nextAttemptAt, string? lastError)
+    public void MarkFailedPublishAttempt(int maxRetries, DateTime nextRetryAt, string? lastError)
     {
-        Attempts++;
+        RetryCount++;
         LastError = lastError;
         LockedUntil = null;
         LockOwner = null;
 
-        if (Attempts >= maxAttempts)
+        if (RetryCount >= maxRetries)
         {
-            Status = OutboxStatus.Failed;
-            NextAttemptAt = null;
-            ProcessedAt = DateTime.Now;
+            Status = OutboxStatus.DeadLetter;
+            NextRetryAt = null;
             return;
         }
 
         Status = OutboxStatus.Pending;
-        NextAttemptAt = nextAttemptAt;
+        NextRetryAt = nextRetryAt;
     }
 
-    public void RequeueFailed(DateTime requeuedAt, string requeuedBy, string reason)
+    public void RequeueDeadLetter(DateTime requeuedAt, string requeuedBy, string reason)
     {
-        if (Status != OutboxStatus.Failed)
-            throw new InvalidOperationException("Only failed outbox messages can be requeued.");
+        if (Status != OutboxStatus.DeadLetter)
+            throw new InvalidOperationException("Only dead-letter outbox messages can be requeued.");
 
         Status = OutboxStatus.Pending;
-        Attempts = 0;
-        NextAttemptAt = null;
+        RetryCount = 0;
+        NextRetryAt = null;
         ProcessedAt = null;
         LockedUntil = null;
         LockOwner = null;
+        LastError = null;
         RequeueCount++;
         LastRequeuedAt = requeuedAt;
         LastRequeuedBy = requeuedBy;

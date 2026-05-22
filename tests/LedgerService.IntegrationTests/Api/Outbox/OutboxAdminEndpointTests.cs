@@ -24,27 +24,25 @@ public sealed class OutboxAdminEndpointTests : IClassFixture<LedgerApiFactory>
     }
 
     [Fact]
-    public async Task RequeueFailed_should_require_outbox_requeue_scope()
+    public async Task RequeueDeadLetter_should_require_outbox_admin_scope()
     {
         Authenticate("ledger.write");
 
-        var res = await _client.PostAsJsonAsync("/api/v1/outbox/failed/requeue", new
+        var res = await _client.PostAsJsonAsync($"/api/v1/outbox/dead-letters/{Guid.NewGuid()}/requeue", new
         {
-            outboxMessageId = Guid.NewGuid(),
             reason = "broker recuperado"
         });
         Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
     }
 
     [Fact]
-    public async Task RequeueFailed_should_requeue_failed_message()
+    public async Task RequeueDeadLetter_should_requeue_dead_letter_message()
     {
-        Authenticate("ledger.outbox.requeue");
-        var outboxId = await SeedFailedOutboxMessageAsync();
+        Authenticate("outbox.admin");
+        var outboxId = await SeedDeadLetterOutboxMessageAsync();
 
-        var res = await _client.PostAsJsonAsync("/api/v1/outbox/failed/requeue", new
+        var res = await _client.PostAsJsonAsync($"/api/v1/outbox/dead-letters/{outboxId}/requeue", new
         {
-            outboxMessageId = outboxId,
             reason = "broker recuperado"
         });
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
@@ -52,10 +50,25 @@ public sealed class OutboxAdminEndpointTests : IClassFixture<LedgerApiFactory>
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var refreshed = db.OutboxMessages.Single(x => x.Id == outboxId);
         Assert.Equal(OutboxStatus.Pending, refreshed.Status);
-        Assert.Equal(0, refreshed.Attempts);
+        Assert.Equal(0, refreshed.RetryCount);
         Assert.Equal(1, refreshed.RequeueCount);
         Assert.Equal("poc-usuario", refreshed.LastRequeuedBy);
         Assert.Equal("broker recuperado", refreshed.LastRequeueReason);
+        Assert.Null(refreshed.LastError);
+    }
+
+    [Fact]
+    public async Task GetDeadLetters_should_return_paginated_messages()
+    {
+        Authenticate("outbox.admin");
+        var outboxId = await SeedDeadLetterOutboxMessageAsync();
+
+        var res = await _client.GetAsync("/api/v1/outbox/dead-letters?page=1&pageSize=10");
+
+        Assert.Equal(HttpStatusCode.OK, res.StatusCode);
+        var content = await res.Content.ReadAsStringAsync();
+        Assert.Contains(outboxId.ToString(), content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("kafka down", content, StringComparison.OrdinalIgnoreCase);
     }
 
     private void Authenticate(string scopes)
@@ -68,7 +81,7 @@ public sealed class OutboxAdminEndpointTests : IClassFixture<LedgerApiFactory>
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
     }
 
-    private async Task<Guid> SeedFailedOutboxMessageAsync()
+    private async Task<Guid> SeedDeadLetterOutboxMessageAsync()
     {
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -81,7 +94,7 @@ public sealed class OutboxAdminEndpointTests : IClassFixture<LedgerApiFactory>
             occurredAt: DateTime.Now.AddMinutes(-1),
             correlationId: Guid.NewGuid());
 
-        message.MarkFailedAttempt(1, DateTime.Now.AddSeconds(10), "kafka down");
+        message.MarkFailedPublishAttempt(1, DateTime.Now.AddSeconds(10), "kafka down");
 
         db.OutboxMessages.Add(message);
         await db.SaveChangesAsync();

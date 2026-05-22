@@ -21,10 +21,10 @@ public static class ScopeAuthorizationExtensions
             policy.RequireAssertion(ctx => HasScope(ctx.User, ScopePolicies.LedgerWrite));
         });
 
-        options.AddPolicy(ScopePolicies.OutboxRequeuePolicy, policy =>
+        options.AddPolicy(ScopePolicies.OutboxAdminPolicy, policy =>
         {
             policy.RequireAuthenticatedUser();
-            policy.RequireAssertion(ctx => HasScope(ctx.User, ScopePolicies.OutboxRequeue));
+            policy.RequireAssertion(ctx => HasScope(ctx.User, ScopePolicies.OutboxAdmin));
         });
 
         return options;

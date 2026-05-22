@@ -10,9 +10,9 @@ public static class ScopePolicies
 
     public const string LedgerRead = "ledger.read";
     public const string LedgerWrite = "ledger.write";
-    public const string OutboxRequeue = "ledger.outbox.requeue";
+    public const string OutboxAdmin = "outbox.admin";
 
     public const string LedgerReadPolicy = "scope:ledger.read";
     public const string LedgerWritePolicy = "scope:ledger.write";
-    public const string OutboxRequeuePolicy = "scope:ledger.outbox.requeue";
+    public const string OutboxAdminPolicy = "scope:outbox.admin";
 }
