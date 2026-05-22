@@ -57,7 +57,7 @@ $originalLedgerEntryId = Wait-LedgerEntryInternalId $externalReference $PollingT
 Write-Host "Lancamento base interno: $originalLedgerEntryId"
 
 Write-Host "Aguardando fluxo normal do lancamento base chegar ao Balance..."
-$baseOutboxRow = Wait-OutboxSentByCorrelationAndEvent $correlationId "LedgerEntryCreated.v1" $PollingTimeoutSeconds $PollingIntervalSeconds
+$baseOutboxRow = Wait-OutboxProcessedByCorrelationAndEvent $correlationId "LedgerEntryCreated.v1" $PollingTimeoutSeconds $PollingIntervalSeconds
 Write-Host "Outbox base: $baseOutboxRow"
 
 $baseProcessedRow = Wait-BalanceProcessedEvent $createdEventId $PollingTimeoutSeconds $PollingIntervalSeconds
@@ -111,8 +111,8 @@ $estornoCreatedRow = Wait-Until "registro em estornos_lancamentos" $PollingTimeo
 }
 Write-Host "Estorno registrado: $estornoCreatedRow"
 
-Write-Host "Aguardando evento operacional de solicitacao de estorno chegar a Sent..."
-$reversalRequestedOutbox = Wait-OutboxSentByAggregateAndEvent $estornoId "LancamentoEstornoSolicitado.v1" $PollingTimeoutSeconds $PollingIntervalSeconds
+Write-Host "Aguardando evento operacional de solicitacao de estorno chegar a Processed..."
+$reversalRequestedOutbox = Wait-OutboxProcessedByAggregateAndEvent $estornoId "LancamentoEstornoSolicitado.v1" $PollingTimeoutSeconds $PollingIntervalSeconds
 Write-Host "Outbox solicitacao estorno: $reversalRequestedOutbox"
 
 Write-Host "Aguardando processamento assincrono do estorno..."
@@ -148,8 +148,8 @@ if ($compensatingRow -notmatch [Regex]::Escape($expectedCompensatingReference)) 
   throw "Lancamento compensatorio nao usa external_reference esperada $expectedCompensatingReference"
 }
 
-Write-Host "Aguardando evento financeiro final do compensatorio chegar a Sent..."
-$compensatingOutbox = Wait-OutboxSentByAggregateAndEvent $compensatingLedgerEntryId "LedgerEntryCreated.v1" $PollingTimeoutSeconds $PollingIntervalSeconds
+Write-Host "Aguardando evento financeiro final do compensatorio chegar a Processed..."
+$compensatingOutbox = Wait-OutboxProcessedByAggregateAndEvent $compensatingLedgerEntryId "LedgerEntryCreated.v1" $PollingTimeoutSeconds $PollingIntervalSeconds
 Write-Host "Outbox compensatorio: $compensatingOutbox"
 
 Write-Host "Aguardando Balance processar evento compensatorio..."

@@ -57,7 +57,7 @@ $baseLedgerEntryId = Wait-LedgerEntryInternalId $externalReference $PollingTimeo
 Write-Host "Lancamento base interno: $baseLedgerEntryId"
 
 Write-Host "Aguardando fluxo normal do lancamento base chegar ao Balance..."
-$baseOutboxRow = Wait-OutboxSentByCorrelationAndEvent $correlationId "LedgerEntryCreated.v1" $PollingTimeoutSeconds $PollingIntervalSeconds
+$baseOutboxRow = Wait-OutboxProcessedByCorrelationAndEvent $correlationId "LedgerEntryCreated.v1" $PollingTimeoutSeconds $PollingIntervalSeconds
 Write-Host "Outbox base: $baseOutboxRow"
 
 $baseProcessedRow = Wait-BalanceProcessedEvent $createdEventId $PollingTimeoutSeconds $PollingIntervalSeconds
@@ -116,8 +116,8 @@ $reprocessCreatedRow = Wait-Until "registro em reprocessamentos_lancamentos" $Po
 }
 Write-Host "Reprocessamento registrado: $reprocessCreatedRow"
 
-Write-Host "Aguardando evento operacional de reprocessamento chegar a Sent..."
-$reprocessRequestedOutbox = Wait-OutboxSentByAggregateAndEvent $reprocessamentoId "ReprocessamentoLancamentosSolicitado.v1" $PollingTimeoutSeconds $PollingIntervalSeconds
+Write-Host "Aguardando evento operacional de reprocessamento chegar a Processed..."
+$reprocessRequestedOutbox = Wait-OutboxProcessedByAggregateAndEvent $reprocessamentoId "ReprocessamentoLancamentosSolicitado.v1" $PollingTimeoutSeconds $PollingIntervalSeconds
 Write-Host "Outbox solicitacao reprocessamento: $reprocessRequestedOutbox"
 
 Write-Host "Aguardando processamento assincrono do reprocessamento..."
@@ -133,9 +133,9 @@ if ($reprocessCompletedRow -match '\|CompletedWithWarnings\|') {
   throw "Reprocessamento concluiu com warnings, mas o cenario criou lancamento elegivel. Linha: $reprocessCompletedRow"
 }
 
-Write-Host "Aguardando evento financeiro republicado chegar a Sent..."
-$reprocessedOutboxCount = Wait-OutboxSentCountByAggregateAndEvent $baseLedgerEntryId "LedgerEntryCreated.v1" 2 $PollingTimeoutSeconds $PollingIntervalSeconds
-Write-Host "Quantidade de eventos financeiros Sent para o lancamento base: $reprocessedOutboxCount"
+Write-Host "Aguardando evento financeiro republicado chegar a Processed..."
+$reprocessedOutboxCount = Wait-OutboxProcessedCountByAggregateAndEvent $baseLedgerEntryId "LedgerEntryCreated.v1" 2 $PollingTimeoutSeconds $PollingIntervalSeconds
+Write-Host "Quantidade de eventos financeiros Processed para o lancamento base: $reprocessedOutboxCount"
 
 $processedCountAfter = Get-BalanceProcessedEventCount $createdEventId
 Write-Host "Processed event count depois do reprocessamento: $processedCountAfter"

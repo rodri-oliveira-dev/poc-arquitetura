@@ -230,51 +230,51 @@ LIMIT 1;
   return $row.Trim()
 }
 
-function Wait-OutboxSentByCorrelationAndEvent(
+function Wait-OutboxProcessedByCorrelationAndEvent(
   [string]$CorrelationId,
   [string]$EventType,
   [int]$PollingTimeoutSeconds,
   [int]$PollingIntervalSeconds
 ) {
   $sql = @"
-SELECT id, aggregate_type, aggregate_id, event_type, status, attempts, correlation_id, processed_at
+SELECT id, aggregate_type, aggregate_id, event_type, status, retry_count, correlation_id, processed_at
 FROM outbox_messages
 WHERE correlation_id = '$CorrelationId' AND event_type = '$EventType'
 ORDER BY occurred_at DESC
 LIMIT 1;
 "@
 
-  Wait-Until "Outbox Sent para $EventType" $PollingTimeoutSeconds $PollingIntervalSeconds {
+  Wait-Until "Outbox Processed para $EventType" $PollingTimeoutSeconds $PollingIntervalSeconds {
     Invoke-PostgresScalar "ledger-db" "appuser" "appdb" $sql
   } {
     param($value)
-    $value -match "\|$([Regex]::Escape($EventType))\|Sent\|"
+    $value -match "\|$([Regex]::Escape($EventType))\|Processed\|"
   }
 }
 
-function Wait-OutboxSentByAggregateAndEvent(
+function Wait-OutboxProcessedByAggregateAndEvent(
   [string]$AggregateId,
   [string]$EventType,
   [int]$PollingTimeoutSeconds,
   [int]$PollingIntervalSeconds
 ) {
   $sql = @"
-SELECT id, aggregate_type, aggregate_id, event_type, status, attempts, correlation_id, processed_at
+SELECT id, aggregate_type, aggregate_id, event_type, status, retry_count, correlation_id, processed_at
 FROM outbox_messages
 WHERE aggregate_id = '$AggregateId' AND event_type = '$EventType'
 ORDER BY occurred_at DESC
 LIMIT 1;
 "@
 
-  Wait-Until "Outbox Sent para aggregate_id=$AggregateId event_type=$EventType" $PollingTimeoutSeconds $PollingIntervalSeconds {
+  Wait-Until "Outbox Processed para aggregate_id=$AggregateId event_type=$EventType" $PollingTimeoutSeconds $PollingIntervalSeconds {
     Invoke-PostgresScalar "ledger-db" "appuser" "appdb" $sql
   } {
     param($value)
-    $value -match "\|$([Regex]::Escape($AggregateId))\|$([Regex]::Escape($EventType))\|Sent\|"
+    $value -match "\|$([Regex]::Escape($AggregateId))\|$([Regex]::Escape($EventType))\|Processed\|"
   }
 }
 
-function Wait-OutboxSentCountByAggregateAndEvent(
+function Wait-OutboxProcessedCountByAggregateAndEvent(
   [string]$AggregateId,
   [string]$EventType,
   [int]$ExpectedCount,
@@ -284,10 +284,10 @@ function Wait-OutboxSentCountByAggregateAndEvent(
   $sql = @"
 SELECT COUNT(*)
 FROM outbox_messages
-WHERE aggregate_id = '$AggregateId' AND event_type = '$EventType' AND status = 'Sent';
+WHERE aggregate_id = '$AggregateId' AND event_type = '$EventType' AND status = 'Processed';
 "@
 
-  Wait-Until "Outbox Sent count >= $ExpectedCount para aggregate_id=$AggregateId event_type=$EventType" $PollingTimeoutSeconds $PollingIntervalSeconds {
+  Wait-Until "Outbox Processed count >= $ExpectedCount para aggregate_id=$AggregateId event_type=$EventType" $PollingTimeoutSeconds $PollingIntervalSeconds {
     Invoke-PostgresScalar "ledger-db" "appuser" "appdb" $sql
   } {
     param($value)
