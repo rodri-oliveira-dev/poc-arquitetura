@@ -50,6 +50,8 @@ Documentacao arquitetural publicada:
 
 O projeto nao exige Docker Desktop como premissa. No Windows sem Docker Desktop, o ambiente recomendado e Rancher Desktop com `moby/dockerd`.
 
+Ha tambem suporte opcional a Dev Container para VS Code, documentado em [docs/development/devcontainer.md](docs/development/devcontainer.md), sem substituir o fluxo local no host.
+
 ## Quickstart
 
 Restaure ferramentas, dependencias, build e testes:
@@ -120,6 +122,7 @@ Os scripts executam testes com cobertura e aplicam gate minimo de 85% de cobertu
 
 - [Indice geral da documentacao](docs/README.md)
 - [Desenvolvimento local](docs/development/local-development.md)
+- [Dev Container opcional](docs/development/devcontainer.md)
 - [LedgerService API](docs/development/ledger-api.md)
 - [Arquitetura](docs/architecture/README.md)
 - [Boundaries arquiteturais](docs/architecture/boundaries.md)
