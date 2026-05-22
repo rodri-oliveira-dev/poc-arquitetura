@@ -3,6 +3,10 @@
 // artificial components that are not present in the repository.
 
 specification {
+  deploymentNode environment
+  deploymentNode composeNetwork
+  deploymentNode composeService
+
   element actor {
     style {
       shape person
