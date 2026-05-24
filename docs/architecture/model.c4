@@ -65,6 +65,19 @@ model {
     }
   }
 
+  edge = softwareSystem "Borda local Nginx" {
+    description "Camada opcional de entrada HTTPS para desenvolvimento local, adicionada por overlay Compose sem substituir as portas HTTP diretas das APIs."
+
+    nginx = container "Nginx local" {
+      technology "Nginx / HTTPS"
+      description "Reverse proxy local que serve o portal da POC em localhost:7443 e encaminha subdominios .localhost para as APIs internas em HTTP."
+
+      portal = component "Portal local" {
+        description "Pagina estatica com links para Swaggers das APIs e ferramentas locais de observabilidade."
+      }
+    }
+  }
+
   auth = softwareSystem "Auth.Api" {
     description "API de autenticacao da POC. Emite JWT RS256 e publica JWKS."
 
@@ -223,6 +236,13 @@ model {
   customer -> auth.authApi "Login e obtencao de JWT" "HTTP"
   customer -> ledger.ledgerApi "Cria lancamentos e solicita/consulta estornos e reprocessamentos" "HTTP + JWT"
   customer -> balance.balanceApi "Consulta consolidados" "HTTP + JWT"
+  customer -> edge.nginx "Acessa portal e Swaggers locais opcionais" "HTTPS"
+  edge.nginx -> ledger.ledgerApi "Encaminha ledger.localhost:7443" "HTTP interno"
+  edge.nginx -> balance.balanceApi "Encaminha balance.localhost:7443" "HTTP interno"
+  edge.nginx -> auth.authApi "Encaminha auth.localhost:7443" "HTTP interno"
+  edge.nginx.portal -> observability.grafana "Linka UI local" "HTTP direto"
+  edge.nginx.portal -> observability.jaeger "Linka UI local" "HTTP direto"
+  edge.nginx.portal -> observability.prometheus "Linka UI local" "HTTP direto"
 
   ledger.ledgerApi -> auth.authApi "Obtem JWKS para validar JWT" "HTTP cacheado"
   balance.balanceApi -> auth.authApi "Obtem JWKS para validar JWT" "HTTP cacheado"

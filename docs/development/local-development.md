@@ -65,6 +65,8 @@ Componentes opcionais ficam em profiles:
 - profile `observability`: OpenTelemetry Collector, Jaeger, Prometheus, Loki, Grafana Alloy, Alertmanager e Grafana;
 - profile `k6`: container k6 definido em `compose.k6.yaml`.
 
+Tambem existe um overlay opcional `compose.nginx.yaml` para adicionar uma borda local com Nginx e HTTPS em desenvolvimento. Ele nao faz parte da stack minima e nao altera as APIs, que continuam rodando internamente em HTTP com `ASPNETCORE_URLS=http://+:8080`.
+
 A observabilidade completa inclui:
 
 - OpenTelemetry Collector como entrada local de telemetria OTLP;
@@ -117,6 +119,60 @@ OTEL_ENABLED=true docker compose --profile observability up -d --build
 
 O socket Docker, mesmo montado como somente leitura, e uma superficie sensivel. Use o profile `observability` apenas em maquina local confiavel; nao use em ambiente compartilhado ou produtivo sem redesenhar a coleta de logs e revisar permissoes.
 
+### Borda local HTTPS com Nginx
+
+O Nginx local e opcional e serve apenas como entrada HTTPS para desenvolvimento. Use-o quando quiser validar navegacao e Swagger via TLS sem mudar o comportamento interno das APIs nem substituir as portas HTTP diretas.
+
+Antes de subir o overlay, gere ou disponibilize um certificado local em:
+
+- `infra/nginx/certs/localhost.crt`
+- `infra/nginx/certs/localhost.key`
+
+Esses arquivos nao devem ser versionados. A opcao recomendada para certificado confiavel no host e `mkcert`:
+
+```bash
+mkcert -install
+mkcert -cert-file infra/nginx/certs/localhost.crt -key-file infra/nginx/certs/localhost.key localhost ledger.localhost balance.localhost auth.localhost
+```
+
+Alternativa com OpenSSL:
+
+```bash
+openssl req -x509 -newkey rsa:2048 -nodes -days 365 \
+  -keyout infra/nginx/certs/localhost.key \
+  -out infra/nginx/certs/localhost.crt \
+  -subj "/CN=localhost" \
+  -addext "subjectAltName=DNS:localhost,DNS:ledger.localhost,DNS:balance.localhost,DNS:auth.localhost"
+```
+
+Com OpenSSL, o navegador pode exibir alerta de certificado nao confiavel ate que o certificado seja confiado localmente.
+
+Suba primeiro a stack local pelo fluxo normal, principalmente em banco novo para aplicar migrations. Depois suba o Nginx:
+
+```bash
+docker compose -f compose.yaml -f compose.nginx.yaml up -d --build nginx-edge
+```
+
+Para subir tudo diretamente pelo compose sem o script de migrations:
+
+```bash
+docker compose -f compose.yaml -f compose.nginx.yaml up -d --build
+```
+
+Portal HTTPS:
+
+- `https://localhost:7443`
+
+Swaggers via Nginx:
+
+- `https://ledger.localhost:7443/swagger`
+- `https://balance.localhost:7443/swagger`
+- `https://auth.localhost:7443/swagger`
+
+Os subdominios `.localhost` evitam configurar `PathBase` nas APIs e preservam o Swagger em `/swagger`. As URLs HTTP diretas continuam disponiveis nas portas atuais e sao o alvo dos scripts e testes de carga existentes.
+
+No overlay, o Nginx normaliza `/swagger` para a Swagger UI de cada API. Nas portas HTTP diretas atuais, a UI fica em `/index.html` e os documentos OpenAPI ficam em `/swagger/v1/swagger.json`.
+
 Parar a stack:
 
 ```bash
@@ -131,6 +187,7 @@ docker compose logs -f ledger-service
 docker compose logs -f ledger-worker
 docker compose logs -f balance-service
 docker compose logs -f balance-worker
+docker compose -f compose.yaml -f compose.nginx.yaml logs -f nginx-edge
 ```
 
 Portas expostas no host:
@@ -152,6 +209,10 @@ Portas expostas no host:
 | Grafana Alloy | `http://localhost:12345/` quando o profile `observability` estiver ativo |
 | Alertmanager | `http://localhost:9093/` com profile `observability` |
 | Grafana | `http://localhost:3000/` com profile `observability` |
+| Portal Nginx HTTPS | `https://localhost:7443/` com `compose.nginx.yaml` |
+| LedgerService.Api via Nginx | `https://ledger.localhost:7443/` com `compose.nginx.yaml` |
+| BalanceService.Api via Nginx | `https://balance.localhost:7443/` com `compose.nginx.yaml` |
+| Auth.Api via Nginx | `https://auth.localhost:7443/` com `compose.nginx.yaml` |
 
 O compose sobrescreve configuracoes por variaveis de ambiente para usar hosts internos como `ledger-db`, `balance-db`, `kafka` e `otel-collector`. Quando `OTEL_ENABLED=true` e o profile `observability` esta ativo, as APIs e workers enviam OTLP somente para o Collector. O Collector encaminha traces para o Jaeger e expoe metricas em formato Prometheus para scrape interno. Prometheus coleta o Collector; Alloy coleta logs dos containers e envia para Loki. Grafana consulta Prometheus, Loki e Jaeger. O Grafana carrega automaticamente a pasta `Observability` com os dashboards `APIs - Visao Geral` e `Runtime .NET - Visao Geral`, versionados em `observability/grafana/dashboards/`. O datasource Loki possui derived field para abrir traces no datasource interno Jaeger a partir de logs com `TraceId=<valor>`. O ambiente local do compose roda como `Development`.
 

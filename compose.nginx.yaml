@@ -1,0 +1,25 @@
+services:
+  nginx-edge:
+    image: docker.io/nginx:1.27.5-alpine
+    container_name: poc-nginx-edge
+    depends_on:
+      auth-api:
+        condition: service_started
+      ledger-service:
+        condition: service_started
+      balance-service:
+        condition: service_started
+    ports:
+      - "7443:443"
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infra/nginx/html:/usr/share/nginx/html:ro
+      - ./infra/nginx/certs:/etc/nginx/certs:ro
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128m
+          pids: 128
+    networks:
+      - poc-net

@@ -42,7 +42,33 @@ Confirme tambem se a API correta esta rodando:
 - LedgerService.Api: `http://localhost:5226/`
 - BalanceService.Api: `http://localhost:5228/`
 
+Quando estiver usando a borda local com Nginx, confirme tambem:
+
+- o certificado local existe em `infra/nginx/certs/localhost.crt` e `infra/nginx/certs/localhost.key`;
+- o certificado possui SAN para `localhost`, `ledger.localhost`, `balance.localhost` e `auth.localhost`;
+- o overlay foi aplicado no comando: `docker compose -f compose.yaml -f compose.nginx.yaml up -d --build nginx-edge`;
+- os logs do Nginx nao mostram erro de certificado ou upstream: `docker compose -f compose.yaml -f compose.nginx.yaml logs nginx-edge`;
+- as URLs via proxy usam subdominio, nao path: `https://ledger.localhost:7443/swagger`, `https://balance.localhost:7443/swagger` e `https://auth.localhost:7443/swagger`.
+
 Veja [Swagger e endpoints operacionais](development/local-development.md#swagger-e-endpoints-operacionais).
+
+## Nginx local nao inicia
+
+O Nginx local e opcional e depende dos arquivos de certificado montados por volume. Se o container `poc-nginx-edge` sair imediatamente, valide a configuracao efetiva:
+
+```bash
+docker compose -f compose.yaml -f compose.nginx.yaml config
+docker compose -f compose.yaml -f compose.nginx.yaml logs nginx-edge
+```
+
+Erros comuns:
+
+- `cannot load certificate`: gere `infra/nginx/certs/localhost.crt`;
+- `cannot load certificate key`: gere `infra/nginx/certs/localhost.key`;
+- alerta de certificado no navegador: confie o certificado local ou use `mkcert -install`;
+- `connection refused` ao abrir Swagger via Nginx: confirme se `ledger-service`, `balance-service` e `auth-api` estao em execucao e saudaveis.
+
+O Nginx nao altera as portas HTTP diretas. Se precisar isolar o problema, valide primeiro a Swagger UI direta em `http://localhost:5226/index.html`, `http://localhost:5228/index.html` e `http://localhost:5030/index.html`, ou os documentos OpenAPI em `/swagger/v1/swagger.json`.
 
 ## Readiness retorna 503
 

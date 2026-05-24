@@ -10,6 +10,8 @@ views {
   view containers {
     title "Container View - APIs, workers, bancos, Kafka e observabilidade"
     include customer
+    include edge.nginx
+    include edge.nginx.portal
     include auth.authApi
     include ledger.ledgerApi
     include ledger.ledgerWorker
