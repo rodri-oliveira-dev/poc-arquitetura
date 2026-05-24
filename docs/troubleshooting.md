@@ -70,6 +70,39 @@ Erros comuns:
 
 O Nginx nao altera as portas HTTP diretas. Se precisar isolar o problema, valide primeiro a Swagger UI direta em `http://localhost:5226/index.html`, `http://localhost:5228/index.html` e `http://localhost:5030/index.html`, ou os documentos OpenAPI em `/swagger/v1/swagger.json`.
 
+## X-Correlation-Id via Nginx nao aparece ou nao bate
+
+Quando a chamada passa pela borda local, o Nginx deve devolver `X-Correlation-Id`, encaminhar o mesmo valor para a API e registrar `correlation_id` no access log JSON.
+
+Valide uma chamada sem header explicito:
+
+```bash
+curl -k -i https://ledger.localhost:7443/health
+```
+
+Valide preservacao de valor enviado pelo cliente:
+
+```bash
+curl -k -i -H "X-Correlation-Id: 11111111-1111-4111-8111-111111111111" https://ledger.localhost:7443/health
+```
+
+Confira os logs:
+
+```bash
+docker compose -f compose.yaml -f compose.nginx.yaml logs nginx-edge
+```
+
+Cada linha de access log deve ser JSON valido e conter `correlation_id`. Se o valor enviado pelo cliente nao for um UUID valido, o Nginx ainda o encaminha, mas o middleware da API pode normalizar e devolver outro UUID.
+
+## APIs nao reconhecem https ou host via Nginx
+
+As APIs usam `UseForwardedHeaders` antes de Swagger, redirecionamento HTTPS, autenticacao e autorizacao para aplicar `X-Forwarded-For`, `X-Forwarded-Proto` e `X-Forwarded-Host`. Se algum link aparecer como HTTP ou com host interno:
+
+- confirme que a chamada entrou por `https://ledger.localhost:7443`, `https://balance.localhost:7443` ou `https://auth.localhost:7443`;
+- confira se o Nginx esta enviando `X-Forwarded-Proto https` e `X-Forwarded-Host $host`;
+- recrie as imagens das APIs depois de alterar codigo C#: `docker compose -f compose.yaml -f compose.nginx.yaml up -d --build`;
+- valide a configuracao efetiva: `docker compose -f compose.yaml -f compose.nginx.yaml config`.
+
 ## Readiness retorna 503
 
 `GET /ready` nas APIs valida dependencias obrigatorias para trafego HTTP. Em geral, investigue:

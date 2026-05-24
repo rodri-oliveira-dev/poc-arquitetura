@@ -15,6 +15,8 @@ public static class WebApplicationExtensions
     /// </summary>
     public static WebApplication UseAuthApiPipeline(this WebApplication app)
     {
+        app.UseForwardedHeaders();
+
         if (!app.Environment.IsDevelopment())
         {
             app.UseHsts();

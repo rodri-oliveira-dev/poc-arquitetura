@@ -173,6 +173,32 @@ Os subdominios `.localhost` evitam configurar `PathBase` nas APIs e preservam o 
 
 No overlay, o Nginx normaliza `/swagger` para a Swagger UI de cada API. Nas portas HTTP diretas atuais, a UI fica em `/index.html` e os documentos OpenAPI ficam em `/swagger/v1/swagger.json`.
 
+O Nginx tambem atua como ponto de entrada de correlacao local:
+
+- se o cliente enviar `X-Correlation-Id`, o valor e preservado e encaminhado para a API;
+- se o cliente omitir `X-Correlation-Id`, a borda gera um identificador, encaminha para a API e devolve no response;
+- o access log do Nginx e emitido como JSON por linha e inclui `correlation_id`.
+
+Validacao manual sem correlation id explicito:
+
+```bash
+curl -k -i https://ledger.localhost:7443/health
+```
+
+Validacao preservando um correlation id explicito:
+
+```bash
+curl -k -i -H "X-Correlation-Id: 11111111-1111-4111-8111-111111111111" https://ledger.localhost:7443/health
+```
+
+Em ambos os casos, confira o header `X-Correlation-Id` no response e o campo `correlation_id` nos logs:
+
+```bash
+docker compose -f compose.yaml -f compose.nginx.yaml logs nginx-edge
+```
+
+As APIs executam `UseForwardedHeaders` no inicio do pipeline para reconhecer `X-Forwarded-For`, `X-Forwarded-Proto` e `X-Forwarded-Host` enviados pelo Nginx. Isso permite que componentes ASP.NET Core vejam o scheme externo `https` e o host publico `.localhost` quando a chamada entra pelo proxy, sem mudar o trafego HTTP interno entre containers.
+
 Parar a stack:
 
 ```bash

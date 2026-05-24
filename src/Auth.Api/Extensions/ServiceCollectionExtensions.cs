@@ -4,6 +4,8 @@ using Auth.Api.Security;
 using Auth.Api.Swagger;
 using Auth.Api.Middlewares;
 
+using Microsoft.AspNetCore.HttpOverrides;
+
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
@@ -31,6 +33,20 @@ public static class ServiceCollectionExtensions
     {
         services.AddExceptionHandler<GlobalExceptionHandler>();
         services.AddProblemDetails();
+        services.Configure<ForwardedHeadersOptions>(options =>
+        {
+            options.ForwardedHeaders =
+                ForwardedHeaders.XForwardedFor |
+                ForwardedHeaders.XForwardedProto |
+                ForwardedHeaders.XForwardedHost;
+            options.ForwardLimit = 1;
+            options.AllowedHosts.Add("auth.localhost");
+            options.AllowedHosts.Add("localhost");
+
+            // O IP do container Nginx e dinamico na rede bridge local.
+            options.KnownIPNetworks.Clear();
+            options.KnownProxies.Clear();
+        });
 
         return services;
     }

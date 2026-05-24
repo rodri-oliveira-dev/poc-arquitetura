@@ -28,7 +28,7 @@ deployment {
 
         nginx = instanceOf edge.nginx {
           title "poc-nginx-edge"
-          description "Container local do Nginx exposto na porta 7443 do host, com certificado montado por volume em infra/nginx/certs."
+          description "Container local do Nginx exposto na porta 7443 do host, com certificado montado por volume em infra/nginx/certs e access log JSON com correlation_id."
         }
       }
 

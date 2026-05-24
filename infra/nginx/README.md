@@ -48,6 +48,10 @@ Swaggers via Nginx:
 - `https://balance.localhost:7443/swagger`
 - `https://auth.localhost:7443/swagger`
 
+O Nginx preserva `X-Correlation-Id` quando o cliente envia o header e gera um valor UUID-like a partir de `$request_id` quando o header esta ausente. O valor efetivo e encaminhado para as APIs, devolvido no response e registrado no access log.
+
+Os access logs usam uma linha JSON por request em `/var/log/nginx/access.log`, com campos como `time`, `remote_addr`, `host`, `method`, `uri`, `status`, `request_time`, `upstream_response_time`, `correlation_id` e `user_agent`.
+
 O Nginx normaliza `/swagger` para a Swagger UI de cada API. Nas portas HTTP diretas atuais, a UI fica em `/index.html` e os documentos OpenAPI ficam em `/swagger/v1/swagger.json`.
 
 As URLs diretas das APIs continuam funcionando nas portas do `compose.yaml` principal.
