@@ -113,6 +113,7 @@ No Linux/macOS:
 | Stack local minima | `./scripts/start-local-stack.ps1` ou `./scripts/start-local-stack.sh` |
 | Stack com observabilidade | `./scripts/start-local-stack.ps1 -Observability` ou `OBSERVABILITY=true ./scripts/start-local-stack.sh` |
 | Stack completa com Nginx | `./scripts/start-full-stack.ps1` ou `./scripts/start-full-stack.sh` |
+| Parar stack completa | `./scripts/stop-full-stack.ps1` ou `./scripts/stop-full-stack.sh` |
 | Load test smoke | `./scripts/run-loadtests.ps1 -Mode smoke` ou `./scripts/run-loadtests.sh smoke` |
 
 ## Testes

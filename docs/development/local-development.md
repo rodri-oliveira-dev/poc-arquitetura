@@ -171,6 +171,18 @@ Para pular apenas as chamadas HTTP de verificacao pos-subida:
 
 O script para com mensagem clara se os certificados do Nginx nao existirem e nao tenta gera-los automaticamente. Ele nao remove volumes, nao apaga bancos locais, nao executa testes automatizados, nao executa k6 e nao executa scanners de seguranca.
 
+Para parar a stack completa sem remover containers, redes, volumes, bancos locais, imagens ou certificados:
+
+```powershell
+./scripts/stop-full-stack.ps1
+```
+
+```bash
+./scripts/stop-full-stack.sh
+```
+
+Esse fluxo para primeiro `nginx-edge`, `ledger-service-1` e `ledger-service-2` pelo overlay `compose.nginx.yaml`, e depois para a stack base com o profile `observability`.
+
 ### Borda local HTTPS com Nginx
 
 O Nginx local e opcional e serve como entrada HTTPS para desenvolvimento e demonstracao de load balance local do Ledger. Use-o quando quiser validar navegacao, Swagger via TLS e distribuicao de chamadas para duas instancias da `LedgerService.Api`, sem mudar contrato HTTP nem substituir a stack minima.
@@ -356,6 +368,18 @@ Parar a stack:
 ```bash
 docker compose down
 ```
+
+Para a stack completa iniciada por `start-full-stack.*`, prefira:
+
+```powershell
+./scripts/stop-full-stack.ps1
+```
+
+```bash
+./scripts/stop-full-stack.sh
+```
+
+Use `docker compose down` apenas quando quiser remover containers e redes da stack minima manualmente. Nao use `docker compose down -v` salvo quando a intencao for remover volumes e descartar dados locais.
 
 Ver status e logs:
 
