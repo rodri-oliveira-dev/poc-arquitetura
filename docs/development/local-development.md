@@ -186,6 +186,19 @@ TLS na borda local aceita somente `TLSv1.2` e `TLSv1.3`, desabilitando implicita
 
 O Nginx adiciona uma politica basica de headers de seguranca nas respostas da borda local: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` bloqueando camera, microphone e geolocation, e `X-XSS-Protection: 0`. Para evitar duplicidade, a borda remove esses mesmos headers quando vierem das APIs internas e aplica a politica unica do proxy. O valor `0` desativa o filtro legado de XSS de navegadores antigos, evitando comportamento inconsistente; a protecao efetiva fica em controles modernos como CSP e escaping das aplicacoes. A pagina do portal tambem recebe `Content-Security-Policy` restrita ao proprio host, com `style-src 'unsafe-inline'` apenas para preservar o CSS inline estatico do portal. Os hosts dos Swaggers nao recebem CSP adicional no Nginx para evitar bloquear assets e scripts da Swagger UI.
 
+Os hosts de API via Nginx (`ledger.localhost`, `balance.localhost` e `auth.localhost`) recebem `Cache-Control: no-store` em todas as respostas proxied. Essa politica evita que respostas sensiveis de autenticacao, autorizacao, ledger e saldo sejam armazenadas por navegadores, clientes ou proxies intermediarios. A borda tambem remove headers de cache vindos das APIs internas e envia `Pragma: no-cache` e `Expires: 0` por compatibilidade com clientes legados. O portal estatico em `https://localhost:7443` nao recebe essa regra; os assets do Swagger servidos pelos hosts de API recebem `no-store`, o que preserva funcionamento e favorece seguranca no ambiente local.
+
+Validacao da politica de cache via Nginx:
+
+```bash
+curl -k -I https://ledger.localhost:7443/swagger
+curl -k -I https://balance.localhost:7443/swagger
+curl -k -I https://auth.localhost:7443/swagger
+curl -k -I https://ledger.localhost:7443/health
+```
+
+As respostas dos hosts de API devem conter `Cache-Control: no-store`, `Pragma: no-cache` e `Expires: 0`.
+
 O Nginx tambem atua como ponto de entrada de correlacao local:
 
 - se o cliente enviar `X-Correlation-Id`, o valor e preservado e encaminhado para a API;

@@ -103,6 +103,26 @@ docker compose -f compose.yaml -f compose.nginx.yaml up -d --build nginx-edge
 docker compose -f compose.yaml -f compose.nginx.yaml exec nginx-edge nginx -t
 ```
 
+## Cache-Control nao aparece via Nginx local
+
+Os hosts de API via Nginx devem devolver `Cache-Control: no-store`, `Pragma: no-cache` e `Expires: 0` para evitar cache indevido de respostas sensiveis. Essa politica se aplica a `ledger.localhost`, `balance.localhost` e `auth.localhost`; o portal estatico em `https://localhost:7443` fica fora da regra.
+
+Valide:
+
+```bash
+curl -k -I https://ledger.localhost:7443/swagger
+curl -k -I https://balance.localhost:7443/swagger
+curl -k -I https://auth.localhost:7443/swagger
+curl -k -I https://ledger.localhost:7443/health
+```
+
+Se os headers nao aparecerem, recrie o container com o overlay e valide a configuracao carregada:
+
+```bash
+docker compose -f compose.yaml -f compose.nginx.yaml up -d --build nginx-edge
+docker compose -f compose.yaml -f compose.nginx.yaml exec nginx-edge nginx -t
+```
+
 ## Nginx nao distribui chamadas do Ledger
 
 No overlay `compose.nginx.yaml`, o Nginx balanceia apenas `ledger.localhost:7443` entre `ledger-service-1:8080` e `ledger-service-2:8080`, usando `least_conn`. Ele nao usa o servico direto `ledger-service`.

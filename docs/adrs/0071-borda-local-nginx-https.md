@@ -3,7 +3,7 @@
 ## Status
 Aceito
 
-Nota posterior: a ADR-0072 estende esta decisao com load balance local do `LedgerService.Api`, upstream `least_conn` e diagnostico de upstream nos logs do Nginx. Em 2026-05-25, a borda local passou a emitir headers basicos de seguranca e CSP apenas no portal, preservando Swagger sem CSP na borda. As decisoes originais abaixo permanecem como historico da introducao da borda local.
+Nota posterior: a ADR-0072 estende esta decisao com load balance local do `LedgerService.Api`, upstream `least_conn` e diagnostico de upstream nos logs do Nginx. Em 2026-05-25, a borda local passou a emitir headers basicos de seguranca, CSP apenas no portal e `Cache-Control: no-store` nos hosts de API, preservando Swagger sem CSP na borda. As decisoes originais abaixo permanecem como historico da introducao da borda local.
 
 ## Data
 2026-05-24
@@ -28,6 +28,7 @@ O Nginx:
 - normaliza `/swagger` para a Swagger UI de cada API no overlay, preservando os documentos OpenAPI em `/swagger/v1/swagger.json`;
 - usa certificado montado por volume em `infra/nginx/certs`, sem versionar chaves privadas ou certificados locais.
 - adiciona headers basicos de seguranca na borda local, sem HSTS e sem CSP nos hosts de Swagger.
+- adiciona `Cache-Control: no-store` nos hosts de API para evitar cache indevido de respostas sensiveis, com `Pragma: no-cache` e `Expires: 0` por compatibilidade.
 
 Preferimos subdominios `.localhost` em vez de paths (`/ledger`, `/balance`, `/auth`) para preservar `/swagger` na raiz de cada API e evitar configurar `PathBase` ou reescrever OpenAPI/Swagger UI neste PR.
 
@@ -38,6 +39,7 @@ Preferimos subdominios `.localhost` em vez de paths (`/ledger`, `/balance`, `/au
 - Desenvolvedores podem acessar um portal HTTPS local e Swaggers via proxy quando gerarem um certificado local adequado.
 - A confianca do certificado passa a ser responsabilidade do ambiente local do desenvolvedor; `mkcert` e recomendado para reduzir atrito.
 - O portal local recebe CSP restritiva; Swaggers via Nginx preservam compatibilidade com a Swagger UI sem CSP aplicada na borda.
+- Respostas dos hosts de API via Nginx nao devem ser armazenadas por clientes, navegadores ou proxies intermediarios; o portal estatico local permanece fora dessa politica.
 - O overlay nao implementa load balance, correlation id, logs JSON nem altera autenticacao/autorizacao das APIs.
 
 ## Alternativas consideradas

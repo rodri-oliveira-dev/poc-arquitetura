@@ -62,6 +62,8 @@ O Nginx adiciona `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Re
 
 Somente o portal em `https://localhost:7443` recebe `Content-Security-Policy` na borda. Os hosts dos Swaggers nao recebem CSP adicional no Nginx para evitar bloquear scripts e estilos da Swagger UI.
 
+Os hosts de API via Nginx (`ledger.localhost`, `balance.localhost` e `auth.localhost`) recebem `Cache-Control: no-store` em todas as respostas proxied para evitar armazenamento indevido de payloads sensiveis de autenticacao, autorizacao, ledger e saldo por navegadores, clientes ou proxies intermediarios. A borda tambem envia `Pragma: no-cache` e `Expires: 0` por compatibilidade com clientes legados e remove headers de cache vindos das APIs internas antes de aplicar a politica unica do proxy. O portal local estatico em `https://localhost:7443` nao recebe essa politica para manter a regra focada nas APIs; os assets do Swagger via hosts de API tambem recebem `no-store`, o que preserva funcionamento da UI e prioriza seguranca no ambiente local.
+
 Portal local:
 
 - `https://localhost:7443`
@@ -88,3 +90,14 @@ O Nginx open source nesta POC usa upstreams estaticos. Isso demonstra balanceame
 O Nginx normaliza `/swagger` para a Swagger UI de cada API. Nas portas HTTP diretas atuais, a UI fica em `/index.html` e os documentos OpenAPI ficam em `/swagger/v1/swagger.json`.
 
 As URLs diretas das APIs continuam funcionando nas portas do `compose.yaml` principal.
+
+Validacao rapida da politica de cache:
+
+```bash
+curl -k -I https://ledger.localhost:7443/swagger
+curl -k -I https://balance.localhost:7443/swagger
+curl -k -I https://auth.localhost:7443/swagger
+curl -k -I https://ledger.localhost:7443/health
+```
+
+As respostas dos hosts de API devem conter `Cache-Control: no-store`, `Pragma: no-cache` e `Expires: 0`.
