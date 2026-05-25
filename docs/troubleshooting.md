@@ -143,6 +143,23 @@ docker compose -f compose.yaml -f compose.nginx.yaml up -d --build nginx-edge
 docker compose -f compose.yaml -f compose.nginx.yaml exec nginx-edge nginx -t
 ```
 
+## Nginx retorna 413 ou 429
+
+`413 Payload Too Large` indica que o body ultrapassou `client_max_body_size 1m` na borda local. Esse limite fica alinhado ao limite padrao das APIs Ledger e Balance e rejeita a chamada antes de chegar ao ASP.NET.
+
+`429 Too Many Requests` indica excesso de requisicoes ou conexoes por IP na borda local. O overlay usa `limit_req` de 10 requisicoes por segundo com `burst=40` e `limit_conn` de 20 conexoes simultaneas por IP. Isso protege a POC contra bursts acidentais sem representar uma politica real de producao.
+
+Valide a configuracao carregada:
+
+```bash
+docker compose -f compose.yaml -f compose.nginx.yaml exec nginx-edge nginx -t
+docker compose -f compose.yaml -f compose.nginx.yaml exec nginx-edge tail -n 80 /var/log/nginx/access.log
+```
+
+Para diferenciar bloqueio na borda de erro da API, confira os logs JSON do Nginx. Em bloqueios de payload, rate limit ou conexao, o campo `status` mostra `413` ou `429` e `upstream_status` tende a ficar vazio, pois a requisicao nao foi encaminhada ao upstream.
+
+Se Swagger, portal ou chamadas normais receberem `429`, reduza concorrencia local, aguarde alguns segundos para a janela esvaziar e repita. Se um teste de carga precisar medir as APIs sem a borda, use os runners k6 existentes, que continuam apontando para as portas HTTP diretas do compose. Se a intencao for medir a borda, considere criar um cenario k6 separado e aceite que `429` faca parte do comportamento esperado do proxy.
+
 ## Nginx nao distribui chamadas do Ledger
 
 No overlay `compose.nginx.yaml`, o Nginx balanceia apenas `ledger.localhost:7443` entre `ledger-service-1:8080` e `ledger-service-2:8080`, usando `least_conn`. Ele nao usa o servico direto `ledger-service`.

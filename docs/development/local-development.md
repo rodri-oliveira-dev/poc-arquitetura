@@ -190,6 +190,17 @@ Os hosts de API via Nginx (`ledger.localhost`, `balance.localhost` e `auth.local
 
 Para reduzir fingerprinting, a borda local usa uma imagem local baseada em Alpine com Nginx e o modulo `headers-more`. A configuracao usa `server_tokens off`, remove o header `Server` emitido pela borda e remove headers de tecnologia vindos das APIs internas quando presentes, como `X-Powered-By`, `X-AspNet-Version`, `X-AspNetMvc-Version` e `X-Swagger-UI-Version`.
 
+O Nginx local tambem aplica limites defensivos basicos para reduzir abuso acidental ou malicioso antes que a chamada alcance o ASP.NET:
+
+- `client_max_body_size 1m`, alinhado ao limite padrao `ApiLimits:MaxRequestBodySizeBytes` das APIs Ledger e Balance;
+- `client_body_timeout 10s` e `client_header_timeout 10s`;
+- `keepalive_timeout 30s`, `send_timeout 30s`, `proxy_connect_timeout 5s`, `proxy_send_timeout 30s` e `proxy_read_timeout 30s`;
+- `large_client_header_buffers 4 8k`;
+- `limit_conn` por IP em 20 conexoes simultaneas;
+- `limit_req` por IP em 10 requisicoes por segundo, com `burst=40` e retorno `429 Too Many Requests`.
+
+Payload acima de 1 MiB deve ser rejeitado na borda com `413 Payload Too Large`. Headers grandes demais podem ser rejeitados pelo Nginx antes de qualquer contrato de negocio da API. Esses limites sao uma protecao local demonstravel e nao substituem WAF, protecao DDoS, limites por usuario/merchant/client id nem dimensionamento de producao.
+
 Validacao da politica de cache via Nginx:
 
 ```bash
@@ -226,6 +237,45 @@ Em ambos os casos, confira o header `X-Correlation-Id` no response e o campo `co
 ```bash
 docker compose -f compose.yaml -f compose.nginx.yaml logs nginx-edge
 ```
+
+Validacao de payload acima do limite:
+
+```bash
+dd if=/dev/zero of=/tmp/payload-maior-que-1m.bin bs=1024 count=1100
+curl -k -i -X POST https://ledger.localhost:7443/health --data-binary @/tmp/payload-maior-que-1m.bin
+docker compose -f compose.yaml -f compose.nginx.yaml exec nginx-edge tail -n 80 /var/log/nginx/access.log
+```
+
+Em PowerShell:
+
+```powershell
+$payload = New-TemporaryFile
+[System.IO.File]::WriteAllBytes($payload.FullName, (New-Object byte[] (1100 * 1024)))
+curl.exe -k -i -X POST https://ledger.localhost:7443/health --data-binary "@$($payload.FullName)"
+docker compose -f compose.yaml -f compose.nginx.yaml exec nginx-edge tail -n 80 /var/log/nginx/access.log
+Remove-Item $payload.FullName
+```
+
+O status esperado e `413`. Como a rejeicao ocorre na borda, a rota escolhida nao precisa aceitar POST em uso normal.
+
+Validacao de excesso de requisicoes:
+
+```bash
+for i in $(seq 1 80); do curl -k -s -o /dev/null -w "%{http_code}\n" https://ledger.localhost:7443/health & done; wait
+docker compose -f compose.yaml -f compose.nginx.yaml exec nginx-edge tail -n 80 /var/log/nginx/access.log
+```
+
+Em PowerShell:
+
+```powershell
+1..80 | ForEach-Object {
+  Start-Job { curl.exe -k -s -o NUL -w "%{http_code}`n" https://ledger.localhost:7443/health } | Out-Null
+}
+Get-Job | Receive-Job -Wait -AutoRemoveJob
+docker compose -f compose.yaml -f compose.nginx.yaml exec nginx-edge tail -n 80 /var/log/nginx/access.log
+```
+
+Parte das chamadas pode retornar `429` quando o burst local for excedido. Chamadas normais de Swagger, portal e health devem continuar retornando os status esperados. Para diagnosticar, use os campos `status`, `request_time`, `upstream_status`, `upstream_addr` e `correlation_id` do access log JSON.
 
 Validacao de distribuicao entre as instancias Ledger:
 

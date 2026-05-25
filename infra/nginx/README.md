@@ -68,6 +68,19 @@ Os hosts de API via Nginx (`ledger.localhost`, `balance.localhost` e `auth.local
 
 O Nginx usa `server_tokens off` e o modulo `headers-more` para remover o header `Server` das respostas da borda local. Tambem remove headers de tecnologia vindos das APIs internas quando presentes, como `X-Powered-By`, `X-AspNet-Version`, `X-AspNetMvc-Version` e `X-Swagger-UI-Version`. Esse hardening reduz fingerprinting, sem substituir controles de seguranca da aplicacao.
 
+## Limites defensivos locais
+
+A borda local aplica limites defensivos basicos antes de encaminhar chamadas para as APIs:
+
+- `client_max_body_size 1m`, alinhado ao limite padrao `ApiLimits:MaxRequestBodySizeBytes` das APIs Ledger e Balance;
+- `client_body_timeout 10s` e `client_header_timeout 10s` para reduzir conexoes lentas na leitura de body ou headers;
+- `keepalive_timeout 30s`, `send_timeout 30s`, `proxy_connect_timeout 5s`, `proxy_send_timeout 30s` e `proxy_read_timeout 30s`;
+- `large_client_header_buffers 4 8k`, para aceitar headers normais de autenticacao/correlacao sem permitir headers excessivos;
+- `limit_conn` por IP em 20 conexoes simultaneas;
+- `limit_req` por IP em 10 requisicoes por segundo, com `burst=40`, retornando `429` quando excedido.
+
+Payload acima de 1 MiB e rejeitado pelo Nginx com `413 Payload Too Large`, antes de chegar ao ASP.NET. Excesso de requisicoes ou conexoes pela borda local retorna `429 Too Many Requests`. Esses controles sao demonstrativos e defensivos para desenvolvimento local; protecao real de producao exige dimensionamento, observabilidade, regras de ambiente e controles adicionais fora desta POC.
+
 Portal local:
 
 - `https://localhost:7443`
@@ -88,6 +101,17 @@ Para validar o balanceamento local do Ledger, faça algumas chamadas e observe `
 for i in $(seq 1 20); do curl -k -s -o /dev/null -D - https://ledger.localhost:7443/health | grep -i X-Upstream-Addr; done
 docker compose -f compose.yaml -f compose.nginx.yaml logs nginx-edge | grep upstream_addr
 ```
+
+Validacao rapida dos limites defensivos:
+
+```bash
+dd if=/dev/zero of=/tmp/payload-maior-que-1m.bin bs=1024 count=1100
+curl -k -i -X POST https://ledger.localhost:7443/health --data-binary @/tmp/payload-maior-que-1m.bin
+for i in $(seq 1 80); do curl -k -s -o /dev/null -w "%{http_code}\n" https://ledger.localhost:7443/health & done; wait
+docker compose -f compose.yaml -f compose.nginx.yaml exec nginx-edge tail -n 80 /var/log/nginx/access.log
+```
+
+O primeiro comando deve retornar `413` quando o arquivo ultrapassar 1 MiB. O segundo pode retornar `429` em parte das chamadas quando o burst local for excedido. Os logs JSON do Nginx registram `status`, `request_time`, `upstream_status` e `correlation_id`, ajudando a diferenciar bloqueios na borda de respostas das APIs.
 
 O Nginx open source nesta POC usa upstreams estaticos. Isso demonstra balanceamento local, mas nao representa autoscaling real, service discovery dinamico avancado ou circuit breaker de producao.
 
