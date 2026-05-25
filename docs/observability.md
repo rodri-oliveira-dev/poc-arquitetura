@@ -1002,6 +1002,8 @@ O header padrao e `X-Correlation-Id`:
 - o valor entra no logging scope como `CorrelationId=<uuid>`;
 - eventos Kafka usam `correlation_id` quando o fluxo possui esse valor.
 
+Quando a chamada entra pela borda local `compose.nginx.yaml`, o Nginx preserva `X-Correlation-Id` enviado pelo cliente ou gera um valor quando o header esta ausente. Esse valor e encaminhado para a API, devolvido no response e registrado no access log JSON do Nginx no campo `correlation_id`. Para chamadas em `ledger.localhost`, o access log tambem registra `upstream_addr` e `upstream_status`, permitindo confirmar qual instancia da `LedgerService.Api` recebeu a requisicao no load balance local. As APIs continuam sendo a ultima linha de defesa para normalizar valores invalidos.
+
 `CorrelationId` nao substitui trace distribuido. Ele e um identificador estavel de operacao para suporte e auditoria leve, controlado pelo header HTTP e propagado para responses e eventos. `TraceId` e `SpanId` identificam a arvore temporal de spans da `Activity`; quando OpenTelemetry esta desabilitado, a correlacao por `X-Correlation-Id` continua funcionando.
 
 ## Validacao rapida

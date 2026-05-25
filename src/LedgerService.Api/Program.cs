@@ -23,6 +23,7 @@ builder.Services.AddLedgerApiComposition(builder.Configuration, builder.Environm
 
 var app = builder.Build();
 
+app.UseForwardedHeaders();
 app.UseApiSwagger(builder.Configuration);
 
 if (!app.Environment.IsDevelopment())

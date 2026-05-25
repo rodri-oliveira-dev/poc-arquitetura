@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>poc-arquitetura</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f7f8fa;
+        --panel: #ffffff;
+        --text: #1f2937;
+        --muted: #5b6472;
+        --border: #d9dee7;
+        --accent: #0f766e;
+        --accent-dark: #115e59;
+        --focus: #f59e0b;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+        color: var(--text);
+        background: var(--bg);
+      }
+
+      main {
+        width: min(1120px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 40px 0;
+      }
+
+      header {
+        margin-bottom: 28px;
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: clamp(2rem, 3vw, 3rem);
+        line-height: 1.05;
+        letter-spacing: 0;
+      }
+
+      p {
+        margin: 0;
+        max-width: 760px;
+        color: var(--muted);
+        line-height: 1.6;
+      }
+
+      section {
+        margin-top: 28px;
+      }
+
+      h2 {
+        margin: 0 0 14px;
+        font-size: 1rem;
+        line-height: 1.2;
+        letter-spacing: 0;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 12px;
+      }
+
+      a {
+        color: inherit;
+      }
+
+      .link-card {
+        display: grid;
+        gap: 8px;
+        min-height: 112px;
+        padding: 18px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--panel);
+        text-decoration: none;
+        transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+      }
+
+      .link-card:hover {
+        border-color: var(--accent);
+        box-shadow: 0 10px 24px rgb(15 118 110 / 12%);
+        transform: translateY(-1px);
+      }
+
+      .link-card:focus-visible {
+        outline: 3px solid var(--focus);
+        outline-offset: 3px;
+      }
+
+      .title {
+        color: var(--accent-dark);
+        font-weight: 700;
+      }
+
+      .url {
+        overflow-wrap: anywhere;
+        color: var(--muted);
+        font-family: Consolas, "Liberation Mono", monospace;
+        font-size: 0.875rem;
+        line-height: 1.45;
+      }
+
+      footer {
+        margin-top: 28px;
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>poc-arquitetura</h1>
+        <p>Portal local HTTPS da POC para acessar APIs, Swagger e ferramentas de observabilidade durante o desenvolvimento.</p>
+      </header>
+
+      <section aria-labelledby="apis-title">
+        <h2 id="apis-title">APIs via Nginx</h2>
+        <div class="grid">
+          <a class="link-card" href="https://ledger.localhost:7443/swagger">
+            <span class="title">Ledger API Swagger</span>
+            <span class="url">https://ledger.localhost:7443/swagger</span>
+          </a>
+          <a class="link-card" href="https://balance.localhost:7443/swagger">
+            <span class="title">Balance API Swagger</span>
+            <span class="url">https://balance.localhost:7443/swagger</span>
+          </a>
+          <a class="link-card" href="https://auth.localhost:7443/swagger">
+            <span class="title">Auth API Swagger</span>
+            <span class="url">https://auth.localhost:7443/swagger</span>
+          </a>
+        </div>
+      </section>
+
+      <section aria-labelledby="direct-title">
+        <h2 id="direct-title">APIs diretas</h2>
+        <div class="grid">
+          <a class="link-card" href="http://localhost:5226/index.html">
+            <span class="title">Ledger API direta</span>
+            <span class="url">http://localhost:5226/index.html</span>
+          </a>
+          <a class="link-card" href="http://localhost:5228/index.html">
+            <span class="title">Balance API direta</span>
+            <span class="url">http://localhost:5228/index.html</span>
+          </a>
+          <a class="link-card" href="http://localhost:5030/index.html">
+            <span class="title">Auth API direta</span>
+            <span class="url">http://localhost:5030/index.html</span>
+          </a>
+        </div>
+      </section>
+
+      <section aria-labelledby="observability-title">
+        <h2 id="observability-title">Observabilidade local</h2>
+        <div class="grid">
+          <a class="link-card" href="http://localhost:3000">
+            <span class="title">Grafana</span>
+            <span class="url">http://localhost:3000</span>
+          </a>
+          <a class="link-card" href="http://localhost:16686">
+            <span class="title">Jaeger</span>
+            <span class="url">http://localhost:16686</span>
+          </a>
+          <a class="link-card" href="http://localhost:9090">
+            <span class="title">Prometheus</span>
+            <span class="url">http://localhost:9090</span>
+          </a>
+        </div>
+      </section>
+
+      <footer>
+        Nginx e HTTPS local sao opcionais; as APIs continuam disponiveis nas portas HTTP do compose principal.
+      </footer>
+    </main>
+  </body>
+</html>

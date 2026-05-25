@@ -56,7 +56,10 @@ jobs:
         run: dotnet tool restore
 
       - name: Restore dependencies
-        run: dotnet restore $SOLUTION_PATH
+        run: >
+          dotnet restore $SOLUTION_PATH
+          -p:NuGetAuditMode=all
+          -p:RestoreEnablePackagePruning=true
 
       - name: Check NuGet vulnerabilities
         shell: bash

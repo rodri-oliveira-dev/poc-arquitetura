@@ -9,6 +9,7 @@ using BalanceService.Api.Security;
 using BalanceService.Api.Swagger;
 using BalanceService.Application.Common.Observability;
 
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi;
@@ -27,6 +28,20 @@ public static class ServiceCollectionExtensions
     {
         services.AddExceptionHandler<GlobalExceptionHandler>();
         services.AddProblemDetails();
+        services.Configure<ForwardedHeadersOptions>(options =>
+        {
+            options.ForwardedHeaders =
+                ForwardedHeaders.XForwardedFor |
+                ForwardedHeaders.XForwardedProto |
+                ForwardedHeaders.XForwardedHost;
+            options.ForwardLimit = 1;
+            options.AllowedHosts.Add("balance.localhost");
+            options.AllowedHosts.Add("localhost");
+
+            // O IP do container Nginx e dinamico na rede bridge local.
+            options.KnownIPNetworks.Clear();
+            options.KnownProxies.Clear();
+        });
         services
             .AddOptions<ApiLimitsOptions>()
             .Bind(configuration.GetSection(ApiLimitsOptions.SectionName))

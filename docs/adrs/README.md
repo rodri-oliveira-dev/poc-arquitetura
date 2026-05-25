@@ -15,6 +15,8 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 
 | ADR                                                                   | Status      | Resumo                                                                                           |
 | --------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------ |
+| [ADR-0072](./0072-load-balance-local-ledger-nginx.md) | Aceito | Demonstra load balance local do LedgerService.Api com duas instancias atras do Nginx e `least_conn`. |
+| [ADR-0071](./0071-borda-local-nginx-https.md) | Aceito | Adiciona overlay opcional com Nginx, HTTPS local, portal e subdominios `.localhost` para Swagger. |
 | [ADR-0070](./0070-dlq-outbox-banco-backoff-requeue.md) | Aceito | Padroniza DLQ em banco para Outbox com backoff exponencial, inspecao e requeue administrativo por id. |
 | [ADR-0069](./0069-remocao-fluentassertions-xunit-nativo.md) | Aceito | Remove FluentAssertions por risco de licenca comercial nas versoes 8+ e padroniza asserts nativos do xUnit. |
 | [ADR-0068](./0068-gate-cobertura-workers-coverlet.md) | Aceito | Eleva o gate para 85% e exige emissao explicita dos assemblies Worker no relatorio Coverlet. |

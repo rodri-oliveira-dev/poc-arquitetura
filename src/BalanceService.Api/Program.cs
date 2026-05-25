@@ -23,6 +23,7 @@ builder.Services.AddBalanceApiComposition(builder.Configuration, builder.Environ
 
 var app = builder.Build();
 
+app.UseForwardedHeaders();
 app.UseApiSwagger(builder.Configuration);
 
 if (!app.Environment.IsDevelopment())

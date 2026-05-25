@@ -65,6 +65,8 @@ Componentes opcionais ficam em profiles:
 - profile `observability`: OpenTelemetry Collector, Jaeger, Prometheus, Loki, Grafana Alloy, Alertmanager e Grafana;
 - profile `k6`: container k6 definido em `compose.k6.yaml`.
 
+Tambem existe um overlay opcional `compose.nginx.yaml` para adicionar uma borda local com Nginx e HTTPS em desenvolvimento. Ele nao faz parte da stack minima e nao altera as APIs, que continuam rodando internamente em HTTP com `ASPNETCORE_URLS=http://+:8080`. Quando o overlay e usado, o Nginx cria um upstream local `ledger_api` com duas instancias da `LedgerService.Api` e algoritmo `least_conn`.
+
 A observabilidade completa inclui:
 
 - OpenTelemetry Collector como entrada local de telemetria OTLP;
@@ -117,6 +119,186 @@ OTEL_ENABLED=true docker compose --profile observability up -d --build
 
 O socket Docker, mesmo montado como somente leitura, e uma superficie sensivel. Use o profile `observability` apenas em maquina local confiavel; nao use em ambiente compartilhado ou produtivo sem redesenhar a coleta de logs e revisar permissoes.
 
+### Borda local HTTPS com Nginx
+
+O Nginx local e opcional e serve como entrada HTTPS para desenvolvimento e demonstracao de load balance local do Ledger. Use-o quando quiser validar navegacao, Swagger via TLS e distribuicao de chamadas para duas instancias da `LedgerService.Api`, sem mudar contrato HTTP nem substituir a stack minima.
+
+Antes de subir o overlay, gere ou disponibilize um certificado local em:
+
+- `infra/nginx/certs/localhost.crt`
+- `infra/nginx/certs/localhost.key`
+
+Esses arquivos nao devem ser versionados. A opcao recomendada para certificado confiavel no host e `mkcert`:
+
+```bash
+mkcert -install
+mkcert -cert-file infra/nginx/certs/localhost.crt -key-file infra/nginx/certs/localhost.key localhost ledger.localhost balance.localhost auth.localhost
+```
+
+Alternativa com OpenSSL:
+
+```bash
+openssl req -x509 -newkey rsa:2048 -nodes -days 365 \
+  -keyout infra/nginx/certs/localhost.key \
+  -out infra/nginx/certs/localhost.crt \
+  -subj "/CN=localhost" \
+  -addext "subjectAltName=DNS:localhost,DNS:ledger.localhost,DNS:balance.localhost,DNS:auth.localhost"
+```
+
+Com OpenSSL, o navegador pode exibir alerta de certificado nao confiavel ate que o certificado seja confiado localmente.
+
+Suba primeiro a stack local pelo fluxo normal, principalmente em banco novo para aplicar migrations. Para iniciar a borda com duas instancias do Ledger atras do Nginx, use o overlay:
+
+```bash
+docker compose -f compose.yaml -f compose.nginx.yaml up -d --build nginx-edge
+```
+
+Para subir tudo diretamente pelo compose sem o script de migrations:
+
+```bash
+docker compose -f compose.yaml -f compose.nginx.yaml up -d --build
+```
+
+No overlay, o servico direto `ledger-service` fica no profile `direct-ledger`. Assim, uma execucao limpa do comando acima sobe `ledger-service-1` e `ledger-service-2` para o Nginx, sem publicar porta HTTP direta do Ledger no host. O `compose.yaml` principal continua expondo `http://localhost:5226/` quando usado sem o overlay.
+
+Se a stack minima ja estiver rodando com `ledger-service`, ela pode permanecer ativa para compatibilidade com scripts existentes; o Nginx, porem, distribui trafego somente para `ledger-service-1` e `ledger-service-2`. Para observar exatamente duas instancias do Ledger no ambiente, pare a instancia direta antes de subir o overlay:
+
+```bash
+docker compose stop ledger-service
+docker compose -f compose.yaml -f compose.nginx.yaml up -d --build nginx-edge
+```
+
+Portal HTTPS:
+
+- `https://localhost:7443`
+
+Swaggers via Nginx:
+
+- `https://ledger.localhost:7443/swagger`
+- `https://balance.localhost:7443/swagger`
+- `https://auth.localhost:7443/swagger`
+
+Os subdominios `.localhost` evitam configurar `PathBase` nas APIs e preservam o Swagger em `/swagger`. As URLs HTTP diretas continuam disponiveis nas portas atuais e sao o alvo dos scripts e testes de carga existentes.
+
+No overlay, o Nginx normaliza `/swagger` para a Swagger UI de cada API. Nas portas HTTP diretas atuais, a UI fica em `/index.html` e os documentos OpenAPI ficam em `/swagger/v1/swagger.json`.
+
+TLS na borda local aceita somente `TLSv1.2` e `TLSv1.3`, desabilitando implicitamente SSLv2, SSLv3, TLSv1.0 e TLSv1.1. O overlay local nao aplica nem repassa HSTS e nao deve emitir `Strict-Transport-Security`; em `localhost`, subdominios `.localhost` e certificados autoassinados, HSTS pode ser cacheado pelo navegador e atrapalhar navegacao, rollback e alternancia entre fluxos HTTP/HTTPS de desenvolvimento. HSTS deve ser decidido apenas para ambientes apropriados fora deste fluxo local.
+
+O Nginx adiciona uma politica basica de headers de seguranca nas respostas da borda local: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` bloqueando camera, microphone e geolocation, e `X-XSS-Protection: 0`. Para evitar duplicidade, a borda remove esses mesmos headers quando vierem das APIs internas e aplica a politica unica do proxy. O valor `0` desativa o filtro legado de XSS de navegadores antigos, evitando comportamento inconsistente; a protecao efetiva fica em controles modernos como CSP e escaping das aplicacoes. A pagina do portal tambem recebe `Content-Security-Policy` restrita ao proprio host, com `style-src 'unsafe-inline'` apenas para preservar o CSS inline estatico do portal. Os hosts dos Swaggers nao recebem CSP adicional no Nginx para evitar bloquear assets e scripts da Swagger UI.
+
+Os hosts de API via Nginx (`ledger.localhost`, `balance.localhost` e `auth.localhost`) recebem `Cache-Control: no-store` em todas as respostas proxied. Essa politica evita que respostas sensiveis de autenticacao, autorizacao, ledger e saldo sejam armazenadas por navegadores, clientes ou proxies intermediarios. A borda tambem remove headers de cache vindos das APIs internas e envia `Pragma: no-cache` e `Expires: 0` por compatibilidade com clientes legados. O portal estatico em `https://localhost:7443` nao recebe essa regra; os assets do Swagger servidos pelos hosts de API recebem `no-store`, o que preserva funcionamento e favorece seguranca no ambiente local.
+
+Para reduzir fingerprinting, a borda local usa uma imagem local baseada em Alpine com Nginx e o modulo `headers-more`. A configuracao usa `server_tokens off`, remove o header `Server` emitido pela borda e remove headers de tecnologia vindos das APIs internas quando presentes, como `X-Powered-By`, `X-AspNet-Version`, `X-AspNetMvc-Version` e `X-Swagger-UI-Version`.
+
+O Nginx local tambem aplica limites defensivos basicos para reduzir abuso acidental ou malicioso antes que a chamada alcance o ASP.NET:
+
+- `client_max_body_size 1m`, alinhado ao limite padrao `ApiLimits:MaxRequestBodySizeBytes` das APIs Ledger e Balance;
+- `client_body_timeout 10s` e `client_header_timeout 10s`;
+- `keepalive_timeout 30s`, `send_timeout 30s`, `proxy_connect_timeout 5s`, `proxy_send_timeout 30s` e `proxy_read_timeout 30s`;
+- `large_client_header_buffers 4 8k`;
+- `limit_conn` por IP em 20 conexoes simultaneas;
+- `limit_req` por IP em 10 requisicoes por segundo, com `burst=40` e retorno `429 Too Many Requests`.
+
+Payload acima de 1 MiB deve ser rejeitado na borda com `413 Payload Too Large`. Headers grandes demais podem ser rejeitados pelo Nginx antes de qualquer contrato de negocio da API. Esses limites sao uma protecao local demonstravel e nao substituem WAF, protecao DDoS, limites por usuario/merchant/client id nem dimensionamento de producao.
+
+Validacao da politica de cache via Nginx:
+
+```bash
+curl -k -I https://localhost:7443
+curl -k -I https://ledger.localhost:7443/swagger
+curl -k -I https://balance.localhost:7443/swagger
+curl -k -I https://auth.localhost:7443/swagger
+curl -k -I https://ledger.localhost:7443/health
+```
+
+As respostas dos hosts de API devem conter `Cache-Control: no-store`, `Pragma: no-cache` e `Expires: 0`. As respostas via Nginx nao devem conter `Server`, `X-Powered-By` nem `X-Swagger-UI-Version`.
+
+O Nginx tambem atua como ponto de entrada de correlacao local:
+
+- se o cliente enviar `X-Correlation-Id`, o valor e preservado e encaminhado para a API;
+- se o cliente omitir `X-Correlation-Id`, a borda gera um identificador, encaminha para a API e devolve no response;
+- o access log do Nginx e emitido como JSON por linha e inclui `correlation_id`.
+- para `ledger.localhost`, o access log tambem inclui `upstream_addr` e `upstream_status`, e o response inclui `X-Upstream-Addr` para diagnostico local.
+
+Validacao manual sem correlation id explicito:
+
+```bash
+curl -k -i https://ledger.localhost:7443/health
+```
+
+Validacao preservando um correlation id explicito:
+
+```bash
+curl -k -i -H "X-Correlation-Id: 11111111-1111-4111-8111-111111111111" https://ledger.localhost:7443/health
+```
+
+Em ambos os casos, confira o header `X-Correlation-Id` no response e o campo `correlation_id` nos logs:
+
+```bash
+docker compose -f compose.yaml -f compose.nginx.yaml logs nginx-edge
+```
+
+Validacao de payload acima do limite:
+
+```bash
+dd if=/dev/zero of=/tmp/payload-maior-que-1m.bin bs=1024 count=1100
+curl -k -i -X POST https://ledger.localhost:7443/health --data-binary @/tmp/payload-maior-que-1m.bin
+docker compose -f compose.yaml -f compose.nginx.yaml exec nginx-edge tail -n 80 /var/log/nginx/access.log
+```
+
+Em PowerShell:
+
+```powershell
+$payload = New-TemporaryFile
+[System.IO.File]::WriteAllBytes($payload.FullName, (New-Object byte[] (1100 * 1024)))
+curl.exe -k -i -X POST https://ledger.localhost:7443/health --data-binary "@$($payload.FullName)"
+docker compose -f compose.yaml -f compose.nginx.yaml exec nginx-edge tail -n 80 /var/log/nginx/access.log
+Remove-Item $payload.FullName
+```
+
+O status esperado e `413`. Como a rejeicao ocorre na borda, a rota escolhida nao precisa aceitar POST em uso normal.
+
+Validacao de excesso de requisicoes:
+
+```bash
+for i in $(seq 1 80); do curl -k -s -o /dev/null -w "%{http_code}\n" https://ledger.localhost:7443/health & done; wait
+docker compose -f compose.yaml -f compose.nginx.yaml exec nginx-edge tail -n 80 /var/log/nginx/access.log
+```
+
+Em PowerShell:
+
+```powershell
+1..80 | ForEach-Object {
+  Start-Job { curl.exe -k -s -o NUL -w "%{http_code}`n" https://ledger.localhost:7443/health } | Out-Null
+}
+Get-Job | Receive-Job -Wait -AutoRemoveJob
+docker compose -f compose.yaml -f compose.nginx.yaml exec nginx-edge tail -n 80 /var/log/nginx/access.log
+```
+
+Parte das chamadas pode retornar `429` quando o burst local for excedido. Chamadas normais de Swagger, portal e health devem continuar retornando os status esperados. Para diagnosticar, use os campos `status`, `request_time`, `upstream_status`, `upstream_addr` e `correlation_id` do access log JSON.
+
+Validacao de distribuicao entre as instancias Ledger:
+
+```bash
+for i in $(seq 1 20); do curl -k -s -o /dev/null -D - https://ledger.localhost:7443/health | grep -i X-Upstream-Addr; done
+docker compose -f compose.yaml -f compose.nginx.yaml logs nginx-edge | grep upstream_addr
+docker compose -f compose.yaml -f compose.nginx.yaml logs ledger-service-1 ledger-service-2
+```
+
+Em PowerShell:
+
+```powershell
+1..20 | ForEach-Object {
+  (Invoke-WebRequest -SkipCertificateCheck https://ledger.localhost:7443/health).Headers["X-Upstream-Addr"]
+}
+docker compose -f compose.yaml -f compose.nginx.yaml logs nginx-edge
+docker compose -f compose.yaml -f compose.nginx.yaml logs ledger-service-1 ledger-service-2
+```
+
+O Nginx open source usa uma lista estatica de upstreams nesta POC. Ele demonstra balanceamento local, mas nao implementa autoscaling real, descoberta dinamica avancada, circuit breaker ou reconfiguracao automatica quando o numero de replicas muda. Para producao, a topologia deve ser redesenhada com orquestrador, health checks e estrategia operacional propria.
+
+As APIs executam `UseForwardedHeaders` no inicio do pipeline para reconhecer `X-Forwarded-For`, `X-Forwarded-Proto` e `X-Forwarded-Host` enviados pelo Nginx. Isso permite que componentes ASP.NET Core vejam o scheme externo `https` e o host publico `.localhost` quando a chamada entra pelo proxy, sem mudar o trafego HTTP interno entre containers.
+
 Parar a stack:
 
 ```bash
@@ -128,9 +310,12 @@ Ver status e logs:
 ```bash
 docker compose ps
 docker compose logs -f ledger-service
+docker compose -f compose.yaml -f compose.nginx.yaml logs -f ledger-service-1
+docker compose -f compose.yaml -f compose.nginx.yaml logs -f ledger-service-2
 docker compose logs -f ledger-worker
 docker compose logs -f balance-service
 docker compose logs -f balance-worker
+docker compose -f compose.yaml -f compose.nginx.yaml logs -f nginx-edge
 ```
 
 Portas expostas no host:
@@ -152,6 +337,10 @@ Portas expostas no host:
 | Grafana Alloy | `http://localhost:12345/` quando o profile `observability` estiver ativo |
 | Alertmanager | `http://localhost:9093/` com profile `observability` |
 | Grafana | `http://localhost:3000/` com profile `observability` |
+| Portal Nginx HTTPS | `https://localhost:7443/` com `compose.nginx.yaml` |
+| LedgerService.Api via Nginx | `https://ledger.localhost:7443/` com `compose.nginx.yaml` |
+| BalanceService.Api via Nginx | `https://balance.localhost:7443/` com `compose.nginx.yaml` |
+| Auth.Api via Nginx | `https://auth.localhost:7443/` com `compose.nginx.yaml` |
 
 O compose sobrescreve configuracoes por variaveis de ambiente para usar hosts internos como `ledger-db`, `balance-db`, `kafka` e `otel-collector`. Quando `OTEL_ENABLED=true` e o profile `observability` esta ativo, as APIs e workers enviam OTLP somente para o Collector. O Collector encaminha traces para o Jaeger e expoe metricas em formato Prometheus para scrape interno. Prometheus coleta o Collector; Alloy coleta logs dos containers e envia para Loki. Grafana consulta Prometheus, Loki e Jaeger. O Grafana carrega automaticamente a pasta `Observability` com os dashboards `APIs - Visao Geral` e `Runtime .NET - Visao Geral`, versionados em `observability/grafana/dashboards/`. O datasource Loki possui derived field para abrir traces no datasource interno Jaeger a partir de logs com `TraceId=<valor>`. O ambiente local do compose roda como `Development`.
 
