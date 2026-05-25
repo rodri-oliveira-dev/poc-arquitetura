@@ -188,7 +188,7 @@ O Nginx adiciona uma politica basica de headers de seguranca nas respostas da bo
 
 Os hosts de API via Nginx (`ledger.localhost`, `balance.localhost` e `auth.localhost`) recebem `Cache-Control: no-store` em todas as respostas proxied. Essa politica evita que respostas sensiveis de autenticacao, autorizacao, ledger e saldo sejam armazenadas por navegadores, clientes ou proxies intermediarios. A borda tambem remove headers de cache vindos das APIs internas e envia `Pragma: no-cache` e `Expires: 0` por compatibilidade com clientes legados. O portal estatico em `https://localhost:7443` nao recebe essa regra; os assets do Swagger servidos pelos hosts de API recebem `no-store`, o que preserva funcionamento e favorece seguranca no ambiente local.
 
-Para reduzir fingerprinting, a borda local tambem usa `server_tokens off` e remove headers de tecnologia vindos das APIs internas quando presentes, como `X-Powered-By`, `X-AspNet-Version`, `X-AspNetMvc-Version` e `X-Swagger-UI-Version`. O `Server` das APIs internas nao e repassado pelo proxy; o Nginx open source ainda envia `Server: nginx`, mas sem a versao detalhada do servidor.
+Para reduzir fingerprinting, a borda local usa uma imagem local baseada em Alpine com Nginx e o modulo `headers-more`. A configuracao usa `server_tokens off`, remove o header `Server` emitido pela borda e remove headers de tecnologia vindos das APIs internas quando presentes, como `X-Powered-By`, `X-AspNet-Version`, `X-AspNetMvc-Version` e `X-Swagger-UI-Version`.
 
 Validacao da politica de cache via Nginx:
 
@@ -200,7 +200,7 @@ curl -k -I https://auth.localhost:7443/swagger
 curl -k -I https://ledger.localhost:7443/health
 ```
 
-As respostas dos hosts de API devem conter `Cache-Control: no-store`, `Pragma: no-cache` e `Expires: 0`. As respostas via Nginx nao devem conter `X-Powered-By`, `X-Swagger-UI-Version` nem `Server` com versao detalhada, como `nginx/1.x`.
+As respostas dos hosts de API devem conter `Cache-Control: no-store`, `Pragma: no-cache` e `Expires: 0`. As respostas via Nginx nao devem conter `Server`, `X-Powered-By` nem `X-Swagger-UI-Version`.
 
 O Nginx tambem atua como ponto de entrada de correlacao local:
 

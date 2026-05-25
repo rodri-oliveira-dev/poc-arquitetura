@@ -65,7 +65,10 @@ services:
       - poc-net
 
   nginx-edge:
-    image: docker.io/nginx:1.27.5-alpine
+    image: poc-arquitetura-nginx-edge:local
+    build:
+      context: ./infra/nginx
+      dockerfile: Dockerfile
     container_name: poc-nginx-edge
     depends_on:
       auth-api:

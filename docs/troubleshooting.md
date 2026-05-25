@@ -103,9 +103,9 @@ docker compose -f compose.yaml -f compose.nginx.yaml up -d --build nginx-edge
 docker compose -f compose.yaml -f compose.nginx.yaml exec nginx-edge nginx -t
 ```
 
-## Nginx expoe versao ou headers de tecnologia
+## Nginx expoe Server ou headers de tecnologia
 
-A borda local deve reduzir fingerprinting sem alterar contratos HTTP de negocio. O Nginx deve devolver `Server: nginx` sem versao detalhada e nao deve repassar headers como `X-Powered-By`, `X-AspNet-Version`, `X-AspNetMvc-Version` e `X-Swagger-UI-Version` das APIs internas. O `Server` do upstream nao e repassado pelo proxy; no Nginx open source, remover completamente o header `Server` exigiria modulo ou imagem customizada e fica fora deste fluxo local.
+A borda local deve reduzir fingerprinting sem alterar contratos HTTP de negocio. As respostas via Nginx nao devem conter `Server` nem repassar headers como `X-Powered-By`, `X-AspNet-Version`, `X-AspNetMvc-Version` e `X-Swagger-UI-Version` das APIs internas. Para isso, o overlay usa uma imagem local com Nginx e o modulo `headers-more`.
 
 Valide:
 
@@ -116,7 +116,7 @@ curl -k -I https://balance.localhost:7443/swagger
 curl -k -I https://auth.localhost:7443/swagger
 ```
 
-Se aparecer `Server: nginx/1.x`, `X-Powered-By` ou `X-Swagger-UI-Version`, recrie o container com o overlay e valide a configuracao carregada:
+Se aparecer `Server`, `X-Powered-By` ou `X-Swagger-UI-Version`, recrie a imagem/container com o overlay e valide a configuracao carregada:
 
 ```bash
 docker compose -f compose.yaml -f compose.nginx.yaml up -d --build nginx-edge
