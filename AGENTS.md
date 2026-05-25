@@ -52,6 +52,7 @@ Componentes principais:
 - Nao altere testes apenas para faze-los passar.
 - Nao faca push.
 - Nao crie branch sem solicitacao explicita.
+- Nunca aplique alteracoes diretamente na branch `main`. Para qualquer mudanca em arquivo do repositorio, crie ou use uma branch de trabalho e deixe a `main` apenas como base de comparacao e destino posterior de PR.
 - Em refatoracoes, preserve o comportamento observavel existente, salvo quando a tarefa pedir explicitamente uma mudanca funcional.
 - Nao misture refatoracao estrutural com mudanca funcional sem explicar claramente o motivo.
 - Antes de finalizar alteracoes, verifique se a tarefa deixou arquivos vazios ou contendo apenas whitespace. Remova arquivos vazios sem funcao clara, especialmente classes, testes, documentacao ou configuracoes abandonadas por refatoracao. Preserve apenas placeholders intencionais, como `.gitkeep`, ou arquivos vazios exigidos por ferramenta e com proposito evidente. Nao crie arquivos vazios apenas para reservar estrutura.
@@ -96,6 +97,7 @@ Roteamento atual:
 - `integration-tests-dotnet`: testes de integracao .NET ou estrategia especifica de integracao.
 - `ci-release-governance`: GitHub Actions, GitVersion, releases, coverage, hooks e automacoes.
 - `repository-governance-sdd`: `AGENTS.md`, skills, ADRs, prompts, documentacao de processo e governanca.
+- `nginx-edge-local`: alteracoes, revisoes e diagnosticos da borda local Nginx em `compose.nginx.yaml` e `infra/nginx/`, incluindo HTTPS local, proxy reverso, headers, limites defensivos, logs, Swagger via subdominios `.localhost` e load balance local do `LedgerService.Api`.
 - `configuring-opentelemetry-dotnet`: instrumentacao, troubleshooting e evolucao de traces, metricas e logs OpenTelemetry.
 - `optimizing-ef-core-queries`: diagnostico e otimizacao de queries EF Core, N+1, tracking, projecoes e armadilhas de performance.
 - `coverage-analysis`: analise de cobertura, CRAP score e hotspots de risco para priorizar testes.
