@@ -32,11 +32,25 @@ Audiences atuais:
 
 Nesta POC, o `Auth.Api` pode emitir `aud` como string com audiences separadas por espaco, como `ledger-api balance-api`. As APIs tratam esse formato tokenizando por espaco.
 
+## Scopes emitidos pelo Auth.Api local
+
+O catalogo atual do `Auth.Api` aceita somente estes scopes no `POST /auth/login`:
+
+- `ledger.write`
+- `outbox.admin`
+- `balance.read`
+
+Os endpoints de consulta de status do `LedgerService.Api` exigem `ledger.read`, mas esse scope ainda nao esta no catalogo emitido pelo `Auth.Api` local. Os testes de integracao cobrem esses endpoints com tokens gerados pelas factories de teste; os scripts operacionais locais validam os estados de estorno/reprocessamento pelo banco enquanto usam o token padrao `ledger.write balance.read`.
+
 ## Scopes por endpoint
 
 | Endpoint | Scope |
 | --- | --- |
 | `POST /api/v1/lancamentos` | `ledger.write` |
+| `POST /api/v1/lancamentos/{lancamentoId}/estornos` | `ledger.write` |
+| `POST /api/v1/lancamentos/reprocessar` | `ledger.write` |
+| `GET /api/v1/lancamentos/estornos/{estornoId}` | `ledger.read` |
+| `GET /api/v1/lancamentos/reprocessamentos/{reprocessamentoId}` | `ledger.read` |
 | `GET /api/v1/outbox/dead-letters` | `outbox.admin` |
 | `POST /api/v1/outbox/dead-letters/{id}/requeue` | `outbox.admin` |
 | `GET /v1/consolidados/diario/{date}` | `balance.read` |

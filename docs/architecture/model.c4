@@ -140,7 +140,7 @@ model {
       }
 
       ledgerOutbox = component "Outbox publisher" {
-        description "BackgroundService que faz claim de mensagens, publica no Kafka e marca SENT/FAILED com retry/backoff."
+        description "BackgroundService que faz claim de mensagens, publica no Kafka e marca Processed/DeadLetter com retry/backoff."
       }
 
       ledgerEstornoProcessor = component "Estorno processor" {

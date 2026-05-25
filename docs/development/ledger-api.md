@@ -14,6 +14,62 @@ Headers relevantes:
 - `Idempotency-Key`: obrigatorio, em formato UUID;
 - `X-Correlation-Id`: opcional, em formato UUID. Se ausente, a API gera e devolve no response.
 
+Request body:
+
+```json
+{
+  "merchantId": "m1",
+  "type": "CREDIT",
+  "amount": 10.00,
+  "description": "Venda aprovada",
+  "externalReference": "pedido-123"
+}
+```
+
+Regras de validacao:
+
+| Campo | Regra |
+| --- | --- |
+| `merchantId` | Obrigatorio, ate 100 caracteres e autorizado na claim `merchant_id`. |
+| `type` | Obrigatorio. Valores aceitos: `CREDIT` ou `DEBIT`. |
+| `amount` | Obrigatorio, ate 18 digitos e 2 casas decimais; `CREDIT` deve ser maior que zero, `DEBIT` menor que zero e zero nunca e aceito. |
+| `description` | Opcional, ate 500 caracteres. |
+| `externalReference` | Opcional, ate 150 caracteres. |
+| `Idempotency-Key` | Obrigatorio e UUID valido. |
+
+Resposta de sucesso:
+
+```http
+HTTP/1.1 201 Created
+Location: /api/v1/lancamentos/lan_12345678
+```
+
+```json
+{
+  "id": "lan_12345678",
+  "merchantId": "m1",
+  "type": "CREDIT",
+  "amount": "10.00",
+  "occurredAt": "2026-05-25T10:30:00.0000000Z",
+  "description": "Venda aprovada",
+  "externalReference": "pedido-123",
+  "createdAt": "2026-05-25T10:30:00.0000000Z"
+}
+```
+
+Respostas esperadas:
+
+| Status | Quando ocorre |
+| --- | --- |
+| `201 Created` | Lancamento criado ou replay idempotente com a mesma chave e mesmo payload. |
+| `400 Bad Request` | Payload, JSON ou headers invalidos. |
+| `401 Unauthorized` | Token ausente ou invalido. |
+| `403 Forbidden` | Scope insuficiente ou token sem autorizacao para o merchant informado. |
+| `409 Conflict` | Chave de idempotencia reutilizada com payload diferente. |
+| `413 Payload Too Large` | Body acima de `ApiLimits:MaxRequestBodySizeBytes`. |
+| `422 Unprocessable Entity` | Violacao de regra de dominio. |
+| `429 Too Many Requests` | Rate limit excedido. |
+
 ## Solicitar estorno de lancamento
 
 `POST /api/v1/lancamentos/{lancamentoId}/estornos`
@@ -291,6 +347,88 @@ Resposta `Pending`:
   "solicitadoEm": "2026-05-07T08:30:00"
 }
 ```
+
+Respostas esperadas:
+
+| Status | Quando ocorre |
+| --- | --- |
+| `200 OK` | Solicitacao encontrada e autorizada para o merchant do token. |
+| `401 Unauthorized` | Token ausente ou invalido. |
+| `403 Forbidden` | Scope insuficiente ou token sem autorizacao para o merchant do reprocessamento. |
+| `404 Not Found` | Solicitacao inexistente ou rota com `reprocessamentoId` fora do formato UUID. |
+| `429 Too Many Requests` | Rate limit excedido. |
+
+## Administracao de Outbox DeadLetter
+
+Os endpoints administrativos de Outbox ficam no `LedgerService.Api`, exigem token com scope `outbox.admin` e tambem passam pelo rate limit das rotas de controller.
+
+### Listar DeadLetters
+
+`GET /api/v1/outbox/dead-letters?page=1&pageSize=50`
+
+Parametros de query:
+
+| Parametro | Regra |
+| --- | --- |
+| `page` | Opcional. Padrao `1`; deve ser maior ou igual a 1. |
+| `pageSize` | Opcional. Padrao `50`; deve ficar entre 1 e 100. |
+
+Resposta de sucesso:
+
+```json
+{
+  "items": [
+    {
+      "id": "00000000-0000-0000-0000-000000000001",
+      "aggregateType": "LedgerEntry",
+      "aggregateId": "11111111-1111-1111-1111-111111111111",
+      "eventType": "LedgerEntryCreated.v1",
+      "occurredAt": "2026-05-25T10:30:00",
+      "retryCount": 5,
+      "lastError": "kafka down",
+      "correlationId": "22222222-2222-2222-2222-222222222222",
+      "traceParent": null
+    }
+  ],
+  "page": 1,
+  "pageSize": 50,
+  "totalCount": 1
+}
+```
+
+### Requeue de DeadLetter
+
+`POST /api/v1/outbox/dead-letters/{id}/requeue`
+
+Request body:
+
+```json
+{
+  "reason": "Kafka recuperado apos indisponibilidade temporaria"
+}
+```
+
+O campo `reason` e obrigatorio pelo validator da camada Application e deve ter ate 500 caracteres. A operacao altera somente mensagens em `DeadLetter`; se a mensagem nao estiver nesse estado, a resposta continua `200 OK` com `requeued=false`.
+
+Resposta:
+
+```json
+{
+  "requeued": true,
+  "outboxMessageId": "00000000-0000-0000-0000-000000000001"
+}
+```
+
+Respostas esperadas dos endpoints administrativos:
+
+| Status | Quando ocorre |
+| --- | --- |
+| `200 OK` | Consulta retornada ou requeue processado. |
+| `400 Bad Request` | Query string ou payload invalido. |
+| `401 Unauthorized` | Token ausente ou invalido. |
+| `403 Forbidden` | Scope insuficiente para administrar Outbox. |
+| `429 Too Many Requests` | Rate limit excedido. |
+| `500 Internal Server Error` | Erro inesperado. |
 
 ## Outbox e processamento de reprocessamento
 

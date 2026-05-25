@@ -24,6 +24,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 ## Referencia
 
 - [LedgerService API](development/ledger-api.md): contratos HTTP de escrita, headers, idempotencia, estornos e reprocessamentos.
+- [BalanceService API](development/balance-api.md): contratos HTTP de leitura de consolidados diarios e por periodo.
 - [Observabilidade e operacao minima](observability.md): health, readiness, logs, traces, metricas, dashboards, alertas e validacoes operacionais.
 - [Padroes do repositorio](development/repository-standards.md): arquivos de padronizacao, tools, estilo, hooks e manutencao.
 - [Artifacts dos workflows](development/workflow-artifacts.md): politica de publicacao, conteudo e retencao.

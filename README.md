@@ -124,6 +124,7 @@ Os scripts executam testes com cobertura e aplicam gate minimo de 85% de cobertu
 - [Desenvolvimento local](docs/development/local-development.md)
 - [Dev Container opcional](docs/development/devcontainer.md)
 - [LedgerService API](docs/development/ledger-api.md)
+- [BalanceService API](docs/development/balance-api.md)
 - [Arquitetura](docs/architecture/README.md)
 - [Boundaries arquiteturais](docs/architecture/boundaries.md)
 - [ADRs](docs/adrs/README.md)
