@@ -2,7 +2,7 @@
 
 Este guia documenta a execucao local versionada do OWASP ZAP contra as APIs HTTP da POC. O fluxo usa container Docker, assume que a stack ja esta no ar e salva relatorios em `zap-reports/<timestamp>/`.
 
-Os scripts usam por padrao a imagem oficial `ghcr.io/zaproxy/zaproxy:stable`, conforme a documentacao Docker do ZAP: <https://www.zaproxy.org/docs/docker/>.
+Os scripts usam por padrao a imagem oficial `ghcr.io/zaproxy/zaproxy:stable`, conforme a documentacao Docker do ZAP: <https://www.zaproxy.org/docs/docker/>. O scan usa `zap-api-scan.py` importando OpenAPI/Swagger em `/swagger/v1/swagger.json`, conforme a documentacao de API Scan do ZAP: <https://www.zaproxy.org/docs/docker/api-scan/>.
 
 ## Pre-requisitos
 
@@ -30,6 +30,12 @@ Com Nginx local, use as URLs HTTPS:
 - BalanceService.Api: `https://balance.localhost:7443`
 
 Antes do scan, cada script chama `GET /health` em todas as APIs. Se alguma API estiver indisponivel, a execucao falha com a URL usada e uma sugestao para subir a stack local ou a stack completa.
+
+Depois do health check, o alvo analisado pelo ZAP e o documento OpenAPI de cada API:
+
+- Auth.Api: `/swagger/v1/swagger.json`
+- LedgerService.Api: `/swagger/v1/swagger.json`
+- BalanceService.Api: `/swagger/v1/swagger.json`
 
 Por padrao, o runner aguarda ate 90 segundos por API, com tentativas a cada 3 segundos. Ajuste esse comportamento quando a maquina local estiver mais lenta:
 
@@ -77,6 +83,12 @@ Sobrescrevendo URLs ou imagem:
   -ZapImage ghcr.io/zaproxy/zaproxy:stable
 ```
 
+Sobrescrevendo o caminho do documento OpenAPI:
+
+```powershell
+./scripts/run-owasp-zap.ps1 -SwaggerPath /swagger/v1/swagger.json
+```
+
 ## Bash
 
 URLs diretas:
@@ -113,6 +125,12 @@ Sobrescrevendo URLs ou imagem:
   --zap-image ghcr.io/zaproxy/zaproxy:stable
 ```
 
+Sobrescrevendo o caminho do documento OpenAPI:
+
+```bash
+./scripts/run-owasp-zap.sh --swagger-path /swagger/v1/swagger.json
+```
+
 ## Relatorios
 
 Cada execucao cria uma subpasta com timestamp no formato `yyyyMMdd-HHmmss`, por exemplo:
@@ -132,7 +150,7 @@ O `summary.md` registra data/hora, imagem ZAP, URLs analisadas, alvo visto pelo 
 
 ## Tipo de scan
 
-O padrao e `zap-baseline.py`, que executa spider limitado e analise passiva. Esse modo e o recomendado para desenvolvimento local porque evita active scan agressivo por padrao.
+O padrao e `zap-api-scan.py -f openapi -S`, que importa o contrato Swagger/OpenAPI e executa o API scan em modo seguro. Esse modo e o recomendado para desenvolvimento local porque melhora a descoberta dos endpoints sem executar active scan por padrao.
 
 Active scan fica disponivel apenas por parametro explicito:
 

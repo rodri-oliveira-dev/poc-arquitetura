@@ -13,6 +13,7 @@ START_STACK=false
 NO_BUILD=false
 HEALTH_TIMEOUT_SECONDS=90
 HEALTH_INTERVAL_SECONDS=3
+SWAGGER_PATH="/swagger/v1/swagger.json"
 ACTIVE_SCAN=false
 FAIL_ON_ALERTS=false
 CONTAINER_NAME="poc-arquitetura-zap"
@@ -32,7 +33,8 @@ Opcoes:
   --no-build           Ao usar --start-stack, nao rebuilda imagens.
   --health-timeout N   Tempo maximo para aguardar /health em segundos.
   --health-interval N  Intervalo entre tentativas de /health em segundos.
-  --active-scan        Executa zap-full-scan.py. Pode gerar trafego mais invasivo.
+  --swagger-path PATH  Caminho do documento OpenAPI/Swagger em cada API.
+  --active-scan        Executa zap-api-scan.py sem modo seguro. Pode gerar trafego mais invasivo.
   --fail-on-alerts     Propaga alertas do ZAP como falha do script.
   -h, --help           Mostra esta ajuda.
 EOF
@@ -80,6 +82,10 @@ while [[ $# -gt 0 ]]; do
       HEALTH_INTERVAL_SECONDS="${2:-}"
       shift 2
       ;;
+    --swagger-path)
+      SWAGGER_PATH="${2:-}"
+      shift 2
+      ;;
     --active-scan)
       ACTIVE_SCAN=true
       shift
@@ -112,11 +118,10 @@ fi
 
 TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 OUTPUT_DIR="$OUTPUT_ROOT/$TIMESTAMP"
-SCAN_COMMAND="zap-baseline.py"
-SCAN_TYPE="baseline"
+SCAN_COMMAND="zap-api-scan.py"
+SCAN_TYPE="api-baseline"
 if [[ "$ACTIVE_SCAN" == true ]]; then
-  SCAN_COMMAND="zap-full-scan.py"
-  SCAN_TYPE="active"
+  SCAN_TYPE="api-active"
 fi
 
 SCAN_RESULTS=()
@@ -176,6 +181,20 @@ start_local_stack_for_zap() {
 health_url() {
   local base_url="$1"
   printf '%s/health' "${base_url%/}"
+}
+
+swagger_url() {
+  local base_url="$1"
+  local path="$SWAGGER_PATH"
+
+  if [[ -z "$path" ]]; then
+    path="/swagger/v1/swagger.json"
+  fi
+  if [[ "$path" != /* ]]; then
+    path="/$path"
+  fi
+
+  printf '%s%s' "${base_url%/}" "$path"
 }
 
 assert_health() {
@@ -261,6 +280,7 @@ run_zap_scan() {
   local slug="$2"
   local url="$3"
   local target_url
+  local openapi_url
   local html="$slug.html"
   local json="$slug.json"
   local markdown="$slug.md"
@@ -270,7 +290,8 @@ run_zap_scan() {
   local host_arg
 
   docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
-  target_url="$(zap_target_url "$url")"
+  openapi_url="$(swagger_url "$url")"
+  target_url="$(zap_target_url "$openapi_url")"
 
   docker_args=(run --name "$CONTAINER_NAME" -v "$OUTPUT_DIR:/zap/wrk:rw")
   while IFS= read -r host_arg; do
@@ -281,11 +302,16 @@ run_zap_scan() {
     "$ZAP_IMAGE"
     "$SCAN_COMMAND"
     -t "$target_url"
+    -f openapi
     -r "$html"
     -J "$json"
     -w "$markdown"
     -z "-config connection.sslAcceptAll=true"
   )
+
+  if [[ "$ACTIVE_SCAN" != true ]]; then
+    docker_args+=(-S)
+  fi
 
   if [[ "$FAIL_ON_ALERTS" != true ]]; then
     docker_args+=(-I)
@@ -309,7 +335,7 @@ run_zap_scan() {
     status="completed-with-alerts"
   fi
 
-  SCAN_RESULTS+=("$api_name|$url|$target_url|$status|$exit_code|$html,$json,$markdown")
+  SCAN_RESULTS+=("$api_name|$url|$openapi_url|$target_url|$status|$exit_code|$html,$json,$markdown")
 
   if [[ "$exit_code" -ge 3 ]]; then
     echo "Falha operacional no ZAP para $api_name. Exit code: $exit_code" >&2
@@ -330,17 +356,19 @@ write_summary() {
     echo "- Data/hora: $(date '+%Y-%m-%d %H:%M:%S %z')"
     echo "- Imagem ZAP: \`$ZAP_IMAGE\`"
     echo "- Tipo de scan: \`$SCAN_TYPE\`"
+    echo "- Definicao OpenAPI: \`$SWAGGER_PATH\`"
     echo "- Container temporario: \`$CONTAINER_NAME\`"
     echo "- Diretorio de saida: \`$OUTPUT_DIR\`"
     echo
     echo "## APIs analisadas"
     echo
 
-    local result api_name url target_url status exit_code files
+    local result api_name url openapi_url target_url status exit_code files
     for result in "${SCAN_RESULTS[@]}"; do
-      IFS='|' read -r api_name url target_url status exit_code files <<<"$result"
+      IFS='|' read -r api_name url openapi_url target_url status exit_code files <<<"$result"
       echo "- $api_name: \`$url\`"
-      echo "  - Alvo visto pelo container: \`$target_url\`"
+      echo "  - Swagger/OpenAPI: \`$openapi_url\`"
+      echo "  - OpenAPI visto pelo container: \`$target_url\`"
       echo "  - Status: \`$status\`"
       echo "  - Exit code ZAP: \`$exit_code\`"
       echo "  - Arquivos: $files"
@@ -353,7 +381,9 @@ write_summary() {
     echo "- Relatorios gerados em \`zap-reports/<timestamp>/\` nao devem ser versionados."
     echo "- Por padrao, alertas do ZAP nao tornam o script falho; use \`--fail-on-alerts\` quando quiser propagar alertas como falha."
     if [[ "$ACTIVE_SCAN" == true ]]; then
-      echo "- Active scan foi executado por parametro explicito e pode gerar trafego mais invasivo que o baseline scan."
+      echo "- API active scan foi executado por parametro explicito e pode gerar trafego mais invasivo que o baseline seguro."
+    else
+      echo "- API scan foi executado em modo seguro (\`-S\`), importando OpenAPI sem active scan por padrao."
     fi
   } >"$summary_path"
 }

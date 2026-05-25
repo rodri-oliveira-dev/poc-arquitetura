@@ -10,6 +10,7 @@ param(
   [switch]$NoBuild,
   [int]$HealthTimeoutSeconds = 90,
   [int]$HealthIntervalSeconds = 3,
+  [string]$SwaggerPath = "/swagger/v1/swagger.json",
   [switch]$ActiveScan,
   [switch]$FailOnAlerts
 )
@@ -25,8 +26,8 @@ if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
 $containerName = "poc-arquitetura-zap"
 $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $outputDir = Join-Path $OutputRoot $timestamp
-$scanCommand = if ($ActiveScan) { "zap-full-scan.py" } else { "zap-baseline.py" }
-$scanType = if ($ActiveScan) { "active" } else { "baseline" }
+$scanCommand = "zap-api-scan.py"
+$scanType = if ($ActiveScan) { "api-active" } else { "api-baseline" }
 
 if ([string]::IsNullOrWhiteSpace($AuthUrl)) {
   $AuthUrl = if ($UseNginx) { "https://auth.localhost:7443" } else { "http://localhost:5030" }
@@ -107,6 +108,18 @@ function Get-HealthUri([string]$BaseUrl) {
   return $BaseUrl.TrimEnd("/") + "/health"
 }
 
+function Get-SwaggerUri([string]$BaseUrl) {
+  $path = $SwaggerPath
+  if ([string]::IsNullOrWhiteSpace($path)) {
+    $path = "/swagger/v1/swagger.json"
+  }
+  if (-not $path.StartsWith("/")) {
+    $path = "/" + $path
+  }
+
+  return $BaseUrl.TrimEnd("/") + $path
+}
+
 function Invoke-HealthCheck([string]$ApiName, [string]$BaseUrl) {
   $uri = Get-HealthUri $BaseUrl
   $deadline = [DateTimeOffset]::UtcNow.AddSeconds($HealthTimeoutSeconds)
@@ -185,7 +198,8 @@ function Invoke-ZapScan([object]$Api) {
   Remove-ZapContainer
 
   $slug = [string]$Api.Slug
-  $targetUrl = ConvertTo-ZapTargetUrl ([string]$Api.Url)
+  $swaggerUrl = Get-SwaggerUri ([string]$Api.Url)
+  $targetUrl = ConvertTo-ZapTargetUrl $swaggerUrl
   $html = "$slug.html"
   $json = "$slug.json"
   $markdown = "$slug.md"
@@ -200,11 +214,16 @@ function Invoke-ZapScan([object]$Api) {
     $ZapImage,
     $scanCommand,
     "-t", $targetUrl,
+    "-f", "openapi",
     "-r", $html,
     "-J", $json,
     "-w", $markdown,
     "-z", "-config connection.sslAcceptAll=true"
   )
+
+  if (-not $ActiveScan) {
+    $dockerArgs += "-S"
+  }
 
   if (-not $FailOnAlerts) {
     $dockerArgs += "-I"
@@ -230,6 +249,7 @@ function Invoke-ZapScan([object]$Api) {
   $scanResults.Add([pscustomobject]@{
     Name = $Api.Name
     Url = $Api.Url
+    SwaggerUrl = $swaggerUrl
     TargetUrlFromContainer = $targetUrl
     Status = $status
     ExitCode = $exitCode
@@ -253,6 +273,7 @@ function Write-Summary {
   $lines.Add(("- Data/hora: {0}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss zzz")))
   $lines.Add(("- Imagem ZAP: ``{0}``" -f $ZapImage))
   $lines.Add(("- Tipo de scan: ``{0}``" -f $scanType))
+  $lines.Add(("- Definicao OpenAPI: ``{0}``" -f $SwaggerPath))
   $lines.Add(("- Container temporario: ``{0}``" -f $containerName))
   $lines.Add(("- Diretorio de saida: ``{0}``" -f $outputDir))
   $lines.Add("")
@@ -261,7 +282,8 @@ function Write-Summary {
 
   foreach ($result in $scanResults) {
     $lines.Add(("- {0}: ``{1}``" -f $result.Name, $result.Url))
-    $lines.Add(("  - Alvo visto pelo container: ``{0}``" -f $result.TargetUrlFromContainer))
+    $lines.Add(("  - Swagger/OpenAPI: ``{0}``" -f $result.SwaggerUrl))
+    $lines.Add(("  - OpenAPI visto pelo container: ``{0}``" -f $result.TargetUrlFromContainer))
     $lines.Add(("  - Status: ``{0}``" -f $result.Status))
     $lines.Add(("  - Exit code ZAP: ``{0}``" -f $result.ExitCode))
     $lines.Add("  - Arquivos: $($result.Files -join ", ")")
@@ -274,7 +296,9 @@ function Write-Summary {
   $lines.Add("- Relatorios gerados em ``zap-reports/<timestamp>/`` nao devem ser versionados.")
   $lines.Add("- Por padrao, alertas do ZAP nao tornam o script falho; use ``-FailOnAlerts`` quando quiser propagar alertas como falha.")
   if ($ActiveScan) {
-    $lines.Add("- Active scan foi executado por parametro explicito e pode gerar trafego mais invasivo que o baseline scan.")
+    $lines.Add("- API active scan foi executado por parametro explicito e pode gerar trafego mais invasivo que o baseline seguro.")
+  } else {
+    $lines.Add("- API scan foi executado em modo seguro (`-S`), importando OpenAPI sem active scan por padrao.")
   }
 
   Set-Content -Path $summaryPath -Value $lines -Encoding UTF8

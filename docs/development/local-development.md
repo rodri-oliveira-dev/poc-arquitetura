@@ -681,7 +681,7 @@ docker compose -f compose.yaml -f compose.k6.yaml --profile k6 config --services
 
 ## OWASP ZAP local
 
-Os scripts versionados de ZAP executam DAST local em container contra `Auth.Api`, `LedgerService.Api` e `BalanceService.Api`. Eles assumem que a stack ja esta rodando, validam `GET /health` antes do scan, salvam relatorios em `zap-reports/<timestamp>/` e removem apenas o container temporario `poc-arquitetura-zap` ao final.
+Os scripts versionados de ZAP executam DAST local em container contra `Auth.Api`, `LedgerService.Api` e `BalanceService.Api`. Eles assumem que a stack ja esta rodando, validam `GET /health` antes do scan, importam `/swagger/v1/swagger.json` de cada API, salvam relatorios em `zap-reports/<timestamp>/` e removem apenas o container temporario `poc-arquitetura-zap` ao final.
 
 URLs diretas:
 
@@ -713,7 +713,7 @@ Via Nginx local:
 ./scripts/run-owasp-zap.sh --use-nginx
 ```
 
-O modo padrao usa `zap-baseline.py` e nao falha a execucao apenas por encontrar alertas. Active scan e falha por alertas exigem parametros explicitos. Detalhes ficam em [OWASP ZAP local](owasp-zap.md).
+O modo padrao usa `zap-api-scan.py -f openapi -S` e nao falha a execucao apenas por encontrar alertas. Active scan e falha por alertas exigem parametros explicitos. Detalhes ficam em [OWASP ZAP local](owasp-zap.md).
 
 ## Migrations de referencia
 

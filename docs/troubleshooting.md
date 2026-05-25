@@ -431,6 +431,16 @@ Se a falha mencionar `https://*.localhost:7443`, suba a stack completa com Nginx
 
 O ZAP roda em container e acessa o host por `host.docker.internal` ou por hosts `.localhost` mapeados para `host-gateway`. Se o Docker local nao suportar `host-gateway`, use URLs acessiveis a partir de containers e sobrescreva os alvos com `-AuthUrl`, `-LedgerUrl`, `-BalanceUrl` ou `--auth-url`, `--ledger-url`, `--balance-url`.
 
+Depois do health check, o runner importa `/swagger/v1/swagger.json` de cada API usando `zap-api-scan.py -f openapi`. Se o erro mencionar importacao OpenAPI ou documento Swagger ausente, confirme se a API esta em `Development` ou com Swagger habilitado e valide manualmente:
+
+```powershell
+Invoke-WebRequest -UseBasicParsing http://localhost:5226/swagger/v1/swagger.json
+```
+
+```bash
+curl -fsS http://localhost:5226/swagger/v1/swagger.json
+```
+
 Os scripts removem apenas o container temporario `poc-arquitetura-zap`. Se uma execucao for interrompida, remova manualmente esse container sem derrubar a stack principal:
 
 ```bash
