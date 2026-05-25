@@ -6,6 +6,10 @@ param(
   [switch]$UseNginx,
   [string]$ZapImage = "ghcr.io/zaproxy/zaproxy:stable",
   [string]$OutputRoot = "",
+  [switch]$StartStack,
+  [switch]$NoBuild,
+  [int]$HealthTimeoutSeconds = 90,
+  [int]$HealthIntervalSeconds = 3,
   [switch]$ActiveScan,
   [switch]$FailOnAlerts
 )
@@ -81,40 +85,71 @@ function Test-DockerImageExists([string]$Image) {
   }
 }
 
+function Start-LocalStackForZap {
+  if ($UseNginx) {
+    throw "-StartStack sobe apenas a stack local direta. Para Nginx, execute ./scripts/start-full-stack.ps1 antes e rode este script com -UseNginx."
+  }
+
+  $startScript = Join-Path $scriptDir "start-local-stack.ps1"
+  $args = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $startScript)
+  if ($NoBuild) {
+    $args += "-NoBuild"
+  }
+
+  Write-Host "Iniciando stack local antes do scan ZAP..."
+  & powershell @args
+  if ($LASTEXITCODE -ne 0) {
+    throw "Falha ao iniciar a stack local para o ZAP. Exit code: $LASTEXITCODE"
+  }
+}
+
 function Get-HealthUri([string]$BaseUrl) {
   return $BaseUrl.TrimEnd("/") + "/health"
 }
 
 function Invoke-HealthCheck([string]$ApiName, [string]$BaseUrl) {
   $uri = Get-HealthUri $BaseUrl
-  try {
-    if ($BaseUrl.StartsWith("https://")) {
-      $previousCallback = [System.Net.ServicePointManager]::ServerCertificateValidationCallback
-      [System.Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
-      try {
+  $deadline = [DateTimeOffset]::UtcNow.AddSeconds($HealthTimeoutSeconds)
+  $lastError = ""
+
+  while ([DateTimeOffset]::UtcNow -lt $deadline) {
+    try {
+      if ($BaseUrl.StartsWith("https://")) {
+        $previousCallback = [System.Net.ServicePointManager]::ServerCertificateValidationCallback
+        [System.Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
+        try {
+          $response = Invoke-WebRequest -UseBasicParsing -Method Get -Uri $uri -TimeoutSec 15
+        }
+        finally {
+          [System.Net.ServicePointManager]::ServerCertificateValidationCallback = $previousCallback
+        }
+      } else {
         $response = Invoke-WebRequest -UseBasicParsing -Method Get -Uri $uri -TimeoutSec 15
       }
-      finally {
-        [System.Net.ServicePointManager]::ServerCertificateValidationCallback = $previousCallback
+
+      $statusCode = [int]$response.StatusCode
+      if ($statusCode -ge 200 -and $statusCode -lt 400) {
+        return
       }
-    } else {
-      $response = Invoke-WebRequest -UseBasicParsing -Method Get -Uri $uri -TimeoutSec 15
+
+      $lastError = "HTTP $statusCode"
     }
-  }
-  catch {
-    $suggestion = if ($UseNginx) {
-      "Suba a stack completa com Nginx, por exemplo ./scripts/start-full-stack.ps1, e confirme os certificados locais."
-    } else {
-      "Suba a stack local, por exemplo ./scripts/start-local-stack.ps1, ou informe -UseNginx para validar via borda local."
+    catch {
+      $lastError = $_.Exception.Message
     }
 
-    throw "$ApiName indisponivel em $uri. $suggestion Erro: $($_.Exception.Message)"
+    if ($HealthIntervalSeconds -gt 0) {
+      Start-Sleep -Seconds $HealthIntervalSeconds
+    }
   }
 
-  $statusCode = [int]$response.StatusCode
-  if ($statusCode -lt 200 -or $statusCode -ge 400) {
-    throw "$ApiName retornou HTTP $statusCode em $uri. Confirme que a stack local esta pronta antes de executar o ZAP."
+  $suggestion = if ($UseNginx) {
+    "Suba a stack completa com Nginx, por exemplo ./scripts/start-full-stack.ps1, e confirme os certificados locais."
+  } else {
+    "Suba a stack local, por exemplo ./scripts/start-local-stack.ps1, ou execute este script com -StartStack."
   }
+
+  throw "$ApiName indisponivel em $uri apos ${HealthTimeoutSeconds}s. $suggestion Ultimo erro: $lastError"
 }
 
 function ConvertTo-ZapTargetUrl([string]$BaseUrl) {
@@ -248,6 +283,10 @@ function Write-Summary {
 try {
   Assert-CommandAvailable "docker" @("version") "Docker nao esta disponivel. Instale/inicie um runtime com Docker-compatible API."
   Assert-CommandAvailable "docker" @("compose", "version") "docker compose nao esta disponivel. Atualize a CLI Docker ou habilite o plugin compose."
+
+  if ($StartStack) {
+    Start-LocalStackForZap
+  }
 
   foreach ($api in $apis) {
     Invoke-HealthCheck $api.Name $api.Url

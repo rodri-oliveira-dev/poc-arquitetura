@@ -693,6 +693,16 @@ URLs diretas:
 ./scripts/run-owasp-zap.sh
 ```
 
+Para subir a stack local direta antes do scan, use:
+
+```powershell
+./scripts/run-owasp-zap.ps1 -StartStack
+```
+
+```bash
+./scripts/run-owasp-zap.sh --start-stack
+```
+
 Via Nginx local:
 
 ```powershell

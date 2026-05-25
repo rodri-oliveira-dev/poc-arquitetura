@@ -13,6 +13,8 @@ Os scripts usam por padrao a imagem oficial `ghcr.io/zaproxy/zaproxy:stable`, co
 
 Os scripts nao sobem a stack principal automaticamente, nao executam build, testes .NET nem k6, e nao removem containers da aplicacao. Eles criam/removem apenas o container temporario `poc-arquitetura-zap`.
 
+Quando quiser um comando unico para ambiente local ainda parado, use `-StartStack` ou `--start-stack`. Esse modo chama os scripts oficiais `start-local-stack.*` antes dos health checks. Ele e explicito porque pode restaurar ferramentas, aplicar migrations e subir containers da POC.
+
 ## Alvos
 
 Por padrao, os scripts validam as URLs HTTP diretas:
@@ -29,12 +31,34 @@ Com Nginx local, use as URLs HTTPS:
 
 Antes do scan, cada script chama `GET /health` em todas as APIs. Se alguma API estiver indisponivel, a execucao falha com a URL usada e uma sugestao para subir a stack local ou a stack completa.
 
+Por padrao, o runner aguarda ate 90 segundos por API, com tentativas a cada 3 segundos. Ajuste esse comportamento quando a maquina local estiver mais lenta:
+
+```powershell
+./scripts/run-owasp-zap.ps1 -StartStack -HealthTimeoutSeconds 180
+```
+
+```bash
+./scripts/run-owasp-zap.sh --start-stack --health-timeout 180
+```
+
 ## PowerShell
 
 URLs diretas:
 
 ```powershell
 ./scripts/run-owasp-zap.ps1
+```
+
+Subindo a stack local antes do scan:
+
+```powershell
+./scripts/run-owasp-zap.ps1 -StartStack
+```
+
+Sem rebuild de imagens ao subir a stack:
+
+```powershell
+./scripts/run-owasp-zap.ps1 -StartStack -NoBuild
 ```
 
 Via Nginx local:
@@ -59,6 +83,18 @@ URLs diretas:
 
 ```bash
 ./scripts/run-owasp-zap.sh
+```
+
+Subindo a stack local antes do scan:
+
+```bash
+./scripts/run-owasp-zap.sh --start-stack
+```
+
+Sem rebuild de imagens ao subir a stack:
+
+```bash
+./scripts/run-owasp-zap.sh --start-stack --no-build
 ```
 
 Via Nginx local:

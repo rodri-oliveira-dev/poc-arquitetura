@@ -9,6 +9,10 @@ LEDGER_URL=""
 BALANCE_URL=""
 ZAP_IMAGE="ghcr.io/zaproxy/zaproxy:stable"
 OUTPUT_ROOT="$ROOT_DIR/zap-reports"
+START_STACK=false
+NO_BUILD=false
+HEALTH_TIMEOUT_SECONDS=90
+HEALTH_INTERVAL_SECONDS=3
 ACTIVE_SCAN=false
 FAIL_ON_ALERTS=false
 CONTAINER_NAME="poc-arquitetura-zap"
@@ -24,6 +28,10 @@ Opcoes:
   --use-nginx          Usa URLs HTTPS via Nginx local.
   --zap-image IMAGE    Imagem oficial do OWASP ZAP.
   --output-root DIR    Diretorio raiz dos relatorios.
+  --start-stack        Sobe a stack local direta antes do scan.
+  --no-build           Ao usar --start-stack, nao rebuilda imagens.
+  --health-timeout N   Tempo maximo para aguardar /health em segundos.
+  --health-interval N  Intervalo entre tentativas de /health em segundos.
   --active-scan        Executa zap-full-scan.py. Pode gerar trafego mais invasivo.
   --fail-on-alerts     Propaga alertas do ZAP como falha do script.
   -h, --help           Mostra esta ajuda.
@@ -54,6 +62,22 @@ while [[ $# -gt 0 ]]; do
       ;;
     --output-root)
       OUTPUT_ROOT="${2:-}"
+      shift 2
+      ;;
+    --start-stack)
+      START_STACK=true
+      shift
+      ;;
+    --no-build)
+      NO_BUILD=true
+      shift
+      ;;
+    --health-timeout)
+      HEALTH_TIMEOUT_SECONDS="${2:-}"
+      shift 2
+      ;;
+    --health-interval)
+      HEALTH_INTERVAL_SECONDS="${2:-}"
       shift 2
       ;;
     --active-scan)
@@ -135,6 +159,20 @@ ensure_zap_image() {
   docker pull "$ZAP_IMAGE"
 }
 
+start_local_stack_for_zap() {
+  if [[ "$USE_NGINX" == true ]]; then
+    echo "--start-stack sobe apenas a stack local direta. Para Nginx, execute ./scripts/start-full-stack.sh antes e rode este script com --use-nginx." >&2
+    exit 1
+  fi
+
+  echo "Iniciando stack local antes do scan ZAP..." >&2
+  if [[ "$NO_BUILD" == true ]]; then
+    NO_BUILD=true "$ROOT_DIR/scripts/start-local-stack.sh"
+  else
+    "$ROOT_DIR/scripts/start-local-stack.sh"
+  fi
+}
+
 health_url() {
   local base_url="$1"
   printf '%s/health' "${base_url%/}"
@@ -145,18 +183,30 @@ assert_health() {
   local base_url="$2"
   local url
   local suggestion
+  local deadline
+  local last_error=""
 
   url="$(health_url "$base_url")"
-  if ! curl -kfsS --max-time 15 "$url" >/dev/null; then
-    if [[ "$USE_NGINX" == true ]]; then
-      suggestion="Suba a stack completa com Nginx, por exemplo ./scripts/start-full-stack.sh, e confirme os certificados locais."
-    else
-      suggestion="Suba a stack local, por exemplo ./scripts/start-local-stack.sh, ou informe --use-nginx para validar via borda local."
+  deadline=$((SECONDS + HEALTH_TIMEOUT_SECONDS))
+
+  while (( SECONDS < deadline )); do
+    if last_error="$(curl -kfsS --max-time 15 "$url" 2>&1 >/dev/null)"; then
+      return 0
     fi
 
-    echo "$api_name indisponivel em $url. $suggestion" >&2
-    exit 1
+    if (( HEALTH_INTERVAL_SECONDS > 0 )); then
+      sleep "$HEALTH_INTERVAL_SECONDS"
+    fi
+  done
+
+  if [[ "$USE_NGINX" == true ]]; then
+    suggestion="Suba a stack completa com Nginx, por exemplo ./scripts/start-full-stack.sh, e confirme os certificados locais."
+  else
+    suggestion="Suba a stack local, por exemplo ./scripts/start-local-stack.sh, ou execute este script com --start-stack."
   fi
+
+  echo "$api_name indisponivel em $url apos ${HEALTH_TIMEOUT_SECONDS}s. $suggestion Ultimo erro: $last_error" >&2
+  exit 1
 }
 
 url_host() {
@@ -312,6 +362,10 @@ require_command docker
 require_command curl
 require_command python3
 assert_docker
+
+if [[ "$START_STACK" == true ]]; then
+  start_local_stack_for_zap
+fi
 
 assert_health "Auth.Api" "$AUTH_URL"
 assert_health "LedgerService.Api" "$LEDGER_URL"

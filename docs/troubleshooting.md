@@ -407,6 +407,16 @@ Os scripts ZAP exigem Docker, `docker compose` e a stack da POC ja iniciada. Ant
 ./scripts/start-local-stack.sh
 ```
 
+Ou deixe o proprio runner ZAP chamar esse fluxo explicitamente:
+
+```powershell
+./scripts/run-owasp-zap.ps1 -StartStack
+```
+
+```bash
+./scripts/run-owasp-zap.sh --start-stack
+```
+
 Se a falha mencionar `https://*.localhost:7443`, suba a stack completa com Nginx e confirme os certificados locais:
 
 ```powershell
