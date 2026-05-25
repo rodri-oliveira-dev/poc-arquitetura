@@ -22,6 +22,7 @@ Validacoes esperadas:
 - `aud` deve conter a audience do servico;
 - endpoints protegidos exigem scope compativel;
 - endpoints que recebem `merchantId` no body ou query exigem que o valor exista na claim `merchant_id`.
+- endpoints que inferem o merchant a partir de um recurso persistido, como status de estorno e reprocessamento, validam o merchant do recurso contra a claim `merchant_id`.
 
 Audiences atuais:
 
@@ -40,21 +41,21 @@ O catalogo atual do `Auth.Api` aceita somente estes scopes no `POST /auth/login`
 - `outbox.admin`
 - `balance.read`
 
-Os endpoints de consulta de status do `LedgerService.Api` exigem `ledger.read`, mas esse scope ainda nao esta no catalogo emitido pelo `Auth.Api` local. Os testes de integracao cobrem esses endpoints com tokens gerados pelas factories de teste; os scripts operacionais locais validam os estados de estorno/reprocessamento pelo banco enquanto usam o token padrao `ledger.write balance.read`.
+Os endpoints de consulta de status do `LedgerService.Api` exigem `ledger.read`, mas esse scope ainda nao esta no catalogo emitido pelo `Auth.Api` local. Esse e um desalinhamento operacional conhecido da POC: os testes de integracao cobrem esses endpoints com tokens gerados pelas factories de teste; os scripts operacionais locais validam os estados de estorno/reprocessamento pelo banco enquanto usam o token padrao `ledger.write balance.read`.
 
 ## Scopes por endpoint
 
-| Endpoint | Scope |
-| --- | --- |
-| `POST /api/v1/lancamentos` | `ledger.write` |
-| `POST /api/v1/lancamentos/{lancamentoId}/estornos` | `ledger.write` |
-| `POST /api/v1/lancamentos/reprocessar` | `ledger.write` |
-| `GET /api/v1/lancamentos/estornos/{estornoId}` | `ledger.read` |
-| `GET /api/v1/lancamentos/reprocessamentos/{reprocessamentoId}` | `ledger.read` |
-| `GET /api/v1/outbox/dead-letters` | `outbox.admin` |
-| `POST /api/v1/outbox/dead-letters/{id}/requeue` | `outbox.admin` |
-| `GET /v1/consolidados/diario/{date}` | `balance.read` |
-| `GET /v1/consolidados/periodo` | `balance.read` |
+| Servico | Endpoint | Scope | Validacao de merchant |
+| --- | --- | --- | --- |
+| LedgerService.Api | `POST /api/v1/lancamentos` | `ledger.write` | Valida `merchantId` do body contra `merchant_id`. |
+| LedgerService.Api | `POST /api/v1/lancamentos/{lancamentoId}/estornos` | `ledger.write` | Valida o merchant do lancamento original contra `merchant_id`. |
+| LedgerService.Api | `POST /api/v1/lancamentos/reprocessar` | `ledger.write` | Valida `merchantId` do body contra `merchant_id`. |
+| LedgerService.Api | `GET /api/v1/lancamentos/estornos/{estornoId}` | `ledger.read` | Valida o merchant do estorno persistido contra `merchant_id`. |
+| LedgerService.Api | `GET /api/v1/lancamentos/reprocessamentos/{reprocessamentoId}` | `ledger.read` | Valida o merchant do reprocessamento persistido contra `merchant_id`. |
+| LedgerService.Api | `GET /api/v1/outbox/dead-letters` | `outbox.admin` | Nao se aplica. Endpoint administrativo da Outbox. |
+| LedgerService.Api | `POST /api/v1/outbox/dead-letters/{id}/requeue` | `outbox.admin` | Nao se aplica. Endpoint administrativo da Outbox. |
+| BalanceService.Api | `GET /v1/consolidados/diario/{date}` | `balance.read` | Valida `merchantId` da query string contra `merchant_id`. |
+| BalanceService.Api | `GET /v1/consolidados/periodo` | `balance.read` | Valida `merchantId` da query string contra `merchant_id`. |
 
 ## Transporte e JWKS
 

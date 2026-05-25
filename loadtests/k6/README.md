@@ -12,6 +12,24 @@ A configuracao e carregada na ordem:
 
 Os cenarios exigem `TOKEN` (JWT), a menos que `ALLOW_ANON=true`.
 
+## Modos e criterios de aceite
+
+Os runners `./scripts/run-loadtests.ps1` e `./scripts/run-loadtests.sh` expoem tres modos. Eles executam k6 dentro da rede Docker Compose e exportam summaries JSON em `artifacts/k6`.
+
+| Modo | Cenario k6 | Objetivo | Carga padrao | Duracao padrao | Criterios de aceite atuais |
+| --- | --- | --- | --- | --- | --- |
+| `smoke` | `ledger_resilience` e `balance_daily_50rps` | Validar que Ledger e Balance respondem no ambiente local com carga minima antes de cenarios maiores. | Ledger: 1 VU constante. Balance: 1 req/s, 5 VUs pre-alocados e maximo 10 VUs. | 10s por cenario. | Sem checks falhos, `http_req_failed <= 0.05` e `dropped_iterations == 0` no summary validado pelo runner. |
+| `balance50` | `balance_daily_50rps` | Exercitar consulta de consolidado diario no BalanceService.Api com taxa constante controlada. | 50 req/s, 50 VUs pre-alocados e maximo 200 VUs. | 1m. | Sem checks falhos, `http_req_failed <= 0.05` e `dropped_iterations == 0`. O script tambem declara thresholds k6 para `http_req_failed` e `dropped_iterations`. |
+| `resilience` | `ledger_resilience` | Exercitar criacao de lancamentos no LedgerService.Api com idempotency key e correlation id por iteracao. | 5 VUs constantes. | 1m. | Sem checks falhos, `http_req_failed <= 0.05` e `dropped_iterations == 0` no summary validado pelo runner. O script declara threshold k6 para `http_req_failed`. |
+
+`smoke` e uma validacao curta de sanidade local. `balance50` e um cenario de throughput de leitura controlado para o Balance. `resilience` e um cenario de escrita concorrente no Ledger, com foco em aceitar chamadas validas sob carga moderada local.
+
+Os runners falham quando ha qualquer check k6 falho, taxa de erro HTTP acima de 5% ou `dropped_iterations` maior que zero. Para `balance_daily_50rps.js`, o threshold de `dropped_iterations` tambem esta declarado no script. Para `ledger_resilience.js`, o runner valida `dropped_iterations` pelo summary exportado.
+
+Os scripts atuais nao possuem threshold formal para latencia p95 ou p99. A recomendacao futura e definir limites por cenario apenas depois de registrar uma linha de base local reprodutivel, separando latencia de API, banco, Kafka, workers e runtime Docker.
+
+Estes testes validam comportamento local/controlado da POC. Eles nao comprovam capacidade produtiva, dimensionamento, autoscaling, limites de infraestrutura, comportamento multi-tenant real, seguranca de borda ou resiliencia sob falhas de dependencias gerenciadas.
+
 ## Servicos necessarios
 
 Execute a stack local antes dos testes. Os cenarios HTTP chamam apenas as APIs:

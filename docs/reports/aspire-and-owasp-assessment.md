@@ -8,6 +8,51 @@ A adocao do Aspire foi classificada como **media complexidade**. O projeto ja te
 
 Na revisao OWASP foram encontrados **0 achados criticos, 4 altos, 8 medios e 3 baixos**. Os principais riscos sao: credenciais e usuarios de POC em configuracao versionada, autorizacao sem vinculo entre usuario/token e `merchantId`, dependencias NuGet com avisos de vulnerabilidade, Auth.Api com hardening inferior ao das APIs de negocio, exposicao publica de Swagger/health/readiness e transporte local sem TLS/autenticacao para Kafka e bancos.
 
+## Status atual dos achados
+
+Esta secao registra o estado documental em 2026-05-25 com base em leitura estatica do codigo e dos arquivos versionados. Nao houve execucao de OWASP/ZAP, DAST, pentest, build, testes, k6 ou scanner de vulnerabilidades nesta revisao. Portanto, este status nao substitui uma varredura recente nem uma validacao dinamica de seguranca.
+
+### Achados mitigados
+
+| Achado historico | Status atual | Evidencia versionada |
+| --- | --- | --- |
+| OWASP-01, autorizacao sem vinculo entre token e `merchantId` | Mitigado no codigo atual para endpoints documentados. | `LancamentosController` valida `merchant_id` em criacao e propaga merchants autorizados para estorno, reprocessamento e consultas de status. `ConsolidadosController` valida `merchantId` da query contra `merchant_id`. |
+| OWASP-02, login com scope vazio concedendo todos os scopes | Mitigado. | `Auth.Api` rejeita `scope` vazio ou nulo em `POST /auth/login` com erro `invalid_scope`. |
+| OWASP-03, `System.Security.Cryptography.Xml 9.0.0` vulneravel | Mitigado ou historicamente superado no arquivo central de pacotes. | `Directory.Packages.props` fixa `System.Security.Cryptography.Xml` em `10.0.8`. |
+| OWASP-04, `OpenTelemetry.Api 1.15.0` vulneravel | Mitigado ou historicamente superado no arquivo central de pacotes. | `Directory.Packages.props` fixa `OpenTelemetry.Api` em `1.15.3` e alinha o conjunto OpenTelemetry principal. |
+| OWASP-08, falta de limites explicitos de request/body e periodo | Mitigado para limites basicos atuais. | APIs documentam e configuram `ApiLimits:MaxRequestBodySizeBytes`; Balance limita periodo por `ApiLimits:MaxBalancePeriodDays`; Nginx local aplica `client_max_body_size 1m` quando usado. |
+| OWASP-10, contrato monetario usando `double` | Mitigado no contrato atual de criacao de lancamento. | `CreateLancamentoRequest.Amount` e `decimal` e o Swagger descreve valor monetario decimal com ate 2 casas. |
+| OWASP-12, documentacao de observabilidade ausente | Mitigado. | `docs/observability.md`, modelo LikeC4 e stack local documentam health/readiness, OTLP, Jaeger, Prometheus, Loki, Grafana Alloy, Alertmanager e dashboards. |
+
+### Achados parcialmente mitigados
+
+| Achado historico | Status atual | Evidencia e limite |
+| --- | --- | --- |
+| OWASP-05, exposicao de Swagger/OpenAPI | Parcialmente mitigado. | Ledger, Balance e Auth habilitam Swagger em `Development` ou por `Swagger:Enabled=true`. A exposicao local continua intencional para a POC e precisa de politica propria antes de ambiente compartilhado. |
+| OWASP-06, credenciais e usuarios de POC versionados/documentados | Parcialmente mitigado como risco local aceito. | `docs/development/local-development.md` classifica os valores como locais, descartaveis e nao reutilizaveis fora da maquina local. Ainda existem defaults de POC para ergonomia local. |
+| OWASP-07, HTTP local, JWKS HTTP, Kafka plaintext e bancos expostos localmente | Parcialmente mitigado como risco local aceito. | O codigo exige JWKS HTTPS fora de `Development`/`Local`; Nginx oferece borda HTTPS local opcional. Compose continua usando HTTP interno, Kafka plaintext e portas locais para desenvolvimento. |
+| OWASP-09, hardening inferior do Auth.Api | Parcialmente mitigado. | `Auth.Api` possui security headers, HTTPS/HSTS por ambiente, ProblemDetails, correlation id e rate limiting dedicado de login. Ainda permanece como autenticador de POC, sem IdP externo, lockout persistente, refresh token, revogacao ou auditoria produtiva. |
+| OWASP-11, `Jwt:JwksUrl` configuravel | Parcialmente mitigado. | APIs rejeitam JWKS sem HTTPS fora de `Development`/`Local` e usam retriever com timeout/retry. Ainda nao ha allowlist de host ou OIDC metadata gerenciado. |
+| OWASP-13, hardening de containers e supply chain de imagens | Parcialmente mitigado. | A documentacao local explicita uso de tags versionadas e restricao a POC. Ainda nao ha pinagem por digest, scan de imagens ou baseline produtivo completo neste relatorio. |
+| OWASP-14, protecao de fluxos sensiveis | Parcialmente mitigado. | APIs de negocio possuem rate limiting e o Auth.Api possui limite dedicado de login. Ainda nao ha controle por usuario, client id, merchant, reputacao ou monitoramento produtivo de abuso. |
+
+### Achados ainda validos
+
+| Achado historico | Status atual | Observacao |
+| --- | --- | --- |
+| DAST OWASP/ZAP ou pentest recente | Pendente. | Ha relatorio historico e documentacao estatica, mas esta revisao nao executou scanner. |
+| Promocao para ambiente compartilhado/produtivo | Pendente por desenho. | Secrets, TLS interno, Kafka autenticado, bancos gerenciados, WAF/rate limits por identidade, scans de imagem e operacao produtiva exigem decisoes fora da POC local. |
+
+### Achados historicos que nao representam mais o estado atual
+
+| Achado historico | Motivo |
+| --- | --- |
+| `Auth.Api` concedia todos os scopes quando `scope` era vazio. | O endpoint de login agora exige scope explicito. |
+| `Auth.Api` nao possuia hardening minimo. | O pipeline atual inclui security headers, rate limiting de login, HTTPS/HSTS por ambiente, ProblemDetails e correlation id. |
+| `docs/observability.md` estava ausente. | O documento existe e esta referenciado pelo README e pelo indice de documentacao. |
+| Contrato monetario de lancamento usava `double`. | `CreateLancamentoRequest.Amount` usa `decimal` no contrato atual. |
+| Pacotes vulneraveis citados com versoes antigas no relatorio. | As versoes citadas foram atualizadas no Central Package Management. Sem scanner recente, isso deve ser lido como superacao documental das evidencias antigas, nao como atestado de ausencia de CVEs. |
+
 ## Classificacao de complexidade do Aspire
 
 **Classificacao final: media complexidade.**

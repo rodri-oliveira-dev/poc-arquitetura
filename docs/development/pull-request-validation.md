@@ -2,7 +2,17 @@
 
 Pull requests para qualquer branch sao validados pelo workflow `.github/workflows/pull-request-validation.yml`.
 
-O workflow executa:
+O workflow sempre e iniciado para PRs, sem `paths-ignore`, para que o check obrigatorio seja criado tambem em PRs documentais. No inicio da execucao ele detecta os arquivos alterados do PR.
+
+Quando o PR altera apenas documentacao ou imagens de documentacao, o workflow registra um resumo e pula restore, build e testes. Sao tratados como documentais:
+
+- arquivos em `docs/**`;
+- arquivos `*.md`;
+- imagens `*.png`, `*.jpg`, `*.jpeg`, `*.gif`, `*.svg` e `*.webp`.
+
+Isso evita required check pendente em PRs que o GitHub poderia ignorar por filtro de arquivos e reduz custo de execucao em mudancas que nao impactam codigo.
+
+Quando ha qualquer arquivo fora desse conjunto, ou quando a deteccao de arquivos falha, o workflow executa:
 
 - `dotnet restore ./LedgerService.slnx`;
 - `dotnet build ./LedgerService.slnx --configuration Release --no-restore`;
@@ -16,7 +26,7 @@ O workflow roda em:
 - `merge_group`, quando a Merge Queue estiver habilitada;
 - `workflow_dispatch`, para execucao manual.
 
-Como este check deve ser obrigatorio para merge, ele nao usa `paths-ignore`. Isso evita que PRs fiquem bloqueados com required check pendente quando o GitHub pula um workflow por filtro de arquivos.
+Como este check deve ser obrigatorio para merge, ele nao usa `paths-ignore`. A otimizacao de PR documental acontece dentro do job, preservando a existencia do status check.
 
 ## Bloqueio de merge
 
@@ -40,7 +50,7 @@ O workflow `dotnet-ci` permanece como validacao completa de `push` na `main` e e
 
 | Workflow | Arquivo | Evento | Papel | Bloqueante / informativo / operacional |
 | --- | --- | --- | --- | --- |
-| `pull-request-validation` | `.github/workflows/pull-request-validation.yml` | `pull_request`, `merge_group`, `workflow_dispatch` | Gate minimo de PR. Executa restore, build e testes sem cobertura e sem recompilar depois do build para sempre reportar o status esperado pela protecao de branch. | Bloqueante |
+| `pull-request-validation` | `.github/workflows/pull-request-validation.yml` | `pull_request`, `merge_group`, `workflow_dispatch` | Gate minimo de PR. Em PR documental, cria o status check e pula restore/build/test. Em PR com mudanca impactante, executa restore, build e testes sem cobertura e sem recompilar depois do build. | Bloqueante |
 | `dotnet-ci` | `.github/workflows/dotnet.yml` | `push` na `main`, `workflow_dispatch` | Validacao completa pos-merge/manual, com restore, vulnerabilidades NuGet, build, testes, cobertura, gate de 85% e artifacts de diagnostico. | Informativo para PR; bloqueante apenas se uma regra externa decidir exigir esse check |
 | `dependency-review` | `.github/workflows/dependency-review.yml` | `pull_request` para `main` | Revisa dependencias alteradas no PR e falha para vulnerabilidades `moderate` ou superior. | Bloqueante se exigido por branch protection/ruleset |
 | `codeql` | `.github/workflows/codeql.yml` | `push` na `main`, `pull_request` para `main`, `schedule` semanal | Analise estatica de seguranca C# via CodeQL. | Bloqueante se exigido por branch protection/ruleset |

@@ -108,3 +108,41 @@ Arquivos Markdown dentro de `.dotnet/`, `.dotnet-home/`, `.nuget/`, `TestResults
 - Dividir `docs/observability.md` quando houver nova mudanca operacional relevante, preservando anchors ou adicionando redirects manuais por links.
 - Manter o README com limite de porta de entrada: problema, solucao, quickstart, comandos principais e links.
 - Atualizar `docs/documentation-audit.md` em revisoes editoriais amplas futuras.
+
+## Revisao documental de maturidade tecnica
+
+Data: 2026-05-25
+
+### Arquivos alterados
+
+- `README.md`
+- `docs/README.md`
+- `docs/maturity.md`
+- `docs/development/authentication.md`
+- `docs/development/pull-request-validation.md`
+- `docs/reports/aspire-and-owasp-assessment.md`
+- `loadtests/k6/README.md`
+- `docs/documentation-audit.md`
+
+### Motivo da revisao
+
+Consolidar a maturidade documental da POC, alinhando autenticacao/autorizacao, status atual dos achados OWASP, testes de carga k6, validacao de pull requests, criterios de maturidade tecnica e trilha de auditoria ao estado atual dos arquivos versionados.
+
+### O que foi alinhado
+
+- Tabela de scopes por endpoint, incluindo lancamentos, estornos, reprocessamentos, Outbox/DLQ e consolidados.
+- Regra de autorizacao por `merchant_id` para endpoints que recebem `merchantId` e para endpoints que inferem o merchant a partir de recurso persistido.
+- Status atual dos achados OWASP, preservando o relatorio historico e separando achados mitigados, parcialmente mitigados, ainda validos e historicos.
+- Documentacao dos modos k6 `smoke`, `balance50` e `resilience`, com criterios de aceite locais e limites da interpretacao dos resultados.
+- Comportamento real do workflow `pull-request-validation`, incluindo skip interno de restore/build/test em PRs apenas documentais.
+- Pagina `docs/maturity.md` com criterios objetivos, evidencias e pendencias.
+- Links de navegacao no README principal e no indice de documentacao.
+
+### O que continua pendente
+
+- Executar e registrar DAST/OWASP ZAP ou pentest quando houver necessidade de validacao dinamica.
+- Resolver o desalinhamento entre endpoints que exigem `ledger.read` e o catalogo local de scopes emitidos pelo `Auth.Api`, caso esse fluxo precise ser exercitado com token local real.
+- Definir baseline produtivo para secrets, TLS interno, Kafka autenticado, bancos, scans de imagem e rate limits por identidade antes de qualquer promocao fora da POC local.
+- Definir thresholds formais de latencia p95/p99 para k6 somente apos linha de base local reprodutivel.
+
+Build, testes, k6 e scanners de seguranca nao foram executados nesta revisao, por se tratar de alteracao exclusivamente documental.

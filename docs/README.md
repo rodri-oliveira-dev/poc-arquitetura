@@ -8,6 +8,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [Desenvolvimento local](development/local-development.md): compose, portas, migrations, execucao no host, VS Code, Testcontainers e load tests.
 - [Dev Container opcional](development/devcontainer.md): ambiente VS Code conteinerizado sem substituir o fluxo local do host.
 - [FAQ](faq.md): respostas curtas para as duvidas mais provaveis de leitura tecnica.
+- [Maturidade tecnica da POC](maturity.md): criterios atuais de documentacao, seguranca, testes, CI, observabilidade e pendencias.
 
 ## How-to
 
