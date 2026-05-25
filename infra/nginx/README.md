@@ -38,6 +38,18 @@ Depois de gerar o certificado, suba a stack com o overlay:
 docker compose -f compose.yaml -f compose.nginx.yaml up -d --build nginx-edge
 ```
 
+Para subir a stack completa da POC com observabilidade, migrations pelo host e este overlay Nginx, use:
+
+```powershell
+./scripts/start-full-stack.ps1
+```
+
+No Linux/macOS:
+
+```bash
+./scripts/start-full-stack.sh
+```
+
 O container `nginx-edge` usa uma imagem local definida em `infra/nginx/Dockerfile`, baseada em Alpine, com Nginx e o modulo `headers-more`. O modulo permite remover o header `Server` emitido pelo proprio Nginx, algo que `server_tokens off` sozinho nao faz.
 
 O overlay cria duas instancias explicitas da `LedgerService.Api`, `ledger-service-1` e `ledger-service-2`, sem publicar portas HTTP no host. O Nginx encaminha `ledger.localhost:7443` para o upstream estatico `ledger_api` com `least_conn`:

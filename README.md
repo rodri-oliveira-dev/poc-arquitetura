@@ -89,6 +89,18 @@ No Linux/macOS:
 OBSERVABILITY=true ./scripts/start-local-stack.sh
 ```
 
+Para subir a stack completa com observabilidade e Nginx HTTPS local, gere antes os certificados em `infra/nginx/certs/` conforme [desenvolvimento local](docs/development/local-development.md#borda-local-https-com-nginx):
+
+```powershell
+./scripts/start-full-stack.ps1
+```
+
+No Linux/macOS:
+
+```bash
+./scripts/start-full-stack.sh
+```
+
 ## Comandos principais
 
 | Tarefa | Comando |
@@ -100,6 +112,7 @@ OBSERVABILITY=true ./scripts/start-local-stack.sh
 | Testes com cobertura e gate | `./test.ps1` ou `./test.sh` |
 | Stack local minima | `./scripts/start-local-stack.ps1` ou `./scripts/start-local-stack.sh` |
 | Stack com observabilidade | `./scripts/start-local-stack.ps1 -Observability` ou `OBSERVABILITY=true ./scripts/start-local-stack.sh` |
+| Stack completa com Nginx | `./scripts/start-full-stack.ps1` ou `./scripts/start-full-stack.sh` |
 | Load test smoke | `./scripts/run-loadtests.ps1 -Mode smoke` ou `./scripts/run-loadtests.sh smoke` |
 
 ## Testes

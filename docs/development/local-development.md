@@ -91,6 +91,8 @@ No Linux/macOS:
 
 Esse fluxo sobe bancos, Kafka e `Auth.Api`, aplica migrations pelo host e depois inicia `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker`.
 
+Os scripts `start-local-stack.*` usam Docker Compose, restauram tools .NET, aplicam migrations pelo host e nao removem volumes. Eles nao executam testes automatizados, k6 nem scanners.
+
 Para subir tambem observabilidade e habilitar exportacao OTLP nas aplicacoes:
 
 ```powershell
@@ -118,6 +120,56 @@ OTEL_ENABLED=true docker compose --profile observability up -d --build
 `OTEL_ENABLED=true` habilita as aplicacoes a exportarem traces e metricas para `otel-collector:4317`. Sem essa variavel, os backends de observabilidade podem subir, mas as aplicacoes permanecem com OpenTelemetry desabilitado para manter a stack minima leve.
 
 O socket Docker, mesmo montado como somente leitura, e uma superficie sensivel. Use o profile `observability` apenas em maquina local confiavel; nao use em ambiente compartilhado ou produtivo sem redesenhar a coleta de logs e revisar permissoes.
+
+### Stack completa com observabilidade e Nginx
+
+Use `start-full-stack.*` quando quiser um ambiente local completo para demonstracao ou validacao manual integrada:
+
+- stack minima com APIs, workers, bancos, Kafka e init de topicos;
+- migrations aplicadas pelo host, reaproveitando o fluxo de `start-local-stack.*`;
+- profile `observability` ativo com `OTEL_ENABLED=true`;
+- overlay `compose.nginx.yaml` com `nginx-edge`, `ledger-service-1` e `ledger-service-2`;
+- validacoes leves de `docker compose ps`, `/health` direto e via Nginx, Grafana, Jaeger, Prometheus e Alertmanager.
+
+Pre-requisitos adicionais:
+
+- certificados locais em `infra/nginx/certs/localhost.crt` e `infra/nginx/certs/localhost.key`;
+- portas da stack minima, observabilidade e Nginx livres no host;
+- `curl` disponivel no Linux/macOS para as validacoes HTTP.
+
+No Windows:
+
+```powershell
+./scripts/start-full-stack.ps1
+```
+
+No Linux/macOS:
+
+```bash
+./scripts/start-full-stack.sh
+```
+
+Para evitar rebuild de imagens:
+
+```powershell
+./scripts/start-full-stack.ps1 -NoBuild
+```
+
+```bash
+./scripts/start-full-stack.sh --no-build
+```
+
+Para pular apenas as chamadas HTTP de verificacao pos-subida:
+
+```powershell
+./scripts/start-full-stack.ps1 -SkipHealthChecks
+```
+
+```bash
+./scripts/start-full-stack.sh --skip-health-checks
+```
+
+O script para com mensagem clara se os certificados do Nginx nao existirem e nao tenta gera-los automaticamente. Ele nao remove volumes, nao apaga bancos locais, nao executa testes automatizados, nao executa k6 e nao executa scanners de seguranca.
 
 ### Borda local HTTPS com Nginx
 
