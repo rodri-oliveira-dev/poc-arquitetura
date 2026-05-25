@@ -1,0 +1,242 @@
+name: pr-advisory-review
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review, edited]
+  pull_request_target:
+    types: [opened, reopened, synchronize, ready_for_review, edited]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: true
+  DOTNET_NOLOGO: true
+  BUILD_CONFIGURATION: Release
+  SOLUTION_PATH: ./LedgerService.slnx
+  NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+
+jobs:
+  ensure-pr-owner:
+    name: Ensure PR owner
+    if: ${{ github.event_name == 'pull_request_target' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+
+    steps:
+      - name: Assign PR opener as owner
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: |
+          set -euo pipefail
+
+          ensure_owner() {
+            local pr_number="$1"
+            local pr_author="$2"
+
+            if [ -z "$pr_number" ] || [ -z "$pr_author" ]; then
+              echo "PR number or author not available."
+              return 1
+            fi
+
+            echo "Checking PR #$pr_number owner: $pr_author"
+
+            if gh api "repos/$REPOSITORY/issues/$pr_number" --jq '.assignees[].login' | grep -Fxq "$pr_author"; then
+              echo "PR #$pr_number already has $pr_author assigned as owner."
+              return 0
+            fi
+
+            gh api \
+              --method POST \
+              "repos/$REPOSITORY/issues/$pr_number/assignees" \
+              -f "assignees[]=$pr_author" \
+              >/dev/null
+
+            echo "Assigned $pr_author as owner of PR #$pr_number."
+          }
+
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            gh api --paginate "repos/$REPOSITORY/pulls?state=open&per_page=100" --jq '.[] | [.number, .user.login] | @tsv' |
+              while IFS=$'\t' read -r number author; do
+                ensure_owner "$number" "$author"
+              done
+          else
+            ensure_owner "$PR_NUMBER" "$PR_AUTHOR"
+          fi
+
+  analyzer-recommendations:
+    name: Analyzer recommendations
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: read
+
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7 # v5
+        with:
+          global-json-file: global.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: ${{ runner.os }}-nuget-analyzers-${{ hashFiles('**/*.csproj', 'Directory.Packages.props', 'Directory.Build.props', 'global.json', 'dotnet-tools.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-analyzers-
+            ${{ runner.os }}-nuget-
+
+      - name: Detect changed C# files
+        id: changed_files
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+
+          gh api --paginate "repos/$REPOSITORY/pulls/$PR_NUMBER/files" --jq '.[].filename' |
+            grep -E '\.cs$' > changed-csharp-files.txt || true
+
+          count="$(wc -l < changed-csharp-files.txt | tr -d ' ')"
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+
+          if [ "$count" -eq 0 ]; then
+            echo "No changed C# files found in this PR." >> "$GITHUB_STEP_SUMMARY"
+          else
+            {
+              echo "### Changed C# files"
+              echo
+              sed 's/^/- `/' changed-csharp-files.txt | sed 's/$/`/'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Restore dependencies
+        if: ${{ steps.changed_files.outputs.count != '0' }}
+        shell: bash
+        run: dotnet restore "$SOLUTION_PATH"
+
+      - name: Run .NET analyzers as recommendations
+        if: ${{ steps.changed_files.outputs.count != '0' }}
+        id: analyzers
+        shell: bash
+        run: |
+          set +e
+
+          dotnet build "$SOLUTION_PATH" \
+            --configuration "$BUILD_CONFIGURATION" \
+            --no-restore \
+            /p:AnalysisMode=AllEnabledByDefault \
+            /p:AnalysisLevel=latest \
+            /p:EnforceCodeStyleInBuild=true \
+            /p:TreatWarningsAsErrors=false \
+            /warnaserror- \
+            2>&1 | tee analyzer-output.log
+
+          status="${PIPESTATUS[0]}"
+          echo "build_exit_code=$status" >> "$GITHUB_OUTPUT"
+
+          if [ "$status" -ne 0 ]; then
+            echo "Analyzer build returned exit code $status. This workflow keeps the result advisory and does not fail the PR." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          exit 0
+
+      - name: Publish analyzer recommendations
+        if: ${{ steps.changed_files.outputs.count != '0' && always() }}
+        shell: bash
+        run: |
+          python - <<'PY'
+          import html
+          import os
+          import re
+          from pathlib import Path
+
+          workspace = Path(os.environ.get("GITHUB_WORKSPACE", ".")).resolve()
+          changed_file = Path("changed-csharp-files.txt")
+          log_file = Path("analyzer-output.log")
+          summary_file = Path(os.environ["GITHUB_STEP_SUMMARY"])
+
+          changed = set()
+          if changed_file.exists():
+              changed = {line.strip().replace("\\", "/") for line in changed_file.read_text(encoding="utf-8").splitlines() if line.strip()}
+
+          diagnostics = []
+          pattern = re.compile(r"^(?P<path>.*?\.cs)\((?P<line>\d+),(?P<column>\d+)\): warning (?P<code>[^:]+): (?P<message>.*?)(?: \[(?P<project>.*)\])?$")
+
+          if log_file.exists():
+              for raw in log_file.read_text(encoding="utf-8", errors="replace").splitlines():
+                  match = pattern.match(raw.strip())
+                  if not match:
+                      continue
+
+                  file_path = match.group("path").replace("\\", "/")
+                  try:
+                      rel_path = Path(file_path).resolve().relative_to(workspace).as_posix()
+                  except Exception:
+                      rel_path = file_path.lstrip("./")
+
+                  if rel_path not in changed:
+                      continue
+
+                  diagnostics.append({
+                      "file": rel_path,
+                      "line": int(match.group("line")),
+                      "column": int(match.group("column")),
+                      "code": match.group("code").strip(),
+                      "message": match.group("message").strip(),
+                  })
+
+          max_annotations = 50
+          for diagnostic in diagnostics[:max_annotations]:
+              message = diagnostic["message"].replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+              title = f"Analyzer {diagnostic['code']}".replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+              print(
+                  f"::warning file={diagnostic['file']},line={diagnostic['line']},col={diagnostic['column']},title={title}::{message}"
+              )
+
+          with summary_file.open("a", encoding="utf-8") as summary:
+              summary.write("\n### Analyzer recommendations\n\n")
+              summary.write("These findings are advisory only. They do not block the pull request.\n\n")
+
+              if not diagnostics:
+                  summary.write("No analyzer warnings were found in the C# files changed by this pull request.\n")
+              else:
+                  summary.write(f"Found {len(diagnostics)} analyzer warning(s) in changed C# files.\n\n")
+                  summary.write("| File | Line | Rule | Recommendation |\n")
+                  summary.write("| --- | ---: | --- | --- |\n")
+                  for diagnostic in diagnostics[:100]:
+                      file_name = html.escape(diagnostic["file"])
+                      rule = html.escape(diagnostic["code"])
+                      message = html.escape(diagnostic["message"])
+                      summary.write(f"| `{file_name}` | {diagnostic['line']} | `{rule}` | {message} |\n")
+
+                  if len(diagnostics) > 100:
+                      summary.write(f"\nOnly the first 100 findings were listed in the summary. Total findings: {len(diagnostics)}.\n")
+
+                  if len(diagnostics) > max_annotations:
+                      summary.write(f"\nOnly the first {max_annotations} findings were emitted as GitHub annotations.\n")
+          PY
