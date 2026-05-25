@@ -80,6 +80,7 @@ services:
       - "7443:443"
     volumes:
       - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infra/nginx/security-headers.conf:/etc/nginx/conf.d/security-headers.conf:ro
       - ./infra/nginx/html:/usr/share/nginx/html:ro
       - ./infra/nginx/certs:/etc/nginx/certs:ro
     deploy:

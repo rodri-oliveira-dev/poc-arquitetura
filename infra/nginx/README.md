@@ -56,6 +56,12 @@ A borda local aceita somente `TLSv1.2` e `TLSv1.3`. Protocolos antigos como SSLv
 
 O ambiente local nao configura nem repassa o header `Strict-Transport-Security`. HSTS pode ficar em cache no navegador e dificultar rollback em `localhost`, subdominios `.localhost` ou certificados autoassinados. Essa politica deve ser tratada apenas em ambiente apropriado fora deste fluxo local.
 
+## Headers de seguranca
+
+O Nginx adiciona `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` restringindo camera, microphone e geolocation, e `X-XSS-Protection: 0` em respostas da borda local. Para evitar duplicidade, o proxy remove esses mesmos headers quando vierem das APIs internas e aplica a politica unica da borda. O `X-XSS-Protection: 0` desativa um filtro legado de navegadores antigos para evitar comportamento inconsistente.
+
+Somente o portal em `https://localhost:7443` recebe `Content-Security-Policy` na borda. Os hosts dos Swaggers nao recebem CSP adicional no Nginx para evitar bloquear scripts e estilos da Swagger UI.
+
 Portal local:
 
 - `https://localhost:7443`

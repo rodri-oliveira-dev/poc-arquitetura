@@ -24,11 +24,11 @@ deployment {
 
       composeService nginxEdge "nginx-edge" {
         technology "Nginx / HTTPS"
-        description "Servico Docker Compose opcional definido em compose.nginx.yaml para borda local HTTPS, portal, proxy por subdominios .localhost e load balance local do LedgerService.Api."
+        description "Servico Docker Compose opcional definido em compose.nginx.yaml para borda local HTTPS, portal, headers de seguranca, proxy por subdominios .localhost e load balance local do LedgerService.Api."
 
         nginx = instanceOf edge.nginx {
           title "poc-nginx-edge"
-          description "Container local do Nginx exposto na porta 7443 do host, com certificado montado por volume em infra/nginx/certs e access log JSON com correlation_id, upstream_addr e upstream_status."
+          description "Container local do Nginx exposto na porta 7443 do host, com certificado montado por volume em infra/nginx/certs, snippet de headers de seguranca e access log JSON com correlation_id, upstream_addr e upstream_status."
         }
       }
 

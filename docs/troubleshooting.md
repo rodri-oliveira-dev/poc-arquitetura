@@ -83,6 +83,26 @@ curl -k -I https://ledger.localhost:7443/swagger
 
 Se `Strict-Transport-Security` aparecer, remova a configuracao local que adicionou esse header e recrie o container `nginx-edge`.
 
+## Headers de seguranca nao aparecem via Nginx local
+
+A borda local deve devolver `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy` e `X-XSS-Protection` em portal, Swaggers e APIs acessados por `https://*:7443`. O portal em `https://localhost:7443` tambem deve devolver `Content-Security-Policy`; os hosts de Swagger nao aplicam CSP na borda para preservar a Swagger UI.
+
+Valide:
+
+```bash
+curl -k -I https://localhost:7443
+curl -k -I https://ledger.localhost:7443/swagger
+curl -k -I https://balance.localhost:7443/swagger
+curl -k -I https://auth.localhost:7443/swagger
+```
+
+Se os headers nao aparecerem, recrie o container com o overlay e confirme que `infra/nginx/security-headers.conf` foi montado:
+
+```bash
+docker compose -f compose.yaml -f compose.nginx.yaml up -d --build nginx-edge
+docker compose -f compose.yaml -f compose.nginx.yaml exec nginx-edge nginx -t
+```
+
 ## Nginx nao distribui chamadas do Ledger
 
 No overlay `compose.nginx.yaml`, o Nginx balanceia apenas `ledger.localhost:7443` entre `ledger-service-1:8080` e `ledger-service-2:8080`, usando `least_conn`. Ele nao usa o servico direto `ledger-service`.
@@ -193,14 +213,22 @@ docker compose exec -T -e PGPASSWORD=<senha-antiga> balance-db psql -h balance-d
 Se os dados locais forem descartaveis, recrie conscientemente apenas o volume do Balance. Esta acao apaga dados locais desse banco:
 
 ```bash
-docker compose stop balance-db
-docker compose ps -a
+docker compose stop balance-service balance-worker balance-db
+docker compose rm -f balance-db
 docker volume ls
 docker volume rm poc-arquitetura_balance-postgres-data
 docker compose up -d balance-db
+docker compose exec -T -e PGPASSWORD=local_dev_password balance-db psql -h balance-db -U userBalance -d dbBalance -c "select 1;"
 ```
 
-Use o nome real mostrado por `docker volume ls` caso o projeto Compose tenha outro nome. Nenhum script do repositorio remove volumes automaticamente.
+Use o nome real mostrado por `docker volume ls` caso o projeto Compose tenha outro nome. Nao use `docker compose down -v`, porque isso remove volumes de outros servicos. Depois de recriar o banco, aplique as migrations pelo fluxo local documentado e reexecute o smoke de carga:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/start-local-stack.ps1 -NoBuild
+powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/run-loadtests.ps1 -Mode smoke
+```
+
+Nenhum script do repositorio remove volumes automaticamente.
 
 ## Outbox fica em Pending ou DeadLetter
 
