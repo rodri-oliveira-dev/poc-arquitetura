@@ -70,6 +70,19 @@ Erros comuns:
 
 O Nginx nao altera as portas HTTP diretas. Se precisar isolar o problema, valide primeiro a Swagger UI direta em `http://localhost:5226/index.html`, `http://localhost:5228/index.html` e `http://localhost:5030/index.html`, ou os documentos OpenAPI em `/swagger/v1/swagger.json`.
 
+## HSTS aparece via Nginx local
+
+A borda local nao deve devolver `Strict-Transport-Security`, mesmo quando uma API interna emitir esse header. O Nginx local aceita apenas `TLSv1.2` e `TLSv1.3`, mas HSTS fica fora do fluxo de desenvolvimento porque navegadores podem cachear a politica para `localhost` ou subdominios `.localhost`, especialmente com certificados autoassinados.
+
+Valide os headers:
+
+```bash
+curl -k -I https://localhost:7443
+curl -k -I https://ledger.localhost:7443/swagger
+```
+
+Se `Strict-Transport-Security` aparecer, remova a configuracao local que adicionou esse header e recrie o container `nginx-edge`.
+
 ## X-Correlation-Id via Nginx nao aparece ou nao bate
 
 Quando a chamada passa pela borda local, o Nginx deve devolver `X-Correlation-Id`, encaminhar o mesmo valor para a API e registrar `correlation_id` no access log JSON.

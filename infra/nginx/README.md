@@ -38,6 +38,12 @@ Depois de gerar o certificado, suba a stack com o overlay:
 docker compose -f compose.yaml -f compose.nginx.yaml up -d --build nginx-edge
 ```
 
+## TLS local
+
+A borda local aceita somente `TLSv1.2` e `TLSv1.3`. Protocolos antigos como SSLv2, SSLv3, TLSv1.0 e TLSv1.1 ficam fora da configuracao do Nginx.
+
+O ambiente local nao configura nem repassa o header `Strict-Transport-Security`. HSTS pode ficar em cache no navegador e dificultar rollback em `localhost`, subdominios `.localhost` ou certificados autoassinados. Essa politica deve ser tratada apenas em ambiente apropriado fora deste fluxo local.
+
 Portal local:
 
 - `https://localhost:7443`

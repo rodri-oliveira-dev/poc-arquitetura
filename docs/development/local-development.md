@@ -173,6 +173,8 @@ Os subdominios `.localhost` evitam configurar `PathBase` nas APIs e preservam o 
 
 No overlay, o Nginx normaliza `/swagger` para a Swagger UI de cada API. Nas portas HTTP diretas atuais, a UI fica em `/index.html` e os documentos OpenAPI ficam em `/swagger/v1/swagger.json`.
 
+TLS na borda local aceita somente `TLSv1.2` e `TLSv1.3`, desabilitando implicitamente SSLv2, SSLv3, TLSv1.0 e TLSv1.1. O overlay local nao aplica nem repassa HSTS e nao deve emitir `Strict-Transport-Security`; em `localhost`, subdominios `.localhost` e certificados autoassinados, HSTS pode ser cacheado pelo navegador e atrapalhar navegacao, rollback e alternancia entre fluxos HTTP/HTTPS de desenvolvimento. HSTS deve ser decidido apenas para ambientes apropriados fora deste fluxo local.
+
 O Nginx tambem atua como ponto de entrada de correlacao local:
 
 - se o cliente enviar `X-Correlation-Id`, o valor e preservado e encaminhado para a API;
