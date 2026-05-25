@@ -70,6 +70,28 @@ Erros comuns:
 
 O Nginx nao altera as portas HTTP diretas. Se precisar isolar o problema, valide primeiro a Swagger UI direta em `http://localhost:5226/index.html`, `http://localhost:5228/index.html` e `http://localhost:5030/index.html`, ou os documentos OpenAPI em `/swagger/v1/swagger.json`.
 
+## Stack completa nao sobe por recurso em uso
+
+Se `./scripts/start-full-stack.ps1` ou `./scripts/start-full-stack.sh` encontrar containers antigos do overlay Nginx, rede local presa ou portas ocupadas, ele para antes de subir a stack completa e informa o recurso afetado.
+
+Quando o recurso pertence ao proprio projeto, o script pergunta se pode executar uma limpeza nao destrutiva equivalente a:
+
+```bash
+docker compose -f compose.yaml -f compose.nginx.yaml --profile observability --profile direct-ledger down --remove-orphans
+```
+
+Esse comando nao usa `-v`: ele para/remove containers e redes locais do projeto, mas preserva volumes, bancos locais, imagens e certificados. Para autorizar essa limpeza sem prompt:
+
+```powershell
+./scripts/start-full-stack.ps1 -Cleanup
+```
+
+```bash
+./scripts/start-full-stack.sh --cleanup
+```
+
+Se a porta estiver ocupada por processo externo ou container que nao pertence ao projeto, libere manualmente o processo/container indicado antes de executar o script de novo. A limpeza automatica nao para recursos externos ao projeto.
+
 ## HSTS aparece via Nginx local
 
 A borda local nao deve devolver `Strict-Transport-Security`, mesmo quando uma API interna emitir esse header. O Nginx local aceita apenas `TLSv1.2` e `TLSv1.3`, mas HSTS fica fora do fluxo de desenvolvimento porque navegadores podem cachear a politica para `localhost` ou subdominios `.localhost`, especialmente com certificados autoassinados.

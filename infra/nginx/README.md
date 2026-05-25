@@ -62,6 +62,8 @@ No Linux/macOS:
 ./scripts/stop-full-stack.sh
 ```
 
+Se containers antigos do overlay ou a rede local do projeto ficarem presos, `start-full-stack.*` detecta o estado antes da subida e pergunta se pode executar uma limpeza nao destrutiva sem `-v`. Use `-Cleanup` no PowerShell ou `--cleanup` no shell para autorizar essa limpeza sem prompt.
+
 O container `nginx-edge` usa uma imagem local definida em `infra/nginx/Dockerfile`, baseada em Alpine, com Nginx e o modulo `headers-more`. O modulo permite remover o header `Server` emitido pelo proprio Nginx, algo que `server_tokens off` sozinho nao faz.
 
 O overlay cria duas instancias explicitas da `LedgerService.Api`, `ledger-service-1` e `ledger-service-2`, sem publicar portas HTTP no host. O Nginx encaminha `ledger.localhost:7443` para o upstream estatico `ledger_api` com `least_conn`:

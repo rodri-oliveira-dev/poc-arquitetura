@@ -169,6 +169,20 @@ Para pular apenas as chamadas HTTP de verificacao pos-subida:
 ./scripts/start-full-stack.sh --skip-health-checks
 ```
 
+Antes de subir, o script valida portas usadas pela stack completa e verifica se ha containers do overlay Nginx ou rede local do projeto em estado anterior. Quando encontra recursos locais do proprio projeto que podem prender a subida, ele pergunta se pode executar uma limpeza nao destrutiva com `docker compose down --remove-orphans`, sem `-v`. Essa limpeza para/remove containers e redes locais do projeto, mas preserva volumes, bancos locais, imagens e certificados.
+
+Para autorizar essa limpeza previamente em fluxo nao interativo:
+
+```powershell
+./scripts/start-full-stack.ps1 -Cleanup
+```
+
+```bash
+./scripts/start-full-stack.sh --cleanup
+```
+
+Se uma porta estiver ocupada por processo externo ou por container que nao pertence ao projeto, o script para e informa a porta/servico afetado. Nesse caso, libere o recurso manualmente antes de tentar novamente.
+
 O script para com mensagem clara se os certificados do Nginx nao existirem e nao tenta gera-los automaticamente. Ele nao remove volumes, nao apaga bancos locais, nao executa testes automatizados, nao executa k6 e nao executa scanners de seguranca.
 
 Para parar a stack completa sem remover containers, redes, volumes, bancos locais, imagens ou certificados:

@@ -101,6 +101,8 @@ No Linux/macOS:
 ./scripts/start-full-stack.sh
 ```
 
+Se houver containers antigos ou rede local presa do proprio projeto, o script pergunta se pode liberar esses recursos com limpeza nao destrutiva, sem remover volumes. Em automacao local, use `./scripts/start-full-stack.ps1 -Cleanup` ou `./scripts/start-full-stack.sh --cleanup`.
+
 ## Comandos principais
 
 | Tarefa | Comando |
