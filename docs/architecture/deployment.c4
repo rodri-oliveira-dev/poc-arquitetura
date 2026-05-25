@@ -24,7 +24,7 @@ deployment {
 
       composeService nginxEdge "nginx-edge" {
         technology "Nginx / HTTPS"
-        description "Servico Docker Compose opcional definido em compose.nginx.yaml para borda local HTTPS, portal, headers de seguranca, proxy por subdominios .localhost e load balance local do LedgerService.Api."
+        description "Servico Docker Compose opcional definido em compose.nginx.yaml para borda local HTTPS, portal, headers de seguranca, reducao de fingerprinting, proxy por subdominios .localhost e load balance local do LedgerService.Api."
 
         nginx = instanceOf edge.nginx {
           title "poc-nginx-edge"

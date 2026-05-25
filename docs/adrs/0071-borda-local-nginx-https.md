@@ -3,7 +3,7 @@
 ## Status
 Aceito
 
-Nota posterior: a ADR-0072 estende esta decisao com load balance local do `LedgerService.Api`, upstream `least_conn` e diagnostico de upstream nos logs do Nginx. Em 2026-05-25, a borda local passou a emitir headers basicos de seguranca, CSP apenas no portal e `Cache-Control: no-store` nos hosts de API, preservando Swagger sem CSP na borda. As decisoes originais abaixo permanecem como historico da introducao da borda local.
+Nota posterior: a ADR-0072 estende esta decisao com load balance local do `LedgerService.Api`, upstream `least_conn` e diagnostico de upstream nos logs do Nginx. Em 2026-05-25, a borda local passou a emitir headers basicos de seguranca, CSP apenas no portal, `Cache-Control: no-store` nos hosts de API e reducao de exposicao de versao/tecnologia com `server_tokens off` e ocultacao de headers tecnicos de upstream, preservando Swagger sem CSP na borda. As decisoes originais abaixo permanecem como historico da introducao da borda local.
 
 ## Data
 2026-05-24

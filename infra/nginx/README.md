@@ -64,6 +64,8 @@ Somente o portal em `https://localhost:7443` recebe `Content-Security-Policy` na
 
 Os hosts de API via Nginx (`ledger.localhost`, `balance.localhost` e `auth.localhost`) recebem `Cache-Control: no-store` em todas as respostas proxied para evitar armazenamento indevido de payloads sensiveis de autenticacao, autorizacao, ledger e saldo por navegadores, clientes ou proxies intermediarios. A borda tambem envia `Pragma: no-cache` e `Expires: 0` por compatibilidade com clientes legados e remove headers de cache vindos das APIs internas antes de aplicar a politica unica do proxy. O portal local estatico em `https://localhost:7443` nao recebe essa politica para manter a regra focada nas APIs; os assets do Swagger via hosts de API tambem recebem `no-store`, o que preserva funcionamento da UI e prioriza seguranca no ambiente local.
 
+O Nginx usa `server_tokens off` para nao expor a versao detalhada do servidor e remove headers de tecnologia vindos das APIs internas quando presentes, como `X-Powered-By`, `X-AspNet-Version`, `X-AspNetMvc-Version` e `X-Swagger-UI-Version`. O header `Server` do upstream nao e repassado pelo proxy; no Nginx open source, a resposta ainda inclui `Server: nginx`, mas sem a versao. Esse hardening reduz fingerprinting, sem tentar remover completamente o header `Server` nem substituir controles de seguranca da aplicacao.
+
 Portal local:
 
 - `https://localhost:7443`
@@ -94,10 +96,11 @@ As URLs diretas das APIs continuam funcionando nas portas do `compose.yaml` prin
 Validacao rapida da politica de cache:
 
 ```bash
+curl -k -I https://localhost:7443
 curl -k -I https://ledger.localhost:7443/swagger
 curl -k -I https://balance.localhost:7443/swagger
 curl -k -I https://auth.localhost:7443/swagger
 curl -k -I https://ledger.localhost:7443/health
 ```
 
-As respostas dos hosts de API devem conter `Cache-Control: no-store`, `Pragma: no-cache` e `Expires: 0`.
+As respostas dos hosts de API devem conter `Cache-Control: no-store`, `Pragma: no-cache` e `Expires: 0`. As respostas via Nginx nao devem conter `X-Powered-By`, `X-Swagger-UI-Version` nem `Server` com versao detalhada, como `nginx/1.x`.
