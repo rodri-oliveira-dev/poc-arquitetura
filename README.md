@@ -117,6 +117,7 @@ Se houver containers antigos ou rede local presa do proprio projeto, o script pe
 | Stack completa com Nginx | `./scripts/start-full-stack.ps1` ou `./scripts/start-full-stack.sh` |
 | Parar stack completa | `./scripts/stop-full-stack.ps1` ou `./scripts/stop-full-stack.sh` |
 | Load test smoke | `./scripts/run-loadtests.ps1 -Mode smoke` ou `./scripts/run-loadtests.sh smoke` |
+| OWASP ZAP local | `./scripts/run-owasp-zap.ps1` ou `./scripts/run-owasp-zap.sh` |
 
 ## Testes
 
@@ -149,6 +150,7 @@ Os scripts executam testes com cobertura e aplicam gate minimo de 85% de cobertu
 - [Kafka, Outbox e DLQ](docs/development/kafka-outbox.md)
 - [Observabilidade e operacao minima](docs/observability.md)
 - [Testes e cobertura](docs/development/test-coverage.md)
+- [OWASP ZAP local](docs/development/owasp-zap.md)
 - [Troubleshooting](docs/troubleshooting.md)
 - [FAQ](docs/faq.md)
 - [Instrucoes para Codex e agentes](AGENTS.md)

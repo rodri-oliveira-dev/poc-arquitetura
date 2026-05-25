@@ -394,3 +394,37 @@ No Linux/macOS:
 ```
 
 Detalhes ficam em [load tests com k6](development/local-development.md#load-tests-com-k6) e [loadtests/k6](../loadtests/k6/README.md).
+
+## OWASP ZAP local falha
+
+Os scripts ZAP exigem Docker, `docker compose` e a stack da POC ja iniciada. Antes do scan, eles validam `GET /health` em Auth, Ledger e Balance. Se a falha mencionar uma URL direta, suba a stack minima:
+
+```powershell
+./scripts/start-local-stack.ps1
+```
+
+```bash
+./scripts/start-local-stack.sh
+```
+
+Se a falha mencionar `https://*.localhost:7443`, suba a stack completa com Nginx e confirme os certificados locais:
+
+```powershell
+./scripts/start-full-stack.ps1
+./scripts/run-owasp-zap.ps1 -UseNginx
+```
+
+```bash
+./scripts/start-full-stack.sh
+./scripts/run-owasp-zap.sh --use-nginx
+```
+
+O ZAP roda em container e acessa o host por `host.docker.internal` ou por hosts `.localhost` mapeados para `host-gateway`. Se o Docker local nao suportar `host-gateway`, use URLs acessiveis a partir de containers e sobrescreva os alvos com `-AuthUrl`, `-LedgerUrl`, `-BalanceUrl` ou `--auth-url`, `--ledger-url`, `--balance-url`.
+
+Os scripts removem apenas o container temporario `poc-arquitetura-zap`. Se uma execucao for interrompida, remova manualmente esse container sem derrubar a stack principal:
+
+```bash
+docker rm -f poc-arquitetura-zap
+```
+
+Detalhes ficam em [OWASP ZAP local](development/owasp-zap.md).

@@ -146,3 +146,29 @@ Consolidar a maturidade documental da POC, alinhando autenticacao/autorizacao, s
 - Definir thresholds formais de latencia p95/p99 para k6 somente apos linha de base local reprodutivel.
 
 Build, testes, k6 e scanners de seguranca nao foram executados nesta revisao, por se tratar de alteracao exclusivamente documental.
+
+## Revisao documental OWASP ZAP local
+
+Data: 2026-05-25
+
+### Scripts criados
+
+- `scripts/run-owasp-zap.ps1`
+- `scripts/run-owasp-zap.sh`
+
+### Documentacao alterada
+
+- `README.md`
+- `docs/README.md`
+- `docs/development/local-development.md`
+- `docs/development/owasp-zap.md`
+- `docs/reports/aspire-and-owasp-assessment.md`
+- `docs/maturity.md`
+- `docs/troubleshooting.md`
+- `docs/documentation-audit.md`
+
+### Observacoes
+
+- A execucao local do ZAP salva relatorios em `zap-reports/<timestamp>/`, usando timestamp `yyyyMMdd-HHmmss`.
+- `zap-reports/` permanece tratado como artefato gerado e nao deve ser versionado.
+- A maturidade de OWASP/ZAP foi atualizada para execucao local versionada e documentada, ainda sem gate automatizado em workflow.

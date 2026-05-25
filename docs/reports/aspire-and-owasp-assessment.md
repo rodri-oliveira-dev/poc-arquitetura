@@ -10,7 +10,7 @@ Na revisao OWASP foram encontrados **0 achados criticos, 4 altos, 8 medios e 3 b
 
 ## Status atual dos achados
 
-Esta secao registra o estado documental em 2026-05-25 com base em leitura estatica do codigo e dos arquivos versionados. Nao houve execucao de OWASP/ZAP, DAST, pentest, build, testes, k6 ou scanner de vulnerabilidades nesta revisao. Portanto, este status nao substitui uma varredura recente nem uma validacao dinamica de seguranca.
+Esta secao registra o estado documental em 2026-05-25 com base em leitura estatica do codigo e dos arquivos versionados. Agora existem scripts locais versionados para executar OWASP ZAP contra Auth, Ledger e Balance, documentados em `docs/development/owasp-zap.md`, mas esta revisao nao afirma nova execucao de OWASP/ZAP, DAST, pentest, build, testes, k6 ou scanner de vulnerabilidades. Portanto, este status nao substitui uma varredura recente nem uma validacao dinamica de seguranca.
 
 ### Achados mitigados
 
@@ -40,7 +40,7 @@ Esta secao registra o estado documental em 2026-05-25 com base em leitura estati
 
 | Achado historico | Status atual | Observacao |
 | --- | --- | --- |
-| DAST OWASP/ZAP ou pentest recente | Pendente. | Ha relatorio historico e documentacao estatica, mas esta revisao nao executou scanner. |
+| DAST OWASP/ZAP ou pentest recente | Parcialmente mitigado operacionalmente. | Ha relatorio historico e scripts locais versionados (`scripts/run-owasp-zap.ps1` e `scripts/run-owasp-zap.sh`) para executar baseline ZAP e salvar relatorios em `zap-reports/<timestamp>/`. Ainda nao ha gate em CI nem nova execucao registrada neste relatorio. |
 | Promocao para ambiente compartilhado/produtivo | Pendente por desenho. | Secrets, TLS interno, Kafka autenticado, bancos gerenciados, WAF/rate limits por identidade, scans de imagem e operacao produtiva exigem decisoes fora da POC local. |
 
 ### Achados historicos que nao representam mais o estado atual
