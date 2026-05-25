@@ -24,11 +24,11 @@ deployment {
 
       composeService nginxEdge "nginx-edge" {
         technology "Nginx / HTTPS"
-        description "Servico Docker Compose opcional definido em compose.nginx.yaml para borda local HTTPS, portal e proxy por subdominios .localhost."
+        description "Servico Docker Compose opcional definido em compose.nginx.yaml para borda local HTTPS, portal, proxy por subdominios .localhost e load balance local do LedgerService.Api."
 
         nginx = instanceOf edge.nginx {
           title "poc-nginx-edge"
-          description "Container local do Nginx exposto na porta 7443 do host, com certificado montado por volume em infra/nginx/certs e access log JSON com correlation_id."
+          description "Container local do Nginx exposto na porta 7443 do host, com certificado montado por volume em infra/nginx/certs e access log JSON com correlation_id, upstream_addr e upstream_status."
         }
       }
 
@@ -39,6 +39,26 @@ deployment {
         api = instanceOf ledger.ledgerApi {
           title "poc-ledger-service"
           description "Container local da LedgerService.Api exposto na porta 5226 do host e 8080 no container."
+        }
+      }
+
+      composeService ledgerApiNginx1 "ledger-service-1" {
+        technology "Docker container / ASP.NET Core"
+        description "Primeira instancia da LedgerService.Api criada pelo overlay compose.nginx.yaml para o upstream ledger_api do Nginx."
+
+        api = instanceOf ledger.ledgerApi {
+          title "poc-ledger-service-1"
+          description "Instancia local da LedgerService.Api sem porta publicada no host, acessivel apenas pela rede poc-net em 8080."
+        }
+      }
+
+      composeService ledgerApiNginx2 "ledger-service-2" {
+        technology "Docker container / ASP.NET Core"
+        description "Segunda instancia da LedgerService.Api criada pelo overlay compose.nginx.yaml para o upstream ledger_api do Nginx."
+
+        api = instanceOf ledger.ledgerApi {
+          title "poc-ledger-service-2"
+          description "Instancia local da LedgerService.Api sem porta publicada no host, acessivel apenas pela rede poc-net em 8080."
         }
       }
 

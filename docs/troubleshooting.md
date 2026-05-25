@@ -66,7 +66,7 @@ Erros comuns:
 - `cannot load certificate`: gere `infra/nginx/certs/localhost.crt`;
 - `cannot load certificate key`: gere `infra/nginx/certs/localhost.key`;
 - alerta de certificado no navegador: confie o certificado local ou use `mkcert -install`;
-- `connection refused` ao abrir Swagger via Nginx: confirme se `ledger-service`, `balance-service` e `auth-api` estao em execucao e saudaveis.
+- `connection refused` ao abrir Swagger via Nginx: confirme se `ledger-service-1`, `ledger-service-2`, `balance-service` e `auth-api` estao em execucao e saudaveis.
 
 O Nginx nao altera as portas HTTP diretas. Se precisar isolar o problema, valide primeiro a Swagger UI direta em `http://localhost:5226/index.html`, `http://localhost:5228/index.html` e `http://localhost:5030/index.html`, ou os documentos OpenAPI em `/swagger/v1/swagger.json`.
 
@@ -82,6 +82,36 @@ curl -k -I https://ledger.localhost:7443/swagger
 ```
 
 Se `Strict-Transport-Security` aparecer, remova a configuracao local que adicionou esse header e recrie o container `nginx-edge`.
+
+## Nginx nao distribui chamadas do Ledger
+
+No overlay `compose.nginx.yaml`, o Nginx balanceia apenas `ledger.localhost:7443` entre `ledger-service-1:8080` e `ledger-service-2:8080`, usando `least_conn`. Ele nao usa o servico direto `ledger-service`.
+
+Valide a configuracao efetiva:
+
+```bash
+docker compose -f compose.yaml -f compose.nginx.yaml config
+docker compose -f compose.yaml -f compose.nginx.yaml ps ledger-service-1 ledger-service-2 nginx-edge
+```
+
+Faça chamadas repetidas e confira o upstream:
+
+```bash
+for i in $(seq 1 20); do curl -k -s -o /dev/null -D - https://ledger.localhost:7443/health | grep -i X-Upstream-Addr; done
+docker compose -f compose.yaml -f compose.nginx.yaml logs nginx-edge | grep upstream_addr
+docker compose -f compose.yaml -f compose.nginx.yaml logs ledger-service-1 ledger-service-2
+```
+
+Em Windows PowerShell, use:
+
+```powershell
+1..20 | ForEach-Object {
+  (Invoke-WebRequest -SkipCertificateCheck https://ledger.localhost:7443/health).Headers["X-Upstream-Addr"]
+}
+docker compose -f compose.yaml -f compose.nginx.yaml logs nginx-edge
+```
+
+Se todas as chamadas aparecerem em apenas um upstream durante baixa concorrencia, repita com mais chamadas ou concorrencia. `least_conn` escolhe a instancia com menos conexoes ativas; em chamadas muito curtas, a distribuicao pode parecer agrupada em uma amostra pequena.
 
 ## X-Correlation-Id via Nginx nao aparece ou nao bate
 

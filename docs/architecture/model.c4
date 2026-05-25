@@ -70,7 +70,7 @@ model {
 
     nginx = container "Nginx local" {
       technology "Nginx / HTTPS"
-      description "Reverse proxy local que serve o portal da POC em localhost:7443, encaminha subdominios .localhost para as APIs internas em HTTP, propaga X-Correlation-Id, envia X-Forwarded-* e registra access logs JSON."
+      description "Reverse proxy local que serve o portal da POC em localhost:7443, encaminha subdominios .localhost para as APIs internas em HTTP, balanceia o LedgerService.Api com least_conn no overlay local, propaga X-Correlation-Id, envia X-Forwarded-* e registra access logs JSON."
 
       portal = component "Portal local" {
         description "Pagina estatica com links para Swaggers das APIs e ferramentas locais de observabilidade."
@@ -237,7 +237,7 @@ model {
   customer -> ledger.ledgerApi "Cria lancamentos e solicita/consulta estornos e reprocessamentos" "HTTP + JWT"
   customer -> balance.balanceApi "Consulta consolidados" "HTTP + JWT"
   customer -> edge.nginx "Acessa portal e Swaggers locais opcionais" "HTTPS"
-  edge.nginx -> ledger.ledgerApi "Encaminha ledger.localhost:7443" "HTTP interno"
+  edge.nginx -> ledger.ledgerApi "Encaminha ledger.localhost:7443 para o upstream ledger_api com least_conn" "HTTP interno"
   edge.nginx -> balance.balanceApi "Encaminha balance.localhost:7443" "HTTP interno"
   edge.nginx -> auth.authApi "Encaminha auth.localhost:7443" "HTTP interno"
   edge.nginx.portal -> observability.grafana "Linka UI local" "HTTP direto"

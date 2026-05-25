@@ -65,7 +65,7 @@ Componentes opcionais ficam em profiles:
 - profile `observability`: OpenTelemetry Collector, Jaeger, Prometheus, Loki, Grafana Alloy, Alertmanager e Grafana;
 - profile `k6`: container k6 definido em `compose.k6.yaml`.
 
-Tambem existe um overlay opcional `compose.nginx.yaml` para adicionar uma borda local com Nginx e HTTPS em desenvolvimento. Ele nao faz parte da stack minima e nao altera as APIs, que continuam rodando internamente em HTTP com `ASPNETCORE_URLS=http://+:8080`.
+Tambem existe um overlay opcional `compose.nginx.yaml` para adicionar uma borda local com Nginx e HTTPS em desenvolvimento. Ele nao faz parte da stack minima e nao altera as APIs, que continuam rodando internamente em HTTP com `ASPNETCORE_URLS=http://+:8080`. Quando o overlay e usado, o Nginx cria um upstream local `ledger_api` com duas instancias da `LedgerService.Api` e algoritmo `least_conn`.
 
 A observabilidade completa inclui:
 
@@ -121,7 +121,7 @@ O socket Docker, mesmo montado como somente leitura, e uma superficie sensivel. 
 
 ### Borda local HTTPS com Nginx
 
-O Nginx local e opcional e serve apenas como entrada HTTPS para desenvolvimento. Use-o quando quiser validar navegacao e Swagger via TLS sem mudar o comportamento interno das APIs nem substituir as portas HTTP diretas.
+O Nginx local e opcional e serve como entrada HTTPS para desenvolvimento e demonstracao de load balance local do Ledger. Use-o quando quiser validar navegacao, Swagger via TLS e distribuicao de chamadas para duas instancias da `LedgerService.Api`, sem mudar contrato HTTP nem substituir a stack minima.
 
 Antes de subir o overlay, gere ou disponibilize um certificado local em:
 
@@ -147,7 +147,7 @@ openssl req -x509 -newkey rsa:2048 -nodes -days 365 \
 
 Com OpenSSL, o navegador pode exibir alerta de certificado nao confiavel ate que o certificado seja confiado localmente.
 
-Suba primeiro a stack local pelo fluxo normal, principalmente em banco novo para aplicar migrations. Depois suba o Nginx:
+Suba primeiro a stack local pelo fluxo normal, principalmente em banco novo para aplicar migrations. Para iniciar a borda com duas instancias do Ledger atras do Nginx, use o overlay:
 
 ```bash
 docker compose -f compose.yaml -f compose.nginx.yaml up -d --build nginx-edge
@@ -157,6 +157,15 @@ Para subir tudo diretamente pelo compose sem o script de migrations:
 
 ```bash
 docker compose -f compose.yaml -f compose.nginx.yaml up -d --build
+```
+
+No overlay, o servico direto `ledger-service` fica no profile `direct-ledger`. Assim, uma execucao limpa do comando acima sobe `ledger-service-1` e `ledger-service-2` para o Nginx, sem publicar porta HTTP direta do Ledger no host. O `compose.yaml` principal continua expondo `http://localhost:5226/` quando usado sem o overlay.
+
+Se a stack minima ja estiver rodando com `ledger-service`, ela pode permanecer ativa para compatibilidade com scripts existentes; o Nginx, porem, distribui trafego somente para `ledger-service-1` e `ledger-service-2`. Para observar exatamente duas instancias do Ledger no ambiente, pare a instancia direta antes de subir o overlay:
+
+```bash
+docker compose stop ledger-service
+docker compose -f compose.yaml -f compose.nginx.yaml up -d --build nginx-edge
 ```
 
 Portal HTTPS:
@@ -180,6 +189,7 @@ O Nginx tambem atua como ponto de entrada de correlacao local:
 - se o cliente enviar `X-Correlation-Id`, o valor e preservado e encaminhado para a API;
 - se o cliente omitir `X-Correlation-Id`, a borda gera um identificador, encaminha para a API e devolve no response;
 - o access log do Nginx e emitido como JSON por linha e inclui `correlation_id`.
+- para `ledger.localhost`, o access log tambem inclui `upstream_addr` e `upstream_status`, e o response inclui `X-Upstream-Addr` para diagnostico local.
 
 Validacao manual sem correlation id explicito:
 
@@ -199,6 +209,26 @@ Em ambos os casos, confira o header `X-Correlation-Id` no response e o campo `co
 docker compose -f compose.yaml -f compose.nginx.yaml logs nginx-edge
 ```
 
+Validacao de distribuicao entre as instancias Ledger:
+
+```bash
+for i in $(seq 1 20); do curl -k -s -o /dev/null -D - https://ledger.localhost:7443/health | grep -i X-Upstream-Addr; done
+docker compose -f compose.yaml -f compose.nginx.yaml logs nginx-edge | grep upstream_addr
+docker compose -f compose.yaml -f compose.nginx.yaml logs ledger-service-1 ledger-service-2
+```
+
+Em PowerShell:
+
+```powershell
+1..20 | ForEach-Object {
+  (Invoke-WebRequest -SkipCertificateCheck https://ledger.localhost:7443/health).Headers["X-Upstream-Addr"]
+}
+docker compose -f compose.yaml -f compose.nginx.yaml logs nginx-edge
+docker compose -f compose.yaml -f compose.nginx.yaml logs ledger-service-1 ledger-service-2
+```
+
+O Nginx open source usa uma lista estatica de upstreams nesta POC. Ele demonstra balanceamento local, mas nao implementa autoscaling real, descoberta dinamica avancada, circuit breaker ou reconfiguracao automatica quando o numero de replicas muda. Para producao, a topologia deve ser redesenhada com orquestrador, health checks e estrategia operacional propria.
+
 As APIs executam `UseForwardedHeaders` no inicio do pipeline para reconhecer `X-Forwarded-For`, `X-Forwarded-Proto` e `X-Forwarded-Host` enviados pelo Nginx. Isso permite que componentes ASP.NET Core vejam o scheme externo `https` e o host publico `.localhost` quando a chamada entra pelo proxy, sem mudar o trafego HTTP interno entre containers.
 
 Parar a stack:
@@ -212,6 +242,8 @@ Ver status e logs:
 ```bash
 docker compose ps
 docker compose logs -f ledger-service
+docker compose -f compose.yaml -f compose.nginx.yaml logs -f ledger-service-1
+docker compose -f compose.yaml -f compose.nginx.yaml logs -f ledger-service-2
 docker compose logs -f ledger-worker
 docker compose logs -f balance-service
 docker compose logs -f balance-worker

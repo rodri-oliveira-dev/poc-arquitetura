@@ -3,6 +3,8 @@
 ## Status
 Aceito
 
+Nota posterior: a ADR-0072 estende esta decisao com load balance local do `LedgerService.Api`, upstream `least_conn` e diagnostico de upstream nos logs do Nginx. As decisoes originais abaixo permanecem como historico da introducao da borda local.
+
 ## Data
 2026-05-24
 

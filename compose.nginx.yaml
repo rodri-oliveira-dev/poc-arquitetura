@@ -1,11 +1,78 @@
 services:
+  ledger-service:
+    profiles:
+      - direct-ledger
+
+  ledger-service-1:
+    image: poc-arquitetura-ledger-service:local
+    build:
+      context: .
+      dockerfile: src/LedgerService.Api/Dockerfile
+    container_name: poc-ledger-service-1
+    depends_on:
+      ledger-db:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      kafka-init-topics:
+        condition: service_completed_successfully
+    environment:
+      ASPNETCORE_URLS: "http://+:8080"
+      ASPNETCORE_ENVIRONMENT: "Development"
+      Jwt__JwksUrl: "http://auth-api:8080/.well-known/jwks.json"
+      Jwt__RequireHttpsMetadata: "false"
+      ConnectionStrings__DefaultConnection: "Host=ledger-db;Port=5432;Database=appdb;Username=appuser;Password=${POSTGRES_PASSWORD:-local_dev_password}"
+      Observability__OpenTelemetry__Enabled: "${OTEL_ENABLED:-false}"
+      Observability__OpenTelemetry__UseConsoleExporter: "false"
+      Observability__OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"
+      Observability__OpenTelemetry__ServiceName: "LedgerService.Api"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512m
+          pids: 256
+    networks:
+      - poc-net
+
+  ledger-service-2:
+    image: poc-arquitetura-ledger-service:local
+    container_name: poc-ledger-service-2
+    depends_on:
+      ledger-db:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      kafka-init-topics:
+        condition: service_completed_successfully
+    environment:
+      ASPNETCORE_URLS: "http://+:8080"
+      ASPNETCORE_ENVIRONMENT: "Development"
+      Jwt__JwksUrl: "http://auth-api:8080/.well-known/jwks.json"
+      Jwt__RequireHttpsMetadata: "false"
+      ConnectionStrings__DefaultConnection: "Host=ledger-db;Port=5432;Database=appdb;Username=appuser;Password=${POSTGRES_PASSWORD:-local_dev_password}"
+      Observability__OpenTelemetry__Enabled: "${OTEL_ENABLED:-false}"
+      Observability__OpenTelemetry__UseConsoleExporter: "false"
+      Observability__OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"
+      Observability__OpenTelemetry__ServiceName: "LedgerService.Api"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512m
+          pids: 256
+    networks:
+      - poc-net
+
   nginx-edge:
     image: docker.io/nginx:1.27.5-alpine
     container_name: poc-nginx-edge
     depends_on:
       auth-api:
         condition: service_started
-      ledger-service:
+      ledger-service-1:
+        condition: service_started
+      ledger-service-2:
         condition: service_started
       balance-service:
         condition: service_started

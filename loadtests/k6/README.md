@@ -25,3 +25,9 @@ Mantenha `LedgerService.Worker` e `BalanceService.Worker` em execucao quando qui
 O override `compose.k6.yaml` aumenta limites tecnicos de rate limiting das APIs durante a execucao de carga. Os runners recriam os containers HTTP alvo para garantir que os overrides e connection strings efetivos sejam aplicados. Isso evita que os cenarios de throughput validem apenas o limitador local, mantendo os asserts de status e erro HTTP.
 
 Antes de executar o k6, os runners validam autenticacao real no PostgreSQL do Balance com as variaveis `BALANCE_DB_USER`, `BALANCE_DB_NAME` e `BALANCE_DB_PASSWORD`. Se o volume local tiver sido criado com senha antiga, o runner para antes do teste e aponta para o troubleshooting; nenhum volume e apagado automaticamente.
+
+## Ledger via Nginx
+
+Os runners k6 continuam apontando para as APIs HTTP diretas do `compose.yaml` por padrao, inclusive `BASE_URL_LEDGER=http://ledger-service:8080` dentro da rede Docker. Essa escolha preserva os cenarios existentes e evita misturar teste de carga funcional com a demonstracao local de borda.
+
+O load balance local do Ledger no `compose.nginx.yaml` deve ser validado pelos comandos documentados em `docs/development/local-development.md`, usando `https://ledger.localhost:7443` e os campos `X-Upstream-Addr`/`upstream_addr`. Um cenario k6 dedicado ao Nginx pode ser criado futuramente se a POC precisar medir comportamento do proxy como alvo de carga, mas isso nao e necessario para validar que o contrato HTTP do Ledger permaneceu estavel neste PR.
