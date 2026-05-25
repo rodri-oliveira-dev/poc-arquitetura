@@ -9,6 +9,10 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
 
+    <!-- NuGet audit / package pruning -->
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <RestoreEnablePackagePruning>true</RestoreEnablePackagePruning>
+
     <!-- Saída determinística (ajuda em builds de CI) -->
     <Deterministic>true</Deterministic>
     <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
