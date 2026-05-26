@@ -5,7 +5,7 @@
 [![Coverage](https://img.shields.io/badge/coverage-%3E%3D85%25-brightgreen)](docs/development/test-coverage.md)
 [![Architecture Docs](https://img.shields.io/github/actions/workflow/status/rodri-oliveira-dev/poc-arquitetura/pages-architecture.yml?branch=main&label=architecture%20docs)](https://rodri-oliveira-dev.github.io/poc-arquitetura/)
 
-POC de microservicos em .NET para validar Clean Architecture, DDD, PostgreSQL, Kafka, Outbox, autenticacao JWT com JWKS, observabilidade e testes automatizados.
+POC de microservicos em .NET para validar Clean Architecture, DDD, PostgreSQL, Kafka, Outbox, autenticacao JWT/OIDC com Keycloak e JWKS, observabilidade e testes automatizados.
 
 ## Problema
 
@@ -13,13 +13,13 @@ O projeto modela um cenario comum em sistemas financeiros: registrar lancamentos
 
 ## Solucao
 
-A POC separa escrita e leitura em servicos distintos e separa APIs HTTP de workers. O `LedgerService.Api` recebe comandos de lancamento, estorno e reprocessamento, persiste os dados e grava eventos em Outbox na mesma transacao. O `LedgerService.Worker` publica a Outbox no Kafka e executa processamentos assincronos do Ledger. O `BalanceService.Worker` consome os eventos financeiros e atualiza saldos consolidados; o `BalanceService.Api` atende consultas HTTP. O `Auth.Api` emite tokens JWT RS256 e publica JWKS para validacao offline pelas APIs de negocio.
+A POC separa escrita e leitura em servicos distintos e separa APIs HTTP de workers. O `LedgerService.Api` recebe comandos de lancamento, estorno e reprocessamento, persiste os dados e grava eventos em Outbox na mesma transacao. O `LedgerService.Worker` publica a Outbox no Kafka e executa processamentos assincronos do Ledger. O `BalanceService.Worker` consome os eventos financeiros e atualiza saldos consolidados; o `BalanceService.Api` atende consultas HTTP. O Keycloak local emite tokens JWT RS256 e publica JWKS para validacao offline pelas APIs de negocio. O `Auth.Api` foi depreciado como emissor legado de POC e nao faz parte da stack principal.
 
 Principais servicos:
 
 | Servico | Papel |
 | --- | --- |
-| `Auth.Api` | Emite JWT RS256 por `POST /auth/login` e publica JWKS em `GET /.well-known/jwks.json`. |
+| Keycloak | Emite JWT RS256 via OIDC para desenvolvimento local e publica JWKS do realm `poc`. |
 | `LedgerService.Api` | API de escrita para lancamentos, estornos, reprocessamentos, Outbox e status operacionais. |
 | `LedgerService.Worker` | Processo dedicado para publicar Outbox no Kafka e processar estornos/reprocessamentos do Ledger. |
 | `BalanceService.Api` | API de leitura de saldos consolidados projetados pelo Worker. |
@@ -35,7 +35,7 @@ Principais servicos:
 - `Domain`: entidades, invariantes e regras de dominio sem dependencia de infraestrutura.
 - `Infrastructure`: EF Core, PostgreSQL, repositorios, migrations e implementacoes tecnicas compartilhadas pelos processos.
 
-`Auth.Api` permanece em projeto unico porque o escopo atual de autenticacao da POC e pequeno. A leitura arquitetural completa fica em [docs/architecture](docs/architecture/README.md) e as decisoes historicas ficam em [docs/adrs](docs/adrs/README.md).
+`Auth.Api` permanece no repositorio apenas como legado testado e rastreavel; quando necessario, ele pode ser iniciado pelo overlay `compose.auth-legacy.yaml`. A leitura arquitetural completa fica em [docs/architecture](docs/architecture/README.md) e as decisoes historicas ficam em [docs/adrs](docs/adrs/README.md).
 
 Documentacao arquitetural publicada:
 

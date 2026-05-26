@@ -15,7 +15,7 @@ Opcao recomendada com `mkcert`:
 
 ```bash
 mkcert -install
-mkcert -cert-file infra/nginx/certs/localhost.crt -key-file infra/nginx/certs/localhost.key localhost ledger.localhost balance.localhost auth.localhost
+mkcert -cert-file infra/nginx/certs/localhost.crt -key-file infra/nginx/certs/localhost.key localhost ledger.localhost balance.localhost
 ```
 
 Opcao com OpenSSL, sem instalar CA confiavel no sistema:
@@ -25,7 +25,7 @@ openssl req -x509 -newkey rsa:2048 -nodes -days 365 \
   -keyout infra/nginx/certs/localhost.key \
   -out infra/nginx/certs/localhost.crt \
   -subj "/CN=localhost" \
-  -addext "subjectAltName=DNS:localhost,DNS:ledger.localhost,DNS:balance.localhost,DNS:auth.localhost"
+  -addext "subjectAltName=DNS:localhost,DNS:ledger.localhost,DNS:balance.localhost"
 ```
 
 Com OpenSSL, o navegador deve alertar sobre certificado nao confiavel ate que a CA/certificado seja confiado localmente.
@@ -90,7 +90,7 @@ O Nginx adiciona `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Re
 
 Somente o portal em `https://localhost:7443` recebe `Content-Security-Policy` na borda. Os hosts dos Swaggers nao recebem CSP adicional no Nginx para evitar bloquear scripts e estilos da Swagger UI.
 
-Os hosts de API via Nginx (`ledger.localhost`, `balance.localhost` e `auth.localhost`) recebem `Cache-Control: no-store` em todas as respostas proxied para evitar armazenamento indevido de payloads sensiveis de autenticacao, autorizacao, ledger e saldo por navegadores, clientes ou proxies intermediarios. A borda tambem envia `Pragma: no-cache` e `Expires: 0` por compatibilidade com clientes legados e remove headers de cache vindos das APIs internas antes de aplicar a politica unica do proxy. O portal local estatico em `https://localhost:7443` nao recebe essa politica para manter a regra focada nas APIs; os assets do Swagger via hosts de API tambem recebem `no-store`, o que preserva funcionamento da UI e prioriza seguranca no ambiente local.
+Os hosts de API via Nginx (`ledger.localhost` e `balance.localhost`) recebem `Cache-Control: no-store` em todas as respostas proxied para evitar armazenamento indevido de payloads sensiveis de autorizacao, ledger e saldo por navegadores, clientes ou proxies intermediarios. A borda tambem envia `Pragma: no-cache` e `Expires: 0` por compatibilidade com clientes legados e remove headers de cache vindos das APIs internas antes de aplicar a politica unica do proxy. O portal local estatico em `https://localhost:7443` nao recebe essa politica para manter a regra focada nas APIs; os assets do Swagger via hosts de API tambem recebem `no-store`, o que preserva funcionamento da UI e prioriza seguranca no ambiente local.
 
 O Nginx usa `server_tokens off` e o modulo `headers-more` para remover o header `Server` das respostas da borda local. Tambem remove headers de tecnologia vindos das APIs internas quando presentes, como `X-Powered-By`, `X-AspNet-Version`, `X-AspNetMvc-Version` e `X-Swagger-UI-Version`. Esse hardening reduz fingerprinting, sem substituir controles de seguranca da aplicacao.
 
@@ -115,7 +115,6 @@ Swaggers via Nginx:
 
 - `https://ledger.localhost:7443/swagger`
 - `https://balance.localhost:7443/swagger`
-- `https://auth.localhost:7443/swagger`
 
 O Nginx preserva `X-Correlation-Id` quando o cliente envia o header e gera um valor UUID-like a partir de `$request_id` quando o header esta ausente. O valor efetivo e encaminhado para as APIs, devolvido no response e registrado no access log.
 
@@ -151,7 +150,6 @@ Validacao rapida da politica de cache:
 curl -k -I https://localhost:7443
 curl -k -I https://ledger.localhost:7443/swagger
 curl -k -I https://balance.localhost:7443/swagger
-curl -k -I https://auth.localhost:7443/swagger
 curl -k -I https://ledger.localhost:7443/health
 ```
 

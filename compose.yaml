@@ -7,7 +7,6 @@ networks:
 volumes:
   ledger-postgres-data:
   balance-postgres-data:
-  auth-api-data:
   alloy-data:
 
 
@@ -332,10 +331,12 @@ services:
       ASPNETCORE_ENVIRONMENT: "Development"
 
       # Auth (JWT Bearer via JWKS)
-      # Dentro do compose, localhost aponta para o próprio container, então usamos o nome do service.
+      # Por padrao, valida tokens Keycloak com issuer publico do realm e JWKS interno.
+      # Para usar o Auth.Api legado, sobrescreva JWT_ISSUER e JWT_JWKS_URL no .env.
       # HTTP/JWKS é aceito somente porque o compose local roda em Development.
-      Jwt__JwksUrl: "http://auth-api:8080/.well-known/jwks.json"
-      Jwt__RequireHttpsMetadata: "false"
+      Jwt__Issuer: "${JWT_ISSUER:-http://localhost:8081/realms/poc}"
+      Jwt__JwksUrl: "${JWT_JWKS_URL:-http://keycloak:8080/realms/poc/protocol/openid-connect/certs}"
+      Jwt__RequireHttpsMetadata: "${JWT_REQUIRE_HTTPS_METADATA:-false}"
 
       # Overrides dos appsettings (no container, 127.0.0.1 aponta para ele mesmo)
       ConnectionStrings__DefaultConnection: "Host=ledger-db;Port=5432;Database=appdb;Username=appuser;Password=${POSTGRES_PASSWORD:-local_dev_password}"
@@ -406,9 +407,12 @@ services:
       ASPNETCORE_ENVIRONMENT: "Development"
 
       # Auth (JWT Bearer via JWKS)
+      # Por padrao, valida tokens Keycloak com issuer publico do realm e JWKS interno.
+      # Para usar o Auth.Api legado, sobrescreva JWT_ISSUER e JWT_JWKS_URL no .env.
       # HTTP/JWKS é aceito somente porque o compose local roda em Development.
-      Jwt__JwksUrl: "http://auth-api:8080/.well-known/jwks.json"
-      Jwt__RequireHttpsMetadata: "false"
+      Jwt__Issuer: "${JWT_ISSUER:-http://localhost:8081/realms/poc}"
+      Jwt__JwksUrl: "${JWT_JWKS_URL:-http://keycloak:8080/realms/poc/protocol/openid-connect/certs}"
+      Jwt__RequireHttpsMetadata: "${JWT_REQUIRE_HTTPS_METADATA:-false}"
 
       # Overrides dos appsettings
       ConnectionStrings__DefaultConnection: "Host=${BALANCE_DB_HOST:-balance-db};Port=${BALANCE_DB_PORT:-5432};Database=${BALANCE_DB_NAME:-dbBalance};Username=${BALANCE_DB_USER:-userBalance};Password=${BALANCE_DB_PASSWORD:-local_dev_password}"
@@ -459,32 +463,29 @@ services:
     networks:
       - poc-net
 
-  auth-api:
-    build:
-      context: .
-      dockerfile: src/Auth.Api/Dockerfile
-    container_name: poc-auth-api
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.6.2
+    container_name: poc-keycloak
+    command: [ "start-dev", "--import-realm" ]
     environment:
-      ASPNETCORE_URLS: "http://+:8080"
-      ASPNETCORE_ENVIRONMENT: "Development"
-      # Persistência da chave dentro do volume
-      Auth__KeyPath: "/data/keys/auth-rsa-key.json"
-      # Credenciais locais de POC. Nao ha fallback em appsettings.json/producao.
-      Auth__DevelopmentUser__Username: "${AUTH_POC_USERNAME:-local_user}"
-      Auth__DevelopmentUser__Password: "${AUTH_POC_PASSWORD:-local_password}"
-      Observability__OpenTelemetry__Enabled: "${OTEL_ENABLED:-false}"
-      Observability__OpenTelemetry__UseConsoleExporter: "false"
-      Observability__OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"
-      Observability__OpenTelemetry__ServiceName: "Auth.Api"
+      KC_BOOTSTRAP_ADMIN_USERNAME: "${KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME:-local_admin}"
+      KC_BOOTSTRAP_ADMIN_PASSWORD: "${KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD:-local_admin_password}"
+      KC_HOSTNAME: "http://localhost:${KEYCLOAK_HOST_PORT:-8081}"
+      KC_HEALTH_ENABLED: "true"
     ports:
-      - "5030:8080"
+      - "${KEYCLOAK_HOST_PORT:-8081}:8080"
     deploy:
       resources:
         limits:
           cpus: "0.50"
-          memory: 512m
-          pids: 256
-    volumes:
-      - auth-api-data:/data
+          memory: 1g
+          pids: 512
     networks:
       - poc-net
+    volumes:
+      - ./infra/keycloak/realm-poc.json:/opt/keycloak/data/import/realm-poc.json:ro
+    healthcheck:
+      test: [ "CMD-SHELL", "bash -ec \"exec 3<>/dev/tcp/localhost/9000; printf 'HEAD /health/ready HTTP/1.0\\r\\n\\r\\n' >&3; grep 'HTTP/1.0 200' <&3\"" ]
+      interval: 10s
+      timeout: 5s
+      retries: 30

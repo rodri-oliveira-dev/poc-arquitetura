@@ -19,7 +19,7 @@ specification {
 
 model {
   customer = actor "Cliente / Sistema externo" {
-    description "Chama APIs HTTP para login, criacao de lancamentos, solicitacao/consulta de estornos, solicitacao/consulta de reprocessamentos e consulta de consolidados."
+    description "Obtem token no IdP local e chama APIs HTTP para criacao de lancamentos, solicitacao/consulta de estornos, solicitacao/consulta de reprocessamentos e consulta de consolidados."
   }
 
   observability = softwareSystem "Observabilidade" {
@@ -78,24 +78,21 @@ model {
     }
   }
 
-  auth = softwareSystem "Auth.Api" {
-    description "API de autenticacao da POC. Emite JWT RS256 e publica JWKS."
+  identity = softwareSystem "Keycloak" {
+    description "Provedor principal de identidade local da POC. Emite JWT RS256 por OIDC e publica JWKS do realm poc."
 
-    authApi = container "Auth.Api" {
-      technology "ASP.NET Core"
-      description "Minimal API com login, JWKS, health, hardening basico, Swagger e OpenTelemetry opcional."
+    keycloak = container "Keycloak local" {
+      technology "Keycloak / OIDC"
+      description "Container local que importa o realm poc, emite tokens por client_credentials para automacao local e publica discovery OIDC/JWKS."
 
-      authEndpoints = component "HTTP endpoints" {
-        description "POST /auth/login, GET /.well-known/jwks.json e GET /health."
+      oidcEndpoints = component "OIDC endpoints" {
+        description "Token endpoint, discovery OIDC e JWKS em /realms/poc/protocol/openid-connect/certs."
       }
 
-      authSecurity = component "JWT issuer e RSA keys" {
-        description "Emite tokens RS256 e gerencia chave RSA persistida em arquivo/volume."
+      realmConfig = component "Realm poc" {
+        description "Configuracao versionada em infra/keycloak/realm-poc.json com client poc-automation, audiences ledger-api/balance-api, scopes e merchant_id."
       }
 
-      authPipeline = component "API pipeline" {
-        description "Correlation id, security headers, ProblemDetails, HTTPS/HSTS por ambiente e rate limit de login."
-      }
     }
   }
 
@@ -233,19 +230,18 @@ model {
     }
   }
 
-  customer -> auth.authApi "Login e obtencao de JWT" "HTTP"
+  customer -> identity.keycloak "Obtem JWT por OIDC/client_credentials" "HTTP"
   customer -> ledger.ledgerApi "Cria lancamentos e solicita/consulta estornos e reprocessamentos" "HTTP + JWT"
   customer -> balance.balanceApi "Consulta consolidados" "HTTP + JWT"
   customer -> edge.nginx "Acessa portal e Swaggers locais opcionais" "HTTPS"
   edge.nginx -> ledger.ledgerApi "Encaminha ledger.localhost:7443 para o upstream ledger_api com least_conn" "HTTP interno"
   edge.nginx -> balance.balanceApi "Encaminha balance.localhost:7443" "HTTP interno"
-  edge.nginx -> auth.authApi "Encaminha auth.localhost:7443" "HTTP interno"
   edge.nginx.portal -> observability.grafana "Linka UI local" "HTTP direto"
   edge.nginx.portal -> observability.jaeger "Linka UI local" "HTTP direto"
   edge.nginx.portal -> observability.prometheus "Linka UI local" "HTTP direto"
 
-  ledger.ledgerApi -> auth.authApi "Obtem JWKS para validar JWT" "HTTP cacheado"
-  balance.balanceApi -> auth.authApi "Obtem JWKS para validar JWT" "HTTP cacheado"
+  ledger.ledgerApi -> identity.keycloak "Baixa/cacheia JWKS e valida JWT offline com iss, aud, scopes e merchant_id" "HTTP cacheado"
+  balance.balanceApi -> identity.keycloak "Baixa/cacheia JWKS e valida JWT offline com iss, aud, scopes e merchant_id" "HTTP cacheado"
 
   ledger.ledgerApi -> ledger.ledgerDb "Persiste lancamento, estorno, reprocessamento, idempotencia e outbox" "EF Core"
   ledger.ledgerWorker.ledgerWorkerComposition -> ledger.ledgerWorker.ledgerWorkerApplication "Registra casos de uso e handlers" "DI / MediatR"
@@ -270,7 +266,6 @@ model {
   balance.balanceWorker.balanceConsumer -> balance.balanceDb "Atualiza daily_balances e processed_events" "EF Core"
   balance.balanceApi -> balance.balanceDb "Consulta projecao" "EF Core"
 
-  auth.authApi -> observability.collector "Exporta telemetria quando habilitado no compose" "OTLP"
   ledger.ledgerApi -> observability.collector "Exporta telemetria quando habilitado no compose" "OTLP"
   ledger.ledgerWorker -> observability.collector "Exporta telemetria quando habilitado no compose" "OTLP"
   balance.balanceApi -> observability.collector "Exporta telemetria quando habilitado no compose" "OTLP"

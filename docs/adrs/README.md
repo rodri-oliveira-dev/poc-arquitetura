@@ -15,6 +15,8 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 
 | ADR                                                                   | Status      | Resumo                                                                                           |
 | --------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------ |
+| [ADR-0074](./0074-keycloak-como-identidade-principal.md) | Aceito | Define Keycloak como identidade principal, remove Auth.Api da stack principal e o mantem apenas como legado por overlay. |
+| [ADR-0073](./0073-plano-migracao-auth-api-keycloak-oidc.md) | Substituido | Define plano executavel para migrar Auth.Api para Keycloak/OIDC mantendo JWT offline via JWKS e claims atuais na primeira fase; fechado pela ADR-0074. |
 | [ADR-0072](./0072-load-balance-local-ledger-nginx.md) | Aceito | Demonstra load balance local do LedgerService.Api com duas instancias atras do Nginx e `least_conn`. |
 | [ADR-0071](./0071-borda-local-nginx-https.md) | Aceito | Adiciona overlay opcional com Nginx, HTTPS local, portal e subdominios `.localhost` para Swagger. |
 | [ADR-0070](./0070-dlq-outbox-banco-backoff-requeue.md) | Aceito | Padroniza DLQ em banco para Outbox com backoff exponencial, inspecao e requeue administrativo por id. |

@@ -131,7 +131,7 @@ public sealed class EstornoLancamentoConcurrencyTests : IAsyncLifetime
         });
 
         var token = TestJwtTokenFactory.CreateToken(
-            issuer: "https://auth-api",
+            issuer: TestJwtTokenFactory.KeycloakIssuer,
             audiences: "ledger-api",
             scopes: "ledger.write",
             merchantIds: "m1");

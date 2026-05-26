@@ -27,7 +27,6 @@ A solution principal e `LedgerService.slnx`.
 
 Componentes principais:
 
-- `src/Auth.Api`
 - `src/LedgerService.Api`
 - `src/LedgerService.Application`
 - `src/LedgerService.Domain`
@@ -37,6 +36,8 @@ Componentes principais:
 - `src/BalanceService.Domain`
 - `src/BalanceService.Infrastructure`
 - `tests/*`
+
+`src/Auth.Api` permanece apenas como legado de autenticacao de POC, fora da stack principal, com testes proprios enquanto o projeto existir.
 
 ## Regras obrigatorias
 

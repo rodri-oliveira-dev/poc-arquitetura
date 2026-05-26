@@ -163,7 +163,7 @@ public static class ServiceCollectionExtensions
                 Scheme = "bearer",
                 BearerFormat = "JWT",
                 In = ParameterLocation.Header,
-                Description = $"Autenticação via JWT Bearer. Obtenha um token no Auth.Api (POST /auth/login) e informe: Bearer {{token}}.\n\nScopes relevantes nesta API: {ScopePolicies.LedgerWrite} (escrita) / {ScopePolicies.LedgerRead} (leitura) / {ScopePolicies.OutboxAdmin} (administração da DLQ do Outbox)."
+                Description = $"Autenticacao via JWT Bearer. Obtenha um token no Keycloak local e informe: Bearer {{token}}.\n\nScopes relevantes nesta API: {ScopePolicies.LedgerWrite} (escrita) / {ScopePolicies.LedgerRead} (leitura) / {ScopePolicies.OutboxAdmin} (administracao da DLQ do Outbox)."
             });
 
             // Aplica requirement + descrição de scopes por endpoint com [Authorize]

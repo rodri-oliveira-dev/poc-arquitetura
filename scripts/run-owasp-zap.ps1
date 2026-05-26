@@ -11,6 +11,9 @@ param(
   [int]$HealthTimeoutSeconds = 90,
   [int]$HealthIntervalSeconds = 3,
   [string]$SwaggerPath = "/swagger/v1/swagger.json",
+  [switch]$UseAuthentication,
+  [switch]$IncludeLegacyAuth,
+  [string]$Token = "",
   [switch]$ActiveScan,
   [switch]$FailOnAlerts
 )
@@ -28,9 +31,10 @@ $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $outputDir = Join-Path $OutputRoot $timestamp
 $scanCommand = "zap-api-scan.py"
 $scanType = if ($ActiveScan) { "api-active" } else { "api-baseline" }
+$zapOptions = "-config connection.sslAcceptAll=true"
 
 if ([string]::IsNullOrWhiteSpace($AuthUrl)) {
-  $AuthUrl = if ($UseNginx) { "https://auth.localhost:7443" } else { "http://localhost:5030" }
+  $AuthUrl = "http://localhost:5030"
 }
 if ([string]::IsNullOrWhiteSpace($LedgerUrl)) {
   $LedgerUrl = if ($UseNginx) { "https://ledger.localhost:7443" } else { "http://localhost:5226" }
@@ -40,10 +44,12 @@ if ([string]::IsNullOrWhiteSpace($BalanceUrl)) {
 }
 
 $apis = @(
-  [pscustomobject]@{ Name = "Auth.Api"; Slug = "auth-api"; Url = $AuthUrl },
   [pscustomobject]@{ Name = "LedgerService.Api"; Slug = "ledger-service-api"; Url = $LedgerUrl },
   [pscustomobject]@{ Name = "BalanceService.Api"; Slug = "balance-service-api"; Url = $BalanceUrl }
 )
+if ($IncludeLegacyAuth) {
+  $apis = @([pscustomobject]@{ Name = "Auth.Api"; Slug = "auth-api"; Url = $AuthUrl }) + $apis
+}
 
 $scanResults = New-Object System.Collections.Generic.List[object]
 
@@ -118,6 +124,42 @@ function Get-SwaggerUri([string]$BaseUrl) {
   }
 
   return $BaseUrl.TrimEnd("/") + $path
+}
+
+function Get-ZapToken {
+  if (-not [string]::IsNullOrWhiteSpace($Token)) {
+    return $Token
+  }
+
+  $getTokenScript = Join-Path $scriptDir "get-token.ps1"
+  Write-Host "Obtendo token para o ZAP pelo provider local configurado..."
+  $value = powershell -NoProfile -ExecutionPolicy Bypass -File $getTokenScript
+  if ($LASTEXITCODE -ne 0) {
+    throw "Falha ao obter token para o ZAP. Exit code: $LASTEXITCODE"
+  }
+
+  $value = ($value | Out-String).Trim()
+  if ([string]::IsNullOrWhiteSpace($value)) {
+    throw "Token vazio retornado por $getTokenScript"
+  }
+
+  return $value
+}
+
+function Enable-ZapAuthorizationHeader([string]$AccessToken) {
+  if ([string]::IsNullOrWhiteSpace($AccessToken)) {
+    throw "Token vazio para configurar Authorization no ZAP."
+  }
+
+  $script:zapOptions = @(
+    "-config connection.sslAcceptAll=true",
+    "-config replacer.full_list(0).description=authorization-header",
+    "-config replacer.full_list(0).enabled=true",
+    "-config replacer.full_list(0).matchtype=REQ_HEADER",
+    "-config replacer.full_list(0).matchstr=Authorization",
+    "-config replacer.full_list(0).regex=false",
+    "-config replacer.full_list(0).replacement=Bearer $AccessToken"
+  ) -join " "
 }
 
 function Invoke-HealthCheck([string]$ApiName, [string]$BaseUrl) {
@@ -218,7 +260,7 @@ function Invoke-ZapScan([object]$Api) {
     "-r", $html,
     "-J", $json,
     "-w", $markdown,
-    "-z", "-config connection.sslAcceptAll=true"
+    "-z", $zapOptions
   )
 
   if (-not $ActiveScan) {
@@ -274,6 +316,7 @@ function Write-Summary {
   $lines.Add(("- Imagem ZAP: ``{0}``" -f $ZapImage))
   $lines.Add(("- Tipo de scan: ``{0}``" -f $scanType))
   $lines.Add(("- Definicao OpenAPI: ``{0}``" -f $SwaggerPath))
+  $lines.Add(("- Autenticacao Bearer: ``{0}``" -f ($(if ($UseAuthentication) { "habilitada" } else { "desabilitada" }))))
   $lines.Add(("- Container temporario: ``{0}``" -f $containerName))
   $lines.Add(("- Diretorio de saida: ``{0}``" -f $outputDir))
   $lines.Add("")
@@ -300,6 +343,9 @@ function Write-Summary {
   } else {
     $lines.Add("- API scan foi executado em modo seguro (`-S`), importando OpenAPI sem active scan por padrao.")
   }
+  if ($UseAuthentication) {
+    $lines.Add("- Authorization Bearer foi injetado via ZAP Replacer usando token obtido por ``scripts/get-token.ps1`` ou pelo parametro ``-Token``.")
+  }
 
   Set-Content -Path $summaryPath -Value $lines -Encoding UTF8
 }
@@ -314,6 +360,10 @@ try {
 
   foreach ($api in $apis) {
     Invoke-HealthCheck $api.Name $api.Url
+  }
+
+  if ($UseAuthentication) {
+    Enable-ZapAuthorizationHeader (Get-ZapToken)
   }
 
   if (-not (Test-DockerImageExists $ZapImage)) {

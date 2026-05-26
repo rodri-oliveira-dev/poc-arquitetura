@@ -1,6 +1,6 @@
 # Observabilidade e operacao minima
 
-Este documento define o inventario operacional minimo da POC para `Auth.Api`, `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker`.
+Este documento define o inventario operacional minimo da POC para Keycloak, `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker`.
 
 OpenTelemetry fica desabilitado por padrao. A correlacao via `X-Correlation-Id` permanece sempre ativa nas APIs e e usada para conectar logs, respostas HTTP e mensagens Kafka. A operacao local minima usa `docker compose`, PostgreSQL e Kafka; OpenTelemetry Collector, Jaeger, Prometheus, Loki, Grafana Alloy, Alertmanager e Grafana ficam no profile `observability`, conforme documentado em [desenvolvimento local](development/local-development.md).
 
@@ -8,7 +8,7 @@ OpenTelemetry fica desabilitado por padrao. A correlacao via `X-Correlation-Id` 
 
 - Para estado operacional rapido, leia [Baseline](#baseline), [Endpoints operacionais](#endpoints-operacionais) e [Validacao rapida](#validacao-rapida).
 - Para setup local de observabilidade, leia [Configuracao local](#configuracao-local), [Dashboards Grafana provisionados](#dashboards-grafana-provisionados) e [Alertas tecnicos Prometheus](#alertas-tecnicos-prometheus).
-- Para diagnostico ponta a ponta, leia [Validacao Auth -> Ledger -> Outbox -> Kafka -> Balance](#validacao-auth---ledger---outbox---kafka---balance) e [Diagnostico de propagacao Kafka](#diagnostico-de-propagacao-kafka).
+- Para diagnostico ponta a ponta, leia [Validacao Keycloak -> Ledger -> Outbox -> Kafka -> Balance](#validacao-keycloak---ledger---outbox---kafka---balance) e [Diagnostico de propagacao Kafka](#diagnostico-de-propagacao-kafka).
 - Para instrumentacao, leia [Logs](#logs), [Traces](#traces), [Metricas](#metricas), [Kafka](#kafka), [DLQ](#dlq) e [Outbox](#outbox).
 
 ## Baseline
@@ -19,7 +19,7 @@ OpenTelemetry fica desabilitado por padrao. A correlacao via `X-Correlation-Id` 
 - Exporters: console para validacao local e OTLP quando `OtlpEndpoint` estiver configurado.
 - Correlacao: header HTTP `X-Correlation-Id`, campo `CorrelationId` em logs e `correlation_id` em eventos Kafka.
 - Health: `GET /health` em `LedgerService.Api` e `BalanceService.Api`.
-- Health simples tambem existe em `Auth.Api` para liveness do processo.
+- Keycloak expoe health/readiness propria no compose local.
 - Readiness: `GET /ready` em `LedgerService.Api` e `BalanceService.Api`.
 - Mensageria: Kafka com topico principal `ledger.ledgerentry.created` e DLQ `ledger.ledgerentry.created.dlq`.
 - Outbox: publicacao assincrona do Ledger com polling, lock, tentativas e backoff configuraveis.
@@ -37,7 +37,7 @@ OpenTelemetry fica desabilitado por padrao. A correlacao via `X-Correlation-Id` 
 - nao verifica PostgreSQL nem Kafka;
 - uso esperado: liveness simples do processo HTTP.
 
-`Auth.Api` expoe `GET /health` como liveness simples. Ele nao expoe `GET /ready`; a validacao operacional minima do fluxo de autenticacao continua sendo feita por `POST /auth/login` e `GET /.well-known/jwks.json`.
+Keycloak expoe health/readiness propria no container local e e a origem principal de tokens/JWKS. O `Auth.Api` legado possui `GET /health`, `POST /auth/login` e `GET /.well-known/jwks.json`, mas fica fora da stack principal e so entra em validacoes quando `compose.auth-legacy.yaml` for usado explicitamente.
 
 No compose local, PostgreSQL e Kafka possuem healthchecks nativos e sao usados por `depends_on.condition`. As APIs nao recebem healthcheck HTTP no compose porque a imagem runtime .NET usada nesta POC nao inclui `curl`, `wget` ou `busybox`; a sonda HTTP continua disponivel pelo host em `GET /health` e pelos workflows/scripts de validacao.
 
@@ -89,7 +89,7 @@ $env:Observability__OpenTelemetry__ServiceName = "LedgerService.Api"
 
 Use `ServiceName` conforme o servico:
 
-- `Auth.Api`
+- Keycloak
 - `LedgerService.Api`
 - `LedgerService.Worker`
 - `BalanceService.Api`
@@ -185,7 +185,7 @@ Consultas LogQL uteis no Grafana Explore com datasource `Loki`:
 {service="ledger-worker"}
 {service="balance-service"}
 {service="balance-worker"}
-{container="poc-auth-api"}
+{container="poc-keycloak"}
 {service="ledger-service"} |= "CorrelationId=<valor>"
 {service="ledger-worker"} |= "TraceId=<valor>"
 {service="balance-worker"} |= "CorrelationId=<valor>"
@@ -252,7 +252,7 @@ Caminho a partir de um `CorrelationId`:
 1. Pesquise o identificador nos logs:
 
    ```logql
-   {service=~"auth-api|ledger-service|ledger-worker|balance-service|balance-worker", environment="local"} |= "CorrelationId=<correlation-id>"
+   {service=~"ledger-service|ledger-worker|balance-service|balance-worker", environment="local"} |= "CorrelationId=<correlation-id>"
    ```
 
 2. Use o mesmo valor em consultas SQL operacionais quando precisar conectar logs, Outbox e Balance:
@@ -271,7 +271,7 @@ Limitacoes conhecidas:
 
 - o derived field depende do texto `TraceId=<valor>` aparecer no conteudo do log;
 - logs sem `Activity` ativa podem ter `TraceId` e `SpanId` vazios;
-- `POST /auth/login` e `POST /api/v1/lancamentos` sao chamadas HTTP separadas, portanto nao formam uma unica arvore de trace por causa do token JWT;
+- a obtencao de token no Keycloak e `POST /api/v1/lancamentos` sao chamadas HTTP separadas, portanto nao formam uma unica arvore de trace por causa do token JWT;
 - mensagens antigas sem `traceparent` preservado na Outbox podem gerar spans raiz no Balance;
 - `CorrelationId`, `TraceId` e `SpanId` continuam no conteudo do log e nao viram labels do Loki.
 
@@ -535,7 +535,7 @@ OTEL_ENABLED=true docker compose --profile observability up -d --build
 
 Portas expostas no host:
 
-- Auth.Api: `http://localhost:5030/`;
+- Keycloak: `http://localhost:8081/`;
 - LedgerService.Api: `http://localhost:5226/`;
 - BalanceService.Api: `http://localhost:5228/`;
 - PostgreSQL Ledger: `localhost:15432`;
@@ -567,7 +567,7 @@ Grafana -> Prometheus
 Grafana -> Loki
 ```
 
-Com `OTEL_ENABLED=true`, `Auth.Api`, `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker` sobem com OpenTelemetry habilitado e exportam para `http://otel-collector:4317` dentro da rede do compose. As APIs usam instrumentacao ASP.NET Core/`HttpClient`; os workers usam instrumentacao de Generic Host sem endpoint HTTP, runtime metrics e os sources/meters operacionais de Outbox/Kafka. Todos apontam somente para o Collector, nao para Prometheus ou Grafana.
+Com `OTEL_ENABLED=true`, `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker` sobem com OpenTelemetry habilitado e exportam para `http://otel-collector:4317` dentro da rede do compose. As APIs usam instrumentacao ASP.NET Core/`HttpClient`; os workers usam instrumentacao de Generic Host sem endpoint HTTP, runtime metrics e os sources/meters operacionais de Outbox/Kafka. Todos apontam somente para o Collector, nao para Prometheus ou Grafana.
 
 O Collector recebe OTLP via gRPC em `4317` e HTTP em `4318`, aplica `batch`, encaminha traces para `jaeger:4317` usando o exporter `otlp_grpc` e expoe metricas no exporter `prometheus` em `0.0.0.0:9464`. Essa porta nao e publicada no host; o Prometheus acessa `otel-collector:9464` pela rede Docker.
 
@@ -588,10 +588,10 @@ Dashboards provisionados:
 
 Os dashboards mantem filtros pequenos para investigacao:
 
-- `service`: filtra as series Prometheus por `exported_job` (`Auth.Api`, `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` ou `BalanceService.Worker`).
+- `service`: filtra as series Prometheus por `exported_job` (`LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` ou `BalanceService.Worker`).
 - `status`: filtra o painel de respostas HTTP por classe de status (`2..`, `3..`, `4..` ou `5..`).
 - `environment`: valor local usado nos labels do Loki.
-- `loki_service`: filtra o link para Explore/Loki pelos nomes de servico do compose (`auth-api`, `ledger-service`, `ledger-worker`, `balance-service` ou `balance-worker`).
+- `loki_service`: filtra o link para Explore/Loki pelos nomes de servico do compose (`ledger-service`, `ledger-worker`, `balance-service` ou `balance-worker`).
 
 O link `Logs no Loki` abre o Explore com a mesma janela de tempo do dashboard e uma query LogQL baseada nos labels estaveis `compose_project`, `environment` e `service`. A partir dos logs, linhas com `TraceId=<valor>` exibem o link interno para o datasource `Jaeger`.
 
@@ -604,7 +604,7 @@ Metricas usadas nos dashboards:
 - `dotnet_thread_pool_queue_length_total`: tamanho da fila do ThreadPool.
 - `dotnet_exceptions_total`: excecoes observadas pelo runtime por tipo estavel.
 
-As queries agrupam principalmente por `exported_job`, que representa `Auth.Api`, `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` ou `BalanceService.Worker` nas series exportadas pelo Collector. O painel por rota usa `http_route` somente para processos HTTP, porque a instrumentacao ASP.NET Core exporta rotas normalizadas, como `/health`, `/ready` e templates de rota, evitando identificadores unicos.
+As queries agrupam principalmente por `exported_job`, que representa `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` ou `BalanceService.Worker` nas series exportadas pelo Collector. O painel por rota usa `http_route` somente para processos HTTP, porque a instrumentacao ASP.NET Core exporta rotas normalizadas, como `/health`, `/ready` e templates de rota, evitando identificadores unicos.
 
 Limitacoes conhecidas:
 
@@ -623,10 +623,10 @@ Alertas criados:
 | `CollectorDown` | Detectar indisponibilidade do OpenTelemetry Collector como target de metricas. | `up{job="otel-collector"} == 0` | `critical` | `1m` |
 | `AlertmanagerDown` | Detectar indisponibilidade do Alertmanager local. | `up{job="alertmanager"} == 0` | `critical` | `1m` |
 | `PrometheusConfigReloadFailed` | Detectar falha de reload da configuracao do Prometheus. | `prometheus_config_last_reload_successful == 0` | `critical` | `1m` |
-| `HighHttp5xxRate` | Detectar taxa elevada de respostas HTTP 5xx nas APIs. | `sum by (exported_job) (rate(http_server_request_duration_seconds_count{exported_job=~"Auth.Api\|LedgerService.Api\|BalanceService.Api", http_response_status_code=~"5.."}[5m])) > 0.1` | `warning` | `2m` |
-| `HighHttpRequestDuration` | Detectar p95 de latencia HTTP elevado nas APIs. | `histogram_quantile(0.95, sum by (exported_job, le) (rate(http_server_request_duration_seconds_bucket{exported_job=~"Auth.Api\|LedgerService.Api\|BalanceService.Api"}[5m]))) > 2` | `warning` | `5m` |
+| `HighHttp5xxRate` | Detectar taxa elevada de respostas HTTP 5xx nas APIs. | `sum by (exported_job) (rate(http_server_request_duration_seconds_count{exported_job=~"LedgerService.Api\|BalanceService.Api", http_response_status_code=~"5.."}[5m])) > 0.1` | `warning` | `2m` |
+| `HighHttpRequestDuration` | Detectar p95 de latencia HTTP elevado nas APIs. | `histogram_quantile(0.95, sum by (exported_job, le) (rate(http_server_request_duration_seconds_bucket{exported_job=~"LedgerService.Api\|BalanceService.Api"}[5m]))) > 2` | `warning` | `5m` |
 | `ReadinessEndpointFailing` | Detectar respostas 5xx observadas em `GET /ready` no Ledger ou Balance. | `sum by (exported_job) (increase(http_server_request_duration_seconds_count{exported_job=~"LedgerService.Api\|BalanceService.Api", http_route="/ready", http_response_status_code=~"5.."}[5m])) > 0` | `warning` | `1m` |
-| `HighDotnetExceptionRate` | Detectar taxa elevada de excecoes .NET observadas pelo runtime. | `sum by (exported_job) (rate(dotnet_exceptions_total{exported_job=~"Auth.Api\|LedgerService.Api\|BalanceService.Api"}[5m])) > 1` | `warning` | `5m` |
+| `HighDotnetExceptionRate` | Detectar taxa elevada de excecoes .NET observadas pelo runtime. | `sum by (exported_job) (rate(dotnet_exceptions_total{exported_job=~"LedgerService.Api\|BalanceService.Api"}[5m])) > 1` | `warning` | `5m` |
 
 Esses alertas usam somente labels de baixa cardinalidade ja presentes nas metricas tecnicas atuais, como `job`, `instance`, `service`, `exported_job`, `http_response_status_code` e `http_route`. Eles nao usam `CorrelationId`, `TraceId`, `SpanId`, `event_id`, `merchant_id` ou identificadores por requisicao.
 
@@ -666,18 +666,16 @@ curl http://localhost:5226/health
 curl http://localhost:5226/ready
 curl http://localhost:5228/health
 curl http://localhost:5228/ready
-curl http://localhost:5030/health
 ```
 
 Na UI do Jaeger, use o seletor de servico para procurar:
 
-- `Auth.Api`
 - `LedgerService.Api`
 - `BalanceService.Api`
 
 Ao consultar traces, o esperado e visualizar spans de entrada HTTP gerados pela instrumentacao ASP.NET Core para `GET /health` e `GET /ready` nos servicos que expoem esses endpoints. A validacao confirma apenas o caminho minimo de traces HTTP; ela nao depende de eventos Kafka, Outbox, endpoints autenticados, spans customizados ou metricas customizadas.
 
-No Prometheus, acesse `http://localhost:9090/targets` e confirme que os targets `otel-collector:9464`, `alertmanager:9093` e `localhost:9090` estao `UP`. Em `http://localhost:9090/alerts`, confirme que o grupo `technical-alerts` foi carregado. Depois gere chamadas HTTP para as APIs e eventos para os workers, e pesquise metricas tecnicas automaticas. Os nomes podem variar conforme a versao dos pacotes OpenTelemetry e do runtime .NET, mas normalmente incluem series relacionadas a HTTP server, HTTP client e runtime/processo .NET. Prometheus nao deve ter targets diretos para `Auth.Api`, `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` ou `BalanceService.Worker` nesta etapa.
+No Prometheus, acesse `http://localhost:9090/targets` e confirme que os targets `otel-collector:9464`, `alertmanager:9093` e `localhost:9090` estao `UP`. Em `http://localhost:9090/alerts`, confirme que o grupo `technical-alerts` foi carregado. Depois gere chamadas HTTP para as APIs e eventos para os workers, e pesquise metricas tecnicas automaticas. Os nomes podem variar conforme a versao dos pacotes OpenTelemetry e do runtime .NET, mas normalmente incluem series relacionadas a HTTP server, HTTP client e runtime/processo .NET. Prometheus nao deve ter targets diretos para `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` ou `BalanceService.Worker` nesta etapa.
 
 No Alertmanager, acesse `http://localhost:9093/#/alerts` para visualizar alertas recebidos do Prometheus. A configuracao local nao envia notificacoes para sistemas externos.
 
@@ -685,7 +683,7 @@ No Loki, acesse `http://localhost:3100/ready` e espere resposta `ready`. Para va
 
 ```bash
 curl -G "http://localhost:3100/loki/api/v1/query_range" \
-  --data-urlencode 'query={service="auth-api"}' \
+  --data-urlencode 'query={service="ledger-service"}' \
   --data-urlencode 'limit=20'
 ```
 
@@ -693,16 +691,16 @@ No Alloy, acesse `http://localhost:12345` para diagnostico local do agente quand
 
 No Grafana, acesse `http://localhost:3000` com usuario `admin` e senha local definida por `GRAFANA_ADMIN_PASSWORD` ou pelo default ficticio `local_dev_password`. Em `Connections` ou `Data sources`, confirme os datasources `Prometheus` apontando para `http://prometheus:9090`, `Loki` apontando para `http://loki:3100` e `Jaeger` apontando para `http://jaeger:16686`. Em `Dashboards`, abra a pasta `Observability` e confirme que os dashboards `APIs - Visao Geral` e `Runtime .NET - Visao Geral` foram carregados automaticamente. Para validar metricas, use Explore com uma das metricas tecnicas listadas acima. Para validar logs, use Explore com o datasource `Loki` e queries por processo, por exemplo `{service="ledger-service"}` para HTTP e `{service="ledger-worker"}` para Outbox/Kafka. Para validar o link log -> trace, abra uma linha com `TraceId=<valor>` e clique em `Abrir trace no Jaeger`.
 
-### Validacao Auth -> Ledger -> Outbox -> Kafka -> Balance
+### Validacao Keycloak -> Ledger -> Outbox -> Kafka -> Balance
 
-Para validar o fluxo distribuido completo com chamada autenticada, Outbox, Kafka, Balance, logs e Jaeger, use `Auth.Api` para obter um JWT RS256 e chame o endpoint protegido `POST /api/v1/lancamentos` no `LedgerService.Api`.
+Para validar o fluxo distribuido completo com chamada autenticada, Outbox, Kafka, Balance, logs e Jaeger, use `scripts/get-token.ps1` para obter um JWT RS256 do Keycloak local e chame o endpoint protegido `POST /api/v1/lancamentos` no `LedgerService.Api`.
 
 Esse endpoint foi escolhido porque:
 
 - exige `Authorization: Bearer <token>` com scope `ledger.write`;
 - exige `Idempotency-Key`;
 - aceita e devolve `X-Correlation-Id`;
-- usa `merchantId` no contrato real e valida esse valor contra a claim `merchant_id` emitida pelo `Auth.Api`;
+- usa `merchantId` no contrato real e valida esse valor contra a claim `merchant_id` emitida pelo Keycloak;
 - grava `LedgerEntryCreated.v1` em `outbox_messages` na mesma transacao da escrita;
 - depende do `LedgerService.Worker`, que hospeda `OutboxKafkaPublisherService` e publica no topico `ledger.ledgerentry.created`;
 - alimenta o `BalanceService.Worker`, que atualiza `processed_events` e `daily_balances`; o `BalanceService.Api` apenas consulta a projecao.
@@ -711,7 +709,7 @@ Pre-requisitos:
 
 - Docker-compatible API disponivel;
 - stack local com migrations aplicadas;
-- portas do compose livres: `5030`, `5226`, `5228`, `15432`, `15433`, `19092` e, com profile `observability`, `16686`, `4317`, `4318`, `9090`, `3100`, `12345`, `9093` e `3000`;
+- portas do compose livres: `8081`, `5226`, `5228`, `15432`, `15433`, `19092` e, com profile `observability`, `16686`, `4317`, `4318`, `9090`, `3100`, `12345`, `9093` e `3000`;
 - profile `observability` ativo e `OTEL_ENABLED=true` quando a validacao incluir traces no Jaeger.
 
 Suba a stack local completa. O script aplica migrations antes de iniciar Ledger e Balance:
@@ -726,17 +724,7 @@ Se preferir validar apenas a sintaxe efetiva do compose:
 docker compose config
 ```
 
-Payload real do login, conforme `src/Auth.Api/Contracts/LoginRequest.cs`:
-
-```json
-{
-  "username": "local_user",
-  "password": "local_password",
-  "scope": "ledger.write balance.read"
-}
-```
-
-O compose local configura essas credenciais ficticias em `auth-api` por `AUTH_POC_USERNAME` e `AUTH_POC_PASSWORD`, e o `Auth.Api` versionado autoriza os merchants `tese` e `m1`. Para criar um lancamento, use um desses merchants. O contrato real de criacao de lancamento fica em `src/LedgerService.Api/Contracts/CreateLancamentoRequest.cs`; `CREDIT` exige `amount` maior que zero e `DEBIT` exige `amount` menor que zero.
+O realm Keycloak local autoriza os merchants `tese` e `m1` pela claim `merchant_id`. Para criar um lancamento, use um desses merchants. O contrato real de criacao de lancamento fica em `src/LedgerService.Api/Contracts/CreateLancamentoRequest.cs`; `CREDIT` exige `amount` maior que zero e `DEBIT` exige `amount` menor que zero.
 
 No Windows/PowerShell, o fluxo completo pode ser executado com:
 
@@ -746,8 +734,8 @@ No Windows/PowerShell, o fluxo completo pode ser executado com:
 
 O script:
 
-1. chama `POST /auth/login` em `http://localhost:5030`;
-2. extrai `access_token`;
+1. chama `scripts/get-token.ps1`, que usa Keycloak por padrao;
+2. extrai o token retornado;
 3. chama `POST /api/v1/lancamentos` em `http://localhost:5226`;
 4. envia `Authorization`, `Idempotency-Key` e `X-Correlation-Id` explicito;
 5. valida `201 Created` e o `X-Correlation-Id` devolvido;
@@ -780,7 +768,7 @@ Pre-requisitos:
 - stack local completa iniciada, preferencialmente com `./scripts/start-local-stack.ps1`;
 - migrations aplicadas pelo startup local;
 - Docker-compatible API disponivel para `docker compose exec -T ... psql`;
-- portas do compose livres e acessiveis: `5030`, `5226`, `5228` e, com profile `observability`, `16686`, `9090`, `3100`, `12345`, `9093` e `3000`;
+- portas do compose livres e acessiveis: `8081`, `5226`, `5228` e, com profile `observability`, `16686`, `9090`, `3100`, `12345`, `9093` e `3000`;
 - profile `observability` ativo e `OTEL_ENABLED=true` para consulta de traces no Jaeger.
 
 Os dois scripts usam `scripts/get-token.ps1`, enviam `Authorization`, `Idempotency-Key` e `X-Correlation-Id` explicito, fazem polling curto configuravel e falham com erro quando um estado esperado nao aparece.
@@ -818,15 +806,12 @@ Limitacoes conhecidas:
 - os scripts consultam bancos diretamente para validar estados assincronos e identificadores internos que nao fazem parte do contrato publico de criacao de lancamento;
 - a validacao do Jaeger confirma traces recentes por servico, nao uma busca por `CorrelationId` na UI;
 - a politica local do PowerShell pode exigir `-ExecutionPolicy Bypass` na invocacao do processo;
-- o token local padrao usa os scopes aceitos pelo `Auth.Api` nesta POC (`ledger.write balance.read`), por isso os scripts validam estados de estorno/reprocessamento pelo banco em vez dos endpoints de status protegidos por `ledger.read`.
+- o token local padrao vem do Keycloak e inclui `ledger.read`; os scripts ainda validam estados assincronos pelo banco porque tambem conferem identificadores internos e efeitos de Outbox/Balance.
 
 Tambem e possivel executar manualmente com `curl`:
 
 ```bash
-TOKEN="$(curl -sS -X POST http://localhost:5030/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"local_user","password":"local_password","scope":"ledger.write balance.read"}' \
-  | sed -nE 's/.*"access_token"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p')"
+TOKEN="$(./scripts/get-token.sh)"
 
 CORRELATION_ID="11111111-1111-4111-8111-111111111111"
 IDEMPOTENCY_KEY="$(uuidgen)"
@@ -840,7 +825,7 @@ curl -i -X POST http://localhost:5226/api/v1/lancamentos \
     "merchantId": "tese",
     "type": "CREDIT",
     "amount": 10.00,
-    "description": "Validacao local Auth -> Ledger com OpenTelemetry",
+    "description": "Validacao local Keycloak -> Ledger com OpenTelemetry",
     "externalReference": "local-auth-ledger-manual"
   }'
 ```
@@ -906,7 +891,7 @@ Para buscar pelo `TraceId`, copie o valor da UI/API do Jaeger ou do logging scop
 
 Resultado esperado:
 
-- `POST /auth/login` retorna `access_token`;
+- `scripts/get-token.*` retorna um token Keycloak valido;
 - `POST /api/v1/lancamentos` retorna `201 Created`;
 - o header `X-Correlation-Id` do response preserva o UUID enviado;
 - a tabela `outbox_messages` contem `LedgerEntryCreated.v1` com o mesmo `correlation_id` e status final `Processed`;
@@ -917,18 +902,17 @@ Resultado esperado:
 - `GET /v1/consolidados/diario/{date}` retorna o consolidado atualizado;
 - os logs do Balance mostram o mesmo `CorrelationId` durante o consumo;
 - o Loki retorna logs do Balance com o `CorrelationId` dentro do conteudo do log;
-- a UI do Jaeger em `http://localhost:16686` mostra traces recentes para `Auth.Api`, `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Worker` e `BalanceService.Api`.
+- a UI do Jaeger em `http://localhost:16686` mostra traces recentes para `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Worker` e `BalanceService.Api`.
 
 Na UI do Jaeger:
 
-1. selecione `Auth.Api` e procure `POST /auth/login`;
-2. selecione `LedgerService.Api` e procure `POST /api/v1/lancamentos`;
-3. selecione `LedgerService.Worker` para spans `outbox.publish` e `BalanceService.Worker` para spans `kafka.consume`; para consulta HTTP, selecione `BalanceService.Api` e procure `GET /v1/consolidados/diario/{date}`;
-4. use o `TraceID` para analise temporal e o `CorrelationId` nos logs/SQL para conectar a operacao de negocio.
+1. selecione `LedgerService.Api` e procure `POST /api/v1/lancamentos`;
+2. selecione `LedgerService.Worker` para spans `outbox.publish` e `BalanceService.Worker` para spans `kafka.consume`; para consulta HTTP, selecione `BalanceService.Api` e procure `GET /v1/consolidados/diario/{date}`;
+3. use o `TraceID` para analise temporal e o `CorrelationId` nos logs/SQL para conectar a operacao de negocio.
 
 Trace distribuido no fluxo autenticado:
 
-- `POST /auth/login` e `POST /api/v1/lancamentos` sao chamadas HTTP separadas; o token JWT nao carrega trace context.
+- a obtencao de token no Keycloak e `POST /api/v1/lancamentos` sao chamadas HTTP separadas; o token JWT nao carrega trace context.
 - O Ledger persiste `correlation_id`, `traceparent`, `tracestate` e `baggage` na tabela `outbox_messages`.
 - O trace HTTP do `POST /api/v1/lancamentos` pode aparecer como a mesma arvore do processamento assincrono Outbox/Kafka/Balance quando OpenTelemetry esta habilitado e existe `Activity` ativa no request.
 - O span `outbox.publish` usa o contexto salvo na Outbox como parent e o producer publica os headers W3C no Kafka.

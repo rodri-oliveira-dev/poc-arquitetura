@@ -103,35 +103,67 @@ function Assert-BalanceDatabaseAuthentication {
   }
 }
 
+function Wait-ComposeServiceHealthy([string]$Service, [int]$TimeoutSeconds = 240) {
+  $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+  $lastHealth = ""
+
+  do {
+    $json = & docker compose -f $ComposeFile -f $ComposeK6File ps $Service --format json
+    if ($LASTEXITCODE -ne 0) { throw "docker compose ps falhou para $Service" }
+
+    $serviceState = $json | ConvertFrom-Json
+    $lastHealth = [string]$serviceState.Health
+    if ($lastHealth -eq "healthy") {
+      return
+    }
+
+    if ($lastHealth -eq "unhealthy") {
+      throw "$Service ficou unhealthy durante a preparacao do k6."
+    }
+
+    Start-Sleep -Seconds 5
+  } while ((Get-Date) -lt $deadline)
+
+  throw "Timeout aguardando $Service ficar healthy. Ultimo health: $lastHealth"
+}
+
 # a) gerar env
 powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "scripts\compose-env.ps1") -ComposeFile $ComposeFile -OutFile $EnvFile | Out-Host
 
 # Aplica o override de carga nas APIs antes de executar o k6. O compose.k6.yaml
 # mantem os testes apontando para as APIs HTTP e aumenta apenas limites tecnicos
 # que poderiam transformar o cenario de throughput em teste de rate limiting.
-& docker compose -f $ComposeFile -f $ComposeK6File up -d --no-build --force-recreate auth-api ledger-service balance-service
+& docker compose -f $ComposeFile -f $ComposeK6File up -d --no-build --force-recreate keycloak ledger-service balance-service
 if ($LASTEXITCODE -ne 0) { throw "docker compose falhou ao aplicar override k6: $LASTEXITCODE" }
 
+Wait-ComposeServiceHealthy "keycloak"
 Assert-BalanceDatabaseAuthentication
 
-# b) obter token (por padrão via localhost conforme README). Pode sobrescrever via env AUTH_BASE_URL.
+# b) obter token pelo provider local configurado. Por padrao, Keycloak.
 function Get-LoadTestToken {
   $getTokenScript = Join-Path $root "scripts\get-token.ps1"
+  $previousEnvFile = [System.Environment]::GetEnvironmentVariable("ENV_FILE", "Process")
+  [System.Environment]::SetEnvironmentVariable("ENV_FILE", $EnvFile, "Process")
 
-  for ($i = 1; $i -le 30; $i++) {
-    $candidate = powershell -NoProfile -ExecutionPolicy Bypass -File $getTokenScript 2>$null
-    if ($LASTEXITCODE -eq 0) {
-      $candidate = ($candidate | Out-String).Trim()
-      if (-not [string]::IsNullOrWhiteSpace($candidate)) {
-        return $candidate
+  try {
+    for ($i = 1; $i -le 30; $i++) {
+      $candidate = powershell -NoProfile -ExecutionPolicy Bypass -File $getTokenScript 2>$null
+      if ($LASTEXITCODE -eq 0) {
+        $candidate = ($candidate | Out-String).Trim()
+        if (-not [string]::IsNullOrWhiteSpace($candidate)) {
+          return $candidate
+        }
       }
+
+      Start-Sleep -Seconds 2
     }
 
-    Start-Sleep -Seconds 2
+    $finalAttempt = powershell -NoProfile -ExecutionPolicy Bypass -File $getTokenScript
+    return ($finalAttempt | Out-String).Trim()
   }
-
-  $finalAttempt = powershell -NoProfile -ExecutionPolicy Bypass -File $getTokenScript
-  return ($finalAttempt | Out-String).Trim()
+  finally {
+    [System.Environment]::SetEnvironmentVariable("ENV_FILE", $previousEnvFile, "Process")
+  }
 }
 
 $token = Get-LoadTestToken

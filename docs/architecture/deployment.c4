@@ -12,13 +12,13 @@ deployment {
       summary "Rede bridge compartilhada pelos servicos do compose local."
       description "Rede Docker Compose usada para comunicacao interna entre APIs, workers, bancos, Kafka e observabilidade."
 
-      composeService authApi "auth-api" {
-        technology "Docker container / ASP.NET Core"
-        description "Servico Docker Compose que executa a Auth.Api."
+      composeService keycloak "keycloak" {
+        technology "Docker container / Keycloak"
+        description "Servico Docker Compose principal que executa o Keycloak local."
 
-        auth = instanceOf auth.authApi {
-          title "poc-auth-api"
-          description "Container local da Auth.Api exposto na porta 5030 do host e 8080 no container."
+        identity = instanceOf identity.keycloak {
+          title "poc-keycloak"
+          description "Container local do Keycloak exposto na porta 8081 do host e 8080 no container, com realm poc importado de infra/keycloak/realm-poc.json."
         }
       }
 

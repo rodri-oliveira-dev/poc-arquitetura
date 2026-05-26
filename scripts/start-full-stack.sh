@@ -123,7 +123,6 @@ assert_no_external_port_conflicts() {
   local owner
 
   local required_ports=(
-    "Auth.Api:5030"
     "LedgerService.Api:5226"
     "BalanceService.Api:5228"
     "Portal Nginx HTTPS:7443"
@@ -285,13 +284,11 @@ nginx_up+=(ledger-service-1 ledger-service-2 nginx-edge)
 docker compose -f "$COMPOSE_FILE" -f "$COMPOSE_NGINX_FILE" --profile observability ps
 
 if [[ "$SKIP_HEALTH_CHECKS" != "true" ]]; then
-  http_check "Auth.Api direta" "http://localhost:5030/health"
   http_check "LedgerService.Api direta" "http://localhost:5226/health"
   http_check "BalanceService.Api direta" "http://localhost:5228/health"
   http_check "Portal Nginx" "https://localhost:7443/" true
   http_check "Ledger via Nginx" "https://ledger.localhost:7443/health" true
   http_check "Balance via Nginx" "https://balance.localhost:7443/health" true
-  http_check "Auth via Nginx" "https://auth.localhost:7443/health" true
   http_check "Grafana" "http://localhost:3000/api/health"
   http_check "Jaeger" "http://localhost:16686/"
   http_check "Prometheus" "http://localhost:9090/-/ready"
@@ -303,13 +300,11 @@ cat <<'EOF'
 OK. Stack completa local pronta.
 
 URLs uteis:
-  Auth.Api:              http://localhost:5030/
   LedgerService.Api:     http://localhost:5226/
   BalanceService.Api:    http://localhost:5228/
   Portal Nginx:          https://localhost:7443/
   Ledger Swagger Nginx:  https://ledger.localhost:7443/swagger
   Balance Swagger Nginx: https://balance.localhost:7443/swagger
-  Auth Swagger Nginx:    https://auth.localhost:7443/swagger
   Grafana:               http://localhost:3000/
   Jaeger:                http://localhost:16686/
   Prometheus:            http://localhost:9090/

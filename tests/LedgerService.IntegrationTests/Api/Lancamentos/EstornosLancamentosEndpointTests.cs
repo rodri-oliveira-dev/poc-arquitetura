@@ -110,6 +110,18 @@ public sealed class EstornosLancamentosEndpointTests : IClassFixture<LedgerApiFa
     }
 
     [Fact]
+    public async Task Post_estornos_should_return_403_when_token_has_no_merchant_claim()
+    {
+        Authenticate(merchantIds: null);
+        var lancamento = await SeedLancamentoAsync("m1");
+
+        using var req = CreateRequest(lancamento.Id, Guid.NewGuid().ToString());
+
+        var res = await _client.SendAsync(req);
+        Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
+    }
+
+    [Fact]
     public async Task Processar_estorno_should_persist_compensating_lancamento_and_final_outbox_event()
     {
         Authenticate();
@@ -194,6 +206,26 @@ public sealed class EstornosLancamentosEndpointTests : IClassFixture<LedgerApiFa
     }
 
     [Fact]
+    public async Task Get_estornos_should_return_403_without_ledger_read_scope()
+    {
+        var estorno = await SeedEstornoAsync("m1");
+        Authenticate(scopes: "ledger.write");
+
+        var res = await _client.GetAsync($"/api/v1/lancamentos/estornos/{estorno.Id}");
+        Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
+    }
+
+    [Fact]
+    public async Task Get_estornos_should_return_403_when_token_has_no_merchant_claim()
+    {
+        var estorno = await SeedEstornoAsync("m1");
+        Authenticate(scopes: "ledger.read", merchantIds: null);
+
+        var res = await _client.GetAsync($"/api/v1/lancamentos/estornos/{estorno.Id}");
+        Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
+    }
+
+    [Fact]
     public async Task Get_estornos_should_return_401_without_token()
     {
         _client.DefaultRequestHeaders.Authorization = null;
@@ -202,10 +234,10 @@ public sealed class EstornosLancamentosEndpointTests : IClassFixture<LedgerApiFa
         Assert.Equal(HttpStatusCode.Unauthorized, res.StatusCode);
     }
 
-    private void Authenticate(string merchantIds = "m1", string scopes = "ledger.write")
+    private void Authenticate(string? merchantIds = "m1", string scopes = "ledger.write")
     {
         var token = TestJwtTokenFactory.CreateToken(
-            issuer: "https://auth-api",
+            issuer: TestJwtTokenFactory.KeycloakIssuer,
             audiences: "ledger-api",
             scopes: scopes,
             merchantIds: merchantIds);

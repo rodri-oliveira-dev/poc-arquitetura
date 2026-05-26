@@ -16,7 +16,11 @@ HEALTH_INTERVAL_SECONDS=3
 SWAGGER_PATH="/swagger/v1/swagger.json"
 ACTIVE_SCAN=false
 FAIL_ON_ALERTS=false
+USE_AUTHENTICATION=false
+INCLUDE_LEGACY_AUTH=false
+TOKEN=""
 CONTAINER_NAME="poc-arquitetura-zap"
+ZAP_OPTIONS="-config connection.sslAcceptAll=true"
 
 usage() {
   cat >&2 <<'EOF'
@@ -34,6 +38,9 @@ Opcoes:
   --health-timeout N   Tempo maximo para aguardar /health em segundos.
   --health-interval N  Intervalo entre tentativas de /health em segundos.
   --swagger-path PATH  Caminho do documento OpenAPI/Swagger em cada API.
+  --use-authentication Injeta Authorization Bearer obtido por scripts/get-token.sh.
+  --include-legacy-auth Inclui o Auth.Api legado nos health checks e no scan.
+  --token TOKEN        Token Bearer manual para usar com --use-authentication.
   --active-scan        Executa zap-api-scan.py sem modo seguro. Pode gerar trafego mais invasivo.
   --fail-on-alerts     Propaga alertas do ZAP como falha do script.
   -h, --help           Mostra esta ajuda.
@@ -86,6 +93,18 @@ while [[ $# -gt 0 ]]; do
       SWAGGER_PATH="${2:-}"
       shift 2
       ;;
+    --use-authentication)
+      USE_AUTHENTICATION=true
+      shift
+      ;;
+    --include-legacy-auth)
+      INCLUDE_LEGACY_AUTH=true
+      shift
+      ;;
+    --token)
+      TOKEN="${2:-}"
+      shift 2
+      ;;
     --active-scan)
       ACTIVE_SCAN=true
       shift
@@ -107,7 +126,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$AUTH_URL" ]]; then
-  if [[ "$USE_NGINX" == true ]]; then AUTH_URL="https://auth.localhost:7443"; else AUTH_URL="http://localhost:5030"; fi
+  AUTH_URL="http://localhost:5030"
 fi
 if [[ -z "$LEDGER_URL" ]]; then
   if [[ "$USE_NGINX" == true ]]; then LEDGER_URL="https://ledger.localhost:7443"; else LEDGER_URL="http://localhost:5226"; fi
@@ -162,6 +181,33 @@ ensure_zap_image() {
 
   echo "Imagem ZAP nao encontrada localmente. Baixando $ZAP_IMAGE..." >&2
   docker pull "$ZAP_IMAGE"
+}
+
+get_zap_token() {
+  if [[ -n "$TOKEN" ]]; then
+    printf '%s' "$TOKEN"
+    return 0
+  fi
+
+  echo "Obtendo token para o ZAP pelo provider local configurado..." >&2
+  "$ROOT_DIR/scripts/get-token.sh"
+}
+
+enable_zap_authorization_header() {
+  local access_token="$1"
+
+  if [[ -z "$access_token" ]]; then
+    echo "Token vazio para configurar Authorization no ZAP." >&2
+    exit 1
+  fi
+
+  ZAP_OPTIONS="-config connection.sslAcceptAll=true"
+  ZAP_OPTIONS+=" -config replacer.full_list(0).description=authorization-header"
+  ZAP_OPTIONS+=" -config replacer.full_list(0).enabled=true"
+  ZAP_OPTIONS+=" -config replacer.full_list(0).matchtype=REQ_HEADER"
+  ZAP_OPTIONS+=" -config replacer.full_list(0).matchstr=Authorization"
+  ZAP_OPTIONS+=" -config replacer.full_list(0).regex=false"
+  ZAP_OPTIONS+=" -config replacer.full_list(0).replacement=Bearer $access_token"
 }
 
 start_local_stack_for_zap() {
@@ -262,7 +308,12 @@ docker_host_args() {
   local hosts=("host.docker.internal")
   local host
 
-  for url in "$AUTH_URL" "$LEDGER_URL" "$BALANCE_URL"; do
+  local urls=("$LEDGER_URL" "$BALANCE_URL")
+  if [[ "$INCLUDE_LEGACY_AUTH" == true ]]; then
+    urls+=("$AUTH_URL")
+  fi
+
+  for url in "${urls[@]}"; do
     host="$(url_host "$url")"
     if [[ "$host" == "localhost" || "$host" == *.localhost ]]; then
       hosts+=("$host")
@@ -306,7 +357,7 @@ run_zap_scan() {
     -r "$html"
     -J "$json"
     -w "$markdown"
-    -z "-config connection.sslAcceptAll=true"
+    -z "$ZAP_OPTIONS"
   )
 
   if [[ "$ACTIVE_SCAN" != true ]]; then
@@ -357,6 +408,11 @@ write_summary() {
     echo "- Imagem ZAP: \`$ZAP_IMAGE\`"
     echo "- Tipo de scan: \`$SCAN_TYPE\`"
     echo "- Definicao OpenAPI: \`$SWAGGER_PATH\`"
+    if [[ "$USE_AUTHENTICATION" == true ]]; then
+      echo "- Autenticacao Bearer: \`habilitada\`"
+    else
+      echo "- Autenticacao Bearer: \`desabilitada\`"
+    fi
     echo "- Container temporario: \`$CONTAINER_NAME\`"
     echo "- Diretorio de saida: \`$OUTPUT_DIR\`"
     echo
@@ -385,6 +441,9 @@ write_summary() {
     else
       echo "- API scan foi executado em modo seguro (\`-S\`), importando OpenAPI sem active scan por padrao."
     fi
+    if [[ "$USE_AUTHENTICATION" == true ]]; then
+      echo "- Authorization Bearer foi injetado via ZAP Replacer usando token obtido por \`scripts/get-token.sh\` ou por \`--token\`."
+    fi
   } >"$summary_path"
 }
 
@@ -397,15 +456,23 @@ if [[ "$START_STACK" == true ]]; then
   start_local_stack_for_zap
 fi
 
-assert_health "Auth.Api" "$AUTH_URL"
+if [[ "$INCLUDE_LEGACY_AUTH" == true ]]; then
+  assert_health "Auth.Api" "$AUTH_URL"
+fi
 assert_health "LedgerService.Api" "$LEDGER_URL"
 assert_health "BalanceService.Api" "$BALANCE_URL"
+
+if [[ "$USE_AUTHENTICATION" == true ]]; then
+  enable_zap_authorization_header "$(get_zap_token)"
+fi
 
 ensure_zap_image
 
 mkdir -p "$OUTPUT_DIR"
 
-run_zap_scan "Auth.Api" "auth-api" "$AUTH_URL"
+if [[ "$INCLUDE_LEGACY_AUTH" == true ]]; then
+  run_zap_scan "Auth.Api" "auth-api" "$AUTH_URL"
+fi
 run_zap_scan "LedgerService.Api" "ledger-service-api" "$LEDGER_URL"
 run_zap_scan "BalanceService.Api" "balance-service-api" "$BALANCE_URL"
 

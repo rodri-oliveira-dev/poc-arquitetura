@@ -93,27 +93,52 @@ assert_balance_database_authentication() {
   fi
 }
 
+wait_compose_service_healthy() {
+  local service="$1"
+  local timeout_seconds="${2:-240}"
+  local deadline=$((SECONDS + timeout_seconds))
+  local health=""
+
+  while (( SECONDS < deadline )); do
+    if docker compose -f "$COMPOSE_FILE" -f "$COMPOSE_K6_FILE" ps "$service" --format json | grep -q '"Health":"healthy"'; then
+      return 0
+    fi
+
+    health="$(docker compose -f "$COMPOSE_FILE" -f "$COMPOSE_K6_FILE" ps "$service" --format json | sed -nE 's/.*"Health":"([^"]*)".*/\1/p' | tail -n 1)"
+    if [[ "$health" == "unhealthy" ]]; then
+      echo "$service ficou unhealthy durante a preparacao do k6." 1>&2
+      exit 1
+    fi
+
+    sleep 5
+  done
+
+  echo "Timeout aguardando $service ficar healthy. Ultimo health: ${health:-desconhecido}" 1>&2
+  exit 1
+}
+
 # a) gerar env
 COMPOSE_FILE="$COMPOSE_FILE" OUT_FILE="$ENV_FILE" "$ROOT_DIR/scripts/compose-env.sh" >/dev/null
 
 # Aplica o override de carga nas APIs antes de executar o k6. O compose.k6.yaml
 # mantem os testes apontando para as APIs HTTP e aumenta apenas limites tecnicos
 # que poderiam transformar o cenario de throughput em teste de rate limiting.
-docker compose -f "$COMPOSE_FILE" -f "$COMPOSE_K6_FILE" up -d --no-build --force-recreate auth-api ledger-service balance-service
+docker compose -f "$COMPOSE_FILE" -f "$COMPOSE_K6_FILE" up -d --no-build --force-recreate keycloak ledger-service balance-service
 
+wait_compose_service_healthy keycloak
 assert_balance_database_authentication
 
-# b) obter token (por padrão via localhost conforme README)
+# b) obter token pelo provider local configurado. Por padrao, Keycloak.
 TOKEN=""
 for _ in $(seq 1 30); do
-  if TOKEN="$($ROOT_DIR/scripts/get-token.sh 2>/dev/null)" && [[ -n "$TOKEN" ]]; then
+  if TOKEN="$(ENV_FILE="$ENV_FILE" "$ROOT_DIR/scripts/get-token.sh" 2>/dev/null)" && [[ -n "$TOKEN" ]]; then
     break
   fi
   sleep 2
 done
 
 if [[ -z "$TOKEN" ]]; then
-  TOKEN="$($ROOT_DIR/scripts/get-token.sh)"
+  TOKEN="$(ENV_FILE="$ENV_FILE" "$ROOT_DIR/scripts/get-token.sh")"
 fi
 if [[ -z "$TOKEN" ]]; then
   echo "Falha ao obter TOKEN. Você pode informar manualmente via env TOKEN=..." 1>&2

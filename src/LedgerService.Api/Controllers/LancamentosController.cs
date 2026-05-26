@@ -96,13 +96,17 @@ public sealed class LancamentosController : ControllerBase
         [FromBody] SolicitarEstornoLancamentoRequest request,
         CancellationToken cancellationToken)
     {
+        var authorizedMerchantIds = _merchantAuthorizationService.GetAuthorizedMerchantIds(User);
+        if (authorizedMerchantIds.Count == 0)
+            return Forbid();
+
         var command = SolicitarEstornoLancamentoBind.Bind(
             HttpContext,
             lancamentoId,
             idempotencyKey,
             correlationId,
             request,
-            _merchantAuthorizationService.GetAuthorizedMerchantIds(User));
+            authorizedMerchantIds);
 
         var result = await _sender.Send(command, cancellationToken);
         var response = SolicitarEstornoLancamentoMapper.ToResponse(result);
@@ -131,12 +135,16 @@ public sealed class LancamentosController : ControllerBase
         [FromBody] SolicitarReprocessamentoLancamentosRequest request,
         CancellationToken cancellationToken)
     {
+        var authorizedMerchantIds = _merchantAuthorizationService.GetAuthorizedMerchantIds(User);
+        if (authorizedMerchantIds.Count == 0)
+            return Forbid();
+
         var command = SolicitarReprocessamentoLancamentosBind.Bind(
             HttpContext,
             idempotencyKey,
             correlationId,
             request,
-            _merchantAuthorizationService.GetAuthorizedMerchantIds(User));
+            authorizedMerchantIds);
 
         var result = await _sender.Send(command, cancellationToken);
         var response = SolicitarReprocessamentoLancamentosMapper.ToResponse(result);
@@ -160,10 +168,14 @@ public sealed class LancamentosController : ControllerBase
         [FromRoute] Guid estornoId,
         CancellationToken cancellationToken)
     {
+        var authorizedMerchantIds = _merchantAuthorizationService.GetAuthorizedMerchantIds(User);
+        if (authorizedMerchantIds.Count == 0)
+            return Forbid();
+
         var result = await _sender.Send(
             new ObterStatusEstornoLancamentoQuery(
                 estornoId,
-                _merchantAuthorizationService.GetAuthorizedMerchantIds(User)),
+                authorizedMerchantIds),
             cancellationToken);
 
         return Ok(ObterStatusEstornoLancamentoMapper.ToResponse(result));
@@ -185,10 +197,14 @@ public sealed class LancamentosController : ControllerBase
         [FromRoute] Guid reprocessamentoId,
         CancellationToken cancellationToken)
     {
+        var authorizedMerchantIds = _merchantAuthorizationService.GetAuthorizedMerchantIds(User);
+        if (authorizedMerchantIds.Count == 0)
+            return Forbid();
+
         var result = await _sender.Send(
             new ObterStatusReprocessamentoLancamentosQuery(
                 reprocessamentoId,
-                _merchantAuthorizationService.GetAuthorizedMerchantIds(User)),
+                authorizedMerchantIds),
             cancellationToken);
 
         return Ok(ObterStatusReprocessamentoLancamentosMapper.ToResponse(result));

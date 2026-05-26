@@ -72,7 +72,7 @@ function Get-ValidationToken(
   [string]$Password,
   [string]$Scope
 ) {
-  Write-Host "Obtendo token no Auth.Api..."
+  Write-Host "Obtendo token pelo provider local configurado..."
   $token = Invoke-WithEnv @{
     AUTH_BASE_URL = $AuthBaseUrl
     USERNAME = $Username

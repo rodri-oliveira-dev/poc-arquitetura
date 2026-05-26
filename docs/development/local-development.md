@@ -38,9 +38,20 @@ O compose usa defaults ficticios para desenvolvimento local. Para sobrescrever, 
 - `BALANCE_DB_USER=userBalance`
 - `BALANCE_DB_PASSWORD=local_dev_password`
 - `GRAFANA_ADMIN_PASSWORD=local_dev_password`
-- `AUTH_POC_USERNAME=local_user`
-- `AUTH_POC_PASSWORD=local_password`
-- `AUTH_POC_SCOPE=ledger.write balance.read`
+- `TOKEN_PROVIDER=keycloak`
+- `JWT_ISSUER=http://localhost:8081/realms/poc`
+- `JWT_JWKS_URL=http://keycloak:8080/realms/poc/protocol/openid-connect/certs`
+- `JWT_REQUIRE_HTTPS_METADATA=false`
+- `KEYCLOAK_HOST_PORT=8081`
+- `KEYCLOAK_BASE_URL=http://localhost:8081`
+- `KEYCLOAK_REALM=poc`
+- `KEYCLOAK_CLIENT_ID=poc-automation`
+- `KEYCLOAK_CLIENT_SECRET=local_dev_client_secret`
+- `KEYCLOAK_SCOPE=`
+- `KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME=local_admin`
+- `KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD=local_admin_password`
+
+As variaveis `AUTH_POC_USERNAME`, `AUTH_POC_PASSWORD` e `AUTH_POC_SCOPE` continuam aceitas apenas pelo overlay legado `compose.auth-legacy.yaml`.
 
 As variaveis `BALANCE_DB_*` sao a origem local para o PostgreSQL do Balance no compose, para a connection string de `BalanceService.Api` e `BalanceService.Worker` dentro da rede Docker, e para os scripts que aplicam migrations ou executam load tests. Em volumes PostgreSQL existentes, alterar `.env` ou `compose.yaml` nao altera automaticamente a senha ja gravada no banco. Se houver divergencia, veja [troubleshooting](../troubleshooting.md#password-authentication-failed-for-user-userbalance).
 
@@ -50,7 +61,7 @@ Nao reutilize esses valores fora da maquina local. Em ambientes compartilhados o
 
 O `compose.yaml` sobe por padrao a stack minima de desenvolvimento:
 
-- `Auth.Api`;
+- Keycloak;
 - `LedgerService.Api`;
 - `LedgerService.Worker`;
 - `BalanceService.Api`;
@@ -65,7 +76,7 @@ Componentes opcionais ficam em profiles:
 - profile `observability`: OpenTelemetry Collector, Jaeger, Prometheus, Loki, Grafana Alloy, Alertmanager e Grafana;
 - profile `k6`: container k6 definido em `compose.k6.yaml`.
 
-Tambem existe um overlay opcional `compose.nginx.yaml` para adicionar uma borda local com Nginx e HTTPS em desenvolvimento. Ele nao faz parte da stack minima e nao altera as APIs, que continuam rodando internamente em HTTP com `ASPNETCORE_URLS=http://+:8080`. Quando o overlay e usado, o Nginx cria um upstream local `ledger_api` com duas instancias da `LedgerService.Api` e algoritmo `least_conn`.
+Tambem existe um overlay opcional `compose.nginx.yaml` para adicionar uma borda local com Nginx e HTTPS em desenvolvimento. Ele nao faz parte da stack minima e nao altera as APIs, que continuam rodando internamente em HTTP com `ASPNETCORE_URLS=http://+:8080`. Quando o overlay e usado, o Nginx cria um upstream local `ledger_api` com duas instancias da `LedgerService.Api` e algoritmo `least_conn`. O `Auth.Api` foi removido da stack minima e permanece apenas no overlay legado `compose.auth-legacy.yaml`.
 
 A observabilidade completa inclui:
 
@@ -89,7 +100,7 @@ No Linux/macOS:
 ./scripts/start-local-stack.sh
 ```
 
-Esse fluxo sobe bancos, Kafka e `Auth.Api`, aplica migrations pelo host e depois inicia `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker`.
+Esse fluxo sobe bancos, Kafka e Keycloak, aplica migrations pelo host e depois inicia `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker`.
 
 Os scripts `start-local-stack.*` usam Docker Compose, restauram tools .NET, aplicam migrations pelo host e nao removem volumes. Eles nao executam testes automatizados, k6 nem scanners.
 
@@ -120,6 +131,123 @@ OTEL_ENABLED=true docker compose --profile observability up -d --build
 `OTEL_ENABLED=true` habilita as aplicacoes a exportarem traces e metricas para `otel-collector:4317`. Sem essa variavel, os backends de observabilidade podem subir, mas as aplicacoes permanecem com OpenTelemetry desabilitado para manter a stack minima leve.
 
 O socket Docker, mesmo montado como somente leitura, e uma superficie sensivel. Use o profile `observability` apenas em maquina local confiavel; nao use em ambiente compartilhado ou produtivo sem redesenhar a coleta de logs e revisar permissoes.
+
+### Keycloak local
+
+O Keycloak fica no `compose.yaml` principal, e nao em overlay separado, porque ele e um componente local da propria stack de identidade. Ele faz parte da stack local padrao, pois Ledger e Balance validam tokens Keycloak por padrao no ambiente local.
+
+Suba apenas o Keycloak:
+
+```bash
+docker compose up -d keycloak
+```
+
+Ou suba a stack minima:
+
+```bash
+docker compose up -d --build
+```
+
+Admin Console:
+
+- `http://localhost:8081/`
+
+Credenciais locais descartaveis:
+
+- usuario: `local_admin`
+- senha: `local_admin_password`
+
+Para sobrescrever porta, credenciais administrativas ou credenciais do client de automacao local, copie `.env.example` para `.env` e ajuste `KEYCLOAK_HOST_PORT`, `KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME`, `KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD`, `KEYCLOAK_CLIENT_ID` e `KEYCLOAK_CLIENT_SECRET`. Esses valores sao apenas para desenvolvimento local e nao devem ser usados em ambientes compartilhados ou produtivos.
+
+O container usa `start-dev --import-realm`, healthcheck nativo em `/health/ready` na porta de gerenciamento interna `9000` e importa o realm versionado de `infra/keycloak/realm-poc.json`. O compose monta esse arquivo em `/opt/keycloak/data/import/realm-poc.json` como somente leitura.
+
+O realm local importado se chama `poc` e expoe:
+
+- discovery OIDC: `http://localhost:8081/realms/poc/.well-known/openid-configuration`;
+- JWKS: `http://localhost:8081/realms/poc/protocol/openid-connect/certs`;
+- client local de automacao: `poc-automation`;
+- clients locais de debug manual: `poc-local-ledger-debug`, `poc-local-balance-debug` e `poc-local-admin-debug`;
+- fluxo preferencial para scripts: `client_credentials`;
+- audiences: `ledger-api` e `balance-api`;
+- scopes: `ledger.write`, `ledger.read`, `balance.read` e `outbox.admin`;
+- claim `merchant_id`: `tese m1`.
+
+As APIs continuam usando `Jwt:JwksUrl` direto, sem introspeccao por request e sem consumir discovery metadata nesta etapa. No compose, `JWT_ISSUER` deve corresponder ao `iss` publico do token (`http://localhost:8081/realms/poc`) e `JWT_JWKS_URL` deve apontar para o endpoint de certificados acessivel pela rede interna (`http://keycloak:8080/realms/poc/protocol/openid-connect/certs`). Para voltar temporariamente ao emissor legado, suba `compose.auth-legacy.yaml` e configure `JWT_ISSUER=https://auth-api`, `JWT_JWKS_URL=http://auth-api:8080/.well-known/jwks.json` e `TOKEN_PROVIDER=auth-api`.
+
+O segredo do client `poc-automation` e `local_dev_client_secret`. Ele e um valor ficticio e descartavel, versionado apenas para tornar a POC local reproduzivel. Nao use esse segredo em ambientes compartilhados ou produtivos.
+
+Para obter um token Keycloak local, use os scripts versionados. Eles imprimem somente o token em `stdout`:
+
+```bash
+./scripts/get-token.sh
+```
+
+No Windows:
+
+```powershell
+./scripts/get-token.ps1
+```
+
+Por padrao, `TOKEN_PROVIDER=keycloak` usa `client_credentials` com `KEYCLOAK_CLIENT_ID=poc-automation` e `KEYCLOAK_CLIENT_SECRET=local_dev_client_secret`. A chamada equivalente e:
+
+```bash
+curl -s -X POST http://localhost:8081/realms/poc/protocol/openid-connect/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=client_credentials" \
+  -d "client_id=poc-automation" \
+  -d "client_secret=local_dev_client_secret"
+```
+
+Para confirmar que o realm foi importado, acesse o Admin Console em `http://localhost:8081/` com `local_admin` / `local_admin_password`, selecione o realm `poc` no seletor de realms e confira `Clients` e `Users`. Em uma stack recem-criada, devem existir os clients `poc-automation`, `poc-local-ledger-debug`, `poc-local-balance-debug` e `poc-local-admin-debug`, alem dos usuarios locais abaixo.
+
+Usuarios locais de debug importados no realm:
+
+| Usuario | Senha | Client local | Uso local | Scopes | `merchant_id` |
+| --- | --- | --- | --- | --- | --- |
+| `local_ledger_user` | `local_ledger_password` | `poc-local-ledger-debug` | Debug manual do LedgerService | `ledger.write ledger.read` | `tese m1` |
+| `local_balance_user` | `local_balance_password` | `poc-local-balance-debug` | Debug manual do BalanceService | `balance.read` | `tese m1` |
+| `local_admin_user` | `local_admin_password` | `poc-local-admin-debug` | Debug manual completo | `ledger.write ledger.read balance.read outbox.admin` | `tese m1` |
+
+Esses usuarios sao apenas conveniencia de desenvolvimento local. Eles nao devem ser usados em ambiente compartilhado, homologacao ou producao, e nao substituem `client_credentials` para automacoes.
+
+Para obter um token manual com usuario/senha, use o client publico correspondente ao perfil:
+
+```bash
+curl -s -X POST http://localhost:8081/realms/poc/protocol/openid-connect/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=password" \
+  -d "client_id=poc-local-ledger-debug" \
+  -d "username=local_ledger_user" \
+  -d "password=local_ledger_password"
+```
+
+Troque `client_id`, `username` e `password` para `poc-local-balance-debug` / `local_balance_user` ou `poc-local-admin-debug` / `local_admin_user` quando quiser validar os demais perfis. O token deve manter `iss=http://localhost:8081/realms/poc`, `aud` com `ledger-api` e `balance-api`, `merchant_id=tese m1` e a claim `scope` conforme o perfil escolhido.
+
+Para usar temporariamente tokens emitidos pelo `Auth.Api`, suba o overlay legado e sobrescreva tambem a configuracao JWT das APIs para apontar para o emissor legado:
+
+```bash
+JWT_ISSUER=https://auth-api \
+JWT_JWKS_URL=http://auth-api:8080/.well-known/jwks.json \
+TOKEN_PROVIDER=auth-api ./scripts/get-token.sh
+```
+
+No Windows:
+
+```powershell
+$env:TOKEN_PROVIDER = "auth-api"
+$env:JWT_ISSUER = "https://auth-api"
+$env:JWT_JWKS_URL = "http://auth-api:8080/.well-known/jwks.json"
+./scripts/get-token.ps1
+```
+
+Para validar discovery e JWKS:
+
+```bash
+curl -s http://localhost:8081/realms/poc/.well-known/openid-configuration
+curl -s http://localhost:8081/realms/poc/protocol/openid-connect/certs
+```
+
+Nesta etapa, `Auth.Api` continua funcional apenas como legado por overlay, mas a origem padrao do JWKS usada por `LedgerService.Api` e `BalanceService.Api` no compose local e o Keycloak.
 
 ### Stack completa com observabilidade e Nginx
 
@@ -210,7 +338,7 @@ Esses arquivos nao devem ser versionados. A opcao recomendada para certificado c
 
 ```bash
 mkcert -install
-mkcert -cert-file infra/nginx/certs/localhost.crt -key-file infra/nginx/certs/localhost.key localhost ledger.localhost balance.localhost auth.localhost
+mkcert -cert-file infra/nginx/certs/localhost.crt -key-file infra/nginx/certs/localhost.key localhost ledger.localhost balance.localhost
 ```
 
 Alternativa com OpenSSL:
@@ -220,7 +348,7 @@ openssl req -x509 -newkey rsa:2048 -nodes -days 365 \
   -keyout infra/nginx/certs/localhost.key \
   -out infra/nginx/certs/localhost.crt \
   -subj "/CN=localhost" \
-  -addext "subjectAltName=DNS:localhost,DNS:ledger.localhost,DNS:balance.localhost,DNS:auth.localhost"
+  -addext "subjectAltName=DNS:localhost,DNS:ledger.localhost,DNS:balance.localhost"
 ```
 
 Com OpenSSL, o navegador pode exibir alerta de certificado nao confiavel ate que o certificado seja confiado localmente.
@@ -254,7 +382,6 @@ Swaggers via Nginx:
 
 - `https://ledger.localhost:7443/swagger`
 - `https://balance.localhost:7443/swagger`
-- `https://auth.localhost:7443/swagger`
 
 Os subdominios `.localhost` evitam configurar `PathBase` nas APIs e preservam o Swagger em `/swagger`. As URLs HTTP diretas continuam disponiveis nas portas atuais e sao o alvo dos scripts e testes de carga existentes.
 
@@ -264,7 +391,7 @@ TLS na borda local aceita somente `TLSv1.2` e `TLSv1.3`, desabilitando implicita
 
 O Nginx adiciona uma politica basica de headers de seguranca nas respostas da borda local: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` bloqueando camera, microphone e geolocation, e `X-XSS-Protection: 0`. Para evitar duplicidade, a borda remove esses mesmos headers quando vierem das APIs internas e aplica a politica unica do proxy. O valor `0` desativa o filtro legado de XSS de navegadores antigos, evitando comportamento inconsistente; a protecao efetiva fica em controles modernos como CSP e escaping das aplicacoes. A pagina do portal tambem recebe `Content-Security-Policy` restrita ao proprio host, com `style-src 'unsafe-inline'` apenas para preservar o CSS inline estatico do portal. Os hosts dos Swaggers nao recebem CSP adicional no Nginx para evitar bloquear assets e scripts da Swagger UI.
 
-Os hosts de API via Nginx (`ledger.localhost`, `balance.localhost` e `auth.localhost`) recebem `Cache-Control: no-store` em todas as respostas proxied. Essa politica evita que respostas sensiveis de autenticacao, autorizacao, ledger e saldo sejam armazenadas por navegadores, clientes ou proxies intermediarios. A borda tambem remove headers de cache vindos das APIs internas e envia `Pragma: no-cache` e `Expires: 0` por compatibilidade com clientes legados. O portal estatico em `https://localhost:7443` nao recebe essa regra; os assets do Swagger servidos pelos hosts de API recebem `no-store`, o que preserva funcionamento e favorece seguranca no ambiente local.
+Os hosts de API via Nginx (`ledger.localhost` e `balance.localhost`) recebem `Cache-Control: no-store` em todas as respostas proxied. Essa politica evita que respostas sensiveis de autorizacao, ledger e saldo sejam armazenadas por navegadores, clientes ou proxies intermediarios. A borda tambem remove headers de cache vindos das APIs internas e envia `Pragma: no-cache` e `Expires: 0` por compatibilidade com clientes legados. O portal estatico em `https://localhost:7443` nao recebe essa regra; os assets do Swagger servidos pelos hosts de API recebem `no-store`, o que preserva funcionamento e favorece seguranca no ambiente local.
 
 Para reduzir fingerprinting, a borda local usa uma imagem local baseada em Alpine com Nginx e o modulo `headers-more`. A configuracao usa `server_tokens off`, remove o header `Server` emitido pela borda e remove headers de tecnologia vindos das APIs internas quando presentes, como `X-Powered-By`, `X-AspNet-Version`, `X-AspNetMvc-Version` e `X-Swagger-UI-Version`.
 
@@ -285,7 +412,6 @@ Validacao da politica de cache via Nginx:
 curl -k -I https://localhost:7443
 curl -k -I https://ledger.localhost:7443/swagger
 curl -k -I https://balance.localhost:7443/swagger
-curl -k -I https://auth.localhost:7443/swagger
 curl -k -I https://ledger.localhost:7443/health
 ```
 
@@ -412,7 +538,7 @@ Portas expostas no host:
 
 | Componente | URL ou porta |
 | --- | --- |
-| Auth.Api | `http://localhost:5030/` |
+| Keycloak | `http://localhost:8081/` |
 | LedgerService.Api | `http://localhost:5226/` |
 | BalanceService.Api | `http://localhost:5228/` |
 | PostgreSQL Ledger | `localhost:15432` |
@@ -430,11 +556,20 @@ Portas expostas no host:
 | Portal Nginx HTTPS | `https://localhost:7443/` com `compose.nginx.yaml` |
 | LedgerService.Api via Nginx | `https://ledger.localhost:7443/` com `compose.nginx.yaml` |
 | BalanceService.Api via Nginx | `https://balance.localhost:7443/` com `compose.nginx.yaml` |
-| Auth.Api via Nginx | `https://auth.localhost:7443/` com `compose.nginx.yaml` |
 
 O compose sobrescreve configuracoes por variaveis de ambiente para usar hosts internos como `ledger-db`, `balance-db`, `kafka` e `otel-collector`. Quando `OTEL_ENABLED=true` e o profile `observability` esta ativo, as APIs e workers enviam OTLP somente para o Collector. O Collector encaminha traces para o Jaeger e expoe metricas em formato Prometheus para scrape interno. Prometheus coleta o Collector; Alloy coleta logs dos containers e envia para Loki. Grafana consulta Prometheus, Loki e Jaeger. O Grafana carrega automaticamente a pasta `Observability` com os dashboards `APIs - Visao Geral` e `Runtime .NET - Visao Geral`, versionados em `observability/grafana/dashboards/`. O datasource Loki possui derived field para abrir traces no datasource interno Jaeger a partir de logs com `TraceId=<valor>`. O ambiente local do compose roda como `Development`.
 
 Prometheus tambem carrega regras locais em `observability/prometheus/rules/` e envia alertas para o Alertmanager local. A UI do Alertmanager fica em `http://localhost:9093/` e nao possui integracao externa configurada.
+
+### Auth.Api legado
+
+O `Auth.Api` permanece no repositorio para compatibilidade e testes do emissor legado, mas nao sobe na stack principal. Quando precisar validar esse caminho, use:
+
+```bash
+docker compose -f compose.yaml -f compose.auth-legacy.yaml --profile legacy-auth up -d --build auth-api
+```
+
+No modo legado, as portas e variaveis antigas continuam as mesmas: `http://localhost:5030/`, `AUTH_POC_USERNAME`, `AUTH_POC_PASSWORD`, `AUTH_POC_SCOPE` e `TOKEN_PROVIDER=auth-api`.
 
 ## Migrations via compose
 
@@ -475,7 +610,6 @@ dotnet tool restore
 Suba as APIs:
 
 ```bash
-dotnet run --project src\Auth.Api\Auth.Api.csproj
 dotnet run --project src\LedgerService.Api\LedgerService.Api.csproj
 dotnet run --project src\LedgerService.Worker\LedgerService.Worker.csproj
 dotnet run --project src\BalanceService.Api\BalanceService.Api.csproj
@@ -484,7 +618,6 @@ dotnet run --project src\BalanceService.Worker\BalanceService.Worker.csproj
 
 As portas padrao sao:
 
-- Auth.Api: `http://localhost:5030/`;
 - LedgerService.Api: `http://localhost:5226/`;
 - BalanceService.Api: `http://localhost:5228/`.
 
@@ -639,7 +772,7 @@ Tasks uteis:
 
 As tasks de stack e k6 chamam os scripts versionados (`scripts/start-local-stack.*` e `scripts/run-loadtests.*`) para evitar duplicar logica. Elas nao executam teardown destrutivo nem migrations fora do fluxo ja definido pelos scripts.
 
-As configuracoes de debug rodam processos no host em `Development` para `Auth.Api`, `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker`. Os nomes indicam que dependencias locais podem ser necessarias quando banco, Kafka ou JWKS forem usados. Se a stack completa do compose estiver em execucao, pare o container equivalente antes de depurar o mesmo processo no host para evitar conflito de porta ou processamento duplicado.
+As configuracoes de debug rodam processos no host em `Development` para `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker`. O `Auth.Api` legado tambem possui configuracao propria, mas deve ser usado apenas quando o fluxo legado for explicitamente validado. Os nomes indicam que dependencias locais podem ser necessarias quando banco, Kafka ou JWKS forem usados. Se a stack completa do compose estiver em execucao, pare o container equivalente antes de depurar o mesmo processo no host para evitar conflito de porta ou processamento duplicado.
 
 O arquivo `src/LedgerService.Api/LedgerService.Api.http` pode ser usado com a extensao REST Client. Nao coloque segredos em `.vscode/rest-client.env.json`.
 
@@ -650,7 +783,7 @@ Os testes de carga ficam em `loadtests/k6` e rodam dentro da rede do compose.
 Pre-requisitos:
 
 1. Suba a stack local com `./scripts/start-local-stack.ps1` ou `./scripts/start-local-stack.sh`.
-2. Mantenha `Auth.Api`, `LedgerService.Api`, `BalanceService.Api`, `LedgerService.Worker` e `BalanceService.Worker` em execucao quando validar cenarios que dependem de efeitos assincronos.
+2. Mantenha `LedgerService.Api`, `BalanceService.Api`, `LedgerService.Worker` e `BalanceService.Worker` em execucao quando validar cenarios que dependem de efeitos assincronos. O token padrao vem do Keycloak.
 
 Windows:
 
@@ -672,6 +805,8 @@ Arquivos gerados em `artifacts/k6` e `.env.k6.auto` nao sao versionados.
 
 Os runners aplicam `compose.k6.yaml` e recriam os containers HTTP alvo antes do k6 para manter os testes apontando para as APIs e garantir que overrides de ambiente entrem em vigor. Os workers continuam sem endpoint HTTP nos cenarios de carga. Antes de obter token e executar o k6, os runners validam uma conexao real no PostgreSQL do Balance usando `BALANCE_DB_USER`, `BALANCE_DB_NAME` e `BALANCE_DB_PASSWORD`; se a senha do volume local divergir da configuracao, o fluxo falha cedo com diagnostico e nenhuma acao destrutiva.
 
+O token usado nos cenarios k6 e obtido pelos runners com `scripts/get-token.*`. O fluxo oficial local e `TOKEN_PROVIDER=keycloak`, usando `KEYCLOAK_CLIENT_ID`, `KEYCLOAK_CLIENT_SECRET`, `KEYCLOAK_REALM` e `KEYCLOAK_BASE_URL`/`KEYCLOAK_HOST_PORT`. Para usar temporariamente o fallback `Auth.Api`, suba `compose.auth-legacy.yaml` e configure tambem as APIs de negocio com `JWT_ISSUER=https://auth-api`, `JWT_JWKS_URL=http://auth-api:8080/.well-known/jwks.json` e `TOKEN_PROVIDER=auth-api`, conforme [autenticacao e autorizacao](authentication.md).
+
 Para validar manualmente a configuracao efetiva do k6:
 
 ```bash
@@ -681,7 +816,7 @@ docker compose -f compose.yaml -f compose.k6.yaml --profile k6 config --services
 
 ## OWASP ZAP local
 
-Os scripts versionados de ZAP executam DAST local em container contra `Auth.Api`, `LedgerService.Api` e `BalanceService.Api`. Eles assumem que a stack ja esta rodando, validam `GET /health` antes do scan, importam `/swagger/v1/swagger.json` de cada API, salvam relatorios em `zap-reports/<timestamp>/` e removem apenas o container temporario `poc-arquitetura-zap` ao final.
+Os scripts versionados de ZAP executam DAST local em container contra `LedgerService.Api` e `BalanceService.Api` por padrao. Eles assumem que a stack ja esta rodando, validam `GET /health` antes do scan, importam `/swagger/v1/swagger.json` de cada API, salvam relatorios em `zap-reports/<timestamp>/` e removem apenas o container temporario `poc-arquitetura-zap` ao final. Para incluir o `Auth.Api` legado, suba `compose.auth-legacy.yaml` e use a opcao documentada em [OWASP ZAP local](owasp-zap.md).
 
 URLs diretas:
 
@@ -711,6 +846,16 @@ Via Nginx local:
 
 ```bash
 ./scripts/run-owasp-zap.sh --use-nginx
+```
+
+Por padrao o ZAP importa os documentos OpenAPI sem injetar token. Para executar o scan com `Authorization: Bearer <token>`, use o fluxo autenticado; o token e obtido por `scripts/get-token.*`, portanto segue o mesmo padrao Keycloak e o mesmo fallback documentado para `Auth.Api`:
+
+```powershell
+./scripts/run-owasp-zap.ps1 -UseAuthentication
+```
+
+```bash
+./scripts/run-owasp-zap.sh --use-authentication
 ```
 
 O modo padrao usa `zap-api-scan.py -f openapi -S` e nao falha a execucao apenas por encontrar alertas. Active scan e falha por alertas exigem parametros explicitos. Detalhes ficam em [OWASP ZAP local](owasp-zap.md).

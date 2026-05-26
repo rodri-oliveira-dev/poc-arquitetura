@@ -38,17 +38,16 @@ Swagger/OpenAPI fica habilitado por padrao somente em `Development`. Fora desse 
 
 Confirme tambem se a API correta esta rodando:
 
-- Auth.Api: `http://localhost:5030/`
 - LedgerService.Api: `http://localhost:5226/`
 - BalanceService.Api: `http://localhost:5228/`
 
 Quando estiver usando a borda local com Nginx, confirme tambem:
 
 - o certificado local existe em `infra/nginx/certs/localhost.crt` e `infra/nginx/certs/localhost.key`;
-- o certificado possui SAN para `localhost`, `ledger.localhost`, `balance.localhost` e `auth.localhost`;
+- o certificado possui SAN para `localhost`, `ledger.localhost` e `balance.localhost`;
 - o overlay foi aplicado no comando: `docker compose -f compose.yaml -f compose.nginx.yaml up -d --build nginx-edge`;
 - os logs do Nginx nao mostram erro de certificado ou upstream: `docker compose -f compose.yaml -f compose.nginx.yaml logs nginx-edge`;
-- as URLs via proxy usam subdominio, nao path: `https://ledger.localhost:7443/swagger`, `https://balance.localhost:7443/swagger` e `https://auth.localhost:7443/swagger`.
+- as URLs via proxy usam subdominio, nao path: `https://ledger.localhost:7443/swagger` e `https://balance.localhost:7443/swagger`.
 
 Veja [Swagger e endpoints operacionais](development/local-development.md#swagger-e-endpoints-operacionais).
 
@@ -66,9 +65,9 @@ Erros comuns:
 - `cannot load certificate`: gere `infra/nginx/certs/localhost.crt`;
 - `cannot load certificate key`: gere `infra/nginx/certs/localhost.key`;
 - alerta de certificado no navegador: confie o certificado local ou use `mkcert -install`;
-- `connection refused` ao abrir Swagger via Nginx: confirme se `ledger-service-1`, `ledger-service-2`, `balance-service` e `auth-api` estao em execucao e saudaveis.
+- `connection refused` ao abrir Swagger via Nginx: confirme se `ledger-service-1`, `ledger-service-2` e `balance-service` estao em execucao e saudaveis.
 
-O Nginx nao altera as portas HTTP diretas. Se precisar isolar o problema, valide primeiro a Swagger UI direta em `http://localhost:5226/index.html`, `http://localhost:5228/index.html` e `http://localhost:5030/index.html`, ou os documentos OpenAPI em `/swagger/v1/swagger.json`.
+O Nginx nao altera as portas HTTP diretas. Se precisar isolar o problema, valide primeiro a Swagger UI direta em `http://localhost:5226/index.html` e `http://localhost:5228/index.html`, ou os documentos OpenAPI em `/swagger/v1/swagger.json`.
 
 ## Stack completa nao sobe por recurso em uso
 
@@ -115,7 +114,6 @@ Valide:
 curl -k -I https://localhost:7443
 curl -k -I https://ledger.localhost:7443/swagger
 curl -k -I https://balance.localhost:7443/swagger
-curl -k -I https://auth.localhost:7443/swagger
 ```
 
 Se os headers nao aparecerem, recrie o container com o overlay e confirme que `infra/nginx/security-headers.conf` foi montado:
@@ -135,7 +133,6 @@ Valide:
 curl -k -I https://localhost:7443
 curl -k -I https://ledger.localhost:7443/swagger
 curl -k -I https://balance.localhost:7443/swagger
-curl -k -I https://auth.localhost:7443/swagger
 ```
 
 Se aparecer `Server`, `X-Powered-By` ou `X-Swagger-UI-Version`, recrie a imagem/container com o overlay e valide a configuracao carregada:
@@ -147,14 +144,13 @@ docker compose -f compose.yaml -f compose.nginx.yaml exec nginx-edge nginx -t
 
 ## Cache-Control nao aparece via Nginx local
 
-Os hosts de API via Nginx devem devolver `Cache-Control: no-store`, `Pragma: no-cache` e `Expires: 0` para evitar cache indevido de respostas sensiveis. Essa politica se aplica a `ledger.localhost`, `balance.localhost` e `auth.localhost`; o portal estatico em `https://localhost:7443` fica fora da regra.
+Os hosts de API via Nginx devem devolver `Cache-Control: no-store`, `Pragma: no-cache` e `Expires: 0` para evitar cache indevido de respostas sensiveis. Essa politica se aplica a `ledger.localhost` e `balance.localhost`; o portal estatico em `https://localhost:7443` fica fora da regra.
 
 Valide:
 
 ```bash
 curl -k -I https://ledger.localhost:7443/swagger
 curl -k -I https://balance.localhost:7443/swagger
-curl -k -I https://auth.localhost:7443/swagger
 curl -k -I https://ledger.localhost:7443/health
 ```
 
@@ -240,7 +236,7 @@ Cada linha de access log deve ser JSON valido e conter `correlation_id`. Se o va
 
 As APIs usam `UseForwardedHeaders` antes de Swagger, redirecionamento HTTPS, autenticacao e autorizacao para aplicar `X-Forwarded-For`, `X-Forwarded-Proto` e `X-Forwarded-Host`. Se algum link aparecer como HTTP ou com host interno:
 
-- confirme que a chamada entrou por `https://ledger.localhost:7443`, `https://balance.localhost:7443` ou `https://auth.localhost:7443`;
+- confirme que a chamada entrou por `https://ledger.localhost:7443` ou `https://balance.localhost:7443`;
 - confira se o Nginx esta enviando `X-Forwarded-Proto https` e `X-Forwarded-Host $host`;
 - recrie as imagens das APIs depois de alterar codigo C#: `docker compose -f compose.yaml -f compose.nginx.yaml up -d --build`;
 - valide a configuracao efetiva: `docker compose -f compose.yaml -f compose.nginx.yaml config`.
@@ -328,7 +324,7 @@ Confirme a cadeia completa:
 5. `balance-worker` atualizou `daily_balances`;
 6. ausencia de mensagem inesperada na DLQ.
 
-O roteiro operacional completo fica em [validacao Auth -> Ledger -> Outbox -> Kafka -> Balance](observability.md#validacao-auth---ledger---outbox---kafka---balance).
+O roteiro operacional completo fica em [validacao Keycloak -> Ledger -> Outbox -> Kafka -> Balance](observability.md#validacao-keycloak---ledger---outbox---kafka---balance).
 
 ## Token JWT e rejeitado
 
@@ -397,7 +393,7 @@ Detalhes ficam em [load tests com k6](development/local-development.md#load-test
 
 ## OWASP ZAP local falha
 
-Os scripts ZAP exigem Docker, `docker compose` e a stack da POC ja iniciada. Antes do scan, eles validam `GET /health` em Auth, Ledger e Balance. Se a falha mencionar uma URL direta, suba a stack minima:
+Os scripts ZAP exigem Docker, `docker compose` e a stack da POC ja iniciada. Antes do scan, eles validam `GET /health` em Ledger e Balance por padrao; o `Auth.Api` legado so entra nessa validacao quando `-IncludeLegacyAuth` ou `--include-legacy-auth` for usado. Se a falha mencionar uma URL direta, suba a stack minima:
 
 ```powershell
 ./scripts/start-local-stack.ps1
