@@ -103,6 +103,30 @@ function Assert-BalanceDatabaseAuthentication {
   }
 }
 
+function Wait-ComposeServiceHealthy([string]$Service, [int]$TimeoutSeconds = 240) {
+  $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+  $lastHealth = ""
+
+  do {
+    $json = & docker compose -f $ComposeFile -f $ComposeK6File ps $Service --format json
+    if ($LASTEXITCODE -ne 0) { throw "docker compose ps falhou para $Service" }
+
+    $serviceState = $json | ConvertFrom-Json
+    $lastHealth = [string]$serviceState.Health
+    if ($lastHealth -eq "healthy") {
+      return
+    }
+
+    if ($lastHealth -eq "unhealthy") {
+      throw "$Service ficou unhealthy durante a preparacao do k6."
+    }
+
+    Start-Sleep -Seconds 5
+  } while ((Get-Date) -lt $deadline)
+
+  throw "Timeout aguardando $Service ficar healthy. Ultimo health: $lastHealth"
+}
+
 # a) gerar env
 powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "scripts\compose-env.ps1") -ComposeFile $ComposeFile -OutFile $EnvFile | Out-Host
 
@@ -112,6 +136,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "scripts\co
 & docker compose -f $ComposeFile -f $ComposeK6File up -d --no-build --force-recreate keycloak ledger-service balance-service
 if ($LASTEXITCODE -ne 0) { throw "docker compose falhou ao aplicar override k6: $LASTEXITCODE" }
 
+Wait-ComposeServiceHealthy "keycloak"
 Assert-BalanceDatabaseAuthentication
 
 # b) obter token pelo provider local configurado. Por padrao, Keycloak.
