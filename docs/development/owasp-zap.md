@@ -15,6 +15,8 @@ Os scripts nao sobem a stack principal automaticamente, nao executam build, test
 
 Quando quiser um comando unico para ambiente local ainda parado, use `-StartStack` ou `--start-stack`. Esse modo chama os scripts oficiais `start-local-stack.*` antes dos health checks. Ele e explicito porque pode restaurar ferramentas, aplicar migrations e subir containers da POC.
 
+Por padrao o scan importa OpenAPI sem autenticacao. Quando quiser exercitar endpoints protegidos com Bearer token, use `-UseAuthentication` ou `--use-authentication`; o runner chama `scripts/get-token.*`, que usa Keycloak local por padrao e preserva o fallback `TOKEN_PROVIDER=auth-api` somente quando a stack tambem estiver configurada para o emissor legado.
+
 ## Alvos
 
 Por padrao, os scripts validam as URLs HTTP diretas:
@@ -89,6 +91,18 @@ Sobrescrevendo o caminho do documento OpenAPI:
 ./scripts/run-owasp-zap.ps1 -SwaggerPath /swagger/v1/swagger.json
 ```
 
+Com token Bearer obtido pelo provider local configurado:
+
+```powershell
+./scripts/run-owasp-zap.ps1 -UseAuthentication
+```
+
+Com token manual, quando voce ja obteve um JWT valido:
+
+```powershell
+./scripts/run-owasp-zap.ps1 -UseAuthentication -Token "<TOKEN>"
+```
+
 ## Bash
 
 URLs diretas:
@@ -131,6 +145,18 @@ Sobrescrevendo o caminho do documento OpenAPI:
 ./scripts/run-owasp-zap.sh --swagger-path /swagger/v1/swagger.json
 ```
 
+Com token Bearer obtido pelo provider local configurado:
+
+```bash
+./scripts/run-owasp-zap.sh --use-authentication
+```
+
+Com token manual, quando voce ja obteve um JWT valido:
+
+```bash
+./scripts/run-owasp-zap.sh --use-authentication --token "<TOKEN>"
+```
+
 ## Relatorios
 
 Cada execucao cria uma subpasta com timestamp no formato `yyyyMMdd-HHmmss`, por exemplo:
@@ -147,6 +173,8 @@ Arquivos esperados:
 - `summary.md`
 
 O `summary.md` registra data/hora, imagem ZAP, URLs analisadas, alvo visto pelo container, arquivos gerados e status final por API. A pasta `zap-reports/` e ignorada pelo Git; relatorios gerados nao devem ser versionados.
+
+Quando o modo autenticado estiver ativo, o summary registra apenas que `Authorization: Bearer` foi injetado via ZAP Replacer. O token nao e gravado no summary.
 
 ## Tipo de scan
 

@@ -776,6 +776,8 @@ Arquivos gerados em `artifacts/k6` e `.env.k6.auto` nao sao versionados.
 
 Os runners aplicam `compose.k6.yaml` e recriam os containers HTTP alvo antes do k6 para manter os testes apontando para as APIs e garantir que overrides de ambiente entrem em vigor. Os workers continuam sem endpoint HTTP nos cenarios de carga. Antes de obter token e executar o k6, os runners validam uma conexao real no PostgreSQL do Balance usando `BALANCE_DB_USER`, `BALANCE_DB_NAME` e `BALANCE_DB_PASSWORD`; se a senha do volume local divergir da configuracao, o fluxo falha cedo com diagnostico e nenhuma acao destrutiva.
 
+O token usado nos cenarios k6 e obtido pelos runners com `scripts/get-token.*`. O fluxo oficial local e `TOKEN_PROVIDER=keycloak`, usando `KEYCLOAK_CLIENT_ID`, `KEYCLOAK_CLIENT_SECRET`, `KEYCLOAK_REALM` e `KEYCLOAK_BASE_URL`/`KEYCLOAK_HOST_PORT`. Para usar temporariamente o fallback `Auth.Api`, configure tambem as APIs de negocio com `JWT_ISSUER=https://auth-api`, `JWT_JWKS_URL=http://auth-api:8080/.well-known/jwks.json` e `TOKEN_PROVIDER=auth-api`, conforme [autenticacao e autorizacao](authentication.md).
+
 Para validar manualmente a configuracao efetiva do k6:
 
 ```bash
@@ -815,6 +817,16 @@ Via Nginx local:
 
 ```bash
 ./scripts/run-owasp-zap.sh --use-nginx
+```
+
+Por padrao o ZAP importa os documentos OpenAPI sem injetar token. Para executar o scan com `Authorization: Bearer <token>`, use o fluxo autenticado; o token e obtido por `scripts/get-token.*`, portanto segue o mesmo padrao Keycloak e o mesmo fallback documentado para `Auth.Api`:
+
+```powershell
+./scripts/run-owasp-zap.ps1 -UseAuthentication
+```
+
+```bash
+./scripts/run-owasp-zap.sh --use-authentication
 ```
 
 O modo padrao usa `zap-api-scan.py -f openapi -S` e nao falha a execucao apenas por encontrar alertas. Active scan e falha por alertas exigem parametros explicitos. Detalhes ficam em [OWASP ZAP local](owasp-zap.md).

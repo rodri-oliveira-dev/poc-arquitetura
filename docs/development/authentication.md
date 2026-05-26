@@ -136,6 +136,8 @@ Variaveis legadas preservadas para `TOKEN_PROVIDER=auth-api`:
 
 O contrato de resposta continua aceitando `access_token` como campo principal e `accessToken` como fallback temporario.
 
+Scripts operacionais que precisam de token devem chamar `scripts/get-token.*` em vez de duplicar login. Esse e o caso dos validadores locais (`validate-*.ps1`), dos runners k6 (`run-loadtests.*`) e do modo autenticado do OWASP ZAP (`run-owasp-zap.* -UseAuthentication` ou `--use-authentication`). Assim, Keycloak e o fallback temporario para `Auth.Api` seguem uma unica configuracao.
+
 ### Keycloak local
 
 Suba o Keycloak:

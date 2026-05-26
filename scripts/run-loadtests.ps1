@@ -117,21 +117,28 @@ Assert-BalanceDatabaseAuthentication
 # b) obter token pelo provider local configurado. Por padrao, Keycloak.
 function Get-LoadTestToken {
   $getTokenScript = Join-Path $root "scripts\get-token.ps1"
+  $previousEnvFile = [System.Environment]::GetEnvironmentVariable("ENV_FILE", "Process")
+  [System.Environment]::SetEnvironmentVariable("ENV_FILE", $EnvFile, "Process")
 
-  for ($i = 1; $i -le 30; $i++) {
-    $candidate = powershell -NoProfile -ExecutionPolicy Bypass -File $getTokenScript 2>$null
-    if ($LASTEXITCODE -eq 0) {
-      $candidate = ($candidate | Out-String).Trim()
-      if (-not [string]::IsNullOrWhiteSpace($candidate)) {
-        return $candidate
+  try {
+    for ($i = 1; $i -le 30; $i++) {
+      $candidate = powershell -NoProfile -ExecutionPolicy Bypass -File $getTokenScript 2>$null
+      if ($LASTEXITCODE -eq 0) {
+        $candidate = ($candidate | Out-String).Trim()
+        if (-not [string]::IsNullOrWhiteSpace($candidate)) {
+          return $candidate
+        }
       }
+
+      Start-Sleep -Seconds 2
     }
 
-    Start-Sleep -Seconds 2
+    $finalAttempt = powershell -NoProfile -ExecutionPolicy Bypass -File $getTokenScript
+    return ($finalAttempt | Out-String).Trim()
   }
-
-  $finalAttempt = powershell -NoProfile -ExecutionPolicy Bypass -File $getTokenScript
-  return ($finalAttempt | Out-String).Trim()
+  finally {
+    [System.Environment]::SetEnvironmentVariable("ENV_FILE", $previousEnvFile, "Process")
+  }
 }
 
 $token = Get-LoadTestToken

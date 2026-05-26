@@ -52,8 +52,6 @@ export function loadConfig() {
         // Fallback local (host)
         BASE_URL_LEDGER: 'http://localhost:5226',
         BASE_URL_BALANCE: 'http://localhost:5228',
-        AUTH_BASE_URL: 'http://localhost:5030',
-        TOKEN_URL: '/auth/login',
         LEDGER_POST_PATH: '/api/v1/lancamentos',
         BALANCE_DAILY_PATH: '/v1/consolidados/diario',
         BALANCE_PERIOD_PATH: '/v1/consolidados/periodo',
@@ -71,7 +69,7 @@ export function requireTokenOrFail() {
     const token = (__ENV.TOKEN || '').trim();
     const allowAnon = (__ENV.ALLOW_ANON || '').toLowerCase() === 'true';
     if (!token && !allowAnon) {
-        throw new Error('TOKEN vazio. Gere token via scripts/get-token.* ou informe via env TOKEN=... (ou use ALLOW_ANON=true para executar anonimamente).');
+        throw new Error('TOKEN vazio. Use scripts/run-loadtests.* ou gere token via scripts/get-token.* e informe env TOKEN=... (ALLOW_ANON=true executa anonimamente).');
     }
     return token;
 }

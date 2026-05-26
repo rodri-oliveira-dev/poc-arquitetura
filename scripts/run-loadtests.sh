@@ -106,14 +106,14 @@ assert_balance_database_authentication
 # b) obter token pelo provider local configurado. Por padrao, Keycloak.
 TOKEN=""
 for _ in $(seq 1 30); do
-  if TOKEN="$("$ROOT_DIR/scripts/get-token.sh" 2>/dev/null)" && [[ -n "$TOKEN" ]]; then
+  if TOKEN="$(ENV_FILE="$ENV_FILE" "$ROOT_DIR/scripts/get-token.sh" 2>/dev/null)" && [[ -n "$TOKEN" ]]; then
     break
   fi
   sleep 2
 done
 
 if [[ -z "$TOKEN" ]]; then
-  TOKEN="$("$ROOT_DIR/scripts/get-token.sh")"
+  TOKEN="$(ENV_FILE="$ENV_FILE" "$ROOT_DIR/scripts/get-token.sh")"
 fi
 if [[ -z "$TOKEN" ]]; then
   echo "Falha ao obter TOKEN. Você pode informar manualmente via env TOKEN=..." 1>&2

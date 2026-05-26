@@ -10,7 +10,7 @@ A configuracao e carregada na ordem:
 2. Arquivo `.env.k6.auto` (gerado por `scripts/compose-env.*`)
 3. Defaults (fallback para execucao local via `localhost`)
 
-Os cenarios exigem `TOKEN` (JWT), a menos que `ALLOW_ANON=true`.
+Os cenarios exigem `TOKEN` (JWT), a menos que `ALLOW_ANON=true`. Os runners oficiais (`scripts/run-loadtests.*`) obtêm esse token antes de iniciar o k6 chamando `scripts/get-token.*`; por padrão o provider é o Keycloak local via `client_credentials`.
 
 ## Modos e criterios de aceite
 
@@ -32,11 +32,13 @@ Estes testes validam comportamento local/controlado da POC. Eles nao comprovam c
 
 ## Servicos necessarios
 
-Execute a stack local antes dos testes. Os cenarios HTTP chamam apenas as APIs:
+Execute a stack local antes dos testes. Os runners precisam do Keycloak local para obter o token padrão e os cenarios HTTP chamam apenas as APIs de negócio:
 
-- `Auth.Api`, para emissao do token JWT;
+- Keycloak, para emissão do token JWT padrão usado pelos runners;
 - `LedgerService.Api`, para `POST /api/v1/lancamentos`;
 - `BalanceService.Api`, para `GET /v1/consolidados/diario/{date}`.
+
+`Auth.Api` permanece disponível somente como fallback de transição quando `TOKEN_PROVIDER=auth-api` também estiver acompanhado da configuração JWT legada das APIs, conforme `docs/development/authentication.md`.
 
 Mantenha `LedgerService.Worker` e `BalanceService.Worker` em execucao quando quiser validar efeitos assincronos entre Outbox, Kafka e projecao de saldos. Os workers nao sao tratados como APIs HTTP.
 

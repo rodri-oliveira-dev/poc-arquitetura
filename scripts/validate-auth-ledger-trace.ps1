@@ -18,138 +18,10 @@ param(
 $ErrorActionPreference = "Stop"
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$root = (Resolve-Path (Join-Path $scriptDir ".."))
-$getTokenScript = Join-Path $scriptDir "get-token.ps1"
-
-function Get-LocalEnvValue([string]$Name) {
-  $envPath = Join-Path $root ".env"
-  if (-not (Test-Path $envPath)) {
-    return ""
-  }
-
-  foreach ($line in Get-Content -Path $envPath) {
-    $trimmed = $line.Trim()
-    if ([string]::IsNullOrWhiteSpace($trimmed) -or $trimmed.StartsWith("#")) {
-      continue
-    }
-
-    $separatorIndex = $trimmed.IndexOf("=")
-    if ($separatorIndex -le 0) {
-      continue
-    }
-
-    $key = $trimmed.Substring(0, $separatorIndex).Trim()
-    if ($key -eq $Name) {
-      return $trimmed.Substring($separatorIndex + 1).Trim().Trim('"').Trim("'")
-    }
-  }
-
-  return ""
-}
-
-function Get-LocalConfigValue([string]$Name, [string]$DefaultValue) {
-  $value = [System.Environment]::GetEnvironmentVariable($Name, "Process")
-  if ([string]::IsNullOrWhiteSpace($value)) {
-    $value = Get-LocalEnvValue $Name
-  }
-  if ([string]::IsNullOrWhiteSpace($value)) {
-    return $DefaultValue
-  }
-
-  return $value
-}
-
-$balanceDbUser = Get-LocalConfigValue "BALANCE_DB_USER" "userBalance"
-$balanceDbName = Get-LocalConfigValue "BALANCE_DB_NAME" "dbBalance"
-
-function Invoke-WithEnv([hashtable]$Values, [scriptblock]$Script) {
-  $previous = @{}
-
-  foreach ($key in $Values.Keys) {
-    $previous[$key] = [System.Environment]::GetEnvironmentVariable($key, "Process")
-    [System.Environment]::SetEnvironmentVariable($key, $Values[$key], "Process")
-  }
-
-  try {
-    & $Script
-  }
-  finally {
-    foreach ($key in $Values.Keys) {
-      [System.Environment]::SetEnvironmentVariable($key, $previous[$key], "Process")
-    }
-  }
-}
-
-function Invoke-HttpJson([string]$Method, [string]$Uri, [hashtable]$Headers, [string]$Body) {
-  try {
-    Invoke-WebRequest -UseBasicParsing -Method $Method -Uri $Uri -Headers $Headers -ContentType "application/json" -Body $Body
-  }
-  catch {
-    if ($_.Exception.Response) {
-      return $_.Exception.Response
-    }
-
-    throw
-  }
-}
-
-function Get-HeaderValue($Headers, [string]$Name) {
-  if ($null -eq $Headers) { return "" }
-
-  $value = $Headers[$Name]
-  if ($value -is [array]) { return ($value -join ",") }
-  if ($null -eq $value) { return "" }
-
-  return $value.ToString()
-}
-
-function Invoke-DockerComposeText([string[]]$Arguments) {
-  $output = & docker @Arguments 2>$null
-  if ($LASTEXITCODE -ne 0) {
-    throw "docker compose falhou: $($Arguments -join ' ')"
-  }
-
-  return ($output -join "`n")
-}
-
-function Invoke-PostgresScalar([string]$Service, [string]$User, [string]$Database, [string]$Sql) {
-  Invoke-DockerComposeText @(
-    "compose", "exec", "-T", $Service,
-    "psql", "-U", $User, "-d", $Database,
-    "-t", "-A", "-F", "|",
-    "-c", $Sql
-  )
-}
-
-function Wait-Until([string]$Description, [scriptblock]$Probe, [scriptblock]$IsReady) {
-  $deadline = [DateTimeOffset]::UtcNow.AddSeconds($PollingTimeoutSeconds)
-  $last = ""
-
-  while ([DateTimeOffset]::UtcNow -lt $deadline) {
-    $last = & $Probe
-    if (& $IsReady $last) {
-      return $last
-    }
-
-    Start-Sleep -Seconds $PollingIntervalSeconds
-  }
-
-  throw "Timeout aguardando $Description. Ultimo resultado: $last"
-}
+. (Join-Path $scriptDir "common-validation.ps1")
 
 Write-Host "Obtendo token pelo provider local configurado..."
-$token = Invoke-WithEnv @{
-  AUTH_BASE_URL = $AuthBaseUrl
-  USERNAME = $Username
-  PASSWORD = $Password
-  SCOPE = $Scope
-} {
-  & $getTokenScript
-}
-
-if ([string]::IsNullOrWhiteSpace($token)) {
-  throw "Token vazio retornado por $getTokenScript"
-}
+$token = Get-ValidationToken $AuthBaseUrl $Username $Password $Scope
 
 $correlationId = [Guid]::NewGuid().ToString()
 $idempotencyKey = [Guid]::NewGuid().ToString()
@@ -204,7 +76,7 @@ ORDER BY occurred_at DESC
 LIMIT 1;
 "@
 
-$outboxRow = Wait-Until "Outbox Processed" {
+$outboxRow = Wait-Until "Outbox Processed" $PollingTimeoutSeconds $PollingIntervalSeconds {
   Invoke-PostgresScalar "ledger-db" "appuser" "appdb" $outboxSql
 } {
   param($value)
@@ -221,8 +93,8 @@ WHERE event_id = '$ledgerEntryId'
 LIMIT 1;
 "@
 
-$processedRow = Wait-Until "processed_events no Balance" {
-  Invoke-PostgresScalar "balance-db" $balanceDbUser $balanceDbName $processedSql
+$processedRow = Wait-Until "processed_events no Balance" $PollingTimeoutSeconds $PollingIntervalSeconds {
+  Invoke-PostgresScalar "balance-db" $script:BalanceDbUser $script:BalanceDbName $processedSql
 } {
   param($value)
   $value -match [Regex]::Escape($ledgerEntryId)
@@ -237,7 +109,7 @@ WHERE merchant_id = '$MerchantId' AND date = DATE '$balanceDate'
 LIMIT 1;
 "@
 
-$balanceRow = Invoke-PostgresScalar "balance-db" $balanceDbUser $balanceDbName $balanceSql
+$balanceRow = Invoke-PostgresScalar "balance-db" $script:BalanceDbUser $script:BalanceDbName $balanceSql
 Write-Host "Daily balance DB: $balanceRow"
 
 Write-Host "Consultando BalanceService.Api..."
@@ -263,7 +135,7 @@ if ($balanceCorrelationId -ne $correlationId) {
 }
 
 Write-Host "Consultando traces recentes no Jaeger..."
-$null = Wait-Until "exportacao de traces para o Jaeger" {
+$null = Wait-Until "exportacao de traces para o Jaeger" $PollingTimeoutSeconds $PollingIntervalSeconds {
   try {
     $jaegerQuery = $JaegerBaseUrl.TrimEnd("/") + "/api/traces?service=LedgerService.Api&lookback=1h&limit=20"
     $traces = Invoke-RestMethod -UseBasicParsing -Method Get -Uri $jaegerQuery
