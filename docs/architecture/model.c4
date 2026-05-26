@@ -19,7 +19,7 @@ specification {
 
 model {
   customer = actor "Cliente / Sistema externo" {
-    description "Chama APIs HTTP para login, criacao de lancamentos, solicitacao/consulta de estornos, solicitacao/consulta de reprocessamentos e consulta de consolidados."
+    description "Obtem token no IdP local e chama APIs HTTP para criacao de lancamentos, solicitacao/consulta de estornos, solicitacao/consulta de reprocessamentos e consulta de consolidados."
   }
 
   observability = softwareSystem "Observabilidade" {
@@ -240,8 +240,8 @@ model {
   edge.nginx.portal -> observability.jaeger "Linka UI local" "HTTP direto"
   edge.nginx.portal -> observability.prometheus "Linka UI local" "HTTP direto"
 
-  ledger.ledgerApi -> identity.keycloak "Obtem JWKS para validar JWT" "HTTP cacheado"
-  balance.balanceApi -> identity.keycloak "Obtem JWKS para validar JWT" "HTTP cacheado"
+  ledger.ledgerApi -> identity.keycloak "Baixa/cacheia JWKS e valida JWT offline com iss, aud, scopes e merchant_id" "HTTP cacheado"
+  balance.balanceApi -> identity.keycloak "Baixa/cacheia JWKS e valida JWT offline com iss, aud, scopes e merchant_id" "HTTP cacheado"
 
   ledger.ledgerApi -> ledger.ledgerDb "Persiste lancamento, estorno, reprocessamento, idempotencia e outbox" "EF Core"
   ledger.ledgerWorker.ledgerWorkerComposition -> ledger.ledgerWorker.ledgerWorkerApplication "Registra casos de uso e handlers" "DI / MediatR"

@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposto
+Substituido por [ADR-0074](./0074-keycloak-como-identidade-principal.md)
 
 ## Contexto
 
@@ -10,7 +10,7 @@ A POC usa atualmente o `Auth.Api` como emissor local de JWT RS256 e como publica
 
 A [ADR-0006](./0006-migrar-auth-api-para-keycloak.md) registrou a intencao de substituir o `Auth.Api` por Keycloak/OIDC. Desde entao, a POC tambem consolidou autorizacao por merchant via claim `merchant_id` na [ADR-0023](./0023-autorizacao-por-merchant.md) e endureceu temporariamente o `Auth.Api` na [ADR-0024](./0024-politica-autenticacao-auth-api-poc.md).
 
-Esta ADR transforma a ADR-0006 em um plano tecnico executavel e rastreavel. Etapas posteriores podem alterar codigo, compose, scripts, testes ou pipeline seguindo este plano.
+Esta ADR transforma a ADR-0006 em um plano tecnico executavel e rastreavel. A decisao final aplicada na stack principal foi registrada depois na [ADR-0074](./0074-keycloak-como-identidade-principal.md).
 
 ## Decisao
 
@@ -77,7 +77,7 @@ Nao deve haver dependencia runtime entre APIs de negocio e endpoint de introspec
 - Remover `Auth.Api` antes de cobrir scripts, testes e k6 pode quebrar reproducibilidade local.
 - Apontar APIs para introspeccao por request reintroduziria acoplamento e latencia rejeitados pela ADR-0004.
 
-## Proximos passos
+## Proximos passos historicos
 
 - Definir o nome do realm local e os nomes dos clients sem alterar codigo nesta ADR.
 - Especificar mappers Keycloak para `aud`, `scope` e `merchant_id`.
@@ -85,3 +85,5 @@ Nao deve haver dependencia runtime entre APIs de negocio e endpoint de introspec
 - Criar uma etapa de implementacao para compose/configuracao do Keycloak.
 - Criar uma etapa de implementacao para scripts `client_credentials`.
 - Revisar `docs/development/authentication.md` quando o fluxo Keycloak for implementado.
+
+Esses passos foram fechados pela implementacao da migracao e pela [ADR-0074](./0074-keycloak-como-identidade-principal.md), que define Keycloak como identidade principal e deixa `Auth.Api` apenas como legado por overlay.

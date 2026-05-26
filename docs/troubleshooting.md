@@ -393,7 +393,7 @@ Detalhes ficam em [load tests com k6](development/local-development.md#load-test
 
 ## OWASP ZAP local falha
 
-Os scripts ZAP exigem Docker, `docker compose` e a stack da POC ja iniciada. Antes do scan, eles validam `GET /health` em Auth, Ledger e Balance. Se a falha mencionar uma URL direta, suba a stack minima:
+Os scripts ZAP exigem Docker, `docker compose` e a stack da POC ja iniciada. Antes do scan, eles validam `GET /health` em Ledger e Balance por padrao; o `Auth.Api` legado so entra nessa validacao quando `-IncludeLegacyAuth` ou `--include-legacy-auth` for usado. Se a falha mencionar uma URL direta, suba a stack minima:
 
 ```powershell
 ./scripts/start-local-stack.ps1

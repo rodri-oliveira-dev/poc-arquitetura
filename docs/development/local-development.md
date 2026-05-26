@@ -167,7 +167,7 @@ O realm local importado se chama `poc` e expoe:
 - JWKS: `http://localhost:8081/realms/poc/protocol/openid-connect/certs`;
 - client local de automacao: `poc-automation`;
 - clients locais de debug manual: `poc-local-ledger-debug`, `poc-local-balance-debug` e `poc-local-admin-debug`;
-- fluxo preferencial para scripts futuros: `client_credentials`;
+- fluxo preferencial para scripts: `client_credentials`;
 - audiences: `ledger-api` e `balance-api`;
 - scopes: `ledger.write`, `ledger.read`, `balance.read` e `outbox.admin`;
 - claim `merchant_id`: `tese m1`.
