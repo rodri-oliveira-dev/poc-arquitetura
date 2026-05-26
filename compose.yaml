@@ -488,3 +488,29 @@ services:
       - auth-api-data:/data
     networks:
       - poc-net
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.6.2
+    container_name: poc-keycloak
+    profiles:
+      - identity
+    command: [ "start-dev" ]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: "${KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME:-local_admin}"
+      KC_BOOTSTRAP_ADMIN_PASSWORD: "${KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD:-local_admin_password}"
+      KC_HEALTH_ENABLED: "true"
+    ports:
+      - "${KEYCLOAK_HOST_PORT:-8081}:8080"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 1g
+          pids: 512
+    networks:
+      - poc-net
+    healthcheck:
+      test: [ "CMD-SHELL", "bash -ec \"exec 3<>/dev/tcp/localhost/9000; printf 'HEAD /health/ready HTTP/1.0\\r\\n\\r\\n' >&3; grep 'HTTP/1.0 200' <&3\"" ]
+      interval: 10s
+      timeout: 5s
+      retries: 30

@@ -9,6 +9,12 @@ Este documento descreve o fluxo atual de JWT Bearer via JWKS e as regras de auto
 - `LedgerService.Api` e `BalanceService.Api` validam tokens por JWT Bearer e JWKS.
 - As APIs nao fazem introspeccao por request; a configuracao de chaves usa cache e refresh.
 
+## Keycloak local lado a lado
+
+O compose local tambem disponibiliza um Keycloak opcional no profile `identity`, acessivel em `http://localhost:8081/`. Ele existe para experimentacao e preparacao da migracao planejada na ADR-0006, mas ainda nao substitui o `Auth.Api`.
+
+Nesta etapa, `LedgerService.Api` e `BalanceService.Api` continuam configurados para validar tokens emitidos pelo `Auth.Api` e obter JWKS em `http://auth-api:8080/.well-known/jwks.json` dentro da rede Docker. Nao ha realm, client, mapper, issuer, audience ou script de token Keycloak contratado para as APIs da POC neste momento.
+
 ## Claims e validacoes
 
 Claims relevantes:

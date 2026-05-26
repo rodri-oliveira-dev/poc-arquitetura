@@ -41,6 +41,9 @@ O compose usa defaults ficticios para desenvolvimento local. Para sobrescrever, 
 - `AUTH_POC_USERNAME=local_user`
 - `AUTH_POC_PASSWORD=local_password`
 - `AUTH_POC_SCOPE=ledger.write balance.read`
+- `KEYCLOAK_HOST_PORT=8081`
+- `KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME=local_admin`
+- `KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD=local_admin_password`
 
 As variaveis `BALANCE_DB_*` sao a origem local para o PostgreSQL do Balance no compose, para a connection string de `BalanceService.Api` e `BalanceService.Worker` dentro da rede Docker, e para os scripts que aplicam migrations ou executam load tests. Em volumes PostgreSQL existentes, alterar `.env` ou `compose.yaml` nao altera automaticamente a senha ja gravada no banco. Se houver divergencia, veja [troubleshooting](../troubleshooting.md#password-authentication-failed-for-user-userbalance).
 
@@ -63,6 +66,7 @@ O `compose.yaml` sobe por padrao a stack minima de desenvolvimento:
 Componentes opcionais ficam em profiles:
 
 - profile `observability`: OpenTelemetry Collector, Jaeger, Prometheus, Loki, Grafana Alloy, Alertmanager e Grafana;
+- profile `identity`: Keycloak local para experimentacao OIDC futura, sem substituir o `Auth.Api` nesta etapa;
 - profile `k6`: container k6 definido em `compose.k6.yaml`.
 
 Tambem existe um overlay opcional `compose.nginx.yaml` para adicionar uma borda local com Nginx e HTTPS em desenvolvimento. Ele nao faz parte da stack minima e nao altera as APIs, que continuam rodando internamente em HTTP com `ASPNETCORE_URLS=http://+:8080`. Quando o overlay e usado, o Nginx cria um upstream local `ledger_api` com duas instancias da `LedgerService.Api` e algoritmo `least_conn`.
@@ -120,6 +124,37 @@ OTEL_ENABLED=true docker compose --profile observability up -d --build
 `OTEL_ENABLED=true` habilita as aplicacoes a exportarem traces e metricas para `otel-collector:4317`. Sem essa variavel, os backends de observabilidade podem subir, mas as aplicacoes permanecem com OpenTelemetry desabilitado para manter a stack minima leve.
 
 O socket Docker, mesmo montado como somente leitura, e uma superficie sensivel. Use o profile `observability` apenas em maquina local confiavel; nao use em ambiente compartilhado ou produtivo sem redesenhar a coleta de logs e revisar permissoes.
+
+### Keycloak local opcional
+
+O Keycloak fica no `compose.yaml` principal com o profile `identity`, e nao em overlay separado, porque ele e um componente local da propria stack de identidade. O profile evita iniciar o container por padrao enquanto Ledger, Balance e scripts locais ainda usam `Auth.Api` via JWKS.
+
+Suba apenas o Keycloak:
+
+```bash
+docker compose --profile identity up -d keycloak
+```
+
+Ou suba a stack minima junto com o Keycloak:
+
+```bash
+docker compose --profile identity up -d --build
+```
+
+Admin Console:
+
+- `http://localhost:8081/`
+
+Credenciais locais descartaveis:
+
+- usuario: `local_admin`
+- senha: `local_admin_password`
+
+Para sobrescrever porta ou credenciais locais, copie `.env.example` para `.env` e ajuste `KEYCLOAK_HOST_PORT`, `KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME` e `KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD`. Esses valores sao apenas para desenvolvimento local e nao devem ser usados em ambientes compartilhados ou produtivos.
+
+O container usa `start-dev`, healthcheck nativo em `/health/ready` na porta de gerenciamento interna `9000` e nao declara volume persistente nesta etapa. Como ainda nao ha realm, clients, users ou imports versionados para as APIs da POC, manter o estado descartavel reduz acoplamento e evita criar persistencia local sem contrato definido. Recriar o container pode descartar configuracoes manuais feitas no Admin Console.
+
+Nesta etapa, `Auth.Api` continua funcional e continua sendo a origem do JWKS usada por `LedgerService.Api` e `BalanceService.Api`. O Keycloak existe lado a lado para preparar a evolucao descrita na ADR-0006, sem alterar contratos HTTP, issuer, audience, scopes, scripts de token ou testes.
 
 ### Stack completa com observabilidade e Nginx
 
@@ -413,6 +448,7 @@ Portas expostas no host:
 | Componente | URL ou porta |
 | --- | --- |
 | Auth.Api | `http://localhost:5030/` |
+| Keycloak | `http://localhost:8081/` com profile `identity` |
 | LedgerService.Api | `http://localhost:5226/` |
 | BalanceService.Api | `http://localhost:5228/` |
 | PostgreSQL Ledger | `localhost:15432` |
