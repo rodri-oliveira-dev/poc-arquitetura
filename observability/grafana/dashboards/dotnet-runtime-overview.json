@@ -280,7 +280,7 @@
   "templating": {
     "list": [
       {
-        "allValue": "Auth.Api|LedgerService.Api|BalanceService.Api",
+        "allValue": "LedgerService.Api|BalanceService.Api",
         "current": {
           "selected": true,
           "text": "All",
@@ -291,7 +291,7 @@
         "multi": true,
         "name": "service",
         "options": [],
-        "query": "Auth.Api,LedgerService.Api,BalanceService.Api",
+        "query": "LedgerService.Api,BalanceService.Api",
         "type": "custom"
       },
       {
@@ -306,7 +306,7 @@
         "type": "constant"
       },
       {
-        "allValue": "auth-api|ledger-service|balance-service",
+        "allValue": "ledger-service|balance-service",
         "current": {
           "selected": true,
           "text": "All",
@@ -317,7 +317,7 @@
         "multi": true,
         "name": "loki_service",
         "options": [],
-        "query": "auth-api,ledger-service,balance-service",
+        "query": "ledger-service,balance-service",
         "type": "custom"
       }
     ]

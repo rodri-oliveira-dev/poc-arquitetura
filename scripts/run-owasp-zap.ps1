@@ -12,6 +12,7 @@ param(
   [int]$HealthIntervalSeconds = 3,
   [string]$SwaggerPath = "/swagger/v1/swagger.json",
   [switch]$UseAuthentication,
+  [switch]$IncludeLegacyAuth,
   [string]$Token = "",
   [switch]$ActiveScan,
   [switch]$FailOnAlerts
@@ -33,7 +34,7 @@ $scanType = if ($ActiveScan) { "api-active" } else { "api-baseline" }
 $zapOptions = "-config connection.sslAcceptAll=true"
 
 if ([string]::IsNullOrWhiteSpace($AuthUrl)) {
-  $AuthUrl = if ($UseNginx) { "https://auth.localhost:7443" } else { "http://localhost:5030" }
+  $AuthUrl = "http://localhost:5030"
 }
 if ([string]::IsNullOrWhiteSpace($LedgerUrl)) {
   $LedgerUrl = if ($UseNginx) { "https://ledger.localhost:7443" } else { "http://localhost:5226" }
@@ -43,10 +44,12 @@ if ([string]::IsNullOrWhiteSpace($BalanceUrl)) {
 }
 
 $apis = @(
-  [pscustomobject]@{ Name = "Auth.Api"; Slug = "auth-api"; Url = $AuthUrl },
   [pscustomobject]@{ Name = "LedgerService.Api"; Slug = "ledger-service-api"; Url = $LedgerUrl },
   [pscustomobject]@{ Name = "BalanceService.Api"; Slug = "balance-service-api"; Url = $BalanceUrl }
 )
+if ($IncludeLegacyAuth) {
+  $apis = @([pscustomobject]@{ Name = "Auth.Api"; Slug = "auth-api"; Url = $AuthUrl }) + $apis
+}
 
 $scanResults = New-Object System.Collections.Generic.List[object]
 

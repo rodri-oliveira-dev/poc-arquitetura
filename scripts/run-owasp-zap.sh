@@ -17,6 +17,7 @@ SWAGGER_PATH="/swagger/v1/swagger.json"
 ACTIVE_SCAN=false
 FAIL_ON_ALERTS=false
 USE_AUTHENTICATION=false
+INCLUDE_LEGACY_AUTH=false
 TOKEN=""
 CONTAINER_NAME="poc-arquitetura-zap"
 ZAP_OPTIONS="-config connection.sslAcceptAll=true"
@@ -38,6 +39,7 @@ Opcoes:
   --health-interval N  Intervalo entre tentativas de /health em segundos.
   --swagger-path PATH  Caminho do documento OpenAPI/Swagger em cada API.
   --use-authentication Injeta Authorization Bearer obtido por scripts/get-token.sh.
+  --include-legacy-auth Inclui o Auth.Api legado nos health checks e no scan.
   --token TOKEN        Token Bearer manual para usar com --use-authentication.
   --active-scan        Executa zap-api-scan.py sem modo seguro. Pode gerar trafego mais invasivo.
   --fail-on-alerts     Propaga alertas do ZAP como falha do script.
@@ -95,6 +97,10 @@ while [[ $# -gt 0 ]]; do
       USE_AUTHENTICATION=true
       shift
       ;;
+    --include-legacy-auth)
+      INCLUDE_LEGACY_AUTH=true
+      shift
+      ;;
     --token)
       TOKEN="${2:-}"
       shift 2
@@ -120,7 +126,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$AUTH_URL" ]]; then
-  if [[ "$USE_NGINX" == true ]]; then AUTH_URL="https://auth.localhost:7443"; else AUTH_URL="http://localhost:5030"; fi
+  AUTH_URL="http://localhost:5030"
 fi
 if [[ -z "$LEDGER_URL" ]]; then
   if [[ "$USE_NGINX" == true ]]; then LEDGER_URL="https://ledger.localhost:7443"; else LEDGER_URL="http://localhost:5226"; fi
@@ -302,7 +308,12 @@ docker_host_args() {
   local hosts=("host.docker.internal")
   local host
 
-  for url in "$AUTH_URL" "$LEDGER_URL" "$BALANCE_URL"; do
+  local urls=("$LEDGER_URL" "$BALANCE_URL")
+  if [[ "$INCLUDE_LEGACY_AUTH" == true ]]; then
+    urls+=("$AUTH_URL")
+  fi
+
+  for url in "${urls[@]}"; do
     host="$(url_host "$url")"
     if [[ "$host" == "localhost" || "$host" == *.localhost ]]; then
       hosts+=("$host")
@@ -445,7 +456,9 @@ if [[ "$START_STACK" == true ]]; then
   start_local_stack_for_zap
 fi
 
-assert_health "Auth.Api" "$AUTH_URL"
+if [[ "$INCLUDE_LEGACY_AUTH" == true ]]; then
+  assert_health "Auth.Api" "$AUTH_URL"
+fi
 assert_health "LedgerService.Api" "$LEDGER_URL"
 assert_health "BalanceService.Api" "$BALANCE_URL"
 
@@ -457,7 +470,9 @@ ensure_zap_image
 
 mkdir -p "$OUTPUT_DIR"
 
-run_zap_scan "Auth.Api" "auth-api" "$AUTH_URL"
+if [[ "$INCLUDE_LEGACY_AUTH" == true ]]; then
+  run_zap_scan "Auth.Api" "auth-api" "$AUTH_URL"
+fi
 run_zap_scan "LedgerService.Api" "ledger-service-api" "$LEDGER_URL"
 run_zap_scan "BalanceService.Api" "balance-service-api" "$BALANCE_URL"
 

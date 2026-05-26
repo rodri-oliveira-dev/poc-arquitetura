@@ -18,7 +18,6 @@ $projectNetworkName = "poc-arquitetura_poc-net"
 $overlayContainerNames = @("poc-nginx-edge", "poc-ledger-service-1", "poc-ledger-service-2")
 $projectContainerPrefix = "poc-"
 $requiredPorts = @(
-  @{ Name = "Auth.Api"; Port = 5030 },
   @{ Name = "LedgerService.Api"; Port = 5226 },
   @{ Name = "BalanceService.Api"; Port = 5228 },
   @{ Name = "Portal Nginx HTTPS"; Port = 7443 },
@@ -285,13 +284,11 @@ try {
   )
 
   if (-not $SkipHealthChecks) {
-    Invoke-HttpCheck "Auth.Api direta" "http://localhost:5030/health"
     Invoke-HttpCheck "LedgerService.Api direta" "http://localhost:5226/health"
     Invoke-HttpCheck "BalanceService.Api direta" "http://localhost:5228/health"
     Invoke-HttpCheck "Portal Nginx" "https://localhost:7443/" -Insecure
     Invoke-HttpCheck "Ledger via Nginx" "https://ledger.localhost:7443/health" -Insecure
     Invoke-HttpCheck "Balance via Nginx" "https://balance.localhost:7443/health" -Insecure
-    Invoke-HttpCheck "Auth via Nginx" "https://auth.localhost:7443/health" -Insecure
     Invoke-HttpCheck "Grafana" "http://localhost:3000/api/health"
     Invoke-HttpCheck "Jaeger" "http://localhost:16686/"
     Invoke-HttpCheck "Prometheus" "http://localhost:9090/-/ready"
@@ -302,13 +299,11 @@ try {
   Write-Host "OK. Stack completa local pronta."
   Write-Host ""
   Write-Host "URLs uteis:"
-  Write-Host "  Auth.Api:              http://localhost:5030/"
   Write-Host "  LedgerService.Api:     http://localhost:5226/"
   Write-Host "  BalanceService.Api:    http://localhost:5228/"
   Write-Host "  Portal Nginx:          https://localhost:7443/"
   Write-Host "  Ledger Swagger Nginx:  https://ledger.localhost:7443/swagger"
   Write-Host "  Balance Swagger Nginx: https://balance.localhost:7443/swagger"
-  Write-Host "  Auth Swagger Nginx:    https://auth.localhost:7443/swagger"
   Write-Host "  Grafana:               http://localhost:3000/"
   Write-Host "  Jaeger:                http://localhost:16686/"
   Write-Host "  Prometheus:            http://localhost:9090/"

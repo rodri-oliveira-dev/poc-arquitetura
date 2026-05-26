@@ -73,8 +73,6 @@ services:
       dockerfile: Dockerfile
     container_name: poc-nginx-edge
     depends_on:
-      auth-api:
-        condition: service_started
       ledger-service-1:
         condition: service_started
       ledger-service-2:

@@ -12,7 +12,7 @@ views {
     include customer
     include edge.nginx
     include edge.nginx.portal
-    include auth.authApi
+    include identity.keycloak
     include ledger.ledgerApi
     include ledger.ledgerWorker
     include ledger.ledgerDb
@@ -35,9 +35,9 @@ views {
   }
 
   view distributedFlow {
-    title "Fluxo distribuido - Auth, Ledger, Outbox, Kafka e Balance"
+    title "Fluxo distribuido - Keycloak, Ledger, Outbox, Kafka e Balance"
     include customer
-    include auth.authApi
+    include identity.keycloak
     include ledger.ledgerApi
     include ledger.ledgerDb
     include ledger.ledgerWorker
@@ -54,7 +54,7 @@ views {
 
   view observabilityFlow {
     title "Observabilidade local - traces, metricas, logs, dashboards e alertas"
-    include auth.authApi
+    include identity.keycloak
     include ledger.ledgerApi
     include ledger.ledgerWorker
     include balance.balanceApi
@@ -84,7 +84,7 @@ views {
     include ledger.ledgerDomain
     include ledger.ledgerInfrastructure
     include ledger.ledgerDb
-    include auth.authApi
+    include identity.keycloak
     autoLayout LeftRight
   }
 
@@ -110,7 +110,7 @@ views {
     include balance.balanceDomain
     include balance.balanceInfrastructure
     include balance.balanceDb
-    include auth.authApi
+    include identity.keycloak
     autoLayout LeftRight
   }
 
@@ -126,13 +126,10 @@ views {
     autoLayout LeftRight
   }
 
-  view authComponents of auth.authApi {
-    title "Component View - Auth.Api"
-    include auth.authEndpoints
-    include auth.authSecurity
-    include auth.authPipeline
-    include observability.collector
-    include observability.jaeger
+  view identityComponents of identity.keycloak {
+    title "Component View - Keycloak"
+    include identity.oidcEndpoints
+    include identity.realmConfig
     autoLayout LeftRight
   }
 }

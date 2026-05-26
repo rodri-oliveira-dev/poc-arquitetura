@@ -119,7 +119,6 @@ fi
   balance-db \
   kafka \
   kafka-init-topics \
-  auth-api \
   keycloak
 
 if [[ "$OBSERVABILITY" == "true" ]]; then

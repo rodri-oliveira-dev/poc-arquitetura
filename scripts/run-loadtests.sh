@@ -99,7 +99,7 @@ COMPOSE_FILE="$COMPOSE_FILE" OUT_FILE="$ENV_FILE" "$ROOT_DIR/scripts/compose-env
 # Aplica o override de carga nas APIs antes de executar o k6. O compose.k6.yaml
 # mantem os testes apontando para as APIs HTTP e aumenta apenas limites tecnicos
 # que poderiam transformar o cenario de throughput em teste de rate limiting.
-docker compose -f "$COMPOSE_FILE" -f "$COMPOSE_K6_FILE" up -d --no-build --force-recreate auth-api ledger-service balance-service
+docker compose -f "$COMPOSE_FILE" -f "$COMPOSE_K6_FILE" up -d --no-build --force-recreate keycloak ledger-service balance-service
 
 assert_balance_database_authentication
 

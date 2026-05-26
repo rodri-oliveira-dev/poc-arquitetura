@@ -8,7 +8,7 @@ Este documento descreve o fluxo atual de JWT Bearer via JWKS e as regras de auto
 - O Keycloak publica chaves publicas em `GET /realms/poc/protocol/openid-connect/certs`.
 - `LedgerService.Api` e `BalanceService.Api` validam tokens por JWT Bearer e JWKS.
 - As APIs nao fazem introspeccao por request; a configuracao de chaves usa cache e refresh.
-- `Auth.Api` continua disponivel como emissor legado de POC e pode ser reativado por configuracao.
+- `Auth.Api` esta depreciado como emissor legado de POC, fora da stack principal, e so deve ser iniciado pelo overlay legado quando houver necessidade explicita de compatibilidade.
 
 ## Keycloak local
 
@@ -54,9 +54,15 @@ Audiences atuais:
 
 Nesta POC, o `Auth.Api` pode emitir `aud` como string com audiences separadas por espaco, como `ledger-api balance-api`. As APIs tratam esse formato tokenizando por espaco.
 
-## Fallback Auth.Api local
+## Auth.Api legado
 
-O `Auth.Api` permanece no compose para transicao e testes de compatibilidade. Para validar tokens emitidos por ele, sobrescreva a configuracao das APIs:
+O `Auth.Api` permanece no repositorio para rastreabilidade, testes de compatibilidade e rollback local controlado, mas nao faz parte da stack principal nem da borda Nginx padrao. Para iniciar o emissor legado:
+
+```bash
+docker compose -f compose.yaml -f compose.auth-legacy.yaml --profile legacy-auth up -d --build auth-api
+```
+
+Para validar tokens emitidos por ele, sobrescreva a configuracao das APIs e use o provider legado somente nesse contexto:
 
 | Variavel | Valor Auth.Api local |
 | --- | --- |
@@ -65,13 +71,13 @@ O `Auth.Api` permanece no compose para transicao e testes de compatibilidade. Pa
 | `JWT_REQUIRE_HTTPS_METADATA` | `false` |
 | `TOKEN_PROVIDER` | `auth-api` |
 
-O catalogo atual do `Auth.Api` aceita somente estes scopes no `POST /auth/login`:
+O catalogo do `Auth.Api` legado aceita somente estes scopes no `POST /auth/login`:
 
 - `ledger.write`
 - `outbox.admin`
 - `balance.read`
 
-Os endpoints de consulta de status do `LedgerService.Api` exigem `ledger.read`, mas esse scope ainda nao esta no catalogo emitido pelo `Auth.Api` local. Esse e um desalinhamento operacional conhecido da POC: os testes de integracao cobrem esses endpoints com tokens gerados pelas factories de teste; os scripts operacionais locais validam os estados de estorno/reprocessamento pelo banco enquanto usam o token padrao `ledger.write balance.read`.
+Os endpoints de consulta de status do `LedgerService.Api` exigem `ledger.read`, mas esse scope nao esta no catalogo emitido pelo `Auth.Api` legado. Esse desalinhamento e aceito apenas enquanto o projeto legado existir; o fluxo operacional local deve usar Keycloak, cujo realm inclui `ledger.read`.
 
 O realm Keycloak local inclui `ledger.read` junto com `ledger.write`, `balance.read` e `outbox.admin`.
 O client `poc-automation` declara esses scopes como default client scopes, adiciona as audiences `ledger-api` e `balance-api` no access token e emite `merchant_id=tese m1` pelo mapper `poc-merchants`.
@@ -110,7 +116,7 @@ Precedencia:
 
 - `TOKEN` informado por variavel de ambiente e retornado diretamente;
 - `TOKEN_PROVIDER=keycloak`, valor padrao, usa Keycloak local por `client_credentials`;
-- `TOKEN_PROVIDER=auth-api` usa o fallback legado do `Auth.Api` em `POST /auth/login`.
+- `TOKEN_PROVIDER=auth-api` usa o `Auth.Api` legado em `POST /auth/login` e exige que o overlay `compose.auth-legacy.yaml` esteja em execucao.
 
 Variaveis Keycloak:
 
@@ -172,17 +178,19 @@ O access token emitido pelo realm local deve conter `iss=http://localhost:8081/r
 
 Para APIs rodando em container, mantenha `Jwt:JwksUrl` apontando para `http://keycloak:8080/realms/poc/protocol/openid-connect/certs`. Para APIs rodando no host, use `http://localhost:8081/realms/poc/protocol/openid-connect/certs`.
 
-### Fallback Auth.Api
+### Auth.Api legado
 
-Suba o `Auth.Api` via compose ou `dotnet run` e solicite um token pelo provider legado:
+Suba o `Auth.Api` pelo overlay legado ou via `dotnet run` e solicite um token pelo provider legado:
 
 ```bash
+docker compose -f compose.yaml -f compose.auth-legacy.yaml --profile legacy-auth up -d --build auth-api
 TOKEN_PROVIDER=auth-api ./scripts/get-token.sh
 ```
 
 No Windows:
 
 ```powershell
+docker compose -f compose.yaml -f compose.auth-legacy.yaml --profile legacy-auth up -d --build auth-api
 $env:TOKEN_PROVIDER = "auth-api"
 ./scripts/get-token.ps1
 ```

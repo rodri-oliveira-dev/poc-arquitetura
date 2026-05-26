@@ -13,7 +13,7 @@ Status documental em 2026-05-25. A tabela resume o estado atual da POC com base 
 | CI com build/test/cobertura | Atendido | `.github/workflows/dotnet.yml`, `docs/development/pull-request-validation.md` | PR usa gate minimo; workflow pos-merge/manual documenta cobertura e relatorios. |
 | Seguranca estatica documentada | Parcialmente atendido | `.github/workflows/codeql.yml`, `docs/development/pull-request-validation.md`, relatorio OWASP | CodeQL esta documentado, mas esta pagina nao afirma resultado recente de SAST. |
 | Dependency review / vulnerabilidades NuGet | Parcialmente atendido | `.github/workflows/dependency-review.yml`, `Directory.Packages.props`, ADR de pruning NuGet | Dependency review existe; ausencia de CVEs exige execucao atual de scanner. |
-| OWASP/ZAP ou DAST | Parcialmente atendido | `scripts/run-owasp-zap.ps1`, `scripts/run-owasp-zap.sh`, `docs/development/owasp-zap.md`, `docs/reports/aspire-and-owasp-assessment.md` | Ha execucao local versionada e documentada contra Auth, Ledger e Balance, mas ainda nao ha gate automatizado em workflow nem resultado recente registrado nesta pagina. |
+| OWASP/ZAP ou DAST | Parcialmente atendido | `scripts/run-owasp-zap.ps1`, `scripts/run-owasp-zap.sh`, `docs/development/owasp-zap.md`, `docs/reports/aspire-and-owasp-assessment.md` | Ha execucao local versionada e documentada contra Ledger e Balance por padrao, com Auth.Api apenas como legado opcional, mas ainda nao ha gate automatizado em workflow nem resultado recente registrado nesta pagina. |
 | Testes de carga documentados | Atendido | `loadtests/k6/README.md`, `docs/development/local-development.md` | Cenarios smoke, balance50 e resilience estao documentados como validacao local/controlada. |
 | Observabilidade documentada | Atendido | `docs/observability.md`, LikeC4, dashboards versionados | Stack local cobre OTLP, Jaeger, Prometheus, Loki, Alloy, Alertmanager e Grafana. |
 | Execucao local documentada | Atendido | `docs/development/local-development.md`, `README.md` | Inclui compose, migrations, portas, Nginx opcional, Testcontainers e k6. |
@@ -25,5 +25,5 @@ Status documental em 2026-05-25. A tabela resume o estado atual da POC com base 
 
 - Executar e registrar DAST/OWASP ZAP ou pentest quando houver necessidade de avaliar exposicao dinamica alem do script local versionado.
 - Definir baseline produtivo fora da POC local para secrets, TLS interno, Kafka autenticado, bancos, scans de imagem, WAF e rate limits por identidade.
-- Resolver o desalinhamento operacional entre endpoints `ledger.read` e o catalogo local de scopes emitidos pelo `Auth.Api`, caso as consultas de status precisem ser exercitadas com token local real.
+- Remover definitivamente o `Auth.Api` legado quando nao houver mais necessidade de compatibilidade; o caminho operacional local ja usa Keycloak, incluindo `ledger.read`.
 - Formalizar thresholds de latencia p95/p99 para k6 somente depois de obter linha de base local reprodutivel.

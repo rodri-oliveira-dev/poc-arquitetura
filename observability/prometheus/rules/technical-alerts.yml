@@ -35,7 +35,7 @@ groups:
         expr: |
           sum by (exported_job) (
             rate(http_server_request_duration_seconds_count{
-              exported_job=~"Auth.Api|LedgerService.Api|BalanceService.Api",
+              exported_job=~"LedgerService.Api|BalanceService.Api",
               http_response_status_code=~"5.."
             }[5m])
           ) > 0.1
@@ -52,7 +52,7 @@ groups:
             0.95,
             sum by (exported_job, le) (
               rate(http_server_request_duration_seconds_bucket{
-                exported_job=~"Auth.Api|LedgerService.Api|BalanceService.Api"
+                exported_job=~"LedgerService.Api|BalanceService.Api"
               }[5m])
             )
           ) > 2
@@ -83,7 +83,7 @@ groups:
         expr: |
           sum by (exported_job) (
             rate(dotnet_exceptions_total{
-              exported_job=~"Auth.Api|LedgerService.Api|BalanceService.Api"
+              exported_job=~"LedgerService.Api|BalanceService.Api"
             }[5m])
           ) > 1
         for: 5m

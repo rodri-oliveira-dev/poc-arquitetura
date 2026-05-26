@@ -7,7 +7,6 @@ networks:
 volumes:
   ledger-postgres-data:
   balance-postgres-data:
-  auth-api-data:
   alloy-data:
 
 
@@ -461,36 +460,6 @@ services:
           cpus: "0.50"
           memory: 512m
           pids: 256
-    networks:
-      - poc-net
-
-  auth-api:
-    build:
-      context: .
-      dockerfile: src/Auth.Api/Dockerfile
-    container_name: poc-auth-api
-    environment:
-      ASPNETCORE_URLS: "http://+:8080"
-      ASPNETCORE_ENVIRONMENT: "Development"
-      # Persistência da chave dentro do volume
-      Auth__KeyPath: "/data/keys/auth-rsa-key.json"
-      # Credenciais locais de POC. Nao ha fallback em appsettings.json/producao.
-      Auth__DevelopmentUser__Username: "${AUTH_POC_USERNAME:-local_user}"
-      Auth__DevelopmentUser__Password: "${AUTH_POC_PASSWORD:-local_password}"
-      Observability__OpenTelemetry__Enabled: "${OTEL_ENABLED:-false}"
-      Observability__OpenTelemetry__UseConsoleExporter: "false"
-      Observability__OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"
-      Observability__OpenTelemetry__ServiceName: "Auth.Api"
-    ports:
-      - "5030:8080"
-    deploy:
-      resources:
-        limits:
-          cpus: "0.50"
-          memory: 512m
-          pids: 256
-    volumes:
-      - auth-api-data:/data
     networks:
       - poc-net
 

@@ -168,7 +168,6 @@ try {
     "balance-db",
     "kafka",
     "kafka-init-topics",
-    "auth-api",
     "keycloak"
   )
   if ($Observability) {

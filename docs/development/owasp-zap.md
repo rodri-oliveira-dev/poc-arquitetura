@@ -19,23 +19,22 @@ Por padrao o scan importa OpenAPI sem autenticacao. Quando quiser exercitar endp
 
 ## Alvos
 
-Por padrao, os scripts validam as URLs HTTP diretas:
+Por padrao, os scripts validam as URLs HTTP diretas das APIs de negocio:
 
-- Auth.Api: `http://localhost:5030`
 - LedgerService.Api: `http://localhost:5226`
 - BalanceService.Api: `http://localhost:5228`
 
 Com Nginx local, use as URLs HTTPS:
 
-- Auth.Api: `https://auth.localhost:7443`
 - LedgerService.Api: `https://ledger.localhost:7443`
 - BalanceService.Api: `https://balance.localhost:7443`
+
+O `Auth.Api` legado nao e analisado por padrao. Para inclui-lo, suba `compose.auth-legacy.yaml` e use `-IncludeLegacyAuth` ou `--include-legacy-auth`; nesse caso a URL direta padrao do legado e `http://localhost:5030`.
 
 Antes do scan, cada script chama `GET /health` em todas as APIs. Se alguma API estiver indisponivel, a execucao falha com a URL usada e uma sugestao para subir a stack local ou a stack completa.
 
 Depois do health check, o alvo analisado pelo ZAP e o documento OpenAPI de cada API:
 
-- Auth.Api: `/swagger/v1/swagger.json`
 - LedgerService.Api: `/swagger/v1/swagger.json`
 - BalanceService.Api: `/swagger/v1/swagger.json`
 
@@ -97,6 +96,13 @@ Com token Bearer obtido pelo provider local configurado:
 ./scripts/run-owasp-zap.ps1 -UseAuthentication
 ```
 
+Incluindo o Auth.Api legado:
+
+```powershell
+docker compose -f compose.yaml -f compose.auth-legacy.yaml --profile legacy-auth up -d --build auth-api
+./scripts/run-owasp-zap.ps1 -IncludeLegacyAuth
+```
+
 Com token manual, quando voce ja obteve um JWT valido:
 
 ```powershell
@@ -151,6 +157,13 @@ Com token Bearer obtido pelo provider local configurado:
 ./scripts/run-owasp-zap.sh --use-authentication
 ```
 
+Incluindo o Auth.Api legado:
+
+```bash
+docker compose -f compose.yaml -f compose.auth-legacy.yaml --profile legacy-auth up -d --build auth-api
+./scripts/run-owasp-zap.sh --include-legacy-auth
+```
+
 Com token manual, quando voce ja obteve um JWT valido:
 
 ```bash
@@ -167,10 +180,11 @@ zap-reports/20260525-153045/
 
 Arquivos esperados:
 
-- `auth-api.html`, `auth-api.json`, `auth-api.md`
 - `ledger-service-api.html`, `ledger-service-api.json`, `ledger-service-api.md`
 - `balance-service-api.html`, `balance-service-api.json`, `balance-service-api.md`
 - `summary.md`
+
+Quando `Auth.Api` legado for incluido, os arquivos `auth-api.html`, `auth-api.json` e `auth-api.md` tambem serao gerados.
 
 O `summary.md` registra data/hora, imagem ZAP, URLs analisadas, alvo visto pelo container, arquivos gerados e status final por API. A pasta `zap-reports/` e ignorada pelo Git; relatorios gerados nao devem ser versionados.
 

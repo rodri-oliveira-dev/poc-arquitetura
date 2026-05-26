@@ -109,7 +109,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "scripts\co
 # Aplica o override de carga nas APIs antes de executar o k6. O compose.k6.yaml
 # mantem os testes apontando para as APIs HTTP e aumenta apenas limites tecnicos
 # que poderiam transformar o cenario de throughput em teste de rate limiting.
-& docker compose -f $ComposeFile -f $ComposeK6File up -d --no-build --force-recreate auth-api ledger-service balance-service
+& docker compose -f $ComposeFile -f $ComposeK6File up -d --no-build --force-recreate keycloak ledger-service balance-service
 if ($LASTEXITCODE -ne 0) { throw "docker compose falhou ao aplicar override k6: $LASTEXITCODE" }
 
 Assert-BalanceDatabaseAuthentication

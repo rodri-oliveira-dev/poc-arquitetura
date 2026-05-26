@@ -2,7 +2,7 @@
 
 ## Resumo executivo
 
-A arquitetura atual esta mais proxima de Clean Architecture/DDD por microservico, mas nao e pura. Na pratica, e uma arquitetura hibrida e coerente com uma POC de microservicos: camadas internas nos servicos com dominio relevante, APIs HTTP e workers separados por processo, Kafka/Outbox para consistencia eventual e Auth.Api simplificado.
+A arquitetura atual esta mais proxima de Clean Architecture/DDD por microservico, mas nao e pura. Na pratica, e uma arquitetura hibrida e coerente com uma POC de microservicos: camadas internas nos servicos com dominio relevante, APIs HTTP e workers separados por processo, Kafka/Outbox para consistencia eventual e Keycloak como provedor principal de identidade local.
 
 A recomendacao e nao aumentar o numero de camadas agora. O melhor caminho e preservar a estrutura atual, corrigir assimetrias pontuais e fortalecer contratos/eventos/documentacao antes de qualquer reestruturacao.
 
@@ -44,22 +44,22 @@ Simplificacoes recomendadas:
 - revisar interfaces sem multiplas implementacoes quando houver refactor dedicado;
 - tratar currency como evolucao de contrato, nao como detalhe local permanente.
 
-### Auth.Api
+### Identidade
 
-Camadas atuais: adequadas por serem simples.
+Keycloak e o caminho principal.
 
-Auth.Api e uma API de autenticacao de POC com endpoints, emissor JWT, chave RSA, JWKS e hardening. Projeto unico e uma boa escolha. Separar em Domain/Application/Infrastructure agora seria excesso.
+Keycloak emite JWT RS256 por OIDC e publica JWKS para validacao offline pelas APIs de negocio. O `Auth.Api` foi depreciado e permanece apenas como legado por overlay explicito. Enquanto o projeto legado existir, manter seus testes e o projeto unico e mais simples do que introduzir camadas artificiais.
 
 Excessos ou sinais de atencao:
 
-- regra de login no endpoint e aceitavel para POC, mas nao deve crescer para um identity provider proprio.
-- persistencia de chave em arquivo e coerente com compose local, nao com identidade corporativa.
+- o fallback `Auth.Api` nao deve voltar para a stack principal sem nova decisao;
+- qualquer evolucao de identidade deve acontecer no Keycloak ou em outro IdP OIDC real.
 
 Simplificacoes recomendadas:
 
-- manter Auth.Api pequeno;
-- priorizar Keycloak/OIDC externo se o dominio de identidade ficar real;
-- nao criar camadas internas enquanto nao houver persistencia, usuarios reais, refresh token ou lifecycle de credenciais.
+- manter Keycloak como provedor principal;
+- manter `Auth.Api` pequeno, testado e fora do compose principal enquanto houver necessidade de compatibilidade;
+- remover completamente `Auth.Api` apenas em etapa futura dedicada.
 
 ## Problemas principais encontrados
 
@@ -76,11 +76,11 @@ Simplificacoes recomendadas:
 - Risco de interfaces artificiais em services de Application com uma unica implementacao.
 - MediatR no Balance pode ser mais estrutura do que necessidade atual, embora esteja bem aplicado.
 - Outbox como entidade de Domain pode ser mais "arquitetural" que negocio.
-- Auth.Api nao precisa ganhar as mesmas quatro camadas dos outros servicos.
+- Auth.Api legado nao precisa ganhar as mesmas quatro camadas dos outros servicos.
 
 ## Principais simplificacoes recomendadas
 
-- Manter Auth.Api em projeto unico.
+- Manter Auth.Api legado em projeto unico enquanto ele existir.
 - Nao padronizar MediatR em todos os servicos sem necessidade.
 - Nao criar shared libraries para contratos antes de decidir governanca de versionamento.
 - Nao quebrar `CreateLancamentoService` agora; observar crescimento e extrair com criterio.
@@ -92,7 +92,7 @@ Simplificacoes recomendadas:
 - Defaults locais, como currency `BRL`, podem virar regra implicita e dificil de desfazer.
 - Duplicidade de padroes entre Ledger e Balance pode confundir contribuidores.
 - Acoplamento operacional no `Program.cs` pode virar composicao dificil de testar.
-- POC de Auth pode ser confundida com solucao de identidade pronta para producao.
+- Auth.Api legado pode ser confundido com caminho operacional se voltar a aparecer na stack principal.
 - Outbox/DLQ exigem operacao de reprocessamento; hoje a rotina e principalmente documentada/manual.
 
 ## Roadmap recomendado
@@ -113,7 +113,7 @@ Simplificacoes recomendadas:
 
 ### Longo prazo
 
-- Substituir Auth.Api por provedor OIDC real, como ja proposto em ADR.
+- Remover o projeto Auth.Api legado quando nao houver mais necessidade de compatibilidade.
 - Definir estrategia de replay/re-drive de DLQ e reconstrucao de projecoes.
 - Avaliar .NET Aspire apenas se a operacao local/orquestracao se tornar gargalo real.
 - Evoluir orquestracao/deploy para tratar APIs e workers como unidades operacionais independentes, incluindo rollout sem duplicidade de HostedServices.
@@ -124,6 +124,6 @@ Adotar arquitetura minimalista e pragmatica, robusta onde a complexidade e real:
 
 - LedgerService e BalanceService continuam com camadas `Api`, `Application`, `Domain` e `Infrastructure`.
 - `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker` sao processos separados, com composition roots explicitos e `ServiceName` proprio.
-- Auth.Api continua como servico simples em projeto unico.
+- Auth.Api legado continua como projeto simples fora da stack principal enquanto existir.
 - Boundaries devem ser reforcados por documentacao, testes de contrato e revisao de dependencias, nao por novas camadas preventivas.
 - Refactors estruturais devem ser planejados em etapas pequenas, com motivo concreto e ADR propria quando alterarem a decisao.

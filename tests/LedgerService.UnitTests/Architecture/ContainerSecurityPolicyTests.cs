@@ -18,7 +18,6 @@ public sealed class ContainerSecurityPolicyTests
         "kafka-init-topics",
         "ledger-service",
         "balance-service",
-        "auth-api",
     ];
 
     [Theory]
@@ -68,6 +67,20 @@ public sealed class ContainerSecurityPolicyTests
         Assert.Contains("memory:", serviceBlock);
         Assert.Contains("pids:", serviceBlock);
         }
+    }
+
+    [Fact]
+    public void Legacy_auth_compose_service_should_define_local_resource_limits()
+    {
+        var repositoryRoot = GetRepositoryRoot();
+        var compose = File.ReadAllText(Path.Combine(repositoryRoot.FullName, "compose.auth-legacy.yaml"));
+        var serviceBlock = GetServiceBlock(compose, "auth-api");
+        Assert.Contains("deploy:", serviceBlock);
+        Assert.Contains("resources:", serviceBlock);
+        Assert.Contains("limits:", serviceBlock);
+        Assert.Contains("cpus:", serviceBlock);
+        Assert.Contains("memory:", serviceBlock);
+        Assert.Contains("pids:", serviceBlock);
     }
 
     [Fact]

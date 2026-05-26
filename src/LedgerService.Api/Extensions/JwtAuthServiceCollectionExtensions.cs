@@ -33,7 +33,7 @@ public static class JwtAuthServiceCollectionExtensions
 
         ValidateTransportSecurity(jwtOptions, environment);
 
-        // Requisito: não chamar Auth.Api a cada request.
+        // Requisito: nao chamar o provedor de identidade a cada request.
         // Usamos ConfigurationManager com cache e refresh automático.
         var jwksManager = new ConfigurationManager<OpenIdConnectConfiguration>(
             metadataAddress: jwtOptions.JwksUrl,
@@ -56,7 +56,7 @@ public static class JwtAuthServiceCollectionExtensions
 
                     ValidateAudience = true,
                     // Observação de compatibilidade:
-                    // O Auth.Api atual emite "aud" como 1 string com múltiplas audiences separadas por espaço
+                    // O emissor legado Auth.Api emite "aud" como 1 string com multiplas audiences separadas por espaco.
                     // (ex.: "ledger-api balance-api"). O JwtSecurityTokenHandler trata isso como UMA audiência.
                     // Portanto, validamos manualmente tokenizando por espaço.
                     AudienceValidator = (audiences, _, _) =>

@@ -18,10 +18,8 @@ public sealed class ComposeEnvGenYamlTests
             var generatedEnvironment = File.ReadAllLines(outputPath);
         Assert.Contains("LEDGER_SERVICE_NAME=ledger-service", generatedEnvironment);
         Assert.Contains("BALANCE_SERVICE_NAME=balance-service", generatedEnvironment);
-        Assert.Contains("AUTH_SERVICE_NAME=auth-api", generatedEnvironment);
         Assert.Contains("BASE_URL_LEDGER=http://ledger-service:8080", generatedEnvironment);
         Assert.Contains("BASE_URL_BALANCE=http://balance-service:8080", generatedEnvironment);
-        Assert.Contains("AUTH_BASE_URL=http://auth-api:8080", generatedEnvironment);
         }
         finally
         {

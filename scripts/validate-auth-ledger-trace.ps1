@@ -32,7 +32,7 @@ $ledgerBody = @{
   merchantId = $MerchantId
   type = $Type
   amount = $Amount
-  description = "Validacao local Auth -> Ledger com OpenTelemetry"
+  description = "Validacao local Keycloak -> Ledger com OpenTelemetry"
   externalReference = $externalReference
 } | ConvertTo-Json
 

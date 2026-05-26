@@ -9,7 +9,8 @@ A solucao atual e uma arquitetura hibrida:
 - Layered architecture na entrega HTTP, porque controllers, middlewares, swagger, auth e composicao ficam concentrados nos projetos `*.Api`.
 - Workers dedicados (`LedgerService.Worker` e `BalanceService.Worker`) para processamento assincrono continuo, sem superficie HTTP.
 - CQRS pragmatico entre servicos: Ledger escreve e publica eventos; Balance consome e mantem uma projecao de leitura.
-- Auth.Api e deliberadamente mais simples, em projeto unico, coerente com uma API de autenticacao de POC.
+- Keycloak e o provedor principal de identidade da stack local.
+- Auth.Api e legado, deliberadamente mais simples, em projeto unico e fora da stack principal.
 
 ## Boundaries recomendados
 
@@ -140,7 +141,7 @@ Pontos de atencao:
 - `IDailyBalanceService` e `IPeriodBalanceService` parecem abstracoes de baixo ganho enquanto houver uma unica implementacao simples. Elas podem ser mantidas se forem usadas em testes e para legibilidade, mas nao devem virar padrao automatico.
 - A ausencia de currency no evento obriga default `BRL` no handler. Isso e uma fragilidade de contrato, nao uma regra de dominio consolidada.
 
-### Auth.Api
+### Auth.Api legado
 
 Projeto unico e a escolha correta neste momento. Criar `Auth.Application`, `Auth.Domain` e `Auth.Infrastructure` agora seria overengineering.
 
@@ -148,7 +149,7 @@ Pontos de atencao:
 
 - A regra de login da POC vive no endpoint. Isso e aceitavel enquanto for autenticacao local temporaria e documentada.
 - Se Auth.Api evoluir para usuarios reais, refresh tokens, revogacao, persistencia e federacao OIDC, ai sim boundaries mais fortes seriam necessarios.
-- ADR existente ja propoe migracao para Keycloak, que provavelmente e melhor do que transformar a POC de Auth em um identity provider caseiro.
+- A migracao para Keycloak foi aplicada na stack principal; o Auth.Api permanece apenas para compatibilidade e rastreabilidade.
 
 ## Anti-patterns encontrados ou proximos
 
@@ -158,7 +159,7 @@ Pontos de atencao:
 - Application conhecendo detalhes de transporte ou headers Kafka.
 - Controllers chamando DbContext/repository para executar regra de negocio.
 - Duplicar a mesma politica de arquitetura com variacoes injustificadas entre Ledger e Balance.
-- Criar camadas adicionais em Auth.Api antes de haver complexidade real.
+- Criar camadas adicionais em Auth.Api legado antes de remove-lo ou antes de uma necessidade real.
 
 ## Arquitetura recomendada
 
@@ -166,7 +167,7 @@ A arquitetura ideal para este projeto deve ser minimalista e pragmatica, com rob
 
 - manter quatro camadas para LedgerService e BalanceService;
 - manter APIs e workers como processos separados, com composition root e `ServiceName` explicitos por processo;
-- manter Auth.Api em projeto unico enquanto for POC;
+- manter Auth.Api legado em projeto unico enquanto ele existir;
 - reforcar boundaries onde ha risco real: contratos de eventos, tempo/clock, outbox e idempotencia;
 - evitar novas camadas genericas, shared kernel prematuro ou frameworks adicionais sem dor concreta;
 - documentar contratos entre servicos antes de refatorar estrutura.
