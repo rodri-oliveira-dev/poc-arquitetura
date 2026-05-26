@@ -152,9 +152,38 @@ Credenciais locais descartaveis:
 
 Para sobrescrever porta ou credenciais locais, copie `.env.example` para `.env` e ajuste `KEYCLOAK_HOST_PORT`, `KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME` e `KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD`. Esses valores sao apenas para desenvolvimento local e nao devem ser usados em ambientes compartilhados ou produtivos.
 
-O container usa `start-dev`, healthcheck nativo em `/health/ready` na porta de gerenciamento interna `9000` e nao declara volume persistente nesta etapa. Como ainda nao ha realm, clients, users ou imports versionados para as APIs da POC, manter o estado descartavel reduz acoplamento e evita criar persistencia local sem contrato definido. Recriar o container pode descartar configuracoes manuais feitas no Admin Console.
+O container usa `start-dev --import-realm`, healthcheck nativo em `/health/ready` na porta de gerenciamento interna `9000` e importa o realm versionado de `infra/keycloak/realm-poc.json`. O compose monta esse arquivo em `/opt/keycloak/data/import/realm-poc.json` como somente leitura.
 
-Nesta etapa, `Auth.Api` continua funcional e continua sendo a origem do JWKS usada por `LedgerService.Api` e `BalanceService.Api`. O Keycloak existe lado a lado para preparar a evolucao descrita na ADR-0006, sem alterar contratos HTTP, issuer, audience, scopes, scripts de token ou testes.
+O realm local importado se chama `poc` e expoe:
+
+- discovery OIDC: `http://localhost:8081/realms/poc/.well-known/openid-configuration`;
+- JWKS: `http://localhost:8081/realms/poc/protocol/openid-connect/certs`;
+- client local de automacao: `poc-automation`;
+- fluxo preferencial para scripts futuros: `client_credentials`;
+- audiences: `ledger-api` e `balance-api`;
+- scopes: `ledger.write`, `ledger.read`, `balance.read` e `outbox.admin`;
+- claim `merchant_id`: `tese m1`.
+
+O segredo do client `poc-automation` e `local_dev_client_secret`. Ele e um valor ficticio e descartavel, versionado apenas para tornar a POC local reproduzivel. Nao use esse segredo em ambientes compartilhados ou produtivos.
+
+Para obter um token Keycloak local:
+
+```bash
+curl -s -X POST http://localhost:8081/realms/poc/protocol/openid-connect/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=client_credentials" \
+  -d "client_id=poc-automation" \
+  -d "client_secret=local_dev_client_secret"
+```
+
+Para validar discovery e JWKS:
+
+```bash
+curl -s http://localhost:8081/realms/poc/.well-known/openid-configuration
+curl -s http://localhost:8081/realms/poc/protocol/openid-connect/certs
+```
+
+Nesta etapa, `Auth.Api` continua funcional e continua sendo a origem do JWKS usada por `LedgerService.Api` e `BalanceService.Api`. O Keycloak existe lado a lado para preparar a evolucao descrita na ADR-0006, sem alterar as APIs consumidoras, scripts de token existentes ou testes.
 
 ### Stack completa com observabilidade e Nginx
 

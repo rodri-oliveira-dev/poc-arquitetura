@@ -13,7 +13,19 @@ Este documento descreve o fluxo atual de JWT Bearer via JWKS e as regras de auto
 
 O compose local tambem disponibiliza um Keycloak opcional no profile `identity`, acessivel em `http://localhost:8081/`. Ele existe para experimentacao e preparacao da migracao planejada na ADR-0006, mas ainda nao substitui o `Auth.Api`.
 
-Nesta etapa, `LedgerService.Api` e `BalanceService.Api` continuam configurados para validar tokens emitidos pelo `Auth.Api` e obter JWKS em `http://auth-api:8080/.well-known/jwks.json` dentro da rede Docker. Nao ha realm, client, mapper, issuer, audience ou script de token Keycloak contratado para as APIs da POC neste momento.
+Nesta etapa, `LedgerService.Api` e `BalanceService.Api` continuam configurados para validar tokens emitidos pelo `Auth.Api` e obter JWKS em `http://auth-api:8080/.well-known/jwks.json` dentro da rede Docker. O Keycloak ja possui realm versionado para emitir tokens compativeis com o contrato atual, mas as APIs ainda nao foram alteradas para consumir o JWKS do Keycloak.
+
+Configuracao versionada do realm local:
+
+- arquivo de import: `infra/keycloak/realm-poc.json`;
+- realm: `poc`;
+- issuer local: `http://localhost:8081/realms/poc`;
+- discovery OIDC: `http://localhost:8081/realms/poc/.well-known/openid-configuration`;
+- JWKS: `http://localhost:8081/realms/poc/protocol/openid-connect/certs`;
+- client de automacao local: `poc-automation`;
+- fluxo preferencial para scripts: `client_credentials`.
+
+O client `poc-automation` usa um segredo local descartavel no import versionado: `local_dev_client_secret`. Esse valor existe apenas para desenvolvimento local e nao deve ser reutilizado em ambientes compartilhados ou produtivos.
 
 ## Claims e validacoes
 
@@ -48,6 +60,8 @@ O catalogo atual do `Auth.Api` aceita somente estes scopes no `POST /auth/login`
 - `balance.read`
 
 Os endpoints de consulta de status do `LedgerService.Api` exigem `ledger.read`, mas esse scope ainda nao esta no catalogo emitido pelo `Auth.Api` local. Esse e um desalinhamento operacional conhecido da POC: os testes de integracao cobrem esses endpoints com tokens gerados pelas factories de teste; os scripts operacionais locais validam os estados de estorno/reprocessamento pelo banco enquanto usam o token padrao `ledger.write balance.read`.
+
+O realm Keycloak local ja inclui `ledger.read` junto com `ledger.write`, `balance.read` e `outbox.admin`, preparando a migracao sem alterar o `Auth.Api`.
 
 ## Scopes por endpoint
 
@@ -102,6 +116,33 @@ curl -i http://localhost:5226/api/v1/lancamentos \
 ```
 
 O contrato do `Auth.Api` retorna `access_token`. Alguns scripts aceitam `accessToken` apenas como fallback de compatibilidade.
+
+## Como obter token Keycloak localmente
+
+Suba o Keycloak com o profile `identity`:
+
+```bash
+docker compose --profile identity up -d keycloak
+```
+
+Solicite um token por `client_credentials`:
+
+```bash
+curl -s -X POST http://localhost:8081/realms/poc/protocol/openid-connect/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=client_credentials" \
+  -d "client_id=poc-automation" \
+  -d "client_secret=local_dev_client_secret"
+```
+
+O access token emitido pelo realm local deve conter:
+
+- `iss`: `http://localhost:8081/realms/poc`;
+- `aud`: `ledger-api` e `balance-api`;
+- `scope`: `ledger.write ledger.read balance.read outbox.admin`, alem de scopes tecnicos que o Keycloak possa incluir;
+- `merchant_id`: `tese m1`.
+
+Enquanto `LedgerService.Api` e `BalanceService.Api` continuarem apontando para `Auth.Api`, use tokens Keycloak apenas para validacao manual do realm, discovery, JWKS e contrato de claims.
 
 ## Cuidados
 
