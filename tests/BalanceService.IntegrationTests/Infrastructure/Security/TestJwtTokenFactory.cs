@@ -13,7 +13,8 @@ public static class TestJwtTokenFactory
         string scopes,
         string? merchantIds = "m1",
         DateTimeOffset? now = null,
-        int lifetimeMinutes = 10)
+        int lifetimeMinutes = 10,
+        bool signWithUntrustedKey = false)
     {
         var n = now ?? DateTimeOffset.UtcNow;
         var exp = n.AddMinutes(lifetimeMinutes);
@@ -31,7 +32,7 @@ public static class TestJwtTokenFactory
         if (!string.IsNullOrWhiteSpace(merchantIds))
             claims.Add(new Claim("merchant_id", merchantIds));
 
-        using var rsa = TestJwtKeys.CreateRsa();
+        using var rsa = signWithUntrustedKey ? System.Security.Cryptography.RSA.Create(2048) : TestJwtKeys.CreateRsa();
         var key = new RsaSecurityKey(rsa)
         {
             KeyId = TestJwtKeys.Kid,

@@ -121,6 +121,17 @@ public sealed class ReprocessamentosLancamentosEndpointTests : IClassFixture<Led
     }
 
     [Fact]
+    public async Task Post_reprocessar_should_return_403_when_token_has_no_merchant_claim()
+    {
+        Authenticate(merchantIds: null);
+
+        using var req = CreateRequest(Guid.NewGuid().ToString());
+
+        var res = await _client.SendAsync(req);
+        Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
+    }
+
+    [Fact]
     public async Task Post_reprocessar_should_return_401_without_token()
     {
         _client.DefaultRequestHeaders.Authorization = null;
@@ -178,6 +189,22 @@ public sealed class ReprocessamentosLancamentosEndpointTests : IClassFixture<Led
     }
 
     [Fact]
+    public async Task Get_reprocessamentos_should_return_403_when_token_has_no_merchant_claim()
+    {
+        Authenticate(scopes: "ledger.write", merchantIds: "m1");
+
+        using var createReq = CreateRequest(Guid.NewGuid().ToString());
+        var createRes = await _client.SendAsync(createReq);
+        Assert.Equal(HttpStatusCode.Accepted, createRes.StatusCode);
+        var created = await createRes.Content.ReadFromJsonAsync<SolicitarReprocessamentoLancamentosResponse>();
+        Assert.NotNull(created);
+        Authenticate(scopes: "ledger.read", merchantIds: null);
+
+        var res = await _client.GetAsync($"/api/v1/lancamentos/reprocessamentos/{created!.ReprocessamentoId}");
+        Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
+    }
+
+    [Fact]
     public async Task Processar_reprocessamento_should_republish_only_eligible_entries_and_complete_job()
     {
         Authenticate();
@@ -209,7 +236,7 @@ public sealed class ReprocessamentosLancamentosEndpointTests : IClassFixture<Led
         Assert.Equal(eligible.Id, outboxMessage.AggregateId);
     }
 
-    private void Authenticate(string merchantIds = "m1", string scopes = "ledger.write")
+    private void Authenticate(string? merchantIds = "m1", string scopes = "ledger.write")
     {
         var token = TestJwtTokenFactory.CreateToken(
             issuer: "https://auth-api",

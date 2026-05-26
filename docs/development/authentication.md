@@ -35,6 +35,8 @@ Claims relevantes:
 - `scope`: string com scopes separados por espaco.
 - `merchant_id`: string com um ou mais merchants separados por espaco.
 
+As APIs de negocio continuam autorizando exclusivamente pelo contrato acima. Roles nativas do Keycloak, grupos ou `resource_access` nao sao usados como substitutos para `scope` ou `merchant_id`; o realm local deve mapear os valores necessarios para essas claims explicitas, sem wildcard de merchant.
+
 Validacoes esperadas:
 
 - `iss` deve bater com `Jwt:Issuer`;
@@ -72,6 +74,7 @@ O catalogo atual do `Auth.Api` aceita somente estes scopes no `POST /auth/login`
 Os endpoints de consulta de status do `LedgerService.Api` exigem `ledger.read`, mas esse scope ainda nao esta no catalogo emitido pelo `Auth.Api` local. Esse e um desalinhamento operacional conhecido da POC: os testes de integracao cobrem esses endpoints com tokens gerados pelas factories de teste; os scripts operacionais locais validam os estados de estorno/reprocessamento pelo banco enquanto usam o token padrao `ledger.write balance.read`.
 
 O realm Keycloak local inclui `ledger.read` junto com `ledger.write`, `balance.read` e `outbox.admin`.
+O client `poc-automation` declara esses scopes como default client scopes, adiciona as audiences `ledger-api` e `balance-api` no access token e emite `merchant_id=tese m1` pelo mapper `poc-merchants`.
 
 ## Scopes por endpoint
 

@@ -57,6 +57,65 @@ public sealed class BalanceAuthorizationTests : IClassFixture<BalanceApiFactory>
     }
 
     [Fact]
+    public async Task Period_endpoint_should_return_401_when_issuer_is_invalid()
+    {
+        var token = TestJwtTokenFactory.CreateToken(
+            issuer: "https://invalid-issuer",
+            audiences: "balance-api",
+            scopes: "balance.read");
+
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var res = await _client.GetAsync("/v1/consolidados/periodo?merchantId=m1&from=2026-02-10&to=2026-02-12");
+        Assert.Equal(HttpStatusCode.Unauthorized, res.StatusCode);
+    }
+
+    [Fact]
+    public async Task Period_endpoint_should_return_401_when_audience_is_invalid()
+    {
+        var token = TestJwtTokenFactory.CreateToken(
+            issuer: "https://auth-api",
+            audiences: "ledger-api",
+            scopes: "balance.read");
+
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var res = await _client.GetAsync("/v1/consolidados/periodo?merchantId=m1&from=2026-02-10&to=2026-02-12");
+        Assert.Equal(HttpStatusCode.Unauthorized, res.StatusCode);
+    }
+
+    [Fact]
+    public async Task Period_endpoint_should_return_401_when_token_is_expired()
+    {
+        var token = TestJwtTokenFactory.CreateToken(
+            issuer: "https://auth-api",
+            audiences: "balance-api",
+            scopes: "balance.read",
+            now: DateTimeOffset.UtcNow.AddMinutes(-20),
+            lifetimeMinutes: 1);
+
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var res = await _client.GetAsync("/v1/consolidados/periodo?merchantId=m1&from=2026-02-10&to=2026-02-12");
+        Assert.Equal(HttpStatusCode.Unauthorized, res.StatusCode);
+    }
+
+    [Fact]
+    public async Task Period_endpoint_should_return_401_when_signature_is_invalid()
+    {
+        var token = TestJwtTokenFactory.CreateToken(
+            issuer: "https://auth-api",
+            audiences: "balance-api",
+            scopes: "balance.read",
+            signWithUntrustedKey: true);
+
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var res = await _client.GetAsync("/v1/consolidados/periodo?merchantId=m1&from=2026-02-10&to=2026-02-12");
+        Assert.Equal(HttpStatusCode.Unauthorized, res.StatusCode);
+    }
+
+    [Fact]
     public async Task Period_endpoint_should_return_403_when_token_is_not_authorized_for_requested_merchant()
     {
         var token = TestJwtTokenFactory.CreateToken(

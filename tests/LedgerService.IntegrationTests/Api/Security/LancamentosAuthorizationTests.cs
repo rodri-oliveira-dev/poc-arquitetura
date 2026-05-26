@@ -57,6 +57,89 @@ public sealed class LancamentosAuthorizationTests : IClassFixture<LedgerApiFacto
     }
 
     [Fact]
+    public async Task Post_should_return_401_when_issuer_is_invalid()
+    {
+        var token = TestJwtTokenFactory.CreateToken(
+            issuer: "https://invalid-issuer",
+            audiences: "ledger-api",
+            scopes: "ledger.write");
+
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var res = await _client.PostAsJsonAsync("/api/v1/lancamentos", new
+        {
+            merchantId = "m1",
+            type = "CREDIT",
+            amount = 10.00m
+        });
+
+        Assert.Equal(HttpStatusCode.Unauthorized, res.StatusCode);
+    }
+
+    [Fact]
+    public async Task Post_should_return_401_when_audience_is_invalid()
+    {
+        var token = TestJwtTokenFactory.CreateToken(
+            issuer: "https://auth-api",
+            audiences: "balance-api",
+            scopes: "ledger.write");
+
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var res = await _client.PostAsJsonAsync("/api/v1/lancamentos", new
+        {
+            merchantId = "m1",
+            type = "CREDIT",
+            amount = 10.00m
+        });
+
+        Assert.Equal(HttpStatusCode.Unauthorized, res.StatusCode);
+    }
+
+    [Fact]
+    public async Task Post_should_return_401_when_token_is_expired()
+    {
+        var token = TestJwtTokenFactory.CreateToken(
+            issuer: "https://auth-api",
+            audiences: "ledger-api",
+            scopes: "ledger.write",
+            now: DateTimeOffset.UtcNow.AddMinutes(-20),
+            lifetimeMinutes: 1);
+
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var res = await _client.PostAsJsonAsync("/api/v1/lancamentos", new
+        {
+            merchantId = "m1",
+            type = "CREDIT",
+            amount = 10.00m
+        });
+
+        Assert.Equal(HttpStatusCode.Unauthorized, res.StatusCode);
+    }
+
+    [Fact]
+    public async Task Post_should_return_401_when_signature_is_invalid()
+    {
+        var token = TestJwtTokenFactory.CreateToken(
+            issuer: "https://auth-api",
+            audiences: "ledger-api",
+            scopes: "ledger.write",
+            signWithUntrustedKey: true);
+
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var res = await _client.PostAsJsonAsync("/api/v1/lancamentos", new
+        {
+            merchantId = "m1",
+            type = "CREDIT",
+            amount = 10.00m
+        });
+
+        Assert.Equal(HttpStatusCode.Unauthorized, res.StatusCode);
+    }
+
+    [Fact]
     public async Task Post_should_return_403_when_token_is_not_authorized_for_requested_merchant()
     {
         var token = TestJwtTokenFactory.CreateToken(
