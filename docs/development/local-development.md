@@ -166,6 +166,7 @@ O realm local importado se chama `poc` e expoe:
 - discovery OIDC: `http://localhost:8081/realms/poc/.well-known/openid-configuration`;
 - JWKS: `http://localhost:8081/realms/poc/protocol/openid-connect/certs`;
 - client local de automacao: `poc-automation`;
+- clients locais de debug manual: `poc-local-ledger-debug`, `poc-local-balance-debug` e `poc-local-admin-debug`;
 - fluxo preferencial para scripts futuros: `client_credentials`;
 - audiences: `ledger-api` e `balance-api`;
 - scopes: `ledger.write`, `ledger.read`, `balance.read` e `outbox.admin`;
@@ -196,6 +197,31 @@ curl -s -X POST http://localhost:8081/realms/poc/protocol/openid-connect/token \
   -d "client_id=poc-automation" \
   -d "client_secret=local_dev_client_secret"
 ```
+
+Para confirmar que o realm foi importado, acesse o Admin Console em `http://localhost:8081/` com `local_admin` / `local_admin_password`, selecione o realm `poc` no seletor de realms e confira `Clients` e `Users`. Em uma stack recem-criada, devem existir os clients `poc-automation`, `poc-local-ledger-debug`, `poc-local-balance-debug` e `poc-local-admin-debug`, alem dos usuarios locais abaixo.
+
+Usuarios locais de debug importados no realm:
+
+| Usuario | Senha | Client local | Uso local | Scopes | `merchant_id` |
+| --- | --- | --- | --- | --- | --- |
+| `local_ledger_user` | `local_ledger_password` | `poc-local-ledger-debug` | Debug manual do LedgerService | `ledger.write ledger.read` | `tese m1` |
+| `local_balance_user` | `local_balance_password` | `poc-local-balance-debug` | Debug manual do BalanceService | `balance.read` | `tese m1` |
+| `local_admin_user` | `local_admin_password` | `poc-local-admin-debug` | Debug manual completo | `ledger.write ledger.read balance.read outbox.admin` | `tese m1` |
+
+Esses usuarios sao apenas conveniencia de desenvolvimento local. Eles nao devem ser usados em ambiente compartilhado, homologacao ou producao, e nao substituem `client_credentials` para automacoes.
+
+Para obter um token manual com usuario/senha, use o client publico correspondente ao perfil:
+
+```bash
+curl -s -X POST http://localhost:8081/realms/poc/protocol/openid-connect/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=password" \
+  -d "client_id=poc-local-ledger-debug" \
+  -d "username=local_ledger_user" \
+  -d "password=local_ledger_password"
+```
+
+Troque `client_id`, `username` e `password` para `poc-local-balance-debug` / `local_balance_user` ou `poc-local-admin-debug` / `local_admin_user` quando quiser validar os demais perfis. O token deve manter `iss=http://localhost:8081/realms/poc`, `aud` com `ledger-api` e `balance-api`, `merchant_id=tese m1` e a claim `scope` conforme o perfil escolhido.
 
 Para usar temporariamente tokens emitidos pelo `Auth.Api`, suba o overlay legado e sobrescreva tambem a configuracao JWT das APIs para apontar para o emissor legado:
 

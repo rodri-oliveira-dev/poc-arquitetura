@@ -58,6 +58,70 @@
         "poc-merchants"
       ],
       "optionalClientScopes": []
+    },
+    {
+      "clientId": "poc-local-ledger-debug",
+      "name": "POC local Ledger user debug",
+      "description": "Client publico local descartavel para Direct Grant do usuario local_ledger_user.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "authorizationServicesEnabled": false,
+      "fullScopeAllowed": false,
+      "defaultClientScopes": [
+        "ledger.write",
+        "ledger.read",
+        "poc-api-audience",
+        "poc-merchants"
+      ],
+      "optionalClientScopes": []
+    },
+    {
+      "clientId": "poc-local-balance-debug",
+      "name": "POC local Balance user debug",
+      "description": "Client publico local descartavel para Direct Grant do usuario local_balance_user.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "authorizationServicesEnabled": false,
+      "fullScopeAllowed": false,
+      "defaultClientScopes": [
+        "balance.read",
+        "poc-api-audience",
+        "poc-merchants"
+      ],
+      "optionalClientScopes": []
+    },
+    {
+      "clientId": "poc-local-admin-debug",
+      "name": "POC local admin user debug",
+      "description": "Client publico local descartavel para Direct Grant do usuario local_admin_user.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "authorizationServicesEnabled": false,
+      "fullScopeAllowed": false,
+      "defaultClientScopes": [
+        "ledger.write",
+        "ledger.read",
+        "balance.read",
+        "outbox.admin",
+        "poc-api-audience",
+        "poc-merchants"
+      ],
+      "optionalClientScopes": []
     }
   ],
   "clientScopes": [
@@ -152,6 +216,98 @@
             "access.token.claim": "true",
             "userinfo.token.claim": "false"
           }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "local_ledger_user",
+      "enabled": true,
+      "firstName": "Local",
+      "lastName": "Ledger Debug User",
+      "email": "local_ledger_user@example.local",
+      "emailVerified": false,
+      "requiredActions": [],
+      "attributes": {
+        "debug_local_only": [
+          "true"
+        ],
+        "purpose": [
+          "Testar endpoints do LedgerService em desenvolvimento local."
+        ],
+        "expected_scopes": [
+          "ledger.write ledger.read"
+        ],
+        "expected_merchant_id": [
+          "tese m1"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "local_ledger_password",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "local_balance_user",
+      "enabled": true,
+      "firstName": "Local",
+      "lastName": "Balance Debug User",
+      "email": "local_balance_user@example.local",
+      "emailVerified": false,
+      "requiredActions": [],
+      "attributes": {
+        "debug_local_only": [
+          "true"
+        ],
+        "purpose": [
+          "Testar endpoints do BalanceService em desenvolvimento local."
+        ],
+        "expected_scopes": [
+          "balance.read"
+        ],
+        "expected_merchant_id": [
+          "tese m1"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "local_balance_password",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "local_admin_user",
+      "enabled": true,
+      "firstName": "Local",
+      "lastName": "Admin Debug User",
+      "email": "local_admin_user@example.local",
+      "emailVerified": false,
+      "requiredActions": [],
+      "attributes": {
+        "debug_local_only": [
+          "true"
+        ],
+        "purpose": [
+          "Facilitar debug local completo das APIs de negocio."
+        ],
+        "expected_scopes": [
+          "ledger.write ledger.read balance.read outbox.admin"
+        ],
+        "expected_merchant_id": [
+          "tese m1"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "local_admin_password",
+          "temporary": false
         }
       ]
     }

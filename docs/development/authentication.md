@@ -24,9 +24,80 @@ Configuracao versionada do realm local:
 - discovery OIDC: `http://localhost:8081/realms/poc/.well-known/openid-configuration`;
 - JWKS: `http://localhost:8081/realms/poc/protocol/openid-connect/certs`;
 - client de automacao local: `poc-automation`;
+- clients de debug manual local: `poc-local-ledger-debug`, `poc-local-balance-debug` e `poc-local-admin-debug`;
 - fluxo preferencial para scripts: `client_credentials`.
 
 O client `poc-automation` usa um segredo local descartavel no import versionado: `local_dev_client_secret`. Esse valor existe apenas para desenvolvimento local e nao deve ser reutilizado em ambientes compartilhados ou produtivos.
+
+Os clients `poc-local-*-debug` sao publicos, habilitam Direct Grant apenas para facilitar debug manual local e nao possuem segredo. Eles nao substituem o fluxo `client_credentials` dos scripts automatizados.
+
+### Usuarios locais de debug
+
+O realm importado inclui tres usuarios descartaveis para quem precisa depurar autenticacao e autorizacao manualmente, por exemplo no Swagger, REST Client ou `curl`. Eles existem somente no realm local versionado, usam senhas obvias e nunca devem ser tratados como credenciais reais.
+
+Use esses usuarios apenas em maquina de desenvolvimento local:
+
+| Usuario | Senha | Client local | Finalidade | Scopes emitidos | `merchant_id` |
+| --- | --- | --- | --- | --- | --- |
+| `local_ledger_user` | `local_ledger_password` | `poc-local-ledger-debug` | Testar endpoints do LedgerService | `ledger.write ledger.read` | `tese m1` |
+| `local_balance_user` | `local_balance_password` | `poc-local-balance-debug` | Testar endpoints do BalanceService | `balance.read` | `tese m1` |
+| `local_admin_user` | `local_admin_password` | `poc-local-admin-debug` | Facilitar debug local completo | `ledger.write ledger.read balance.read outbox.admin` | `tese m1` |
+
+Todos ficam habilitados no import e possuem senha nao temporaria para nao exigir troca no primeiro login. O realm marca os usuarios com atributos de debug local. As permissoes sao emitidas pela mesma estrategia ja adotada no realm: `clientScopes` default dos clients locais de debug incluem os scopes correspondentes, o client scope `poc-api-audience` adiciona `aud=ledger-api balance-api` e o client scope `poc-merchants` adiciona `merchant_id=tese m1`.
+
+Exemplo para obter token manual do usuario Ledger:
+
+```bash
+curl -s -X POST http://localhost:8081/realms/poc/protocol/openid-connect/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=password" \
+  -d "client_id=poc-local-ledger-debug" \
+  -d "username=local_ledger_user" \
+  -d "password=local_ledger_password"
+```
+
+Exemplo de uso do token no LedgerService:
+
+```bash
+TOKEN="<access_token_do_comando_anterior>"
+curl -i http://localhost:5226/api/v1/lancamentos \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Idempotency-Key: 00000000-0000-0000-0000-000000000001" \
+  -H "Content-Type: application/json" \
+  -d '{"type":"CREDIT","merchantId":"m1","amount":10.00}'
+```
+
+Exemplo para obter token manual do usuario Balance:
+
+```bash
+curl -s -X POST http://localhost:8081/realms/poc/protocol/openid-connect/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=password" \
+  -d "client_id=poc-local-balance-debug" \
+  -d "username=local_balance_user" \
+  -d "password=local_balance_password"
+```
+
+Exemplo de uso do token no BalanceService:
+
+```bash
+TOKEN="<access_token_do_comando_anterior>"
+curl -i "http://localhost:5228/v1/consolidados/diario/2026-05-26?merchantId=m1" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+O usuario `local_admin_user` pode ser usado do mesmo modo para endpoints de Ledger, Balance e Outbox local:
+
+```bash
+curl -s -X POST http://localhost:8081/realms/poc/protocol/openid-connect/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=password" \
+  -d "client_id=poc-local-admin-debug" \
+  -d "username=local_admin_user" \
+  -d "password=local_admin_password"
+```
+
+Nao use esses usuarios em ambiente compartilhado, homologacao ou producao. Para automacoes locais, load tests, validadores e scanners, continue usando `scripts/get-token.*`, que permanecem no fluxo `client_credentials` com o client `poc-automation`.
 
 ## Claims e validacoes
 
@@ -81,6 +152,7 @@ Os endpoints de consulta de status do `LedgerService.Api` exigem `ledger.read`, 
 
 O realm Keycloak local inclui `ledger.read` junto com `ledger.write`, `balance.read` e `outbox.admin`.
 O client `poc-automation` declara esses scopes como default client scopes, adiciona as audiences `ledger-api` e `balance-api` no access token e emite `merchant_id=tese m1` pelo mapper `poc-merchants`.
+Os clients `poc-local-*-debug` adicionam as mesmas audiences e emitem `scope` pelos seus `clientScopes` default e `merchant_id` pelo mapper `poc-merchants`, sem usar roles nativas do Keycloak como contrato das APIs.
 
 ## Scopes por endpoint
 
@@ -175,6 +247,8 @@ curl -s -X POST http://localhost:8081/realms/poc/protocol/openid-connect/token \
 ```
 
 O access token emitido pelo realm local deve conter `iss=http://localhost:8081/realms/poc`, audiences `ledger-api` e `balance-api`, scopes `ledger.write ledger.read balance.read outbox.admin` e `merchant_id=tese m1`.
+
+Para debug manual com usuario/senha, use o client publico de debug correspondente diretamente no token endpoint com `grant_type=password`. Os scripts versionados nao usam esse fluxo por padrao para evitar transformar Direct Grant em automacao oficial.
 
 Para APIs rodando em container, mantenha `Jwt:JwksUrl` apontando para `http://keycloak:8080/realms/poc/protocol/openid-connect/certs`. Para APIs rodando no host, use `http://localhost:8081/realms/poc/protocol/openid-connect/certs`.
 
