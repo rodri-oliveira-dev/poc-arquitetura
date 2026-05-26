@@ -36,7 +36,7 @@ public sealed class PostgresLedgerApiFactory : WebApplicationFactory<Program>
             {
                 ["Kafka:Enabled"] = "false",
                 ["Estornos:Processor:Enabled"] = "false",
-                ["Jwt:Issuer"] = "https://auth-api",
+                ["Jwt:Issuer"] = TestJwtTokenFactory.KeycloakIssuer,
                 ["Jwt:Audience"] = "ledger-api",
                 ["Jwt:JwksUrl"] = "https://localhost/jwks.json",
                 ["ApiLimits:MaxRequestBodySizeBytes"] = "128",
@@ -64,7 +64,7 @@ public sealed class PostgresLedgerApiFactory : WebApplicationFactory<Program>
             {
                 options.ConfigurationManager = null;
                 options.TokenValidationParameters.ConfigurationManager = null;
-                options.TokenValidationParameters.ValidIssuer = "https://auth-api";
+                options.TokenValidationParameters.ValidIssuer = TestJwtTokenFactory.KeycloakIssuer;
                 options.TokenValidationParameters.IssuerSigningKey = new RsaSecurityKey(TestJwtKeys.CreateRsa())
                 {
                     KeyId = TestJwtKeys.Kid

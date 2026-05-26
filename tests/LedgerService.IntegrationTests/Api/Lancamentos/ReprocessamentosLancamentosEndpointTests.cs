@@ -239,7 +239,7 @@ public sealed class ReprocessamentosLancamentosEndpointTests : IClassFixture<Led
     private void Authenticate(string? merchantIds = "m1", string scopes = "ledger.write")
     {
         var token = TestJwtTokenFactory.CreateToken(
-            issuer: "https://auth-api",
+            issuer: TestJwtTokenFactory.KeycloakIssuer,
             audiences: "ledger-api",
             scopes: scopes,
             merchantIds: merchantIds);

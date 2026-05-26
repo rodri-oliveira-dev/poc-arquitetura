@@ -6,17 +6,22 @@ using System.Text;
 
 using LedgerService.Api.Contracts.Responses;
 using LedgerService.Application.Common.Models;
+using LedgerService.Domain.Entities;
+using LedgerService.Infrastructure.Persistence;
 using LedgerService.IntegrationTests.Infrastructure;
 using LedgerService.IntegrationTests.Infrastructure.Security;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace LedgerService.IntegrationTests.Api.Security;
 
 public sealed class LancamentosAuthorizationTests : IClassFixture<LedgerApiFactory>
 {
+    private readonly LedgerApiFactory _factory;
     private readonly HttpClient _client;
 
     public LancamentosAuthorizationTests(LedgerApiFactory factory)
     {
+        _factory = factory;
         _client = factory.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false
@@ -37,10 +42,30 @@ public sealed class LancamentosAuthorizationTests : IClassFixture<LedgerApiFacto
     }
 
     [Fact]
+    public async Task Post_should_return_403_when_scope_claim_is_missing()
+    {
+        var token = TestJwtTokenFactory.CreateToken(
+            issuer: TestJwtTokenFactory.KeycloakIssuer,
+            audiences: "ledger-api",
+            scopes: null);
+
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var res = await _client.PostAsJsonAsync("/api/v1/lancamentos", new
+        {
+            merchantId = "m1",
+            type = "CREDIT",
+            amount = 10.00m
+        });
+
+        Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
+    }
+
+    [Fact]
     public async Task Post_should_return_403_when_missing_write_scope()
     {
         var token = TestJwtTokenFactory.CreateToken(
-            issuer: "https://auth-api",
+            issuer: TestJwtTokenFactory.KeycloakIssuer,
             audiences: "ledger-api",
             scopes: "ledger.read");
 
@@ -80,7 +105,7 @@ public sealed class LancamentosAuthorizationTests : IClassFixture<LedgerApiFacto
     public async Task Post_should_return_401_when_audience_is_invalid()
     {
         var token = TestJwtTokenFactory.CreateToken(
-            issuer: "https://auth-api",
+            issuer: TestJwtTokenFactory.KeycloakIssuer,
             audiences: "balance-api",
             scopes: "ledger.write");
 
@@ -100,7 +125,7 @@ public sealed class LancamentosAuthorizationTests : IClassFixture<LedgerApiFacto
     public async Task Post_should_return_401_when_token_is_expired()
     {
         var token = TestJwtTokenFactory.CreateToken(
-            issuer: "https://auth-api",
+            issuer: TestJwtTokenFactory.KeycloakIssuer,
             audiences: "ledger-api",
             scopes: "ledger.write",
             now: DateTimeOffset.UtcNow.AddMinutes(-20),
@@ -122,7 +147,7 @@ public sealed class LancamentosAuthorizationTests : IClassFixture<LedgerApiFacto
     public async Task Post_should_return_401_when_signature_is_invalid()
     {
         var token = TestJwtTokenFactory.CreateToken(
-            issuer: "https://auth-api",
+            issuer: TestJwtTokenFactory.KeycloakIssuer,
             audiences: "ledger-api",
             scopes: "ledger.write",
             signWithUntrustedKey: true);
@@ -143,7 +168,7 @@ public sealed class LancamentosAuthorizationTests : IClassFixture<LedgerApiFacto
     public async Task Post_should_return_403_when_token_is_not_authorized_for_requested_merchant()
     {
         var token = TestJwtTokenFactory.CreateToken(
-            issuer: "https://auth-api",
+            issuer: TestJwtTokenFactory.KeycloakIssuer,
             audiences: "ledger-api",
             scopes: "ledger.write",
             merchantIds: "m2");
@@ -164,7 +189,7 @@ public sealed class LancamentosAuthorizationTests : IClassFixture<LedgerApiFacto
     public async Task Post_should_return_403_when_token_has_no_merchant_claim()
     {
         var token = TestJwtTokenFactory.CreateToken(
-            issuer: "https://auth-api",
+            issuer: TestJwtTokenFactory.KeycloakIssuer,
             audiences: "ledger-api",
             scopes: "ledger.write",
             merchantIds: null);
@@ -185,7 +210,7 @@ public sealed class LancamentosAuthorizationTests : IClassFixture<LedgerApiFacto
     public async Task Post_should_return_413_when_request_body_exceeds_limit()
     {
         var token = TestJwtTokenFactory.CreateToken(
-            issuer: "https://auth-api",
+            issuer: TestJwtTokenFactory.KeycloakIssuer,
             audiences: "ledger-api",
             scopes: "ledger.write");
 
@@ -214,10 +239,7 @@ public sealed class LancamentosAuthorizationTests : IClassFixture<LedgerApiFacto
     [Fact]
     public async Task Post_should_create_lancamento_with_write_scope()
     {
-        var token = TestJwtTokenFactory.CreateToken(
-            issuer: "https://auth-api",
-            audiences: "ledger-api",
-            scopes: "ledger.write");
+        var token = TestJwtTokenFactory.CreateToken();
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
@@ -225,7 +247,7 @@ public sealed class LancamentosAuthorizationTests : IClassFixture<LedgerApiFacto
 
         using var req = new HttpRequestMessage(HttpMethod.Post, "/api/v1/lancamentos")
         {
-            Content = JsonContent.Create(new { merchantId = "m1", type = "CREDIT", amount = 10.00m })
+            Content = JsonContent.Create(new { merchantId = "tese", type = "CREDIT", amount = 10.00m })
         };
         req.Headers.Add("Idempotency-Key", idempotencyKey);
 
@@ -242,7 +264,7 @@ public sealed class LancamentosAuthorizationTests : IClassFixture<LedgerApiFacto
         Assert.StartsWith("lan_", body!.Id);
         Assert.Equal("lan_".Length + 8, body.Id.Length);
         Assert.Equal($"/api/v1/lancamentos/{body.Id}", res.Headers.Location?.ToString());
-        Assert.Equal("m1", body.MerchantId);
+        Assert.Equal("tese", body.MerchantId);
         Assert.Equal("CREDIT", body.Type);
         Assert.Equal("10.00", body.Amount);
         Assert.Null(body.Description);
@@ -252,7 +274,7 @@ public sealed class LancamentosAuthorizationTests : IClassFixture<LedgerApiFacto
         // Idempotência (cenário de sucesso): mesma Idempotency-Key + mesmo payload deve fazer replay da resposta.
         using var replayReq = new HttpRequestMessage(HttpMethod.Post, "/api/v1/lancamentos")
         {
-            Content = JsonContent.Create(new { merchantId = "m1", type = "CREDIT", amount = 10.00m })
+            Content = JsonContent.Create(new { merchantId = "tese", type = "CREDIT", amount = 10.00m })
         };
         replayReq.Headers.Add("Idempotency-Key", idempotencyKey);
 
@@ -265,10 +287,25 @@ public sealed class LancamentosAuthorizationTests : IClassFixture<LedgerApiFacto
     }
 
     [Fact]
+    public async Task Get_estornos_should_return_200_with_ledger_read_scope_and_keycloak_merchant()
+    {
+        var estorno = await SeedEstornoAsync("tese");
+        var token = TestJwtTokenFactory.CreateToken();
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var res = await _client.GetAsync($"/api/v1/lancamentos/estornos/{estorno.Id}");
+
+        Assert.Equal(HttpStatusCode.OK, res.StatusCode);
+        var body = await res.Content.ReadFromJsonAsync<ObterStatusEstornoLancamentoResponse>();
+        Assert.NotNull(body);
+        Assert.Equal(estorno.Id, body!.EstornoId);
+    }
+
+    [Fact]
     public async Task Post_should_return_400_when_amount_has_more_than_two_decimal_places()
     {
         var token = TestJwtTokenFactory.CreateToken(
-            issuer: "https://auth-api",
+            issuer: TestJwtTokenFactory.KeycloakIssuer,
             audiences: "ledger-api",
             scopes: "ledger.write");
 
@@ -290,7 +327,7 @@ public sealed class LancamentosAuthorizationTests : IClassFixture<LedgerApiFacto
     public async Task Post_should_return_validation_contract_when_amount_type_is_invalid()
     {
         var token = TestJwtTokenFactory.CreateToken(
-            issuer: "https://auth-api",
+            issuer: TestJwtTokenFactory.KeycloakIssuer,
             audiences: "ledger-api",
             scopes: "ledger.write");
 
@@ -321,7 +358,7 @@ public sealed class LancamentosAuthorizationTests : IClassFixture<LedgerApiFacto
     public async Task Post_should_return_validation_contract_when_json_is_malformed()
     {
         var token = TestJwtTokenFactory.CreateToken(
-            issuer: "https://auth-api",
+            issuer: TestJwtTokenFactory.KeycloakIssuer,
             audiences: "ledger-api",
             scopes: "ledger.write");
 
@@ -353,7 +390,7 @@ public sealed class LancamentosAuthorizationTests : IClassFixture<LedgerApiFacto
     public async Task Post_should_return_400_when_payload_is_absent()
     {
         var token = TestJwtTokenFactory.CreateToken(
-            issuer: "https://auth-api",
+            issuer: TestJwtTokenFactory.KeycloakIssuer,
             audiences: "ledger-api",
             scopes: "ledger.write");
 
@@ -373,7 +410,7 @@ public sealed class LancamentosAuthorizationTests : IClassFixture<LedgerApiFacto
     public async Task Post_should_return_400_when_required_field_is_missing()
     {
         var token = TestJwtTokenFactory.CreateToken(
-            issuer: "https://auth-api",
+            issuer: TestJwtTokenFactory.KeycloakIssuer,
             audiences: "ledger-api",
             scopes: "ledger.write");
 
@@ -399,7 +436,7 @@ public sealed class LancamentosAuthorizationTests : IClassFixture<LedgerApiFacto
         string externalReference)
     {
         var token = TestJwtTokenFactory.CreateToken(
-            issuer: "https://auth-api",
+            issuer: TestJwtTokenFactory.KeycloakIssuer,
             audiences: "ledger-api",
             scopes: "ledger.write");
 
@@ -467,5 +504,21 @@ public sealed class LancamentosAuthorizationTests : IClassFixture<LedgerApiFacto
         Assert.NotEmpty(body.Errors);
         Assert.False(string.IsNullOrWhiteSpace(body.CorrelationId));
         return body;
+    }
+
+    private async Task<EstornoLancamento> SeedEstornoAsync(string merchantId)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var estorno = new EstornoLancamento(
+            Guid.NewGuid(),
+            merchantId,
+            "Erro operacional no lancamento original",
+            Guid.NewGuid());
+
+        await db.EstornosLancamentos.AddAsync(estorno);
+        await db.SaveChangesAsync();
+
+        return estorno;
     }
 }

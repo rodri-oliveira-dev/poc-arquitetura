@@ -74,7 +74,7 @@ public sealed class OutboxAdminEndpointTests : IClassFixture<LedgerApiFactory>
     private void Authenticate(string scopes)
     {
         var token = TestJwtTokenFactory.CreateToken(
-            issuer: "https://auth-api",
+            issuer: TestJwtTokenFactory.KeycloakIssuer,
             audiences: "ledger-api",
             scopes: scopes);
 

@@ -34,7 +34,7 @@ public sealed class BalanceApiFactory : WebApplicationFactory<Program>
             cfg.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Kafka:Enabled"] = "false",
-                ["Jwt:Issuer"] = "https://auth-api",
+                ["Jwt:Issuer"] = TestJwtTokenFactory.KeycloakIssuer,
                 ["Jwt:Audience"] = "balance-api",
                 ["Jwt:JwksUrl"] = "https://localhost/jwks.json",
                 ["ApiLimits:MaxRequestBodySizeBytes"] = "128",
@@ -85,7 +85,7 @@ public sealed class BalanceApiFactory : WebApplicationFactory<Program>
             {
                 options.ConfigurationManager = null;
                 options.TokenValidationParameters.ConfigurationManager = null;
-                options.TokenValidationParameters.ValidIssuer = "https://auth-api";
+                options.TokenValidationParameters.ValidIssuer = TestJwtTokenFactory.KeycloakIssuer;
                 options.TokenValidationParameters.IssuerSigningKey = new RsaSecurityKey(TestJwtKeys.CreateRsa())
                 {
                     KeyId = TestJwtKeys.Kid

@@ -41,7 +41,7 @@ public sealed class LedgerApiFactory : WebApplicationFactory<Program>
                 // Jwt: precisa existir para o AddApiJwtAuth não lançar.
                 // Nos testes de integração, vamos injetar um token válido via TestAuthHandler,
                 // então os valores aqui são apenas placeholders.
-                ["Jwt:Issuer"] = "https://auth-api",
+                ["Jwt:Issuer"] = TestJwtTokenFactory.KeycloakIssuer,
                 ["Jwt:Audience"] = "ledger-api",
                 ["Jwt:JwksUrl"] = "https://localhost/jwks.json",
                 ["ApiLimits:MaxRequestBodySizeBytes"] = "128",
@@ -104,7 +104,7 @@ public sealed class LedgerApiFactory : WebApplicationFactory<Program>
             {
                 options.ConfigurationManager = null;
                 options.TokenValidationParameters.ConfigurationManager = null;
-                options.TokenValidationParameters.ValidIssuer = "https://auth-api";
+                options.TokenValidationParameters.ValidIssuer = TestJwtTokenFactory.KeycloakIssuer;
                 options.TokenValidationParameters.IssuerSigningKey = new RsaSecurityKey(TestJwtKeys.CreateRsa())
                 {
                     KeyId = TestJwtKeys.Kid

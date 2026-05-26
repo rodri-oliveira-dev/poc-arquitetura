@@ -237,7 +237,7 @@ public sealed class EstornosLancamentosEndpointTests : IClassFixture<LedgerApiFa
     private void Authenticate(string? merchantIds = "m1", string scopes = "ledger.write")
     {
         var token = TestJwtTokenFactory.CreateToken(
-            issuer: "https://auth-api",
+            issuer: TestJwtTokenFactory.KeycloakIssuer,
             audiences: "ledger-api",
             scopes: scopes,
             merchantIds: merchantIds);

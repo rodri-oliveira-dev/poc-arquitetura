@@ -43,10 +43,24 @@ public sealed class BalanceAuthorizationTests : IClassFixture<BalanceApiFactory>
     }
 
     [Fact]
+    public async Task Period_endpoint_should_return_403_when_scope_claim_is_missing()
+    {
+        var token = TestJwtTokenFactory.CreateToken(
+            issuer: TestJwtTokenFactory.KeycloakIssuer,
+            audiences: "balance-api",
+            scopes: null);
+
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var res = await _client.GetAsync("/v1/consolidados/periodo?merchantId=m1&from=2026-02-10&to=2026-02-12");
+        Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
+    }
+
+    [Fact]
     public async Task Period_endpoint_should_return_403_without_balance_read_scope()
     {
         var token = TestJwtTokenFactory.CreateToken(
-            issuer: "https://auth-api",
+            issuer: TestJwtTokenFactory.KeycloakIssuer,
             audiences: "balance-api",
             scopes: "ledger.read");
 
@@ -74,7 +88,7 @@ public sealed class BalanceAuthorizationTests : IClassFixture<BalanceApiFactory>
     public async Task Period_endpoint_should_return_401_when_audience_is_invalid()
     {
         var token = TestJwtTokenFactory.CreateToken(
-            issuer: "https://auth-api",
+            issuer: TestJwtTokenFactory.KeycloakIssuer,
             audiences: "ledger-api",
             scopes: "balance.read");
 
@@ -88,7 +102,7 @@ public sealed class BalanceAuthorizationTests : IClassFixture<BalanceApiFactory>
     public async Task Period_endpoint_should_return_401_when_token_is_expired()
     {
         var token = TestJwtTokenFactory.CreateToken(
-            issuer: "https://auth-api",
+            issuer: TestJwtTokenFactory.KeycloakIssuer,
             audiences: "balance-api",
             scopes: "balance.read",
             now: DateTimeOffset.UtcNow.AddMinutes(-20),
@@ -104,7 +118,7 @@ public sealed class BalanceAuthorizationTests : IClassFixture<BalanceApiFactory>
     public async Task Period_endpoint_should_return_401_when_signature_is_invalid()
     {
         var token = TestJwtTokenFactory.CreateToken(
-            issuer: "https://auth-api",
+            issuer: TestJwtTokenFactory.KeycloakIssuer,
             audiences: "balance-api",
             scopes: "balance.read",
             signWithUntrustedKey: true);
@@ -119,7 +133,7 @@ public sealed class BalanceAuthorizationTests : IClassFixture<BalanceApiFactory>
     public async Task Period_endpoint_should_return_403_when_token_is_not_authorized_for_requested_merchant()
     {
         var token = TestJwtTokenFactory.CreateToken(
-            issuer: "https://auth-api",
+            issuer: TestJwtTokenFactory.KeycloakIssuer,
             audiences: "balance-api",
             scopes: "balance.read",
             merchantIds: "m2");
@@ -131,10 +145,21 @@ public sealed class BalanceAuthorizationTests : IClassFixture<BalanceApiFactory>
     }
 
     [Fact]
+    public async Task Daily_endpoint_should_return_200_with_balance_read_scope_and_keycloak_merchant()
+    {
+        var token = TestJwtTokenFactory.CreateToken();
+
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var res = await _client.GetAsync("/v1/consolidados/diario/2026-02-10?merchantId=tese");
+        Assert.Equal(HttpStatusCode.OK, res.StatusCode);
+    }
+
+    [Fact]
     public async Task Daily_endpoint_should_return_403_when_token_has_no_merchant_claim()
     {
         var token = TestJwtTokenFactory.CreateToken(
-            issuer: "https://auth-api",
+            issuer: TestJwtTokenFactory.KeycloakIssuer,
             audiences: "balance-api",
             scopes: "balance.read",
             merchantIds: null);
