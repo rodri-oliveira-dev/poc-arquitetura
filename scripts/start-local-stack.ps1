@@ -168,7 +168,8 @@ try {
     "balance-db",
     "kafka",
     "kafka-init-topics",
-    "auth-api"
+    "auth-api",
+    "keycloak"
   )
   if ($Observability) {
     $infraArgs += @(

@@ -56,5 +56,5 @@ Diretriz de evolução:
 ## Próximos passos (não implementados)
 
 - TODO: definir modelo de claims (audiences, scopes vs roles) e mapear para as policies existentes.
-- TODO: ajustar documentação e scripts de obtenção de token (`scripts/get-token.*`) para o fluxo escolhido.
-- TODO: ajustar `Jwt__JwksUrl` (ou evoluir para ler `openid-configuration`) e atualizar compose/infra.
+- Implementado em etapa posterior: documentação e scripts de obtenção de token (`scripts/get-token.*`) usam Keycloak por `client_credentials` por padrão, preservando fallback para `Auth.Api`.
+- Implementado em etapa posterior: `Jwt__JwksUrl` continua direto e pode apontar para o endpoint de certificados do realm Keycloak, preservando compatibilidade com o JWKS do `Auth.Api` por configuração.

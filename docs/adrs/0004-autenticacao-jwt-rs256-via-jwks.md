@@ -29,6 +29,10 @@ Adotar **JWT Bearer** assinado com **RS256**, com validação offline nas APIs d
 
 ## Consequências
 
+## Nota de evolução
+
+Em 2026-05, a mesma decisao de validacao offline via JWKS passou a cobrir tambem tokens emitidos pelo Keycloak local. As APIs continuam configurando `Jwt__JwksUrl` diretamente, sem introspeccao por request; quando o emissor ativo for Keycloak, esse valor deve apontar para o endpoint de certificados do realm, por exemplo `/realms/poc/protocol/openid-connect/certs`. O `Auth.Api` permanece como fallback de transicao quando `Jwt__Issuer` e `Jwt__JwksUrl` forem configurados para ele.
+
 ### Benefícios
 - **Baixa latência**: sem chamada ao Auth.Api por request.
 - Menor acoplamento e melhor resiliência (se o Auth estiver temporariamente indisponível, tokens já emitidos continuam validáveis até expirar e enquanto o JWKS estiver em cache).

@@ -10,7 +10,7 @@ A POC usa atualmente o `Auth.Api` como emissor local de JWT RS256 e como publica
 
 A [ADR-0006](./0006-migrar-auth-api-para-keycloak.md) registrou a intencao de substituir o `Auth.Api` por Keycloak/OIDC. Desde entao, a POC tambem consolidou autorizacao por merchant via claim `merchant_id` na [ADR-0023](./0023-autorizacao-por-merchant.md) e endureceu temporariamente o `Auth.Api` na [ADR-0024](./0024-politica-autenticacao-auth-api-poc.md).
 
-Esta ADR transforma a ADR-0006 em um plano tecnico executavel e rastreavel, sem alterar codigo, compose, scripts, testes ou pipeline nesta etapa.
+Esta ADR transforma a ADR-0006 em um plano tecnico executavel e rastreavel. Etapas posteriores podem alterar codigo, compose, scripts, testes ou pipeline seguindo este plano.
 
 ## Decisao
 
@@ -35,9 +35,9 @@ Cada etapa abaixo deve ser implementada separadamente, com validacao e commit pr
 
 1. Modelar realm, clients, scopes e claims no Keycloak.
 2. Adicionar Keycloak ao ambiente local, incluindo persistencia e configuracao reproduzivel do realm.
-3. Ajustar configuracao JWT das APIs para consumir o discovery/JWKS do Keycloak preservando validacao offline.
-4. Atualizar scripts locais de token para `client_credentials`.
-5. Atualizar documentacao operacional de autenticacao e exemplos de uso.
+3. Ajustar configuracao JWT das APIs para consumir o discovery/JWKS do Keycloak preservando validacao offline. Implementado com `Jwt:JwksUrl` direto para o endpoint de certificados do realm.
+4. Atualizar scripts locais de token para `client_credentials`. Implementado mantendo fallback `TOKEN_PROVIDER=auth-api`.
+5. Atualizar documentacao operacional de autenticacao e exemplos de uso. Implementado para a configuracao local Keycloak.
 6. Adaptar testes de integracao que dependem de emissao de token, mantendo asserts de issuer, audience, scopes e `merchant_id`.
 7. Atualizar cenarios k6 e validacoes de seguranca quando os endpoints ou headers de autenticacao usados pelos cenarios forem afetados.
 8. Remover o `Auth.Api` da stack local e da solution somente depois de a validacao com Keycloak cobrir o fluxo equivalente.

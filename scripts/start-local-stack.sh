@@ -119,7 +119,8 @@ fi
   balance-db \
   kafka \
   kafka-init-topics \
-  auth-api
+  auth-api \
+  keycloak
 
 if [[ "$OBSERVABILITY" == "true" ]]; then
   "${compose_up[@]}" jaeger otel-collector prometheus alertmanager loki alloy grafana

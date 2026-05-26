@@ -4,16 +4,17 @@ Este documento descreve o fluxo atual de JWT Bearer via JWKS e as regras de auto
 
 ## Modelo atual
 
-- `Auth.Api` emite tokens JWT assinados com RS256.
-- `Auth.Api` publica chaves publicas em `GET /.well-known/jwks.json`.
+- O Keycloak local emite tokens JWT assinados com RS256 no realm `poc`.
+- O Keycloak publica chaves publicas em `GET /realms/poc/protocol/openid-connect/certs`.
 - `LedgerService.Api` e `BalanceService.Api` validam tokens por JWT Bearer e JWKS.
 - As APIs nao fazem introspeccao por request; a configuracao de chaves usa cache e refresh.
+- `Auth.Api` continua disponivel como emissor legado de POC e pode ser reativado por configuracao.
 
-## Keycloak local lado a lado
+## Keycloak local
 
-O compose local tambem disponibiliza um Keycloak opcional no profile `identity`, acessivel em `http://localhost:8081/`. Ele existe para experimentacao e preparacao da migracao planejada na ADR-0006, mas ainda nao substitui o `Auth.Api`.
+O compose local disponibiliza um Keycloak acessivel em `http://localhost:8081/`. Ele e o emissor padrao para os scripts locais de token e para a configuracao JWT das APIs de negocio.
 
-Nesta etapa, `LedgerService.Api` e `BalanceService.Api` continuam configurados para validar tokens emitidos pelo `Auth.Api` e obter JWKS em `http://auth-api:8080/.well-known/jwks.json` dentro da rede Docker. O Keycloak ja possui realm versionado para emitir tokens compativeis com o contrato atual, mas as APIs ainda nao foram alteradas para consumir o JWKS do Keycloak.
+`LedgerService.Api` e `BalanceService.Api` continuam usando `Jwt:JwksUrl` direto, sem discovery OIDC nesta etapa. Para Keycloak, esse valor deve apontar para o endpoint de certificados do realm. Dentro da rede Docker, as APIs usam o JWKS interno `http://keycloak:8080/realms/poc/protocol/openid-connect/certs`, enquanto o issuer validado permanece o issuer publico dos tokens locais: `http://localhost:8081/realms/poc`.
 
 Configuracao versionada do realm local:
 
@@ -51,7 +52,16 @@ Audiences atuais:
 
 Nesta POC, o `Auth.Api` pode emitir `aud` como string com audiences separadas por espaco, como `ledger-api balance-api`. As APIs tratam esse formato tokenizando por espaco.
 
-## Scopes emitidos pelo Auth.Api local
+## Fallback Auth.Api local
+
+O `Auth.Api` permanece no compose para transicao e testes de compatibilidade. Para validar tokens emitidos por ele, sobrescreva a configuracao das APIs:
+
+| Variavel | Valor Auth.Api local |
+| --- | --- |
+| `JWT_ISSUER` | `https://auth-api` |
+| `JWT_JWKS_URL` | `http://auth-api:8080/.well-known/jwks.json` |
+| `JWT_REQUIRE_HTTPS_METADATA` | `false` |
+| `TOKEN_PROVIDER` | `auth-api` |
 
 O catalogo atual do `Auth.Api` aceita somente estes scopes no `POST /auth/login`:
 
@@ -61,7 +71,7 @@ O catalogo atual do `Auth.Api` aceita somente estes scopes no `POST /auth/login`
 
 Os endpoints de consulta de status do `LedgerService.Api` exigem `ledger.read`, mas esse scope ainda nao esta no catalogo emitido pelo `Auth.Api` local. Esse e um desalinhamento operacional conhecido da POC: os testes de integracao cobrem esses endpoints com tokens gerados pelas factories de teste; os scripts operacionais locais validam os estados de estorno/reprocessamento pelo banco enquanto usam o token padrao `ledger.write balance.read`.
 
-O realm Keycloak local ja inclui `ledger.read` junto com `ledger.write`, `balance.read` e `outbox.admin`, preparando a migracao sem alterar o `Auth.Api`.
+O realm Keycloak local inclui `ledger.read` junto com `ledger.write`, `balance.read` e `outbox.admin`.
 
 ## Scopes por endpoint
 
@@ -79,7 +89,7 @@ O realm Keycloak local ja inclui `ledger.read` junto com `ledger.write`, `balanc
 
 ## Transporte e JWKS
 
-Fora de `Development` e `Local`, `Jwt:JwksUrl` deve usar HTTPS.
+Fora de `Development`, `Local` e `Test`, `Jwt:JwksUrl` deve usar HTTPS.
 
 `Jwt:RequireHttpsMetadata=false` e JWKS via HTTP sao aceitos apenas para execucao local. O ambiente `Test` e usado por testes automatizados com `WebApplicationFactory`.
 
@@ -125,10 +135,10 @@ O contrato de resposta continua aceitando `access_token` como campo principal e 
 
 ### Keycloak local
 
-Suba o Keycloak com o profile `identity`:
+Suba o Keycloak:
 
 ```bash
-docker compose --profile identity up -d keycloak
+docker compose up -d keycloak
 ```
 
 Obtenha o token:
@@ -155,7 +165,7 @@ curl -s -X POST http://localhost:8081/realms/poc/protocol/openid-connect/token \
 
 O access token emitido pelo realm local deve conter `iss=http://localhost:8081/realms/poc`, audiences `ledger-api` e `balance-api`, scopes `ledger.write ledger.read balance.read outbox.admin` e `merchant_id=tese m1`.
 
-Enquanto `LedgerService.Api` e `BalanceService.Api` continuarem apontando para o JWKS do `Auth.Api`, tokens Keycloak servem para validar o realm, discovery, JWKS e contrato de claims. Scripts operacionais que chamam APIs protegidas ainda selecionam `TOKEN_PROVIDER=auth-api` explicitamente nesta etapa.
+Para APIs rodando em container, mantenha `Jwt:JwksUrl` apontando para `http://keycloak:8080/realms/poc/protocol/openid-connect/certs`. Para APIs rodando no host, use `http://localhost:8081/realms/poc/protocol/openid-connect/certs`.
 
 ### Fallback Auth.Api
 

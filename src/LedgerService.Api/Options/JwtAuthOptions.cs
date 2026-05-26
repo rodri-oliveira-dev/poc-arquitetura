@@ -1,7 +1,7 @@
 namespace LedgerService.Api.Options;
 
 /// <summary>
-/// Configurações de autenticação/validação de JWT (consumo de tokens emitidos pelo Auth.Api).
+/// Configurações de autenticação/validação de JWT.
 /// </summary>
 public sealed class JwtAuthOptions
 {
@@ -9,7 +9,7 @@ public sealed class JwtAuthOptions
 
     /// <summary>
     /// Issuer (iss) esperado.
-    /// Ex.: https://auth-api
+    /// Ex.: http://localhost:8081/realms/poc
     /// </summary>
     public string Issuer { get; init; } = string.Empty;
 
@@ -20,8 +20,8 @@ public sealed class JwtAuthOptions
     public string Audience { get; init; } = string.Empty;
 
     /// <summary>
-    /// URL do JWKS do Auth.Api.
-    /// Ex.: http://localhost:5030/.well-known/jwks.json
+    /// URL direta do JWKS do emissor configurado.
+    /// Ex.: http://localhost:8081/realms/poc/protocol/openid-connect/certs
     /// </summary>
     public string JwksUrl { get; init; } = string.Empty;
 

@@ -42,6 +42,9 @@ O compose usa defaults ficticios para desenvolvimento local. Para sobrescrever, 
 - `AUTH_POC_PASSWORD=local_password`
 - `AUTH_POC_SCOPE=ledger.write balance.read`
 - `TOKEN_PROVIDER=keycloak`
+- `JWT_ISSUER=http://localhost:8081/realms/poc`
+- `JWT_JWKS_URL=http://keycloak:8080/realms/poc/protocol/openid-connect/certs`
+- `JWT_REQUIRE_HTTPS_METADATA=false`
 - `KEYCLOAK_HOST_PORT=8081`
 - `KEYCLOAK_BASE_URL=http://localhost:8081`
 - `KEYCLOAK_REALM=poc`
@@ -72,7 +75,6 @@ O `compose.yaml` sobe por padrao a stack minima de desenvolvimento:
 Componentes opcionais ficam em profiles:
 
 - profile `observability`: OpenTelemetry Collector, Jaeger, Prometheus, Loki, Grafana Alloy, Alertmanager e Grafana;
-- profile `identity`: Keycloak local para experimentacao OIDC futura, sem substituir o `Auth.Api` nesta etapa;
 - profile `k6`: container k6 definido em `compose.k6.yaml`.
 
 Tambem existe um overlay opcional `compose.nginx.yaml` para adicionar uma borda local com Nginx e HTTPS em desenvolvimento. Ele nao faz parte da stack minima e nao altera as APIs, que continuam rodando internamente em HTTP com `ASPNETCORE_URLS=http://+:8080`. Quando o overlay e usado, o Nginx cria um upstream local `ledger_api` com duas instancias da `LedgerService.Api` e algoritmo `least_conn`.
@@ -99,7 +101,7 @@ No Linux/macOS:
 ./scripts/start-local-stack.sh
 ```
 
-Esse fluxo sobe bancos, Kafka e `Auth.Api`, aplica migrations pelo host e depois inicia `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker`.
+Esse fluxo sobe bancos, Kafka, `Auth.Api` e Keycloak, aplica migrations pelo host e depois inicia `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker`.
 
 Os scripts `start-local-stack.*` usam Docker Compose, restauram tools .NET, aplicam migrations pelo host e nao removem volumes. Eles nao executam testes automatizados, k6 nem scanners.
 
@@ -131,20 +133,20 @@ OTEL_ENABLED=true docker compose --profile observability up -d --build
 
 O socket Docker, mesmo montado como somente leitura, e uma superficie sensivel. Use o profile `observability` apenas em maquina local confiavel; nao use em ambiente compartilhado ou produtivo sem redesenhar a coleta de logs e revisar permissoes.
 
-### Keycloak local opcional
+### Keycloak local
 
-O Keycloak fica no `compose.yaml` principal com o profile `identity`, e nao em overlay separado, porque ele e um componente local da propria stack de identidade. O profile evita iniciar o container por padrao enquanto Ledger e Balance ainda validam tokens emitidos pelo `Auth.Api` via JWKS.
+O Keycloak fica no `compose.yaml` principal, e nao em overlay separado, porque ele e um componente local da propria stack de identidade. Ele faz parte da stack local padrao, pois Ledger e Balance validam tokens Keycloak por padrao no ambiente local.
 
 Suba apenas o Keycloak:
 
 ```bash
-docker compose --profile identity up -d keycloak
+docker compose up -d keycloak
 ```
 
-Ou suba a stack minima junto com o Keycloak:
+Ou suba a stack minima:
 
 ```bash
-docker compose --profile identity up -d --build
+docker compose up -d --build
 ```
 
 Admin Console:
@@ -170,6 +172,8 @@ O realm local importado se chama `poc` e expoe:
 - scopes: `ledger.write`, `ledger.read`, `balance.read` e `outbox.admin`;
 - claim `merchant_id`: `tese m1`.
 
+As APIs continuam usando `Jwt:JwksUrl` direto, sem introspeccao por request e sem consumir discovery metadata nesta etapa. No compose, `JWT_ISSUER` deve corresponder ao `iss` publico do token (`http://localhost:8081/realms/poc`) e `JWT_JWKS_URL` deve apontar para o endpoint de certificados acessivel pela rede interna (`http://keycloak:8080/realms/poc/protocol/openid-connect/certs`). Para voltar temporariamente ao emissor legado, configure `JWT_ISSUER=https://auth-api`, `JWT_JWKS_URL=http://auth-api:8080/.well-known/jwks.json` e `TOKEN_PROVIDER=auth-api`.
+
 O segredo do client `poc-automation` e `local_dev_client_secret`. Ele e um valor ficticio e descartavel, versionado apenas para tornar a POC local reproduzivel. Nao use esse segredo em ambientes compartilhados ou produtivos.
 
 Para obter um token Keycloak local, use os scripts versionados. Eles imprimem somente o token em `stdout`:
@@ -194,9 +198,11 @@ curl -s -X POST http://localhost:8081/realms/poc/protocol/openid-connect/token \
   -d "client_secret=local_dev_client_secret"
 ```
 
-Enquanto `LedgerService.Api` e `BalanceService.Api` validarem JWKS do `Auth.Api`, scripts operacionais que chamam APIs protegidas usam o fallback legado explicitamente:
+Para usar temporariamente tokens emitidos pelo `Auth.Api`, sobrescreva tambem a configuracao JWT das APIs para apontar para o emissor legado:
 
 ```bash
+JWT_ISSUER=https://auth-api \
+JWT_JWKS_URL=http://auth-api:8080/.well-known/jwks.json \
 TOKEN_PROVIDER=auth-api ./scripts/get-token.sh
 ```
 
@@ -204,6 +210,8 @@ No Windows:
 
 ```powershell
 $env:TOKEN_PROVIDER = "auth-api"
+$env:JWT_ISSUER = "https://auth-api"
+$env:JWT_JWKS_URL = "http://auth-api:8080/.well-known/jwks.json"
 ./scripts/get-token.ps1
 ```
 
@@ -214,7 +222,7 @@ curl -s http://localhost:8081/realms/poc/.well-known/openid-configuration
 curl -s http://localhost:8081/realms/poc/protocol/openid-connect/certs
 ```
 
-Nesta etapa, `Auth.Api` continua funcional e continua sendo a origem do JWKS usada por `LedgerService.Api` e `BalanceService.Api`. O Keycloak existe lado a lado para preparar a evolucao descrita na ADR-0006, sem alterar as APIs consumidoras nem testes.
+Nesta etapa, `Auth.Api` continua funcional como fallback de transicao, mas a origem padrao do JWKS usada por `LedgerService.Api` e `BalanceService.Api` no compose local e o Keycloak.
 
 ### Stack completa com observabilidade e Nginx
 
@@ -508,7 +516,7 @@ Portas expostas no host:
 | Componente | URL ou porta |
 | --- | --- |
 | Auth.Api | `http://localhost:5030/` |
-| Keycloak | `http://localhost:8081/` com profile `identity` |
+| Keycloak | `http://localhost:8081/` |
 | LedgerService.Api | `http://localhost:5226/` |
 | BalanceService.Api | `http://localhost:5228/` |
 | PostgreSQL Ledger | `localhost:15432` |

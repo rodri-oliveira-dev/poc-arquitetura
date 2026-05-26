@@ -137,9 +137,8 @@ function Wait-Until([string]$Description, [scriptblock]$Probe, [scriptblock]$IsR
   throw "Timeout aguardando $Description. Ultimo resultado: $last"
 }
 
-Write-Host "Obtendo token no Auth.Api..."
+Write-Host "Obtendo token pelo provider local configurado..."
 $token = Invoke-WithEnv @{
-  TOKEN_PROVIDER = "auth-api"
   AUTH_BASE_URL = $AuthBaseUrl
   USERNAME = $Username
   PASSWORD = $Password

@@ -103,6 +103,8 @@ public sealed class LedgerApiFactory : WebApplicationFactory<Program>
             services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
             {
                 options.ConfigurationManager = null;
+                options.TokenValidationParameters.ConfigurationManager = null;
+                options.TokenValidationParameters.ValidIssuer = "https://auth-api";
                 options.TokenValidationParameters.IssuerSigningKey = new RsaSecurityKey(TestJwtKeys.CreateRsa())
                 {
                     KeyId = TestJwtKeys.Kid

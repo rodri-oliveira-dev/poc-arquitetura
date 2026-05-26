@@ -114,12 +114,12 @@ if ($LASTEXITCODE -ne 0) { throw "docker compose falhou ao aplicar override k6: 
 
 Assert-BalanceDatabaseAuthentication
 
-# b) obter token via Auth.Api, pois as APIs ainda validam JWKS do Auth.Api nesta etapa.
+# b) obter token pelo provider local configurado. Por padrao, Keycloak.
 function Get-LoadTestToken {
   $getTokenScript = Join-Path $root "scripts\get-token.ps1"
 
   for ($i = 1; $i -le 30; $i++) {
-    $candidate = powershell -NoProfile -ExecutionPolicy Bypass -Command "`$env:TOKEN_PROVIDER='auth-api'; & '$getTokenScript'" 2>$null
+    $candidate = powershell -NoProfile -ExecutionPolicy Bypass -File $getTokenScript 2>$null
     if ($LASTEXITCODE -eq 0) {
       $candidate = ($candidate | Out-String).Trim()
       if (-not [string]::IsNullOrWhiteSpace($candidate)) {
@@ -130,7 +130,7 @@ function Get-LoadTestToken {
     Start-Sleep -Seconds 2
   }
 
-  $finalAttempt = powershell -NoProfile -ExecutionPolicy Bypass -Command "`$env:TOKEN_PROVIDER='auth-api'; & '$getTokenScript'"
+  $finalAttempt = powershell -NoProfile -ExecutionPolicy Bypass -File $getTokenScript
   return ($finalAttempt | Out-String).Trim()
 }
 
