@@ -139,6 +139,7 @@ function Wait-Until([string]$Description, [scriptblock]$Probe, [scriptblock]$IsR
 
 Write-Host "Obtendo token no Auth.Api..."
 $token = Invoke-WithEnv @{
+  TOKEN_PROVIDER = "auth-api"
   AUTH_BASE_URL = $AuthBaseUrl
   USERNAME = $Username
   PASSWORD = $Password

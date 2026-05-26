@@ -103,17 +103,17 @@ docker compose -f "$COMPOSE_FILE" -f "$COMPOSE_K6_FILE" up -d --no-build --force
 
 assert_balance_database_authentication
 
-# b) obter token (por padrão via localhost conforme README)
+# b) obter token via Auth.Api, pois as APIs ainda validam JWKS do Auth.Api nesta etapa.
 TOKEN=""
 for _ in $(seq 1 30); do
-  if TOKEN="$($ROOT_DIR/scripts/get-token.sh 2>/dev/null)" && [[ -n "$TOKEN" ]]; then
+  if TOKEN="$(TOKEN_PROVIDER=auth-api "$ROOT_DIR/scripts/get-token.sh" 2>/dev/null)" && [[ -n "$TOKEN" ]]; then
     break
   fi
   sleep 2
 done
 
 if [[ -z "$TOKEN" ]]; then
-  TOKEN="$($ROOT_DIR/scripts/get-token.sh)"
+  TOKEN="$(TOKEN_PROVIDER=auth-api "$ROOT_DIR/scripts/get-token.sh")"
 fi
 if [[ -z "$TOKEN" ]]; then
   echo "Falha ao obter TOKEN. Você pode informar manualmente via env TOKEN=..." 1>&2

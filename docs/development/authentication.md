@@ -89,9 +89,90 @@ Configuracoes de resiliencia do fetch de JWKS:
 - `Jwt:JwksRetryCount`;
 - `Jwt:JwksRetryBaseDelayMilliseconds`.
 
-## Como obter token localmente
+## Scripts de token locais
 
-Suba o `Auth.Api` via compose ou `dotnet run` e solicite um token:
+Os scripts `scripts/get-token.ps1` e `scripts/get-token.sh` imprimem somente o token em `stdout`. Mensagens de erro vao para `stderr` e nao exibem segredo de client nem senha.
+
+Precedencia:
+
+- `TOKEN` informado por variavel de ambiente e retornado diretamente;
+- `TOKEN_PROVIDER=keycloak`, valor padrao, usa Keycloak local por `client_credentials`;
+- `TOKEN_PROVIDER=auth-api` usa o fallback legado do `Auth.Api` em `POST /auth/login`.
+
+Variaveis Keycloak:
+
+| Variavel | Default local |
+| --- | --- |
+| `KEYCLOAK_BASE_URL` | `http://localhost:<KEYCLOAK_HOST_PORT>` |
+| `KEYCLOAK_HOST_PORT` | `8081` |
+| `KEYCLOAK_REALM` | `poc` |
+| `KEYCLOAK_TOKEN_URL` | `/realms/<realm>/protocol/openid-connect/token` |
+| `KEYCLOAK_CLIENT_ID` | `poc-automation` |
+| `KEYCLOAK_CLIENT_SECRET` | `local_dev_client_secret` |
+| `KEYCLOAK_SCOPE` | vazio, usando os default client scopes do realm |
+
+Variaveis legadas preservadas para `TOKEN_PROVIDER=auth-api`:
+
+| Variavel | Default local |
+| --- | --- |
+| `AUTH_BASE_URL` | `http://localhost:5030` |
+| `TOKEN_URL` | `/auth/login` |
+| `AUTH_POC_USERNAME` ou `USERNAME` | `local_user` |
+| `AUTH_POC_PASSWORD` ou `PASSWORD` | `local_password` |
+| `AUTH_POC_SCOPE` ou `SCOPE` | `ledger.write balance.read` |
+
+O contrato de resposta continua aceitando `access_token` como campo principal e `accessToken` como fallback temporario.
+
+### Keycloak local
+
+Suba o Keycloak com o profile `identity`:
+
+```bash
+docker compose --profile identity up -d keycloak
+```
+
+Obtenha o token:
+
+```bash
+./scripts/get-token.sh
+```
+
+No Windows:
+
+```powershell
+./scripts/get-token.ps1
+```
+
+O fluxo usa `client_credentials` contra o token endpoint do realm:
+
+```bash
+curl -s -X POST http://localhost:8081/realms/poc/protocol/openid-connect/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=client_credentials" \
+  -d "client_id=poc-automation" \
+  -d "client_secret=local_dev_client_secret"
+```
+
+O access token emitido pelo realm local deve conter `iss=http://localhost:8081/realms/poc`, audiences `ledger-api` e `balance-api`, scopes `ledger.write ledger.read balance.read outbox.admin` e `merchant_id=tese m1`.
+
+Enquanto `LedgerService.Api` e `BalanceService.Api` continuarem apontando para o JWKS do `Auth.Api`, tokens Keycloak servem para validar o realm, discovery, JWKS e contrato de claims. Scripts operacionais que chamam APIs protegidas ainda selecionam `TOKEN_PROVIDER=auth-api` explicitamente nesta etapa.
+
+### Fallback Auth.Api
+
+Suba o `Auth.Api` via compose ou `dotnet run` e solicite um token pelo provider legado:
+
+```bash
+TOKEN_PROVIDER=auth-api ./scripts/get-token.sh
+```
+
+No Windows:
+
+```powershell
+$env:TOKEN_PROVIDER = "auth-api"
+./scripts/get-token.ps1
+```
+
+Chamada equivalente:
 
 ```bash
 curl -s -X POST http://localhost:5030/auth/login \
@@ -115,34 +196,7 @@ curl -i http://localhost:5226/api/v1/lancamentos \
   -d '{"type":"CREDIT","merchantId":"tese","amount":10.00}'
 ```
 
-O contrato do `Auth.Api` retorna `access_token`. Alguns scripts aceitam `accessToken` apenas como fallback de compatibilidade.
-
-## Como obter token Keycloak localmente
-
-Suba o Keycloak com o profile `identity`:
-
-```bash
-docker compose --profile identity up -d keycloak
-```
-
-Solicite um token por `client_credentials`:
-
-```bash
-curl -s -X POST http://localhost:8081/realms/poc/protocol/openid-connect/token \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "grant_type=client_credentials" \
-  -d "client_id=poc-automation" \
-  -d "client_secret=local_dev_client_secret"
-```
-
-O access token emitido pelo realm local deve conter:
-
-- `iss`: `http://localhost:8081/realms/poc`;
-- `aud`: `ledger-api` e `balance-api`;
-- `scope`: `ledger.write ledger.read balance.read outbox.admin`, alem de scopes tecnicos que o Keycloak possa incluir;
-- `merchant_id`: `tese m1`.
-
-Enquanto `LedgerService.Api` e `BalanceService.Api` continuarem apontando para `Auth.Api`, use tokens Keycloak apenas para validacao manual do realm, discovery, JWKS e contrato de claims.
+O contrato do `Auth.Api` retorna `access_token`. Os scripts aceitam `accessToken` apenas como fallback de compatibilidade.
 
 ## Cuidados
 

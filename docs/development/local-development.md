@@ -41,7 +41,13 @@ O compose usa defaults ficticios para desenvolvimento local. Para sobrescrever, 
 - `AUTH_POC_USERNAME=local_user`
 - `AUTH_POC_PASSWORD=local_password`
 - `AUTH_POC_SCOPE=ledger.write balance.read`
+- `TOKEN_PROVIDER=keycloak`
 - `KEYCLOAK_HOST_PORT=8081`
+- `KEYCLOAK_BASE_URL=http://localhost:8081`
+- `KEYCLOAK_REALM=poc`
+- `KEYCLOAK_CLIENT_ID=poc-automation`
+- `KEYCLOAK_CLIENT_SECRET=local_dev_client_secret`
+- `KEYCLOAK_SCOPE=`
 - `KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME=local_admin`
 - `KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD=local_admin_password`
 
@@ -127,7 +133,7 @@ O socket Docker, mesmo montado como somente leitura, e uma superficie sensivel. 
 
 ### Keycloak local opcional
 
-O Keycloak fica no `compose.yaml` principal com o profile `identity`, e nao em overlay separado, porque ele e um componente local da propria stack de identidade. O profile evita iniciar o container por padrao enquanto Ledger, Balance e scripts locais ainda usam `Auth.Api` via JWKS.
+O Keycloak fica no `compose.yaml` principal com o profile `identity`, e nao em overlay separado, porque ele e um componente local da propria stack de identidade. O profile evita iniciar o container por padrao enquanto Ledger e Balance ainda validam tokens emitidos pelo `Auth.Api` via JWKS.
 
 Suba apenas o Keycloak:
 
@@ -150,7 +156,7 @@ Credenciais locais descartaveis:
 - usuario: `local_admin`
 - senha: `local_admin_password`
 
-Para sobrescrever porta ou credenciais locais, copie `.env.example` para `.env` e ajuste `KEYCLOAK_HOST_PORT`, `KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME` e `KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD`. Esses valores sao apenas para desenvolvimento local e nao devem ser usados em ambientes compartilhados ou produtivos.
+Para sobrescrever porta, credenciais administrativas ou credenciais do client de automacao local, copie `.env.example` para `.env` e ajuste `KEYCLOAK_HOST_PORT`, `KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME`, `KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD`, `KEYCLOAK_CLIENT_ID` e `KEYCLOAK_CLIENT_SECRET`. Esses valores sao apenas para desenvolvimento local e nao devem ser usados em ambientes compartilhados ou produtivos.
 
 O container usa `start-dev --import-realm`, healthcheck nativo em `/health/ready` na porta de gerenciamento interna `9000` e importa o realm versionado de `infra/keycloak/realm-poc.json`. O compose monta esse arquivo em `/opt/keycloak/data/import/realm-poc.json` como somente leitura.
 
@@ -166,7 +172,19 @@ O realm local importado se chama `poc` e expoe:
 
 O segredo do client `poc-automation` e `local_dev_client_secret`. Ele e um valor ficticio e descartavel, versionado apenas para tornar a POC local reproduzivel. Nao use esse segredo em ambientes compartilhados ou produtivos.
 
-Para obter um token Keycloak local:
+Para obter um token Keycloak local, use os scripts versionados. Eles imprimem somente o token em `stdout`:
+
+```bash
+./scripts/get-token.sh
+```
+
+No Windows:
+
+```powershell
+./scripts/get-token.ps1
+```
+
+Por padrao, `TOKEN_PROVIDER=keycloak` usa `client_credentials` com `KEYCLOAK_CLIENT_ID=poc-automation` e `KEYCLOAK_CLIENT_SECRET=local_dev_client_secret`. A chamada equivalente e:
 
 ```bash
 curl -s -X POST http://localhost:8081/realms/poc/protocol/openid-connect/token \
@@ -176,6 +194,19 @@ curl -s -X POST http://localhost:8081/realms/poc/protocol/openid-connect/token \
   -d "client_secret=local_dev_client_secret"
 ```
 
+Enquanto `LedgerService.Api` e `BalanceService.Api` validarem JWKS do `Auth.Api`, scripts operacionais que chamam APIs protegidas usam o fallback legado explicitamente:
+
+```bash
+TOKEN_PROVIDER=auth-api ./scripts/get-token.sh
+```
+
+No Windows:
+
+```powershell
+$env:TOKEN_PROVIDER = "auth-api"
+./scripts/get-token.ps1
+```
+
 Para validar discovery e JWKS:
 
 ```bash
@@ -183,7 +214,7 @@ curl -s http://localhost:8081/realms/poc/.well-known/openid-configuration
 curl -s http://localhost:8081/realms/poc/protocol/openid-connect/certs
 ```
 
-Nesta etapa, `Auth.Api` continua funcional e continua sendo a origem do JWKS usada por `LedgerService.Api` e `BalanceService.Api`. O Keycloak existe lado a lado para preparar a evolucao descrita na ADR-0006, sem alterar as APIs consumidoras, scripts de token existentes ou testes.
+Nesta etapa, `Auth.Api` continua funcional e continua sendo a origem do JWKS usada por `LedgerService.Api` e `BalanceService.Api`. O Keycloak existe lado a lado para preparar a evolucao descrita na ADR-0006, sem alterar as APIs consumidoras nem testes.
 
 ### Stack completa com observabilidade e Nginx
 
