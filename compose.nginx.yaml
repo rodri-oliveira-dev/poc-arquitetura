@@ -1,3 +1,9 @@
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "${DOCKER_LOG_MAX_SIZE:-10m}"
+    max-file: "${DOCKER_LOG_MAX_FILE:-3}"
+
 services:
   ledger-service:
     profiles:
@@ -9,6 +15,7 @@ services:
       context: .
       dockerfile: src/LedgerService.Api/Dockerfile
     container_name: poc-ledger-service-1
+    logging: *default-logging
     depends_on:
       ledger-db:
         condition: service_healthy
@@ -39,6 +46,7 @@ services:
   ledger-service-2:
     image: poc-arquitetura-ledger-service:local
     container_name: poc-ledger-service-2
+    logging: *default-logging
     depends_on:
       ledger-db:
         condition: service_healthy
@@ -72,6 +80,7 @@ services:
       context: ./infra/nginx
       dockerfile: Dockerfile
     container_name: poc-nginx-edge
+    logging: *default-logging
     depends_on:
       ledger-service-1:
         condition: service_started

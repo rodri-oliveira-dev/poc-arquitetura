@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_FILE="${COMPOSE_FILE:-$ROOT_DIR/compose.yaml}"
+COMPOSE_OBSERVABILITY_FILE="${COMPOSE_OBSERVABILITY_FILE:-$ROOT_DIR/compose.observability.yaml}"
 NO_BUILD="${NO_BUILD:-false}"
 OBSERVABILITY="${OBSERVABILITY:-false}"
 
@@ -107,7 +108,7 @@ dotnet tool restore
 compose_up=(docker compose -f "$COMPOSE_FILE" up -d)
 if [[ "$OBSERVABILITY" == "true" ]]; then
   export OTEL_ENABLED="${OTEL_ENABLED:-true}"
-  compose_up=(docker compose -f "$COMPOSE_FILE" --profile observability up -d)
+  compose_up=(docker compose -f "$COMPOSE_FILE" -f "$COMPOSE_OBSERVABILITY_FILE" --profile observability up -d)
 fi
 
 if [[ "$NO_BUILD" != "true" ]]; then
@@ -143,7 +144,7 @@ run_migration \
 
 api_up=(docker compose -f "$COMPOSE_FILE" up -d)
 if [[ "$OBSERVABILITY" == "true" ]]; then
-  api_up=(docker compose -f "$COMPOSE_FILE" --profile observability up -d)
+  api_up=(docker compose -f "$COMPOSE_FILE" -f "$COMPOSE_OBSERVABILITY_FILE" --profile observability up -d)
 fi
 
 if [[ "$NO_BUILD" != "true" ]]; then

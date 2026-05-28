@@ -1,3 +1,9 @@
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "${DOCKER_LOG_MAX_SIZE:-10m}"
+    max-file: "${DOCKER_LOG_MAX_FILE:-3}"
+
 services:
   ledger-service:
     environment:
@@ -14,6 +20,7 @@ services:
   k6:
     image: docker.io/grafana/k6:1.7.1
     container_name: poc-k6
+    logging: *default-logging
     profiles:
       - k6
     working_dir: /scripts

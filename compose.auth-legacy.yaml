@@ -1,3 +1,9 @@
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "${DOCKER_LOG_MAX_SIZE:-10m}"
+    max-file: "${DOCKER_LOG_MAX_FILE:-3}"
+
 volumes:
   auth-api-data:
 
@@ -7,6 +13,7 @@ services:
       context: .
       dockerfile: src/Auth.Api/Dockerfile
     container_name: poc-auth-api
+    logging: *default-logging
     profiles:
       - legacy-auth
     environment:

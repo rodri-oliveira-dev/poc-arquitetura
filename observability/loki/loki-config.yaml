@@ -14,6 +14,11 @@ common:
       chunks_directory: /loki/chunks
       rules_directory: /loki/rules
 
+compactor:
+  working_directory: /loki/compactor
+  retention_enabled: true
+  delete_request_store: filesystem
+
 schema_config:
   configs:
     - from: 2024-04-01
@@ -28,3 +33,4 @@ limits_config:
   allow_structured_metadata: true
   discover_log_levels: false
   discover_service_name: []
+  retention_period: 6h

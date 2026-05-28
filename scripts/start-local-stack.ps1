@@ -9,6 +9,7 @@ $ErrorActionPreference = "Stop"
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $root = (Resolve-Path (Join-Path $scriptDir ".."))
+$composeObservabilityFile = Join-Path $root "compose.observability.yaml"
 
 function Get-LocalEnvValue([string]$Name) {
   $envPath = Join-Path $root ".env"
@@ -156,7 +157,7 @@ try {
 
   $infraArgs = @("compose", "-f", $ComposeFile, "up", "-d")
   if ($Observability) {
-    $infraArgs = @("compose", "-f", $ComposeFile, "--profile", "observability", "up", "-d")
+    $infraArgs = @("compose", "-f", $ComposeFile, "-f", $composeObservabilityFile, "--profile", "observability", "up", "-d")
   }
 
   if (-not $NoBuild) {
@@ -201,7 +202,7 @@ try {
 
   $apiArgs = @("compose", "-f", $ComposeFile, "up", "-d")
   if ($Observability) {
-    $apiArgs = @("compose", "-f", $ComposeFile, "--profile", "observability", "up", "-d")
+    $apiArgs = @("compose", "-f", $ComposeFile, "-f", $composeObservabilityFile, "--profile", "observability", "up", "-d")
   }
 
   if (-not $NoBuild) {

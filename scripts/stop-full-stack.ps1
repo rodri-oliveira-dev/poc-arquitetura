@@ -8,6 +8,7 @@ $ErrorActionPreference = "Stop"
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $root = (Resolve-Path (Join-Path $scriptDir ".."))
 $composeFile = Join-Path $root "compose.yaml"
+$composeObservabilityFile = Join-Path $root "compose.observability.yaml"
 $composeNginxFile = Join-Path $root "compose.nginx.yaml"
 
 function Assert-DockerComposeAvailable {
@@ -36,6 +37,7 @@ try {
   Invoke-DockerCompose @(
     "compose",
     "-f", $composeFile,
+    "-f", $composeObservabilityFile,
     "-f", $composeNginxFile,
     "--profile", "observability",
     "stop",
@@ -49,6 +51,7 @@ try {
   Invoke-DockerCompose @(
     "compose",
     "-f", $composeFile,
+    "-f", $composeObservabilityFile,
     "--profile", "observability",
     "stop",
     "--timeout", $TimeoutSeconds.ToString()

@@ -63,7 +63,7 @@ dotnet build ./LedgerService.slnx --configuration Release --no-restore
 dotnet test ./LedgerService.slnx --configuration Release --no-build --settings ./coverlet.runsettings
 ```
 
-Suba a stack local minima no Windows:
+Suba o core funcional local no Windows:
 
 ```powershell
 ./scripts/start-local-stack.ps1
@@ -75,7 +75,7 @@ No Linux/macOS:
 ./scripts/start-local-stack.sh
 ```
 
-Esse script sobe infraestrutura, aplica migrations pelo host e inicia as APIs depois do schema estar pronto. O passo a passo manual fica em [desenvolvimento local](docs/development/local-development.md).
+Esse script sobe o core funcional local: bancos Ledger/Balance persistentes, Kafka, Keycloak, APIs e workers. Ele aplica migrations pelo host e inicia as APIs depois do schema estar pronto. O passo a passo manual fica em [desenvolvimento local](docs/development/local-development.md).
 
 Para incluir observabilidade local completa:
 
@@ -88,6 +88,8 @@ No Linux/macOS:
 ```bash
 OBSERVABILITY=true ./scripts/start-local-stack.sh
 ```
+
+A observabilidade fica no overlay `compose.observability.yaml`. O modo padrao de desenvolvimento nao sobe Jaeger, Collector, Prometheus, Loki, Alloy, Alertmanager nem Grafana, mas continua subindo `ledger-worker` e `balance-worker` para preservar o fluxo ponta a ponta.
 
 Para subir a stack completa com observabilidade e Nginx HTTPS local, gere antes os certificados em `infra/nginx/certs/` conforme [desenvolvimento local](docs/development/local-development.md#borda-local-https-com-nginx):
 
@@ -118,6 +120,8 @@ Se houver containers antigos ou rede local presa do proprio projeto, o script pe
 | Stack com observabilidade | `./scripts/start-local-stack.ps1 -Observability` ou `OBSERVABILITY=true ./scripts/start-local-stack.sh` |
 | Stack completa com Nginx | `./scripts/start-full-stack.ps1` ou `./scripts/start-full-stack.sh` |
 | Parar stack completa | `./scripts/stop-full-stack.ps1` ou `./scripts/stop-full-stack.sh` |
+| Diagnosticar disco Docker | `./scripts/docker-disk-report.ps1` ou `./scripts/docker-disk-report.sh` |
+| Limpeza segura Docker | `./scripts/docker-clean-safe.ps1` ou `./scripts/docker-clean-safe.sh` |
 | Load test smoke | `./scripts/run-loadtests.ps1 -Mode smoke` ou `./scripts/run-loadtests.sh smoke` |
 | OWASP ZAP local | `./scripts/run-owasp-zap.ps1` ou `./scripts/run-owasp-zap.sh` |
 

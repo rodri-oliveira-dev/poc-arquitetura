@@ -1,5 +1,11 @@
 name: poc-arquitetura
 
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "${DOCKER_LOG_MAX_SIZE:-10m}"
+    max-file: "${DOCKER_LOG_MAX_FILE:-3}"
+
 networks:
   poc-net:
     driver: bridge
@@ -7,7 +13,6 @@ networks:
 volumes:
   ledger-postgres-data:
   balance-postgres-data:
-  alloy-data:
 
 
 services:
@@ -15,6 +20,7 @@ services:
   ledger-db:
     image: docker.io/postgres:16
     container_name: poc-ledger-db
+    logging: *default-logging
     environment:
       POSTGRES_DB: appdb
       POSTGRES_USER: appuser
@@ -42,6 +48,7 @@ services:
   balance-db:
     image: docker.io/postgres:16
     container_name: poc-balance-db
+    logging: *default-logging
     environment:
       POSTGRES_DB: "${BALANCE_DB_NAME:-dbBalance}"
       POSTGRES_USER: "${BALANCE_DB_USER:-userBalance}"
@@ -71,6 +78,7 @@ services:
     # Usamos a imagem oficial do Apache Kafka no Docker Hub.
     image: docker.io/apache/kafka:3.7.0
     container_name: poc-kafka
+    logging: *default-logging
     environment:
       # KRaft (sem ZooKeeper)
       KAFKA_NODE_ID: "1"
@@ -113,6 +121,7 @@ services:
   kafka-init-topics:
     image: docker.io/apache/kafka:3.7.0
     container_name: poc-kafka-init-topics
+    logging: *default-logging
     depends_on:
       kafka:
         condition: service_healthy
@@ -143,182 +152,13 @@ services:
           --topic ledger.ledgerentry.created.dlq --partitions 1 --replication-factor 1;
         echo "[kafka-init-topics] OK.";
 
-  # --- Observability ---
-  jaeger:
-    image: jaegertracing/all-in-one:1.76.0
-    container_name: poc-jaeger
-    profiles:
-      - observability
-    environment:
-      COLLECTOR_OTLP_ENABLED: "true"
-    ports:
-      - "16686:16686"
-      - "4317:4317"
-      - "4318:4318"
-    deploy:
-      resources:
-        limits:
-          cpus: "0.50"
-          memory: 512m
-          pids: 256
-    networks:
-      - poc-net
-
-  otel-collector:
-    image: docker.io/otel/opentelemetry-collector-contrib:0.152.0
-    container_name: poc-otel-collector
-    profiles:
-      - observability
-    command: [ "--config=/etc/otelcol/config.yaml" ]
-    depends_on:
-      jaeger:
-        condition: service_started
-    volumes:
-      - ./observability/otel-collector-config.yaml:/etc/otelcol/config.yaml:ro
-    expose:
-      - "4317"
-      - "4318"
-      - "9464"
-    deploy:
-      resources:
-        limits:
-          cpus: "0.25"
-          memory: 256m
-          pids: 128
-    networks:
-      - poc-net
-
-  prometheus:
-    image: docker.io/prom/prometheus:v3.8.0
-    container_name: poc-prometheus
-    profiles:
-      - observability
-    depends_on:
-      otel-collector:
-        condition: service_started
-      alertmanager:
-        condition: service_started
-    command:
-      - "--config.file=/etc/prometheus/prometheus.yml"
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./observability/prometheus:/etc/prometheus:ro
-    deploy:
-      resources:
-        limits:
-          cpus: "0.25"
-          memory: 256m
-          pids: 128
-    networks:
-      - poc-net
-
-  loki:
-    image: docker.io/grafana/loki:3.7.0
-    container_name: poc-loki
-    profiles:
-      - observability
-    command:
-      - "-config.file=/etc/loki/loki-config.yaml"
-    ports:
-      - "3100:3100"
-    volumes:
-      - ./observability/loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
-    deploy:
-      resources:
-        limits:
-          cpus: "0.25"
-          memory: 256m
-          pids: 128
-    networks:
-      - poc-net
-
-  alloy:
-    image: docker.io/grafana/alloy:v1.16.0
-    container_name: poc-alloy
-    profiles:
-      - observability
-    command:
-      - "run"
-      - "--server.http.listen-addr=0.0.0.0:12345"
-      - "--storage.path=/var/lib/alloy/data"
-      - "/etc/alloy/config.alloy"
-    depends_on:
-      loki:
-        condition: service_started
-    ports:
-      - "12345:12345"
-    volumes:
-      - ./observability/alloy/config.alloy:/etc/alloy/config.alloy:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - alloy-data:/var/lib/alloy/data
-    deploy:
-      resources:
-        limits:
-          cpus: "0.25"
-          memory: 256m
-          pids: 128
-    networks:
-      - poc-net
-
-  alertmanager:
-    image: docker.io/prom/alertmanager:v0.29.0
-    container_name: poc-alertmanager
-    profiles:
-      - observability
-    command:
-      - "--config.file=/etc/alertmanager/alertmanager.yml"
-      - "--storage.path=/alertmanager"
-    ports:
-      - "9093:9093"
-    volumes:
-      - ./observability/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
-    deploy:
-      resources:
-        limits:
-          cpus: "0.25"
-          memory: 128m
-          pids: 128
-    networks:
-      - poc-net
-
-  grafana:
-    image: docker.io/grafana/grafana:12.3.0
-    container_name: poc-grafana
-    profiles:
-      - observability
-    depends_on:
-      prometheus:
-        condition: service_started
-      loki:
-        condition: service_started
-      jaeger:
-        condition: service_started
-    environment:
-      GF_SECURITY_ADMIN_USER: "admin"
-      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD:-local_dev_password}"
-      GF_PLUGINS_PREINSTALL_DISABLED: "true"
-    ports:
-      - "3000:3000"
-    volumes:
-      - ./observability/grafana/provisioning/datasources/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
-      - ./observability/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
-      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
-    deploy:
-      resources:
-        limits:
-          cpus: "0.25"
-          memory: 256m
-          pids: 128
-    networks:
-      - poc-net
-
   # --- Microservices ---
   ledger-service:
     build:
       context: .
       dockerfile: src/LedgerService.Api/Dockerfile
     container_name: poc-ledger-service
+    logging: *default-logging
     depends_on:
       ledger-db:
         condition: service_healthy
@@ -361,6 +201,7 @@ services:
       context: .
       dockerfile: src/LedgerService.Worker/Dockerfile
     container_name: poc-ledger-worker
+    logging: *default-logging
     depends_on:
       ledger-db:
         condition: service_healthy
@@ -395,6 +236,7 @@ services:
       context: .
       dockerfile: src/BalanceService.Api/Dockerfile
     container_name: poc-balance-service
+    logging: *default-logging
     depends_on:
       balance-db:
         condition: service_healthy
@@ -436,6 +278,7 @@ services:
       context: .
       dockerfile: src/BalanceService.Worker/Dockerfile
     container_name: poc-balance-worker
+    logging: *default-logging
     depends_on:
       balance-db:
         condition: service_healthy
@@ -466,6 +309,7 @@ services:
   keycloak:
     image: quay.io/keycloak/keycloak:26.6.2
     container_name: poc-keycloak
+    logging: *default-logging
     command: [ "start-dev", "--import-realm" ]
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: "${KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME:-local_admin}"
