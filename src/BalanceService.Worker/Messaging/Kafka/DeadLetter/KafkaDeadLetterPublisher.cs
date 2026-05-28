@@ -65,12 +65,12 @@ public sealed class KafkaDeadLetterPublisher : IDeadLetterPublisher, IDisposable
             { "original_offset", Encoding.UTF8.GetBytes(originalOffset) }
         };
 
-        KafkaTraceContext.CopyHeaderIfPresent(message.Attributes, headers, KafkaHeaderNames.EventType);
-        KafkaTraceContext.CopyHeaderIfPresent(message.Attributes, headers, KafkaHeaderNames.EventId);
-        KafkaTraceContext.CopyHeaderIfPresent(message.Attributes, headers, KafkaHeaderNames.CorrelationId);
-        KafkaTraceContext.CopyHeaderIfPresent(message.Attributes, headers, KafkaHeaderNames.TraceParent);
-        KafkaTraceContext.CopyHeaderIfPresent(message.Attributes, headers, KafkaHeaderNames.TraceState);
-        KafkaTraceContext.CopyHeaderIfPresent(message.Attributes, headers, KafkaHeaderNames.Baggage);
+        KafkaTraceContext.CopyHeaderIfPresent(message.Attributes, headers, MessageAttributeNames.EventType);
+        KafkaTraceContext.CopyHeaderIfPresent(message.Attributes, headers, MessageAttributeNames.EventId);
+        KafkaTraceContext.CopyHeaderIfPresent(message.Attributes, headers, MessageAttributeNames.CorrelationId);
+        KafkaTraceContext.CopyHeaderIfPresent(message.Attributes, headers, MessageAttributeNames.TraceParent);
+        KafkaTraceContext.CopyHeaderIfPresent(message.Attributes, headers, MessageAttributeNames.TraceState);
+        KafkaTraceContext.CopyHeaderIfPresent(message.Attributes, headers, MessageAttributeNames.Baggage);
 
         try
         {
@@ -111,7 +111,7 @@ public sealed class KafkaDeadLetterPublisher : IDeadLetterPublisher, IDisposable
     }
 
     internal static string ResolveEventType(IReadOnlyDictionary<string, string> attributes)
-        => attributes.TryGetValue(KafkaHeaderNames.EventType, out var eventType) && !string.IsNullOrWhiteSpace(eventType)
+        => attributes.TryGetValue(MessageAttributeNames.EventType, out var eventType) && !string.IsNullOrWhiteSpace(eventType)
             ? eventType
             : "unknown";
 
@@ -123,8 +123,8 @@ public sealed class KafkaDeadLetterPublisher : IDeadLetterPublisher, IDisposable
         if (string.Equals(reason, "Non-recoverable processing failure.", StringComparison.Ordinal))
             return "non_recoverable_processing_failure";
 
-        if (reason.StartsWith("Missing required Kafka header", StringComparison.Ordinal) ||
-            reason.StartsWith("Unsupported Kafka event_type", StringComparison.Ordinal) ||
+        if (reason.StartsWith("Missing required message attribute", StringComparison.Ordinal) ||
+            reason.StartsWith("Unsupported message event_type", StringComparison.Ordinal) ||
             reason.StartsWith("Message payload", StringComparison.Ordinal))
         {
             return "validation_failed";

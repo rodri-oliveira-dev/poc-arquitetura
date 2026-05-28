@@ -285,7 +285,7 @@ Quando `Observability:OpenTelemetry:Enabled=true`, as APIs registram:
 Quando `Observability:OpenTelemetry:Enabled=true`, os workers registram `Activity` em trechos de Kafka/Outbox instrumentados no codigo:
 
 - `LedgerService.OutboxPublisher`, para publicacao do Outbox no Kafka;
-- `BalanceService.KafkaConsumer`, para consumo Kafka.
+- `BalanceService.MessageProcessor`, para o processor neutro que aplica mensagens recebidas depois do mapeamento do adapter Kafka.
 
 As APIs registram spans HTTP e `HttpClient`; o `BalanceService.Api` tambem registra `BalanceService.Application` para consultas de consolidado.
 

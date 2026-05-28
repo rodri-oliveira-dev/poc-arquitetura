@@ -42,6 +42,22 @@ Execute a stack local antes dos testes. Os runners precisam do Keycloak local pa
 
 Mantenha `LedgerService.Worker` e `BalanceService.Worker` em execucao quando quiser validar efeitos assincronos entre Outbox, Kafka e projecao de saldos. Os workers nao sao tratados como APIs HTTP.
 
+## Mensageria, Outbox e cenarios futuros
+
+Os cenarios k6 atuais exercitam as APIs HTTP e, indiretamente, podem gerar backlog na Outbox quando os workers estao ativos. Eles nao validam diretamente internals de provider, commit Kafka, DLQ ou idempotencia do consumer.
+
+Para carga focada no fluxo assincrono, mantenha Kafka como provider atual e acompanhe banco, logs e metricas dos workers. Cenarios recomendados para evolucao futura:
+
+- alto volume de criacao de lancamentos no `LedgerService.Api`;
+- crescimento e drenagem de `outbox_messages` por status;
+- publicacao em lote pelo `OutboxPublisherService` via `IOutboxMessagePublisher`;
+- consumo pelo `BalanceService.Worker` apos mapeamento Kafka para `ReceivedMessage`;
+- duplicidade de mensagens e idempotencia em `processed_events`;
+- falhas temporarias do broker atual e efeito em retry/backoff;
+- DLQ por payload invalido ou contrato rejeitado.
+
+Pub/Sub nao esta implementado e nao deve aparecer como alvo de carga nesta etapa. Quando existir adapter Pub/Sub, os cenarios devem tratar ack/nack, subscription, delivery attempt e ordering key como detalhes desse provider, sem usar partition/offset/commit como expectativa generica.
+
 O override `compose.k6.yaml` aumenta limites tecnicos de rate limiting das APIs durante a execucao de carga. Os runners recriam os containers HTTP alvo para garantir que os overrides e connection strings efetivos sejam aplicados. Isso evita que os cenarios de throughput validem apenas o limitador local, mantendo os asserts de status e erro HTTP.
 
 Antes de executar o k6, os runners validam autenticacao real no PostgreSQL do Balance com as variaveis `BALANCE_DB_USER`, `BALANCE_DB_NAME` e `BALANCE_DB_PASSWORD`. Se o volume local tiver sido criado com senha antiga, o runner para antes do teste e aponta para o troubleshooting; nenhum volume e apagado automaticamente.

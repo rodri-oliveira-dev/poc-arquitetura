@@ -5,8 +5,7 @@ using BalanceService.Application.Balances.Commands;
 using BalanceService.Domain.Balances;
 using BalanceService.Domain.Exceptions;
 using BalanceService.Worker.Messaging.Abstractions;
-using BalanceService.Worker.Messaging.Kafka.Contracts;
-using BalanceService.Worker.Messaging.Kafka.Tracing;
+using BalanceService.Worker.Messaging.Contracts;
 using BalanceService.Worker.Observability;
 
 using MediatR;
@@ -14,11 +13,13 @@ using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-namespace BalanceService.Worker.Messaging.Kafka.Processors;
+namespace BalanceService.Worker.Messaging.Processors;
 
 public sealed class LedgerEntryCreatedMessageProcessor
 {
-    private static readonly ActivitySource ActivitySource = new("BalanceService.KafkaConsumer");
+    public const string ActivitySourceName = "BalanceService.MessageProcessor";
+
+    private static readonly ActivitySource ActivitySource = new(ActivitySourceName);
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     private readonly IServiceProvider _serviceProvider;
@@ -59,8 +60,6 @@ public sealed class LedgerEntryCreatedMessageProcessor
                 ["OccurredAt"] = evt.OccurredAt,
                 ["TransportProvider"] = message.Transport.Provider,
                 ["TransportSource"] = message.Transport.Source,
-                ["TransportPartition"] = message.Transport.Partition,
-                ["TransportOffset"] = message.Transport.Offset,
                 ["EventType"] = message.EventType
             });
 
@@ -151,18 +150,15 @@ public sealed class LedgerEntryCreatedMessageProcessor
 
     private static Activity? StartConsumerActivity(ReceivedMessage message, LedgerEntryCreatedEvent evt)
     {
-        var activity = KafkaTraceContext.StartConsumerActivity(
-            ActivitySource,
-            "kafka.consume",
+        var activity = StartActivity(
+            "message.process",
             message.TraceParent,
             message.TraceState,
             message.Baggage);
 
         activity?.SetTag("messaging.system", message.Transport.Provider);
-        activity?.SetTag("messaging.operation", "consume");
+        activity?.SetTag("messaging.operation", "process");
         activity?.SetTag("messaging.destination", message.Transport.Source);
-        activity?.SetTag("messaging.kafka.partition", message.Transport.Partition);
-        activity?.SetTag("messaging.kafka.offset", message.Transport.Offset);
         activity?.SetTag("correlation_id", evt.CorrelationId);
         activity?.SetTag("event_id", ResolveEventId(message, evt.Id));
         activity?.SetTag("event_type", message.EventType);
@@ -171,13 +167,42 @@ public sealed class LedgerEntryCreatedMessageProcessor
         return activity;
     }
 
+    private static Activity? StartActivity(
+        string operationName,
+        string? traceParent,
+        string? traceState,
+        string? baggage)
+    {
+        Activity? activity = null;
+
+        if (!string.IsNullOrWhiteSpace(traceParent) &&
+            ActivityContext.TryParse(traceParent, traceState, out var parentContext))
+        {
+            activity = ActivitySource.StartActivity(operationName, ActivityKind.Consumer, parentContext);
+        }
+
+        activity ??= ActivitySource.StartActivity(operationName, ActivityKind.Consumer);
+
+        if (activity is not null && !string.IsNullOrWhiteSpace(baggage))
+        {
+            foreach (var item in baggage.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                var parts = item.Split('=', 2, StringSplitOptions.TrimEntries);
+                if (parts.Length == 2 && !string.IsNullOrWhiteSpace(parts[0]))
+                    activity.AddBaggage(parts[0], parts[1]);
+            }
+        }
+
+        return activity;
+    }
+
     private static void ValidateEventType(ReceivedMessage message)
     {
         if (string.IsNullOrWhiteSpace(message.EventType))
-            throw new MessageValidationException("Missing required Kafka header event_type.");
+            throw new MessageValidationException("Missing required message attribute event_type.");
 
         if (!string.Equals(message.EventType, LedgerEntryCreatedV1Contract.EventType, StringComparison.Ordinal))
-            throw new MessageValidationException($"Unsupported Kafka event_type '{message.EventType}'.");
+            throw new MessageValidationException($"Unsupported message event_type '{message.EventType}'.");
     }
 
     private static void ValidateEvent(LedgerEntryCreatedEvent? evt)

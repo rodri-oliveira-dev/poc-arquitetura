@@ -45,6 +45,8 @@ views {
     include kafka.ledgerTopic
     include balance.balanceWorker
     include balance.balanceConsumer
+    include balance.balanceReceivedMessageMapper
+    include balance.balanceMessageProcessor
     include balance.balanceDb
     include balance.balanceApi
     include observability.collector
@@ -94,6 +96,8 @@ views {
     include ledger.ledgerWorkerApplication
     include ledger.ledgerWorkerInfrastructure
     include ledger.ledgerOutbox
+    include ledger.ledgerOutboxPublisherPort
+    include ledger.ledgerKafkaOutboxPublisher
     include ledger.ledgerEstornoProcessor
     include ledger.ledgerReprocessamentoConsumer
     include ledger.ledgerDb
@@ -120,6 +124,9 @@ views {
     include balance.balanceWorkerApplication
     include balance.balanceWorkerInfrastructure
     include balance.balanceConsumer
+    include balance.balanceReceivedMessageMapper
+    include balance.balanceMessageProcessor
+    include balance.balanceDeadLetterPort
     include balance.balanceDb
     include kafka.ledgerTopic
     include kafka.ledgerDlq

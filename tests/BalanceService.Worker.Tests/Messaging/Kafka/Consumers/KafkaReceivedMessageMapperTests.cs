@@ -1,8 +1,8 @@
 using System.Text;
 
+using BalanceService.Worker.Messaging.Abstractions;
+using BalanceService.Worker.Messaging.Contracts;
 using BalanceService.Worker.Messaging.Kafka.Consumers;
-using BalanceService.Worker.Messaging.Kafka.Contracts;
-using BalanceService.Worker.Messaging.Kafka.Tracing;
 
 using Confluent.Kafka;
 
@@ -24,12 +24,12 @@ public sealed class KafkaReceivedMessageMapperTests
                 Value = "{\"id\":\"lan_1\"}",
                 Headers = new Headers
                 {
-                    { KafkaHeaderNames.EventType, Encoding.UTF8.GetBytes(LedgerEntryCreatedV1Contract.EventType) },
-                    { KafkaHeaderNames.EventId, Encoding.UTF8.GetBytes("evt-1") },
-                    { KafkaHeaderNames.CorrelationId, Encoding.UTF8.GetBytes("corr-1") },
-                    { KafkaHeaderNames.TraceParent, Encoding.UTF8.GetBytes("traceparent") },
-                    { KafkaHeaderNames.TraceState, Encoding.UTF8.GetBytes("tracestate") },
-                    { KafkaHeaderNames.Baggage, Encoding.UTF8.GetBytes("tenant=poc") }
+                    { MessageAttributeNames.EventType, Encoding.UTF8.GetBytes(LedgerEntryCreatedV1Contract.EventType) },
+                    { MessageAttributeNames.EventId, Encoding.UTF8.GetBytes("evt-1") },
+                    { MessageAttributeNames.CorrelationId, Encoding.UTF8.GetBytes("corr-1") },
+                    { MessageAttributeNames.TraceParent, Encoding.UTF8.GetBytes("traceparent") },
+                    { MessageAttributeNames.TraceState, Encoding.UTF8.GetBytes("tracestate") },
+                    { MessageAttributeNames.Baggage, Encoding.UTF8.GetBytes("tenant=poc") }
                 }
             }
         };

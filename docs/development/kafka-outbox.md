@@ -4,6 +4,8 @@ Este documento concentra a referencia de mensageria entre `LedgerService.Api`, `
 
 Kafka e a implementacao atual de mensageria nesta POC. O boundary dos workers usa portas neutras para publicacao, consumo e DLQ, enquanto os adapters Kafka concentram detalhes como topicos, partitions, offsets, keys e commit. Pub/Sub nao esta implementado; ele e apenas um adapter futuro possivel.
 
+Em termos de desenho, a aplicacao trata `OrderingKey` como conceito logico de ordenacao por agregado/entidade. No adapter Kafka atual, esse valor e materializado como message key e influencia o particionamento; em um adapter Pub/Sub futuro, ordering key, ack/nack, subscription e delivery attempt devem ser tratados como semantica propria do provider, sem simular partition, offset ou commit dentro dos processors neutros.
+
 Configuracao neutra:
 
 ```json
@@ -26,6 +28,16 @@ Configuracao neutra:
 6. `LedgerService.Worker` hospeda `ReprocessamentoLancamentosConsumerService`, que consome `ledger.lancamentos.reprocessamento.solicitado`, chama o caso de uso de reprocessamento e registra eventos financeiros finais no Outbox quando houver lancamentos elegiveis.
 7. `BalanceService.Worker` consome apenas `LedgerEntryCreated.v1` e atualiza a projecao `daily_balances`.
 8. Mensagens invalidas ou nao recuperaveis do fluxo consumido pelo Balance sao publicadas pela porta neutra de DLQ; nesta POC, a DLQ concreta e um topico Kafka.
+
+No consumo do Balance, o fluxo interno esperado e:
+
+```text
+KafkaLedgerEventsConsumer
+  -> KafkaReceivedMessageMapper
+  -> ReceivedMessage
+  -> LedgerEntryCreatedMessageProcessor
+  -> Application Handler
+```
 
 ## Topicos e evento
 

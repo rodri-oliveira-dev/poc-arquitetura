@@ -27,12 +27,12 @@ internal static class KafkaReceivedMessageMapper
 
         return new ReceivedMessage(
             result.Message.Value,
-            GetAttribute(attributes, KafkaHeaderNames.EventType) ?? string.Empty,
-            GetAttribute(attributes, KafkaHeaderNames.EventId),
-            GetAttribute(attributes, KafkaHeaderNames.CorrelationId),
-            GetAttribute(attributes, KafkaHeaderNames.TraceParent),
-            GetAttribute(attributes, KafkaHeaderNames.TraceState),
-            GetAttribute(attributes, KafkaHeaderNames.Baggage),
+            GetAttribute(attributes, MessageAttributeNames.EventType) ?? string.Empty,
+            GetAttribute(attributes, MessageAttributeNames.EventId),
+            GetAttribute(attributes, MessageAttributeNames.CorrelationId),
+            GetAttribute(attributes, MessageAttributeNames.TraceParent),
+            GetAttribute(attributes, MessageAttributeNames.TraceState),
+            GetAttribute(attributes, MessageAttributeNames.Baggage),
             result.Message.Key,
             attributes,
             new TransportMessageContext(

@@ -140,6 +140,14 @@ model {
         description "BackgroundService que faz claim de mensagens, publica pela porta de mensageria configurada e marca Processed/DeadLetter com retry/backoff."
       }
 
+      ledgerOutboxPublisherPort = component "IOutboxMessagePublisher" {
+        description "Porta neutra usada pelo OutboxPublisherService para entregar mensagens sem depender diretamente de Kafka."
+      }
+
+      ledgerKafkaOutboxPublisher = component "KafkaOutboxMessagePublisher" {
+        description "Adapter Kafka atual da porta IOutboxMessagePublisher; resolve topicos, keys, headers e confirmacao de publicacao."
+      }
+
       ledgerEstornoProcessor = component "Estorno processor" {
         description "BackgroundService que busca estornos Pending, envia ProcessarEstornoLancamentoCommand e cria lancamento compensatorio idempotente."
       }
@@ -195,8 +203,20 @@ model {
         description "Adapters exclusivos do Worker: provider Kafka atual, DLQ, metrics e HostedService registrados pelo processo Worker."
       }
 
-      balanceConsumer = component "Kafka consumer" {
-        description "BackgroundService que consome LedgerEntryCreated.v1, valida headers/payload, aplica projecao ou envia para DLQ."
+      balanceConsumer = component "Kafka ledger events consumer" {
+        description "Adapter Kafka que consome LedgerEntryCreated.v1, controla commit e delega o conteudo para o mapper e processor neutro."
+      }
+
+      balanceReceivedMessageMapper = component "KafkaReceivedMessageMapper" {
+        description "Mapper do adapter Kafka que transforma ConsumeResult em ReceivedMessage, preservando attributes, ordering key e TransportMessageContext."
+      }
+
+      balanceMessageProcessor = component "LedgerEntryCreatedMessageProcessor" {
+        description "Processor neutro que recebe ReceivedMessage, valida o contrato logico, aplica a projecao via Application ou envia mensagem para a porta de DLQ."
+      }
+
+      balanceDeadLetterPort = component "IDeadLetterPublisher" {
+        description "Porta neutra de DLQ usada pelo processor; KafkaDeadLetterPublisher e a implementacao atual."
       }
     }
 
@@ -250,9 +270,11 @@ model {
   ledger.ledgerWorker.ledgerEstornoProcessor -> ledger.ledgerDb "Busca estornos Pending e atualiza status" "EF Core / SQL"
   ledger.ledgerWorker.ledgerEstornoProcessor -> ledger.ledgerWorker.ledgerWorkerApplication "Envia ProcessarEstornoLancamentoCommand" "MediatR"
   ledger.ledgerWorker.ledgerOutbox -> ledger.ledgerDb "Le e atualiza outbox_messages" "EF Core / SQL"
-  ledger.ledgerWorker.ledgerOutbox -> kafka.ledgerTopic "Publica LedgerEntryCreated.v1" "Kafka"
-  ledger.ledgerWorker.ledgerOutbox -> kafka.ledgerEstornoTopic "Publica LancamentoEstornoSolicitado.v1" "Kafka"
-  ledger.ledgerWorker.ledgerOutbox -> kafka.ledgerReprocessamentoTopic "Publica ReprocessamentoLancamentosSolicitado.v1" "Kafka"
+  ledger.ledgerWorker.ledgerOutbox -> ledger.ledgerWorker.ledgerOutboxPublisherPort "Publica mensagens pendentes" "porta"
+  ledger.ledgerWorker.ledgerOutboxPublisherPort -> ledger.ledgerWorker.ledgerKafkaOutboxPublisher "Adapter atual" "DI"
+  ledger.ledgerWorker.ledgerKafkaOutboxPublisher -> kafka.ledgerTopic "Publica LedgerEntryCreated.v1" "Kafka"
+  ledger.ledgerWorker.ledgerKafkaOutboxPublisher -> kafka.ledgerEstornoTopic "Publica LancamentoEstornoSolicitado.v1" "Kafka"
+  ledger.ledgerWorker.ledgerKafkaOutboxPublisher -> kafka.ledgerReprocessamentoTopic "Publica ReprocessamentoLancamentosSolicitado.v1" "Kafka"
   ledger.ledgerWorker.ledgerReprocessamentoConsumer -> kafka.ledgerReprocessamentoTopic "Consome ReprocessamentoLancamentosSolicitado.v1" "Kafka"
   ledger.ledgerWorker.ledgerReprocessamentoConsumer -> ledger.ledgerWorker.ledgerWorkerApplication "Envia ProcessarReprocessamentoLancamentosCommand" "MediatR"
   ledger.ledgerWorker.ledgerReprocessamentoConsumer -> ledger.ledgerDb "Atualiza status e registra eventos finais no Outbox" "EF Core / SQL"
@@ -261,9 +283,12 @@ model {
   balance.balanceWorker.balanceWorkerComposition -> balance.balanceWorker.balanceWorkerInfrastructure "Registra adapters e HostedServices" "DI"
   balance.balanceWorker.balanceWorkerInfrastructure -> balance.balanceDb "Usa persistence e repositories" "EF Core"
   balance.balanceWorker.balanceConsumer -> kafka.ledgerTopic "Consome LedgerEntryCreated.v1, inclusive compensatorios e replays de reprocessamento" "Kafka"
-  balance.balanceWorker.balanceConsumer -> kafka.ledgerDlq "Publica mensagens invalidas" "Kafka"
-  balance.balanceWorker.balanceConsumer -> balance.balanceWorker.balanceWorkerApplication "Envia comando de aplicacao de evento" "MediatR"
-  balance.balanceWorker.balanceConsumer -> balance.balanceDb "Atualiza daily_balances e processed_events" "EF Core"
+  balance.balanceWorker.balanceConsumer -> balance.balanceWorker.balanceReceivedMessageMapper "Mapeia transporte Kafka para ReceivedMessage" "mapper"
+  balance.balanceWorker.balanceReceivedMessageMapper -> balance.balanceWorker.balanceMessageProcessor "Entrega modelo neutro" "ReceivedMessage"
+  balance.balanceWorker.balanceMessageProcessor -> balance.balanceWorker.balanceWorkerApplication "Envia comando de aplicacao de evento" "MediatR"
+  balance.balanceWorker.balanceMessageProcessor -> balance.balanceWorker.balanceDeadLetterPort "Publica invalidas ou nao recuperaveis" "porta"
+  balance.balanceWorker.balanceDeadLetterPort -> kafka.ledgerDlq "Adapter Kafka publica na DLQ atual" "Kafka"
+  balance.balanceWorker.balanceMessageProcessor -> balance.balanceDb "Atualiza daily_balances e processed_events" "EF Core"
   balance.balanceApi -> balance.balanceDb "Consulta projecao" "EF Core"
 
   ledger.ledgerApi -> observability.collector "Exporta telemetria quando habilitado no compose" "OTLP"

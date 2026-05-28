@@ -1,4 +1,4 @@
-namespace BalanceService.Worker.Messaging.Kafka.Contracts;
+namespace BalanceService.Worker.Messaging.Contracts;
 
 public static class LedgerEntryCreatedV1Contract
 {

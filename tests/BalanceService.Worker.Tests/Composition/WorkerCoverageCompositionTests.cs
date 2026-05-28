@@ -2,7 +2,6 @@ using BalanceService.Worker.Messaging.Kafka.Configuration;
 using BalanceService.Worker.Messaging.Kafka.Consumers;
 using BalanceService.Worker.Messaging.Kafka.DeadLetter;
 using BalanceService.Worker.Messaging.Abstractions;
-using BalanceService.Worker.Messaging.Kafka.Tracing;
 using BalanceService.Worker.Observability;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -54,7 +53,7 @@ public sealed class WorkerCoverageCompositionTests
             "{}",
             "ledger.ledgerentry.created",
             "unknown",
-            "Missing required Kafka header event_id.",
+            "Missing required message attribute event_id.",
             nameof(InvalidOperationException),
             DateTimeOffset.UtcNow,
             new Dictionary<string, string>(),
@@ -73,8 +72,8 @@ public sealed class WorkerCoverageCompositionTests
     [Theory]
     [InlineData("Deserialization failed.", "deserialization_failed")]
     [InlineData("Non-recoverable processing failure.", "non_recoverable_processing_failure")]
-    [InlineData("Missing required Kafka header event_id.", "validation_failed")]
-    [InlineData("Unsupported Kafka event_type LedgerEntryCreated.v2.", "validation_failed")]
+    [InlineData("Missing required message attribute event_id.", "validation_failed")]
+    [InlineData("Unsupported message event_type LedgerEntryCreated.v2.", "validation_failed")]
     [InlineData("Message payload invalid.", "validation_failed")]
     [InlineData("Transient failure.", "unknown")]
     public void KafkaDeadLetterPublisher_should_classify_dlq_reasons(string reason, string expected)
@@ -87,7 +86,7 @@ public sealed class WorkerCoverageCompositionTests
     {
         var eventType = KafkaDeadLetterPublisher.ResolveEventType(new Dictionary<string, string>
         {
-            [KafkaHeaderNames.EventType] = "LedgerEntryCreated.v1"
+            [MessageAttributeNames.EventType] = "LedgerEntryCreated.v1"
         });
 
         var unknown = KafkaDeadLetterPublisher.ResolveEventType(new Dictionary<string, string>());

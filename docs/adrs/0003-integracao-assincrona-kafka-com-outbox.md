@@ -21,6 +21,8 @@ Adotar o padrão **Outbox** no `LedgerService`:
 
 - O caso de uso grava o lançamento e também grava uma linha em `outbox_messages` na **mesma transação**.
 - Um `BackgroundService` (`OutboxKafkaPublisherService`) faz polling, **claim** de mensagens pendentes e publica no Kafka.
+
+Nota de evolucao em 2026-05-28: o nome atual do hosted service e `OutboxPublisherService`. A publicacao passa pela porta neutra `IOutboxMessagePublisher`, e Kafka permanece como adapter concreto atual (`KafkaOutboxMessagePublisher`). Pub/Sub nao esta implementado.
 - A entrega é **at-least-once** (podem existir duplicatas), e o pipeline trata falhas com retentativas/backoff.
 
 Detalhes relevantes (estado atual):

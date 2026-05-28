@@ -1,7 +1,7 @@
 using Confluent.Kafka;
 
 using BalanceService.Worker.Messaging.Kafka.Configuration;
-using BalanceService.Worker.Messaging.Kafka.Processors;
+using BalanceService.Worker.Messaging.Processors;
 using BalanceService.Worker.Messaging.Kafka.Tracing;
 using BalanceService.Worker.Observability;
 using Microsoft.EntityFrameworkCore;

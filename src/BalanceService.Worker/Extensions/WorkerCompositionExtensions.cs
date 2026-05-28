@@ -4,7 +4,7 @@ using BalanceService.Worker.Messaging.Abstractions;
 using BalanceService.Worker.Messaging.Kafka.Configuration;
 using BalanceService.Worker.Messaging.Kafka.Consumers;
 using BalanceService.Worker.Messaging.Kafka.DeadLetter;
-using BalanceService.Worker.Messaging.Kafka.Processors;
+using BalanceService.Worker.Messaging.Processors;
 using BalanceService.Worker.Observability;
 
 namespace BalanceService.Worker.Extensions;
