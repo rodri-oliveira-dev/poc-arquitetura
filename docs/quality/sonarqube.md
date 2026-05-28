@@ -46,6 +46,40 @@ O script restaura as tools locais, inicia o SonarScanner for .NET, compila `Ledg
 
 A cobertura para o SonarQube usa o formato OpenCover, consumido por `sonar.cs.opencover.reportsPaths`. O mesmo `coverlet.runsettings` tambem gera Cobertura, preservando o formato usado pelo fluxo de cobertura existente do CI.
 
+## Tratativas de erro
+
+### `vm.max_map_count` baixo
+
+Se o container `sonarqube` iniciar e parar logo depois, consulte os logs:
+
+```bash
+docker logs poc-sonarqube
+```
+
+Quando aparecer erro semelhante a este:
+
+```text
+vm.max_map_count [65530] is too low, increase to at least [262144]
+```
+
+ajuste o parametro no ambiente Docker local e suba novamente o compose.
+
+No Windows com Rancher Desktop em WSL:
+
+```powershell
+wsl.exe -d rancher-desktop -u root -- sysctl -w vm.max_map_count=262144
+docker compose -f compose.sonar.yaml --profile quality up -d
+```
+
+Em Linux:
+
+```bash
+sudo sysctl -w vm.max_map_count=262144
+docker compose -f compose.sonar.yaml --profile quality up -d
+```
+
+Esse ajuste pode precisar ser repetido apos reiniciar o WSL, Rancher Desktop ou a maquina.
+
 ## Parar ou remover
 
 Parar os containers sem apagar volumes:
