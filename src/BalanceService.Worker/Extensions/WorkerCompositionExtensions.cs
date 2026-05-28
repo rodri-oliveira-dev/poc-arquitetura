@@ -51,7 +51,7 @@ public static class WorkerCompositionExtensions
             .ValidateOnStart();
 
         services.AddSingleton<IKafkaDeadLetterProducer, KafkaDeadLetterProducer>();
-        services.AddSingleton<LedgerKafkaMessageProcessor>();
+        services.AddSingleton<LedgerEntryCreatedMessageProcessor>();
 
         return services;
     }
