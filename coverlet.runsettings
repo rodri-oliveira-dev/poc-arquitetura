@@ -4,7 +4,7 @@
     <DataCollectors>
       <DataCollector friendlyName="XPlat Code Coverage">
         <Configuration>
-          <Format>cobertura</Format>
+          <Format>cobertura,opencover</Format>
           <!-- Exclusoes permitidas (sem forcar coverage): minimal hosting, migrations EF, arquivos gerados, state machines async e membros marcados explicitamente. -->
           <ExcludeByAttribute>System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverageAttribute,ExcludeFromCodeCoverageAttribute,System.CodeDom.Compiler.GeneratedCodeAttribute,GeneratedCodeAttribute,System.Runtime.CompilerServices.CompilerGeneratedAttribute,CompilerGeneratedAttribute,System.Runtime.CompilerServices.AsyncStateMachineAttribute,AsyncStateMachineAttribute</ExcludeByAttribute>
           <ExcludeByFile>**/Program.cs,**/Migrations/*.cs,**/*.g.cs,**/*.g.*.cs</ExcludeByFile>

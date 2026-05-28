@@ -8,12 +8,14 @@ COPY Directory.Packages.props ./
 COPY Directory.Build.props ./
 COPY src/Auth.Api/Auth.Api.csproj src/Auth.Api/
 
-RUN dotnet restore src/Auth.Api/Auth.Api.csproj --disable-parallel
+RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages,sharing=locked \
+    dotnet restore src/Auth.Api/Auth.Api.csproj --disable-parallel
 
 # Agora copia o restante
-COPY src/ ./src/
+COPY src/Auth.Api/ ./src/Auth.Api/
 
-RUN dotnet publish src/Auth.Api/Auth.Api.csproj -c Release -o /app/publish --no-restore
+RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages,sharing=locked \
+    dotnet publish src/Auth.Api/Auth.Api.csproj -c Release -o /app/publish --no-restore /p:UseAppHost=false
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app

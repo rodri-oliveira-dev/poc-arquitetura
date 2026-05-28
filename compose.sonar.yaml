@@ -1,0 +1,64 @@
+name: poc-arquitetura
+
+networks:
+  poc-net:
+    driver: bridge
+
+volumes:
+  sonar-postgres-data:
+  sonarqube-data:
+  sonarqube-extensions:
+  sonarqube-logs:
+
+services:
+  sonar-db:
+    image: docker.io/postgres:16
+    container_name: poc-sonar-db
+    profiles:
+      - quality
+    environment:
+      POSTGRES_DB: "${SONAR_DB_NAME:-sonarqube}"
+      POSTGRES_USER: "${SONAR_DB_USER:-sonar}"
+      POSTGRES_PASSWORD: "${SONAR_DB_PASSWORD:-local_dev_password}"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512m
+          pids: 256
+    volumes:
+      - sonar-postgres-data:/var/lib/postgresql/data
+    networks:
+      - poc-net
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\"" ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  sonarqube:
+    image: docker.io/sonarqube:community
+    container_name: poc-sonarqube
+    profiles:
+      - quality
+    depends_on:
+      sonar-db:
+        condition: service_healthy
+    environment:
+      SONAR_JDBC_URL: "jdbc:postgresql://sonar-db:5432/${SONAR_DB_NAME:-sonarqube}"
+      SONAR_JDBC_USERNAME: "${SONAR_DB_USER:-sonar}"
+      SONAR_JDBC_PASSWORD: "${SONAR_DB_PASSWORD:-local_dev_password}"
+    ports:
+      - "${SONAR_HOST_PORT:-9000}:9000"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.00"
+          memory: 2g
+          pids: 512
+    volumes:
+      - sonarqube-data:/opt/sonarqube/data
+      - sonarqube-extensions:/opt/sonarqube/extensions
+      - sonarqube-logs:/opt/sonarqube/logs
+    networks:
+      - poc-net

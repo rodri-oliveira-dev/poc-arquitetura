@@ -1,15 +1,62 @@
-# Build context (compose aponta context: .)
+# Build context raiz usado pelos Dockerfiles .NET.
+
+# Git e metadados de agentes/IDE
+.git/
+.github/
+.agents/
+.codex/
+.devcontainer/
+.githooks/
+.idea/
+.vs/
+.vscode/
+
+# Artefatos .NET, IDE e testes
 **/bin/
 **/obj/
-**/.vs/
-**/.vscode/
 **/TestResults/
-**/*.user
+TestResults/
+TestResults-*/
+StrykerOutput/
+coverage/
+coverage.*/
+CodeCoverage/
+*.coverage
+*.coveragexml
+*.trx
+*.binlog
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
 
-# Git
-.git/
-.gitignore
+# Caches e ferramentas locais
+.dotnet/
+.dotnet-home/
+.nuget/
+artifacts/
+dist/
+data/
+zap-reports/
+node_modules/
+**/node_modules/
 
-# Docs/artefatos opcionais
+# Ambiente local e arquivos temporarios
+.env
+.env.*
+!.env.example
+*.tmp
+*.temp
+*.log
+*.nupkg
+*.snupkg
+Thumbs.db
+Desktop.ini
+
+# Conteudo nao usado no build das imagens .NET
 docs/
+loadtests/
+observability/
+tests/
+tools/
 README.md

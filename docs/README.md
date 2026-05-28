@@ -15,6 +15,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [Autenticacao e autorizacao](development/authentication.md): obter token local, validar scopes, audiences e autorizacao por merchant.
 - [Kafka, Outbox e DLQ](development/kafka-outbox.md): validar mensageria, provider Kafka atual, publicacao, consumo, DLQ, requeue e fluxos assincronos.
 - [Cobertura de testes](development/test-coverage.md): executar testes com cobertura, interpretar falhas e entender os gates de 85% global e dos workers.
+- [SonarQube local](quality/sonarqube.md): subir SonarQube com Docker Compose e executar analise estatica local.
 - [Mutation testing com Stryker.NET](development/mutation-testing-stryker.md): executar mutation testing local e interpretar relatorios.
 - [OWASP ZAP local](development/owasp-zap.md): executar DAST baseline local contra Ledger e Balance, com Auth.Api legado apenas opcional, salvando relatorios em `zap-reports/`.
 - [Git hooks locais](development/git-hooks.md): instalar e entender `commit-msg`, `post-merge` e `pre-push`.
@@ -30,7 +31,9 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [Observabilidade e operacao minima](observability.md): health, readiness, logs, traces, metricas, dashboards, alertas e validacoes operacionais.
 - [Padroes do repositorio](development/repository-standards.md): arquivos de padronizacao, tools, estilo, hooks e manutencao.
 - [Artifacts dos workflows](development/workflow-artifacts.md): politica de publicacao, conteudo e retencao.
+- [Qualidade](quality/README.md): guias de analise estatica e validacoes locais.
 - [k6 load tests](../loadtests/k6/README.md): configuracao dos scripts k6 usados pelos runners.
+- [Revisao Docker e Compose](reports/docker-compose-performance-review.md): diagnostico de build, cache, volumes, desempenho local e limpeza segura.
 
 ## Explicacao
 
