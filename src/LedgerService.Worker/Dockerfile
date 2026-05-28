@@ -12,14 +12,19 @@ COPY src/LedgerService.Application/LedgerService.Application.csproj src/LedgerSe
 COPY src/LedgerService.Domain/LedgerService.Domain.csproj src/LedgerService.Domain/
 COPY src/LedgerService.Infrastructure/LedgerService.Infrastructure.csproj src/LedgerService.Infrastructure/
 
-RUN dotnet restore src/LedgerService.Worker/LedgerService.Worker.csproj --disable-parallel \
+RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages,sharing=locked \
+    dotnet restore src/LedgerService.Worker/LedgerService.Worker.csproj --disable-parallel \
     || dotnet restore src/LedgerService.Worker/LedgerService.Worker.csproj --disable-parallel \
     || dotnet restore src/LedgerService.Worker/LedgerService.Worker.csproj --disable-parallel
 
 # Agora copia o restante
-COPY src/ ./src/
+COPY src/LedgerService.Worker/ ./src/LedgerService.Worker/
+COPY src/LedgerService.Application/ ./src/LedgerService.Application/
+COPY src/LedgerService.Domain/ ./src/LedgerService.Domain/
+COPY src/LedgerService.Infrastructure/ ./src/LedgerService.Infrastructure/
 
-RUN dotnet publish src/LedgerService.Worker/LedgerService.Worker.csproj -c Release -o /app/publish --no-restore
+RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages,sharing=locked \
+    dotnet publish src/LedgerService.Worker/LedgerService.Worker.csproj -c Release -o /app/publish --no-restore /p:UseAppHost=false
 
 FROM mcr.microsoft.com/dotnet/runtime:10.0 AS final
 WORKDIR /app

@@ -12,14 +12,19 @@ COPY src/BalanceService.Application/BalanceService.Application.csproj src/Balanc
 COPY src/BalanceService.Domain/BalanceService.Domain.csproj src/BalanceService.Domain/
 COPY src/BalanceService.Infrastructure/BalanceService.Infrastructure.csproj src/BalanceService.Infrastructure/
 
-RUN dotnet restore src/BalanceService.Worker/BalanceService.Worker.csproj --disable-parallel \
+RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages,sharing=locked \
+    dotnet restore src/BalanceService.Worker/BalanceService.Worker.csproj --disable-parallel \
     || dotnet restore src/BalanceService.Worker/BalanceService.Worker.csproj --disable-parallel \
     || dotnet restore src/BalanceService.Worker/BalanceService.Worker.csproj --disable-parallel
 
 # Agora copia o restante
-COPY src/ ./src/
+COPY src/BalanceService.Worker/ ./src/BalanceService.Worker/
+COPY src/BalanceService.Application/ ./src/BalanceService.Application/
+COPY src/BalanceService.Domain/ ./src/BalanceService.Domain/
+COPY src/BalanceService.Infrastructure/ ./src/BalanceService.Infrastructure/
 
-RUN dotnet publish src/BalanceService.Worker/BalanceService.Worker.csproj -c Release -o /app/publish --no-restore
+RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages,sharing=locked \
+    dotnet publish src/BalanceService.Worker/BalanceService.Worker.csproj -c Release -o /app/publish --no-restore /p:UseAppHost=false
 
 FROM mcr.microsoft.com/dotnet/runtime:10.0 AS final
 WORKDIR /app
