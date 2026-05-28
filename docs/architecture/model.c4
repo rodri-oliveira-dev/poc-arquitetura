@@ -97,7 +97,7 @@ model {
   }
 
   ledger = softwareSystem "LedgerService" {
-    description "Servico de escrita do ledger. A API recebe comandos HTTP e grava estado/Outbox; o Worker executa publicacao Kafka, estornos e reprocessamentos em processo separado."
+    description "Servico de escrita do ledger. A API recebe comandos HTTP e grava estado/Outbox; o Worker executa publicacao pelo provider de mensageria atual, estornos e reprocessamentos em processo separado."
 
     ledgerApi = container "LedgerService.Api" {
       technology "ASP.NET Core"
@@ -125,7 +125,7 @@ model {
       description "Processo dedicado sem HTTP que hospeda os workers do Ledger para Outbox, estornos e reprocessamentos, com composition root proprio."
 
       ledgerWorkerComposition = component "Worker composition root" {
-        description "Registra Application, persistencia, repositorios, produtor Kafka e HostedServices explicitamente no processo Worker."
+        description "Registra Application, persistencia, repositorios, AddLedgerMessaging e HostedServices explicitamente no processo Worker; Kafka e o provider atual."
       }
 
       ledgerWorkerApplication = component "Application handlers" {
@@ -133,11 +133,11 @@ model {
       }
 
       ledgerWorkerInfrastructure = component "Worker infrastructure" {
-        description "Adapters exclusivos do Worker: produtor Kafka, consumers, metrics e HostedServices registrados pelo processo Worker."
+        description "Adapters exclusivos do Worker: provider Kafka atual, consumers, metrics e HostedServices registrados pelo processo Worker."
       }
 
       ledgerOutbox = component "Outbox publisher" {
-        description "BackgroundService que faz claim de mensagens, publica no Kafka e marca Processed/DeadLetter com retry/backoff."
+        description "BackgroundService que faz claim de mensagens, publica pela porta de mensageria configurada e marca Processed/DeadLetter com retry/backoff."
       }
 
       ledgerEstornoProcessor = component "Estorno processor" {
@@ -181,10 +181,10 @@ model {
 
     balanceWorker = container "BalanceService.Worker" {
       technology ".NET Worker Service"
-      description "Processo dedicado sem HTTP que hospeda o consumidor Kafka do Balance para projetar saldos, com composition root proprio."
+      description "Processo dedicado sem HTTP que hospeda o consumidor do provider de mensageria atual para projetar saldos, com composition root proprio."
 
       balanceWorkerComposition = component "Worker composition root" {
-        description "Registra Application, persistencia, repositorios, consumer Kafka, DLQ e HostedServices explicitamente no processo Worker."
+        description "Registra Application, persistencia, repositorios, AddBalanceMessaging, DLQ e HostedServices explicitamente no processo Worker; Kafka e o provider atual."
       }
 
       balanceWorkerApplication = component "Application handlers" {
@@ -192,7 +192,7 @@ model {
       }
 
       balanceWorkerInfrastructure = component "Worker infrastructure" {
-        description "Adapters exclusivos do Worker: consumer Kafka, produtor DLQ, metrics e HostedService registrados pelo processo Worker."
+        description "Adapters exclusivos do Worker: provider Kafka atual, DLQ, metrics e HostedService registrados pelo processo Worker."
       }
 
       balanceConsumer = component "Kafka consumer" {

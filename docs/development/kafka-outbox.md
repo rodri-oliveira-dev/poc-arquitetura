@@ -2,16 +2,30 @@
 
 Este documento concentra a referencia de mensageria entre `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Worker` e `BalanceService.Api`.
 
+Kafka e a implementacao atual de mensageria nesta POC. O boundary dos workers usa portas neutras para publicacao, consumo e DLQ, enquanto os adapters Kafka concentram detalhes como topicos, partitions, offsets, keys e commit. Pub/Sub nao esta implementado; ele e apenas um adapter futuro possivel.
+
+Configuracao neutra:
+
+```json
+{
+  "Messaging": {
+    "Provider": "Kafka"
+  }
+}
+```
+
+`Messaging:Provider` usa `Kafka` como default quando ausente. A configuracao existente `Kafka:Enabled=false` continua suportada para desligar os hosted services de mensageria em testes e cenarios locais especificos.
+
 ## Fluxo
 
 1. `LedgerService.Api` cria um lancamento, registra uma solicitacao de estorno ou registra uma solicitacao de reprocessamento.
 2. A mesma transacao grava a mensagem em `outbox_messages`.
-3. `LedgerService.Worker` hospeda `OutboxPublisherService`, que le mensagens pendentes e publica pela porta de mensageria configurada; nesta POC, o adapter concreto publica no Kafka.
+3. `LedgerService.Worker` hospeda `OutboxPublisherService`, que le mensagens pendentes e publica pela porta de mensageria configurada; nesta POC, o provider configurado e Kafka.
 4. `LedgerService.Worker` hospeda `EstornoLancamentoProcessorService`, que processa solicitacoes `Pending` e cria lancamentos compensatorios.
 5. O estorno concluido grava `LedgerEntryCreated.v1` do lancamento compensatorio no Outbox.
 6. `LedgerService.Worker` hospeda `ReprocessamentoLancamentosConsumerService`, que consome `ledger.lancamentos.reprocessamento.solicitado`, chama o caso de uso de reprocessamento e registra eventos financeiros finais no Outbox quando houver lancamentos elegiveis.
 7. `BalanceService.Worker` consome apenas `LedgerEntryCreated.v1` e atualiza a projecao `daily_balances`.
-8. Mensagens invalidas ou nao recuperaveis do fluxo consumido pelo Balance sao publicadas na DLQ.
+8. Mensagens invalidas ou nao recuperaveis do fluxo consumido pelo Balance sao publicadas pela porta neutra de DLQ; nesta POC, a DLQ concreta e um topico Kafka.
 
 ## Topicos e evento
 
@@ -48,6 +62,8 @@ Headers publicados pelo producer:
 O `BalanceService.Worker` exige `event_type=LedgerEntryCreated.v1`, usa `event_id` para rastreabilidade e idempotencia quando presente, restaura `traceparent`/`tracestate` como parent do span `kafka.consume`, reidrata `baggage` quando possivel e preserva headers relevantes ao enviar mensagens para a DLQ. Mensagens antigas sem headers W3C continuam validas; nesse caso, o consumo segue pelo fallback funcional e pode criar um span raiz quando OpenTelemetry estiver habilitado.
 
 ## Outbox
+
+A Outbox e neutra em relacao ao provider de mensageria: ela persiste a intencao de publicacao e o worker usa `IOutboxMessagePublisher` para entregar a mensagem pelo adapter configurado. Nesta POC, esse adapter e Kafka.
 
 Estados esperados:
 
@@ -119,7 +135,7 @@ Limitacoes e riscos:
 
 ## DLQ
 
-Mensagens com falha de desserializacao, contrato invalido, payload invalido ou falha nao recuperavel sao publicadas em `ledger.ledgerentry.created.dlq`.
+Mensagens com falha de desserializacao, contrato invalido, payload invalido ou falha nao recuperavel sao publicadas pela porta `IDeadLetterPublisher`. Nesta POC, o adapter Kafka publica em `ledger.ledgerentry.created.dlq`.
 
 Politica de commit:
 
@@ -127,7 +143,7 @@ Politica de commit:
 - publicacao na DLQ com sucesso: commita o offset original;
 - falha ao publicar na DLQ: nao commita o offset original.
 
-O envelope neutro da DLQ preserva payload original quando disponivel, origem logica, tipo de evento, attributes/headers relevantes, motivo, tipo da excecao, timestamp e metadados de transporte. No adapter Kafka, os metadados de transporte incluem topico, particao, offset e key quando disponivel; esses valores continuam sendo propagados nos headers Kafka da DLQ como `original_topic`, `original_partition` e `original_offset`.
+O envelope neutro da DLQ preserva payload original quando disponivel, origem logica, tipo de evento, attributes/headers relevantes, motivo, tipo da excecao, timestamp e metadados de transporte. No adapter Kafka, os metadados de transporte incluem topico, particao, offset e key quando disponivel; esses valores continuam sendo propagados nos headers Kafka da DLQ como `original_topic`, `original_partition` e `original_offset`. Processors neutros nao devem depender de offset, partition ou commit.
 
 ## Metricas operacionais
 
@@ -176,6 +192,7 @@ Configuracoes de mensageria do Ledger ficam em `src/LedgerService.Worker/appsett
 
 Ledger:
 
+- `Messaging:Provider`;
 - `Kafka:Producer`;
 - `Outbox:Publisher`.
 - `Reprocessamentos:Consumer`.
@@ -184,8 +201,11 @@ Configuracoes de mensageria do Balance ficam em `src/BalanceService.Worker/appse
 
 Balance:
 
+- `Messaging:Provider`;
 - `Kafka:Consumer`;
 - `Kafka:Consumer:DeadLetterTopic`.
+
+Somente `Kafka` e aceito em `Messaging:Provider` nesta etapa. Qualquer outro valor falha no startup com erro explicito de provider nao suportado. Pub/Sub nao possui configuracao, adapter, topicos/subscriptions ou testes nesta versao.
 
 `SecurityProtocol=Plaintext` existe apenas para execucao local (`Development`/`Local`) e para o ambiente `Test`. Em ambientes compartilhados ou produtivos, configure `SSL` ou `SASL_SSL` com os parametros operacionais por variaveis de ambiente ou secret store.
 
@@ -254,4 +274,4 @@ Limitacao conhecida: esse fluxo corrige projecoes ausentes por replay de eventos
 
 ## Governanca
 
-Mudancas em topicos, headers, tipos de evento, payload ou politica de DLQ podem afetar produtores, consumidores e projecoes. Atualize testes, documentacao e ADRs quando houver decisao nova ou mudanca de contrato.
+Mudancas em topicos, headers, tipos de evento, payload ou politica de DLQ podem afetar produtores, consumidores e projecoes. Mudancas no provider de mensageria tambem exigem testes de contrato e integracao para Outbox, consumo idempotente, DLQ e tracing. Atualize testes, documentacao e ADRs quando houver decisao nova ou mudanca de contrato.

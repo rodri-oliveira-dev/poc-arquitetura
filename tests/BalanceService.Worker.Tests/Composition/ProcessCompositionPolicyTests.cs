@@ -48,6 +48,20 @@ public sealed class ProcessCompositionPolicyTests
     }
 
     [Fact]
+    public void BalanceServiceWorker_should_reject_unsupported_messaging_provider()
+    {
+        var services = new ServiceCollection();
+
+        var act = () => services.AddBalanceWorkerComposition(CreateConfiguration(new Dictionary<string, string?>
+        {
+            ["Messaging:Provider"] = "PubSub"
+        }), CreateEnvironment());
+
+        var ex = Assert.Throws<InvalidOperationException>(act);
+        Assert.Equal("Unsupported messaging provider 'PubSub'.", ex.Message);
+    }
+
+    [Fact]
     public void BalanceServiceWorker_should_register_consumer_dependencies_when_kafka_is_enabled()
     {
         var services = new ServiceCollection();

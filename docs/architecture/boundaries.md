@@ -40,7 +40,7 @@ Deve conter:
 
 - composition root explicito do processo de background;
 - registro de `BackgroundService`/`IHostedService`;
-- configuracao de Kafka, Outbox, DLQ, polling, retry, locks e consumers;
+- configuracao de mensageria, provider Kafka atual, Outbox, DLQ, polling, retry, locks e consumers;
 - observabilidade do processo com `ServiceName` proprio.
 
 Nao deve conter:
@@ -49,7 +49,7 @@ Nao deve conter:
 - validacao de JWT/JWKS de requests HTTP;
 - regras de negocio duplicadas fora da Application/Domain.
 
-Observacao real: `LedgerService.Worker` registra Outbox, estorno e reprocessamento; `BalanceService.Worker` registra o consumer Kafka e DLQ. APIs e workers compartilham Application/Infrastructure, mas cada processo decide explicitamente quais adapters e HostedServices registra.
+Observacao real: `LedgerService.Worker` registra Outbox, estorno e reprocessamento; `BalanceService.Worker` registra o consumer de eventos do Ledger e DLQ. APIs e workers compartilham Application/Infrastructure, mas cada processo decide explicitamente quais adapters e HostedServices registra. A composition root deve preferir entradas neutras como `AddLedgerMessaging` e `AddBalanceMessaging`, mantendo Kafka como adapter concreto quando `Messaging:Provider=Kafka`.
 
 ### Application
 
@@ -67,7 +67,7 @@ Nao deve conter:
 - controllers, attributes HTTP ou contratos OpenAPI;
 - `DbContext`, SQL, Kafka client ou configuracao de infraestrutura;
 - autorizacao baseada em `ClaimsPrincipal`;
-- detalhes de transporte Kafka como topic, partition, offset e commit.
+- detalhes de transporte como topic, partition, offset, commit, subscription ou ack/nack.
 
 Observacoes reais:
 
@@ -104,6 +104,7 @@ Deve conter:
 - repositories concretos;
 - configuracoes e implementacoes tecnicas compartilhadas pelos processos;
 - implementacoes de portas da Application/Domain.
+- adapters concretos de mensageria quando forem compartilhados entre processos.
 
 Nao deve conter:
 
@@ -113,7 +114,7 @@ Nao deve conter:
 - invariantes que deveriam estar nas entidades.
 - HostedServices e adapters Kafka/DLQ exclusivos de workers.
 
-Observacao real: `BalanceService.Infrastructure` concentra persistencia e repositorios. A traducao do contrato Kafka, o consumer e a DLQ pertencem ao `BalanceService.Worker`, porque sao adapters tecnicos exclusivos do processamento em background.
+Observacao real: `BalanceService.Infrastructure` concentra persistencia e repositorios. A traducao do transporte Kafka, o consumer e a DLQ pertencem ao `BalanceService.Worker`, porque sao adapters tecnicos exclusivos do processamento em background. Portas como `IOutboxMessagePublisher`, `ReceivedMessage`, `IDeadLetterPublisher` e `TransportMessageContext` formam o boundary neutro; offset, partition e commit permanecem nos adapters Kafka e nao devem contaminar processors neutros.
 
 ## Servico por servico
 
@@ -121,7 +122,7 @@ Observacao real: `BalanceService.Infrastructure` concentra persistencia e reposi
 
 Camadas atuais fazem sentido para o objetivo da POC. O servico tem transacao, idempotencia, entidade com invariantes, persistencia relacional e Outbox. Separar `Application`, `Domain` e `Infrastructure` agrega valor real.
 
-Operacionalmente, `LedgerService.Api` recebe HTTP e grava Outbox; `LedgerService.Worker` publica a Outbox, processa estornos e consome solicitacoes de reprocessamento. Durante rollout, API antiga e Worker novo nao devem executar os mesmos HostedServices simultaneamente.
+Operacionalmente, `LedgerService.Api` recebe HTTP e grava Outbox; `LedgerService.Worker` publica a Outbox pelo provider de mensageria configurado, processa estornos e consome solicitacoes de reprocessamento. Hoje o provider implementado e Kafka. Durante rollout, API antiga e Worker novo nao devem executar os mesmos HostedServices simultaneamente.
 
 Pontos de atencao:
 
@@ -133,7 +134,7 @@ Pontos de atencao:
 
 Camadas tambem fazem sentido, porque o servico possui leitura HTTP, consumidor Kafka, idempotencia por evento, projecao e DLQ.
 
-Operacionalmente, `BalanceService.Api` atende consultas HTTP sobre a projecao; `BalanceService.Worker` consome `LedgerEntryCreated.v1`, aplica idempotencia, atualiza `daily_balances`/`processed_events` e envia mensagens invalidas para DLQ.
+Operacionalmente, `BalanceService.Api` atende consultas HTTP sobre a projecao; `BalanceService.Worker` consome `LedgerEntryCreated.v1` pelo provider de mensageria configurado, aplica idempotencia, atualiza `daily_balances`/`processed_events` e envia mensagens invalidas para DLQ. Hoje o provider implementado e Kafka; Pub/Sub e apenas possibilidade futura e exigiria adapter proprio.
 
 Pontos de atencao:
 

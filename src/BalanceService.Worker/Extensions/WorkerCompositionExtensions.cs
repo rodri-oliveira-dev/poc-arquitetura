@@ -11,6 +11,9 @@ namespace BalanceService.Worker.Extensions;
 
 public static class WorkerCompositionExtensions
 {
+    private const string MessagingProviderConfigurationKey = "Messaging:Provider";
+    private const string KafkaProvider = "Kafka";
+
     public static IServiceCollection AddBalanceWorkerComposition(
         this IServiceCollection services,
         IConfiguration configuration,
@@ -22,10 +25,33 @@ public static class WorkerCompositionExtensions
             .AddBalanceInfrastructureCommon()
             .AddBalancePersistence(configuration)
             .AddBalanceRepositories()
-            .AddBalanceKafkaConsumer(configuration, environment)
-            .AddBalanceLedgerEventsWorker(configuration);
+            .AddBalanceMessaging(configuration, environment);
 
         return services;
+    }
+
+    public static IServiceCollection AddBalanceMessaging(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        IHostEnvironment environment)
+    {
+        var provider = configuration.GetValue<string>(MessagingProviderConfigurationKey) ?? KafkaProvider;
+
+        return provider.Trim().ToUpperInvariant() switch
+        {
+            "KAFKA" => services.AddBalanceKafkaMessaging(configuration, environment),
+            _ => throw new InvalidOperationException($"Unsupported messaging provider '{provider}'.")
+        };
+    }
+
+    public static IServiceCollection AddBalanceKafkaMessaging(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        IHostEnvironment environment)
+    {
+        return services
+            .AddBalanceKafkaConsumer(configuration, environment)
+            .AddBalanceLedgerEventsWorker(configuration);
     }
 
     public static IServiceCollection AddBalanceKafkaConsumer(

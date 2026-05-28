@@ -12,6 +12,9 @@ namespace LedgerService.Worker.Extensions;
 
 public static class WorkerCompositionExtensions
 {
+    private const string MessagingProviderConfigurationKey = "Messaging:Provider";
+    private const string KafkaProvider = "Kafka";
+
     public static IServiceCollection AddLedgerWorkerComposition(
         this IServiceCollection services,
         IConfiguration configuration,
@@ -23,12 +26,35 @@ public static class WorkerCompositionExtensions
             .AddLedgerInfrastructureCommon()
             .AddLedgerPersistence(configuration)
             .AddLedgerRepositories()
-            .AddLedgerKafkaProducer(configuration, environment)
-            .AddLedgerOutboxWorker(configuration)
-            .AddLedgerEstornoWorker(configuration)
-            .AddLedgerReprocessamentoWorker(configuration, environment);
+            .AddLedgerMessaging(configuration, environment)
+            .AddLedgerEstornoWorker(configuration);
 
         return services;
+    }
+
+    public static IServiceCollection AddLedgerMessaging(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        IHostEnvironment environment)
+    {
+        var provider = configuration.GetValue<string>(MessagingProviderConfigurationKey) ?? KafkaProvider;
+
+        return provider.Trim().ToUpperInvariant() switch
+        {
+            "KAFKA" => services.AddLedgerKafkaMessaging(configuration, environment),
+            _ => throw new InvalidOperationException($"Unsupported messaging provider '{provider}'.")
+        };
+    }
+
+    public static IServiceCollection AddLedgerKafkaMessaging(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        IHostEnvironment environment)
+    {
+        return services
+            .AddLedgerKafkaProducer(configuration, environment)
+            .AddLedgerOutboxWorker(configuration)
+            .AddLedgerReprocessamentoWorker(configuration, environment);
     }
 
     public static IServiceCollection AddLedgerKafkaProducer(

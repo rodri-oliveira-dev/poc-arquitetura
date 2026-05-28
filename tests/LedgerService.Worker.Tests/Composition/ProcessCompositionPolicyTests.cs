@@ -55,6 +55,20 @@ public sealed class ProcessCompositionPolicyTests
     }
 
     [Fact]
+    public void LedgerServiceWorker_should_reject_unsupported_messaging_provider()
+    {
+        var services = new ServiceCollection();
+
+        var act = () => services.AddLedgerWorkerComposition(CreateConfiguration(new Dictionary<string, string?>
+        {
+            ["Messaging:Provider"] = "PubSub"
+        }), CreateEnvironment());
+
+        var ex = Assert.Throws<InvalidOperationException>(act);
+        Assert.Equal("Unsupported messaging provider 'PubSub'.", ex.Message);
+    }
+
+    [Fact]
     public void LedgerServiceWorker_should_not_host_optional_processors_when_their_flags_are_disabled()
     {
         var services = new ServiceCollection();
