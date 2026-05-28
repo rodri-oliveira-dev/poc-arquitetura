@@ -112,6 +112,8 @@ Se houver containers antigos ou rede local presa do proprio projeto, o script pe
 | Build Release | `dotnet build ./LedgerService.slnx --configuration Release --no-restore` |
 | Testes sem rebuild | `dotnet test ./LedgerService.slnx --configuration Release --no-build --settings ./coverlet.runsettings` |
 | Testes com cobertura e gate | `./test.ps1` ou `./test.sh` |
+| SonarQube local | `docker compose -f compose.sonar.yaml --profile quality up -d` |
+| Analise SonarQube local | `bash scripts/sonar-analyze.sh` |
 | Stack local minima | `./scripts/start-local-stack.ps1` ou `./scripts/start-local-stack.sh` |
 | Stack com observabilidade | `./scripts/start-local-stack.ps1 -Observability` ou `OBSERVABILITY=true ./scripts/start-local-stack.sh` |
 | Stack completa com Nginx | `./scripts/start-full-stack.ps1` ou `./scripts/start-full-stack.sh` |
@@ -150,6 +152,7 @@ Os scripts executam testes com cobertura e aplicam gate minimo de 85% de cobertu
 - [Kafka, Outbox e DLQ](docs/development/kafka-outbox.md)
 - [Observabilidade e operacao minima](docs/observability.md)
 - [Testes e cobertura](docs/development/test-coverage.md)
+- [SonarQube local](docs/quality/sonarqube.md)
 - [OWASP ZAP local](docs/development/owasp-zap.md)
 - [Troubleshooting](docs/troubleshooting.md)
 - [FAQ](docs/faq.md)
