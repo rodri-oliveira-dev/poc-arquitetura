@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using IOutboxEventProducer = LedgerWorker::LedgerService.Worker.Messaging.Kafka.Producers.IOutboxEventProducer;
+using IOutboxMessagePublisher = LedgerWorker::LedgerService.Worker.Messaging.Abstractions.IOutboxMessagePublisher;
 using OutboxKafkaPublisherService = LedgerWorker::LedgerService.Worker.Outbox.OutboxKafkaPublisherService;
 using OutboxPublisherOptions = LedgerWorker::LedgerService.Worker.Outbox.OutboxPublisherOptions;
 
@@ -90,7 +90,7 @@ public sealed class OutboxPublisherWorkerTests
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<AppDbContext>());
         services.AddScoped<IOutboxMessageRepository, OutboxMessageRepository>();
         services.AddSingleton<OutboxMetrics>();
-        services.AddSingleton<IOutboxEventProducer, FailingOutboxEventProducer>();
+        services.AddSingleton<IOutboxMessagePublisher, FailingOutboxMessagePublisher>();
         services.AddSingleton<IJitterProvider>(new FixedJitterProvider(TimeSpan.Zero));
         services.AddSingleton<IRetryStrategy, ExponentialBackoffRetryStrategy>();
         services.AddSingleton(Options.Create(new OutboxPublisherOptions
@@ -116,11 +116,11 @@ public sealed class OutboxPublisherWorkerTests
         return new AppDbContext(options);
     }
 
-    private sealed class FailingOutboxEventProducer : IOutboxEventProducer
+    private sealed class FailingOutboxMessagePublisher : IOutboxMessagePublisher
     {
-        public string ResolveTopic(OutboxMessage message) => "ledger.ledgerentry.created";
+        public string ResolveDestination(OutboxMessage message) => "ledger.ledgerentry.created";
 
-        public Task ProduceAsync(OutboxMessage message, CancellationToken cancellationToken)
+        public Task PublishAsync(OutboxMessage message, CancellationToken cancellationToken)
             => throw new TimeoutException("Kafka unavailable");
     }
 

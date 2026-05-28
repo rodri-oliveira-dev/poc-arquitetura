@@ -1,6 +1,7 @@
 using LedgerService.Application;
 using LedgerService.Infrastructure;
 using LedgerService.Worker.Estornos;
+using LedgerService.Worker.Messaging.Abstractions;
 using LedgerService.Worker.Messaging.Kafka.Configuration;
 using LedgerService.Worker.Messaging.Kafka.Producers;
 using LedgerService.Worker.Outbox;
@@ -45,7 +46,7 @@ public static class WorkerCompositionExtensions
             .Validate(o => IsLocalEnvironment(environment) || !KafkaClientConfigExtensions.IsPlaintext(o), "Kafka PLAINTEXT e permitido apenas em Development/Local.")
             .ValidateOnStart();
 
-        services.AddSingleton<IOutboxEventProducer, OutboxKafkaProducer>();
+        services.AddSingleton<IOutboxMessagePublisher, KafkaOutboxMessagePublisher>();
 
         return services;
     }

@@ -4,7 +4,7 @@ using LedgerService.Domain.Entities;
 using LedgerService.Domain.Repositories;
 using LedgerService.Infrastructure.Observability;
 using LedgerService.Infrastructure.Persistence;
-using LedgerService.Worker.Messaging.Kafka.Producers;
+using LedgerService.Worker.Messaging.Abstractions;
 using LedgerService.Worker.Messaging.Kafka.Tracing;
 using LedgerService.Worker.Observability;
 using Microsoft.EntityFrameworkCore;
@@ -138,7 +138,7 @@ public sealed class OutboxKafkaPublisherService : BackgroundService
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var repo = scope.ServiceProvider.GetRequiredService<IOutboxMessageRepository>();
         var uow = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
-        var producer = scope.ServiceProvider.GetRequiredService<IOutboxEventProducer>();
+        var publisher = scope.ServiceProvider.GetRequiredService<IOutboxMessagePublisher>();
         var metrics = scope.ServiceProvider.GetRequiredService<OutboxMetrics>();
 
         var options = _options.Value;
@@ -180,12 +180,12 @@ public sealed class OutboxKafkaPublisherService : BackgroundService
         if (message.CorrelationId is not null)
             activity?.SetTag("correlation_id", message.CorrelationId.ToString());
 
-        var topic = producer.ResolveTopic(message);
+        var topic = publisher.ResolveDestination(message);
         var startedAt = Stopwatch.GetTimestamp();
 
         try
         {
-            await producer.ProduceAsync(message, ct);
+            await publisher.PublishAsync(message, ct);
 
             await repo.MarkProcessedAsync(message.Id, DateTime.Now, ct);
             await uow.SaveChangesAsync(ct);
