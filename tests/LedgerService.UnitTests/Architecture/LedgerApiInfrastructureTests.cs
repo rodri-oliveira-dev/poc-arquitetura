@@ -17,7 +17,7 @@ public sealed class LedgerApiInfrastructureTests
         services.AddLedgerApiInfrastructure(CreateConfiguration(), CreateEnvironment());
 
         Assert.DoesNotContain(services, descriptor =>
-            descriptor.ServiceType.Name == "IOutboxEventProducer");
+            descriptor.ServiceType.Name == "IOutboxMessagePublisher");
 
         Assert.DoesNotContain(services, descriptor =>
             descriptor.ServiceType.IsGenericType &&

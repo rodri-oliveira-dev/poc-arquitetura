@@ -1,18 +1,13 @@
-using System.Text;
-using System.Text.Json;
 using System.Diagnostics;
+using System.Text.Json;
 
 using BalanceService.Application.Balances.Commands;
 using BalanceService.Domain.Balances;
 using BalanceService.Domain.Exceptions;
-using BalanceService.Worker.Messaging.Kafka.Contracts;
-using BalanceService.Worker.Messaging.Kafka.DeadLetter;
-using BalanceService.Worker.Messaging.Kafka.Processors;
-using BalanceService.Worker.Messaging.Kafka.Tracing;
+using BalanceService.Worker.Messaging.Abstractions;
+using BalanceService.Worker.Messaging.Contracts;
+using BalanceService.Worker.Messaging.Processors;
 using BalanceService.Worker.Observability;
-
-using Confluent.Kafka;
-
 
 using MediatR;
 
@@ -21,30 +16,33 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 using Moq;
 
-namespace BalanceService.Worker.Tests.Messaging.Kafka.Processors;
+namespace BalanceService.Worker.Tests.Messaging.Processors;
 
-public sealed class LedgerKafkaMessageProcessorTests
+public sealed class LedgerEntryCreatedMessageProcessorTests
 {
     [Fact]
     public async Task Invalid_json_should_publish_to_dlq_and_allow_commit()
     {
         var dlq = new CapturingDeadLetterProducer();
         var sut = CreateSut(dlq);
-        var result = CreateResult("{invalid-json", HeadersWith(EventId: "evt-1", TraceParent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00", Baggage: "tenant=poc"));
+        var message = CreateMessage("{invalid-json", AttributesWith(EventId: "evt-1", TraceParent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00", Baggage: "tenant=poc"));
 
-        var shouldCommit = await sut.ProcessAsync(result, CancellationToken.None);
+        var shouldCommit = await sut.ProcessAsync(message, CancellationToken.None);
         Assert.True(shouldCommit);
         Assert.Single(dlq.Messages);
         Assert.Equal("{invalid-json", dlq.Messages[0].OriginalPayload);
-        Assert.Equal("ledger.ledgerentry.created", dlq.Messages[0].OriginalTopic);
-        Assert.Equal(0, dlq.Messages[0].OriginalPartition);
-        Assert.Equal(42, dlq.Messages[0].OriginalOffset);
+        Assert.Equal("ledger.ledgerentry.created", dlq.Messages[0].Source);
+        Assert.Equal("ledger.ledgerentry.created", dlq.Messages[0].TransportMetadata["topic"]);
+        Assert.Equal("0", dlq.Messages[0].TransportMetadata["partition"]);
+        Assert.Equal("42", dlq.Messages[0].TransportMetadata["offset"]);
+        Assert.Equal("key", dlq.Messages[0].TransportMetadata["key"]);
         Assert.Equal("Deserialization failed.", dlq.Messages[0].Reason);
         Assert.Equal(nameof(JsonException), dlq.Messages[0].ExceptionType);
-        Assert.Equal(LedgerEntryCreatedV1Contract.EventType, dlq.Messages[0].OriginalHeaders[KafkaHeaderNames.EventType]);
-        Assert.Equal("evt-1", dlq.Messages[0].OriginalHeaders[KafkaHeaderNames.EventId]);
-        Assert.False(string.IsNullOrWhiteSpace(dlq.Messages[0].OriginalHeaders[KafkaHeaderNames.TraceParent]));
-        Assert.Equal("tenant=poc", dlq.Messages[0].OriginalHeaders[KafkaHeaderNames.Baggage]);
+        Assert.Equal(LedgerEntryCreatedV1Contract.EventType, dlq.Messages[0].EventType);
+        Assert.Equal(LedgerEntryCreatedV1Contract.EventType, dlq.Messages[0].Attributes[MessageAttributeNames.EventType]);
+        Assert.Equal("evt-1", dlq.Messages[0].Attributes[MessageAttributeNames.EventId]);
+        Assert.False(string.IsNullOrWhiteSpace(dlq.Messages[0].Attributes[MessageAttributeNames.TraceParent]));
+        Assert.Equal("tenant=poc", dlq.Messages[0].Attributes[MessageAttributeNames.Baggage]);
     }
 
     [Fact]
@@ -52,12 +50,12 @@ public sealed class LedgerKafkaMessageProcessorTests
     {
         var dlq = new CapturingDeadLetterProducer();
         var sut = CreateSut(dlq);
-        var result = CreateResult(ValidPayload(), new Headers());
+        var message = CreateMessage(ValidPayload(), new Dictionary<string, string>());
 
-        var shouldCommit = await sut.ProcessAsync(result, CancellationToken.None);
+        var shouldCommit = await sut.ProcessAsync(message, CancellationToken.None);
         Assert.True(shouldCommit);
         Assert.Single(dlq.Messages);
-        Assert.Equal("Missing required Kafka header event_type.", dlq.Messages[0].Reason);
+        Assert.Equal("Missing required message attribute event_type.", dlq.Messages[0].Reason);
     }
 
     [Fact]
@@ -66,13 +64,13 @@ public sealed class LedgerKafkaMessageProcessorTests
         var dlq = new CapturingDeadLetterProducer();
         var sender = new Mock<ISender>(MockBehavior.Strict);
         var sut = CreateSut(dlq, sender.Object);
-        var headers = new Headers
+        var attributes = new Dictionary<string, string>
         {
-            { KafkaHeaderNames.EventType, Encoding.UTF8.GetBytes("LancamentoEstornoSolicitado.v1") },
-            { KafkaHeaderNames.EventId, Encoding.UTF8.GetBytes("evt-estorno-1") }
+            [MessageAttributeNames.EventType] = "LancamentoEstornoSolicitado.v1",
+            [MessageAttributeNames.EventId] = "evt-estorno-1"
         };
 
-        var result = CreateResult(JsonSerializer.Serialize(new
+        var message = CreateMessage(JsonSerializer.Serialize(new
         {
             estornoId = Guid.NewGuid(),
             lancamentoOriginalId = Guid.NewGuid(),
@@ -81,12 +79,12 @@ public sealed class LedgerKafkaMessageProcessorTests
             status = "Pending",
             requestedAt = "2026-05-06T10:00:00.0000000Z",
             correlationId = Guid.NewGuid().ToString()
-        }), headers);
+        }), attributes);
 
-        var shouldCommit = await sut.ProcessAsync(result, CancellationToken.None);
+        var shouldCommit = await sut.ProcessAsync(message, CancellationToken.None);
         Assert.True(shouldCommit);
         Assert.Single(dlq.Messages);
-        Assert.Contains("Unsupported Kafka event_type", dlq.Messages[0].Reason);
+        Assert.Contains("Unsupported message event_type", dlq.Messages[0].Reason);
         sender.VerifyNoOtherCalls();
     }
 
@@ -96,13 +94,13 @@ public sealed class LedgerKafkaMessageProcessorTests
         var dlq = new CapturingDeadLetterProducer();
         var sender = new Mock<ISender>(MockBehavior.Strict);
         var sut = CreateSut(dlq, sender.Object);
-        var headers = new Headers
+        var attributes = new Dictionary<string, string>
         {
-            { KafkaHeaderNames.EventType, Encoding.UTF8.GetBytes("ReprocessamentoLancamentosSolicitado.v1") },
-            { KafkaHeaderNames.EventId, Encoding.UTF8.GetBytes("evt-reprocessamento-1") }
+            [MessageAttributeNames.EventType] = "ReprocessamentoLancamentosSolicitado.v1",
+            [MessageAttributeNames.EventId] = "evt-reprocessamento-1"
         };
 
-        var result = CreateResult(JsonSerializer.Serialize(new
+        var message = CreateMessage(JsonSerializer.Serialize(new
         {
             reprocessamentoId = Guid.NewGuid(),
             merchantId = "m1",
@@ -112,12 +110,12 @@ public sealed class LedgerKafkaMessageProcessorTests
             status = "Pending",
             requestedAt = "2026-05-07T10:00:00.0000000",
             correlationId = Guid.NewGuid().ToString()
-        }), headers);
+        }), attributes);
 
-        var shouldCommit = await sut.ProcessAsync(result, CancellationToken.None);
+        var shouldCommit = await sut.ProcessAsync(message, CancellationToken.None);
         Assert.True(shouldCommit);
         Assert.Single(dlq.Messages);
-        Assert.Contains("Unsupported Kafka event_type", dlq.Messages[0].Reason);
+        Assert.Contains("Unsupported message event_type", dlq.Messages[0].Reason);
         sender.VerifyNoOtherCalls();
     }
 
@@ -133,9 +131,9 @@ public sealed class LedgerKafkaMessageProcessorTests
             .ReturnsAsync(ApplyLedgerEntryCreatedResult.Processed);
 
         var sut = CreateSut(dlq, sender.Object);
-        var result = CreateResult(ValidPayload(), HeadersWith(EventId: null));
+        var message = CreateMessage(ValidPayload(), AttributesWith(EventId: null));
 
-        var shouldCommit = await sut.ProcessAsync(result, CancellationToken.None);
+        var shouldCommit = await sut.ProcessAsync(message, CancellationToken.None);
         Assert.True(shouldCommit);
         Assert.Empty(dlq.Messages);
         Assert.NotNull(command);
@@ -148,7 +146,7 @@ public sealed class LedgerKafkaMessageProcessorTests
         Activity? stoppedActivity = null;
         using var listener = new ActivityListener
         {
-            ShouldListenTo = source => source.Name == "BalanceService.KafkaConsumer",
+            ShouldListenTo = source => source.Name == LedgerEntryCreatedMessageProcessor.ActivitySourceName,
             Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
             ActivityStopped = activity => stoppedActivity = activity
         };
@@ -161,15 +159,15 @@ public sealed class LedgerKafkaMessageProcessorTests
             .ReturnsAsync(ApplyLedgerEntryCreatedResult.Processed);
 
         var sut = CreateSut(dlq, sender.Object);
-        var result = CreateResult(
+        var message = CreateMessage(
             ValidPayload(),
-            HeadersWith(
+            AttributesWith(
                 EventId: "evt-1",
                 TraceParent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
                 TraceState: "vendor=value",
                 Baggage: "tenant=poc"));
 
-        var shouldCommit = await sut.ProcessAsync(result, CancellationToken.None);
+        var shouldCommit = await sut.ProcessAsync(message, CancellationToken.None);
         Assert.True(shouldCommit);
         Assert.NotNull(stoppedActivity);
         Assert.Equal("4bf92f3577b34da6a3ce929d0e0e4736", stoppedActivity!.TraceId.ToString());
@@ -187,9 +185,9 @@ public sealed class LedgerKafkaMessageProcessorTests
             .ThrowsAsync(new DomainException("Invalid amount format."));
 
         var sut = CreateSut(dlq, sender.Object);
-        var result = CreateResult(ValidPayload(amount: "not-a-decimal"), HeadersWith(EventId: "evt-1"));
+        var message = CreateMessage(ValidPayload(amount: "not-a-decimal"), AttributesWith(EventId: "evt-1"));
 
-        var shouldCommit = await sut.ProcessAsync(result, CancellationToken.None);
+        var shouldCommit = await sut.ProcessAsync(message, CancellationToken.None);
         Assert.True(shouldCommit);
         Assert.Single(dlq.Messages);
         Assert.Equal("Non-recoverable processing failure.", dlq.Messages[0].Reason);
@@ -201,26 +199,26 @@ public sealed class LedgerKafkaMessageProcessorTests
     {
         var dlq = new CapturingDeadLetterProducer { ThrowOnProduce = true };
         var sut = CreateSut(dlq);
-        var result = CreateResult("{invalid-json", HeadersWith(EventId: "evt-1"));
+        var message = CreateMessage("{invalid-json", AttributesWith(EventId: "evt-1"));
 
-        var act = async () => await sut.ProcessAsync(result, CancellationToken.None);
+        var act = async () => await sut.ProcessAsync(message, CancellationToken.None);
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(act);
         Assert.Matches("^" + System.Text.RegularExpressions.Regex.Escape("DLQ unavailable.").Replace("\\*", ".*") + "$", ex.Message);
     }
 
-    private static LedgerKafkaMessageProcessor CreateSut(
-        IKafkaDeadLetterProducer dlq,
+    private static LedgerEntryCreatedMessageProcessor CreateSut(
+        IDeadLetterPublisher dlq,
         ISender? sender = null)
     {
         var services = new ServiceCollection();
         services.AddSingleton(sender ?? CreateDefaultSender());
 
 #pragma warning disable CA2000
-        return new LedgerKafkaMessageProcessor(
+        return new LedgerEntryCreatedMessageProcessor(
             services.BuildServiceProvider(),
             dlq,
             new KafkaMessagingMetrics($"{KafkaMessagingMetrics.MeterName}.Tests.{Guid.NewGuid():N}"),
-            NullLogger<LedgerKafkaMessageProcessor>.Instance);
+            NullLogger<LedgerEntryCreatedMessageProcessor>.Instance);
 #pragma warning restore CA2000
     }
 
@@ -234,44 +232,55 @@ public sealed class LedgerKafkaMessageProcessorTests
         return sender.Object;
     }
 
-    private static ConsumeResult<string, string> CreateResult(string payload, Headers headers)
-        => new()
-        {
-            Topic = "ledger.ledgerentry.created",
-            Partition = new Partition(0),
-            Offset = new Offset(42),
-            Message = new Message<string, string>
-            {
-                Key = "key",
-                Value = payload,
-                Headers = headers
-            }
-        };
+    private static ReceivedMessage CreateMessage(string payload, Dictionary<string, string> attributes)
+        => new(
+            payload,
+            attributes.TryGetValue(MessageAttributeNames.EventType, out var eventType) ? eventType : string.Empty,
+            attributes.TryGetValue(MessageAttributeNames.EventId, out var eventId) ? eventId : null,
+            attributes.TryGetValue(MessageAttributeNames.CorrelationId, out var correlationId) ? correlationId : null,
+            attributes.TryGetValue(MessageAttributeNames.TraceParent, out var traceParent) ? traceParent : null,
+            attributes.TryGetValue(MessageAttributeNames.TraceState, out var traceState) ? traceState : null,
+            attributes.TryGetValue(MessageAttributeNames.Baggage, out var baggage) ? baggage : null,
+            "key",
+            attributes,
+            new TransportMessageContext(
+                "kafka",
+                "ledger.ledgerentry.created",
+                "0",
+                "42",
+                null,
+                new Dictionary<string, string>
+                {
+                    ["topic"] = "ledger.ledgerentry.created",
+                    ["partition"] = "0",
+                    ["offset"] = "42",
+                    ["key"] = "key"
+                }));
 
-    private static Headers HeadersWith(
+    private static Dictionary<string, string> AttributesWith(
         string? EventId,
         string? TraceParent = null,
         string? TraceState = null,
         string? Baggage = null)
     {
-        var headers = new Headers
+        var attributes = new Dictionary<string, string>
         {
-            { KafkaHeaderNames.EventType, Encoding.UTF8.GetBytes(LedgerEntryCreatedV1Contract.EventType) }
+            [MessageAttributeNames.EventType] = LedgerEntryCreatedV1Contract.EventType
         };
 
         if (EventId is not null)
-            headers.Add(KafkaHeaderNames.EventId, Encoding.UTF8.GetBytes(EventId));
+            attributes[MessageAttributeNames.EventId] = EventId;
 
         if (TraceParent is not null)
-            headers.Add(KafkaHeaderNames.TraceParent, Encoding.UTF8.GetBytes(TraceParent));
+            attributes[MessageAttributeNames.TraceParent] = TraceParent;
 
         if (TraceState is not null)
-            headers.Add(KafkaHeaderNames.TraceState, Encoding.UTF8.GetBytes(TraceState));
+            attributes[MessageAttributeNames.TraceState] = TraceState;
 
         if (Baggage is not null)
-            headers.Add(KafkaHeaderNames.Baggage, Encoding.UTF8.GetBytes(Baggage));
+            attributes[MessageAttributeNames.Baggage] = Baggage;
 
-        return headers;
+        return attributes;
     }
 
     private static string ValidPayload(string amount = "10.00")
@@ -288,12 +297,12 @@ public sealed class LedgerKafkaMessageProcessorTests
             externalReference = (string?)null
         });
 
-    private sealed class CapturingDeadLetterProducer : IKafkaDeadLetterProducer
+    private sealed class CapturingDeadLetterProducer : IDeadLetterPublisher
     {
         public List<DeadLetterMessage> Messages { get; } = new();
         public bool ThrowOnProduce { get; init; }
 
-        public Task ProduceAsync(DeadLetterMessage message, CancellationToken cancellationToken)
+        public Task PublishAsync(DeadLetterMessage message, CancellationToken cancellationToken)
         {
             if (ThrowOnProduce)
                 throw new InvalidOperationException("DLQ unavailable.");

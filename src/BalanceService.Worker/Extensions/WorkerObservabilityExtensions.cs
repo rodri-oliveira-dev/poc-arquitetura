@@ -1,4 +1,5 @@
 using BalanceService.Worker.HostedServices;
+using BalanceService.Worker.Messaging.Processors;
 using BalanceService.Worker.Observability;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
@@ -29,7 +30,7 @@ public static class WorkerObservabilityExtensions
                 .ConfigureResource(resource => resource.AddService(otelOptions.ServiceName))
                 .WithTracing(tracing =>
                 {
-                    tracing.AddSource("BalanceService.KafkaConsumer");
+                    tracing.AddSource(LedgerEntryCreatedMessageProcessor.ActivitySourceName);
 
                     if (otelOptions.UseConsoleExporter)
                         tracing.AddConsoleExporter();

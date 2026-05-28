@@ -94,7 +94,7 @@ dotnet test ./LedgerService.slnx --configuration Release --filter "FullyQualifie
 
 Esses testes devem confirmar que:
 
-- `LedgerService.Api` nao registra `OutboxKafkaPublisherService`, `EstornoLancamentoProcessorService` nem `ReprocessamentoLancamentosConsumerService`.
+- `LedgerService.Api` nao registra `OutboxPublisherService`, `EstornoLancamentoProcessorService` nem `ReprocessamentoLancamentosConsumerService`.
 - `LedgerService.Worker` registra os HostedServices esperados quando as flags estao habilitadas.
 - `BalanceService.Api` nao registra `LedgerEventsConsumer`.
 - `BalanceService.Worker` registra `LedgerEventsConsumer` quando Kafka esta habilitado.

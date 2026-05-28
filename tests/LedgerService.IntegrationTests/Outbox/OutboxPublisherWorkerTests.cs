@@ -11,8 +11,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using IOutboxEventProducer = LedgerWorker::LedgerService.Worker.Messaging.Kafka.Producers.IOutboxEventProducer;
-using OutboxKafkaPublisherService = LedgerWorker::LedgerService.Worker.Outbox.OutboxKafkaPublisherService;
+using IOutboxMessagePublisher = LedgerWorker::LedgerService.Worker.Messaging.Abstractions.IOutboxMessagePublisher;
+using MessagePublishException = LedgerWorker::LedgerService.Worker.Messaging.Abstractions.MessagePublishException;
+using OutboxPublisherService = LedgerWorker::LedgerService.Worker.Outbox.OutboxPublisherService;
 using OutboxPublisherOptions = LedgerWorker::LedgerService.Worker.Outbox.OutboxPublisherOptions;
 
 namespace LedgerService.IntegrationTests.Outbox;
@@ -34,7 +35,7 @@ public sealed class OutboxPublisherWorkerTests
         var outboxId = await SeedPendingMessageAsync();
 
         await using var provider = CreateProvider(maxAttempts: 5);
-        var sut = provider.GetRequiredService<OutboxKafkaPublisherService>();
+        var sut = provider.GetRequiredService<OutboxPublisherService>();
 
         await sut.ProcessOnceAsync(TestContext.Current.CancellationToken);
 
@@ -53,7 +54,7 @@ public sealed class OutboxPublisherWorkerTests
         var outboxId = await SeedPendingMessageAsync();
 
         await using var provider = CreateProvider(maxAttempts: 1);
-        var sut = provider.GetRequiredService<OutboxKafkaPublisherService>();
+        var sut = provider.GetRequiredService<OutboxPublisherService>();
 
         await sut.ProcessOnceAsync(TestContext.Current.CancellationToken);
 
@@ -90,7 +91,7 @@ public sealed class OutboxPublisherWorkerTests
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<AppDbContext>());
         services.AddScoped<IOutboxMessageRepository, OutboxMessageRepository>();
         services.AddSingleton<OutboxMetrics>();
-        services.AddSingleton<IOutboxEventProducer, FailingOutboxEventProducer>();
+        services.AddSingleton<IOutboxMessagePublisher, FailingOutboxMessagePublisher>();
         services.AddSingleton<IJitterProvider>(new FixedJitterProvider(TimeSpan.Zero));
         services.AddSingleton<IRetryStrategy, ExponentialBackoffRetryStrategy>();
         services.AddSingleton(Options.Create(new OutboxPublisherOptions
@@ -102,8 +103,8 @@ public sealed class OutboxPublisherWorkerTests
             LockDurationSeconds = 30,
             PollingIntervalSeconds = 1
         }));
-        services.AddSingleton(NullLogger<OutboxKafkaPublisherService>.Instance);
-        services.AddSingleton<OutboxKafkaPublisherService>();
+        services.AddSingleton(NullLogger<OutboxPublisherService>.Instance);
+        services.AddSingleton<OutboxPublisherService>();
 
         return services.BuildServiceProvider(validateScopes: true);
     }
@@ -116,12 +117,12 @@ public sealed class OutboxPublisherWorkerTests
         return new AppDbContext(options);
     }
 
-    private sealed class FailingOutboxEventProducer : IOutboxEventProducer
+    private sealed class FailingOutboxMessagePublisher : IOutboxMessagePublisher
     {
-        public string ResolveTopic(OutboxMessage message) => "ledger.ledgerentry.created";
+        public string ResolveDestination(OutboxMessage message) => "ledger.ledgerentry.created";
 
-        public Task ProduceAsync(OutboxMessage message, CancellationToken cancellationToken)
-            => throw new TimeoutException("Kafka unavailable");
+        public Task PublishAsync(OutboxMessage message, CancellationToken cancellationToken)
+            => throw new MessagePublishException("Kafka unavailable", new TimeoutException("Kafka unavailable"));
     }
 
     private sealed class FixedJitterProvider : IJitterProvider

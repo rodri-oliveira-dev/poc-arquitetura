@@ -149,7 +149,7 @@ Campos operacionais esperados:
 Logs relevantes para operacao:
 
 - pipeline HTTP, status codes e excecoes via handlers/middlewares das APIs;
-- `OutboxKafkaPublisherService` no Ledger, incluindo polling, publicacao, falhas e retentativas;
+- `OutboxPublisherService` no Ledger, incluindo polling, publicacao, falhas e retentativas;
 - producer Kafka do Ledger, incluindo topico, particao e offset apos publicacao;
 - consumer Kafka do Balance, incluindo processamento, commits, retries e envio para DLQ;
 - erros de DLQ no Balance, especialmente quando a publicacao na DLQ falhar e o offset original nao for commitado.
@@ -285,7 +285,7 @@ Quando `Observability:OpenTelemetry:Enabled=true`, as APIs registram:
 Quando `Observability:OpenTelemetry:Enabled=true`, os workers registram `Activity` em trechos de Kafka/Outbox instrumentados no codigo:
 
 - `LedgerService.OutboxPublisher`, para publicacao do Outbox no Kafka;
-- `BalanceService.KafkaConsumer`, para consumo Kafka.
+- `BalanceService.MessageProcessor`, para o processor neutro que aplica mensagens recebidas depois do mapeamento do adapter Kafka.
 
 As APIs registram spans HTTP e `HttpClient`; o `BalanceService.Api` tambem registra `BalanceService.Application` para consultas de consolidado.
 
@@ -487,7 +487,7 @@ Validacao minima:
 
 ## Outbox
 
-O `LedgerService.Api` grava mensagens em `outbox_messages` na mesma transacao da escrita de lancamento. O `LedgerService.Worker` hospeda `OutboxKafkaPublisherService`, publica mensagens pendentes no Kafka e marca o status conforme o resultado.
+O `LedgerService.Api` grava mensagens em `outbox_messages` na mesma transacao da escrita de lancamento. O `LedgerService.Worker` hospeda `OutboxPublisherService`, publica mensagens pendentes pela porta de mensageria configurada e marca o status conforme o resultado. Nesta POC, o adapter concreto publica no Kafka.
 
 Estados esperados:
 
@@ -702,7 +702,7 @@ Esse endpoint foi escolhido porque:
 - aceita e devolve `X-Correlation-Id`;
 - usa `merchantId` no contrato real e valida esse valor contra a claim `merchant_id` emitida pelo Keycloak;
 - grava `LedgerEntryCreated.v1` em `outbox_messages` na mesma transacao da escrita;
-- depende do `LedgerService.Worker`, que hospeda `OutboxKafkaPublisherService` e publica no topico `ledger.ledgerentry.created`;
+- depende do `LedgerService.Worker`, que hospeda `OutboxPublisherService` e publica no topico `ledger.ledgerentry.created` via adapter Kafka;
 - alimenta o `BalanceService.Worker`, que atualiza `processed_events` e `daily_balances`; o `BalanceService.Api` apenas consulta a projecao.
 
 Pre-requisitos:
@@ -839,7 +839,7 @@ docker compose exec -T ledger-db psql -U appuser -d appdb \
   -c "SELECT id, event_type, status, retry_count, correlation_id, traceparent, tracestate, baggage, processed_at FROM outbox_messages WHERE correlation_id = '11111111-1111-4111-8111-111111111111' ORDER BY occurred_at DESC LIMIT 5;"
 ```
 
-Durante uma janela curta, a mensagem pode aparecer como `Pending` ou `Processing`. Depois do polling do `OutboxKafkaPublisherService`, o esperado e `Processed`. Se Kafka estiver indisponivel, acompanhe `retry_count`, `next_retry_at`, `last_error` e eventual `DeadLetter`.
+Durante uma janela curta, a mensagem pode aparecer como `Pending` ou `Processing`. Depois do polling do `OutboxPublisherService`, o esperado e `Processed`. Se Kafka estiver indisponivel, acompanhe `retry_count`, `next_retry_at`, `last_error` e eventual `DeadLetter`.
 
 No Balance, confirme o efeito funcional:
 
@@ -925,8 +925,8 @@ Estado atual auditado no fluxo `LedgerService.Api` -> `LedgerService.Worker` -> 
 - O `CorrelationIdMiddleware` das APIs resolve `X-Correlation-Id`, gera UUID quando o header esta ausente ou invalido, injeta o valor no request/response HTTP e cria scope de log com `CorrelationId`, `TraceId` e `SpanId` quando ha `Activity` ativa.
 - O caso de uso de criacao de lancamento grava o `correlationId` no payload `LedgerEntryCreated.v1` e na coluna `outbox_messages.correlation_id`.
 - Quando existe `Activity.Current`, o caso de uso tambem grava `traceparent`, `tracestate` e `baggage` nas colunas opcionais da Outbox.
-- O `OutboxKafkaPublisherService` restaura o parent W3C salvo na Outbox ao criar a `Activity` `outbox.publish` com `ActivityKind.Producer`.
-- O `OutboxKafkaProducer` publica `event_id`, `event_type`, `correlation_id`, `traceparent`, `tracestate` e `baggage` quando esse contexto existe na Outbox ou na `Activity.Current`.
+- O `OutboxPublisherService` restaura o parent W3C salvo na Outbox ao criar a `Activity` `outbox.publish` com `ActivityKind.Producer`.
+- O `KafkaOutboxMessagePublisher` publica `event_id`, `event_type`, `correlation_id`, `traceparent`, `tracestate` e `baggage` quando esse contexto existe na Outbox ou na `Activity.Current`.
 - O `BalanceService.Worker` le headers Kafka em dicionario case-insensitive, valida `event_type=LedgerEntryCreated.v1`, usa `event_id` do header quando presente e faz fallback para o `id` do payload.
 - O consumer tenta restaurar o parent do span `kafka.consume` com `ActivityContext.TryParse(traceparent, tracestate)`. Se o `traceparent` estiver ausente ou invalido, o consumo continua com uma nova Activity raiz quando OpenTelemetry esta habilitado.
 - O `correlation_id` do header Kafka nao e usado como fonte primaria no Balance; a correlacao operacional vem do campo `correlationId` do payload. Por isso, mensagens sem header `correlation_id`, mas com payload valido e `event_type`, continuam sendo processadas.

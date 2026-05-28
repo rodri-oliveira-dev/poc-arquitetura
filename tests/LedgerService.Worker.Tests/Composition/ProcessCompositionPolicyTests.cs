@@ -22,7 +22,7 @@ public sealed class ProcessCompositionPolicyTests
 
         services.AddLedgerApiComposition(CreateConfiguration(), CreateEnvironment());
 
-        services.NotContainHostedService<OutboxKafkaPublisherService>();
+        services.NotContainHostedService<OutboxPublisherService>();
         services.NotContainHostedService<EstornoLancamentoProcessorService>();
         services.NotContainHostedService<ReprocessamentoLancamentosConsumerService>();
     }
@@ -34,7 +34,7 @@ public sealed class ProcessCompositionPolicyTests
 
         services.AddLedgerWorkerComposition(CreateConfiguration(), CreateEnvironment());
 
-        services.ContainHostedService<OutboxKafkaPublisherService>();
+        services.ContainHostedService<OutboxPublisherService>();
         services.ContainHostedService<EstornoLancamentoProcessorService>();
         services.ContainHostedService<ReprocessamentoLancamentosConsumerService>();
     }
@@ -49,9 +49,23 @@ public sealed class ProcessCompositionPolicyTests
             ["Kafka:Enabled"] = "false"
         }), CreateEnvironment());
 
-        services.NotContainHostedService<OutboxKafkaPublisherService>();
+        services.NotContainHostedService<OutboxPublisherService>();
         services.NotContainHostedService<ReprocessamentoLancamentosConsumerService>();
         services.ContainHostedService<EstornoLancamentoProcessorService>();
+    }
+
+    [Fact]
+    public void LedgerServiceWorker_should_reject_unsupported_messaging_provider()
+    {
+        var services = new ServiceCollection();
+
+        var act = () => services.AddLedgerWorkerComposition(CreateConfiguration(new Dictionary<string, string?>
+        {
+            ["Messaging:Provider"] = "PubSub"
+        }), CreateEnvironment());
+
+        var ex = Assert.Throws<InvalidOperationException>(act);
+        Assert.Equal("Unsupported messaging provider 'PubSub'.", ex.Message);
     }
 
     [Fact]
@@ -65,7 +79,7 @@ public sealed class ProcessCompositionPolicyTests
             ["Reprocessamentos:Consumer:Enabled"] = "false"
         }), CreateEnvironment());
 
-        services.ContainHostedService<OutboxKafkaPublisherService>();
+        services.ContainHostedService<OutboxPublisherService>();
         services.NotContainHostedService<EstornoLancamentoProcessorService>();
         services.NotContainHostedService<ReprocessamentoLancamentosConsumerService>();
     }

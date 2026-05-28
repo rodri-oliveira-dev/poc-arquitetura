@@ -31,10 +31,9 @@ Isso reinstala ferramentas versionadas em `dotnet-tools.json` quando necessario 
 
 Antes de executar validacoes, o `pre-push` tenta identificar os arquivos alterados entre o branch local e o upstream/remoto:
 
-- em pushes normais, usa o intervalo informado pelo Git para comparar o SHA remoto com o SHA local;
-- quando o intervalo remoto nao esta disponivel, tenta calcular o merge-base contra o upstream atual;
-- se a branch ainda nao tem upstream configurado, tenta calcular o merge-base contra `origin/HEAD`;
-- se `origin/HEAD` nao estiver disponivel, tenta calcular o merge-base contra `origin/main`;
+- em pushes de branches ja existentes no remoto, usa o intervalo informado pelo Git para comparar o SHA remoto atual com o SHA local enviado (`remote_sha..local_sha`);
+- em pushes de branches novas, tenta calcular a base da branch usando o upstream da propria branch, a configuracao local de tracking, o `HEAD` dos remotos conhecidos ou o melhor merge-base entre refs remotas disponiveis;
+- em execucoes manuais sem entrada padrao do Git, aplica a mesma estrategia contra `HEAD`;
 - se nenhuma base segura estiver disponivel, executa as validacoes por seguranca.
 
 O hook executa restore, build e testes rapidos sem cobertura quando encontra qualquer arquivo impactante, incluindo:

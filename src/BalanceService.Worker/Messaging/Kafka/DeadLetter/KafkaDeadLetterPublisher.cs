@@ -1,30 +1,30 @@
-using System.Globalization;
 using System.Text;
 using System.Text.Json;
 
-using Confluent.Kafka;
-
+using BalanceService.Worker.Messaging.Abstractions;
 using BalanceService.Worker.Messaging.Kafka.Configuration;
 using BalanceService.Worker.Messaging.Kafka.Tracing;
 using BalanceService.Worker.Observability;
+
+using Confluent.Kafka;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace BalanceService.Worker.Messaging.Kafka.DeadLetter;
 
-public sealed class KafkaDeadLetterProducer : IKafkaDeadLetterProducer, IDisposable
+public sealed class KafkaDeadLetterPublisher : IDeadLetterPublisher, IDisposable
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly KafkaConsumerOptions _options;
     private readonly KafkaMessagingMetrics _metrics;
-    private readonly ILogger<KafkaDeadLetterProducer> _logger;
+    private readonly ILogger<KafkaDeadLetterPublisher> _logger;
     private readonly IProducer<string, string> _producer;
 
-    public KafkaDeadLetterProducer(
+    public KafkaDeadLetterPublisher(
         IOptions<KafkaConsumerOptions> options,
         KafkaMessagingMetrics metrics,
-        ILogger<KafkaDeadLetterProducer> logger)
+        ILogger<KafkaDeadLetterPublisher> logger)
     {
         _options = options.Value;
         _metrics = metrics;
@@ -48,25 +48,29 @@ public sealed class KafkaDeadLetterProducer : IKafkaDeadLetterProducer, IDisposa
             .Build();
     }
 
-    public async Task ProduceAsync(DeadLetterMessage message, CancellationToken cancellationToken)
+    public async Task PublishAsync(DeadLetterMessage message, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(_options.DeadLetterTopic))
-            throw new InvalidOperationException("Kafka DeadLetterTopic não configurado.");
+            throw new InvalidOperationException("Kafka DeadLetterTopic nÃ£o configurado.");
+
+        var originalTopic = ResolveTransportMetadata(message, "topic", message.Source);
+        var originalPartition = ResolveTransportMetadata(message, "partition", "0");
+        var originalOffset = ResolveTransportMetadata(message, "offset", "0");
 
         var headers = new Headers
         {
             { "dlq_reason", Encoding.UTF8.GetBytes(message.Reason) },
-            { "original_topic", Encoding.UTF8.GetBytes(message.OriginalTopic) },
-            { "original_partition", Encoding.UTF8.GetBytes(message.OriginalPartition.ToString(CultureInfo.InvariantCulture)) },
-            { "original_offset", Encoding.UTF8.GetBytes(message.OriginalOffset.ToString(CultureInfo.InvariantCulture)) }
+            { "original_topic", Encoding.UTF8.GetBytes(originalTopic) },
+            { "original_partition", Encoding.UTF8.GetBytes(originalPartition) },
+            { "original_offset", Encoding.UTF8.GetBytes(originalOffset) }
         };
 
-        KafkaTraceContext.CopyHeaderIfPresent(message.OriginalHeaders, headers, KafkaHeaderNames.EventType);
-        KafkaTraceContext.CopyHeaderIfPresent(message.OriginalHeaders, headers, KafkaHeaderNames.EventId);
-        KafkaTraceContext.CopyHeaderIfPresent(message.OriginalHeaders, headers, KafkaHeaderNames.CorrelationId);
-        KafkaTraceContext.CopyHeaderIfPresent(message.OriginalHeaders, headers, KafkaHeaderNames.TraceParent);
-        KafkaTraceContext.CopyHeaderIfPresent(message.OriginalHeaders, headers, KafkaHeaderNames.TraceState);
-        KafkaTraceContext.CopyHeaderIfPresent(message.OriginalHeaders, headers, KafkaHeaderNames.Baggage);
+        KafkaTraceContext.CopyHeaderIfPresent(message.Attributes, headers, MessageAttributeNames.EventType);
+        KafkaTraceContext.CopyHeaderIfPresent(message.Attributes, headers, MessageAttributeNames.EventId);
+        KafkaTraceContext.CopyHeaderIfPresent(message.Attributes, headers, MessageAttributeNames.CorrelationId);
+        KafkaTraceContext.CopyHeaderIfPresent(message.Attributes, headers, MessageAttributeNames.TraceParent);
+        KafkaTraceContext.CopyHeaderIfPresent(message.Attributes, headers, MessageAttributeNames.TraceState);
+        KafkaTraceContext.CopyHeaderIfPresent(message.Attributes, headers, MessageAttributeNames.Baggage);
 
         try
         {
@@ -74,7 +78,7 @@ public sealed class KafkaDeadLetterProducer : IKafkaDeadLetterProducer, IDisposa
                 _options.DeadLetterTopic,
                 new Message<string, string>
                 {
-                    Key = $"{message.OriginalTopic}:{message.OriginalPartition}:{message.OriginalOffset}",
+                    Key = $"{originalTopic}:{originalPartition}:{originalOffset}",
                     Value = JsonSerializer.Serialize(message, JsonOptions),
                     Headers = headers,
                     Timestamp = new Timestamp(message.Timestamp.UtcDateTime)
@@ -82,8 +86,8 @@ public sealed class KafkaDeadLetterProducer : IKafkaDeadLetterProducer, IDisposa
                 cancellationToken);
 
             _metrics.RecordDlqMessagePublished(
-                message.OriginalTopic,
-                ResolveEventType(message.OriginalHeaders),
+                originalTopic,
+                ResolveEventType(message.Attributes),
                 ClassifyReason(message.Reason));
 
             _logger.LogWarning(
@@ -91,23 +95,23 @@ public sealed class KafkaDeadLetterProducer : IKafkaDeadLetterProducer, IDisposa
                 _options.DeadLetterTopic,
                 result.Partition.Value,
                 result.Offset.Value,
-                message.OriginalTopic,
-                message.OriginalPartition,
-                message.OriginalOffset);
+                originalTopic,
+                originalPartition,
+                originalOffset);
         }
         catch (Exception ex) when (ex is ProduceException<string, string> or KafkaException or TimeoutException or InvalidOperationException)
         {
             _metrics.RecordDlqPublishError(
-                message.OriginalTopic,
-                ResolveEventType(message.OriginalHeaders),
+                originalTopic,
+                ResolveEventType(message.Attributes),
                 ex.GetType().Name);
 
             throw;
         }
     }
 
-    internal static string ResolveEventType(IReadOnlyDictionary<string, string> headers)
-        => headers.TryGetValue(KafkaHeaderNames.EventType, out var eventType) && !string.IsNullOrWhiteSpace(eventType)
+    internal static string ResolveEventType(IReadOnlyDictionary<string, string> attributes)
+        => attributes.TryGetValue(MessageAttributeNames.EventType, out var eventType) && !string.IsNullOrWhiteSpace(eventType)
             ? eventType
             : "unknown";
 
@@ -119,8 +123,8 @@ public sealed class KafkaDeadLetterProducer : IKafkaDeadLetterProducer, IDisposa
         if (string.Equals(reason, "Non-recoverable processing failure.", StringComparison.Ordinal))
             return "non_recoverable_processing_failure";
 
-        if (reason.StartsWith("Missing required Kafka header", StringComparison.Ordinal) ||
-            reason.StartsWith("Unsupported Kafka event_type", StringComparison.Ordinal) ||
+        if (reason.StartsWith("Missing required message attribute", StringComparison.Ordinal) ||
+            reason.StartsWith("Unsupported message event_type", StringComparison.Ordinal) ||
             reason.StartsWith("Message payload", StringComparison.Ordinal))
         {
             return "validation_failed";
@@ -128,6 +132,11 @@ public sealed class KafkaDeadLetterProducer : IKafkaDeadLetterProducer, IDisposa
 
         return "unknown";
     }
+
+    private static string ResolveTransportMetadata(DeadLetterMessage message, string name, string fallback)
+        => message.TransportMetadata.TryGetValue(name, out var value) && !string.IsNullOrWhiteSpace(value)
+            ? value
+            : fallback;
 
     public void Dispose()
     {
@@ -142,5 +151,4 @@ public sealed class KafkaDeadLetterProducer : IKafkaDeadLetterProducer, IDisposa
 
         _producer.Dispose();
     }
-
 }

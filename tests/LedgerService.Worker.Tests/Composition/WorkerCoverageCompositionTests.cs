@@ -16,10 +16,10 @@ namespace LedgerService.Worker.Tests.Composition;
 public sealed class WorkerCoverageCompositionTests
 {
     [Fact]
-    public void OutboxKafkaProducer_should_resolve_mapped_topic_before_default_topic()
+    public void KafkaOutboxMessagePublisher_should_resolve_mapped_destination_before_default_topic()
     {
         using var metrics = new OutboxMetrics("LedgerService.Worker.Tests.Outbox");
-        using var sut = new OutboxKafkaProducer(
+        using var sut = new KafkaOutboxMessagePublisher(
             Options.Create(new KafkaProducerOptions
             {
                 BootstrapServers = "localhost:9092",
@@ -29,17 +29,17 @@ public sealed class WorkerCoverageCompositionTests
                     ["LedgerEntryCreated"] = "ledger.ledgerentry.created"
                 }
             }),
-            Mock.Of<ILogger<OutboxKafkaProducer>>(),
+            Mock.Of<ILogger<KafkaOutboxMessagePublisher>>(),
             metrics);
 
-        var mapped = sut.ResolveTopic(CreateOutboxMessage("LedgerEntryCreated"));
-        var fallback = sut.ResolveTopic(CreateOutboxMessage("UnknownEvent"));
+        var mapped = sut.ResolveDestination(CreateOutboxMessage("LedgerEntryCreated"));
+        var fallback = sut.ResolveDestination(CreateOutboxMessage("UnknownEvent"));
         Assert.Equal("ledger.ledgerentry.created", mapped);
         Assert.Equal("ledger.default", fallback);
     }
 
     [Fact]
-    public void OutboxKafkaPublisherService_should_compute_exponential_retry_with_bounded_jitter()
+    public void OutboxPublisherService_should_compute_exponential_retry_with_bounded_jitter()
     {
         var now = new DateTime(2026, 5, 20, 10, 0, 0, DateTimeKind.Utc);
         var sut = new ExponentialBackoffRetryStrategy(new FixedJitterProvider(TimeSpan.FromMilliseconds(100)));
@@ -50,13 +50,13 @@ public sealed class WorkerCoverageCompositionTests
     }
 
     [Fact]
-    public void OutboxKafkaPublisherService_should_be_constructed_with_worker_dependencies()
+    public void OutboxPublisherService_should_be_constructed_with_worker_dependencies()
     {
-        using var sut = new OutboxKafkaPublisherService(
+        using var sut = new OutboxPublisherService(
             Mock.Of<IServiceProvider>(),
             Options.Create(new OutboxPublisherOptions()),
             Mock.Of<IRetryStrategy>(),
-            Mock.Of<ILogger<OutboxKafkaPublisherService>>());
+            Mock.Of<ILogger<OutboxPublisherService>>());
         Assert.NotNull(sut);
     }
 

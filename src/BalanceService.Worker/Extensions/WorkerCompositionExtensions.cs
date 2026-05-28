@@ -1,15 +1,19 @@
 using BalanceService.Application;
 using BalanceService.Infrastructure;
+using BalanceService.Worker.Messaging.Abstractions;
 using BalanceService.Worker.Messaging.Kafka.Configuration;
 using BalanceService.Worker.Messaging.Kafka.Consumers;
 using BalanceService.Worker.Messaging.Kafka.DeadLetter;
-using BalanceService.Worker.Messaging.Kafka.Processors;
+using BalanceService.Worker.Messaging.Processors;
 using BalanceService.Worker.Observability;
 
 namespace BalanceService.Worker.Extensions;
 
 public static class WorkerCompositionExtensions
 {
+    private const string MessagingProviderConfigurationKey = "Messaging:Provider";
+    private const string KafkaProvider = "Kafka";
+
     public static IServiceCollection AddBalanceWorkerComposition(
         this IServiceCollection services,
         IConfiguration configuration,
@@ -21,10 +25,33 @@ public static class WorkerCompositionExtensions
             .AddBalanceInfrastructureCommon()
             .AddBalancePersistence(configuration)
             .AddBalanceRepositories()
-            .AddBalanceKafkaConsumer(configuration, environment)
-            .AddBalanceLedgerEventsWorker(configuration);
+            .AddBalanceMessaging(configuration, environment);
 
         return services;
+    }
+
+    public static IServiceCollection AddBalanceMessaging(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        IHostEnvironment environment)
+    {
+        var provider = configuration.GetValue<string>(MessagingProviderConfigurationKey) ?? KafkaProvider;
+
+        return provider.Trim().ToUpperInvariant() switch
+        {
+            "KAFKA" => services.AddBalanceKafkaMessaging(configuration, environment),
+            _ => throw new InvalidOperationException($"Unsupported messaging provider '{provider}'.")
+        };
+    }
+
+    public static IServiceCollection AddBalanceKafkaMessaging(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        IHostEnvironment environment)
+    {
+        return services
+            .AddBalanceKafkaConsumer(configuration, environment)
+            .AddBalanceLedgerEventsWorker(configuration);
     }
 
     public static IServiceCollection AddBalanceKafkaConsumer(
@@ -50,8 +77,8 @@ public static class WorkerCompositionExtensions
             .Validate(o => o.ProcessingErrorRetryDelay > TimeSpan.Zero, "Kafka ProcessingErrorRetryDelay deve ser maior que zero.")
             .ValidateOnStart();
 
-        services.AddSingleton<IKafkaDeadLetterProducer, KafkaDeadLetterProducer>();
-        services.AddSingleton<LedgerKafkaMessageProcessor>();
+        services.AddSingleton<IDeadLetterPublisher, KafkaDeadLetterPublisher>();
+        services.AddSingleton<LedgerEntryCreatedMessageProcessor>();
 
         return services;
     }

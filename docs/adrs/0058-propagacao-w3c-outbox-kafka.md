@@ -18,7 +18,7 @@ Persistir metadados W3C opcionais na tabela `outbox_messages`:
 - `tracestate`;
 - `baggage`.
 
-O caso de uso grava esses campos quando existe `Activity.Current`. O `OutboxKafkaPublisherService` restaura esse contexto ao criar o span `outbox.publish`, e o `OutboxKafkaProducer` publica os headers W3C no Kafka a partir do contexto persistido. O `BalanceService` usa `traceparent`/`tracestate` como parent do span `kafka.consume` e reidrata `baggage` como baggage real da `Activity` quando possivel.
+O caso de uso grava esses campos quando existe `Activity.Current`. O `OutboxPublisherService` restaura esse contexto ao criar o span `outbox.publish`, e o adapter Kafka (`KafkaOutboxMessagePublisher`) publica os headers W3C no Kafka a partir do contexto persistido. O adapter de consumo mapeia os headers para `ReceivedMessage`, e o processor neutro do `BalanceService` usa `traceparent`/`tracestate` como parent do span `message.process` e reidrata `baggage` como baggage real da `Activity` quando possivel.
 
 A logica de leitura, copia e propagacao W3C fica centralizada em helpers pequenos dentro da camada `Infrastructure` de cada servico, sem criar pacote compartilhado ou framework interno.
 

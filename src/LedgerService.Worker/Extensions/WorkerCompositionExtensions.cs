@@ -1,6 +1,7 @@
 using LedgerService.Application;
 using LedgerService.Infrastructure;
 using LedgerService.Worker.Estornos;
+using LedgerService.Worker.Messaging.Abstractions;
 using LedgerService.Worker.Messaging.Kafka.Configuration;
 using LedgerService.Worker.Messaging.Kafka.Producers;
 using LedgerService.Worker.Outbox;
@@ -11,6 +12,9 @@ namespace LedgerService.Worker.Extensions;
 
 public static class WorkerCompositionExtensions
 {
+    private const string MessagingProviderConfigurationKey = "Messaging:Provider";
+    private const string KafkaProvider = "Kafka";
+
     public static IServiceCollection AddLedgerWorkerComposition(
         this IServiceCollection services,
         IConfiguration configuration,
@@ -22,12 +26,35 @@ public static class WorkerCompositionExtensions
             .AddLedgerInfrastructureCommon()
             .AddLedgerPersistence(configuration)
             .AddLedgerRepositories()
-            .AddLedgerKafkaProducer(configuration, environment)
-            .AddLedgerOutboxWorker(configuration)
-            .AddLedgerEstornoWorker(configuration)
-            .AddLedgerReprocessamentoWorker(configuration, environment);
+            .AddLedgerMessaging(configuration, environment)
+            .AddLedgerEstornoWorker(configuration);
 
         return services;
+    }
+
+    public static IServiceCollection AddLedgerMessaging(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        IHostEnvironment environment)
+    {
+        var provider = configuration.GetValue<string>(MessagingProviderConfigurationKey) ?? KafkaProvider;
+
+        return provider.Trim().ToUpperInvariant() switch
+        {
+            "KAFKA" => services.AddLedgerKafkaMessaging(configuration, environment),
+            _ => throw new InvalidOperationException($"Unsupported messaging provider '{provider}'.")
+        };
+    }
+
+    public static IServiceCollection AddLedgerKafkaMessaging(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        IHostEnvironment environment)
+    {
+        return services
+            .AddLedgerKafkaProducer(configuration, environment)
+            .AddLedgerOutboxWorker(configuration)
+            .AddLedgerReprocessamentoWorker(configuration, environment);
     }
 
     public static IServiceCollection AddLedgerKafkaProducer(
@@ -45,7 +72,7 @@ public static class WorkerCompositionExtensions
             .Validate(o => IsLocalEnvironment(environment) || !KafkaClientConfigExtensions.IsPlaintext(o), "Kafka PLAINTEXT e permitido apenas em Development/Local.")
             .ValidateOnStart();
 
-        services.AddSingleton<IOutboxEventProducer, OutboxKafkaProducer>();
+        services.AddSingleton<IOutboxMessagePublisher, KafkaOutboxMessagePublisher>();
 
         return services;
     }
@@ -68,7 +95,7 @@ public static class WorkerCompositionExtensions
             .Validate(o => o.LockDurationSeconds > 0, "Outbox Publisher LockDurationSeconds deve ser maior que zero.")
             .ValidateOnStart();
 
-        services.AddHostedService<OutboxKafkaPublisherService>();
+        services.AddHostedService<OutboxPublisherService>();
 
         return services;
     }

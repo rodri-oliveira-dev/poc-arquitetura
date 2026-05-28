@@ -8,7 +8,7 @@ Aceito
 
 ## Contexto
 
-O `OutboxKafkaPublisherService` publica mensagens pendentes do Ledger no Kafka com retry e backoff. Quando uma mensagem excede `Outbox:Publisher:MaxAttempts`, ela passa para `Failed` e deixa de ser reclamada pelo publisher.
+O `OutboxPublisherService` publica mensagens pendentes do Ledger pela porta `IOutboxMessagePublisher`, implementada atualmente pelo adapter Kafka. Quando uma mensagem excede `Outbox:Publisher:MaxAttempts`, ela passa para `Failed` e deixa de ser reclamada pelo publisher.
 
 Sem fluxo operacional de recuperacao, um lancamento pode ficar persistido corretamente no Ledger, mas o evento financeiro correspondente pode nao chegar ao Balance. Isso quebra a consistencia eventual esperada para a projecao de saldo.
 

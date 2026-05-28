@@ -1,7 +1,7 @@
 using Confluent.Kafka;
 
 using BalanceService.Worker.Messaging.Kafka.Configuration;
-using BalanceService.Worker.Messaging.Kafka.Processors;
+using BalanceService.Worker.Messaging.Processors;
 using BalanceService.Worker.Messaging.Kafka.Tracing;
 using BalanceService.Worker.Observability;
 using Microsoft.EntityFrameworkCore;
@@ -14,13 +14,13 @@ namespace BalanceService.Worker.Messaging.Kafka.Consumers;
 public sealed class LedgerEventsConsumer : BackgroundService
 {
     private readonly KafkaConsumerOptions _options;
-    private readonly LedgerKafkaMessageProcessor _messageProcessor;
+    private readonly LedgerEntryCreatedMessageProcessor _messageProcessor;
     private readonly KafkaMessagingMetrics _metrics;
     private readonly ILogger<LedgerEventsConsumer> _logger;
 
     public LedgerEventsConsumer(
         IOptions<KafkaConsumerOptions> options,
-        LedgerKafkaMessageProcessor messageProcessor,
+        LedgerEntryCreatedMessageProcessor messageProcessor,
         KafkaMessagingMetrics metrics,
         ILogger<LedgerEventsConsumer> logger)
     {
@@ -72,7 +72,8 @@ public sealed class LedgerEventsConsumer : BackgroundService
                 if (result?.Message?.Value is null)
                     continue;
 
-                if (await _messageProcessor.ProcessAsync(result, stoppingToken))
+                var message = KafkaReceivedMessageMapper.Map(result);
+                if (await _messageProcessor.ProcessAsync(message, stoppingToken))
                 {
                     consumer.Commit(result);
                     _logger.KafkaMessageCommitted();

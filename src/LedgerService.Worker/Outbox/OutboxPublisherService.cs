@@ -1,11 +1,9 @@
-using Confluent.Kafka;
 using LedgerService.Application.Outbox.Retry;
 using LedgerService.Domain.Entities;
 using LedgerService.Domain.Repositories;
 using LedgerService.Infrastructure.Observability;
 using LedgerService.Infrastructure.Persistence;
-using LedgerService.Worker.Messaging.Kafka.Producers;
-using LedgerService.Worker.Messaging.Kafka.Tracing;
+using LedgerService.Worker.Messaging.Abstractions;
 using LedgerService.Worker.Observability;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,20 +14,20 @@ using System.Diagnostics;
 
 namespace LedgerService.Worker.Outbox;
 
-public sealed class OutboxKafkaPublisherService : BackgroundService
+public sealed class OutboxPublisherService : BackgroundService
 {
     private static readonly ActivitySource ActivitySource = new("LedgerService.OutboxPublisher");
     private readonly IServiceProvider _serviceProvider;
     private readonly IOptions<OutboxPublisherOptions> _options;
     private readonly IRetryStrategy _retryStrategy;
-    private readonly ILogger<OutboxKafkaPublisherService> _logger;
+    private readonly ILogger<OutboxPublisherService> _logger;
     private readonly string _lockOwner;
 
-    public OutboxKafkaPublisherService(
+    public OutboxPublisherService(
         IServiceProvider serviceProvider,
         IOptions<OutboxPublisherOptions> options,
         IRetryStrategy retryStrategy,
-        ILogger<OutboxKafkaPublisherService> logger)
+        ILogger<OutboxPublisherService> logger)
     {
         _serviceProvider = serviceProvider;
         _options = options;
@@ -61,10 +59,6 @@ public sealed class OutboxKafkaPublisherService : BackgroundService
             catch (TimeoutException ex)
             {
                 _logger.PublisherTimeout(ex);
-            }
-            catch (KafkaException ex)
-            {
-                _logger.UnhandledPublisherError(ex);
             }
             catch (Exception ex)
             {
@@ -138,7 +132,7 @@ public sealed class OutboxKafkaPublisherService : BackgroundService
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var repo = scope.ServiceProvider.GetRequiredService<IOutboxMessageRepository>();
         var uow = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
-        var producer = scope.ServiceProvider.GetRequiredService<IOutboxEventProducer>();
+        var publisher = scope.ServiceProvider.GetRequiredService<IOutboxMessagePublisher>();
         var metrics = scope.ServiceProvider.GetRequiredService<OutboxMetrics>();
 
         var options = _options.Value;
@@ -164,15 +158,16 @@ public sealed class OutboxKafkaPublisherService : BackgroundService
             ["AggregateId"] = message.AggregateId
         });
 
-        using var activity = KafkaTraceContext.StartProducerActivity(
+        var topic = publisher.ResolveDestination(message);
+
+        using var activity = StartProducerActivity(
             ActivitySource,
             "outbox.publish",
             message.TraceParent,
             message.TraceState,
             message.Baggage);
 
-        activity?.SetTag("messaging.system", "kafka");
-        activity?.SetTag("messaging.destination", "kafka");
+        activity?.SetTag("messaging.destination", topic);
         activity?.SetTag("messaging.operation", "publish");
         activity?.SetTag("ledger.outbox.id", message.Id.ToString());
         activity?.SetTag("ledger.outbox.event_type", message.EventType);
@@ -180,12 +175,11 @@ public sealed class OutboxKafkaPublisherService : BackgroundService
         if (message.CorrelationId is not null)
             activity?.SetTag("correlation_id", message.CorrelationId.ToString());
 
-        var topic = producer.ResolveTopic(message);
         var startedAt = Stopwatch.GetTimestamp();
 
         try
         {
-            await producer.ProduceAsync(message, ct);
+            await publisher.PublishAsync(message, ct);
 
             await repo.MarkProcessedAsync(message.Id, DateTime.Now, ct);
             await uow.SaveChangesAsync(ct);
@@ -195,15 +189,7 @@ public sealed class OutboxKafkaPublisherService : BackgroundService
             metrics.RecordOutboxPublishDuration(Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds, message.EventType, topic, "success");
             _logger.OutboxMessageMarkedAsProcessed();
         }
-        catch (ProduceException<string, string> ex)
-        {
-            await HandlePublishFailureAsync(repo, uow, metrics, message, topic, startedAt, options, ex, ct);
-        }
-        catch (KafkaException ex)
-        {
-            await HandlePublishFailureAsync(repo, uow, metrics, message, topic, startedAt, options, ex, ct);
-        }
-        catch (TimeoutException ex)
+        catch (MessagePublishException ex)
         {
             await HandlePublishFailureAsync(repo, uow, metrics, message, topic, startedAt, options, ex, ct);
         }
@@ -255,5 +241,37 @@ public sealed class OutboxKafkaPublisherService : BackgroundService
         metrics.RecordPublishAttempt(eventType, "failure");
         metrics.RecordOutboxMessagePublished(eventType, topic, "failure");
         metrics.RecordOutboxPublishDuration(Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds, eventType, topic, "failure");
+    }
+
+    private static Activity? StartProducerActivity(
+        ActivitySource activitySource,
+        string operationName,
+        string? traceParent,
+        string? traceState,
+        string? baggage)
+    {
+        var activity = !string.IsNullOrWhiteSpace(traceParent) &&
+            ActivityContext.TryParse(traceParent, traceState, out var parentContext)
+                ? activitySource.StartActivity(operationName, ActivityKind.Producer, parentContext)
+                : activitySource.StartActivity(operationName, ActivityKind.Producer);
+
+        AddBaggage(activity, baggage);
+        return activity;
+    }
+
+    private static void AddBaggage(Activity? activity, string? baggage)
+    {
+        if (activity is null || string.IsNullOrWhiteSpace(baggage))
+            return;
+
+        foreach (var item in baggage.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var pair = item.Split(';', 2, StringSplitOptions.TrimEntries)[0];
+            var separatorIndex = pair.IndexOf('=');
+            if (separatorIndex <= 0 || separatorIndex == pair.Length - 1)
+                continue;
+
+            activity.AddBaggage(pair[..separatorIndex], pair[(separatorIndex + 1)..]);
+        }
     }
 }

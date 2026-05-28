@@ -13,7 +13,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 ## How-to
 
 - [Autenticacao e autorizacao](development/authentication.md): obter token local, validar scopes, audiences e autorizacao por merchant.
-- [Kafka, Outbox e DLQ](development/kafka-outbox.md): validar publicacao, consumo, DLQ, requeue e fluxos assincronos.
+- [Kafka, Outbox e DLQ](development/kafka-outbox.md): validar mensageria, provider Kafka atual, publicacao, consumo, DLQ, requeue e fluxos assincronos.
 - [Cobertura de testes](development/test-coverage.md): executar testes com cobertura, interpretar falhas e entender os gates de 85% global e dos workers.
 - [Mutation testing com Stryker.NET](development/mutation-testing-stryker.md): executar mutation testing local e interpretar relatorios.
 - [OWASP ZAP local](development/owasp-zap.md): executar DAST baseline local contra Ledger e Balance, com Auth.Api legado apenas opcional, salvando relatorios em `zap-reports/`.
@@ -38,6 +38,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [Boundaries arquiteturais](architecture/boundaries.md): responsabilidades de `Api`, `Application`, `Domain` e `Infrastructure`.
 - [Analise arquitetural e decisoes recomendadas](architecture/decisions.md): riscos, simplificacoes e roadmap pragmatico.
 - [ADRs](adrs/README.md): historico de decisoes arquiteturais e pontos de melhoria.
+- [Mensageria por ports and adapters](adrs/0075-mensageria-ports-adapters-kafka-provider.md): Kafka como provider atual e Pub/Sub apenas como adapter futuro.
 - [Plano de migracao Auth.Api para Keycloak/OIDC](adrs/0073-plano-migracao-auth-api-keycloak-oidc.md): execucao incremental mantendo validacao JWT offline via JWKS.
 - [Keycloak como identidade principal](adrs/0074-keycloak-como-identidade-principal.md): decisao final de remover Auth.Api da stack principal e mante-lo apenas como legado por overlay.
 - [Avaliacao de .NET Aspire e riscos OWASP](reports/aspire-and-owasp-assessment.md): relatorio historico de contexto, nao estado operacional mais recente.

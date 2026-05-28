@@ -5,6 +5,7 @@ using Confluent.Kafka;
 
 using LedgerService.Domain.Entities;
 using LedgerService.Infrastructure.Observability;
+using LedgerService.Worker.Messaging.Abstractions;
 using LedgerService.Worker.Messaging.Kafka.Configuration;
 using LedgerService.Worker.Messaging.Kafka.Tracing;
 
@@ -13,16 +14,16 @@ using Microsoft.Extensions.Options;
 
 namespace LedgerService.Worker.Messaging.Kafka.Producers;
 
-public sealed class OutboxKafkaProducer : IOutboxEventProducer, IDisposable
+public sealed class KafkaOutboxMessagePublisher : IOutboxMessagePublisher, IDisposable
 {
     private readonly KafkaProducerOptions _options;
-    private readonly ILogger<OutboxKafkaProducer> _logger;
+    private readonly ILogger<KafkaOutboxMessagePublisher> _logger;
     private readonly OutboxMetrics _metrics;
     private readonly IProducer<string, string> _producer;
 
-    public OutboxKafkaProducer(
+    public KafkaOutboxMessagePublisher(
         IOptions<KafkaProducerOptions> options,
-        ILogger<OutboxKafkaProducer> logger,
+        ILogger<KafkaOutboxMessagePublisher> logger,
         OutboxMetrics metrics)
     {
         _options = options.Value;
@@ -47,9 +48,9 @@ public sealed class OutboxKafkaProducer : IOutboxEventProducer, IDisposable
             .Build();
     }
 
-    public async Task ProduceAsync(OutboxMessage message, CancellationToken cancellationToken)
+    public async Task PublishAsync(OutboxMessage message, CancellationToken cancellationToken)
     {
-        var topic = ResolveTopic(message);
+        var topic = ResolveDestination(message);
         var key = message.AggregateId.ToString("N");
 
         var headers = new Headers();
@@ -89,20 +90,21 @@ public sealed class OutboxKafkaProducer : IOutboxEventProducer, IDisposable
                 result.Partition.Value,
                 result.Offset.Value);
         }
-        catch (Exception ex) when (ex is ProduceException<string, string> or KafkaException or TimeoutException)
+        catch (ProduceException<string, string> ex)
         {
-            var elapsedMilliseconds = Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds;
-            var errorType = ex.GetType().Name;
-
-            _metrics.RecordKafkaProducerMessagePublished(topic, message.EventType, "failure");
-            _metrics.RecordKafkaProducerPublishDuration(elapsedMilliseconds, topic, message.EventType, "failure");
-            _metrics.RecordKafkaProducerError(topic, message.EventType, errorType);
-
-            throw;
+            throw CreatePublishException(message, topic, startedAt, ex);
+        }
+        catch (KafkaException ex)
+        {
+            throw CreatePublishException(message, topic, startedAt, ex);
+        }
+        catch (TimeoutException ex)
+        {
+            throw CreatePublishException(message, topic, startedAt, ex);
         }
     }
 
-    public string ResolveTopic(OutboxMessage message)
+    public string ResolveDestination(OutboxMessage message)
     {
         if (_options.TopicMap.TryGetValue(message.EventType, out var mapped) && !string.IsNullOrWhiteSpace(mapped))
             return mapped;
@@ -119,6 +121,24 @@ public sealed class OutboxKafkaProducer : IOutboxEventProducer, IDisposable
             "all" => Acks.All,
             _ => Acks.All
         };
+    }
+
+    private MessagePublishException CreatePublishException(
+        OutboxMessage message,
+        string topic,
+        long startedAt,
+        Exception exception)
+    {
+        var elapsedMilliseconds = Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds;
+        var errorType = exception.GetType().Name;
+
+        _metrics.RecordKafkaProducerMessagePublished(topic, message.EventType, "failure");
+        _metrics.RecordKafkaProducerPublishDuration(elapsedMilliseconds, topic, message.EventType, "failure");
+        _metrics.RecordKafkaProducerError(topic, message.EventType, errorType);
+
+        return new MessagePublishException(
+            $"Failed to publish outbox message {message.Id} to destination '{topic}'.",
+            exception);
     }
 
     public void Dispose()

@@ -16,7 +16,7 @@ Criar `LedgerService.Worker` como processo .NET Worker Service separado da API.
 
 O Worker referencia `LedgerService.Application` e `LedgerService.Infrastructure` e registra explicitamente:
 
-- `OutboxKafkaPublisherService`;
+- `OutboxPublisherService`, publicando pela porta neutra `IOutboxMessagePublisher` com Kafka como adapter atual;
 - `EstornoLancamentoProcessorService`;
 - `ReprocessamentoLancamentosConsumerService`.
 
