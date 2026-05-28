@@ -90,16 +90,17 @@ public sealed class KafkaOutboxMessagePublisher : IOutboxMessagePublisher, IDisp
                 result.Partition.Value,
                 result.Offset.Value);
         }
-        catch (Exception ex) when (ex is ProduceException<string, string> or KafkaException or TimeoutException)
+        catch (ProduceException<string, string> ex)
         {
-            var elapsedMilliseconds = Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds;
-            var errorType = ex.GetType().Name;
-
-            _metrics.RecordKafkaProducerMessagePublished(topic, message.EventType, "failure");
-            _metrics.RecordKafkaProducerPublishDuration(elapsedMilliseconds, topic, message.EventType, "failure");
-            _metrics.RecordKafkaProducerError(topic, message.EventType, errorType);
-
-            throw;
+            throw CreatePublishException(message, topic, startedAt, ex);
+        }
+        catch (KafkaException ex)
+        {
+            throw CreatePublishException(message, topic, startedAt, ex);
+        }
+        catch (TimeoutException ex)
+        {
+            throw CreatePublishException(message, topic, startedAt, ex);
         }
     }
 
@@ -120,6 +121,24 @@ public sealed class KafkaOutboxMessagePublisher : IOutboxMessagePublisher, IDisp
             "all" => Acks.All,
             _ => Acks.All
         };
+    }
+
+    private MessagePublishException CreatePublishException(
+        OutboxMessage message,
+        string topic,
+        long startedAt,
+        Exception exception)
+    {
+        var elapsedMilliseconds = Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds;
+        var errorType = exception.GetType().Name;
+
+        _metrics.RecordKafkaProducerMessagePublished(topic, message.EventType, "failure");
+        _metrics.RecordKafkaProducerPublishDuration(elapsedMilliseconds, topic, message.EventType, "failure");
+        _metrics.RecordKafkaProducerError(topic, message.EventType, errorType);
+
+        return new MessagePublishException(
+            $"Failed to publish outbox message {message.Id} to destination '{topic}'.",
+            exception);
     }
 
     public void Dispose()

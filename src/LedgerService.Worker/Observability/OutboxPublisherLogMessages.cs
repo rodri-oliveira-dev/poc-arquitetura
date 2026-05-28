@@ -2,21 +2,21 @@ using Microsoft.Extensions.Logging;
 
 namespace LedgerService.Worker.Observability;
 
-internal static partial class OutboxKafkaPublisherLogMessages
+internal static partial class OutboxPublisherLogMessages
 {
-    [LoggerMessage(EventId = 1000, Level = LogLevel.Information, Message = "OutboxKafkaPublisherService started (owner={LockOwner}, interval={IntervalSeconds}s)")]
+    [LoggerMessage(EventId = 1000, Level = LogLevel.Information, Message = "OutboxPublisherService started (owner={LockOwner}, interval={IntervalSeconds}s)")]
     internal static partial void PublisherStarted(this ILogger logger, string lockOwner, double intervalSeconds);
 
-    [LoggerMessage(EventId = 1001, Level = LogLevel.Error, Message = "Erro persistente no OutboxKafkaPublisherService. Vai retentar no proximo ciclo.")]
+    [LoggerMessage(EventId = 1001, Level = LogLevel.Error, Message = "Erro persistente no OutboxPublisherService. Vai retentar no proximo ciclo.")]
     internal static partial void PersistentPublisherError(this ILogger logger, Exception exception);
 
-    [LoggerMessage(EventId = 1002, Level = LogLevel.Error, Message = "Timeout no OutboxKafkaPublisherService. Vai retentar no proximo ciclo.")]
+    [LoggerMessage(EventId = 1002, Level = LogLevel.Error, Message = "Timeout no OutboxPublisherService. Vai retentar no proximo ciclo.")]
     internal static partial void PublisherTimeout(this ILogger logger, Exception exception);
 
-    [LoggerMessage(EventId = 1003, Level = LogLevel.Error, Message = "Erro não tratado no OutboxKafkaPublisherService. Vai retentar no próximo ciclo.")]
+    [LoggerMessage(EventId = 1003, Level = LogLevel.Error, Message = "Erro nao tratado no OutboxPublisherService. Vai retentar no proximo ciclo.")]
     internal static partial void UnhandledPublisherError(this ILogger logger, Exception exception);
 
-    [LoggerMessage(EventId = 1004, Level = LogLevel.Information, Message = "OutboxKafkaPublisherService stopped (owner={LockOwner})")]
+    [LoggerMessage(EventId = 1004, Level = LogLevel.Information, Message = "OutboxPublisherService stopped (owner={LockOwner})")]
     internal static partial void PublisherStopped(this ILogger logger, string lockOwner);
 
     [LoggerMessage(EventId = 1005, Level = LogLevel.Debug, Message = "Claimed {Count} outbox messages (owner={LockOwner}, parallelism={Parallelism})")]

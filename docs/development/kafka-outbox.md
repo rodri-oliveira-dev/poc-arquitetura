@@ -6,7 +6,7 @@ Este documento concentra a referencia de mensageria entre `LedgerService.Api`, `
 
 1. `LedgerService.Api` cria um lancamento, registra uma solicitacao de estorno ou registra uma solicitacao de reprocessamento.
 2. A mesma transacao grava a mensagem em `outbox_messages`.
-3. `LedgerService.Worker` hospeda `OutboxKafkaPublisherService`, que le mensagens pendentes e publica no Kafka.
+3. `LedgerService.Worker` hospeda `OutboxPublisherService`, que le mensagens pendentes e publica pela porta de mensageria configurada; nesta POC, o adapter concreto publica no Kafka.
 4. `LedgerService.Worker` hospeda `EstornoLancamentoProcessorService`, que processa solicitacoes `Pending` e cria lancamentos compensatorios.
 5. O estorno concluido grava `LedgerEntryCreated.v1` do lancamento compensatorio no Outbox.
 6. `LedgerService.Worker` hospeda `ReprocessamentoLancamentosConsumerService`, que consome `ledger.lancamentos.reprocessamento.solicitado`, chama o caso de uso de reprocessamento e registra eventos financeiros finais no Outbox quando houver lancamentos elegiveis.
@@ -99,7 +99,7 @@ curl -i "http://localhost:5226/api/v1/outbox/dead-letters?page=1&pageSize=50" \
   -H "Authorization: Bearer <TOKEN_COM_OUTBOX_ADMIN>"
 ```
 
-Cada mensagem requeued registra `requeue_count`, `last_requeued_at`, `last_requeued_by` e `last_requeue_reason`. O `OutboxKafkaPublisherService` publica depois pelo fluxo normal de polling, preservando headers, correlacao, retry/backoff e idempotencia at-least-once.
+Cada mensagem requeued registra `requeue_count`, `last_requeued_at`, `last_requeued_by` e `last_requeue_reason`. O `OutboxPublisherService` publica depois pelo fluxo normal de polling, preservando headers, correlacao, retry/backoff e idempotencia at-least-once.
 
 Procedimento recomendado:
 

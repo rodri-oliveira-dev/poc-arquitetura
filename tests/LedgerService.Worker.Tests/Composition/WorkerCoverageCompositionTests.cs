@@ -39,7 +39,7 @@ public sealed class WorkerCoverageCompositionTests
     }
 
     [Fact]
-    public void OutboxKafkaPublisherService_should_compute_exponential_retry_with_bounded_jitter()
+    public void OutboxPublisherService_should_compute_exponential_retry_with_bounded_jitter()
     {
         var now = new DateTime(2026, 5, 20, 10, 0, 0, DateTimeKind.Utc);
         var sut = new ExponentialBackoffRetryStrategy(new FixedJitterProvider(TimeSpan.FromMilliseconds(100)));
@@ -50,13 +50,13 @@ public sealed class WorkerCoverageCompositionTests
     }
 
     [Fact]
-    public void OutboxKafkaPublisherService_should_be_constructed_with_worker_dependencies()
+    public void OutboxPublisherService_should_be_constructed_with_worker_dependencies()
     {
-        using var sut = new OutboxKafkaPublisherService(
+        using var sut = new OutboxPublisherService(
             Mock.Of<IServiceProvider>(),
             Options.Create(new OutboxPublisherOptions()),
             Mock.Of<IRetryStrategy>(),
-            Mock.Of<ILogger<OutboxKafkaPublisherService>>());
+            Mock.Of<ILogger<OutboxPublisherService>>());
         Assert.NotNull(sut);
     }
 

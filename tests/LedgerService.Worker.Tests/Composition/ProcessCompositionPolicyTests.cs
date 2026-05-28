@@ -22,7 +22,7 @@ public sealed class ProcessCompositionPolicyTests
 
         services.AddLedgerApiComposition(CreateConfiguration(), CreateEnvironment());
 
-        services.NotContainHostedService<OutboxKafkaPublisherService>();
+        services.NotContainHostedService<OutboxPublisherService>();
         services.NotContainHostedService<EstornoLancamentoProcessorService>();
         services.NotContainHostedService<ReprocessamentoLancamentosConsumerService>();
     }
@@ -34,7 +34,7 @@ public sealed class ProcessCompositionPolicyTests
 
         services.AddLedgerWorkerComposition(CreateConfiguration(), CreateEnvironment());
 
-        services.ContainHostedService<OutboxKafkaPublisherService>();
+        services.ContainHostedService<OutboxPublisherService>();
         services.ContainHostedService<EstornoLancamentoProcessorService>();
         services.ContainHostedService<ReprocessamentoLancamentosConsumerService>();
     }
@@ -49,7 +49,7 @@ public sealed class ProcessCompositionPolicyTests
             ["Kafka:Enabled"] = "false"
         }), CreateEnvironment());
 
-        services.NotContainHostedService<OutboxKafkaPublisherService>();
+        services.NotContainHostedService<OutboxPublisherService>();
         services.NotContainHostedService<ReprocessamentoLancamentosConsumerService>();
         services.ContainHostedService<EstornoLancamentoProcessorService>();
     }
@@ -65,7 +65,7 @@ public sealed class ProcessCompositionPolicyTests
             ["Reprocessamentos:Consumer:Enabled"] = "false"
         }), CreateEnvironment());
 
-        services.ContainHostedService<OutboxKafkaPublisherService>();
+        services.ContainHostedService<OutboxPublisherService>();
         services.NotContainHostedService<EstornoLancamentoProcessorService>();
         services.NotContainHostedService<ReprocessamentoLancamentosConsumerService>();
     }

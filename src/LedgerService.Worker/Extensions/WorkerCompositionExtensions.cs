@@ -69,7 +69,7 @@ public static class WorkerCompositionExtensions
             .Validate(o => o.LockDurationSeconds > 0, "Outbox Publisher LockDurationSeconds deve ser maior que zero.")
             .ValidateOnStart();
 
-        services.AddHostedService<OutboxKafkaPublisherService>();
+        services.AddHostedService<OutboxPublisherService>();
 
         return services;
     }
