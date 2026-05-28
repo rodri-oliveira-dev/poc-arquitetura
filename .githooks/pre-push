@@ -67,64 +67,179 @@ append_changed_files_from_base_ref() {
   git diff --name-only "$merge_base" "$head_ref" >>"$changed_files"
 }
 
+is_valid_base_ref() {
+  base_ref="$1"
+  head_ref="$2"
+
+  base_commit="$(git rev-parse --verify "$base_ref^{commit}" 2>/dev/null || true)"
+  [ -n "$base_commit" ] || return 1
+
+  head_commit="$(git rev-parse --verify "$head_ref^{commit}" 2>/dev/null || true)"
+  [ -n "$head_commit" ] || return 1
+
+  merge_base="$(git merge-base "$head_commit" "$base_commit" 2>/dev/null || true)"
+  [ -n "$merge_base" ] || return 1
+  [ "$merge_base" != "$head_commit" ] || return 1
+
+  return 0
+}
+
+resolve_safe_base_ref() {
+  head_ref="$1"
+  local_ref="${2:-}"
+  resolved_base_ref=""
+  branch_name=""
+
+  case "$local_ref" in
+    refs/heads/*)
+      branch_name="${local_ref#refs/heads/}"
+      ;;
+  esac
+
+  if [ -n "$branch_name" ]; then
+    upstream_ref="$(git rev-parse --abbrev-ref --symbolic-full-name "$branch_name@{u}" 2>/dev/null || true)"
+  else
+    upstream_ref="$(git rev-parse --abbrev-ref --symbolic-full-name "@{u}" 2>/dev/null || true)"
+  fi
+
+  if [ -n "$upstream_ref" ] && is_valid_base_ref "$upstream_ref" "$head_ref"; then
+    resolved_base_ref="$upstream_ref"
+    return 0
+  fi
+
+  if [ -n "$branch_name" ]; then
+    configured_remote="$(git config "branch.$branch_name.remote" 2>/dev/null || true)"
+    configured_merge="$(git config "branch.$branch_name.merge" 2>/dev/null || true)"
+
+    if [ -n "$configured_remote" ] && [ -n "$configured_merge" ]; then
+      case "$configured_merge" in
+        refs/heads/*)
+          if [ "$configured_remote" = "." ]; then
+            configured_base="$configured_merge"
+          else
+            configured_base="$configured_remote/${configured_merge#refs/heads/}"
+          fi
+
+          if is_valid_base_ref "$configured_base" "$head_ref"; then
+            resolved_base_ref="$configured_base"
+            return 0
+          fi
+          ;;
+      esac
+    fi
+  fi
+
+  remote_refs="$(git for-each-ref --format='%(refname)' refs/remotes 2>/dev/null || true)"
+  while IFS= read -r remote_ref
+  do
+    [ -n "$remote_ref" ] || continue
+
+    case "$remote_ref" in
+      */HEAD)
+        remote_head_ref="$(git symbolic-ref --short "$remote_ref" 2>/dev/null || true)"
+        if [ -n "$remote_head_ref" ] && is_valid_base_ref "$remote_head_ref" "$head_ref"; then
+          resolved_base_ref="$remote_head_ref"
+          return 0
+        fi
+        ;;
+    esac
+  done <<EOF
+$remote_refs
+EOF
+
+  head_commit="$(git rev-parse --verify "$head_ref^{commit}" 2>/dev/null || true)"
+  [ -n "$head_commit" ] || return 1
+
+  best_base_ref=""
+  best_base_time="-1"
+  remote_short_refs="$(git for-each-ref --format='%(refname:short)' refs/remotes 2>/dev/null || true)"
+  while IFS= read -r candidate_ref
+  do
+    [ -n "$candidate_ref" ] || continue
+
+    case "$candidate_ref" in
+      */HEAD)
+        continue
+        ;;
+    esac
+
+    candidate_commit="$(git rev-parse --verify "$candidate_ref^{commit}" 2>/dev/null || true)"
+    [ -n "$candidate_commit" ] || continue
+
+    candidate_merge_base="$(git merge-base "$head_commit" "$candidate_commit" 2>/dev/null || true)"
+    [ -n "$candidate_merge_base" ] || continue
+    [ "$candidate_merge_base" != "$head_commit" ] || continue
+
+    candidate_base_time="$(git show -s --format=%ct "$candidate_merge_base" 2>/dev/null || echo 0)"
+    if [ "$candidate_base_time" -gt "$best_base_time" ]; then
+      best_base_time="$candidate_base_time"
+      best_base_ref="$candidate_ref"
+    fi
+  done <<EOF
+$remote_short_refs
+EOF
+
+  if [ -n "$best_base_ref" ]; then
+    resolved_base_ref="$best_base_ref"
+    return 0
+  fi
+
+  return 1
+}
+
 append_changed_files_from_safe_base() {
   head_ref="$1"
+  local_ref="${2:-}"
 
-  upstream_ref="$(git rev-parse --abbrev-ref --symbolic-full-name "@{u}" 2>/dev/null || true)"
-  if [ -n "$upstream_ref" ]; then
-    if append_changed_files_from_base_ref "$upstream_ref" "$head_ref"; then
-      echo "==> pre-push: diff calculado contra $upstream_ref"
-      return 0
-    fi
-
-    echo "==> pre-push: nao foi possivel calcular diff contra $upstream_ref"
-  fi
-
-  if append_changed_files_from_base_ref "origin/HEAD" "$head_ref"; then
-    echo "==> pre-push: diff calculado contra origin/HEAD"
+  echo "==> pre-push: tentando identificar branch de origem/base"
+  if resolve_safe_base_ref "$head_ref" "$local_ref"; then
+    echo "==> pre-push: base identificada: $resolved_base_ref"
+    echo "==> pre-push: range analisado: $resolved_base_ref...$head_ref"
+    append_changed_files_from_base_ref "$resolved_base_ref" "$head_ref"
     return 0
   fi
 
-  if append_changed_files_from_base_ref "origin/main" "$head_ref"; then
-    echo "==> pre-push: diff calculado contra origin/main"
-    return 0
-  fi
-
-  echo "==> pre-push: upstream/remoto/base padrao indisponivel; executando validacoes por seguranca"
+  echo "==> pre-push: nao foi possivel determinar a base com seguranca; executando validacoes"
   return 1
 }
 
 diff_is_safe=true
 stdin_seen=false
 
+echo "==> pre-push: analisando alteracoes pendentes de push"
+
 while read -r local_ref local_sha remote_ref remote_sha
 do
   stdin_seen=true
 
   if [ "$local_sha" = "$ZERO_SHA" ]; then
+    echo "==> pre-push: ref removida detectada; ignorando $remote_ref"
     continue
   fi
 
   if [ -n "$remote_sha" ] && [ "$remote_sha" != "$ZERO_SHA" ]; then
+    echo "==> pre-push: branch remota existente detectada"
+    echo "==> pre-push: range analisado: $remote_sha..$local_sha"
     if ! append_changed_files_from_ref_range "$remote_sha" "$local_sha"; then
       diff_is_safe=false
     fi
     continue
   fi
 
-  if ! append_changed_files_from_safe_base "$local_sha"; then
+  echo "==> pre-push: branch remota ainda nao existe"
+  if ! append_changed_files_from_safe_base "$local_sha" "$local_ref"; then
     diff_is_safe=false
   fi
 done
 
 if [ "$stdin_seen" = false ]; then
-  if ! append_changed_files_from_safe_base "HEAD"; then
+  if ! append_changed_files_from_safe_base "HEAD" ""; then
     diff_is_safe=false
   fi
 fi
 
 if [ "$diff_is_safe" = false ]; then
-  echo "==> pre-push: nao foi possivel determinar o diff com seguranca; executando validacoes"
+  echo "==> pre-push: validacoes serao executadas por seguranca"
 else
   impacting_file=""
   while IFS= read -r changed_file
