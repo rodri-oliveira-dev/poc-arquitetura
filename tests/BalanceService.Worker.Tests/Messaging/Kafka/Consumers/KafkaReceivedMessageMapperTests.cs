@@ -52,5 +52,6 @@ public sealed class KafkaReceivedMessageMapperTests
         Assert.Equal("ledger.ledgerentry.created", message.Transport.Metadata["topic"]);
         Assert.Equal("3", message.Transport.Metadata["partition"]);
         Assert.Equal("99", message.Transport.Metadata["offset"]);
+        Assert.Equal("merchant-1", message.Transport.Metadata["key"]);
     }
 }

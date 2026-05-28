@@ -1,5 +1,6 @@
 using BalanceService.Application;
 using BalanceService.Infrastructure;
+using BalanceService.Worker.Messaging.Abstractions;
 using BalanceService.Worker.Messaging.Kafka.Configuration;
 using BalanceService.Worker.Messaging.Kafka.Consumers;
 using BalanceService.Worker.Messaging.Kafka.DeadLetter;
@@ -50,7 +51,7 @@ public static class WorkerCompositionExtensions
             .Validate(o => o.ProcessingErrorRetryDelay > TimeSpan.Zero, "Kafka ProcessingErrorRetryDelay deve ser maior que zero.")
             .ValidateOnStart();
 
-        services.AddSingleton<IKafkaDeadLetterProducer, KafkaDeadLetterProducer>();
+        services.AddSingleton<IDeadLetterPublisher, KafkaDeadLetterPublisher>();
         services.AddSingleton<LedgerEntryCreatedMessageProcessor>();
 
         return services;

@@ -1,7 +1,7 @@
 using BalanceService.Api.Extensions;
 using BalanceService.Application.Abstractions.Persistence;
+using BalanceService.Worker.Messaging.Abstractions;
 using BalanceService.Worker.Messaging.Kafka.Consumers;
-using BalanceService.Worker.Messaging.Kafka.DeadLetter;
 using BalanceService.Worker.Messaging.Kafka.Processors;
 using BalanceService.Worker.Observability;
 using BalanceService.Worker.Extensions;
@@ -54,7 +54,7 @@ public sealed class ProcessCompositionPolicyTests
 
         services.AddBalanceWorkerComposition(CreateConfiguration(), CreateEnvironment());
         Assert.Contains(services, d => d.ServiceType == typeof(LedgerEntryCreatedMessageProcessor));
-        Assert.Contains(services, d => d.ServiceType == typeof(IKafkaDeadLetterProducer));
+        Assert.Contains(services, d => d.ServiceType == typeof(IDeadLetterPublisher));
         Assert.Contains(services, d => d.ServiceType == typeof(KafkaMessagingMetrics));
         Assert.Contains(services, d => d.ServiceType == typeof(IDailyBalanceRepository));
         Assert.Contains(services, d => d.ServiceType == typeof(IProcessedEventRepository));

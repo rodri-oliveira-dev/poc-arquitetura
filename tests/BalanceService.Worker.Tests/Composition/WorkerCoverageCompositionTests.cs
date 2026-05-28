@@ -1,6 +1,7 @@
 using BalanceService.Worker.Messaging.Kafka.Configuration;
 using BalanceService.Worker.Messaging.Kafka.Consumers;
 using BalanceService.Worker.Messaging.Kafka.DeadLetter;
+using BalanceService.Worker.Messaging.Abstractions;
 using BalanceService.Worker.Messaging.Kafka.Tracing;
 using BalanceService.Worker.Observability;
 using Microsoft.Extensions.Logging;
@@ -41,25 +42,30 @@ public sealed class WorkerCoverageCompositionTests
     }
 
     [Fact]
-    public async Task KafkaDeadLetterProducer_should_validate_dead_letter_topic_before_producing()
+    public async Task KafkaDeadLetterPublisher_should_validate_dead_letter_topic_before_publishing()
     {
         using var metrics = new KafkaMessagingMetrics("BalanceService.Worker.Tests.Dlq");
-        using var sut = new KafkaDeadLetterProducer(
+        using var sut = new KafkaDeadLetterPublisher(
             Options.Create(ValidConsumerOptions(deadLetterTopic: "")),
             metrics,
-            Mock.Of<ILogger<KafkaDeadLetterProducer>>());
+            Mock.Of<ILogger<KafkaDeadLetterPublisher>>());
 
         var message = new DeadLetterMessage(
             "{}",
             "ledger.ledgerentry.created",
-            0,
-            10,
-            new Dictionary<string, string>(),
+            "unknown",
             "Missing required Kafka header event_id.",
             nameof(InvalidOperationException),
-            DateTimeOffset.UtcNow);
+            DateTimeOffset.UtcNow,
+            new Dictionary<string, string>(),
+            new Dictionary<string, string>
+            {
+                ["topic"] = "ledger.ledgerentry.created",
+                ["partition"] = "0",
+                ["offset"] = "10"
+            });
 
-        var act = () => sut.ProduceAsync(message, CancellationToken.None);
+        var act = () => sut.PublishAsync(message, CancellationToken.None);
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(act);
         Assert.Matches("^" + System.Text.RegularExpressions.Regex.Escape("*DeadLetterTopic*").Replace("\\*", ".*") + "$", ex.Message);
     }
@@ -71,20 +77,20 @@ public sealed class WorkerCoverageCompositionTests
     [InlineData("Unsupported Kafka event_type LedgerEntryCreated.v2.", "validation_failed")]
     [InlineData("Message payload invalid.", "validation_failed")]
     [InlineData("Transient failure.", "unknown")]
-    public void KafkaDeadLetterProducer_should_classify_dlq_reasons(string reason, string expected)
+    public void KafkaDeadLetterPublisher_should_classify_dlq_reasons(string reason, string expected)
     {
-        Assert.Equal(expected, KafkaDeadLetterProducer.ClassifyReason(reason));
+        Assert.Equal(expected, KafkaDeadLetterPublisher.ClassifyReason(reason));
     }
 
     [Fact]
-    public void KafkaDeadLetterProducer_should_resolve_event_type_from_headers()
+    public void KafkaDeadLetterPublisher_should_resolve_event_type_from_attributes()
     {
-        var eventType = KafkaDeadLetterProducer.ResolveEventType(new Dictionary<string, string>
+        var eventType = KafkaDeadLetterPublisher.ResolveEventType(new Dictionary<string, string>
         {
             [KafkaHeaderNames.EventType] = "LedgerEntryCreated.v1"
         });
 
-        var unknown = KafkaDeadLetterProducer.ResolveEventType(new Dictionary<string, string>());
+        var unknown = KafkaDeadLetterPublisher.ResolveEventType(new Dictionary<string, string>());
         Assert.Equal("LedgerEntryCreated.v1", eventType);
         Assert.Equal("unknown", unknown);
     }

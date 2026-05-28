@@ -6,7 +6,6 @@ using BalanceService.Domain.Balances;
 using BalanceService.Domain.Exceptions;
 using BalanceService.Worker.Messaging.Abstractions;
 using BalanceService.Worker.Messaging.Kafka.Contracts;
-using BalanceService.Worker.Messaging.Kafka.DeadLetter;
 using BalanceService.Worker.Messaging.Kafka.Processors;
 using BalanceService.Worker.Messaging.Kafka.Tracing;
 using BalanceService.Worker.Observability;
@@ -33,15 +32,18 @@ public sealed class LedgerEntryCreatedMessageProcessorTests
         Assert.True(shouldCommit);
         Assert.Single(dlq.Messages);
         Assert.Equal("{invalid-json", dlq.Messages[0].OriginalPayload);
-        Assert.Equal("ledger.ledgerentry.created", dlq.Messages[0].OriginalTopic);
-        Assert.Equal(0, dlq.Messages[0].OriginalPartition);
-        Assert.Equal(42, dlq.Messages[0].OriginalOffset);
+        Assert.Equal("ledger.ledgerentry.created", dlq.Messages[0].Source);
+        Assert.Equal("ledger.ledgerentry.created", dlq.Messages[0].TransportMetadata["topic"]);
+        Assert.Equal("0", dlq.Messages[0].TransportMetadata["partition"]);
+        Assert.Equal("42", dlq.Messages[0].TransportMetadata["offset"]);
+        Assert.Equal("key", dlq.Messages[0].TransportMetadata["key"]);
         Assert.Equal("Deserialization failed.", dlq.Messages[0].Reason);
         Assert.Equal(nameof(JsonException), dlq.Messages[0].ExceptionType);
-        Assert.Equal(LedgerEntryCreatedV1Contract.EventType, dlq.Messages[0].OriginalHeaders[KafkaHeaderNames.EventType]);
-        Assert.Equal("evt-1", dlq.Messages[0].OriginalHeaders[KafkaHeaderNames.EventId]);
-        Assert.False(string.IsNullOrWhiteSpace(dlq.Messages[0].OriginalHeaders[KafkaHeaderNames.TraceParent]));
-        Assert.Equal("tenant=poc", dlq.Messages[0].OriginalHeaders[KafkaHeaderNames.Baggage]);
+        Assert.Equal(LedgerEntryCreatedV1Contract.EventType, dlq.Messages[0].EventType);
+        Assert.Equal(LedgerEntryCreatedV1Contract.EventType, dlq.Messages[0].Attributes[KafkaHeaderNames.EventType]);
+        Assert.Equal("evt-1", dlq.Messages[0].Attributes[KafkaHeaderNames.EventId]);
+        Assert.False(string.IsNullOrWhiteSpace(dlq.Messages[0].Attributes[KafkaHeaderNames.TraceParent]));
+        Assert.Equal("tenant=poc", dlq.Messages[0].Attributes[KafkaHeaderNames.Baggage]);
     }
 
     [Fact]
@@ -206,7 +208,7 @@ public sealed class LedgerEntryCreatedMessageProcessorTests
     }
 
     private static LedgerEntryCreatedMessageProcessor CreateSut(
-        IKafkaDeadLetterProducer dlq,
+        IDeadLetterPublisher dlq,
         ISender? sender = null)
     {
         var services = new ServiceCollection();
@@ -252,7 +254,8 @@ public sealed class LedgerEntryCreatedMessageProcessorTests
                 {
                     ["topic"] = "ledger.ledgerentry.created",
                     ["partition"] = "0",
-                    ["offset"] = "42"
+                    ["offset"] = "42",
+                    ["key"] = "key"
                 }));
 
     private static Dictionary<string, string> AttributesWith(
@@ -295,12 +298,12 @@ public sealed class LedgerEntryCreatedMessageProcessorTests
             externalReference = (string?)null
         });
 
-    private sealed class CapturingDeadLetterProducer : IKafkaDeadLetterProducer
+    private sealed class CapturingDeadLetterProducer : IDeadLetterPublisher
     {
         public List<DeadLetterMessage> Messages { get; } = new();
         public bool ThrowOnProduce { get; init; }
 
-        public Task ProduceAsync(DeadLetterMessage message, CancellationToken cancellationToken)
+        public Task PublishAsync(DeadLetterMessage message, CancellationToken cancellationToken)
         {
             if (ThrowOnProduce)
                 throw new InvalidOperationException("DLQ unavailable.");

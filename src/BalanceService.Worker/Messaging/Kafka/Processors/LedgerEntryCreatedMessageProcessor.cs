@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Globalization;
 using System.Text.Json;
 
 using BalanceService.Application.Balances.Commands;
@@ -7,7 +6,6 @@ using BalanceService.Domain.Balances;
 using BalanceService.Domain.Exceptions;
 using BalanceService.Worker.Messaging.Abstractions;
 using BalanceService.Worker.Messaging.Kafka.Contracts;
-using BalanceService.Worker.Messaging.Kafka.DeadLetter;
 using BalanceService.Worker.Messaging.Kafka.Tracing;
 using BalanceService.Worker.Observability;
 
@@ -24,18 +22,18 @@ public sealed class LedgerEntryCreatedMessageProcessor
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     private readonly IServiceProvider _serviceProvider;
-    private readonly IKafkaDeadLetterProducer _deadLetterProducer;
+    private readonly IDeadLetterPublisher _deadLetterPublisher;
     private readonly KafkaMessagingMetrics _metrics;
     private readonly ILogger<LedgerEntryCreatedMessageProcessor> _logger;
 
     public LedgerEntryCreatedMessageProcessor(
         IServiceProvider serviceProvider,
-        IKafkaDeadLetterProducer deadLetterProducer,
+        IDeadLetterPublisher deadLetterPublisher,
         KafkaMessagingMetrics metrics,
         ILogger<LedgerEntryCreatedMessageProcessor> logger)
     {
         _serviceProvider = serviceProvider;
-        _deadLetterProducer = deadLetterProducer;
+        _deadLetterPublisher = deadLetterPublisher;
         _metrics = metrics;
         _logger = logger;
     }
@@ -126,14 +124,14 @@ public sealed class LedgerEntryCreatedMessageProcessor
         var message = new DeadLetterMessage(
             receivedMessage.Payload,
             receivedMessage.Transport.Source,
-            ParsePartition(receivedMessage.Transport.Partition),
-            ParseOffset(receivedMessage.Transport.Offset),
-            receivedMessage.Attributes,
+            ResolveEventType(receivedMessage),
             reason,
             exception.GetType().Name,
-            DateTimeOffset.UtcNow);
+            DateTimeOffset.UtcNow,
+            receivedMessage.Attributes,
+            receivedMessage.Transport.Metadata);
 
-        await _deadLetterProducer.ProduceAsync(message, cancellationToken);
+        await _deadLetterPublisher.PublishAsync(message, cancellationToken);
 
         _logger.LogWarning(
             exception,
@@ -212,16 +210,6 @@ public sealed class LedgerEntryCreatedMessageProcessor
         => !string.IsNullOrWhiteSpace(message.EventType)
             ? message.EventType
             : "unknown";
-
-    private static int ParsePartition(string? partition)
-        => int.TryParse(partition, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value)
-            ? value
-            : 0;
-
-    private static long ParseOffset(string? offset)
-        => long.TryParse(offset, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value)
-            ? value
-            : 0L;
 
     private static bool IsNonRecoverableProcessingFailure(InvalidOperationException ex)
         => ex.Source?.Contains("EntityFramework", StringComparison.OrdinalIgnoreCase) != true;

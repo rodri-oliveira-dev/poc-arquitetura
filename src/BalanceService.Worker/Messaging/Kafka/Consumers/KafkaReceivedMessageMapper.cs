@@ -15,6 +15,16 @@ internal static class KafkaReceivedMessageMapper
     {
         var attributes = KafkaTraceContext.ReadHeaders(result.Message.Headers);
 
+        var transportMetadata = new Dictionary<string, string>
+        {
+            ["topic"] = result.Topic,
+            ["partition"] = result.Partition.Value.ToString(CultureInfo.InvariantCulture),
+            ["offset"] = result.Offset.Value.ToString(CultureInfo.InvariantCulture)
+        };
+
+        if (!string.IsNullOrWhiteSpace(result.Message.Key))
+            transportMetadata["key"] = result.Message.Key;
+
         return new ReceivedMessage(
             result.Message.Value,
             GetAttribute(attributes, KafkaHeaderNames.EventType) ?? string.Empty,
@@ -31,12 +41,7 @@ internal static class KafkaReceivedMessageMapper
                 result.Partition.Value.ToString(CultureInfo.InvariantCulture),
                 result.Offset.Value.ToString(CultureInfo.InvariantCulture),
                 null,
-                new Dictionary<string, string>
-                {
-                    ["topic"] = result.Topic,
-                    ["partition"] = result.Partition.Value.ToString(CultureInfo.InvariantCulture),
-                    ["offset"] = result.Offset.Value.ToString(CultureInfo.InvariantCulture)
-                }));
+                transportMetadata));
     }
 
     private static string? GetAttribute(IReadOnlyDictionary<string, string> attributes, string name)
