@@ -8,7 +8,7 @@ Este fluxo sobe um SonarQube local para analise estatica do projeto. O SonarQube
 docker compose -f compose.sonar.yaml --profile quality up -d
 ```
 
-O compose inicia os servicos `sonar-db` e `sonarqube`. Acesse:
+O compose inicia os servicos `sonar-db` e `sonarqube`. O banco, dados principais e extensoes permanecem persistentes nos volumes `sonar-postgres-data`, `sonarqube-data` e `sonarqube-extensions`; logs locais do SonarQube ficam em `tmpfs` por padrao com tamanho configuravel por `SONAR_LOGS_TMPFS_SIZE` (`256m` por default). Acesse:
 
 ```text
 http://localhost:9000
@@ -100,4 +100,4 @@ Remover containers e volumes do SonarQube local:
 docker compose -f compose.sonar.yaml --profile quality down -v
 ```
 
-Use a remocao de volumes apenas quando quiser descartar banco, configuracoes, extensoes e historico local do SonarQube.
+Use a remocao de volumes apenas quando quiser descartar banco, configuracoes, extensoes e historico local do SonarQube. Os logs em `tmpfs` sao descartados ao parar/remover o container.

@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_FILE="$ROOT_DIR/compose.yaml"
+COMPOSE_OBSERVABILITY_FILE="$ROOT_DIR/compose.observability.yaml"
 COMPOSE_NGINX_FILE="$ROOT_DIR/compose.nginx.yaml"
 CERT_FILE="$ROOT_DIR/infra/nginx/certs/localhost.crt"
 KEY_FILE="$ROOT_DIR/infra/nginx/certs/localhost.key"
@@ -175,6 +176,7 @@ run_non_destructive_project_cleanup() {
   echo "Executando limpeza nao destrutiva da stack local..."
   docker compose \
     -f "$COMPOSE_FILE" \
+    -f "$COMPOSE_OBSERVABILITY_FILE" \
     -f "$COMPOSE_NGINX_FILE" \
     --profile observability \
     --profile direct-ledger \
@@ -274,14 +276,14 @@ else
   "$ROOT_DIR/scripts/start-local-stack.sh"
 fi
 
-nginx_up=(docker compose -f "$COMPOSE_FILE" -f "$COMPOSE_NGINX_FILE" --profile observability up -d)
+nginx_up=(docker compose -f "$COMPOSE_FILE" -f "$COMPOSE_OBSERVABILITY_FILE" -f "$COMPOSE_NGINX_FILE" --profile observability up -d)
 if [[ "$NO_BUILD" != "true" ]]; then
   nginx_up+=(--build)
 fi
 nginx_up+=(ledger-service-1 ledger-service-2 nginx-edge)
 "${nginx_up[@]}"
 
-docker compose -f "$COMPOSE_FILE" -f "$COMPOSE_NGINX_FILE" --profile observability ps
+docker compose -f "$COMPOSE_FILE" -f "$COMPOSE_OBSERVABILITY_FILE" -f "$COMPOSE_NGINX_FILE" --profile observability ps
 
 if [[ "$SKIP_HEALTH_CHECKS" != "true" ]]; then
   http_check "LedgerService.Api direta" "http://localhost:5226/health"

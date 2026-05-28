@@ -10,6 +10,7 @@ $ErrorActionPreference = "Stop"
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $root = (Resolve-Path (Join-Path $scriptDir ".."))
 $composeFile = Join-Path $root "compose.yaml"
+$composeObservabilityFile = Join-Path $root "compose.observability.yaml"
 $composeNginxFile = Join-Path $root "compose.nginx.yaml"
 $certFile = Join-Path $root "infra\nginx\certs\localhost.crt"
 $keyFile = Join-Path $root "infra\nginx\certs\localhost.key"
@@ -166,6 +167,7 @@ function Invoke-NonDestructiveProjectCleanup {
   Invoke-External "docker" @(
     "compose",
     "-f", $composeFile,
+    "-f", $composeObservabilityFile,
     "-f", $composeNginxFile,
     "--profile", "observability",
     "--profile", "direct-ledger",
@@ -262,6 +264,7 @@ try {
   $nginxArgs = @(
     "compose",
     "-f", $composeFile,
+    "-f", $composeObservabilityFile,
     "-f", $composeNginxFile,
     "--profile", "observability",
     "up",
@@ -278,6 +281,7 @@ try {
   Invoke-External "docker" @(
     "compose",
     "-f", $composeFile,
+    "-f", $composeObservabilityFile,
     "-f", $composeNginxFile,
     "--profile", "observability",
     "ps"

@@ -76,7 +76,7 @@ Se `./scripts/start-full-stack.ps1` ou `./scripts/start-full-stack.sh` encontrar
 Quando o recurso pertence ao proprio projeto, o script pergunta se pode executar uma limpeza nao destrutiva equivalente a:
 
 ```bash
-docker compose -f compose.yaml -f compose.nginx.yaml --profile observability --profile direct-ledger down --remove-orphans
+docker compose -f compose.yaml -f compose.observability.yaml -f compose.nginx.yaml --profile observability --profile direct-ledger down --remove-orphans
 ```
 
 Esse comando nao usa `-v`: ele para/remove containers e redes locais do projeto, mas preserva volumes, bancos locais, imagens e certificados. Para autorizar essa limpeza sem prompt:
@@ -339,7 +339,7 @@ Veja [autenticacao e autorizacao](development/authentication.md).
 
 ## Grafana, Prometheus, Loki ou Jaeger nao mostram dados
 
-Esses componentes ficam no profile `observability` e nao sobem na stack minima. Confirme se a stack local foi iniciada com observabilidade e se as portas estao livres:
+Esses componentes ficam no overlay `compose.observability.yaml` com profile `observability` e nao sobem no core funcional. Confirme se a stack local foi iniciada com observabilidade e se as portas estao livres:
 
 ```powershell
 ./scripts/start-local-stack.ps1 -Observability
@@ -354,7 +354,7 @@ OBSERVABILITY=true ./scripts/start-local-stack.sh
 Ou diretamente pelo compose:
 
 ```bash
-OTEL_ENABLED=true docker compose --profile observability up -d --build
+OTEL_ENABLED=true docker compose -f compose.yaml -f compose.observability.yaml --profile observability up -d --build
 ```
 
 - Jaeger UI: `http://localhost:16686/`
@@ -393,7 +393,7 @@ Detalhes ficam em [load tests com k6](development/local-development.md#load-test
 
 ## OWASP ZAP local falha
 
-Os scripts ZAP exigem Docker, `docker compose` e a stack da POC ja iniciada. Antes do scan, eles validam `GET /health` em Ledger e Balance por padrao; o `Auth.Api` legado so entra nessa validacao quando `-IncludeLegacyAuth` ou `--include-legacy-auth` for usado. Se a falha mencionar uma URL direta, suba a stack minima:
+Os scripts ZAP exigem Docker, `docker compose` e a stack da POC ja iniciada. Antes do scan, eles validam `GET /health` em Ledger e Balance por padrao; o `Auth.Api` legado so entra nessa validacao quando `-IncludeLegacyAuth` ou `--include-legacy-auth` for usado. Se a falha mencionar uma URL direta, suba o core funcional:
 
 ```powershell
 ./scripts/start-local-stack.ps1

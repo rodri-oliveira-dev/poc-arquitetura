@@ -59,7 +59,7 @@ Nao reutilize esses valores fora da maquina local. Em ambientes compartilhados o
 
 ## Stack local com compose
 
-O `compose.yaml` sobe por padrao a stack minima de desenvolvimento:
+O `compose.yaml` sobe por padrao o core funcional de desenvolvimento:
 
 - Keycloak;
 - `LedgerService.Api`;
@@ -71,12 +71,17 @@ O `compose.yaml` sobe por padrao a stack minima de desenvolvimento:
 - Kafka single node em KRaft;
 - job de inicializacao dos topicos Kafka.
 
-Componentes opcionais ficam em profiles:
+Esse modo tambem pode ser chamado de Dev Lite quando o foco for reduzir consumo local: ele significa core funcional sem observabilidade, SonarQube, k6, Nginx overlay e `Auth.Api` legado. Dev Lite nao significa "sem workers"; `LedgerService.Worker` e `BalanceService.Worker` continuam no fluxo padrao porque validam Outbox, Kafka e projecao ponta a ponta.
 
-- profile `observability`: OpenTelemetry Collector, Jaeger, Prometheus, Loki, Grafana Alloy, Alertmanager e Grafana;
-- profile `k6`: container k6 definido em `compose.k6.yaml`.
+Componentes opcionais ficam em arquivos Compose separados:
 
-Tambem existe um overlay opcional `compose.nginx.yaml` para adicionar uma borda local com Nginx e HTTPS em desenvolvimento. Ele nao faz parte da stack minima e nao altera as APIs, que continuam rodando internamente em HTTP com `ASPNETCORE_URLS=http://+:8080`. Quando o overlay e usado, o Nginx cria um upstream local `ledger_api` com duas instancias da `LedgerService.Api` e algoritmo `least_conn`. O `Auth.Api` foi removido da stack minima e permanece apenas no overlay legado `compose.auth-legacy.yaml`.
+- `compose.observability.yaml` com profile `observability`: OpenTelemetry Collector, Jaeger, Prometheus, Loki, Grafana Alloy, Alertmanager e Grafana;
+- `compose.k6.yaml` com profile `k6`: container k6;
+- `compose.nginx.yaml`: borda local Nginx opcional;
+- `compose.sonar.yaml` com profile `quality`: SonarQube local;
+- `compose.auth-legacy.yaml` com profile `legacy-auth`: `Auth.Api` legado.
+
+Tambem existe um overlay opcional `compose.nginx.yaml` para adicionar uma borda local com Nginx e HTTPS em desenvolvimento. Ele nao faz parte do core funcional e nao altera as APIs, que continuam rodando internamente em HTTP com `ASPNETCORE_URLS=http://+:8080`. Quando o overlay e usado, o Nginx cria um upstream local `ledger_api` com duas instancias da `LedgerService.Api` e algoritmo `least_conn`. O `Auth.Api` foi removido do core funcional e permanece apenas no overlay legado `compose.auth-legacy.yaml`.
 
 A observabilidade completa inclui:
 
@@ -88,7 +93,7 @@ A observabilidade completa inclui:
 - Alertmanager local para visualizar alertas tecnicos basicos sem envio externo;
 - Grafana com datasources Prometheus, Loki e Jaeger e dashboards minimos provisionados.
 
-Subir a stack minima com migrations:
+Subir o core funcional com migrations:
 
 ```powershell
 ./scripts/start-local-stack.ps1
@@ -116,21 +121,57 @@ No Linux/macOS:
 OBSERVABILITY=true ./scripts/start-local-stack.sh
 ```
 
-Para subir somente o compose, sem aplicar migrations:
+Para subir somente o core funcional pelo compose, sem aplicar migrations:
 
 ```bash
 docker compose up -d --build
 ```
 
-Esse comando inicia apenas a stack minima. Para habilitar observabilidade completa pelo compose, incluindo coleta local de logs via Docker API, use:
+Esse comando inicia apenas o core funcional. Para habilitar observabilidade completa pelo compose, incluindo coleta local de logs via Docker API, use:
 
 ```bash
-OTEL_ENABLED=true docker compose --profile observability up -d --build
+OTEL_ENABLED=true docker compose -f compose.yaml -f compose.observability.yaml --profile observability up -d --build
 ```
 
-`OTEL_ENABLED=true` habilita as aplicacoes a exportarem traces e metricas para `otel-collector:4317`. Sem essa variavel, os backends de observabilidade podem subir, mas as aplicacoes permanecem com OpenTelemetry desabilitado para manter a stack minima leve.
+`OTEL_ENABLED=true` habilita as aplicacoes a exportarem traces e metricas para `otel-collector:4317`. Sem essa variavel, os backends de observabilidade podem subir, mas as aplicacoes permanecem com OpenTelemetry desabilitado para manter o core funcional leve.
 
 O socket Docker, mesmo montado como somente leitura, e uma superficie sensivel. Use o profile `observability` apenas em maquina local confiavel; nao use em ambiente compartilhado ou produtivo sem redesenhar a coleta de logs e revisar permissoes.
+
+### Persistencia, tmpfs e logs Docker
+
+Os bancos PostgreSQL do Ledger e do Balance continuam persistentes por padrao nos volumes `ledger-postgres-data` e `balance-postgres-data`. Eles nao usam `tmpfs` nem quota rigida em volume Docker nomeado, porque isso prejudicaria diagnostico local e nao e portatil entre runtimes Docker.
+
+Dados descartaveis de observabilidade usam `tmpfs` quando seguro:
+
+- Loki grava em `/loki` com `LOKI_TMPFS_SIZE`, default `256m`;
+- Prometheus grava em `/prometheus` com `PROMETHEUS_TMPFS_SIZE`, default `512m`, retencao `PROMETHEUS_RETENTION_TIME` default `6h` e `PROMETHEUS_RETENTION_SIZE` default `512MB`;
+- Alertmanager grava em `/alertmanager` com `ALERTMANAGER_TMPFS_SIZE`, default `64m`;
+- Alloy grava estado local em `/var/lib/alloy/data` com `ALLOY_TMPFS_SIZE`, default `64m`;
+- SonarQube mantem `sonar-postgres-data`, `sonarqube-data` e `sonarqube-extensions` persistentes, mas logs locais ficam em `tmpfs` com `SONAR_LOGS_TMPFS_SIZE`, default `256m`.
+
+Todos os Compose principais configuram rotacao do driver Docker `json-file` com `DOCKER_LOG_MAX_SIZE` default `10m` e `DOCKER_LOG_MAX_FILE` default `3`. Isso limita crescimento dos arquivos de log do Docker sem alterar os logs emitidos pelas aplicacoes.
+
+Para diagnosticar consumo de disco:
+
+```powershell
+./scripts/docker-disk-report.ps1
+```
+
+```bash
+./scripts/docker-disk-report.sh
+```
+
+Para limpeza segura sem apagar bancos ou outros volumes:
+
+```powershell
+./scripts/docker-clean-safe.ps1
+```
+
+```bash
+./scripts/docker-clean-safe.sh
+```
+
+Esses scripts usam `docker compose down --remove-orphans` sem `-v` e oferecem `docker builder prune`/`docker image prune` com confirmacao. Para apagar volumes conscientemente, use comandos explicitos como `docker volume rm poc-arquitetura_ledger-postgres-data` ou `docker compose ... down -v` apenas quando os dados locais forem descartaveis.
 
 ### Keycloak local
 
@@ -142,7 +183,7 @@ Suba apenas o Keycloak:
 docker compose up -d keycloak
 ```
 
-Ou suba a stack minima:
+Ou suba o core funcional:
 
 ```bash
 docker compose up -d --build
@@ -253,7 +294,7 @@ Nesta etapa, `Auth.Api` continua funcional apenas como legado por overlay, mas a
 
 Use `start-full-stack.*` quando quiser um ambiente local completo para demonstracao ou validacao manual integrada:
 
-- stack minima com APIs, workers, bancos, Kafka e init de topicos;
+- core funcional com APIs, workers, bancos, Kafka e init de topicos;
 - migrations aplicadas pelo host, reaproveitando o fluxo de `start-local-stack.*`;
 - profile `observability` ativo com `OTEL_ENABLED=true`;
 - overlay `compose.nginx.yaml` com `nginx-edge`, `ledger-service-1` e `ledger-service-2`;
@@ -262,7 +303,7 @@ Use `start-full-stack.*` quando quiser um ambiente local completo para demonstra
 Pre-requisitos adicionais:
 
 - certificados locais em `infra/nginx/certs/localhost.crt` e `infra/nginx/certs/localhost.key`;
-- portas da stack minima, observabilidade e Nginx livres no host;
+- portas do core funcional, observabilidade e Nginx livres no host;
 - `curl` disponivel no Linux/macOS para as validacoes HTTP.
 
 No Windows:
@@ -323,11 +364,11 @@ Para parar a stack completa sem remover containers, redes, volumes, bancos locai
 ./scripts/stop-full-stack.sh
 ```
 
-Esse fluxo para primeiro `nginx-edge`, `ledger-service-1` e `ledger-service-2` pelo overlay `compose.nginx.yaml`, e depois para a stack base com o profile `observability`.
+Esse fluxo para primeiro `nginx-edge`, `ledger-service-1` e `ledger-service-2` pelo overlay `compose.nginx.yaml`, e depois para o core funcional com o overlay `compose.observability.yaml`.
 
 ### Borda local HTTPS com Nginx
 
-O Nginx local e opcional e serve como entrada HTTPS para desenvolvimento e demonstracao de load balance local do Ledger. Use-o quando quiser validar navegacao, Swagger via TLS e distribuicao de chamadas para duas instancias da `LedgerService.Api`, sem mudar contrato HTTP nem substituir a stack minima.
+O Nginx local e opcional e serve como entrada HTTPS para desenvolvimento e demonstracao de load balance local do Ledger. Use-o quando quiser validar navegacao, Swagger via TLS e distribuicao de chamadas para duas instancias da `LedgerService.Api`, sem mudar contrato HTTP nem substituir o core funcional.
 
 Antes de subir o overlay, gere ou disponibilize um certificado local em:
 
@@ -367,7 +408,7 @@ docker compose -f compose.yaml -f compose.nginx.yaml up -d --build
 
 No overlay, o servico direto `ledger-service` fica no profile `direct-ledger`. Assim, uma execucao limpa do comando acima sobe `ledger-service-1` e `ledger-service-2` para o Nginx, sem publicar porta HTTP direta do Ledger no host. O `compose.yaml` principal continua expondo `http://localhost:5226/` quando usado sem o overlay.
 
-Se a stack minima ja estiver rodando com `ledger-service`, ela pode permanecer ativa para compatibilidade com scripts existentes; o Nginx, porem, distribui trafego somente para `ledger-service-1` e `ledger-service-2`. Para observar exatamente duas instancias do Ledger no ambiente, pare a instancia direta antes de subir o overlay:
+Se o core funcional ja estiver rodando com `ledger-service`, ele pode permanecer ativo para compatibilidade com scripts existentes; o Nginx, porem, distribui trafego somente para `ledger-service-1` e `ledger-service-2`. Para observar exatamente duas instancias do Ledger no ambiente, pare a instancia direta antes de subir o overlay:
 
 ```bash
 docker compose stop ledger-service
@@ -519,7 +560,7 @@ Para a stack completa iniciada por `start-full-stack.*`, prefira:
 ./scripts/stop-full-stack.sh
 ```
 
-Use `docker compose down` apenas quando quiser remover containers e redes da stack minima manualmente. Nao use `docker compose down -v` salvo quando a intencao for remover volumes e descartar dados locais.
+Use `docker compose down` apenas quando quiser remover containers e redes do core funcional manualmente. Nao use `docker compose down -v` salvo quando a intencao for remover volumes e descartar dados locais.
 
 Ver status e logs:
 
@@ -557,7 +598,7 @@ Portas expostas no host:
 | LedgerService.Api via Nginx | `https://ledger.localhost:7443/` com `compose.nginx.yaml` |
 | BalanceService.Api via Nginx | `https://balance.localhost:7443/` com `compose.nginx.yaml` |
 
-O compose sobrescreve configuracoes por variaveis de ambiente para usar hosts internos como `ledger-db`, `balance-db`, `kafka` e `otel-collector`. Quando `OTEL_ENABLED=true` e o profile `observability` esta ativo, as APIs e workers enviam OTLP somente para o Collector. O Collector encaminha traces para o Jaeger e expoe metricas em formato Prometheus para scrape interno. Prometheus coleta o Collector; Alloy coleta logs dos containers e envia para Loki. Grafana consulta Prometheus, Loki e Jaeger. O Grafana carrega automaticamente a pasta `Observability` com os dashboards `APIs - Visao Geral` e `Runtime .NET - Visao Geral`, versionados em `observability/grafana/dashboards/`. O datasource Loki possui derived field para abrir traces no datasource interno Jaeger a partir de logs com `TraceId=<valor>`. O ambiente local do compose roda como `Development`.
+O compose sobrescreve configuracoes por variaveis de ambiente para usar hosts internos como `ledger-db`, `balance-db`, `kafka` e `otel-collector`. Quando `compose.observability.yaml` e usado com `OTEL_ENABLED=true` e o profile `observability` ativo, as APIs e workers enviam OTLP somente para o Collector. O Collector encaminha traces para o Jaeger e expoe metricas em formato Prometheus para scrape interno. Prometheus coleta o Collector; Alloy coleta logs dos containers e envia para Loki. Grafana consulta Prometheus, Loki e Jaeger. O Grafana carrega automaticamente a pasta `Observability` com os dashboards `APIs - Visao Geral` e `Runtime .NET - Visao Geral`, versionados em `observability/grafana/dashboards/`. O datasource Loki possui derived field para abrir traces no datasource interno Jaeger a partir de logs com `TraceId=<valor>`. O ambiente local do compose roda como `Development`.
 
 Prometheus tambem carrega regras locais em `observability/prometheus/rules/` e envia alertas para o Alertmanager local. A UI do Alertmanager fica em `http://localhost:9093/` e nao possui integracao externa configurada.
 

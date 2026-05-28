@@ -1,0 +1,198 @@
+name: poc-arquitetura
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "${DOCKER_LOG_MAX_SIZE:-10m}"
+    max-file: "${DOCKER_LOG_MAX_FILE:-3}"
+
+networks:
+  poc-net:
+    driver: bridge
+
+services:
+  jaeger:
+    image: jaegertracing/all-in-one:1.76.0
+    container_name: poc-jaeger
+    logging: *default-logging
+    profiles:
+      - observability
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+      - "4318:4318"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512m
+          pids: 256
+    networks:
+      - poc-net
+
+  otel-collector:
+    image: docker.io/otel/opentelemetry-collector-contrib:0.152.0
+    container_name: poc-otel-collector
+    logging: *default-logging
+    profiles:
+      - observability
+    command: [ "--config=/etc/otelcol/config.yaml" ]
+    depends_on:
+      jaeger:
+        condition: service_started
+    volumes:
+      - ./observability/otel-collector-config.yaml:/etc/otelcol/config.yaml:ro
+    expose:
+      - "4317"
+      - "4318"
+      - "9464"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256m
+          pids: 128
+    networks:
+      - poc-net
+
+  prometheus:
+    image: docker.io/prom/prometheus:v3.8.0
+    container_name: poc-prometheus
+    logging: *default-logging
+    profiles:
+      - observability
+    depends_on:
+      otel-collector:
+        condition: service_started
+      alertmanager:
+        condition: service_started
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=${PROMETHEUS_RETENTION_TIME:-6h}"
+      - "--storage.tsdb.retention.size=${PROMETHEUS_RETENTION_SIZE:-512MB}"
+    ports:
+      - "9090:9090"
+    tmpfs:
+      - /prometheus:size=${PROMETHEUS_TMPFS_SIZE:-512m}
+    volumes:
+      - ./observability/prometheus:/etc/prometheus:ro
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256m
+          pids: 128
+    networks:
+      - poc-net
+
+  loki:
+    image: docker.io/grafana/loki:3.7.0
+    container_name: poc-loki
+    logging: *default-logging
+    profiles:
+      - observability
+    command:
+      - "-config.file=/etc/loki/loki-config.yaml"
+    ports:
+      - "3100:3100"
+    tmpfs:
+      - /loki:size=${LOKI_TMPFS_SIZE:-256m}
+    volumes:
+      - ./observability/loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256m
+          pids: 128
+    networks:
+      - poc-net
+
+  alloy:
+    image: docker.io/grafana/alloy:v1.16.0
+    container_name: poc-alloy
+    logging: *default-logging
+    profiles:
+      - observability
+    command:
+      - "run"
+      - "--server.http.listen-addr=0.0.0.0:12345"
+      - "--storage.path=/var/lib/alloy/data"
+      - "/etc/alloy/config.alloy"
+    depends_on:
+      loki:
+        condition: service_started
+    ports:
+      - "12345:12345"
+    tmpfs:
+      - /var/lib/alloy/data:size=${ALLOY_TMPFS_SIZE:-64m}
+    volumes:
+      - ./observability/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256m
+          pids: 128
+    networks:
+      - poc-net
+
+  alertmanager:
+    image: docker.io/prom/alertmanager:v0.29.0
+    container_name: poc-alertmanager
+    logging: *default-logging
+    profiles:
+      - observability
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+    ports:
+      - "9093:9093"
+    tmpfs:
+      - /alertmanager:size=${ALERTMANAGER_TMPFS_SIZE:-64m}
+    volumes:
+      - ./observability/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128m
+          pids: 128
+    networks:
+      - poc-net
+
+  grafana:
+    image: docker.io/grafana/grafana:12.3.0
+    container_name: poc-grafana
+    logging: *default-logging
+    profiles:
+      - observability
+    depends_on:
+      prometheus:
+        condition: service_started
+      loki:
+        condition: service_started
+      jaeger:
+        condition: service_started
+    environment:
+      GF_SECURITY_ADMIN_USER: "admin"
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD:-local_dev_password}"
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./observability/grafana/provisioning/datasources/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - ./observability/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256m
+          pids: 128
+    networks:
+      - poc-net

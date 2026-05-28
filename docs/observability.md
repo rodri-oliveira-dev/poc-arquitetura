@@ -2,7 +2,7 @@
 
 Este documento define o inventario operacional minimo da POC para Keycloak, `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker`.
 
-OpenTelemetry fica desabilitado por padrao. A correlacao via `X-Correlation-Id` permanece sempre ativa nas APIs e e usada para conectar logs, respostas HTTP e mensagens Kafka. A operacao local minima usa `docker compose`, PostgreSQL e Kafka; OpenTelemetry Collector, Jaeger, Prometheus, Loki, Grafana Alloy, Alertmanager e Grafana ficam no profile `observability`, conforme documentado em [desenvolvimento local](development/local-development.md).
+OpenTelemetry fica desabilitado por padrao. A correlacao via `X-Correlation-Id` permanece sempre ativa nas APIs e e usada para conectar logs, respostas HTTP e mensagens Kafka. O core funcional local usa `compose.yaml` com PostgreSQL, Kafka, Keycloak, APIs e workers; OpenTelemetry Collector, Jaeger, Prometheus, Loki, Grafana Alloy, Alertmanager e Grafana ficam no overlay `compose.observability.yaml` com profile `observability`, conforme documentado em [desenvolvimento local](development/local-development.md).
 
 ## Como navegar
 
@@ -156,7 +156,7 @@ Logs relevantes para operacao:
 
 ### Logs centralizados com Loki e Alloy
 
-O profile `observability` do compose local adiciona Loki e Grafana Alloy para centralizar logs dos containers sem alterar o provider de logging das aplicacoes. As APIs continuam escrevendo no console; o Alloy le os logs dos containers pela Docker API e envia para o Loki.
+O profile `observability` do overlay `compose.observability.yaml` adiciona Loki e Grafana Alloy para centralizar logs dos containers sem alterar o provider de logging das aplicacoes. As APIs continuam escrevendo no console; o Alloy le os logs dos containers pela Docker API e envia para o Loki.
 
 Desenho local:
 
@@ -174,7 +174,7 @@ O Alloy descobre apenas containers do projeto compose `poc-arquitetura` e aplica
 | `compose_project` | label `com.docker.compose.project` | `poc-arquitetura` |
 | `environment` | valor fixo local | `local` |
 
-No Loki local, a descoberta automatica de `service_name` e `detected_level` fica desabilitada para manter a lista de labels controlada pela POC.
+No Loki local, a descoberta automatica de `service_name` e `detected_level` fica desabilitada para manter a lista de labels controlada pela POC. O armazenamento fica em `tmpfs` no caminho `/loki` e a configuracao usa retencao curta local de `6h`; o objetivo principal e limitar crescimento em desenvolvimento, nao criar uma configuracao de producao.
 
 `CorrelationId`, `TraceId`, `SpanId`, `event_id`, `outbox_message_id`, `merchant_id`, `idempotency_key`, payloads e mensagens de excecao nao sao labels do Loki. Esses valores podem ter alta cardinalidade e devem permanecer no conteudo pesquisavel do log. Isso preserva streams estaveis e evita explosao de cardinalidade no Loki.
 
@@ -521,7 +521,7 @@ Validacao minima:
 
 ### Compose
 
-O caminho recomendado para a stack minima e:
+O caminho recomendado para o core funcional e:
 
 ```bash
 docker compose up -d --build
@@ -530,7 +530,7 @@ docker compose up -d --build
 Para observabilidade completa com exportacao OTLP das aplicacoes:
 
 ```bash
-OTEL_ENABLED=true docker compose --profile observability up -d --build
+OTEL_ENABLED=true docker compose -f compose.yaml -f compose.observability.yaml --profile observability up -d --build
 ```
 
 Portas expostas no host:
@@ -551,11 +551,11 @@ Portas expostas no host:
 - Alertmanager: `http://localhost:9093` com profile `observability`;
 - Grafana: `http://localhost:3000` com profile `observability`.
 
-O compose sobrescreve configuracoes por variaveis de ambiente para usar os nomes internos `ledger-db`, `balance-db`, `kafka` e `otel-collector`. `OTEL_ENABLED=true` habilita a exportacao das aplicacoes para o Collector; sem essa variavel, a stack minima continua sem backend de observabilidade no caminho de startup. Aplique migrations manualmente antes de usar as APIs em banco vazio.
+O compose sobrescreve configuracoes por variaveis de ambiente para usar os nomes internos `ledger-db`, `balance-db`, `kafka` e `otel-collector`. `OTEL_ENABLED=true` habilita a exportacao das aplicacoes para o Collector; sem essa variavel e sem `compose.observability.yaml`, o core funcional continua sem backend de observabilidade no caminho de startup. Aplique migrations manualmente antes de usar as APIs em banco vazio.
 
 ### Validacao local com Jaeger, Prometheus, Loki e Grafana
 
-O profile `observability` do compose local inclui OpenTelemetry Collector, Jaeger all-in-one com OTLP habilitado, Prometheus, Loki, Grafana Alloy e Grafana. O desenho local passa a ser:
+O profile `observability` do overlay `compose.observability.yaml` inclui OpenTelemetry Collector, Jaeger all-in-one com OTLP habilitado, Prometheus, Loki, Grafana Alloy e Grafana. O desenho local passa a ser:
 
 ```text
 Aplicacoes -> OpenTelemetry Collector -> Jaeger
@@ -642,7 +642,7 @@ Para visualizar as regras, acesse `http://localhost:9090/alerts`. Para ver o est
 Suba a stack com observabilidade:
 
 ```bash
-OTEL_ENABLED=true docker compose --profile observability up -d --build
+OTEL_ENABLED=true docker compose -f compose.yaml -f compose.observability.yaml --profile observability up -d --build
 ```
 
 Acesse a UI do Jaeger em `http://localhost:16686`.

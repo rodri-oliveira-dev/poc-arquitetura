@@ -1,5 +1,11 @@
 name: poc-arquitetura
 
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "${DOCKER_LOG_MAX_SIZE:-10m}"
+    max-file: "${DOCKER_LOG_MAX_FILE:-3}"
+
 networks:
   poc-net:
     driver: bridge
@@ -8,12 +14,12 @@ volumes:
   sonar-postgres-data:
   sonarqube-data:
   sonarqube-extensions:
-  sonarqube-logs:
 
 services:
   sonar-db:
     image: docker.io/postgres:16
     container_name: poc-sonar-db
+    logging: *default-logging
     profiles:
       - quality
     environment:
@@ -39,6 +45,7 @@ services:
   sonarqube:
     image: docker.io/sonarqube:community
     container_name: poc-sonarqube
+    logging: *default-logging
     profiles:
       - quality
     depends_on:
@@ -59,6 +66,7 @@ services:
     volumes:
       - sonarqube-data:/opt/sonarqube/data
       - sonarqube-extensions:/opt/sonarqube/extensions
-      - sonarqube-logs:/opt/sonarqube/logs
+    tmpfs:
+      - /opt/sonarqube/logs:size=${SONAR_LOGS_TMPFS_SIZE:-256m}
     networks:
       - poc-net

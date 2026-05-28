@@ -73,9 +73,9 @@ Risco: baixo. Se um Dockerfile futuro precisar de arquivos hoje ignorados, ele d
 | --- | --- | --- |
 | Tamanho de imagem | `dotnet publish` podia gerar apphost desnecessario, embora o container execute DLL via `dotnet`. | Corrigido com `/p:UseAppHost=false`. |
 | Volumes e consumo de disco | Volumes persistentes de PostgreSQL e SonarQube podem crescer com uso local prolongado. | Mantido por seguranca; limpeza deve ser manual e consciente. |
-| Performance local | Observabilidade completa inclui varios servicos com CPU/memoria limitados, mas ainda pesada para uso diario. | Ja mitigado por profile `observability`; sem mudanca. |
-| Performance local | Loki grava dados no filesystem do container enquanto esta rodando; isso pode crescer em sessoes longas. | Recomendacao futura, sem alteracao automatica. |
-| Organização do Compose | Stack principal, overlays de Nginx, k6, SonarQube e Auth legado estao separados, mas nao ha relatorio operacional consolidado de volumes. | Documentado neste relatorio. |
+| Performance local | Observabilidade completa inclui varios servicos com CPU/memoria limitados, mas ainda pesada para uso diario. | Movida para `compose.observability.yaml`; o core funcional nao sobe observabilidade por padrao. |
+| Performance local | Loki, Prometheus, Alertmanager e Alloy podiam consumir disco local em sessoes longas. | Corrigido com `tmpfs` configuravel para dados descartaveis de observabilidade. |
+| Organização do Compose | Stack principal, observabilidade, Nginx, k6, SonarQube e Auth legado precisavam de fronteiras mais claras. | Corrigido: `compose.yaml` contem core funcional com workers; observabilidade fica em overlay proprio. |
 
 ### Baixo impacto
 
@@ -92,41 +92,57 @@ Volumes persistentes mantidos:
 - `ledger-postgres-data`: necessario para banco local do Ledger.
 - `balance-postgres-data`: necessario para banco local do Balance.
 - `auth-api-data`: necessario para chave RSA persistida do Auth.Api legado.
-- `sonar-postgres-data`, `sonarqube-data`, `sonarqube-extensions`, `sonarqube-logs`: usados pelo SonarQube local opcional.
-- `alloy-data`: usado pelo Alloy local no profile `observability`.
+- `sonar-postgres-data`, `sonarqube-data`, `sonarqube-extensions`: usados pelo SonarQube local opcional.
 
-Nao foram removidos nem convertidos para `tmpfs`, porque isso poderia apagar estado local, quebrar diagnostico ou surpreender quem espera reuso entre execucoes.
+Dados descartaveis convertidos para `tmpfs`:
+
+- Loki em `/loki`, default `LOKI_TMPFS_SIZE=256m`, com retencao local curta configurada em `6h`.
+- Prometheus em `/prometheus`, default `PROMETHEUS_TMPFS_SIZE=512m`, com `PROMETHEUS_RETENTION_TIME=6h` e `PROMETHEUS_RETENTION_SIZE=512MB`.
+- Alertmanager em `/alertmanager`, default `ALERTMANAGER_TMPFS_SIZE=64m`.
+- Alloy em `/var/lib/alloy/data`, default `ALLOY_TMPFS_SIZE=64m`; o volume persistente `alloy-data` foi removido.
+- Logs do SonarQube em `/opt/sonarqube/logs`, default `SONAR_LOGS_TMPFS_SIZE=256m`; dados principais e extensoes continuam persistentes.
+
+PostgreSQL Ledger e Balance nao foram convertidos para `tmpfs` e nao receberam quota rigida em volume Docker nomeado. A decisao preserva diagnostico do fluxo ponta a ponta e evita configuracao nao portatil.
 
 ## Recomendacoes futuras
 
-- Avaliar retencao/limite explicito para Loki em sessoes longas de observabilidade local. Trade-off: menor consumo de disco contra menos historico de logs.
-- Avaliar mover logs do SonarQube para armazenamento temporario somente se a equipe aceitar perder logs entre reinicios. Trade-off: menos volume persistente contra pior diagnostico pos-falha.
 - Considerar imagens por digest apenas se a stack for promovida para ambiente compartilhado. Trade-off: mais reprodutibilidade contra manutencao maior e cuidado multi-arquitetura.
 - Medir tempo de `docker compose build` antes/depois em maquinas reais para decidir se vale criar Dockerfiles ou contexts ainda mais especificos por servico.
-- Se o fluxo diario nao exigir workers sempre ativos, avaliar profile opcional para workers. Trade-off: menor consumo local contra risco de quebrar cenarios que dependem de Outbox/Kafka por padrao.
+- Se a observabilidade local evoluir para retencao historica real, trocar `tmpfs` por volumes dedicados e documentar a politica de retencao. O desenho atual e intencionalmente descartavel.
 
 ## Validacao sugerida
 
-Validacoes executadas nesta revisao:
+Validacoes executadas nesta atualizacao incremental:
 
-- `docker compose config`
+- `docker compose -f compose.yaml config`
+- `docker compose -f compose.yaml -f compose.observability.yaml --profile observability config`
 - `docker compose -f compose.yaml -f compose.nginx.yaml config`
-- `docker compose -f compose.yaml -f compose.auth-legacy.yaml --profile legacy-auth config`
 - `docker compose -f compose.yaml -f compose.k6.yaml --profile k6 config`
 - `docker compose -f compose.sonar.yaml --profile quality config`
-- `dotnet test ./tests/LedgerService.UnitTests/LedgerService.UnitTests.csproj --configuration Release --filter FullyQualifiedName~Architecture --no-restore`
-- `docker compose -f compose.yaml -f compose.auth-legacy.yaml -f compose.nginx.yaml build ledger-service ledger-worker balance-service balance-worker auth-api nginx-edge`
+- `docker compose -f compose.yaml -f compose.auth-legacy.yaml --profile legacy-auth config`
+- `docker run --rm -v <loki-config>:/etc/loki/loki-config.yaml:ro docker.io/grafana/loki:3.7.0 "-config.file=/etc/loki/loki-config.yaml" "-verify-config"`
+- `powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/docker-disk-report.ps1`
+- `dotnet restore`
+- `dotnet build ./LedgerService.slnx --configuration Release --no-restore`
+- `dotnet test ./LedgerService.slnx --configuration Release --no-build --settings ./coverlet.runsettings`
+- `docker compose -f compose.yaml up -d --build`
+- `GET http://localhost:5226/health`
+- `GET http://localhost:5228/health`
+- `docker compose -f compose.yaml down --remove-orphans`
 
 Observacoes da validacao:
 
-- Os builds das imagens alteradas concluiram com sucesso.
-- O contexto de build informado pelo Docker ficou pequeno nas imagens .NET e em `54B` para o Nginx, confirmando que `infra/nginx/.dockerignore` deixou de enviar certificados e conteudo montado em runtime.
-- Permanecem warnings C# ja existentes em filtros Swagger/testes e uma mensagem `fatal: not a git repository` durante o publish do `BalanceService.Api`, causada pelo target local de hooks ignorar a ausencia de `.git` dentro do contexto Docker. A mensagem nao falhou o build.
+- Todos os `docker compose config` relevantes passaram.
+- A configuracao do Loki foi validada pela propria imagem `grafana/loki:3.7.0`.
+- `dotnet restore`, build Release e a suite completa de testes passaram. O build ainda exibe warnings C# ja existentes no projeto.
+- A subida real do core funcional passou com APIs saudaveis em `/health`; o teardown usou `down --remove-orphans` sem `-v`, preservando volumes. O Docker encontrou containers orfaos de overlays locais anteriores e os removeu nesse teardown, tambem sem remover volumes.
+- A execucao direta de `.ps1` pode ser bloqueada por Execution Policy da maquina; a validacao do script PowerShell foi feita com `powershell -NoProfile -ExecutionPolicy Bypass -File`, padrao seguro para execucao local pontual.
 
 Comandos seguros de validacao:
 
 ```bash
-docker compose config
+docker compose -f compose.yaml config
+docker compose -f compose.yaml -f compose.observability.yaml --profile observability config
 docker compose -f compose.yaml -f compose.nginx.yaml config
 docker compose -f compose.yaml -f compose.auth-legacy.yaml --profile legacy-auth config
 docker compose -f compose.yaml -f compose.k6.yaml --profile k6 config
@@ -144,6 +160,7 @@ docker volume ls
 docker volume inspect <volume>
 docker image ls
 docker builder du
+./scripts/docker-disk-report.sh
 ```
 
 Comandos de limpeza geralmente seguros, mas ainda revisaveis:
@@ -152,6 +169,7 @@ Comandos de limpeza geralmente seguros, mas ainda revisaveis:
 docker builder prune
 docker image prune
 docker compose down --remove-orphans
+./scripts/docker-clean-safe.sh
 ```
 
 `docker builder prune` remove cache de build. `docker image prune` remove imagens sem tag/nao usadas. `docker compose down --remove-orphans` remove containers e rede do projeto, mas preserva volumes quando usado sem `-v`.
@@ -175,12 +193,17 @@ Principais ganhos esperados:
 - Menos rebuild desnecessario quando a mudanca afeta apenas um servico.
 - Imagens .NET um pouco menores por nao publicar apphost.
 - Menor risco de certificados locais do Nginx serem enviados ao daemon Docker.
+- Menor consumo local padrao ao manter observabilidade fora do `compose.yaml`.
+- Menor crescimento de disco por `tmpfs` em dados descartaveis e rotacao de logs Docker.
 
 Mudancas aplicadas:
 
 - `.dockerignore` reforcado.
 - `infra/nginx/.dockerignore` criado.
 - Dockerfiles .NET ajustados para cache NuGet BuildKit com lock, copia seletiva de fontes e publish sem apphost.
+- Observabilidade movida para `compose.observability.yaml`.
+- Rotacao de logs Docker adicionada aos Compose principais.
+- Scripts `docker-disk-report.*` e `docker-clean-safe.*` adicionados.
 
 Pontos que precisam de validacao manual:
 
