@@ -14,6 +14,9 @@
     "ms-vscode.mermaid-markdown-syntax-highlighting",
     "editorconfig.editorconfig",
     "eamodio.gitlens",
-    "ryanluker.vscode-coverage-gutters"
+    "ryanluker.vscode-coverage-gutters",
+    "hashicorp.terraform",
+    "hashicorp.hcl",
+    "googlecloudtools.cloudcode"
   ]
 }

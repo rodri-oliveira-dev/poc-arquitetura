@@ -19,6 +19,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [Mutation testing com Stryker.NET](development/mutation-testing-stryker.md): executar mutation testing local e interpretar relatorios.
 - [OWASP ZAP local](development/owasp-zap.md): executar DAST baseline local contra Ledger e Balance, com Auth.Api legado apenas opcional, salvando relatorios em `zap-reports/`.
 - [Git hooks locais](development/git-hooks.md): instalar e entender `commit-msg`, `post-merge` e `pre-push`.
+- [Setup local Terraform e GCP](development/terraform-gcp-local-setup.md): instalar Terraform CLI, Google Cloud CLI e TFLint no Windows e executar validacoes locais seguras.
 - [Validacao de pull requests](development/pull-request-validation.md): entender checks obrigatorios, workflows e branch protection.
 - [GitHub Pages e LikeC4](development/github-pages.md): gerar e publicar a documentacao arquitetural.
 - [Releases e versionamento](development/releases.md): SemVer com GitVersion, commits semanticos, tags e GitHub Releases.

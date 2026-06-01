@@ -279,6 +279,67 @@
         "panel": "dedicated",
         "clear": true
       }
+    },
+    {
+      "label": "terraform: fmt check",
+      "type": "process",
+      "command": "terraform",
+      "args": [
+        "fmt",
+        "-check",
+        "-recursive",
+        "${workspaceFolder}/infra/terraform"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "terraform: init backend false",
+      "type": "process",
+      "command": "terraform",
+      "args": [
+        "init",
+        "-backend=false",
+        "-input=false"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/infra/terraform/modules/pubsub-ledger-events"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "terraform: validate",
+      "type": "process",
+      "command": "terraform",
+      "args": [
+        "validate"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/infra/terraform/modules/pubsub-ledger-events"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "terraform: tflint",
+      "type": "process",
+      "command": "tflint",
+      "args": [
+        "--recursive"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/infra/terraform"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "terraform: validate all",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "terraform: fmt check",
+        "terraform: init backend false",
+        "terraform: validate",
+        "terraform: tflint"
+      ],
+      "problemMatcher": []
     }
   ]
 }
