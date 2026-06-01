@@ -1,0 +1,76 @@
+# ADR-0077: Pub/Sub como provider alternativo de mensageria
+
+## Status
+Proposto
+
+## Data
+2026-06-01
+
+## Contexto
+O projeto usa Kafka como provider atual para publicar eventos do `LedgerService` e consumi-los no `BalanceService`, com Outbox, DLQ e consumidores idempotentes. A ADR-0075 definiu o boundary de mensageria por Ports and Adapters e registrou Pub/Sub como adapter futuro possivel, sem criar uma abstracao falsa que tente igualar providers com semanticas diferentes.
+
+Para permitir uma migracao gradual para Google Cloud Pub/Sub, o projeto precisa registrar como esse novo adapter sera introduzido sem substituir Kafka imediatamente e sem perder as garantias atuais de publicacao e consumo.
+
+## Decisao
+Implementar Google Cloud Pub/Sub em uma etapa posterior como provider alternativo de mensageria:
+
+- Kafka permanece funcionando como provider atual.
+- A configuracao `Messaging:Provider` passara a aceitar `PubSub` quando o adapter estiver implementado.
+- O adapter Pub/Sub sera adicionado nas composition roots e nos boundaries definidos pela ADR-0075, sem substituir Kafka de forma imediata.
+- A Outbox sera preservada para publicacao confiavel.
+- Os consumidores continuarao idempotentes para tratar entregas repetidas.
+- Metadados de correlacao, rastreamento, tipo de evento e idempotencia serao transportados por attributes do Pub/Sub no lugar de headers Kafka.
+- A ordering key sera baseada no `AggregateId` quando o fluxo exigir ordenacao por agregado.
+
+O adapter Pub/Sub deve modelar explicitamente as semanticas do provider:
+
+- `ack` e `nack`;
+- delivery attempts;
+- ordering keys;
+- dead-letter topics e dead-letter subscriptions;
+- attributes;
+- limites operacionais do provider.
+
+Pub/Sub nao possui partition, offset nem commit. Esses conceitos permanecem restritos ao adapter Kafka e nao devem ser simulados no adapter Pub/Sub nem expostos aos processors neutros.
+
+## DLQ tecnica e DLQ de aplicacao
+A dead-letter policy nativa do Pub/Sub sera tratada como DLQ tecnica do transporte. Ela cobre falhas de entrega conforme as tentativas configuradas na subscription.
+
+A DLQ de aplicacao permanece distinta e continua cobrindo mensagens invalidas, contratos nao suportados e falhas classificadas pela aplicacao como nao recuperaveis. A implementacao futura deve preservar essa separacao operacional e tornar observavel a origem de cada mensagem encaminhada para DLQ.
+
+## Provisionamento e desenvolvimento local
+Os recursos reais do Pub/Sub na GCP serao provisionados com Terraform, incluindo topics, subscriptions, dead-letter topics, dead-letter subscriptions e configuracoes necessarias ao provider.
+
+Para desenvolvimento local, sera usado o Pub/Sub emulator. O emulator fica fora do Terraform: sua inicializacao e configuracao pertencem ao setup local da POC, sem representar o provisionamento real da GCP.
+
+## Consequencias
+
+### Beneficios
+- A migracao pode ocorrer gradualmente, mantendo Kafka operacional.
+- Outbox e idempotencia continuam protegendo os fluxos assincronos.
+- As diferencas semanticas entre Kafka e Pub/Sub ficam explicitas nos adapters.
+- Terraform registra o provisionamento reproduzivel dos recursos reais da GCP.
+
+### Trade-offs / riscos
+- Durante a migracao, o projeto precisara operar e testar dois providers.
+- Configuracoes, metricas, observabilidade e procedimentos operacionais devem distinguir Kafka, Pub/Sub, DLQ tecnica e DLQ de aplicacao.
+- O emulator local nao reproduz integralmente o comportamento e os limites do servico real na GCP.
+- Ordering keys devem ser habilitadas apenas nos fluxos que realmente exigirem ordenacao por agregado.
+
+## Fora do escopo
+- Implementar o adapter Pub/Sub nesta etapa.
+- Alterar o valor padrao de `Messaging:Provider`.
+- Remover Kafka.
+- Criar recursos Terraform ou configurar o Pub/Sub emulator.
+
+## Validacao esperada
+A implementacao futura deve validar:
+
+- build da solution;
+- testes unitarios e de arquitetura dos workers;
+- testes de integracao da Outbox para Kafka e Pub/Sub;
+- testes de consumo idempotente, `ack`, `nack` e delivery attempts;
+- testes de ordering key baseada no `AggregateId` quando aplicavel;
+- testes que diferenciem DLQ tecnica do Pub/Sub e DLQ de aplicacao;
+- validacao do Terraform para recursos reais na GCP;
+- validacao do setup local com Pub/Sub emulator.

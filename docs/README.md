@@ -45,6 +45,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [Analise arquitetural e decisoes recomendadas](architecture/decisions.md): riscos, simplificacoes e roadmap pragmatico.
 - [ADRs](adrs/README.md): historico de decisoes arquiteturais e pontos de melhoria.
 - [Mensageria por ports and adapters](adrs/0075-mensageria-ports-adapters-kafka-provider.md): Kafka como provider atual e Pub/Sub apenas como adapter futuro.
+- [Pub/Sub como provider alternativo](adrs/0077-pubsub-provider-mensageria.md): plano incremental para adicionar Pub/Sub sem remover Kafka nem esconder diferencas semanticas entre providers.
 - [Plano de migracao Auth.Api para Keycloak/OIDC](adrs/0073-plano-migracao-auth-api-keycloak-oidc.md): execucao incremental mantendo validacao JWT offline via JWKS.
 - [Keycloak como identidade principal](adrs/0074-keycloak-como-identidade-principal.md): decisao final de remover Auth.Api da stack principal e mante-lo apenas como legado por overlay.
 - [Avaliacao de .NET Aspire e riscos OWASP](reports/aspire-and-owasp-assessment.md): relatorio historico de contexto, nao estado operacional mais recente.
