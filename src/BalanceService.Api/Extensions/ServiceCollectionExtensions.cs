@@ -1,184 +1,46 @@
-using System.Threading.RateLimiting;
+using ApiDefaults.Extensions;
 
-using Asp.Versioning;
-
-using BalanceService.Api.Middlewares;
 using BalanceService.Api.Observability;
-using BalanceService.Api.Options;
 using BalanceService.Api.Security;
 using BalanceService.Api.Swagger;
 using BalanceService.Application.Common.Observability;
 
-using Microsoft.AspNetCore.HttpOverrides;
-using Microsoft.AspNetCore.RateLimiting;
-using Microsoft.Extensions.Options;
 using Microsoft.OpenApi;
 
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 
-using Swashbuckle.AspNetCore.SwaggerGen;
-
 namespace BalanceService.Api.Extensions;
 
 public static class ServiceCollectionExtensions
 {
-    public static IServiceCollection AddApiHardening(this IServiceCollection services, IConfiguration configuration)
-    {
-        services.AddExceptionHandler<GlobalExceptionHandler>();
-        services.AddProblemDetails();
-        services.Configure<ForwardedHeadersOptions>(options =>
-        {
-            options.ForwardedHeaders =
-                ForwardedHeaders.XForwardedFor |
-                ForwardedHeaders.XForwardedProto |
-                ForwardedHeaders.XForwardedHost;
-            options.ForwardLimit = 1;
-            options.AllowedHosts.Add("balance.localhost");
-            options.AllowedHosts.Add("localhost");
-
-            // O IP do container Nginx e dinamico na rede bridge local.
-            options.KnownIPNetworks.Clear();
-            options.KnownProxies.Clear();
-        });
-        services
-            .AddOptions<ApiLimitsOptions>()
-            .Bind(configuration.GetSection(ApiLimitsOptions.SectionName))
-            .Validate(options => options.MaxRequestBodySizeBytes > 0, "ApiLimits:MaxRequestBodySizeBytes must be greater than zero.")
-            .Validate(options => options.MaxBalancePeriodDays > 0, "ApiLimits:MaxBalancePeriodDays must be greater than zero.")
-            .Validate(options => options.RateLimitPermitLimit > 0, "ApiLimits:RateLimitPermitLimit must be greater than zero.")
-            .Validate(options => options.RateLimitWindowSeconds > 0, "ApiLimits:RateLimitWindowSeconds must be greater than zero.")
-            .Validate(options => options.RateLimitQueueLimit >= 0, "ApiLimits:RateLimitQueueLimit must be zero or greater.")
-            .ValidateOnStart();
-
-        return services;
-    }
-
-    public static IServiceCollection AddApiRateLimiting(this IServiceCollection services, IConfiguration configuration)
-    {
-        var apiLimits = configuration.GetSection(ApiLimitsOptions.SectionName).Get<ApiLimitsOptions>()
-            ?? new ApiLimitsOptions();
-
-        services.AddRateLimiter(options =>
-        {
-            options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-            options.AddFixedWindowLimiter("fixed", config =>
-            {
-                config.PermitLimit = apiLimits.RateLimitPermitLimit;
-                config.Window = TimeSpan.FromSeconds(apiLimits.RateLimitWindowSeconds);
-                config.QueueLimit = apiLimits.RateLimitQueueLimit;
-                config.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
-            });
-        });
-
-        return services;
-    }
-
-    public static IServiceCollection AddApiCors(this IServiceCollection services)
-    {
-        services.AddCors(options =>
-        {
-            options.AddPolicy("ApiCorsPolicy", policy =>
-            {
-                policy
-                    .WithOrigins(
-                        "http://localhost:3000",
-                        "http://localhost:5173",
-                        "https://localhost:3001",
-                        "https://localhost:5173")
-                    .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE")
-                    .WithHeaders("Content-Type", "Authorization", "Idempotency-Key", CorrelationIdMiddleware.HeaderName)
-                    .SetPreflightMaxAge(TimeSpan.FromMinutes(10));
-            });
-        });
-
-        return services;
-    }
-
-    /// <summary>
-    /// Configura versionamento da API e ApiExplorer para Swagger versionado.
-    /// Estratégia: URL segment (ex.: /api/v1/...)
-    /// </summary>
-    public static IServiceCollection AddApiVersioningAndExplorer(this IServiceCollection services)
-    {
-        var versioningBuilder = services
-            .AddApiVersioning(options =>
-            {
-                options.DefaultApiVersion = new ApiVersion(1, 0);
-                options.AssumeDefaultVersionWhenUnspecified = true;
-                options.ReportApiVersions = true;
-                options.ApiVersionReader = new UrlSegmentApiVersionReader();
-            })
-            .AddMvc();
-
-        versioningBuilder.AddApiExplorer(options =>
-        {
-            options.GroupNameFormat = "'v'VVV";
-            options.SubstituteApiVersionInUrl = true;
-        });
-
-        return services;
-    }
-
     public static IServiceCollection AddApiSwagger(this IServiceCollection services)
     {
-        // Swagger por versão depende do IApiVersionDescriptionProvider
-        services.AddTransient<IConfigureOptions<SwaggerGenOptions>, ConfigureSwaggerOptions>();
-
-        services.AddSwaggerGen(options =>
-        {
-            options.EnableAnnotations();
-            // Inclui endpoints apenas no documento da respectiva versão.
-            options.DocInclusionPredicate((docName, apiDesc) =>
-                string.Equals(apiDesc.GroupName, docName, StringComparison.OrdinalIgnoreCase));
-
-            // XML comments para enriquecer Swagger/OpenAPI com summary/remarks de controllers e DTOs.
-            var xmlFile = $"{typeof(Program).Assembly.GetName().Name}.xml";
-            var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
-            if (File.Exists(xmlPath))
+        return services.AddApiSwaggerDefaults<ConfigureSwaggerOptions>(
+            typeof(Program).Assembly,
+            options =>
             {
-                options.IncludeXmlComments(xmlPath, includeControllerXmlComments: false);
-            }
-
-            options.OperationFilter<ConsolidadosExamplesOperationFilter>();
-
-            // Headers comuns da API (correlação e idempotência)
-            options.AddSecurityDefinition(CorrelationIdMiddleware.HeaderName, new OpenApiSecurityScheme
-            {
-                Name = CorrelationIdMiddleware.HeaderName,
-                Type = SecuritySchemeType.ApiKey,
-                In = ParameterLocation.Header,
-                Description = "Identificador de correlação (UUID). Se não for enviado, a API gera um novo e o retorna no header de response."
+                options.OperationFilter<ConsolidadosExamplesOperationFilter>();
+                options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+                {
+                    Name = "Authorization",
+                    Type = SecuritySchemeType.Http,
+                    Scheme = "bearer",
+                    BearerFormat = "JWT",
+                    In = ParameterLocation.Header,
+                    Description = $"Autenticacao via JWT Bearer. Obtenha um token no Keycloak local e informe: Bearer {{token}}.\n\nScopes relevantes nesta API: {ScopePolicies.BalanceRead} (leitura) / {ScopePolicies.BalanceWrite} (escrita - TODO se/when existirem endpoints de escrita)."
+                });
+                options.OperationFilter<AuthorizeOperationFilter>();
             });
-
-            // JWT Bearer
-            options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-            {
-                Name = "Authorization",
-                Type = SecuritySchemeType.Http,
-                Scheme = "bearer",
-                BearerFormat = "JWT",
-                In = ParameterLocation.Header,
-                Description = $"Autenticacao via JWT Bearer. Obtenha um token no Keycloak local e informe: Bearer {{token}}.\n\nScopes relevantes nesta API: {ScopePolicies.BalanceRead} (leitura) / {ScopePolicies.BalanceWrite} (escrita - TODO se/when existirem endpoints de escrita)."
-            });
-
-            options.OperationFilter<AuthorizeOperationFilter>();
-        });
-
-        return services;
     }
 
     public static IServiceCollection AddApiObservability(this IServiceCollection services, IConfiguration configuration)
     {
-        // Observabilidade (OpenTelemetry)
-        // - Por padrão fica desabilitado.
-        // - Pode ser habilitado via config: Observability:OpenTelemetry:Enabled=true
-        // - Para validar localmente sem backend, use Observability:OpenTelemetry:UseConsoleExporter=true
         services.AddOptions<OpenTelemetryOptions>()
             .Bind(configuration.GetSection(OpenTelemetryOptions.SectionName));
 
-        var otelOptions = configuration.GetSection(OpenTelemetryOptions.SectionName).Get<OpenTelemetryOptions>()
+        OpenTelemetryOptions otelOptions = configuration.GetSection(OpenTelemetryOptions.SectionName).Get<OpenTelemetryOptions>()
             ?? new OpenTelemetryOptions();
 
         if (otelOptions.Enabled)
@@ -194,10 +56,14 @@ public static class ServiceCollectionExtensions
                         .AddSource("BalanceService.Application");
 
                     if (otelOptions.UseConsoleExporter)
+                    {
                         tracing.AddConsoleExporter();
+                    }
 
                     if (!string.IsNullOrWhiteSpace(otelOptions.OtlpEndpoint))
+                    {
                         tracing.AddOtlpExporter(options => options.Endpoint = new Uri(otelOptions.OtlpEndpoint));
+                    }
                 })
                 .WithMetrics(metrics =>
                 {
@@ -208,10 +74,14 @@ public static class ServiceCollectionExtensions
                         .AddMeter(BalanceDomainMetrics.MeterName);
 
                     if (otelOptions.UseConsoleExporter)
+                    {
                         metrics.AddConsoleExporter();
+                    }
 
                     if (!string.IsNullOrWhiteSpace(otelOptions.OtlpEndpoint))
+                    {
                         metrics.AddOtlpExporter(options => options.Endpoint = new Uri(otelOptions.OtlpEndpoint));
+                    }
                 });
         }
 

@@ -1,5 +1,6 @@
 using System.Text.Json;
 
+using ApiDefaults.Middlewares;
 
 using FluentValidation;
 using FluentValidation.Results;

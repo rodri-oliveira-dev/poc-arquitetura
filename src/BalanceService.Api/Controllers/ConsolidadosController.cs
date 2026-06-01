@@ -5,7 +5,7 @@ using Asp.Versioning;
 
 using BalanceService.Api.Contracts;
 using BalanceService.Api.Mappers;
-using BalanceService.Api.Middlewares;
+using ApiDefaults.Middlewares;
 using BalanceService.Api.Options;
 using BalanceService.Api.Security;
 

@@ -1,6 +1,6 @@
 using FluentValidation;
 
-using LedgerService.Api.Middlewares;
+using ApiDefaults.Middlewares;
 
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;

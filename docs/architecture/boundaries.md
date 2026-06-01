@@ -6,7 +6,7 @@ A solucao atual e uma arquitetura hibrida:
 
 - Clean Architecture/DDD em LedgerService e BalanceService, com projetos `Api`, `Application`, `Domain` e `Infrastructure`.
 - Elementos hexagonais onde existem contratos de persistencia e implementacoes em Infrastructure.
-- Layered architecture na entrega HTTP, porque controllers, middlewares, swagger, auth e composicao ficam concentrados nos projetos `*.Api`.
+- Layered architecture na entrega HTTP, porque controllers, auth e composicao ficam concentrados nos projetos `*.Api`, com defaults tecnicos comuns em `Shared/ApiDefaults`.
 - Workers dedicados (`LedgerService.Worker` e `BalanceService.Worker`) para processamento assincrono continuo, sem superficie HTTP.
 - CQRS pragmatico entre servicos: Ledger escreve e publica eventos; Balance consome e mantem uma projecao de leitura.
 - Keycloak e o provedor principal de identidade da stack local.
@@ -21,7 +21,7 @@ Deve conter:
 - contratos HTTP, controllers ou endpoints;
 - binders e mappers de entrada/saida HTTP;
 - autenticacao, autorizacao, scopes, merchant authorization e policies;
-- middlewares, ProblemDetails, Swagger, rate limit, CORS, health e readiness;
+- configuracoes HTTP especificas do servico, Swagger especifico, health e readiness;
 - composicao do processo via DI.
 
 Nao deve conter:
@@ -33,6 +33,12 @@ Nao deve conter:
 - detalhes de schema relacional alem de checks operacionais inevitaveis.
 
 Observacao real: os endpoints `/ready` acessam `DbContext` diretamente no `Program.cs`. Isso e aceitavel para readiness operacional desta POC, mas deve permanecer limitado a dependencias necessarias para trafego HTTP.
+
+### Shared/ApiDefaults
+
+Deve conter apenas defaults HTTP tecnicos comuns entre APIs de negocio: ProblemDetails, registro de exception handler, correlation id, security headers, limite de body, forwarded headers, CORS, rate limit, versionamento e defaults Swagger.
+
+Nao deve conter regra de negocio, merchant authorization, scopes especificos, handlers de excecao dependentes do dominio ou readiness dependente de `DbContext`.
 
 ### Worker
 

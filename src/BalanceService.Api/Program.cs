@@ -1,6 +1,6 @@
+using ApiDefaults.Extensions;
+
 using BalanceService.Api.Extensions;
-using BalanceService.Api.Middlewares;
-using BalanceService.Api.Options;
 using BalanceService.Infrastructure.Persistence;
 
 using Microsoft.AspNetCore.Authorization;
@@ -8,16 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.WebHost.ConfigureKestrel((context, options) =>
-{
-    options.AddServerHeader = false;
-
-    var maxRequestBodySizeBytes = context.Configuration.GetValue<long?>(
-        $"{ApiLimitsOptions.SectionName}:{nameof(ApiLimitsOptions.MaxRequestBodySizeBytes)}");
-
-    if (maxRequestBodySizeBytes is > 0)
-        options.Limits.MaxRequestBodySize = maxRequestBodySizeBytes;
-});
+builder.WebHost.ConfigureApiDefaults();
 
 builder.Services.AddBalanceApiComposition(builder.Configuration, builder.Environment);
 
@@ -26,22 +17,7 @@ var app = builder.Build();
 app.UseForwardedHeaders();
 app.UseApiSwagger(builder.Configuration);
 
-if (!app.Environment.IsDevelopment())
-{
-    app.UseHsts();
-}
-
-app.UseExceptionHandler();
-app.UseStatusCodePages();
-if (!app.Environment.IsEnvironment("Test"))
-{
-    app.UseHttpsRedirection();
-}
-app.UseMiddleware<CorrelationIdMiddleware>();
-app.UseMiddleware<RequestBodySizeLimitMiddleware>();
-app.UseMiddleware<SecurityHeadersMiddleware>();
-app.UseCors("ApiCorsPolicy");
-app.UseRateLimiter();
+app.UseApiDefaults();
 app.UseAuthentication();
 app.UseAuthorization();
 

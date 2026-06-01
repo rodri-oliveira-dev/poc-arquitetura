@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <ItemGroup>
+    <ProjectReference Include="..\Shared\ApiDefaults\ApiDefaults.csproj" />
     <ProjectReference Include="..\BalanceService.Application\BalanceService.Application.csproj" />
     <ProjectReference Include="..\BalanceService.Infrastructure\BalanceService.Infrastructure.csproj" />
   </ItemGroup>

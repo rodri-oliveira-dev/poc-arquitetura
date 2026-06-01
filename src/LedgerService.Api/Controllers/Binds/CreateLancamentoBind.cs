@@ -3,7 +3,7 @@ using FluentValidation.Results;
 using LedgerService.Api.Contracts.Requests;
 using LedgerService.Api.Contracts.Responses;
 using LedgerService.Api.Mappers;
-using LedgerService.Api.Middlewares;
+using ApiDefaults.Middlewares;
 using LedgerService.Application.Lancamentos.Inputs.CreateLancamento;
 using Microsoft.Extensions.DependencyInjection;
 

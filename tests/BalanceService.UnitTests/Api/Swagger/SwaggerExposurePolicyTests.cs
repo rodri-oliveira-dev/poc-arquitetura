@@ -1,4 +1,4 @@
-using BalanceService.Api.Extensions;
+using ApiDefaults.Extensions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Moq;
@@ -10,7 +10,7 @@ public sealed class SwaggerExposurePolicyTests
     [Fact]
     public void IsSwaggerEnabled_should_enable_by_default_in_development()
     {
-        var enabled = WebApplicationExtensions.IsSwaggerEnabled(
+        var enabled = ApiDefaultsApplicationExtensions.IsSwaggerEnabled(
             CreateEnvironment(Environments.Development),
             CreateConfiguration(swaggerEnabled: null));
         Assert.True(enabled);
@@ -19,7 +19,7 @@ public sealed class SwaggerExposurePolicyTests
     [Fact]
     public void IsSwaggerEnabled_should_disable_by_default_outside_development()
     {
-        var enabled = WebApplicationExtensions.IsSwaggerEnabled(
+        var enabled = ApiDefaultsApplicationExtensions.IsSwaggerEnabled(
             CreateEnvironment(Environments.Production),
             CreateConfiguration(swaggerEnabled: null));
         Assert.False(enabled);
@@ -28,7 +28,7 @@ public sealed class SwaggerExposurePolicyTests
     [Fact]
     public void IsSwaggerEnabled_should_allow_explicit_enable_outside_development()
     {
-        var enabled = WebApplicationExtensions.IsSwaggerEnabled(
+        var enabled = ApiDefaultsApplicationExtensions.IsSwaggerEnabled(
             CreateEnvironment(Environments.Staging),
             CreateConfiguration(swaggerEnabled: true));
         Assert.True(enabled);

@@ -30,6 +30,7 @@ Principais servicos:
 `LedgerService` e `BalanceService` usam projetos por camada:
 
 - `Api`: entrada HTTP, autenticacao, autorizacao, Swagger, health/readiness e composicao via DI.
+- `Shared/ApiDefaults`: defaults HTTP tecnicos compartilhados pelas APIs de negocio, sem regras de dominio ou policies especificas.
 - `Worker`: host de `BackgroundService` sem superficie HTTP.
 - `Application`: casos de uso, handlers, validacao de entrada, idempotencia e orquestracao.
 - `Domain`: entidades, invariantes e regras de dominio sem dependencia de infraestrutura.

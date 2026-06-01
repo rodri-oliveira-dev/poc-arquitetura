@@ -1,3 +1,7 @@
+using ApiDefaults.Extensions;
+
+using BalanceService.Api.Middlewares;
+using BalanceService.Api.Options;
 using BalanceService.Application;
 using BalanceService.Infrastructure;
 using BalanceService.Api.Contracts;
@@ -12,14 +16,16 @@ public static class ApiCompositionExtensions
         IHostEnvironment environment)
     {
         services
-            .AddApiHardening(configuration)
-            .AddApiRateLimiting(configuration)
-            .AddApiCors()
-            .AddApiVersioningAndExplorer()
+            .AddApiDefaults<GlobalExceptionHandler>(configuration, "balance.localhost", "localhost")
             .AddApiSwagger()
             .AddApiObservability(configuration);
 
         services.AddApiJwtAuth(configuration, environment);
+        services
+            .AddOptions<ApiLimitsOptions>()
+            .Bind(configuration.GetSection(ApiLimitsOptions.SectionName))
+            .Validate(options => options.MaxBalancePeriodDays > 0, "ApiLimits:MaxBalancePeriodDays must be greater than zero.")
+            .ValidateOnStart();
         services.AddApplication();
         services
             .AddBalanceInfrastructureCommon()

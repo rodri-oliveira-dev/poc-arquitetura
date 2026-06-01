@@ -1,4 +1,4 @@
-namespace LedgerService.Api.Middlewares;
+namespace ApiDefaults.Middlewares;
 
 public sealed class SecurityHeadersMiddleware
 {
@@ -11,7 +11,9 @@ public sealed class SecurityHeadersMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
-        var headers = context.Response.Headers;
+        ArgumentNullException.ThrowIfNull(context);
+
+        IHeaderDictionary headers = context.Response.Headers;
 
         headers.TryAdd("X-Content-Type-Options", "nosniff");
         headers.TryAdd("X-Frame-Options", "DENY");

@@ -1,6 +1,6 @@
-namespace LedgerService.Api.Options;
+namespace ApiDefaults.Options;
 
-public sealed class ApiLimitsOptions
+public class ApiDefaultsOptions
 {
     public const string SectionName = "ApiLimits";
 
