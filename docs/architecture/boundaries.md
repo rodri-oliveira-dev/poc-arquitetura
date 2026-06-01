@@ -132,7 +132,7 @@ Operacionalmente, `LedgerService.Api` recebe HTTP e grava Outbox; `LedgerService
 
 Pontos de atencao:
 
-- `CreateLancamentoService` faz bastante coisa: hash de idempotencia, parse de input, criacao de entidade, response DTO, evento e outbox. Ainda e aceitavel, mas e o primeiro ponto a decompor se o caso de uso crescer.
+- `CreateLancamentoService` orquestra o caso de uso e preserva a transacao unica. Hash, verificacao e replay idempotente ficam em `CreateLancamentoIdempotencyService`; a criacao de `LedgerEntryCreatedV1` fica em `LedgerEntryCreatedEventFactory`; a montagem e escrita da mensagem ficam em `LedgerEntryCreatedOutboxWriter`.
 - Evento `LedgerEntryCreatedV1` fica em Application, enquanto o consumidor tem outro contrato no `BalanceService.Worker`. Isso evita referencia cruzada entre servicos, mas exige documentacao e testes de contrato.
 - Uso de `DateTime.Now` aparece em dominio/aplicacao/outbox. Para regras temporais e testes mais fortes, um clock explicito seria melhor, como ja existe no BalanceService.
 

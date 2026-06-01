@@ -52,7 +52,7 @@ public sealed class CreateLancamentoServiceTests
         tx.Setup(x => x.CommitAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         tx.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask);
 
-        var sut = new CreateLancamentoService(ledgerRepo.Object, idemRepo.Object, outboxRepo.Object, uow.Object, clock);
+        var sut = CreateSut(ledgerRepo.Object, idemRepo.Object, outboxRepo.Object, uow.Object, clock);
 
         var result = await sut.ExecuteAsync(input, CancellationToken.None);
         Assert.Equal("CREDIT", result.Type);
@@ -145,7 +145,7 @@ public sealed class CreateLancamentoServiceTests
         tx.Setup(x => x.CommitAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         tx.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask);
 
-        var sut = new CreateLancamentoService(ledgerRepo.Object, idemRepo.Object, outboxRepo.Object, uow.Object);
+        var sut = CreateSut(ledgerRepo.Object, idemRepo.Object, outboxRepo.Object, uow.Object);
 
         await sut.ExecuteAsync(input, CancellationToken.None);
         Assert.NotNull(createdOutbox);
@@ -187,7 +187,7 @@ public sealed class CreateLancamentoServiceTests
         tx.Setup(x => x.CommitAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         tx.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask);
 
-        var sut = new CreateLancamentoService(ledgerRepo.Object, idemRepo.Object, outboxRepo.Object, uow.Object);
+        var sut = CreateSut(ledgerRepo.Object, idemRepo.Object, outboxRepo.Object, uow.Object);
 
         var result = await sut.ExecuteAsync(input, CancellationToken.None);
         Assert.Equal("DEBIT", result.Type);
@@ -237,7 +237,7 @@ public sealed class CreateLancamentoServiceTests
 
         tx.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask);
 
-        var sut = new CreateLancamentoService(ledgerRepo.Object, idemRepo.Object, outboxRepo.Object, uow.Object);
+        var sut = CreateSut(ledgerRepo.Object, idemRepo.Object, outboxRepo.Object, uow.Object);
 
         var act = async () => await sut.ExecuteAsync(input, CancellationToken.None);
 
@@ -283,7 +283,7 @@ public sealed class CreateLancamentoServiceTests
 
         tx.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask);
 
-        var sut = new CreateLancamentoService(ledgerRepo.Object, idemRepo.Object, outboxRepo.Object, uow.Object);
+        var sut = CreateSut(ledgerRepo.Object, idemRepo.Object, outboxRepo.Object, uow.Object);
 
         var act = async () => await sut.ExecuteAsync(changedInput, CancellationToken.None);
 
@@ -324,7 +324,7 @@ public sealed class CreateLancamentoServiceTests
 
         tx.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask);
 
-        var sut = new CreateLancamentoService(ledgerRepo.Object, idemRepo.Object, outboxRepo.Object, uow.Object);
+        var sut = CreateSut(ledgerRepo.Object, idemRepo.Object, outboxRepo.Object, uow.Object);
 
         var result = await sut.ExecuteAsync(input, CancellationToken.None);
         Assert.Equal("lan_12345678", result.Id);
@@ -361,7 +361,7 @@ public sealed class CreateLancamentoServiceTests
 
         tx.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask);
 
-        var sut = new CreateLancamentoService(ledgerRepo.Object, idemRepo.Object, outboxRepo.Object, uow.Object);
+        var sut = CreateSut(ledgerRepo.Object, idemRepo.Object, outboxRepo.Object, uow.Object);
 
         var act = async () => await sut.ExecuteAsync(input, CancellationToken.None);
 
@@ -419,7 +419,7 @@ public sealed class CreateLancamentoServiceTests
 
         tx.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask);
 
-        var sut = new CreateLancamentoService(ledgerRepo.Object, idemRepo.Object, outboxRepo.Object, uow.Object);
+        var sut = CreateSut(ledgerRepo.Object, idemRepo.Object, outboxRepo.Object, uow.Object);
 
         var result = await sut.ExecuteAsync(replayInput, CancellationToken.None);
         Assert.Equal(expectedReplay, result);
@@ -445,6 +445,19 @@ public sealed class CreateLancamentoServiceTests
 
     private static string? NormalizeOptionalText(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static CreateLancamentoService CreateSut(
+        ILedgerEntryRepository ledgerEntryRepository,
+        IIdempotencyRecordRepository idempotencyRecordRepository,
+        IOutboxMessageRepository outboxMessageRepository,
+        IUnitOfWork unitOfWork,
+        LedgerService.Application.Abstractions.Time.IClock? clock = null)
+        => new(
+            ledgerEntryRepository,
+            new CreateLancamentoIdempotencyService(idempotencyRecordRepository),
+            new LedgerEntryCreatedOutboxWriter(outboxMessageRepository),
+            unitOfWork,
+            clock);
 
     private static void AssertPayloadMatchesFormalSchemaShape(string payload)
     {
