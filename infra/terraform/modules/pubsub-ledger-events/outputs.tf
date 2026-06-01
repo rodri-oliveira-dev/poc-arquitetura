@@ -23,6 +23,11 @@ output "ledger_events_dlq_topic_id" {
   value       = google_pubsub_topic.ledger_events_dlq.id
 }
 
+output "ledger_events_dlq_topic_name" {
+  description = "Name of the Ledger events DLQ topic."
+  value       = google_pubsub_topic.ledger_events_dlq.name
+}
+
 output "ledger_events_dlq_subscription_id" {
   description = "Fully qualified ID of the pull subscription that retains Ledger events DLQ messages."
   value       = google_pubsub_subscription.ledger_events_dlq.id

@@ -42,7 +42,7 @@ As tasks ficam em `.vscode/tasks.json`. Execute `Tasks: Run Task` e escolha:
 - `terraform: tflint`;
 - `terraform: validate all`.
 
-As tasks `init` e `validate` apontam para o modulo atualmente versionado em `infra/terraform/modules/pubsub-ledger-events`. Quando um root module de ambiente for criado, ajuste o `cwd` dessas tasks para o diretorio correspondente, por exemplo `infra/terraform/environments/dev`.
+As tasks `init` e `validate` apontam para o root module de desenvolvimento em `infra/terraform/environments/dev`. Esse ambiente habilita `pubsub.googleapis.com`, compoe o modulo reutilizavel `infra/terraform/modules/pubsub-ledger-events` e nao configura backend remoto. O passo a passo para configurar variaveis locais, revisar o plano e aplicar manualmente fica em [`infra/terraform/environments/dev/README.md`](../../infra/terraform/environments/dev/README.md).
 
 ## Validacao local
 

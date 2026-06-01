@@ -302,7 +302,7 @@
         "-input=false"
       ],
       "options": {
-        "cwd": "${workspaceFolder}/infra/terraform/modules/pubsub-ledger-events"
+        "cwd": "${workspaceFolder}/infra/terraform/environments/dev"
       },
       "problemMatcher": []
     },
@@ -314,7 +314,7 @@
         "validate"
       ],
       "options": {
-        "cwd": "${workspaceFolder}/infra/terraform/modules/pubsub-ledger-events"
+        "cwd": "${workspaceFolder}/infra/terraform/environments/dev"
       },
       "problemMatcher": []
     },

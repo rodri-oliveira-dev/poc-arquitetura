@@ -1,0 +1,2 @@
+project_id = "replace-with-your-gcp-project-id"
+region     = "us-central1"
