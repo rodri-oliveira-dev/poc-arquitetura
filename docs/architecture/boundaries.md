@@ -46,7 +46,7 @@ Deve conter:
 
 - composition root explicito do processo de background;
 - registro de `BackgroundService`/`IHostedService`;
-- configuracao de mensageria, provider Kafka atual, Outbox, DLQ, polling, retry, locks e consumers;
+- configuracao de mensageria, providers concretos, Outbox, DLQ, polling, retry, locks e consumers;
 - observabilidade do processo com `ServiceName` proprio.
 
 Nao deve conter:
@@ -55,7 +55,7 @@ Nao deve conter:
 - validacao de JWT/JWKS de requests HTTP;
 - regras de negocio duplicadas fora da Application/Domain.
 
-Observacao real: `LedgerService.Worker` registra Outbox, estorno e reprocessamento; `BalanceService.Worker` registra o consumer de eventos do Ledger e DLQ. APIs e workers compartilham Application/Infrastructure, mas cada processo decide explicitamente quais adapters e HostedServices registra. A composition root deve preferir entradas neutras como `AddLedgerMessaging` e `AddBalanceMessaging`, mantendo Kafka como adapter concreto quando `Messaging:Provider=Kafka`.
+Observacao real: `LedgerService.Worker` registra Outbox, estorno e reprocessamento; `BalanceService.Worker` registra o consumer de eventos do Ledger e DLQ. APIs e workers compartilham Application/Infrastructure, mas cada processo decide explicitamente quais adapters e HostedServices registra. A composition root deve preferir entradas neutras como `AddLedgerMessaging` e `AddBalanceMessaging`. O Ledger seleciona Kafka ou Pub/Sub para publicar a Outbox; os consumers e a DLQ permanecem Kafka nesta etapa.
 
 ### Application
 
@@ -128,7 +128,7 @@ Observacao real: `BalanceService.Infrastructure` concentra persistencia e reposi
 
 Camadas atuais fazem sentido para o objetivo da POC. O servico tem transacao, idempotencia, entidade com invariantes, persistencia relacional e Outbox. Separar `Application`, `Domain` e `Infrastructure` agrega valor real.
 
-Operacionalmente, `LedgerService.Api` recebe HTTP e grava Outbox; `LedgerService.Worker` publica a Outbox pelo provider de mensageria configurado, processa estornos e consome solicitacoes de reprocessamento. Hoje o provider implementado e Kafka. Durante rollout, API antiga e Worker novo nao devem executar os mesmos HostedServices simultaneamente.
+Operacionalmente, `LedgerService.Api` recebe HTTP e grava Outbox; `LedgerService.Worker` publica a Outbox pelo provider de mensageria configurado, processa estornos e consome solicitacoes de reprocessamento. A publicacao da Outbox aceita Kafka ou Pub/Sub; o consumer de reprocessamento continua exclusivo do caminho Kafka. Durante rollout, API antiga e Worker novo nao devem executar os mesmos HostedServices simultaneamente.
 
 Pontos de atencao:
 

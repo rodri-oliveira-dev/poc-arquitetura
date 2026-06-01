@@ -2,9 +2,9 @@
 
 Este documento concentra a referencia de mensageria entre `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Worker` e `BalanceService.Api`.
 
-Kafka e a implementacao atual de mensageria nesta POC. O boundary dos workers usa portas neutras para publicacao, consumo e DLQ, enquanto os adapters Kafka concentram detalhes como topicos, partitions, offsets, keys e commit. Pub/Sub nao esta implementado; ele e apenas um adapter futuro possivel.
+Kafka permanece como provider completo de mensageria nesta POC. O boundary dos workers usa portas neutras para publicacao, consumo e DLQ, enquanto os adapters Kafka concentram detalhes como topicos, partitions, offsets, keys e commit. O `LedgerService.Worker` tambem suporta Pub/Sub como provider alternativo para publicar a Outbox; consumidores e DLQ continuam em Kafka nesta etapa.
 
-Em termos de desenho, a aplicacao trata `OrderingKey` como conceito logico de ordenacao por agregado/entidade. No adapter Kafka atual, esse valor e materializado como message key e influencia o particionamento; em um adapter Pub/Sub futuro, ordering key, ack/nack, subscription e delivery attempt devem ser tratados como semantica propria do provider, sem simular partition, offset ou commit dentro dos processors neutros.
+Em termos de desenho, a aplicacao trata `OrderingKey` como conceito logico de ordenacao por agregado/entidade. No adapter Kafka, esse valor e materializado como message key e influencia o particionamento; no producer Pub/Sub, a ordering key opcional usa o `AggregateId`. Ack/nack, subscription e delivery attempt devem ser tratados como semantica propria do provider quando os consumers Pub/Sub forem implementados, sem simular partition, offset ou commit dentro dos processors neutros.
 
 Configuracao neutra:
 
@@ -18,11 +18,13 @@ Configuracao neutra:
 
 `Messaging:Provider` usa `Kafka` como default quando ausente. A configuracao existente `Kafka:Enabled=false` continua suportada para desligar os hosted services de mensageria em testes e cenarios locais especificos.
 
+Para a publicacao Pub/Sub do Ledger, use `Messaging:Provider=PubSub`. A configuracao `PubSub:Enabled=false` desliga os hosted services relacionados a Pub/Sub de forma equivalente ao flag Kafka.
+
 ## Fluxo
 
 1. `LedgerService.Api` cria um lancamento, registra uma solicitacao de estorno ou registra uma solicitacao de reprocessamento.
 2. A mesma transacao grava a mensagem em `outbox_messages`.
-3. `LedgerService.Worker` hospeda `OutboxPublisherService`, que le mensagens pendentes e publica pela porta de mensageria configurada; nesta POC, o provider configurado e Kafka.
+3. `LedgerService.Worker` hospeda `OutboxPublisherService`, que le mensagens pendentes e publica pela porta de mensageria configurada: Kafka ou Pub/Sub.
 4. `LedgerService.Worker` hospeda `EstornoLancamentoProcessorService`, que processa solicitacoes `Pending` e cria lancamentos compensatorios.
 5. O estorno concluido grava `LedgerEntryCreated.v1` do lancamento compensatorio no Outbox.
 6. `LedgerService.Worker` hospeda `ReprocessamentoLancamentosConsumerService`, que consome `ledger.lancamentos.reprocessamento.solicitado`, chama o caso de uso de reprocessamento e registra eventos financeiros finais no Outbox quando houver lancamentos elegiveis.
@@ -73,11 +75,13 @@ Headers publicados pelo producer:
 - `tracestate`, quando houver contexto W3C com tracestate;
 - `baggage`, quando houver baggage persistido na Outbox ou `Activity` atual.
 
+No producer Pub/Sub do Ledger, os mesmos metadados logicos sao publicados como attributes.
+
 O `BalanceService.Worker` exige `event_type=LedgerEntryCreated.v1`, usa `event_id` para rastreabilidade e idempotencia quando presente, restaura `traceparent`/`tracestate` como parent do span `kafka.consume`, reidrata `baggage` quando possivel e preserva headers relevantes ao enviar mensagens para a DLQ. Mensagens antigas sem headers W3C continuam validas; nesse caso, o consumo segue pelo fallback funcional e pode criar um span raiz quando OpenTelemetry estiver habilitado.
 
 ## Outbox
 
-A Outbox e neutra em relacao ao provider de mensageria: ela persiste a intencao de publicacao e o worker usa `IOutboxMessagePublisher` para entregar a mensagem pelo adapter configurado. Nesta POC, esse adapter e Kafka.
+A Outbox e neutra em relacao ao provider de mensageria: ela persiste a intencao de publicacao e o worker usa `IOutboxMessagePublisher` para entregar a mensagem pelo adapter configurado. No Ledger, esse adapter pode ser Kafka ou Pub/Sub.
 
 Estados esperados:
 
@@ -210,6 +214,8 @@ Ledger:
 
 - `Messaging:Provider`;
 - `Kafka:Producer`;
+- `PubSub:Enabled`;
+- `PubSub:Producer`;
 - `Outbox:Publisher`.
 - `Reprocessamentos:Consumer`.
 
@@ -221,7 +227,7 @@ Balance:
 - `Kafka:Consumer`;
 - `Kafka:Consumer:DeadLetterTopic`.
 
-Somente `Kafka` e aceito em `Messaging:Provider` nesta etapa. Qualquer outro valor falha no startup com erro explicito de provider nao suportado. Pub/Sub nao possui configuracao, adapter, topicos/subscriptions ou testes nesta versao.
+O `LedgerService.Worker` aceita `Kafka` e `PubSub` em `Messaging:Provider`; qualquer outro valor falha no startup com erro explicito de provider nao suportado. O `BalanceService.Worker` continua aceitando apenas `Kafka` nesta etapa.
 
 `SecurityProtocol=Plaintext` existe apenas para execucao local (`Development`/`Local`) e para o ambiente `Test`. Em ambientes compartilhados ou produtivos, configure `SSL` ou `SASL_SSL` com os parametros operacionais por variaveis de ambiente ou secret store.
 
