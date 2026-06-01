@@ -71,7 +71,40 @@ public sealed class ApplyLedgerEntryCreatedConcurrencyTests
         Assert.Equal(65m, balance.NetBalance);
     }
 
-    private static async Task ApplyAsync(
+    [Fact]
+    public async Task Should_apply_same_event_once_under_concurrency()
+    {
+        await _fixture.CleanAsync();
+
+        var now = DateTimeOffset.Parse("2026-02-16T15:00:00Z", CultureInfo.InvariantCulture);
+        using var serviceProvider = _fixture.CreateServiceProvider(now);
+        var merchantId = $"merchant-{Guid.NewGuid():N}";
+        var evt = CreateEvent(
+            id: $"evt-{Guid.NewGuid():N}",
+            merchantId: merchantId,
+            type: "CREDIT",
+            amount: "100.00",
+            occurredAt: DateTimeOffset.Parse("2026-02-16T10:00:00-03:00", CultureInfo.InvariantCulture));
+        var start = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var first = ApplyAsync(serviceProvider, evt, start.Task);
+        var second = ApplyAsync(serviceProvider, evt, start.Task);
+
+        start.SetResult();
+        var results = await Task.WhenAll(first, second);
+
+        Assert.Single(results, x => x == ApplyLedgerEntryCreatedResult.Processed);
+        Assert.Single(results, x => x == ApplyLedgerEntryCreatedResult.IgnoredDuplicate);
+
+        await using var db = _fixture.CreateDbContext();
+        var balance = await db.DailyBalances.SingleAsync(x => x.MerchantId == merchantId);
+        Assert.Equal(100m, balance.TotalCredits);
+        Assert.Equal(0m, balance.TotalDebits);
+        Assert.Equal(100m, balance.NetBalance);
+        Assert.Equal(1, await db.ProcessedEvents.CountAsync(x => x.EventId == evt.Id));
+    }
+
+    private static async Task<ApplyLedgerEntryCreatedResult> ApplyAsync(
         IServiceProvider serviceProvider,
         LedgerEntryCreatedEvent evt,
         Task start)
@@ -81,7 +114,7 @@ public sealed class ApplyLedgerEntryCreatedConcurrencyTests
         await using var scope = serviceProvider.CreateAsyncScope();
         var handler = scope.ServiceProvider.GetRequiredService<ApplyLedgerEntryCreatedHandler>();
 
-        await handler.Handle(new ApplyLedgerEntryCreatedCommand(evt), CancellationToken.None);
+        return await handler.Handle(new ApplyLedgerEntryCreatedCommand(evt), CancellationToken.None);
     }
 
     private static LedgerEntryCreatedEvent CreateEvent(

@@ -66,6 +66,32 @@ public sealed class OutboxPublisherWorkerTests
         Assert.Contains("Kafka unavailable", refreshed.LastError, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task ClaimPendingAsync_concurrent_should_lock_message_for_only_one_publisher()
+    {
+        await _fixture.CleanAsync();
+        var outboxId = await SeedPendingMessageAsync();
+        var now = DateTime.UtcNow;
+        var start = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var first = ClaimAfterGateAsync("publisher-1", now, start.Task);
+        var second = ClaimAfterGateAsync("publisher-2", now, start.Task);
+
+        start.SetResult();
+        var claimed = await Task.WhenAll(first, second);
+
+        Assert.Equal(1, claimed.Sum(x => x.Count));
+        Assert.Single(claimed.SelectMany(x => x), x => x.Id == outboxId);
+
+        await using var db = CreateDbContext();
+        var refreshed = await db.OutboxMessages.SingleAsync(
+            x => x.Id == outboxId,
+            TestContext.Current.CancellationToken);
+        Assert.Equal(OutboxStatus.Processing, refreshed.Status);
+        Assert.Contains(refreshed.LockOwner, new[] { "publisher-1", "publisher-2" });
+        Assert.NotNull(refreshed.LockedUntil);
+    }
+
     private async Task<Guid> SeedPendingMessageAsync()
     {
         await using var db = CreateDbContext();
@@ -107,6 +133,23 @@ public sealed class OutboxPublisherWorkerTests
         services.AddSingleton<OutboxPublisherService>();
 
         return services.BuildServiceProvider(validateScopes: true);
+    }
+
+    private async Task<IReadOnlyList<OutboxMessage>> ClaimAfterGateAsync(
+        string lockOwner,
+        DateTime now,
+        Task gate)
+    {
+        await gate;
+
+        await using var db = CreateDbContext();
+        var repository = new OutboxMessageRepository(db);
+        return await repository.ClaimPendingAsync(
+            batchSize: 10,
+            now,
+            lockOwner,
+            lockDuration: TimeSpan.FromSeconds(30),
+            TestContext.Current.CancellationToken);
     }
 
     private AppDbContext CreateDbContext()
