@@ -2,7 +2,7 @@
 
 Este documento concentra a referencia de mensageria entre `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Worker` e `BalanceService.Api`.
 
-Kafka permanece como provider completo de mensageria nesta POC. O boundary dos workers usa portas neutras para publicacao, consumo e DLQ, enquanto os adapters Kafka concentram detalhes como topicos, partitions, offsets, keys e commit. O `LedgerService.Worker` tambem suporta Pub/Sub como provider alternativo para publicar a Outbox; consumidores e DLQ continuam em Kafka nesta etapa.
+Kafka permanece como provider completo de mensageria nesta POC. O boundary dos workers usa portas neutras para publicacao, consumo e DLQ, enquanto os adapters Kafka concentram detalhes como topicos, partitions, offsets, keys e commit. O `LedgerService.Worker` tambem suporta Pub/Sub como provider alternativo para publicar a Outbox. O consumer e a DLQ Pub/Sub do Balance ja possuem adapters, mas ainda nao foram ativados na composition root nesta etapa.
 
 Em termos de desenho, a aplicacao trata `OrderingKey` como conceito logico de ordenacao por agregado/entidade. No adapter Kafka, esse valor e materializado como message key e influencia o particionamento; no producer Pub/Sub, a ordering key opcional usa o `AggregateId`. Ack/nack, subscription e delivery attempt devem ser tratados como semantica propria do provider quando os consumers Pub/Sub forem implementados, sem simular partition, offset ou commit dentro dos processors neutros.
 
@@ -31,7 +31,7 @@ Para a publicacao Pub/Sub do Ledger, use `Messaging:Provider=PubSub`. A configur
 7. `BalanceService.Worker` consome apenas `LedgerEntryCreated.v1` e atualiza a projecao `daily_balances`.
 8. Mensagens invalidas ou nao recuperaveis do fluxo consumido pelo Balance sao publicadas pela porta neutra de DLQ; nesta POC, a DLQ concreta e um topico Kafka.
 
-No consumo do Balance, o fluxo interno esperado e:
+No consumo Kafka do Balance, o fluxo interno esperado e:
 
 ```text
 KafkaLedgerEventsConsumer
@@ -40,6 +40,18 @@ KafkaLedgerEventsConsumer
   -> LedgerEntryCreatedMessageProcessor
   -> Application Handler
 ```
+
+O adapter Pub/Sub equivalente, ainda nao ativado na composition root, usa:
+
+```text
+LedgerEventsPubSubConsumer
+  -> PubSubReceivedMessageMapper
+  -> ReceivedMessage
+  -> LedgerEntryCreatedMessageProcessor
+  -> Application Handler
+```
+
+Quando o processor retorna `true`, o consumer responde com `ack`. Quando retorna `false` ou ocorre falha recuperavel, responde com `nack`.
 
 ## Topicos e evento
 
@@ -226,6 +238,7 @@ Balance:
 - `Messaging:Provider`;
 - `Kafka:Consumer`;
 - `Kafka:Consumer:DeadLetterTopic`.
+- `PubSub:Consumer` (adapter implementado, ainda nao ativado na composition root).
 
 O `LedgerService.Worker` aceita `Kafka` e `PubSub` em `Messaging:Provider`; qualquer outro valor falha no startup com erro explicito de provider nao suportado. O `BalanceService.Worker` continua aceitando apenas `Kafka` nesta etapa.
 
