@@ -106,6 +106,7 @@ zap-reports
 
 # Terraform
 **/.terraform/
+infra/terraform/modules/**/.terraform.lock.hcl
 *.tfstate
 *.tfstate.*
 *.tfvars

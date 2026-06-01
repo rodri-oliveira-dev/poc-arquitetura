@@ -18,7 +18,7 @@ locals {
 
   ledger_worker_service_account_id  = "${substr(local.resource_prefix, 0, 13)}-ledger-${substr(md5(local.resource_prefix), 0, 6)}"
   balance_worker_service_account_id = "${substr(local.resource_prefix, 0, 13)}-balance-${substr(md5(local.resource_prefix), 0, 6)}"
-  pubsub_service_agent_member        = "serviceAccount:service-${data.google_project.current.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
+  pubsub_service_agent_member       = "serviceAccount:service-${data.google_project.current.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
 
   common_labels = merge(var.labels, {
     app         = var.app_name
