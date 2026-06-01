@@ -1,11 +1,12 @@
-using Microsoft.Extensions.Primitives;
 using System.Diagnostics;
 
-namespace BalanceService.Api.Middlewares;
+using Microsoft.Extensions.Primitives;
+
+namespace ApiDefaults.Middlewares;
 
 /// <summary>
-/// Garante que toda requisição tenha um CorrelationId válido (GUID) e o propaga
-/// no request/response. Também cria um logging scope para enriquecer logs.
+/// Garante que toda requisicao tenha um CorrelationId valido (GUID) e o propaga
+/// no request/response. Tambem cria um logging scope para enriquecer logs.
 /// </summary>
 public sealed class CorrelationIdMiddleware
 {
@@ -23,18 +24,14 @@ public sealed class CorrelationIdMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
-        var correlationId = ResolveOrCreateCorrelationId(context);
+        ArgumentNullException.ThrowIfNull(context);
 
-        // Observabilidade: se houver Activity (tracing distribuído / System.Diagnostics),
-        // capturamos TraceId/SpanId para correlação em logs.
-        var activity = Activity.Current;
-        var traceId = activity?.TraceId.ToString();
-        var spanId = activity?.SpanId.ToString();
+        string correlationId = ResolveOrCreateCorrelationId(context);
+        Activity? activity = Activity.Current;
+        string? traceId = activity?.TraceId.ToString();
+        string? spanId = activity?.SpanId.ToString();
 
-        // Propaga no request para consumo interno.
         context.Request.Headers[HeaderName] = correlationId;
-
-        // Propaga no response.
         context.Response.OnStarting(() =>
         {
             context.Response.Headers[HeaderName] = correlationId;
@@ -56,9 +53,11 @@ public sealed class CorrelationIdMiddleware
     {
         if (context.Request.Headers.TryGetValue(HeaderName, out StringValues values))
         {
-            var raw = values.FirstOrDefault();
-            if (!string.IsNullOrWhiteSpace(raw) && Guid.TryParse(raw, out var parsed))
+            string? raw = values.FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(raw) && Guid.TryParse(raw, out Guid parsed))
+            {
                 return parsed.ToString();
+            }
         }
 
         return Guid.NewGuid().ToString();

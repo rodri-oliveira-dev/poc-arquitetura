@@ -29,7 +29,7 @@ namespace LedgerService.Infrastructure.Persistence.Migrations
                         .HasColumnName("id");
 
                     b.Property<DateTime?>("CompletedAt")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("completed_at");
 
                     b.Property<Guid>("CorrelationId")
@@ -37,11 +37,11 @@ namespace LedgerService.Infrastructure.Persistence.Migrations
                         .HasColumnName("correlation_id");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
                     b.Property<DateTime?>("FailedAt")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("failed_at");
 
                     b.Property<string>("FailureReason")
@@ -69,11 +69,11 @@ namespace LedgerService.Infrastructure.Persistence.Migrations
                         .HasColumnName("motivo");
 
                     b.Property<DateTime?>("ProcessingStartedAt")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("processing_started_at");
 
                     b.Property<DateTime?>("RejectedAt")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("rejected_at");
 
                     b.Property<string>("RejectionReason")
@@ -109,11 +109,11 @@ namespace LedgerService.Infrastructure.Persistence.Migrations
                         .HasColumnName("id");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
                     b.Property<DateTime>("ExpiresAt")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("expires_at");
 
                     b.Property<string>("IdempotencyKey")
@@ -171,7 +171,7 @@ namespace LedgerService.Infrastructure.Persistence.Migrations
                         .HasColumnName("correlation_id");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
                     b.Property<string>("Description")
@@ -190,7 +190,7 @@ namespace LedgerService.Infrastructure.Persistence.Migrations
                         .HasColumnName("merchant_id");
 
                     b.Property<DateTime>("OccurredAt")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("occurred_at");
 
                     b.Property<string>("Type")
@@ -253,7 +253,7 @@ namespace LedgerService.Infrastructure.Persistence.Migrations
                         .HasColumnName("last_requeue_reason");
 
                     b.Property<DateTime?>("LastRequeuedAt")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("last_requeued_at");
 
                     b.Property<string>("LastRequeuedBy")
@@ -266,15 +266,15 @@ namespace LedgerService.Infrastructure.Persistence.Migrations
                         .HasColumnName("lock_owner");
 
                     b.Property<DateTime?>("LockedUntil")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("locked_until");
 
                     b.Property<DateTime?>("NextRetryAt")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("next_retry_at");
 
                     b.Property<DateTime>("OccurredAt")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("occurred_at");
 
                     b.Property<string>("Payload")
@@ -283,7 +283,7 @@ namespace LedgerService.Infrastructure.Persistence.Migrations
                         .HasColumnName("payload");
 
                     b.Property<DateTime?>("ProcessedAt")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("processed_at");
 
                     b.Property<int>("RequeueCount")
@@ -327,7 +327,7 @@ namespace LedgerService.Infrastructure.Persistence.Migrations
                         .HasColumnName("id");
 
                     b.Property<DateTime?>("CompletedAt")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("completed_at");
 
                     b.Property<Guid>("CorrelationId")
@@ -335,7 +335,7 @@ namespace LedgerService.Infrastructure.Persistence.Migrations
                         .HasColumnName("correlation_id");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
                     b.Property<DateOnly>("DataFinal")
@@ -347,7 +347,7 @@ namespace LedgerService.Infrastructure.Persistence.Migrations
                         .HasColumnName("data_inicial");
 
                     b.Property<DateTime?>("FailedAt")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("failed_at");
 
                     b.Property<string>("FailureReason")
@@ -368,11 +368,11 @@ namespace LedgerService.Infrastructure.Persistence.Migrations
                         .HasColumnName("motivo");
 
                     b.Property<DateTime?>("ProcessingStartedAt")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("processing_started_at");
 
                     b.Property<DateTime?>("RejectedAt")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("rejected_at");
 
                     b.Property<string>("RejectionReason")

@@ -1,5 +1,8 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 
 using BalanceService.Application.Balances.Commands;
 using BalanceService.Domain.Balances;
@@ -15,12 +18,15 @@ using Microsoft.Extensions.Logging;
 
 namespace BalanceService.Worker.Messaging.Processors;
 
-public sealed class LedgerEntryCreatedMessageProcessor
+public sealed partial class LedgerEntryCreatedMessageProcessor
 {
     public const string ActivitySourceName = "BalanceService.MessageProcessor";
 
     private static readonly ActivitySource ActivitySource = new(ActivitySourceName);
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
+    {
+        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow
+    };
 
     private readonly IServiceProvider _serviceProvider;
     private readonly IDeadLetterPublisher _deadLetterPublisher;
@@ -213,17 +219,39 @@ public sealed class LedgerEntryCreatedMessageProcessor
         if (string.IsNullOrWhiteSpace(evt.Id))
             throw new MessageValidationException("Message payload id is required.");
 
+        if (!EventIdPattern().IsMatch(evt.Id))
+            throw new MessageValidationException("Message payload id is invalid.");
+
         if (string.IsNullOrWhiteSpace(evt.Type))
             throw new MessageValidationException("Message payload type is required.");
 
         if (string.IsNullOrWhiteSpace(evt.Amount))
             throw new MessageValidationException("Message payload amount is required.");
 
+        if (!AmountPattern().IsMatch(evt.Amount) ||
+            !decimal.TryParse(evt.Amount, NumberStyles.Number, CultureInfo.InvariantCulture, out var amount) ||
+            amount == 0 ||
+            evt.Type is not ("CREDIT" or "DEBIT") ||
+            evt.Type == "CREDIT" && amount < 0 ||
+            evt.Type == "DEBIT" && amount > 0)
+        {
+            throw new MessageValidationException("Message payload type and amount are invalid.");
+        }
+
+        if (evt.CreatedAt == default)
+            throw new MessageValidationException("Message payload createdAt is required.");
+
         if (string.IsNullOrWhiteSpace(evt.MerchantId))
             throw new MessageValidationException("Message payload merchantId is required.");
 
+        if (evt.OccurredAt == default)
+            throw new MessageValidationException("Message payload occurredAt is required.");
+
         if (string.IsNullOrWhiteSpace(evt.CorrelationId))
             throw new MessageValidationException("Message payload correlationId is required.");
+
+        if (!Guid.TryParse(evt.CorrelationId, out _))
+            throw new MessageValidationException("Message payload correlationId must be a UUID.");
     }
 
     private static string ResolveEventId(ReceivedMessage message, string payloadEventId)
@@ -238,6 +266,12 @@ public sealed class LedgerEntryCreatedMessageProcessor
 
     private static bool IsNonRecoverableProcessingFailure(InvalidOperationException ex)
         => ex.Source?.Contains("EntityFramework", StringComparison.OrdinalIgnoreCase) != true;
+
+    [GeneratedRegex("^lan_[0-9a-f]{8}$", RegexOptions.CultureInvariant)]
+    private static partial Regex EventIdPattern();
+
+    [GeneratedRegex("^-?[0-9]+\\.[0-9]{2}$", RegexOptions.CultureInvariant)]
+    private static partial Regex AmountPattern();
 
     private sealed class MessageValidationException : Exception
     {

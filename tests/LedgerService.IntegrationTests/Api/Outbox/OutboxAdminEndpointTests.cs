@@ -91,10 +91,10 @@ public sealed class OutboxAdminEndpointTests : IClassFixture<LedgerApiFactory>
             aggregateId: Guid.NewGuid(),
             eventType: "LedgerEntryCreated.v1",
             payload: "{}",
-            occurredAt: DateTime.Now.AddMinutes(-1),
+            occurredAt: DateTime.UtcNow.AddMinutes(-1),
             correlationId: Guid.NewGuid());
 
-        message.MarkFailedPublishAttempt(1, DateTime.Now.AddSeconds(10), "kafka down");
+        message.MarkFailedPublishAttempt(1, DateTime.UtcNow.AddSeconds(10), "kafka down");
 
         db.OutboxMessages.Add(message);
         await db.SaveChangesAsync();

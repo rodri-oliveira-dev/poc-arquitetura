@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 
+using LedgerService.Application.Abstractions.Time;
 using LedgerService.Application.Common.Exceptions;
 using LedgerService.Application.Common.Observability;
 using LedgerService.Application.Lancamentos.Events;
@@ -23,6 +24,7 @@ public sealed class ProcessarEstornoLancamentoHandler : IRequestHandler<Processa
     private readonly IOutboxMessageRepository _outboxMessageRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<ProcessarEstornoLancamentoHandler> _logger;
+    private readonly IClock _clock;
     private readonly LedgerDomainMetrics? _metrics;
 
     public ProcessarEstornoLancamentoHandler(
@@ -31,6 +33,7 @@ public sealed class ProcessarEstornoLancamentoHandler : IRequestHandler<Processa
         IOutboxMessageRepository outboxMessageRepository,
         IUnitOfWork unitOfWork,
         ILogger<ProcessarEstornoLancamentoHandler> logger,
+        IClock? clock = null,
         LedgerDomainMetrics? metrics = null)
     {
         ArgumentNullException.ThrowIfNull(estornoRepository);
@@ -44,6 +47,7 @@ public sealed class ProcessarEstornoLancamentoHandler : IRequestHandler<Processa
         _outboxMessageRepository = outboxMessageRepository;
         _unitOfWork = unitOfWork;
         _logger = logger;
+        _clock = clock ?? new SystemClock();
         _metrics = metrics;
     }
 
@@ -93,7 +97,8 @@ public sealed class ProcessarEstornoLancamentoHandler : IRequestHandler<Processa
         }
 
         var previousStatus = estorno.Status;
-        estorno.MarkProcessing(DateTime.Now);
+        var now = _clock.UtcNow.UtcDateTime;
+        estorno.MarkProcessing(now);
 
         var lancamentoOriginal = await _ledgerEntryRepository.GetByIdAsync(estorno.LancamentoOriginalId, cancellationToken);
         if (lancamentoOriginal is null)
@@ -112,11 +117,11 @@ public sealed class ProcessarEstornoLancamentoHandler : IRequestHandler<Processa
 
         if (compensatingEntry is null)
         {
-            compensatingEntry = lancamentoOriginal.CreateCompensatingEntry(estorno.CorrelationId, estorno.Motivo);
+            compensatingEntry = lancamentoOriginal.CreateCompensatingEntry(estorno.CorrelationId, estorno.Motivo, now);
             await _ledgerEntryRepository.AddAsync(compensatingEntry, cancellationToken);
         }
 
-        estorno.Complete(compensatingEntry.Id, DateTime.Now);
+        estorno.Complete(compensatingEntry.Id, now);
 
         var outboxPayload = JsonSerializer.Serialize(ToLedgerEntryCreated(compensatingEntry), JsonOptions);
         var traceContext = OutboxTraceContext.CaptureCurrent();
@@ -125,7 +130,7 @@ public sealed class ProcessarEstornoLancamentoHandler : IRequestHandler<Processa
             compensatingEntry.Id,
             LedgerEntryCreatedV1.EventType,
             outboxPayload,
-            DateTime.Now,
+            now,
             estorno.CorrelationId,
             traceContext.TraceParent,
             traceContext.TraceState,
@@ -153,7 +158,7 @@ public sealed class ProcessarEstornoLancamentoHandler : IRequestHandler<Processa
         var estorno = await _estornoRepository.GetByIdForUpdateAsync(estornoId, cancellationToken);
         if (estorno is not null && !estorno.IsCompleted())
         {
-            estorno.Reject(reason, DateTime.Now);
+            estorno.Reject(reason, _clock.UtcNow.UtcDateTime);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
         }
 
@@ -168,7 +173,7 @@ public sealed class ProcessarEstornoLancamentoHandler : IRequestHandler<Processa
         var estorno = await _estornoRepository.GetByIdForUpdateAsync(estornoId, cancellationToken);
         if (estorno is not null && !estorno.IsCompleted())
         {
-            estorno.Fail(reason, DateTime.Now);
+            estorno.Fail(reason, _clock.UtcNow.UtcDateTime);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
         }
 

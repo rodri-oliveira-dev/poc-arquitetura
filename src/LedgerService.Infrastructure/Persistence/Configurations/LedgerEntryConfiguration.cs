@@ -38,7 +38,7 @@ public sealed class LedgerEntryConfiguration : IEntityTypeConfiguration<LedgerEn
 
         builder.Property(x => x.OccurredAt)
             .HasColumnName("occurred_at")
-            .HasColumnType("timestamp without time zone")
+            .HasColumnType(PostgreSqlColumnTypes.TimestampWithTimeZone)
             .IsRequired();
 
         builder.Property(x => x.Description)
@@ -55,7 +55,7 @@ public sealed class LedgerEntryConfiguration : IEntityTypeConfiguration<LedgerEn
 
         builder.Property(x => x.CreatedAt)
             .HasColumnName("created_at")
-            .HasColumnType("timestamp without time zone")
+            .HasColumnType(PostgreSqlColumnTypes.TimestampWithTimeZone)
             .IsRequired();
 
         builder.HasIndex(x => new { x.MerchantId, x.OccurredAt })

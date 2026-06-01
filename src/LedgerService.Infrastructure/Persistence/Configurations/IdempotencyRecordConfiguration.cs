@@ -41,12 +41,12 @@ public sealed class IdempotencyRecordConfiguration : IEntityTypeConfiguration<Id
 
         builder.Property(x => x.CreatedAt)
             .HasColumnName("created_at")
-            .HasColumnType("timestamp without time zone")
+            .HasColumnType(PostgreSqlColumnTypes.TimestampWithTimeZone)
             .IsRequired();
 
         builder.Property(x => x.ExpiresAt)
             .HasColumnName("expires_at")
-            .HasColumnType("timestamp without time zone")
+            .HasColumnType(PostgreSqlColumnTypes.TimestampWithTimeZone)
             .IsRequired();
 
         builder.HasIndex(x => new { x.MerchantId, x.IdempotencyKey })

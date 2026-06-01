@@ -37,7 +37,7 @@ public sealed class ConsolidadosEndpointsTests : IClassFixture<BalanceApiFactory
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var res = await _client.GetAsync("/v1/consolidados/periodo?merchantId=m1&from=bad&to=2026-02-12");
+        var res = await _client.GetAsync("/api/v1/consolidados/periodo?merchantId=m1&from=bad&to=2026-02-12");
         Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
         var body = await AssertValidationErrorResponseAsync(res);
         Assert.Contains("from", body.Errors.Keys);
@@ -46,7 +46,7 @@ public sealed class ConsolidadosEndpointsTests : IClassFixture<BalanceApiFactory
     [Fact]
     public async Task Options_preflight_should_allow_contract_headers()
     {
-        using var req = new HttpRequestMessage(HttpMethod.Options, "/v1/consolidados/periodo");
+        using var req = new HttpRequestMessage(HttpMethod.Options, "/api/v1/consolidados/periodo");
         req.Headers.Add("Origin", "http://localhost:5173");
         req.Headers.Add("Access-Control-Request-Method", "GET");
         req.Headers.Add("Access-Control-Request-Headers", "Idempotency-Key, X-Correlation-Id");
@@ -69,7 +69,7 @@ public sealed class ConsolidadosEndpointsTests : IClassFixture<BalanceApiFactory
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var res = await _client.GetAsync("/v1/consolidados/periodo?merchantId=m1&from=2026-02-12&to=2026-02-10");
+        var res = await _client.GetAsync("/api/v1/consolidados/periodo?merchantId=m1&from=2026-02-12&to=2026-02-10");
         Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
         var body = await AssertValidationErrorResponseAsync(res);
         Assert.NotEmpty(body.Errors);
@@ -85,7 +85,7 @@ public sealed class ConsolidadosEndpointsTests : IClassFixture<BalanceApiFactory
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var res = await _client.GetAsync("/v1/consolidados/periodo?merchantId=m1&from=2026-02-01&to=2026-03-05");
+        var res = await _client.GetAsync("/api/v1/consolidados/periodo?merchantId=m1&from=2026-02-01&to=2026-03-05");
         Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
         var body = await AssertValidationErrorResponseAsync(res);
         Assert.Contains("to", body.Errors.Keys);
@@ -102,7 +102,7 @@ public sealed class ConsolidadosEndpointsTests : IClassFixture<BalanceApiFactory
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var res = await _client.GetAsync("/v1/consolidados/diario/bad-date?merchantId=m1");
+        var res = await _client.GetAsync("/api/v1/consolidados/diario/bad-date?merchantId=m1");
         Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
         var body = await AssertValidationErrorResponseAsync(res);
         Assert.Contains("date", body.Errors.Keys);
@@ -118,7 +118,7 @@ public sealed class ConsolidadosEndpointsTests : IClassFixture<BalanceApiFactory
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var res = await _client.GetAsync("/v1/consolidados/diario/2026-02-10");
+        var res = await _client.GetAsync("/api/v1/consolidados/diario/2026-02-10");
         Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
         var body = await AssertValidationErrorResponseAsync(res);
         Assert.Contains("merchantId", body.Errors.Keys);
@@ -176,7 +176,7 @@ public sealed class ConsolidadosEndpointsTests : IClassFixture<BalanceApiFactory
         }
 
         // Act
-        var res = await _client.GetAsync($"/v1/consolidados/diario/{date:yyyy-MM-dd}?merchantId={merchantId}");
+        var res = await _client.GetAsync($"/api/v1/consolidados/diario/{date:yyyy-MM-dd}?merchantId={merchantId}");
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
@@ -248,7 +248,7 @@ public sealed class ConsolidadosEndpointsTests : IClassFixture<BalanceApiFactory
 
         // Act
         var res = await _client.GetAsync(
-            $"/v1/consolidados/periodo?merchantId={merchantId}&from={from:yyyy-MM-dd}&to={to:yyyy-MM-dd}");
+            $"/api/v1/consolidados/periodo?merchantId={merchantId}&from={from:yyyy-MM-dd}&to={to:yyyy-MM-dd}");
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);

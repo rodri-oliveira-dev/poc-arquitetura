@@ -1,16 +1,16 @@
-using LedgerService.Api.Options;
+using ApiDefaults.Options;
 
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
-namespace LedgerService.Api.Middlewares;
+namespace ApiDefaults.Middlewares;
 
 public sealed class RequestBodySizeLimitMiddleware
 {
     private readonly RequestDelegate _next;
-    private readonly IOptions<ApiLimitsOptions> _options;
+    private readonly IOptions<ApiDefaultsOptions> _options;
 
-    public RequestBodySizeLimitMiddleware(RequestDelegate next, IOptions<ApiLimitsOptions> options)
+    public RequestBodySizeLimitMiddleware(RequestDelegate next, IOptions<ApiDefaultsOptions> options)
     {
         _next = next;
         _options = options;
@@ -18,13 +18,15 @@ public sealed class RequestBodySizeLimitMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
-        var maxRequestBodySizeBytes = _options.Value.MaxRequestBodySizeBytes;
+        ArgumentNullException.ThrowIfNull(context);
+
+        long maxRequestBodySizeBytes = _options.Value.MaxRequestBodySizeBytes;
 
         if (maxRequestBodySizeBytes > 0 &&
             context.Request.ContentLength is long contentLength &&
             contentLength > maxRequestBodySizeBytes)
         {
-            var problemDetails = new ProblemDetails
+            ProblemDetails problemDetails = new()
             {
                 Title = "Request body too large",
                 Detail = $"Request body must be at most {maxRequestBodySizeBytes} bytes.",

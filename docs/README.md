@@ -28,12 +28,15 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 
 - [LedgerService API](development/ledger-api.md): contratos HTTP de escrita, headers, idempotencia, estornos e reprocessamentos.
 - [BalanceService API](development/balance-api.md): contratos HTTP de leitura de consolidados diarios e por periodo.
+- [Contrato LedgerEntryCreated.v1](contracts/events/LedgerEntryCreated.v1.md): schema, exemplo, semantica, compatibilidade e limitacao atual de moeda.
 - [Observabilidade e operacao minima](observability.md): health, readiness, logs, traces, metricas, dashboards, alertas e validacoes operacionais.
 - [Padroes do repositorio](development/repository-standards.md): arquivos de padronizacao, tools, estilo, hooks e manutencao.
 - [Artifacts dos workflows](development/workflow-artifacts.md): politica de publicacao, conteudo e retencao.
 - [Qualidade](quality/README.md): guias de analise estatica e validacoes locais.
 - [k6 load tests](../loadtests/k6/README.md): configuracao dos scripts k6 usados pelos runners.
 - [Revisao Docker e Compose](reports/docker-compose-performance-review.md): diagnostico de build, cache, volumes, desempenho local e limpeza segura.
+- [Revisao de abstracoes](reports/architecture-abstractions-review.md): classificacao de interfaces com implementacao unica e simplificacoes aplicadas.
+- [Validacao final do backend](reports/final-backend-validation.md): build, testes, migrations, Compose, fluxo ponta a ponta, k6 e ressalvas operacionais apos as etapas de melhoria.
 
 ## Explicacao
 

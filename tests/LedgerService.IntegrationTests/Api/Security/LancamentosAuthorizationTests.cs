@@ -514,7 +514,8 @@ public sealed class LancamentosAuthorizationTests : IClassFixture<LedgerApiFacto
             Guid.NewGuid(),
             merchantId,
             "Erro operacional no lancamento original",
-            Guid.NewGuid());
+            Guid.NewGuid(),
+            DateTime.UtcNow);
 
         await db.EstornosLancamentos.AddAsync(estorno);
         await db.SaveChangesAsync();

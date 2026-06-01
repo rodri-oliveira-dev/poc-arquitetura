@@ -26,7 +26,8 @@ public sealed class LedgerEntry : Entity, IAggregateRoot
         DateTime occurredAt,
         string? description,
         string? externalReference,
-        Guid correlationId)
+        Guid correlationId,
+        DateTime createdAt)
     {
         MerchantId = string.IsNullOrWhiteSpace(merchantId)
             ? throw new DomainException("MerchantId é obrigatório.")
@@ -40,10 +41,10 @@ public sealed class LedgerEntry : Entity, IAggregateRoot
         Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
         ExternalReference = string.IsNullOrWhiteSpace(externalReference) ? null : externalReference.Trim();
         CorrelationId = correlationId;
-        CreatedAt = DateTime.Now;
+        CreatedAt = createdAt;
     }
 
-    public LedgerEntry CreateCompensatingEntry(Guid correlationId, string motivo)
+    public LedgerEntry CreateCompensatingEntry(Guid correlationId, string motivo, DateTime now)
     {
         var compensatingType = Type == LedgerEntryType.Credit
             ? LedgerEntryType.Debit
@@ -58,10 +59,11 @@ public sealed class LedgerEntry : Entity, IAggregateRoot
             MerchantId,
             compensatingType,
             compensatingAmount,
-            DateTime.Now,
+            now,
             description,
             $"estorno:{Id:N}",
-            correlationId);
+            correlationId,
+            now);
     }
 
     private static void EnsureValidAmount(LedgerEntryType type, decimal amount)

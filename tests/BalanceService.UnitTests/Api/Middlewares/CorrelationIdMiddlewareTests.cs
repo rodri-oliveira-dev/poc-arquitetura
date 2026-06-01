@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-using BalanceService.Api.Middlewares;
+using ApiDefaults.Middlewares;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 

@@ -1,4 +1,4 @@
-using BalanceService.Api.Middlewares;
+using ApiDefaults.Middlewares;
 
 using FluentValidation;
 

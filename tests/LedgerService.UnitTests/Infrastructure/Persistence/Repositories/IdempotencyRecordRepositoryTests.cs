@@ -23,6 +23,7 @@ public sealed class IdempotencyRecordRepositoryTests
             ledgerEntryId: ledgerEntryId,
             responseStatusCode: 201,
             responseBody: """{"id":"entry-1"}""",
+            createdAt: expiresAt.AddDays(-1),
             expiresAt: expiresAt);
         var otherMerchantSameKey = new IdempotencyRecord(
             merchantId: "merchant-2",
@@ -31,6 +32,7 @@ public sealed class IdempotencyRecordRepositoryTests
             ledgerEntryId: null,
             responseStatusCode: 201,
             responseBody: null,
+            createdAt: expiresAt.AddDays(-1),
             expiresAt: expiresAt);
 
         await db.IdempotencyRecords.AddRangeAsync(expected, otherMerchantSameKey);
@@ -66,6 +68,7 @@ public sealed class IdempotencyRecordRepositoryTests
             ledgerEntryId: null,
             responseStatusCode: 409,
             responseBody: """{"error":"conflict"}""",
+            createdAt: expiresAt.AddDays(-1),
             expiresAt: expiresAt);
 
         await repo.AddAsync(record);
@@ -96,6 +99,7 @@ public sealed class IdempotencyRecordRepositoryTests
             ledgerEntryId: null,
             responseStatusCode: 201,
             responseBody: null,
+            createdAt: new DateTime(2026, 2, 16, 0, 0, 0, DateTimeKind.Utc),
             expiresAt: new DateTime(2026, 2, 17, 0, 0, 0, DateTimeKind.Utc)));
         await db.SaveChangesAsync();
         db.ChangeTracker.Clear();

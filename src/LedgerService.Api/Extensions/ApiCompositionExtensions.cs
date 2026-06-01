@@ -1,3 +1,6 @@
+using ApiDefaults.Extensions;
+
+using LedgerService.Api.Middlewares;
 using LedgerService.Application;
 using LedgerService.Infrastructure;
 using LedgerService.Api.Contracts.Responses;
@@ -12,10 +15,7 @@ public static class ApiCompositionExtensions
         IHostEnvironment environment)
     {
         services
-            .AddApiHardening(configuration)
-            .AddApiRateLimiting(configuration)
-            .AddApiCors()
-            .AddApiVersioningAndExplorer()
+            .AddApiDefaults<GlobalExceptionHandler>(configuration, "ledger.localhost", "localhost")
             .AddApiSwagger()
             .AddApiObservability(configuration);
 

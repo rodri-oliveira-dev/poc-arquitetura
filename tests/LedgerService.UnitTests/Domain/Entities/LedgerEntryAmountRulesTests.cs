@@ -16,7 +16,8 @@ public sealed class LedgerEntryAmountRulesTests
                 occurredAt: DateTime.UtcNow,
                 description: null,
                 externalReference: null,
-                correlationId: Guid.NewGuid()));
+                correlationId: Guid.NewGuid(),
+                createdAt: DateTime.UtcNow));
 
         Assert.Contains("zero", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
@@ -32,7 +33,8 @@ public sealed class LedgerEntryAmountRulesTests
                 occurredAt: DateTime.UtcNow,
                 description: null,
                 externalReference: null,
-                correlationId: Guid.NewGuid()));
+                correlationId: Guid.NewGuid(),
+                createdAt: DateTime.UtcNow));
 
         Assert.Contains("CREDIT", ex.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("positivo", ex.Message, StringComparison.OrdinalIgnoreCase);
@@ -49,7 +51,8 @@ public sealed class LedgerEntryAmountRulesTests
                 occurredAt: DateTime.UtcNow,
                 description: null,
                 externalReference: null,
-                correlationId: Guid.NewGuid()));
+                correlationId: Guid.NewGuid(),
+                createdAt: DateTime.UtcNow));
 
         Assert.Contains("DEBIT", ex.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("negativo", ex.Message, StringComparison.OrdinalIgnoreCase);
@@ -65,7 +68,8 @@ public sealed class LedgerEntryAmountRulesTests
             occurredAt: DateTime.UtcNow,
             description: null,
             externalReference: null,
-            correlationId: Guid.NewGuid());
+            correlationId: Guid.NewGuid(),
+            createdAt: DateTime.UtcNow);
 
         Assert.Equal(LedgerEntryType.Credit, entry.Type);
         Assert.Equal(10m, entry.Amount);
@@ -81,7 +85,8 @@ public sealed class LedgerEntryAmountRulesTests
             occurredAt: DateTime.UtcNow,
             description: null,
             externalReference: null,
-            correlationId: Guid.NewGuid());
+            correlationId: Guid.NewGuid(),
+            createdAt: DateTime.UtcNow);
 
         Assert.Equal(LedgerEntryType.Debit, entry.Type);
         Assert.Equal(-10m, entry.Amount);

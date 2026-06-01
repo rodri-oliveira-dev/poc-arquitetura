@@ -266,10 +266,11 @@ public sealed class EstornosLancamentosEndpointTests : IClassFixture<LedgerApiFa
             merchantId,
             LedgerEntryType.Credit,
             10m,
-            DateTime.Now,
+            DateTime.UtcNow,
             "desc",
             "ext",
-            Guid.NewGuid());
+            Guid.NewGuid(),
+            DateTime.UtcNow);
 
         await db.LedgerEntries.AddAsync(lancamento);
         await db.SaveChangesAsync();
@@ -285,7 +286,8 @@ public sealed class EstornosLancamentosEndpointTests : IClassFixture<LedgerApiFa
             Guid.NewGuid(),
             merchantId,
             "Erro operacional no lancamento original",
-            Guid.NewGuid());
+            Guid.NewGuid(),
+            DateTime.UtcNow);
 
         await db.EstornosLancamentos.AddAsync(estorno);
         await db.SaveChangesAsync();

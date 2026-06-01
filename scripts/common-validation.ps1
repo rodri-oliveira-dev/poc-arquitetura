@@ -358,7 +358,7 @@ function Assert-BalanceApi(
   [string]$CorrelationId
 ) {
   Write-Host "Consultando BalanceService.Api..."
-  $balanceUrl = $BalanceBaseUrl.TrimEnd("/") + "/v1/consolidados/diario/$BalanceDate" + "?merchantId=$MerchantId"
+  $balanceUrl = $BalanceBaseUrl.TrimEnd("/") + "/api/v1/consolidados/diario/$BalanceDate" + "?merchantId=$MerchantId"
   $headers = @{
     Authorization = "Bearer $Token"
     "X-Correlation-Id" = $CorrelationId

@@ -36,7 +36,7 @@ Execute a stack local antes dos testes. Os runners precisam do Keycloak local pa
 
 - Keycloak, para emissão do token JWT padrão usado pelos runners;
 - `LedgerService.Api`, para `POST /api/v1/lancamentos`;
-- `BalanceService.Api`, para `GET /v1/consolidados/diario/{date}`.
+- `BalanceService.Api`, para `GET /api/v1/consolidados/diario/{date}`.
 
 `Auth.Api` permanece disponível somente como fallback de transição quando `TOKEN_PROVIDER=auth-api` também estiver acompanhado da configuração JWT legada das APIs, conforme `docs/development/authentication.md`.
 

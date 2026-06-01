@@ -1,13 +1,17 @@
 using LedgerService.IntegrationTests.Infrastructure;
 
+using Microsoft.Extensions.Configuration;
+
 namespace LedgerService.IntegrationTests.Api;
 
 public sealed class HealthEndpointTests : IClassFixture<LedgerApiFactory>
 {
+    private readonly LedgerApiFactory _factory;
     private readonly HttpClient _client;
 
     public HealthEndpointTests(LedgerApiFactory factory)
     {
+        _factory = factory;
         _client = factory.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false
@@ -46,5 +50,34 @@ public sealed class HealthEndpointTests : IClassFixture<LedgerApiFactory>
         Assert.Contains("\"status\":\"ready\"", body);
         Assert.Contains("\"db\":\"ok\"", body);
         Assert.DoesNotContain("\"kafka\"", body);
+    }
+
+    [Fact]
+    public async Task Swagger_should_be_unavailable_by_default_in_test()
+    {
+        var res = await _client.GetAsync("/swagger/v1/swagger.json");
+        Assert.Equal(System.Net.HttpStatusCode.Unauthorized, res.StatusCode);
+    }
+
+    [Fact]
+    public async Task Swagger_should_be_enabled_when_explicitly_configured()
+    {
+        using var factory = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureAppConfiguration((_, configuration) =>
+            {
+                configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Swagger:Enabled"] = "true"
+                });
+            });
+        });
+        using var client = factory.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        var res = await client.GetAsync("/swagger/v1/swagger.json");
+        Assert.Equal(System.Net.HttpStatusCode.OK, res.StatusCode);
     }
 }

@@ -741,7 +741,7 @@ O script:
 5. valida `201 Created` e o `X-Correlation-Id` devolvido;
 6. consulta `outbox_messages` no PostgreSQL do Ledger ate encontrar o evento como `Processed`;
 7. consulta `processed_events` e `daily_balances` no PostgreSQL do Balance;
-8. chama `GET /v1/consolidados/diario/{date}?merchantId={merchantId}` no Balance com o mesmo `X-Correlation-Id`;
+8. chama `GET /api/v1/consolidados/diario/{date}?merchantId={merchantId}` no Balance com o mesmo `X-Correlation-Id`;
 9. consulta traces recentes no Jaeger;
 10. tenta localizar o `CorrelationId` nos logs recentes de `ledger-service`, `ledger-worker`, `balance-service` e `balance-worker`.
 
@@ -854,7 +854,7 @@ docker compose exec -T balance-db psql -U userBalance -d dbBalance \
 Tambem e possivel consultar a API de leitura, usando o mesmo token:
 
 ```bash
-curl -i "http://localhost:5228/v1/consolidados/diario/<YYYY-MM-DD>?merchantId=tese" \
+curl -i "http://localhost:5228/api/v1/consolidados/diario/<YYYY-MM-DD>?merchantId=tese" \
   -H "Authorization: Bearer ${TOKEN}" \
   -H "X-Correlation-Id: ${CORRELATION_ID}"
 ```
@@ -899,7 +899,7 @@ Resultado esperado:
 - o Loki retorna logs do Ledger com o `CorrelationId` dentro do conteudo do log;
 - `processed_events` contem o `id` do evento financeiro retornado no payload do Ledger;
 - `daily_balances` reflete o credito ou debito criado;
-- `GET /v1/consolidados/diario/{date}` retorna o consolidado atualizado;
+- `GET /api/v1/consolidados/diario/{date}` retorna o consolidado atualizado;
 - os logs do Balance mostram o mesmo `CorrelationId` durante o consumo;
 - o Loki retorna logs do Balance com o `CorrelationId` dentro do conteudo do log;
 - a UI do Jaeger em `http://localhost:16686` mostra traces recentes para `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Worker` e `BalanceService.Api`.
@@ -907,7 +907,7 @@ Resultado esperado:
 Na UI do Jaeger:
 
 1. selecione `LedgerService.Api` e procure `POST /api/v1/lancamentos`;
-2. selecione `LedgerService.Worker` para spans `outbox.publish` e `BalanceService.Worker` para spans `kafka.consume`; para consulta HTTP, selecione `BalanceService.Api` e procure `GET /v1/consolidados/diario/{date}`;
+2. selecione `LedgerService.Worker` para spans `outbox.publish` e `BalanceService.Worker` para spans `kafka.consume`; para consulta HTTP, selecione `BalanceService.Api` e procure `GET /api/v1/consolidados/diario/{date}`;
 3. use o `TraceID` para analise temporal e o `CorrelationId` nos logs/SQL para conectar a operacao de negocio.
 
 Trace distribuido no fluxo autenticado:

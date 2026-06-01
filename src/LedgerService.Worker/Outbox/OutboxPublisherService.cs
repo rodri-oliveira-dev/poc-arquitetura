@@ -1,3 +1,4 @@
+using LedgerService.Application.Abstractions.Time;
 using LedgerService.Application.Outbox.Retry;
 using LedgerService.Domain.Entities;
 using LedgerService.Domain.Repositories;
@@ -21,18 +22,21 @@ public sealed class OutboxPublisherService : BackgroundService
     private readonly IOptions<OutboxPublisherOptions> _options;
     private readonly IRetryStrategy _retryStrategy;
     private readonly ILogger<OutboxPublisherService> _logger;
+    private readonly IClock _clock;
     private readonly string _lockOwner;
 
     public OutboxPublisherService(
         IServiceProvider serviceProvider,
         IOptions<OutboxPublisherOptions> options,
         IRetryStrategy retryStrategy,
-        ILogger<OutboxPublisherService> logger)
+        ILogger<OutboxPublisherService> logger,
+        IClock? clock = null)
     {
         _serviceProvider = serviceProvider;
         _options = options;
         _retryStrategy = retryStrategy;
         _logger = logger;
+        _clock = clock ?? new SystemClock();
         _lockOwner = $"{Environment.MachineName}:{Guid.NewGuid():N}";
     }
 
@@ -86,7 +90,7 @@ public sealed class OutboxPublisherService : BackgroundService
         var uow = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
 
         var options = _options.Value;
-        var now = DateTime.Now;
+        var now = _clock.UtcNow.UtcDateTime;
         var lockDuration = TimeSpan.FromSeconds(Math.Max(5, options.LockDurationSeconds));
 
         var claimed = await outboxRepo.ClaimPendingAsync(
@@ -103,26 +107,30 @@ public sealed class OutboxPublisherService : BackgroundService
 
         _logger.OutboxMessagesClaimed(claimed.Count, _lockOwner, options.MaxParallelism);
 
-        using var throttler = new SemaphoreSlim(Math.Max(1, options.MaxParallelism));
-        var tasks = new List<Task>(claimed.Count);
-
-        foreach (var msg in claimed)
-        {
-            await throttler.WaitAsync(cancellationToken);
-            tasks.Add(Task.Run(async () =>
+        await Parallel.ForEachAsync(
+            claimed,
+            new ParallelOptions
             {
-                try
-                {
-                    await PublishOneAsync(msg.Id, cancellationToken);
-                }
-                finally
-                {
-                    throttler.Release();
-                }
-            }, cancellationToken));
-        }
+                MaxDegreeOfParallelism = Math.Max(1, options.MaxParallelism),
+                CancellationToken = cancellationToken
+            },
+            async (message, ct) => await PublishOneSafelyAsync(message.Id, ct));
+    }
 
-        await Task.WhenAll(tasks);
+    private async Task PublishOneSafelyAsync(Guid outboxId, CancellationToken ct)
+    {
+        try
+        {
+            await PublishOneAsync(outboxId, ct);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.UnhandledOutboxMessageError(ex, outboxId);
+        }
     }
 
     private async Task PublishOneAsync(Guid outboxId, CancellationToken ct)
@@ -141,7 +149,7 @@ public sealed class OutboxPublisherService : BackgroundService
         if (message is null)
             return;
 
-        var now = DateTime.Now;
+        var now = _clock.UtcNow.UtcDateTime;
         if (!string.Equals(message.LockOwner, _lockOwner, StringComparison.Ordinal) ||
             (message.LockedUntil is not null && message.LockedUntil <= now))
         {
@@ -181,7 +189,7 @@ public sealed class OutboxPublisherService : BackgroundService
         {
             await publisher.PublishAsync(message, ct);
 
-            await repo.MarkProcessedAsync(message.Id, DateTime.Now, ct);
+            await repo.MarkProcessedAsync(message.Id, _clock.UtcNow.UtcDateTime, ct);
             await uow.SaveChangesAsync(ct);
 
             metrics.RecordPublishAttempt(message.EventType, "success");
@@ -210,7 +218,7 @@ public sealed class OutboxPublisherService : BackgroundService
 
         var retryCountAfterFailure = message.RetryCount + 1;
         var nextRetryAt = _retryStrategy.CalculateNextRetry(
-            DateTime.Now,
+            _clock.UtcNow.UtcDateTime,
             retryCountAfterFailure,
             TimeSpan.FromSeconds(options.BaseBackoffSeconds));
 

@@ -6,7 +6,7 @@ A solucao atual e uma arquitetura hibrida:
 
 - Clean Architecture/DDD em LedgerService e BalanceService, com projetos `Api`, `Application`, `Domain` e `Infrastructure`.
 - Elementos hexagonais onde existem contratos de persistencia e implementacoes em Infrastructure.
-- Layered architecture na entrega HTTP, porque controllers, middlewares, swagger, auth e composicao ficam concentrados nos projetos `*.Api`.
+- Layered architecture na entrega HTTP, porque controllers, auth e composicao ficam concentrados nos projetos `*.Api`, com defaults tecnicos comuns em `Shared/ApiDefaults`.
 - Workers dedicados (`LedgerService.Worker` e `BalanceService.Worker`) para processamento assincrono continuo, sem superficie HTTP.
 - CQRS pragmatico entre servicos: Ledger escreve e publica eventos; Balance consome e mantem uma projecao de leitura.
 - Keycloak e o provedor principal de identidade da stack local.
@@ -21,7 +21,7 @@ Deve conter:
 - contratos HTTP, controllers ou endpoints;
 - binders e mappers de entrada/saida HTTP;
 - autenticacao, autorizacao, scopes, merchant authorization e policies;
-- middlewares, ProblemDetails, Swagger, rate limit, CORS, health e readiness;
+- configuracoes HTTP especificas do servico, Swagger especifico, health e readiness;
 - composicao do processo via DI.
 
 Nao deve conter:
@@ -33,6 +33,12 @@ Nao deve conter:
 - detalhes de schema relacional alem de checks operacionais inevitaveis.
 
 Observacao real: os endpoints `/ready` acessam `DbContext` diretamente no `Program.cs`. Isso e aceitavel para readiness operacional desta POC, mas deve permanecer limitado a dependencias necessarias para trafego HTTP.
+
+### Shared/ApiDefaults
+
+Deve conter apenas defaults HTTP tecnicos comuns entre APIs de negocio: ProblemDetails, registro de exception handler, correlation id, security headers, limite de body, forwarded headers, CORS, rate limit, versionamento e defaults Swagger.
+
+Nao deve conter regra de negocio, merchant authorization, scopes especificos, handlers de excecao dependentes do dominio ou readiness dependente de `DbContext`.
 
 ### Worker
 
@@ -126,7 +132,7 @@ Operacionalmente, `LedgerService.Api` recebe HTTP e grava Outbox; `LedgerService
 
 Pontos de atencao:
 
-- `CreateLancamentoService` faz bastante coisa: hash de idempotencia, parse de input, criacao de entidade, response DTO, evento e outbox. Ainda e aceitavel, mas e o primeiro ponto a decompor se o caso de uso crescer.
+- `CreateLancamentoService` orquestra o caso de uso e preserva a transacao unica. Hash, verificacao e replay idempotente ficam em `CreateLancamentoIdempotencyService`; a criacao de `LedgerEntryCreatedV1` fica em `LedgerEntryCreatedEventFactory`; a montagem e escrita da mensagem ficam em `LedgerEntryCreatedOutboxWriter`.
 - Evento `LedgerEntryCreatedV1` fica em Application, enquanto o consumidor tem outro contrato no `BalanceService.Worker`. Isso evita referencia cruzada entre servicos, mas exige documentacao e testes de contrato.
 - Uso de `DateTime.Now` aparece em dominio/aplicacao/outbox. Para regras temporais e testes mais fortes, um clock explicito seria melhor, como ja existe no BalanceService.
 
@@ -139,7 +145,7 @@ Operacionalmente, `BalanceService.Api` atende consultas HTTP sobre a projecao; `
 Pontos de atencao:
 
 - MediatR agrega valor moderado: ajuda a separar queries/comandos, mas e mais framework do que o LedgerService usa. Para a POC e aceitavel; se houver poucos casos de uso, pode ser overhead.
-- `IDailyBalanceService` e `IPeriodBalanceService` parecem abstracoes de baixo ganho enquanto houver uma unica implementacao simples. Elas podem ser mantidas se forem usadas em testes e para legibilidade, mas nao devem virar padrao automatico.
+- As consultas diaria e por periodo ficam diretamente em handlers MediatR. As interfaces e services intermediarios foram removidos porque apenas encaminhavam chamadas sem representar boundary ou variacao real.
 - A ausencia de currency no evento obriga default `BRL` no handler. Isso e uma fragilidade de contrato, nao uma regra de dominio consolidada.
 
 ### Auth.Api legado

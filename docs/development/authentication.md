@@ -82,7 +82,7 @@ Exemplo de uso do token no BalanceService:
 
 ```bash
 TOKEN="<access_token_do_comando_anterior>"
-curl -i "http://localhost:5228/v1/consolidados/diario/2026-05-26?merchantId=m1" \
+curl -i "http://localhost:5228/api/v1/consolidados/diario/2026-05-26?merchantId=m1" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -165,8 +165,8 @@ Os clients `poc-local-*-debug` adicionam as mesmas audiences e emitem `scope` pe
 | LedgerService.Api | `GET /api/v1/lancamentos/reprocessamentos/{reprocessamentoId}` | `ledger.read` | Valida o merchant do reprocessamento persistido contra `merchant_id`. |
 | LedgerService.Api | `GET /api/v1/outbox/dead-letters` | `outbox.admin` | Nao se aplica. Endpoint administrativo da Outbox. |
 | LedgerService.Api | `POST /api/v1/outbox/dead-letters/{id}/requeue` | `outbox.admin` | Nao se aplica. Endpoint administrativo da Outbox. |
-| BalanceService.Api | `GET /v1/consolidados/diario/{date}` | `balance.read` | Valida `merchantId` da query string contra `merchant_id`. |
-| BalanceService.Api | `GET /v1/consolidados/periodo` | `balance.read` | Valida `merchantId` da query string contra `merchant_id`. |
+| BalanceService.Api | `GET /api/v1/consolidados/diario/{date}` | `balance.read` | Valida `merchantId` da query string contra `merchant_id`. |
+| BalanceService.Api | `GET /api/v1/consolidados/periodo` | `balance.read` | Valida `merchantId` da query string contra `merchant_id`. |
 
 ## Transporte e JWKS
 

@@ -184,7 +184,7 @@ function Invoke-BalanceWarmup([string]$token) {
   }
 
   $encodedMerchantId = [System.Uri]::EscapeDataString($merchantId)
-  $url = "http://localhost:5228/v1/consolidados/diario/${date}?merchantId=$encodedMerchantId"
+  $url = "http://localhost:5228/api/v1/consolidados/diario/${date}?merchantId=$encodedMerchantId"
   $headers = @{ Authorization = "Bearer $token" }
 
   for ($i = 1; $i -le 30; $i++) {

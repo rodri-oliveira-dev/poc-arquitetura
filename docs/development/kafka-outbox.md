@@ -56,6 +56,8 @@ KafkaLedgerEventsConsumer
 
 O `BalanceService.Worker` deve ignorar/rejeitar `LancamentoEstornoSolicitado.v1` como evento financeiro. Saldos so mudam com `LedgerEntryCreated.v1`, inclusive quando esse evento representa o lancamento compensatorio de um estorno.
 
+O contrato formal, o exemplo valido e a politica de compatibilidade de `LedgerEntryCreated.v1` ficam em [docs/contracts/events/LedgerEntryCreated.v1.md](../contracts/events/LedgerEntryCreated.v1.md). `currency` nao faz parte do payload atual: o Ledger nao recebe nem persiste moeda e o Balance usa `BRL` como limitacao conhecida da POC.
+
 `ReprocessamentoLancamentosSolicitado.v1` tambem e evento operacional/intencao interna. Ele nao representa conclusao nem alteracao direta de saldo. O `LedgerService` e o dono do processamento: o consumer de reprocessamento le esse topico, localiza a solicitacao persistida, muda o status e republica `LedgerEntryCreated.v1` para os lancamentos elegiveis como evento financeiro final. O `BalanceService` nao consome a solicitacao operacional.
 
 O compose cria os topicos no startup local. O consumer do Balance usa `AllowAutoCreateTopics=false`.
@@ -96,6 +98,8 @@ Configuracoes principais em `Outbox:Publisher`:
 - `MaxAttempts`;
 - `BaseBackoffSeconds`;
 - `LockDurationSeconds`.
+
+O claim ocorre antes da publicacao paralela e cada mensagem e validada novamente contra `lock_owner` e `locked_until` antes de publicar. O adapter Kafka limita a espera de publicacao por `Kafka:Producer:MessageTimeoutMs` (default de 30 segundos); `Outbox:Publisher:LockDurationSeconds` deve permanecer maior que o pior tempo esperado de publicacao para reduzir reclaim durante uma tentativa em andamento. O publisher nao renova locks durante a publicacao nesta etapa. Se adapters ou tempos de entrega futuros puderem ultrapassar essa janela com frequencia, renovacao periodica de lock deve ser avaliada como melhoria separada, preservando a semantica at-least-once.
 
 ## DLQ em banco e requeue operacional
 
@@ -280,7 +284,7 @@ O handler:
 6. marca como `Completed` quando houver lancamentos ou `CompletedWithWarnings` quando nenhum lancamento for encontrado;
 7. marca como `Rejected` em erro de regra conhecido e `Failed` em erro tecnico inesperado.
 
-O reprocessamento de valores, nesta POC, e feito por replay idempotente dos fatos financeiros persistidos no Ledger. O payload final usa os campos atuais do `LedgerEntry` (`Amount`, `Type`, `OccurredAt`, `MerchantId`, `Currency` etc.) e o mesmo identificador de evento financeiro derivado do lancamento (`lan_{id}`). Assim, se o Balance ja aplicou aquele lancamento, a tabela `processed_events` evita duplicidade; se o evento estava ausente na projecao, o consumer aplica o saldo/consolidado pelo fluxo normal.
+O reprocessamento de valores, nesta POC, e feito por replay idempotente dos fatos financeiros persistidos no Ledger. O payload final usa os campos atuais do `LedgerEntry` (`Amount`, `Type`, `OccurredAt`, `MerchantId` etc.) e o mesmo identificador de evento financeiro derivado do lancamento (`lan_{id}`). Assim, se o Balance ja aplicou aquele lancamento, a tabela `processed_events` evita duplicidade; se o evento estava ausente na projecao, o consumer aplica o saldo/consolidado pelo fluxo normal.
 
 Limitacao conhecida: esse fluxo corrige projecoes ausentes por replay de eventos do Ledger, mas nao reconstroi saldos ja materializados com regra historica incorreta. Uma recomposicao completa de projecao ou evento especifico de correcao de valor deve ser modelado em decisao futura se essa necessidade aparecer.
 

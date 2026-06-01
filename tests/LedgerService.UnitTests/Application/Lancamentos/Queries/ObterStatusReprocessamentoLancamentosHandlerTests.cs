@@ -17,7 +17,8 @@ public sealed class ObterStatusReprocessamentoLancamentosHandlerTests
             new DateOnly(2026, 5, 1),
             new DateOnly(2026, 5, 6),
             "Correcao de regra de consolidacao",
-            Guid.NewGuid());
+            Guid.NewGuid(),
+            DateTime.UtcNow);
         repo.Setup(x => x.GetByIdAsync(reprocessamento.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(reprocessamento);
         var sut = new ObterStatusReprocessamentoLancamentosHandler(repo.Object);
@@ -54,7 +55,8 @@ public sealed class ObterStatusReprocessamentoLancamentosHandlerTests
             new DateOnly(2026, 5, 1),
             new DateOnly(2026, 5, 6),
             "Correcao de regra de consolidacao",
-            Guid.NewGuid());
+            Guid.NewGuid(),
+            DateTime.UtcNow);
         repo.Setup(x => x.GetByIdAsync(reprocessamento.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(reprocessamento);
         var sut = new ObterStatusReprocessamentoLancamentosHandler(repo.Object);

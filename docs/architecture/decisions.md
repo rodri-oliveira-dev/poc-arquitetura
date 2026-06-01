@@ -35,13 +35,13 @@ Balance possui leitura HTTP, consumer Kafka, DLQ, idempotencia de eventos e proj
 Excessos ou sinais de atencao:
 
 - MediatR e util, mas nao indispensavel no tamanho atual.
-- Interfaces de servicos de leitura/consolidacao podem ser artificiais se existirem apenas por padrao.
+- As interfaces de servicos de leitura/consolidacao eram artificiais e foram removidas; os handlers MediatR concentram os casos de uso de consulta.
 - `DefaultCurrency = "BRL"` no handler denuncia uma lacuna de contrato entre Ledger e Balance.
 
 Simplificacoes recomendadas:
 
 - manter MediatR se o time valoriza handlers e behaviors; nao expandir o padrao para tudo automaticamente;
-- revisar interfaces sem multiplas implementacoes quando houver refactor dedicado;
+- manter handlers de consulta diretos e revisar novas interfaces conforme surgirem necessidades reais;
 - tratar currency como evolucao de contrato, nao como detalhe local permanente.
 
 ### Identidade

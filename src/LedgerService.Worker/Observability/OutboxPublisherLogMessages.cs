@@ -33,4 +33,7 @@ internal static partial class OutboxPublisherLogMessages
 
     [LoggerMessage(EventId = 1009, Level = LogLevel.Critical, Message = "Outbox message {OutboxId} movida para DeadLetter apos exceder limite de retries.")]
     internal static partial void OutboxMessageMovedToDeadLetter(this ILogger logger, Exception exception, Guid outboxId);
+
+    [LoggerMessage(EventId = 1010, Level = LogLevel.Error, Message = "Erro nao tratado ao processar outbox message {OutboxId}. A mensagem permanecera reclamada ate o lock expirar.")]
+    internal static partial void UnhandledOutboxMessageError(this ILogger logger, Exception exception, Guid outboxId);
 }

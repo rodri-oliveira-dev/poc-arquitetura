@@ -4,7 +4,6 @@ using Microsoft.Extensions.DependencyInjection;
 using BalanceService.Application.Abstractions.Time;
 using BalanceService.Application.Common.Behaviors;
 using BalanceService.Application.Common.Observability;
-using BalanceService.Application.Balances.Services;
 
 namespace BalanceService.Application;
 
@@ -22,11 +21,6 @@ public static class DependencyInjection
 
         services.AddSingleton<IClock, SystemClock>();
         services.AddSingleton<BalanceDomainMetrics>();
-
-        // Queries (Balance read model)
-        services.AddScoped<IDailyBalanceService, DailyBalanceService>();
-        services.AddScoped<IPeriodBalanceService, PeriodBalanceService>();
-
 
         return services;
     }

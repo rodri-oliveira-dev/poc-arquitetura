@@ -6,7 +6,7 @@ Os endpoints consultam a projecao `daily_balances`, atualizada de forma assincro
 
 ## Consolidado diario
 
-`GET /v1/consolidados/diario/{date}?merchantId={merchantId}`
+`GET /api/v1/consolidados/diario/{date}?merchantId={merchantId}`
 
 Parametros:
 
@@ -37,7 +37,7 @@ Resposta:
 
 ## Consolidado por periodo
 
-`GET /v1/consolidados/periodo?merchantId={merchantId}&from={YYYY-MM-DD}&to={YYYY-MM-DD}`
+`GET /api/v1/consolidados/periodo?merchantId={merchantId}&from={YYYY-MM-DD}&to={YYYY-MM-DD}`
 
 Parametros:
 

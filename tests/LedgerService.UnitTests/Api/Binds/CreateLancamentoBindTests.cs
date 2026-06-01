@@ -2,7 +2,7 @@ using FluentValidation;
 using LedgerService.Api.Contracts.Requests;
 using LedgerService.Api.Contracts.Responses;
 using LedgerService.Api.Controllers.Binds;
-using LedgerService.Api.Middlewares;
+using ApiDefaults.Middlewares;
 using LedgerService.Application.Lancamentos.Inputs.CreateLancamento;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;

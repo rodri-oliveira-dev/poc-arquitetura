@@ -123,8 +123,8 @@ internal static class Program
             // Paths inferidos do README atual (rotas estáveis)
             "TOKEN_URL=/auth/login",
             "LEDGER_POST_PATH=/api/v1/lancamentos",
-            "BALANCE_DAILY_PATH=/v1/consolidados/diario",
-            "BALANCE_PERIOD_PATH=/v1/consolidados/periodo",
+            "BALANCE_DAILY_PATH=/api/v1/consolidados/diario",
+            "BALANCE_PERIOD_PATH=/api/v1/consolidados/periodo",
             "",
             "# Credenciais locais ficticias - podem ser sobrescritas por env no get-token",
             "AUTH_POC_USERNAME=local_user",

@@ -9,8 +9,8 @@ Aceito
 As APIs de negocio recebem `merchantId` em pontos controlados pelo cliente:
 
 - `POST /api/v1/lancamentos`, no body.
-- `GET /v1/consolidados/diario/{date}`, na query string.
-- `GET /v1/consolidados/periodo`, na query string.
+- `GET /api/v1/consolidados/diario/{date}`, na query string.
+- `GET /api/v1/consolidados/periodo`, na query string.
 
 Antes desta decisao, os endpoints validavam autenticacao JWT, audience e scopes, mas nao havia verificacao explicita de que o token estava autorizado ao `merchantId` solicitado.
 
