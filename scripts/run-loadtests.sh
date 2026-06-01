@@ -155,7 +155,7 @@ from urllib.parse import quote
 print(quote(sys.argv[1], safe=""))
 PY
 )"
-  local url="http://localhost:5228/v1/consolidados/diario/$date_value?merchantId=$encoded_merchant"
+  local url="http://localhost:5228/api/v1/consolidados/diario/$date_value?merchantId=$encoded_merchant"
 
   for _ in $(seq 1 30); do
     if curl -fsS -H "Authorization: Bearer $TOKEN" "$url" >/dev/null; then

@@ -21,7 +21,7 @@ namespace BalanceService.Api.Controllers;
 
 [ApiController]
 [ApiVersion("1.0")]
-[Route("v{version:apiVersion}/consolidados")]
+[Route("api/v{version:apiVersion}/consolidados")]
 public sealed class ConsolidadosController : ControllerBase
 {
     private static readonly ActivitySource ActivitySource = new("BalanceService.Api");

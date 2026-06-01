@@ -113,7 +113,7 @@ $balanceRow = Invoke-PostgresScalar "balance-db" $script:BalanceDbUser $script:B
 Write-Host "Daily balance DB: $balanceRow"
 
 Write-Host "Consultando BalanceService.Api..."
-$balanceUrl = $BalanceBaseUrl.TrimEnd("/") + "/v1/consolidados/diario/$balanceDate" + "?merchantId=$MerchantId"
+$balanceUrl = $BalanceBaseUrl.TrimEnd("/") + "/api/v1/consolidados/diario/$balanceDate" + "?merchantId=$MerchantId"
 $balanceHeaders = @{
   Authorization = "Bearer $token"
   "X-Correlation-Id" = $correlationId

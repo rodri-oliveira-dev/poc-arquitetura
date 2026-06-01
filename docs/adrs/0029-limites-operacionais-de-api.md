@@ -16,7 +16,7 @@ Padronizar limites operacionais configuraveis nas APIs:
 
 - `ApiLimits:MaxRequestBodySizeBytes` define o tamanho maximo de body HTTP em `LedgerService.Api` e `BalanceService.Api`;
 - o mesmo limite e aplicado no Kestrel e em middleware de pipeline para retornar `413 Payload Too Large` quando `Content-Length` excede o valor configurado;
-- `ApiLimits:MaxBalancePeriodDays` define o intervalo maximo inclusivo de `GET /v1/consolidados/periodo` no `BalanceService.Api`;
+- `ApiLimits:MaxBalancePeriodDays` define o intervalo maximo inclusivo de `GET /api/v1/consolidados/periodo` no `BalanceService.Api`;
 - intervalos acima do limite retornam `400 Bad Request` com resposta de validacao;
 - `ApiLimits:RateLimitPermitLimit`, `ApiLimits:RateLimitWindowSeconds` e `ApiLimits:RateLimitQueueLimit` externalizam o rate limit fixo ja existente nas rotas de negocio;
 - os defaults versionados sao 1 MiB para body, 31 dias para periodo do Balance e 100 requests por 60 segundos com fila de 10 para rate limit;

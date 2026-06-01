@@ -53,8 +53,8 @@ export function loadConfig() {
         BASE_URL_LEDGER: 'http://localhost:5226',
         BASE_URL_BALANCE: 'http://localhost:5228',
         LEDGER_POST_PATH: '/api/v1/lancamentos',
-        BALANCE_DAILY_PATH: '/v1/consolidados/diario',
-        BALANCE_PERIOD_PATH: '/v1/consolidados/periodo',
+        BALANCE_DAILY_PATH: '/api/v1/consolidados/diario',
+        BALANCE_PERIOD_PATH: '/api/v1/consolidados/periodo',
 
         MERCHANT_ID: 'poc-merchant',
     };
