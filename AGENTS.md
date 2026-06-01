@@ -99,6 +99,10 @@ Roteamento atual:
 - `ci-release-governance`: GitHub Actions, GitVersion, releases, coverage, hooks e automacoes.
 - `repository-governance-sdd`: `AGENTS.md`, skills, ADRs, prompts, documentacao de processo e governanca.
 - `nginx-edge-local`: alteracoes, revisoes e diagnosticos da borda local Nginx em `compose.nginx.yaml` e `infra/nginx/`, incluindo HTTPS local, proxy reverso, headers, limites defensivos, logs, Swagger via subdominios `.localhost` e load balance local do `LedgerService.Api`.
+- `terraform-gcp-iac`: criacao, revisao e documentacao de infraestrutura GCP com Terraform, incluindo provider Google, modulos, ambientes, state, validacao, IAM, Cloud Run, Cloud SQL, Artifact Registry e Secret Manager.
+- `gcp-cli-auth-governance`: uso seguro de `gcloud`, autenticacao, ADC, service accounts, impersonation, IAM de menor privilegio e descoberta segura de recursos GCP.
+- `gcp-cloud-run-deployment`: desenho, revisao e documentacao de deploy de APIs, workers e jobs .NET em Cloud Run.
+- `gcp-cloud-sql-postgres`: desenho, revisao e documentacao de Cloud SQL for PostgreSQL, conectividade segura, migrations EF Core, backups, HA, IAM, secrets e custos.
 - `configuring-opentelemetry-dotnet`: instrumentacao, troubleshooting e evolucao de traces, metricas e logs OpenTelemetry.
 - `optimizing-ef-core-queries`: diagnostico e otimizacao de queries EF Core, N+1, tracking, projecoes e armadilhas de performance.
 - `coverage-analysis`: analise de cobertura, CRAP score e hotspots de risco para priorizar testes.
@@ -122,6 +126,8 @@ Quando uma mudanca funcional tambem exigir refatoracao, combine `dotnet-service-
 Quando a refatoracao impactar testes, combine `dotnet-refactoring-engineer` com `integration-tests-dotnet`.
 
 Quando a refatoracao alterar decisao arquitetural, contrato entre servicos, estrategia de persistencia, mensageria, observabilidade, seguranca, estrutura do projeto ou comportamento relevante, avalie tambem `repository-governance-sdd` para atualizar documentacao ou ADR.
+
+Quando a tarefa envolver infraestrutura GCP versionada, combine `terraform-gcp-iac` com as skills especificas do servico afetado. Para Cloud SQL com mudanca em modelo, mapping, migration ou consulta EF Core, combine tambem com `optimizing-ef-core-queries` ou a skill .NET correspondente. Para Cloud Run com ajuste de pipeline, combine tambem com `ci-release-governance`.
 
 Em caso de conflito entre este arquivo e uma skill, preserve este arquivo como orientacao global do repositorio.
 
