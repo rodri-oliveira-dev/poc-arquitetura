@@ -32,7 +32,7 @@ public sealed class RequeueDeadLetterHandler : IRequestHandler<RequeueDeadLetter
             occurredFrom: null,
             occurredUntil: null,
             limit: 1,
-            requeuedAt: _clock.UtcNow.DateTime,
+            requeuedAt: _clock.UtcNow.UtcDateTime,
             requeuedBy: request.RequeuedBy,
             reason: request.Reason,
             cancellationToken: cancellationToken);

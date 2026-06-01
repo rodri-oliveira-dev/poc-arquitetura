@@ -73,12 +73,12 @@ RETURNING e.*;
                 sql,
                 new NpgsqlParameter("p_pending", NpgsqlDbType.Text) { Value = EstornoLancamentoStatus.Pending.ToString() },
                 new NpgsqlParameter("p_processing", NpgsqlDbType.Text) { Value = EstornoLancamentoStatus.Processing.ToString() },
-                new NpgsqlParameter("p_now", NpgsqlDbType.Timestamp) { Value = _clock.UtcNow.DateTime },
+                new NpgsqlParameter("p_now", NpgsqlDbType.TimestampTz) { Value = _clock.UtcNow.UtcDateTime },
                 new NpgsqlParameter("p_batch", NpgsqlDbType.Integer) { Value = maxItems })
                 .ToListAsync(cancellationToken);
         }
 
-        var now = _clock.UtcNow.DateTime;
+        var now = _clock.UtcNow.UtcDateTime;
         var candidates = await _context.EstornosLancamentos
             .Where(x => x.Status == EstornoLancamentoStatus.Pending)
             .OrderBy(x => x.CreatedAt)

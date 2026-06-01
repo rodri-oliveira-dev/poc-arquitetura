@@ -90,7 +90,7 @@ public sealed class OutboxPublisherService : BackgroundService
         var uow = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
 
         var options = _options.Value;
-        var now = _clock.UtcNow.DateTime;
+        var now = _clock.UtcNow.UtcDateTime;
         var lockDuration = TimeSpan.FromSeconds(Math.Max(5, options.LockDurationSeconds));
 
         var claimed = await outboxRepo.ClaimPendingAsync(
@@ -145,7 +145,7 @@ public sealed class OutboxPublisherService : BackgroundService
         if (message is null)
             return;
 
-        var now = _clock.UtcNow.DateTime;
+        var now = _clock.UtcNow.UtcDateTime;
         if (!string.Equals(message.LockOwner, _lockOwner, StringComparison.Ordinal) ||
             (message.LockedUntil is not null && message.LockedUntil <= now))
         {
@@ -185,7 +185,7 @@ public sealed class OutboxPublisherService : BackgroundService
         {
             await publisher.PublishAsync(message, ct);
 
-            await repo.MarkProcessedAsync(message.Id, _clock.UtcNow.DateTime, ct);
+            await repo.MarkProcessedAsync(message.Id, _clock.UtcNow.UtcDateTime, ct);
             await uow.SaveChangesAsync(ct);
 
             metrics.RecordPublishAttempt(message.EventType, "success");
@@ -214,7 +214,7 @@ public sealed class OutboxPublisherService : BackgroundService
 
         var retryCountAfterFailure = message.RetryCount + 1;
         var nextRetryAt = _retryStrategy.CalculateNextRetry(
-            _clock.UtcNow.DateTime,
+            _clock.UtcNow.UtcDateTime,
             retryCountAfterFailure,
             TimeSpan.FromSeconds(options.BaseBackoffSeconds));
 

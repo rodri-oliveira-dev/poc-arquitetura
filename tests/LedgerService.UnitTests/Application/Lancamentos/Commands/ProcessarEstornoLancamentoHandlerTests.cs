@@ -77,8 +77,8 @@ public sealed class ProcessarEstornoLancamentoHandlerTests
     {
         var original = NewLedgerEntry(LedgerEntryType.Credit, 25m);
         var completed = new EstornoLancamento(original.Id, original.MerchantId, "Primeiro", original.CorrelationId, DateTime.UtcNow);
-        completed.MarkProcessing(DateTime.Now);
-        completed.Complete(Guid.NewGuid(), DateTime.Now);
+        completed.MarkProcessing(DateTime.UtcNow);
+        completed.Complete(Guid.NewGuid(), DateTime.UtcNow);
         var pending = new EstornoLancamento(original.Id, original.MerchantId, "Segundo", original.CorrelationId, DateTime.UtcNow);
         var state = new State([original], [completed, pending]);
         var sut = CreateSut(state);
@@ -99,7 +99,7 @@ public sealed class ProcessarEstornoLancamentoHandlerTests
             NullLogger<ProcessarEstornoLancamentoHandler>.Instance);
 
     private static LedgerEntry NewLedgerEntry(LedgerEntryType type, decimal amount)
-        => new("m1", type, amount, DateTime.Now, "Venda", "ext", Guid.NewGuid(), DateTime.UtcNow);
+        => new("m1", type, amount, DateTime.UtcNow, "Venda", "ext", Guid.NewGuid(), DateTime.UtcNow);
 
     private sealed record State(
         List<LedgerEntry> LedgerEntries,

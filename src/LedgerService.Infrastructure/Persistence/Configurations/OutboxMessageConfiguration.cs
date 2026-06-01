@@ -35,7 +35,7 @@ public sealed class OutboxMessageConfiguration : IEntityTypeConfiguration<Outbox
 
         builder.Property(x => x.OccurredAt)
             .HasColumnName("occurred_at")
-            .HasColumnType("timestamp without time zone")
+            .HasColumnType(PostgreSqlColumnTypes.TimestampWithTimeZone)
             .IsRequired();
 
         builder.Property(x => x.Status)
@@ -49,11 +49,11 @@ public sealed class OutboxMessageConfiguration : IEntityTypeConfiguration<Outbox
 
         builder.Property(x => x.NextRetryAt)
             .HasColumnName("next_retry_at")
-            .HasColumnType("timestamp without time zone");
+            .HasColumnType(PostgreSqlColumnTypes.TimestampWithTimeZone);
 
         builder.Property(x => x.ProcessedAt)
             .HasColumnName("processed_at")
-            .HasColumnType("timestamp without time zone");
+            .HasColumnType(PostgreSqlColumnTypes.TimestampWithTimeZone);
 
         builder.Property(x => x.LastError)
             .HasColumnName("last_error");
@@ -75,7 +75,7 @@ public sealed class OutboxMessageConfiguration : IEntityTypeConfiguration<Outbox
 
         builder.Property(x => x.LockedUntil)
             .HasColumnName("locked_until")
-            .HasColumnType("timestamp without time zone");
+            .HasColumnType(PostgreSqlColumnTypes.TimestampWithTimeZone);
 
         builder.Property(x => x.LockOwner)
             .HasColumnName("lock_owner");
@@ -86,7 +86,7 @@ public sealed class OutboxMessageConfiguration : IEntityTypeConfiguration<Outbox
 
         builder.Property(x => x.LastRequeuedAt)
             .HasColumnName("last_requeued_at")
-            .HasColumnType("timestamp without time zone");
+            .HasColumnType(PostgreSqlColumnTypes.TimestampWithTimeZone);
 
         builder.Property(x => x.LastRequeuedBy)
             .HasColumnName("last_requeued_by")

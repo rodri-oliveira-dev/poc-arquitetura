@@ -97,7 +97,7 @@ public sealed class ProcessarEstornoLancamentoHandler : IRequestHandler<Processa
         }
 
         var previousStatus = estorno.Status;
-        var now = _clock.UtcNow.DateTime;
+        var now = _clock.UtcNow.UtcDateTime;
         estorno.MarkProcessing(now);
 
         var lancamentoOriginal = await _ledgerEntryRepository.GetByIdAsync(estorno.LancamentoOriginalId, cancellationToken);
@@ -158,7 +158,7 @@ public sealed class ProcessarEstornoLancamentoHandler : IRequestHandler<Processa
         var estorno = await _estornoRepository.GetByIdForUpdateAsync(estornoId, cancellationToken);
         if (estorno is not null && !estorno.IsCompleted())
         {
-            estorno.Reject(reason, _clock.UtcNow.DateTime);
+            estorno.Reject(reason, _clock.UtcNow.UtcDateTime);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
         }
 
@@ -173,7 +173,7 @@ public sealed class ProcessarEstornoLancamentoHandler : IRequestHandler<Processa
         var estorno = await _estornoRepository.GetByIdForUpdateAsync(estornoId, cancellationToken);
         if (estorno is not null && !estorno.IsCompleted())
         {
-            estorno.Fail(reason, _clock.UtcNow.DateTime);
+            estorno.Fail(reason, _clock.UtcNow.UtcDateTime);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
         }
 

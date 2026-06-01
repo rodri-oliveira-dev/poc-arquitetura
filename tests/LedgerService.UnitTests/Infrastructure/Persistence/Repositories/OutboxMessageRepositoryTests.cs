@@ -19,12 +19,12 @@ public sealed class OutboxMessageRepositoryTests
 
         var correlationId = Guid.NewGuid();
 
-        var msg = new OutboxMessage("LedgerEntry", Guid.NewGuid(), "LedgerEntryCreated", "{}", DateTime.Now.AddMinutes(-3), correlationId);
+        var msg = new OutboxMessage("LedgerEntry", Guid.NewGuid(), "LedgerEntryCreated", "{}", DateTime.UtcNow.AddMinutes(-3), correlationId);
 
         await repo.AddAsync(msg);
         await db.SaveChangesAsync();
 
-        var processedAt = DateTime.Now;
+        var processedAt = DateTime.UtcNow;
         await repo.MarkProcessedAsync(msg.Id, processedAt);
         await db.SaveChangesAsync();
 
@@ -48,7 +48,7 @@ public sealed class OutboxMessageRepositoryTests
             Guid.NewGuid(),
             "LedgerEntryCreated.v1",
             "{}",
-            DateTime.Now,
+            DateTime.UtcNow,
             Guid.NewGuid(),
             "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
             "vendor=value",
@@ -73,12 +73,12 @@ public sealed class OutboxMessageRepositoryTests
         await using var db = new AppDbContext(options);
         var repo = new OutboxMessageRepository(db);
         var correlationId = Guid.NewGuid();
-        var msg = new OutboxMessage("LedgerEntry", Guid.NewGuid(), "LedgerEntryCreated", "{}", DateTime.Now, correlationId);
+        var msg = new OutboxMessage("LedgerEntry", Guid.NewGuid(), "LedgerEntryCreated", "{}", DateTime.UtcNow, correlationId);
 
         await repo.AddAsync(msg);
         await db.SaveChangesAsync();
 
-        await repo.MarkFailedPublishAttemptAsync(msg.Id, maxRetries: 3, nextRetryAt: DateTime.Now.AddSeconds(10), lastError: "boom");
+        await repo.MarkFailedPublishAttemptAsync(msg.Id, maxRetries: 3, nextRetryAt: DateTime.UtcNow.AddSeconds(10), lastError: "boom");
         await db.SaveChangesAsync();
 
         var refreshed = await db.OutboxMessages.SingleAsync(x => x.Id == msg.Id);
@@ -98,12 +98,12 @@ public sealed class OutboxMessageRepositoryTests
         await using var db = new AppDbContext(options);
         var repo = new OutboxMessageRepository(db);
         var correlationId = Guid.NewGuid();
-        var msg = new OutboxMessage("LedgerEntry", Guid.NewGuid(), "LedgerEntryCreated", "{}", DateTime.Now, correlationId);
+        var msg = new OutboxMessage("LedgerEntry", Guid.NewGuid(), "LedgerEntryCreated", "{}", DateTime.UtcNow, correlationId);
 
         await repo.AddAsync(msg);
         await db.SaveChangesAsync();
 
-        await repo.MarkFailedPublishAttemptAsync(msg.Id, maxRetries: 1, nextRetryAt: DateTime.Now.AddSeconds(10), lastError: "boom");
+        await repo.MarkFailedPublishAttemptAsync(msg.Id, maxRetries: 1, nextRetryAt: DateTime.UtcNow.AddSeconds(10), lastError: "boom");
         await db.SaveChangesAsync();
 
         var refreshed = await db.OutboxMessages.SingleAsync(x => x.Id == msg.Id);
@@ -123,15 +123,15 @@ public sealed class OutboxMessageRepositoryTests
 
         await using var db = new AppDbContext(options);
         var repo = new OutboxMessageRepository(db);
-        var msg = new OutboxMessage("LedgerEntry", Guid.NewGuid(), "LedgerEntryCreated.v1", "{}", DateTime.Now, Guid.NewGuid());
+        var msg = new OutboxMessage("LedgerEntry", Guid.NewGuid(), "LedgerEntryCreated.v1", "{}", DateTime.UtcNow, Guid.NewGuid());
 
         await repo.AddAsync(msg);
         await db.SaveChangesAsync();
 
-        await repo.MarkFailedPublishAttemptAsync(msg.Id, maxRetries: 1, nextRetryAt: DateTime.Now.AddSeconds(10), lastError: "kafka down");
+        await repo.MarkFailedPublishAttemptAsync(msg.Id, maxRetries: 1, nextRetryAt: DateTime.UtcNow.AddSeconds(10), lastError: "kafka down");
         await db.SaveChangesAsync();
 
-        var requeuedAt = DateTime.Now;
+        var requeuedAt = DateTime.UtcNow;
         var requeued = await repo.RequeueDeadLettersAsync(
             id: msg.Id,
             eventType: null,
@@ -167,8 +167,8 @@ public sealed class OutboxMessageRepositoryTests
 
         await using var db = new AppDbContext(options);
         var repo = new OutboxMessageRepository(db);
-        var msg = new OutboxMessage("LedgerEntry", Guid.NewGuid(), "LedgerEntryCreated.v1", "{}", DateTime.Now, Guid.NewGuid());
-        msg.MarkProcessed(DateTime.Now);
+        var msg = new OutboxMessage("LedgerEntry", Guid.NewGuid(), "LedgerEntryCreated.v1", "{}", DateTime.UtcNow, Guid.NewGuid());
+        msg.MarkProcessed(DateTime.UtcNow);
 
         await repo.AddAsync(msg);
         await db.SaveChangesAsync();
@@ -179,7 +179,7 @@ public sealed class OutboxMessageRepositoryTests
             occurredFrom: null,
             occurredUntil: null,
             limit: 10,
-            requeuedAt: DateTime.Now,
+            requeuedAt: DateTime.UtcNow,
             requeuedBy: "operador",
             reason: "nao deve reprocessar");
         await db.SaveChangesAsync();
@@ -200,8 +200,8 @@ public sealed class OutboxMessageRepositoryTests
 
         await using var db = new AppDbContext(options);
         var repo = new OutboxMessageRepository(db);
-        var msg = new OutboxMessage("LedgerEntry", Guid.NewGuid(), "LedgerEntryCreated.v1", "{}", DateTime.Now, Guid.NewGuid());
-        msg.MarkProcessing("publisher", DateTime.Now.AddMinutes(5));
+        var msg = new OutboxMessage("LedgerEntry", Guid.NewGuid(), "LedgerEntryCreated.v1", "{}", DateTime.UtcNow, Guid.NewGuid());
+        msg.MarkProcessing("publisher", DateTime.UtcNow.AddMinutes(5));
 
         await repo.AddAsync(msg);
         await db.SaveChangesAsync();
@@ -212,7 +212,7 @@ public sealed class OutboxMessageRepositoryTests
             occurredFrom: null,
             occurredUntil: null,
             limit: 10,
-            requeuedAt: DateTime.Now,
+            requeuedAt: DateTime.UtcNow,
             requeuedBy: "operador",
             reason: "nao deve reprocessar");
         await db.SaveChangesAsync();
@@ -234,7 +234,7 @@ public sealed class OutboxMessageRepositoryTests
 
         await using var db = new AppDbContext(options);
         var repo = new OutboxMessageRepository(db);
-        var now = DateTime.Now;
+        var now = DateTime.UtcNow;
         var msg = new OutboxMessage("LedgerEntry", Guid.NewGuid(), "LedgerEntryCreated.v1", "{}", now.AddMinutes(-1), Guid.NewGuid());
 
         await repo.AddAsync(msg);

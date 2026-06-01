@@ -284,7 +284,7 @@ public sealed class ReprocessamentosLancamentosEndpointTests : IClassFixture<Led
             "desc",
             null,
             Guid.NewGuid(),
-            DateTime.Now);
+            DateTime.UtcNow);
 
         await db.LedgerEntries.AddAsync(lancamento);
         await db.SaveChangesAsync();

@@ -51,24 +51,24 @@ public sealed class EstornoLancamentoConfiguration : IEntityTypeConfiguration<Es
 
         builder.Property(x => x.CreatedAt)
             .HasColumnName("created_at")
-            .HasColumnType("timestamp without time zone")
+            .HasColumnType(PostgreSqlColumnTypes.TimestampWithTimeZone)
             .IsRequired();
 
         builder.Property(x => x.ProcessingStartedAt)
             .HasColumnName("processing_started_at")
-            .HasColumnType("timestamp without time zone");
+            .HasColumnType(PostgreSqlColumnTypes.TimestampWithTimeZone);
 
         builder.Property(x => x.CompletedAt)
             .HasColumnName("completed_at")
-            .HasColumnType("timestamp without time zone");
+            .HasColumnType(PostgreSqlColumnTypes.TimestampWithTimeZone);
 
         builder.Property(x => x.RejectedAt)
             .HasColumnName("rejected_at")
-            .HasColumnType("timestamp without time zone");
+            .HasColumnType(PostgreSqlColumnTypes.TimestampWithTimeZone);
 
         builder.Property(x => x.FailedAt)
             .HasColumnName("failed_at")
-            .HasColumnType("timestamp without time zone");
+            .HasColumnType(PostgreSqlColumnTypes.TimestampWithTimeZone);
 
         builder.HasIndex(x => x.LancamentoOriginalId)
             .HasDatabaseName("idx_estornos_lancamentos_original");

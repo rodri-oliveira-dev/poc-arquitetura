@@ -179,11 +179,11 @@ public sealed class EstornoLancamentoConcurrencyTests : IAsyncLifetime
             "m1",
             LedgerEntryType.Credit,
             10m,
-            DateTime.Now,
+            DateTime.UtcNow,
             "Venda",
             $"ext-{Guid.NewGuid():N}",
             Guid.NewGuid(),
-            DateTime.Now);
+            DateTime.UtcNow);
 
         await db.LedgerEntries.AddAsync(lancamento);
         await db.SaveChangesAsync();
@@ -199,7 +199,7 @@ public sealed class EstornoLancamentoConcurrencyTests : IAsyncLifetime
             lancamento.MerchantId,
             "Erro operacional no lancamento original",
             Guid.NewGuid(),
-            DateTime.Now);
+            DateTime.UtcNow);
 
         await db.EstornosLancamentos.AddAsync(estorno);
         await db.SaveChangesAsync();

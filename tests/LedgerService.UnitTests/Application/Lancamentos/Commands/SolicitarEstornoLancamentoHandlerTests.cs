@@ -176,8 +176,8 @@ public sealed class SolicitarEstornoLancamentoHandlerTests
                 lancamento.Id,
                 202,
                 JsonSerializer.Serialize(expected, JsonOptions),
-                DateTime.Now,
-                DateTime.Now.AddDays(7)));
+                DateTime.UtcNow,
+                DateTime.UtcNow.AddDays(7)));
         tx.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask);
 
         var sut = CreateSut(ledgerRepo, estornoRepo, idemRepo, outboxRepo, uow);
@@ -202,7 +202,7 @@ public sealed class SolicitarEstornoLancamentoHandlerTests
             "m1",
             LedgerEntryType.Credit,
             10m,
-            DateTime.Now,
+            DateTime.UtcNow,
             "desc",
             "ext",
             Guid.NewGuid(),

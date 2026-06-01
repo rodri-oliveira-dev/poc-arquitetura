@@ -74,7 +74,7 @@ public sealed class OutboxPublisherWorkerTests
             aggregateId: Guid.NewGuid(),
             eventType: "LedgerEntryCreated.v1",
             payload: "{}",
-            occurredAt: DateTime.Now.AddMinutes(-1),
+            occurredAt: DateTime.UtcNow.AddMinutes(-1),
             correlationId: Guid.NewGuid(),
             traceParent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01");
 

@@ -101,7 +101,7 @@ public sealed class ProcessarReprocessamentoLancamentosHandler
         }
 
         var previousStatus = reprocessamento.Status;
-        var now = _clock.UtcNow.DateTime;
+        var now = _clock.UtcNow.UtcDateTime;
         reprocessamento.MarkProcessing(now);
 
         var startInclusive = reprocessamento.DataInicial.ToDateTime(TimeOnly.MinValue);
@@ -170,7 +170,7 @@ public sealed class ProcessarReprocessamentoLancamentosHandler
             cancellationToken);
         if (reprocessamento is not null && !reprocessamento.IsFinal())
         {
-            reprocessamento.Reject(reason, _clock.UtcNow.DateTime);
+            reprocessamento.Reject(reason, _clock.UtcNow.UtcDateTime);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
         }
 
@@ -190,7 +190,7 @@ public sealed class ProcessarReprocessamentoLancamentosHandler
             cancellationToken);
         if (reprocessamento is not null && !reprocessamento.IsFinal())
         {
-            reprocessamento.Fail(reason, _clock.UtcNow.DateTime);
+            reprocessamento.Fail(reason, _clock.UtcNow.UtcDateTime);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
         }
 

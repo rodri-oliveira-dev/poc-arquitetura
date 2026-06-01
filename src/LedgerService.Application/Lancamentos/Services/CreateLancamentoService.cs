@@ -86,7 +86,7 @@ public sealed class CreateLancamentoService
             : LedgerEntryType.Debit;
 
         var amount = decimal.Parse(request.Amount, NumberStyles.Number, CultureInfo.InvariantCulture);
-        var occurredAt = _clock.UtcNow.DateTime;
+        var occurredAt = _clock.UtcNow.UtcDateTime;
         var correlationId = Guid.Parse(request.CorrelationId);
 
         LedgerEntry ledgerEntry;

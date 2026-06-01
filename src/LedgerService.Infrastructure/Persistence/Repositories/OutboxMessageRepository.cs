@@ -90,8 +90,8 @@ RETURNING o.*;
             sql,
             new NpgsqlParameter("p_pending", NpgsqlDbType.Text) { Value = OutboxStatus.Pending.ToString() },
             new NpgsqlParameter("p_processing", NpgsqlDbType.Text) { Value = OutboxStatus.Processing.ToString() },
-            new NpgsqlParameter("p_now", NpgsqlDbType.Timestamp) { Value = now },
-            new NpgsqlParameter("p_locked_until", NpgsqlDbType.Timestamp) { Value = lockedUntil },
+            new NpgsqlParameter("p_now", NpgsqlDbType.TimestampTz) { Value = now },
+            new NpgsqlParameter("p_locked_until", NpgsqlDbType.TimestampTz) { Value = lockedUntil },
             new NpgsqlParameter("p_lock_owner", NpgsqlDbType.Text) { Value = lockOwner },
             new NpgsqlParameter("p_batch", NpgsqlDbType.Integer) { Value = batchSize }
         ).ToListAsync(cancellationToken);
@@ -161,8 +161,8 @@ WHERE id = @p_id;
             new NpgsqlParameter("p_max_retries", NpgsqlDbType.Integer) { Value = maxRetries },
             new NpgsqlParameter("p_dead_letter", NpgsqlDbType.Text) { Value = OutboxStatus.DeadLetter.ToString() },
             new NpgsqlParameter("p_pending", NpgsqlDbType.Text) { Value = OutboxStatus.Pending.ToString() },
-            new NpgsqlParameter("p_next_retry_at", NpgsqlDbType.Timestamp) { Value = nextRetryAt },
-            new NpgsqlParameter("p_processed_at", NpgsqlDbType.Timestamp) { Value = _clock.UtcNow.DateTime },
+            new NpgsqlParameter("p_next_retry_at", NpgsqlDbType.TimestampTz) { Value = nextRetryAt },
+            new NpgsqlParameter("p_processed_at", NpgsqlDbType.TimestampTz) { Value = _clock.UtcNow.UtcDateTime },
             new NpgsqlParameter("p_id", NpgsqlDbType.Uuid) { Value = id });
 
         if (affected == 0)

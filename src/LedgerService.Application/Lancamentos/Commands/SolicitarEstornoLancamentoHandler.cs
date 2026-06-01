@@ -57,7 +57,7 @@ public sealed class SolicitarEstornoLancamentoHandler
 
         var requestHash = GenerateRequestHash(request);
         var correlationId = Guid.Parse(request.CorrelationId);
-        var now = _clock.UtcNow.DateTime;
+        var now = _clock.UtcNow.UtcDateTime;
 
         await using var transaction = await _unitOfWork.BeginTransactionAsync(cancellationToken);
 
