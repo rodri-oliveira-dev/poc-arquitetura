@@ -99,6 +99,8 @@ Configuracoes principais em `Outbox:Publisher`:
 - `BaseBackoffSeconds`;
 - `LockDurationSeconds`.
 
+O claim ocorre antes da publicacao paralela e cada mensagem e validada novamente contra `lock_owner` e `locked_until` antes de publicar. O adapter Kafka limita a espera de publicacao por `Kafka:Producer:MessageTimeoutMs` (default de 30 segundos); `Outbox:Publisher:LockDurationSeconds` deve permanecer maior que o pior tempo esperado de publicacao para reduzir reclaim durante uma tentativa em andamento. O publisher nao renova locks durante a publicacao nesta etapa. Se adapters ou tempos de entrega futuros puderem ultrapassar essa janela com frequencia, renovacao periodica de lock deve ser avaliada como melhoria separada, preservando a semantica at-least-once.
+
 ## DLQ em banco e requeue operacional
 
 Use o requeue quando a causa da falha ja tiver sido corrigida ou classificada como transiente, por exemplo indisponibilidade temporaria de Kafka, credenciais/ACL corrigidas, topico recriado ou configuracao de producer ajustada. Nao use para mascarar erro permanente de contrato, payload invalido, topico incorreto ou incompatibilidade de consumidor.

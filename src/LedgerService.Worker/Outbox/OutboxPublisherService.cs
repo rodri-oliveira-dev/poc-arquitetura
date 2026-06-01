@@ -107,26 +107,30 @@ public sealed class OutboxPublisherService : BackgroundService
 
         _logger.OutboxMessagesClaimed(claimed.Count, _lockOwner, options.MaxParallelism);
 
-        using var throttler = new SemaphoreSlim(Math.Max(1, options.MaxParallelism));
-        var tasks = new List<Task>(claimed.Count);
-
-        foreach (var msg in claimed)
-        {
-            await throttler.WaitAsync(cancellationToken);
-            tasks.Add(Task.Run(async () =>
+        await Parallel.ForEachAsync(
+            claimed,
+            new ParallelOptions
             {
-                try
-                {
-                    await PublishOneAsync(msg.Id, cancellationToken);
-                }
-                finally
-                {
-                    throttler.Release();
-                }
-            }, cancellationToken));
-        }
+                MaxDegreeOfParallelism = Math.Max(1, options.MaxParallelism),
+                CancellationToken = cancellationToken
+            },
+            async (message, ct) => await PublishOneSafelyAsync(message.Id, ct));
+    }
 
-        await Task.WhenAll(tasks);
+    private async Task PublishOneSafelyAsync(Guid outboxId, CancellationToken ct)
+    {
+        try
+        {
+            await PublishOneAsync(outboxId, ct);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.UnhandledOutboxMessageError(ex, outboxId);
+        }
     }
 
     private async Task PublishOneAsync(Guid outboxId, CancellationToken ct)
