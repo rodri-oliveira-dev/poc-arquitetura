@@ -95,6 +95,7 @@ public sealed class CreateLancamentoServiceTests
         Assert.Equal(input.CorrelationId, outboxEvent.CorrelationId);
         Assert.Equal(result.OccurredAt, outboxEvent.OccurredAt);
         Assert.Equal(result.CreatedAt, outboxEvent.CreatedAt);
+        AssertPayloadMatchesFormalSchemaShape(createdOutbox.Payload);
         ledgerRepo.VerifyAll();
         idemRepo.VerifyAll();
         outboxRepo.VerifyAll();
@@ -444,4 +445,46 @@ public sealed class CreateLancamentoServiceTests
 
     private static string? NormalizeOptionalText(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static void AssertPayloadMatchesFormalSchemaShape(string payload)
+    {
+        using var schema = System.Text.Json.JsonDocument.Parse(
+            File.ReadAllText(Path.Combine(FindRepositoryRoot(), "docs", "contracts", "events", "LedgerEntryCreated.v1.schema.json")));
+        using var publishedPayload = System.Text.Json.JsonDocument.Parse(payload);
+
+        var schemaProperties = schema.RootElement
+            .GetProperty("properties")
+            .EnumerateObject()
+            .Select(x => x.Name)
+            .Order()
+            .ToArray();
+        var payloadProperties = publishedPayload.RootElement
+            .EnumerateObject()
+            .Select(x => x.Name)
+            .Order()
+            .ToArray();
+        var requiredProperties = schema.RootElement
+            .GetProperty("required")
+            .EnumerateArray()
+            .Select(x => x.GetString()!)
+            .ToArray();
+
+        Assert.Equal(schemaProperties, payloadProperties);
+        Assert.All(requiredProperties, required => Assert.True(publishedPayload.RootElement.TryGetProperty(required, out _)));
+        Assert.DoesNotContain("currency", payloadProperties);
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "LedgerService.slnx")))
+                return directory.FullName;
+
+            directory = directory.Parent;
+        }
+
+        throw new DirectoryNotFoundException("Repository root not found.");
+    }
 }

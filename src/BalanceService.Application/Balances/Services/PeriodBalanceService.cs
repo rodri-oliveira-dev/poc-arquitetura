@@ -10,7 +10,7 @@ public sealed class PeriodBalanceService : IPeriodBalanceService
 {
     private static readonly ActivitySource ActivitySource = new("BalanceService.Application");
 
-    // TODO: confirmar origem/contrato de currency para consolidado. Hoje a consolidação escreve BRL como default.
+    // LedgerEntryCreated.v1 nao carrega currency. BRL e a limitacao documentada da POC.
     private const string DefaultCurrency = "BRL";
 
     private readonly IDailyBalanceReadRepository _readRepository;

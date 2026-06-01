@@ -59,6 +59,56 @@ public sealed class LedgerEntryCreatedMessageProcessorTests
     }
 
     [Fact]
+    public async Task Formal_example_should_be_consumed()
+    {
+        var dlq = new CapturingDeadLetterProducer();
+        var sut = CreateSut(dlq);
+        var payload = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "docs",
+            "contracts",
+            "events",
+            "LedgerEntryCreated.v1.example.json"));
+        var message = CreateMessage(payload, AttributesWith(EventId: "evt-example"));
+
+        var shouldCommit = await sut.ProcessAsync(message, CancellationToken.None);
+
+        Assert.True(shouldCommit);
+        Assert.Empty(dlq.Messages);
+    }
+
+    [Fact]
+    public async Task Unexpected_currency_should_publish_to_dlq()
+    {
+        var dlq = new CapturingDeadLetterProducer();
+        var sut = CreateSut(dlq);
+        var payload = ValidPayload().Replace("\"externalReference\":null", "\"externalReference\":null,\"currency\":\"BRL\"");
+        var message = CreateMessage(payload, AttributesWith(EventId: "evt-currency"));
+
+        var shouldCommit = await sut.ProcessAsync(message, CancellationToken.None);
+
+        Assert.True(shouldCommit);
+        Assert.Single(dlq.Messages);
+        Assert.Equal("Deserialization failed.", dlq.Messages[0].Reason);
+        Assert.Equal(nameof(JsonException), dlq.Messages[0].ExceptionType);
+    }
+
+    [Fact]
+    public async Task Missing_occurred_at_should_publish_to_dlq()
+    {
+        var dlq = new CapturingDeadLetterProducer();
+        var sut = CreateSut(dlq);
+        var payload = ValidPayload().Replace("\"occurredAt\":\"2026-02-16T00:00:00.0000000Z\",", string.Empty);
+        var message = CreateMessage(payload, AttributesWith(EventId: "evt-missing-occurred-at"));
+
+        var shouldCommit = await sut.ProcessAsync(message, CancellationToken.None);
+
+        Assert.True(shouldCommit);
+        Assert.Single(dlq.Messages);
+        Assert.Equal("Message payload occurredAt is required.", dlq.Messages[0].Reason);
+    }
+
+    [Fact]
     public async Task Estorno_request_event_should_not_be_processed_as_financial_event()
     {
         var dlq = new CapturingDeadLetterProducer();
@@ -176,6 +226,20 @@ public sealed class LedgerEntryCreatedMessageProcessorTests
     }
 
     [Fact]
+    public async Task Invalid_amount_should_publish_to_dlq()
+    {
+        var dlq = new CapturingDeadLetterProducer();
+        var sut = CreateSut(dlq);
+        var message = CreateMessage(ValidPayload(amount: "not-a-decimal"), AttributesWith(EventId: "evt-1"));
+
+        var shouldCommit = await sut.ProcessAsync(message, CancellationToken.None);
+        Assert.True(shouldCommit);
+        Assert.Single(dlq.Messages);
+        Assert.Equal("Message payload type and amount are invalid.", dlq.Messages[0].Reason);
+        Assert.Equal("MessageValidationException", dlq.Messages[0].ExceptionType);
+    }
+
+    [Fact]
     public async Task Non_recoverable_processing_failure_should_publish_to_dlq()
     {
         var dlq = new CapturingDeadLetterProducer();
@@ -185,7 +249,7 @@ public sealed class LedgerEntryCreatedMessageProcessorTests
             .ThrowsAsync(new DomainException("Invalid amount format."));
 
         var sut = CreateSut(dlq, sender.Object);
-        var message = CreateMessage(ValidPayload(amount: "not-a-decimal"), AttributesWith(EventId: "evt-1"));
+        var message = CreateMessage(ValidPayload(), AttributesWith(EventId: "evt-1"));
 
         var shouldCommit = await sut.ProcessAsync(message, CancellationToken.None);
         Assert.True(shouldCommit);
@@ -296,6 +360,20 @@ public sealed class LedgerEntryCreatedMessageProcessorTests
             correlationId = Guid.NewGuid().ToString(),
             externalReference = (string?)null
         });
+
+    private static string FindRepositoryRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "LedgerService.slnx")))
+                return directory.FullName;
+
+            directory = directory.Parent;
+        }
+
+        throw new DirectoryNotFoundException("Repository root not found.");
+    }
 
     private sealed class CapturingDeadLetterProducer : IDeadLetterPublisher
     {

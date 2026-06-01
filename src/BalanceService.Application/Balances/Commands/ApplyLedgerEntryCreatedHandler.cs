@@ -16,8 +16,7 @@ public sealed class ApplyLedgerEntryCreatedHandler : IRequestHandler<ApplyLedger
 {
     private static readonly ActivitySource _activitySource = new("BalanceService.Application");
 
-    // TODO: confirmar a origem/contrato de currency no evento. No payload atual nao ha currency.
-    // Para nao bloquear o processamento da POC, usamos um default conservador.
+    // LedgerEntryCreated.v1 nao carrega currency. BRL e a limitacao documentada da POC.
     private const string DefaultCurrency = "BRL";
     private const string LedgerEntryCreatedEventType = "LedgerEntryCreated.v1";
 
