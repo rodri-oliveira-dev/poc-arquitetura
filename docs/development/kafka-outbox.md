@@ -163,7 +163,7 @@ Politica de commit:
 - publicacao na DLQ com sucesso: commita o offset original;
 - falha ao publicar na DLQ: nao commita o offset original.
 
-O envelope neutro da DLQ preserva payload original quando disponivel, origem logica, tipo de evento, attributes/headers relevantes, motivo, tipo da excecao, timestamp e metadados de transporte. No adapter Kafka, os metadados de transporte incluem topico, particao, offset e key quando disponivel; esses valores continuam sendo propagados nos headers Kafka da DLQ como `original_topic`, `original_partition` e `original_offset`. Processors neutros nao devem depender de offset, partition ou commit.
+O envelope neutro da DLQ preserva payload original quando disponivel, origem logica, provider original, tipo de evento, attributes/headers relevantes, motivo, tipo da excecao, timestamp e metadados de transporte. No adapter Kafka, os metadados de transporte incluem topico, particao, offset e key quando disponivel; esses valores continuam sendo propagados nos headers Kafka da DLQ como `original_topic`, `original_partition` e `original_offset`. No adapter Pub/Sub, os metadados originais usam attributes com prefixo neutro `original_metadata_`, sem tornar topico, particao ou offset obrigatorios. Processors neutros nao devem depender de offset, partition ou commit.
 
 ## Metricas operacionais
 

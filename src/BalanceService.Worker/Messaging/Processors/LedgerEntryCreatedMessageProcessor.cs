@@ -129,6 +129,7 @@ public sealed partial class LedgerEntryCreatedMessageProcessor
         var message = new DeadLetterMessage(
             receivedMessage.Payload,
             receivedMessage.Transport.Source,
+            receivedMessage.Transport.Provider,
             ResolveEventType(receivedMessage),
             reason,
             exception.GetType().Name,

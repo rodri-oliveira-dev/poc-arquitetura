@@ -3,6 +3,7 @@ namespace BalanceService.Worker.Messaging.Abstractions;
 public sealed record DeadLetterMessage(
     string? OriginalPayload,
     string Source,
+    string Provider,
     string EventType,
     string Reason,
     string ExceptionType,

@@ -52,6 +52,7 @@ public sealed class WorkerCoverageCompositionTests
         var message = new DeadLetterMessage(
             "{}",
             "ledger.ledgerentry.created",
+            "kafka",
             "unknown",
             "Missing required message attribute event_id.",
             nameof(InvalidOperationException),
