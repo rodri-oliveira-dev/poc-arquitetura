@@ -1,3 +1,4 @@
+using LedgerService.Application.Abstractions.Time;
 using LedgerService.Domain.Entities;
 using LedgerService.Domain.Repositories;
 using LedgerService.Infrastructure.Observability;
@@ -11,12 +12,14 @@ public sealed class OutboxMessageRepository : IOutboxMessageRepository
 {
     private readonly AppDbContext _context;
     private readonly OutboxMetrics? _metrics;
+    private readonly IClock _clock;
 
-    public OutboxMessageRepository(AppDbContext context, OutboxMetrics? metrics = null)
+    public OutboxMessageRepository(AppDbContext context, IClock? clock = null, OutboxMetrics? metrics = null)
     {
         ArgumentNullException.ThrowIfNull(context);
 
         _context = context;
+        _clock = clock ?? new SystemClock();
         _metrics = metrics;
     }
 
@@ -159,7 +162,7 @@ WHERE id = @p_id;
             new NpgsqlParameter("p_dead_letter", NpgsqlDbType.Text) { Value = OutboxStatus.DeadLetter.ToString() },
             new NpgsqlParameter("p_pending", NpgsqlDbType.Text) { Value = OutboxStatus.Pending.ToString() },
             new NpgsqlParameter("p_next_retry_at", NpgsqlDbType.Timestamp) { Value = nextRetryAt },
-            new NpgsqlParameter("p_processed_at", NpgsqlDbType.Timestamp) { Value = DateTime.Now },
+            new NpgsqlParameter("p_processed_at", NpgsqlDbType.Timestamp) { Value = _clock.UtcNow.DateTime },
             new NpgsqlParameter("p_id", NpgsqlDbType.Uuid) { Value = id });
 
         if (affected == 0)

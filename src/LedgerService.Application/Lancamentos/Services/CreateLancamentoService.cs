@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
+using LedgerService.Application.Abstractions.Time;
 using LedgerService.Application.Common.Exceptions;
 using LedgerService.Application.Common.Models;
 using LedgerService.Application.Common.Observability;
@@ -23,6 +24,7 @@ public sealed class CreateLancamentoService
     private readonly IIdempotencyRecordRepository _idempotencyRecordRepository;
     private readonly IOutboxMessageRepository _outboxMessageRepository;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IClock _clock;
     private readonly LedgerDomainMetrics? _metrics;
 
     public CreateLancamentoService(
@@ -30,6 +32,7 @@ public sealed class CreateLancamentoService
         IIdempotencyRecordRepository idempotencyRecordRepository,
         IOutboxMessageRepository outboxMessageRepository,
         IUnitOfWork unitOfWork,
+        IClock? clock = null,
         LedgerDomainMetrics? metrics = null)
     {
         ArgumentNullException.ThrowIfNull(ledgerEntryRepository);
@@ -41,6 +44,7 @@ public sealed class CreateLancamentoService
         _idempotencyRecordRepository = idempotencyRecordRepository;
         _outboxMessageRepository = outboxMessageRepository;
         _unitOfWork = unitOfWork;
+        _clock = clock ?? new SystemClock();
         _metrics = metrics;
     }
 
@@ -82,7 +86,7 @@ public sealed class CreateLancamentoService
             : LedgerEntryType.Debit;
 
         var amount = decimal.Parse(request.Amount, NumberStyles.Number, CultureInfo.InvariantCulture);
-        var occurredAt = DateTime.Now;
+        var occurredAt = _clock.UtcNow.DateTime;
         var correlationId = Guid.Parse(request.CorrelationId);
 
         LedgerEntry ledgerEntry;
@@ -95,7 +99,8 @@ public sealed class CreateLancamentoService
                 occurredAt,
                 request.Description,
                 request.ExternalReference,
-                correlationId);
+                correlationId,
+                occurredAt);
         }
         catch (DomainException)
         {
@@ -115,7 +120,8 @@ public sealed class CreateLancamentoService
             ledgerEntry.Id,
             201,
             responseJson,
-            DateTime.Now.AddDays(7));
+            occurredAt,
+            occurredAt.AddDays(7));
 
         await _idempotencyRecordRepository.AddAsync(idempotencyRecord, cancellationToken);
 
@@ -138,7 +144,7 @@ public sealed class CreateLancamentoService
             ledgerEntry.Id,
             LedgerEntryCreatedV1.EventType,
             outboxPayload,
-            DateTime.Now,
+            occurredAt,
             correlationId,
             traceContext.TraceParent,
             traceContext.TraceState,

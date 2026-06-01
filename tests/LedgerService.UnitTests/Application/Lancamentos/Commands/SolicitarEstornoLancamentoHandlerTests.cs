@@ -124,7 +124,7 @@ public sealed class SolicitarEstornoLancamentoHandlerTests
 
         var lancamento = ValidLedgerEntry();
         var command = ValidCommand(lancamento.Id);
-        var active = new EstornoLancamento(lancamento.Id, lancamento.MerchantId, "Erro operacional original", Guid.NewGuid());
+        var active = new EstornoLancamento(lancamento.Id, lancamento.MerchantId, "Erro operacional original", Guid.NewGuid(), DateTime.UtcNow);
 
         uow.Setup(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(tx.Object);
@@ -176,6 +176,7 @@ public sealed class SolicitarEstornoLancamentoHandlerTests
                 lancamento.Id,
                 202,
                 JsonSerializer.Serialize(expected, JsonOptions),
+                DateTime.Now,
                 DateTime.Now.AddDays(7)));
         tx.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask);
 
@@ -204,7 +205,8 @@ public sealed class SolicitarEstornoLancamentoHandlerTests
             DateTime.Now,
             "desc",
             "ext",
-            Guid.NewGuid());
+            Guid.NewGuid(),
+            DateTime.UtcNow);
 
     private static SolicitarEstornoLancamentoCommand ValidCommand(Guid lancamentoId)
         => new(

@@ -16,7 +16,7 @@ public sealed class ProcessarEstornoLancamentoHandlerTests
     public async Task Should_process_pending_estorno_create_compensating_entry_and_outbox_event()
     {
         var original = NewLedgerEntry(LedgerEntryType.Credit, 100m);
-        var estorno = new EstornoLancamento(original.Id, original.MerchantId, "Erro operacional", original.CorrelationId);
+        var estorno = new EstornoLancamento(original.Id, original.MerchantId, "Erro operacional", original.CorrelationId, DateTime.UtcNow);
         var state = new State([original], [estorno]);
         var sut = CreateSut(state);
 
@@ -44,7 +44,7 @@ public sealed class ProcessarEstornoLancamentoHandlerTests
     [Fact]
     public async Task Should_reject_when_original_lancamento_does_not_exist()
     {
-        var estorno = new EstornoLancamento(Guid.NewGuid(), "m1", "Erro operacional", Guid.NewGuid());
+        var estorno = new EstornoLancamento(Guid.NewGuid(), "m1", "Erro operacional", Guid.NewGuid(), DateTime.UtcNow);
         var state = new State([], [estorno]);
         var sut = CreateSut(state);
 
@@ -59,7 +59,7 @@ public sealed class ProcessarEstornoLancamentoHandlerTests
     public async Task Should_not_duplicate_compensating_entry_or_outbox_when_processed_again()
     {
         var original = NewLedgerEntry(LedgerEntryType.Debit, -50m);
-        var estorno = new EstornoLancamento(original.Id, original.MerchantId, "Erro operacional", original.CorrelationId);
+        var estorno = new EstornoLancamento(original.Id, original.MerchantId, "Erro operacional", original.CorrelationId, DateTime.UtcNow);
         var state = new State([original], [estorno]);
         var sut = CreateSut(state);
 
@@ -76,10 +76,10 @@ public sealed class ProcessarEstornoLancamentoHandlerTests
     public async Task Should_reject_when_lancamento_already_has_completed_estorno()
     {
         var original = NewLedgerEntry(LedgerEntryType.Credit, 25m);
-        var completed = new EstornoLancamento(original.Id, original.MerchantId, "Primeiro", original.CorrelationId);
+        var completed = new EstornoLancamento(original.Id, original.MerchantId, "Primeiro", original.CorrelationId, DateTime.UtcNow);
         completed.MarkProcessing(DateTime.Now);
         completed.Complete(Guid.NewGuid(), DateTime.Now);
-        var pending = new EstornoLancamento(original.Id, original.MerchantId, "Segundo", original.CorrelationId);
+        var pending = new EstornoLancamento(original.Id, original.MerchantId, "Segundo", original.CorrelationId, DateTime.UtcNow);
         var state = new State([original], [completed, pending]);
         var sut = CreateSut(state);
 
@@ -99,7 +99,7 @@ public sealed class ProcessarEstornoLancamentoHandlerTests
             NullLogger<ProcessarEstornoLancamentoHandler>.Instance);
 
     private static LedgerEntry NewLedgerEntry(LedgerEntryType type, decimal amount)
-        => new("m1", type, amount, DateTime.Now, "Venda", "ext", Guid.NewGuid());
+        => new("m1", type, amount, DateTime.Now, "Venda", "ext", Guid.NewGuid(), DateTime.UtcNow);
 
     private sealed record State(
         List<LedgerEntry> LedgerEntries,

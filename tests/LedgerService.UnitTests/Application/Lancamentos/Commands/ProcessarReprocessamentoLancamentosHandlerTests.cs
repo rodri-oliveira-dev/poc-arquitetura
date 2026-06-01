@@ -91,14 +91,15 @@ public sealed class ProcessarReprocessamentoLancamentosHandlerTests
             new DateOnly(2026, 5, 1),
             new DateOnly(2026, 5, 6),
             "Correcao de regra de consolidacao",
-            Guid.NewGuid());
+            Guid.NewGuid(),
+            DateTime.UtcNow);
 
     private static LedgerEntry NewLedgerEntry(
         string merchantId,
         DateTime occurredAt,
         LedgerEntryType type,
         decimal amount)
-        => new(merchantId, type, amount, occurredAt, "Venda", null, Guid.NewGuid());
+        => new(merchantId, type, amount, occurredAt, "Venda", null, Guid.NewGuid(), DateTime.UtcNow);
 
     private sealed record State(
         List<LedgerEntry> LedgerEntries,

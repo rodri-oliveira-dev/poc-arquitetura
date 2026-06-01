@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
+using LedgerService.Application.Abstractions.Time;
 using LedgerService.Application.Common.Exceptions;
 using LedgerService.Application.Common.Observability;
 using LedgerService.Application.Lancamentos.Events;
@@ -21,6 +22,7 @@ public sealed class SolicitarEstornoLancamentoHandler
     private readonly IIdempotencyRecordRepository _idempotencyRecordRepository;
     private readonly IOutboxMessageRepository _outboxMessageRepository;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IClock _clock;
     private readonly LedgerDomainMetrics? _metrics;
 
     public SolicitarEstornoLancamentoHandler(
@@ -29,6 +31,7 @@ public sealed class SolicitarEstornoLancamentoHandler
         IIdempotencyRecordRepository idempotencyRecordRepository,
         IOutboxMessageRepository outboxMessageRepository,
         IUnitOfWork unitOfWork,
+        IClock? clock = null,
         LedgerDomainMetrics? metrics = null)
     {
         ArgumentNullException.ThrowIfNull(ledgerEntryRepository);
@@ -42,6 +45,7 @@ public sealed class SolicitarEstornoLancamentoHandler
         _idempotencyRecordRepository = idempotencyRecordRepository;
         _outboxMessageRepository = outboxMessageRepository;
         _unitOfWork = unitOfWork;
+        _clock = clock ?? new SystemClock();
         _metrics = metrics;
     }
 
@@ -53,6 +57,7 @@ public sealed class SolicitarEstornoLancamentoHandler
 
         var requestHash = GenerateRequestHash(request);
         var correlationId = Guid.Parse(request.CorrelationId);
+        var now = _clock.UtcNow.DateTime;
 
         await using var transaction = await _unitOfWork.BeginTransactionAsync(cancellationToken);
 
@@ -107,7 +112,8 @@ public sealed class SolicitarEstornoLancamentoHandler
             request.LancamentoId,
             lancamentoOriginal.MerchantId,
             request.Motivo,
-            correlationId);
+            correlationId,
+            now);
 
         await _estornoRepository.AddAsync(estorno, cancellationToken);
 
@@ -121,7 +127,8 @@ public sealed class SolicitarEstornoLancamentoHandler
             lancamentoOriginal.Id,
             202,
             responseJson,
-            DateTime.Now.AddDays(7));
+            now,
+            now.AddDays(7));
 
         await _idempotencyRecordRepository.AddAsync(idempotencyRecord, cancellationToken);
 
@@ -142,7 +149,7 @@ public sealed class SolicitarEstornoLancamentoHandler
             estorno.Id,
             LancamentoEstornoSolicitadoV1.EventType,
             outboxPayload,
-            DateTime.Now,
+            now,
             correlationId,
             traceContext.TraceParent,
             traceContext.TraceState,

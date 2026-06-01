@@ -24,6 +24,7 @@ public sealed class CreateLancamentoServiceTests
         var outboxRepo = new Mock<IOutboxMessageRepository>(MockBehavior.Strict);
         var uow = new Mock<IUnitOfWork>(MockBehavior.Strict);
         var tx = new Mock<IAppTransaction>(MockBehavior.Strict);
+        var clock = new TestClock(new DateTimeOffset(2026, 2, 16, 12, 0, 0, TimeSpan.Zero));
 
         var input = LancamentoFixture.ValidInput(type: "CREDIT", amount: "10.00");
 
@@ -51,7 +52,7 @@ public sealed class CreateLancamentoServiceTests
         tx.Setup(x => x.CommitAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         tx.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask);
 
-        var sut = new CreateLancamentoService(ledgerRepo.Object, idemRepo.Object, outboxRepo.Object, uow.Object);
+        var sut = new CreateLancamentoService(ledgerRepo.Object, idemRepo.Object, outboxRepo.Object, uow.Object, clock);
 
         var result = await sut.ExecuteAsync(input, CancellationToken.None);
         Assert.Equal("CREDIT", result.Type);
@@ -72,12 +73,16 @@ public sealed class CreateLancamentoServiceTests
         Assert.Equal(201, createdIdem!.ResponseStatusCode);
         Assert.Equal(createdEntry!.Id, createdIdem!.LedgerEntryId);
         Assert.False(string.IsNullOrWhiteSpace(createdIdem!.ResponseBody));
+        Assert.Equal(clock.UtcNow.DateTime, createdEntry.CreatedAt);
+        Assert.Equal(clock.UtcNow.DateTime, createdIdem.CreatedAt);
+        Assert.Equal(clock.UtcNow.DateTime.AddDays(7), createdIdem.ExpiresAt);
         Assert.NotNull(createdOutbox);
         Assert.Equal("LedgerEntry", createdOutbox!.AggregateType);
         Assert.Equal(createdEntry!.Id, createdOutbox!.AggregateId);
         Assert.Equal(LedgerEntryCreatedV1.EventType, createdOutbox!.EventType);
         Assert.Contains("\"merchantId\"", createdOutbox!.Payload);
         Assert.Equal(Guid.Parse(input.CorrelationId), createdOutbox!.CorrelationId);
+        Assert.Equal(clock.UtcNow.DateTime, createdOutbox.OccurredAt);
         var outboxEvent = System.Text.Json.JsonSerializer.Deserialize<LedgerEntryCreatedV1>(createdOutbox.Payload, JsonOptions);
         Assert.NotNull(outboxEvent);
         Assert.Equal(result.Id, outboxEvent!.Id);
@@ -222,6 +227,7 @@ public sealed class CreateLancamentoServiceTests
             ledgerEntryId: Guid.NewGuid(),
             responseStatusCode: 201,
             responseBody: "{}",
+            createdAt: DateTime.Now,
             expiresAt: DateTime.Now.AddDays(7));
 
         idemRepo.Setup(x => x.GetByMerchantAndKeyAsync(input.MerchantId, input.IdempotencyKey, It.IsAny<CancellationToken>()))
@@ -267,6 +273,7 @@ public sealed class CreateLancamentoServiceTests
             ledgerEntryId: Guid.NewGuid(),
             responseStatusCode: 201,
             responseBody: "{}",
+            createdAt: DateTime.Now,
             expiresAt: DateTime.Now.AddDays(7));
 
         idemRepo.Setup(x => x.GetByMerchantAndKeyAsync(changedInput.MerchantId, changedInput.IdempotencyKey, It.IsAny<CancellationToken>()))
@@ -307,6 +314,7 @@ public sealed class CreateLancamentoServiceTests
             ledgerEntryId: Guid.NewGuid(),
             responseStatusCode: 201,
             responseBody: replayJson,
+            createdAt: DateTime.Now,
             expiresAt: DateTime.Now.AddDays(7));
 
         idemRepo.Setup(x => x.GetByMerchantAndKeyAsync(input.MerchantId, input.IdempotencyKey, It.IsAny<CancellationToken>()))
@@ -343,6 +351,7 @@ public sealed class CreateLancamentoServiceTests
             ledgerEntryId: Guid.NewGuid(),
             responseStatusCode: 201,
             responseBody: "null",
+            createdAt: DateTime.Now,
             expiresAt: DateTime.Now.AddDays(7));
 
         idemRepo.Setup(x => x.GetByMerchantAndKeyAsync(input.MerchantId, input.IdempotencyKey, It.IsAny<CancellationToken>()))
@@ -400,6 +409,7 @@ public sealed class CreateLancamentoServiceTests
             ledgerEntryId: Guid.NewGuid(),
             responseStatusCode: 201,
             responseBody: System.Text.Json.JsonSerializer.Serialize(expectedReplay, JsonOptions),
+            createdAt: DateTime.Now,
             expiresAt: DateTime.Now.AddDays(7));
 
         idemRepo.Setup(x => x.GetByMerchantAndKeyAsync(replayInput.MerchantId, replayInput.IdempotencyKey, It.IsAny<CancellationToken>()))

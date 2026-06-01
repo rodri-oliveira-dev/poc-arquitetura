@@ -27,6 +27,7 @@ public sealed class IdempotencyRecord : Entity
         Guid? ledgerEntryId,
         int responseStatusCode,
         string? responseBody,
+        DateTime createdAt,
         DateTime expiresAt)
     {
         MerchantId = merchantId;
@@ -35,7 +36,7 @@ public sealed class IdempotencyRecord : Entity
         LedgerEntryId = ledgerEntryId;
         ResponseStatusCode = responseStatusCode;
         ResponseBody = responseBody;
-        CreatedAt = DateTime.Now;
+        CreatedAt = createdAt;
         ExpiresAt = expiresAt;
     }
 }

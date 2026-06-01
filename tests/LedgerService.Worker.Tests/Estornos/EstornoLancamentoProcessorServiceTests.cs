@@ -15,7 +15,7 @@ public sealed class EstornoLancamentoProcessorServiceTests
     [Fact]
     public async Task ProcessOnce_should_delegate_pending_estornos_to_mediator()
     {
-        var pending = new EstornoLancamento(Guid.NewGuid(), "m1", "Erro operacional", Guid.NewGuid());
+        var pending = new EstornoLancamento(Guid.NewGuid(), "m1", "Erro operacional", Guid.NewGuid(), DateTime.UtcNow);
         var repo = new Mock<IEstornoLancamentoRepository>(MockBehavior.Strict);
         var sender = new Mock<ISender>(MockBehavior.Strict);
 

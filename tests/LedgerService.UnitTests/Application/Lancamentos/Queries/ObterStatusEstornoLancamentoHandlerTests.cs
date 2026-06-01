@@ -87,7 +87,8 @@ public sealed class ObterStatusEstornoLancamentoHandlerTests
             Guid.NewGuid(),
             "m1",
             "Erro operacional no lancamento original",
-            Guid.NewGuid());
+            Guid.NewGuid(),
+            DateTime.UtcNow);
 
         typeof(EstornoLancamento)
             .GetProperty(nameof(EstornoLancamento.Status), BindingFlags.Instance | BindingFlags.Public)!

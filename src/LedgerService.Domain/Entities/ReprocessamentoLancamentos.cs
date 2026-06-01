@@ -30,7 +30,8 @@ public sealed class ReprocessamentoLancamentos : Entity, IAggregateRoot
         DateOnly dataInicial,
         DateOnly dataFinal,
         string motivo,
-        Guid correlationId)
+        Guid correlationId,
+        DateTime createdAt)
     {
         if (dataFinal < dataInicial)
             throw new DomainException("DataFinal nao pode ser menor que DataInicial.");
@@ -45,7 +46,7 @@ public sealed class ReprocessamentoLancamentos : Entity, IAggregateRoot
             : motivo.Trim();
         Status = ReprocessamentoLancamentosStatus.Pending;
         CorrelationId = correlationId;
-        CreatedAt = DateTime.Now;
+        CreatedAt = createdAt;
     }
 
     public bool IsFinal()

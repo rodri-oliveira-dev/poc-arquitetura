@@ -1,4 +1,5 @@
 using FluentValidation;
+using LedgerService.Application.Abstractions.Time;
 using LedgerService.Application.Common.Behaviors;
 using LedgerService.Application.Common.Observability;
 using LedgerService.Application.Outbox.Retry;
@@ -20,6 +21,7 @@ public static class DependencyInjection
 
         services.AddValidatorsFromAssembly(typeof(DependencyInjection).Assembly);
 
+        services.AddSingleton<IClock, SystemClock>();
         services.AddSingleton<LedgerDomainMetrics>();
         services.AddScoped<CreateLancamentoService>();
         services.AddSingleton<IJitterProvider, CryptographicJitterProvider>();

@@ -29,7 +29,8 @@ public sealed class EstornoLancamento : Entity, IAggregateRoot
         Guid lancamentoOriginalId,
         string merchantId,
         string motivo,
-        Guid correlationId)
+        Guid correlationId,
+        DateTime createdAt)
     {
         if (lancamentoOriginalId == Guid.Empty)
             throw new DomainException("LancamentoOriginalId e obrigatorio.");
@@ -43,7 +44,7 @@ public sealed class EstornoLancamento : Entity, IAggregateRoot
             : motivo.Trim();
         Status = EstornoLancamentoStatus.Pending;
         CorrelationId = correlationId;
-        CreatedAt = DateTime.Now;
+        CreatedAt = createdAt;
     }
 
     public bool IsActive()

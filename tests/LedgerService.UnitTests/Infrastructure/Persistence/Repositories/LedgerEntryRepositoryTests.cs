@@ -23,7 +23,8 @@ public sealed class LedgerEntryRepositoryTests
             occurredAt: occurredAt,
             description: " venda balcao ",
             externalReference: " ext-123 ",
-            correlationId: correlationId);
+            correlationId: correlationId,
+            createdAt: occurredAt);
 
         await repo.AddAsync(entry);
         await db.SaveChangesAsync();

@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
 
+using LedgerService.Application.Abstractions.Time;
 using LedgerService.Application.Common.Exceptions;
 using LedgerService.Application.Common.Observability;
 using LedgerService.Application.Lancamentos.Events;
@@ -25,6 +26,7 @@ public sealed class ProcessarReprocessamentoLancamentosHandler
     private readonly IOutboxMessageRepository _outboxMessageRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<ProcessarReprocessamentoLancamentosHandler> _logger;
+    private readonly IClock _clock;
     private readonly LedgerDomainMetrics? _metrics;
 
     public ProcessarReprocessamentoLancamentosHandler(
@@ -33,6 +35,7 @@ public sealed class ProcessarReprocessamentoLancamentosHandler
         IOutboxMessageRepository outboxMessageRepository,
         IUnitOfWork unitOfWork,
         ILogger<ProcessarReprocessamentoLancamentosHandler> logger,
+        IClock? clock = null,
         LedgerDomainMetrics? metrics = null)
     {
         ArgumentNullException.ThrowIfNull(reprocessamentoRepository);
@@ -46,6 +49,7 @@ public sealed class ProcessarReprocessamentoLancamentosHandler
         _outboxMessageRepository = outboxMessageRepository;
         _unitOfWork = unitOfWork;
         _logger = logger;
+        _clock = clock ?? new SystemClock();
         _metrics = metrics;
     }
 
@@ -97,7 +101,8 @@ public sealed class ProcessarReprocessamentoLancamentosHandler
         }
 
         var previousStatus = reprocessamento.Status;
-        reprocessamento.MarkProcessing(DateTime.Now);
+        var now = _clock.UtcNow.DateTime;
+        reprocessamento.MarkProcessing(now);
 
         var startInclusive = reprocessamento.DataInicial.ToDateTime(TimeOnly.MinValue);
         var endExclusive = reprocessamento.DataFinal.AddDays(1).ToDateTime(TimeOnly.MinValue);
@@ -118,7 +123,7 @@ public sealed class ProcessarReprocessamentoLancamentosHandler
                 entry.Id,
                 LedgerEntryCreatedV1.EventType,
                 outboxPayload,
-                DateTime.Now,
+                now,
                 reprocessamento.CorrelationId,
                 traceContext.TraceParent,
                 traceContext.TraceState,
@@ -131,11 +136,11 @@ public sealed class ProcessarReprocessamentoLancamentosHandler
         {
             reprocessamento.CompleteWithWarnings(
                 "Nenhum lancamento encontrado para o criterio informado.",
-                DateTime.Now);
+                now);
         }
         else
         {
-            reprocessamento.Complete(DateTime.Now);
+            reprocessamento.Complete(now);
         }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -165,7 +170,7 @@ public sealed class ProcessarReprocessamentoLancamentosHandler
             cancellationToken);
         if (reprocessamento is not null && !reprocessamento.IsFinal())
         {
-            reprocessamento.Reject(reason, DateTime.Now);
+            reprocessamento.Reject(reason, _clock.UtcNow.DateTime);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
         }
 
@@ -185,7 +190,7 @@ public sealed class ProcessarReprocessamentoLancamentosHandler
             cancellationToken);
         if (reprocessamento is not null && !reprocessamento.IsFinal())
         {
-            reprocessamento.Fail(reason, DateTime.Now);
+            reprocessamento.Fail(reason, _clock.UtcNow.DateTime);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
         }
 

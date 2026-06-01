@@ -107,6 +107,7 @@ public sealed class SolicitarReprocessamentoLancamentosHandlerTests
                 expected.ReprocessamentoId,
                 202,
                 JsonSerializer.Serialize(expected, JsonOptions),
+                DateTime.Now,
                 DateTime.Now.AddDays(7)));
         tx.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask);
 
