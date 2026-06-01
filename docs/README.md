@@ -35,6 +35,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [Qualidade](quality/README.md): guias de analise estatica e validacoes locais.
 - [k6 load tests](../loadtests/k6/README.md): configuracao dos scripts k6 usados pelos runners.
 - [Revisao Docker e Compose](reports/docker-compose-performance-review.md): diagnostico de build, cache, volumes, desempenho local e limpeza segura.
+- [Revisao de abstracoes](reports/architecture-abstractions-review.md): classificacao de interfaces com implementacao unica e simplificacoes aplicadas.
 
 ## Explicacao
 

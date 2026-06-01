@@ -1,8 +1,10 @@
 using System.Globalization;
 
+using BalanceService.Application.Abstractions.Persistence;
+using BalanceService.Application.Abstractions.Time;
 using BalanceService.Application.Balances.Queries;
 using BalanceService.Application.Balances.Queries.Models;
-using BalanceService.Application.Balances.Services;
+
 using Moq;
 
 namespace BalanceService.UnitTests.Application.Balances.Queries;
@@ -10,11 +12,12 @@ namespace BalanceService.UnitTests.Application.Balances.Queries;
 public sealed class GetDailyBalanceHandlerTests
 {
     [Fact]
-    public async Task Handle_should_delegate_to_daily_balance_service()
+    public async Task Handle_should_return_repository_value_when_found()
     {
-        var service = new Mock<IDailyBalanceService>(MockBehavior.Strict);
+        var repo = new Mock<IDailyBalanceReadRepository>(MockBehavior.Strict);
+        var clock = new Mock<IClock>(MockBehavior.Strict);
         var query = new GetDailyBalanceQuery("m1", new DateOnly(2026, 2, 10));
-        var expected = new DailyBalanceReadModel(
+        var found = new DailyBalanceReadModel(
             MerchantId: query.MerchantId,
             Date: query.Date,
             Currency: "BRL",
@@ -24,14 +27,42 @@ public sealed class GetDailyBalanceHandlerTests
             AsOf: DateTimeOffset.Parse("2026-02-10T10:00:00Z", CultureInfo.InvariantCulture),
             UpdatedAt: DateTimeOffset.Parse("2026-02-10T10:05:00Z", CultureInfo.InvariantCulture));
 
-        service
-            .Setup(x => x.GetDailyAsync(query.MerchantId, query.Date, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(expected);
+        repo.Setup(x => x.GetDailyAsync(query.MerchantId, query.Date, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(found);
 
-        var sut = new GetDailyBalanceHandler(service.Object);
+        var sut = new GetDailyBalanceHandler(repo.Object, clock.Object);
 
         var result = await sut.Handle(query, CancellationToken.None);
-        Assert.Equal(expected, result);
-        service.VerifyAll();
+        Assert.Equal(found, result);
+        clock.VerifyNoOtherCalls();
+        repo.VerifyAll();
+    }
+
+    [Fact]
+    public async Task Handle_should_return_zeros_when_not_found_and_use_clock_utcnow()
+    {
+        var repo = new Mock<IDailyBalanceReadRepository>(MockBehavior.Strict);
+        var clock = new Mock<IClock>(MockBehavior.Strict);
+        var query = new GetDailyBalanceQuery("m1", new DateOnly(2026, 2, 10));
+
+        repo.Setup(x => x.GetDailyAsync(query.MerchantId, query.Date, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((DailyBalanceReadModel?)null);
+
+        var now = DateTimeOffset.Parse("2026-02-10T12:00:00Z", CultureInfo.InvariantCulture);
+        clock.SetupGet(x => x.UtcNow).Returns(now);
+
+        var sut = new GetDailyBalanceHandler(repo.Object, clock.Object);
+
+        var result = await sut.Handle(query, CancellationToken.None);
+        Assert.Equal("m1", result.MerchantId);
+        Assert.Equal(query.Date, result.Date);
+        Assert.Equal("BRL", result.Currency);
+        Assert.Equal(0m, result.TotalCredits);
+        Assert.Equal(0m, result.TotalDebits);
+        Assert.Equal(0m, result.NetBalance);
+        Assert.Equal(DateTimeOffset.MinValue, result.AsOf);
+        Assert.Equal(now, result.UpdatedAt);
+        repo.VerifyAll();
+        clock.VerifyAll();
     }
 }

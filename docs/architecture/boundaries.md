@@ -145,7 +145,7 @@ Operacionalmente, `BalanceService.Api` atende consultas HTTP sobre a projecao; `
 Pontos de atencao:
 
 - MediatR agrega valor moderado: ajuda a separar queries/comandos, mas e mais framework do que o LedgerService usa. Para a POC e aceitavel; se houver poucos casos de uso, pode ser overhead.
-- `IDailyBalanceService` e `IPeriodBalanceService` parecem abstracoes de baixo ganho enquanto houver uma unica implementacao simples. Elas podem ser mantidas se forem usadas em testes e para legibilidade, mas nao devem virar padrao automatico.
+- As consultas diaria e por periodo ficam diretamente em handlers MediatR. As interfaces e services intermediarios foram removidos porque apenas encaminhavam chamadas sem representar boundary ou variacao real.
 - A ausencia de currency no evento obriga default `BRL` no handler. Isso e uma fragilidade de contrato, nao uma regra de dominio consolidada.
 
 ### Auth.Api legado
