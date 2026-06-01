@@ -6,8 +6,8 @@ using LedgerService.Api.Mappers;
 using ApiDefaults.Middlewares;
 using LedgerService.Api.Security;
 using LedgerService.Application.Common.Models;
+using LedgerService.Application.Lancamentos.Commands;
 using LedgerService.Application.Lancamentos.Queries;
-using LedgerService.Application.Lancamentos.Services;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -20,16 +20,13 @@ namespace LedgerService.Api.Controllers;
 [Route("api/v{version:apiVersion}/lancamentos")]
 public sealed class LancamentosController : ControllerBase
 {
-    private readonly CreateLancamentoService _createLancamentoService;
     private readonly IMerchantAuthorizationService _merchantAuthorizationService;
     private readonly ISender _sender;
 
     public LancamentosController(
-        CreateLancamentoService createLancamentoService,
         IMerchantAuthorizationService merchantAuthorizationService,
         ISender sender)
     {
-        _createLancamentoService = createLancamentoService;
         _merchantAuthorizationService = merchantAuthorizationService;
         _sender = sender;
     }
@@ -66,7 +63,7 @@ public sealed class LancamentosController : ControllerBase
         if (!_merchantAuthorizationService.IsAuthorized(User, validRequest.MerchantId))
             return Forbid();
 
-        var created = await _createLancamentoService.ExecuteAsync(validRequest, cancellationToken);
+        var created = await _sender.Send(new CreateLancamentoCommand(validRequest), cancellationToken);
 
         // Ainda não há endpoint GET por id; Location identifica a URI canônica futura do recurso criado.
         return Created($"{Request.Path}/{created.Id}", created);

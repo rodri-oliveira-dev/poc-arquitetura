@@ -3,6 +3,7 @@ using System.Diagnostics;
 using LedgerService.Application.Lancamentos.Events;
 using LedgerService.Application.Common.Exceptions;
 using LedgerService.Application.Common.Models;
+using LedgerService.Application.Lancamentos.Commands;
 using LedgerService.Application.Lancamentos.Inputs.CreateLancamento;
 using LedgerService.Application.Lancamentos.Services;
 using LedgerService.Domain.Entities;
@@ -10,9 +11,9 @@ using LedgerService.Domain.Repositories;
 using LedgerService.UnitTests.Fixtures;
 using Moq;
 
-namespace LedgerService.UnitTests.Application.Lancamentos.Services;
+namespace LedgerService.UnitTests.Application.Lancamentos.Commands;
 
-public sealed class CreateLancamentoServiceTests
+public sealed class CreateLancamentoCommandHandlerTests
 {
     private static readonly System.Text.Json.JsonSerializerOptions JsonOptions = new(System.Text.Json.JsonSerializerDefaults.Web);
 
@@ -54,7 +55,7 @@ public sealed class CreateLancamentoServiceTests
 
         var sut = CreateSut(ledgerRepo.Object, idemRepo.Object, outboxRepo.Object, uow.Object, clock);
 
-        var result = await sut.ExecuteAsync(input, CancellationToken.None);
+        var result = await sut.Handle(new CreateLancamentoCommand(input), CancellationToken.None);
         Assert.Equal("CREDIT", result.Type);
         Assert.Equal(input.MerchantId, result.MerchantId);
         Assert.Equal("10.00", result.Amount);
@@ -147,7 +148,7 @@ public sealed class CreateLancamentoServiceTests
 
         var sut = CreateSut(ledgerRepo.Object, idemRepo.Object, outboxRepo.Object, uow.Object);
 
-        await sut.ExecuteAsync(input, CancellationToken.None);
+        await sut.Handle(new CreateLancamentoCommand(input), CancellationToken.None);
         Assert.NotNull(createdOutbox);
         Assert.Equal(activity.Id, createdOutbox!.TraceParent);
         Assert.Equal("vendor=value", createdOutbox.TraceState);
@@ -189,7 +190,7 @@ public sealed class CreateLancamentoServiceTests
 
         var sut = CreateSut(ledgerRepo.Object, idemRepo.Object, outboxRepo.Object, uow.Object);
 
-        var result = await sut.ExecuteAsync(input, CancellationToken.None);
+        var result = await sut.Handle(new CreateLancamentoCommand(input), CancellationToken.None);
         Assert.Equal("DEBIT", result.Type);
         Assert.Equal("-15.50", result.Amount);
         Assert.NotNull(createdEntry);
@@ -221,7 +222,7 @@ public sealed class CreateLancamentoServiceTests
         uow.Setup(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(tx.Object);
 
-        // requestHash será calculado pelo service; forçamos um hash diferente aqui.
+        // requestHash será calculado pelo handler; forçamos um hash diferente aqui.
         var existing = new IdempotencyRecord(
             merchantId: input.MerchantId,
             idempotencyKey: input.IdempotencyKey,
@@ -239,7 +240,7 @@ public sealed class CreateLancamentoServiceTests
 
         var sut = CreateSut(ledgerRepo.Object, idemRepo.Object, outboxRepo.Object, uow.Object);
 
-        var act = async () => await sut.ExecuteAsync(input, CancellationToken.None);
+        var act = async () => await sut.Handle(new CreateLancamentoCommand(input), CancellationToken.None);
 
         var ex = await Assert.ThrowsAsync<ConflictException>(act);
         Assert.Contains("Idempotency-Key already used with a different payload", ex.Message);
@@ -285,7 +286,7 @@ public sealed class CreateLancamentoServiceTests
 
         var sut = CreateSut(ledgerRepo.Object, idemRepo.Object, outboxRepo.Object, uow.Object);
 
-        var act = async () => await sut.ExecuteAsync(changedInput, CancellationToken.None);
+        var act = async () => await sut.Handle(new CreateLancamentoCommand(changedInput), CancellationToken.None);
 
         var ex = await Assert.ThrowsAsync<ConflictException>(act);
         Assert.Contains("Idempotency-Key already used with a different payload", ex.Message);
@@ -326,7 +327,7 @@ public sealed class CreateLancamentoServiceTests
 
         var sut = CreateSut(ledgerRepo.Object, idemRepo.Object, outboxRepo.Object, uow.Object);
 
-        var result = await sut.ExecuteAsync(input, CancellationToken.None);
+        var result = await sut.Handle(new CreateLancamentoCommand(input), CancellationToken.None);
         Assert.Equal("lan_12345678", result.Id);
         Assert.Equal("CREDIT", result.Type);
         Assert.Equal("10.00", result.Amount);
@@ -363,7 +364,7 @@ public sealed class CreateLancamentoServiceTests
 
         var sut = CreateSut(ledgerRepo.Object, idemRepo.Object, outboxRepo.Object, uow.Object);
 
-        var act = async () => await sut.ExecuteAsync(input, CancellationToken.None);
+        var act = async () => await sut.Handle(new CreateLancamentoCommand(input), CancellationToken.None);
 
         var ex = await Assert.ThrowsAsync<ConflictException>(act);
         Assert.Contains("Unable to replay idempotent response", ex.Message);
@@ -421,7 +422,7 @@ public sealed class CreateLancamentoServiceTests
 
         var sut = CreateSut(ledgerRepo.Object, idemRepo.Object, outboxRepo.Object, uow.Object);
 
-        var result = await sut.ExecuteAsync(replayInput, CancellationToken.None);
+        var result = await sut.Handle(new CreateLancamentoCommand(replayInput), CancellationToken.None);
         Assert.Equal(expectedReplay, result);
         ledgerRepo.VerifyNoOtherCalls();
         outboxRepo.VerifyNoOtherCalls();
@@ -446,7 +447,7 @@ public sealed class CreateLancamentoServiceTests
     private static string? NormalizeOptionalText(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
-    private static CreateLancamentoService CreateSut(
+    private static CreateLancamentoCommandHandler CreateSut(
         ILedgerEntryRepository ledgerEntryRepository,
         IIdempotencyRecordRepository idempotencyRecordRepository,
         IOutboxMessageRepository outboxMessageRepository,

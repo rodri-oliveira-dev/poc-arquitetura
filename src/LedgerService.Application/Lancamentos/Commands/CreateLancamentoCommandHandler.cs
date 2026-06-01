@@ -4,13 +4,16 @@ using LedgerService.Application.Abstractions.Time;
 using LedgerService.Application.Common.Models;
 using LedgerService.Application.Common.Observability;
 using LedgerService.Application.Lancamentos.Inputs.CreateLancamento;
+using LedgerService.Application.Lancamentos.Services;
 using LedgerService.Domain.Entities;
 using LedgerService.Domain.Exceptions;
 using LedgerService.Domain.Repositories;
+using MediatR;
 
-namespace LedgerService.Application.Lancamentos.Services;
+namespace LedgerService.Application.Lancamentos.Commands;
 
-public sealed class CreateLancamentoService
+public sealed class CreateLancamentoCommandHandler
+    : IRequestHandler<CreateLancamentoCommand, LancamentoDto>
 {
     private const string DefaultCurrency = "BRL";
 
@@ -21,7 +24,7 @@ public sealed class CreateLancamentoService
     private readonly IClock _clock;
     private readonly LedgerDomainMetrics? _metrics;
 
-    public CreateLancamentoService(
+    public CreateLancamentoCommandHandler(
         ILedgerEntryRepository ledgerEntryRepository,
         CreateLancamentoIdempotencyService idempotencyService,
         LedgerEntryCreatedOutboxWriter outboxWriter,
@@ -42,36 +45,39 @@ public sealed class CreateLancamentoService
         _metrics = metrics;
     }
 
-    public async Task<LancamentoDto> ExecuteAsync(CreateLancamentoInput request, CancellationToken cancellationToken)
+    public async Task<LancamentoDto> Handle(CreateLancamentoCommand request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        var requestHash = CreateLancamentoIdempotencyService.GenerateRequestHash(request);
+        var input = request.Input;
+        ArgumentNullException.ThrowIfNull(input);
+
+        var requestHash = CreateLancamentoIdempotencyService.GenerateRequestHash(input);
 
         await using var transaction = await _unitOfWork.BeginTransactionAsync(cancellationToken);
 
-        var replay = await _idempotencyService.TryReplayAsync(request, requestHash, cancellationToken);
+        var replay = await _idempotencyService.TryReplayAsync(input, requestHash, cancellationToken);
         if (replay is not null)
             return replay;
 
-        var parsedType = request.Type.Equals("CREDIT", StringComparison.OrdinalIgnoreCase)
+        var parsedType = input.Type.Equals("CREDIT", StringComparison.OrdinalIgnoreCase)
             ? LedgerEntryType.Credit
             : LedgerEntryType.Debit;
 
-        var amount = decimal.Parse(request.Amount, NumberStyles.Number, CultureInfo.InvariantCulture);
+        var amount = decimal.Parse(input.Amount, NumberStyles.Number, CultureInfo.InvariantCulture);
         var occurredAt = _clock.UtcNow.UtcDateTime;
-        var correlationId = Guid.Parse(request.CorrelationId);
+        var correlationId = Guid.Parse(input.CorrelationId);
 
         LedgerEntry ledgerEntry;
         try
         {
             ledgerEntry = new LedgerEntry(
-                request.MerchantId,
+                input.MerchantId,
                 parsedType,
                 amount,
                 occurredAt,
-                request.Description,
-                request.ExternalReference,
+                input.Description,
+                input.ExternalReference,
                 correlationId,
                 occurredAt);
         }
@@ -85,13 +91,13 @@ public sealed class CreateLancamentoService
 
         var response = ToResponse(ledgerEntry);
         await _idempotencyService.AddAsync(
-            request,
+            input,
             requestHash,
             ledgerEntry.Id,
             response,
             occurredAt,
             cancellationToken);
-        await _outboxWriter.WriteAsync(ledgerEntry, response, request.CorrelationId, occurredAt, cancellationToken);
+        await _outboxWriter.WriteAsync(ledgerEntry, response, input.CorrelationId, occurredAt, cancellationToken);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);

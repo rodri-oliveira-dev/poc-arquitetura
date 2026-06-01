@@ -25,7 +25,6 @@ public static class DependencyInjection
         services.AddSingleton<LedgerDomainMetrics>();
         services.AddScoped<CreateLancamentoIdempotencyService>();
         services.AddScoped<LedgerEntryCreatedOutboxWriter>();
-        services.AddScoped<CreateLancamentoService>();
         services.AddSingleton<IJitterProvider, CryptographicJitterProvider>();
         services.AddSingleton<IRetryStrategy, ExponentialBackoffRetryStrategy>();
 
