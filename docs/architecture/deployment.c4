@@ -5,12 +5,12 @@ deployment {
   environment local "Ambiente local" {
     technology "Docker Compose / nerdctl compose"
     summary "Ambiente local da POC definido no compose.yaml."
-    description "Ambiente local executado em Docker Compose, com APIs, workers, bancos, Kafka e stack de observabilidade na rede poc-net."
+    description "Ambiente local executado em Docker Compose, com APIs, workers, bancos, Kafka, Pub/Sub emulator opcional e stack de observabilidade na rede poc-net."
 
     composeNetwork pocNet "poc-net" {
       technology "Docker bridge network"
       summary "Rede bridge compartilhada pelos servicos do compose local."
-      description "Rede Docker Compose usada para comunicacao interna entre APIs, workers, bancos, Kafka e observabilidade."
+      description "Rede Docker Compose usada para comunicacao interna entre APIs, workers, bancos, Kafka, Pub/Sub emulator opcional e observabilidade."
 
       composeService keycloak "keycloak" {
         technology "Docker container / Keycloak"
@@ -125,6 +125,16 @@ deployment {
       composeService kafkaInitTopics "kafka-init-topics" {
         technology "Apache Kafka 3.7.0 / init container"
         description "Container auxiliar e idempotente que cria os topicos Kafka locais apos o broker ficar saudavel; nao possui elemento logico proprio."
+      }
+
+      composeService pubsubEmulator "pubsub-emulator" {
+        technology "Google Cloud CLI / Pub/Sub emulator"
+        description "Servico Docker Compose opcional definido em compose.pubsub.yaml para validar Messaging:Provider=PubSub localmente, fora do Terraform, exposto na porta 8085 do host."
+      }
+
+      composeService pubsubInit "pubsub-init" {
+        technology "curl / init container"
+        description "Container auxiliar e idempotente do overlay compose.pubsub.yaml que cria topic principal, topic de DLQ e subscription pull do BalanceService.Worker no Pub/Sub emulator."
       }
 
       composeService jaeger "jaeger" {

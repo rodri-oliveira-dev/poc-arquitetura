@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 
+using Google.Api.Gax;
 using Google.Cloud.PubSub.V1;
 using Google.Protobuf;
 
@@ -163,6 +164,7 @@ internal sealed class GooglePubSubPublisherClientFactory : IPubSubPublisherClien
     {
         PublisherClientBuilder builder = new()
         {
+            EmulatorDetection = EmulatorDetection.EmulatorOrProduction,
             TopicName = TopicName.FromProjectTopic(projectId, topicId),
             Settings = new PublisherClient.Settings
             {

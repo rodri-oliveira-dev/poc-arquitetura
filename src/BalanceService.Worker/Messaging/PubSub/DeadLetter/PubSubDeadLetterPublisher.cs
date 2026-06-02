@@ -3,6 +3,7 @@ using System.Text.Json;
 using BalanceService.Worker.Messaging.Abstractions;
 using BalanceService.Worker.Messaging.PubSub.Configuration;
 
+using Google.Api.Gax;
 using Google.Cloud.PubSub.V1;
 using Google.Protobuf;
 
@@ -150,6 +151,7 @@ internal sealed class GooglePubSubDeadLetterPublisherClientFactory : IPubSubDead
     {
         PublisherClientBuilder builder = new()
         {
+            EmulatorDetection = EmulatorDetection.EmulatorOrProduction,
             TopicName = TopicName.FromProjectTopic(projectId, topicId)
         };
 

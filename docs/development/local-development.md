@@ -50,6 +50,11 @@ O compose usa defaults ficticios para desenvolvimento local. Para sobrescrever, 
 - `KEYCLOAK_SCOPE=`
 - `KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME=local_admin`
 - `KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD=local_admin_password`
+- `PUBSUB_EMULATOR_HOST_PORT=8085`
+- `PUBSUB_PROJECT_ID=poc-local`
+- `PUBSUB_LEDGER_EVENTS_TOPIC_ID=ledger.ledgerentry.created.local`
+- `PUBSUB_LEDGER_EVENTS_DLQ_TOPIC_ID=ledger.ledgerentry.created.dlq.local`
+- `PUBSUB_BALANCE_SUBSCRIPTION_ID=balance-service-ledger-events-local`
 
 As variaveis `AUTH_POC_USERNAME`, `AUTH_POC_PASSWORD` e `AUTH_POC_SCOPE` continuam aceitas apenas pelo overlay legado `compose.auth-legacy.yaml`.
 
@@ -80,6 +85,7 @@ Componentes opcionais ficam em arquivos Compose separados:
 - `compose.nginx.yaml`: borda local Nginx opcional;
 - `compose.sonar.yaml` com profile `quality`: SonarQube local;
 - `compose.auth-legacy.yaml` com profile `legacy-auth`: `Auth.Api` legado.
+- `compose.pubsub.yaml`: Pub/Sub emulator local, init idempotente dos recursos e overrides dos workers para `Messaging:Provider=PubSub`.
 
 Tambem existe um overlay opcional `compose.nginx.yaml` para adicionar uma borda local com Nginx e HTTPS em desenvolvimento. Ele nao faz parte do core funcional e nao altera as APIs, que continuam rodando internamente em HTTP com `ASPNETCORE_URLS=http://+:8080`. Quando o overlay e usado, o Nginx cria um upstream local `ledger_api` com duas instancias da `LedgerService.Api` e algoritmo `least_conn`. O `Auth.Api` foi removido do core funcional e permanece apenas no overlay legado `compose.auth-legacy.yaml`.
 
@@ -134,6 +140,55 @@ OTEL_ENABLED=true docker compose -f compose.yaml -f compose.observability.yaml -
 ```
 
 `OTEL_ENABLED=true` habilita as aplicacoes a exportarem traces e metricas para `otel-collector:4317`. Sem essa variavel, os backends de observabilidade podem subir, mas as aplicacoes permanecem com OpenTelemetry desabilitado para manter o core funcional leve.
+
+### Pub/Sub emulator local
+
+O provider Kafka permanece como default no `compose.yaml`. Para validar localmente o provider alternativo Pub/Sub sem remover Kafka, use o overlay `compose.pubsub.yaml` pelos scripts dedicados:
+
+```powershell
+./scripts/start-local-stack-pubsub.ps1
+```
+
+No Linux/macOS:
+
+```bash
+./scripts/start-local-stack-pubsub.sh
+```
+
+Os scripts reaproveitam o fluxo padrao: sobem infraestrutura, restauram tools .NET, aplicam migrations pelo host e iniciam APIs e workers. O overlay adiciona:
+
+- `pubsub-emulator`, exposto no host em `localhost:8085` por padrao;
+- `pubsub-init`, que cria idempotentemente o topic principal, o topic de DLQ e a subscription pull do `BalanceService.Worker`;
+- `PUBSUB_EMULATOR_HOST=pubsub-emulator:8085` e `PUBSUB_PROJECT_ID` nos workers que usam Pub/Sub;
+- overrides `PubSub__Producer__*`, `PubSub__Consumer__*` e `Messaging__Provider=PubSub`.
+
+Os nomes locais seguem a configuracao de `.env.example` e podem ser sobrescritos por `.env`:
+
+| Recurso | Default local |
+| --- | --- |
+| Projeto do emulator | `poc-local` |
+| Topic principal | `ledger.ledgerentry.created.local` |
+| Topic de DLQ | `ledger.ledgerentry.created.dlq.local` |
+| Subscription do Balance | `balance-service-ledger-events-local` |
+
+O emulator e descartavel, nao usa credenciais GCP e fica fora do Terraform. Ele nao reproduz integralmente comportamento, limites e garantias do servico real. O overlay mantem Kafka disponivel na stack para preservar o caminho local existente e permitir comparacao entre providers.
+
+Para combinar Pub/Sub emulator e observabilidade:
+
+```powershell
+./scripts/start-local-stack-pubsub.ps1 -Observability
+```
+
+```bash
+OBSERVABILITY=true ./scripts/start-local-stack-pubsub.sh
+```
+
+Para inspecionar a configuracao Compose efetiva sem subir containers:
+
+```bash
+docker compose -f compose.yaml -f compose.pubsub.yaml config
+docker compose -f compose.yaml -f compose.pubsub.yaml config --services
+```
 
 O socket Docker, mesmo montado como somente leitura, e uma superficie sensivel. Use o profile `observability` apenas em maquina local confiavel; nao use em ambiente compartilhado ou produtivo sem redesenhar a coleta de logs e revisar permissoes.
 
@@ -585,6 +640,7 @@ Portas expostas no host:
 | PostgreSQL Ledger | `localhost:15432` |
 | PostgreSQL Balance | `localhost:15433` |
 | Kafka | `localhost:19092` |
+| Pub/Sub emulator | `localhost:8085` com `compose.pubsub.yaml` |
 | Jaeger UI | `http://localhost:16686/` com profile `observability` |
 | Jaeger OTLP | `localhost:4317` e `localhost:4318` com profile `observability`, para diagnostico direto |
 | OpenTelemetry Collector OTLP | `otel-collector:4317` e `otel-collector:4318` na rede interna do compose, com profile `observability` |

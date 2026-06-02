@@ -15,7 +15,7 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 
 | ADR                                                                   | Status      | Resumo                                                                                           |
 | --------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------ |
-| [ADR-0077](./0077-pubsub-provider-mensageria.md) | Proposto | Define Pub/Sub como provider alternativo futuro, mantendo Kafka atual, Outbox, idempotencia e semanticas explicitas por adapter. |
+| [ADR-0077](./0077-pubsub-provider-mensageria.md) | Proposto | Define adocao incremental de Pub/Sub como provider alternativo, mantendo Kafka atual, Outbox, idempotencia e semanticas explicitas por adapter. |
 | [ADR-0076](./0076-formalizar-contrato-ledger-entry-created-v1.md) | Aceito | Formaliza `LedgerEntryCreated.v1` em JSON Schema e mantem `BRL` como limitacao conhecida fora do payload. |
 | [ADR-0075](./0075-mensageria-ports-adapters-kafka-provider.md) | Aceito | Define boundary de mensageria por ports and adapters, com `Messaging:Provider=Kafka` como provider atual e Pub/Sub fora do escopo. |
 | [ADR-0074](./0074-keycloak-como-identidade-principal.md) | Aceito | Define Keycloak como identidade principal, remove Auth.Api da stack principal e o mantem apenas como legado por overlay. |

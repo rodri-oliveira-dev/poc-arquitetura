@@ -92,6 +92,20 @@ OBSERVABILITY=true ./scripts/start-local-stack.sh
 
 A observabilidade fica no overlay `compose.observability.yaml`. O modo padrao de desenvolvimento nao sobe Jaeger, Collector, Prometheus, Loki, Alloy, Alertmanager nem Grafana, mas continua subindo `ledger-worker` e `balance-worker` para preservar o fluxo ponta a ponta.
 
+Para validar o provider alternativo com Pub/Sub emulator local, mantendo Kafka disponivel:
+
+```powershell
+./scripts/start-local-stack-pubsub.ps1
+```
+
+No Linux/macOS:
+
+```bash
+./scripts/start-local-stack-pubsub.sh
+```
+
+Esse fluxo aplica o overlay `compose.pubsub.yaml`, cria topic principal, topic de DLQ e subscription do Balance de forma idempotente e inicia os workers com `Messaging:Provider=PubSub`. Detalhes ficam em [desenvolvimento local](docs/development/local-development.md#pubsub-emulator-local).
+
 Para subir a stack completa com observabilidade e Nginx HTTPS local, gere antes os certificados em `infra/nginx/certs/` conforme [desenvolvimento local](docs/development/local-development.md#borda-local-https-com-nginx):
 
 ```powershell
@@ -119,6 +133,7 @@ Se houver containers antigos ou rede local presa do proprio projeto, o script pe
 | Analise SonarQube local | `bash scripts/sonar-analyze.sh` |
 | Stack local minima | `./scripts/start-local-stack.ps1` ou `./scripts/start-local-stack.sh` |
 | Stack com observabilidade | `./scripts/start-local-stack.ps1 -Observability` ou `OBSERVABILITY=true ./scripts/start-local-stack.sh` |
+| Stack local com Pub/Sub emulator | `./scripts/start-local-stack-pubsub.ps1` ou `./scripts/start-local-stack-pubsub.sh` |
 | Stack completa com Nginx | `./scripts/start-full-stack.ps1` ou `./scripts/start-full-stack.sh` |
 | Parar stack completa | `./scripts/stop-full-stack.ps1` ou `./scripts/stop-full-stack.sh` |
 | Diagnosticar disco Docker | `./scripts/docker-disk-report.ps1` ou `./scripts/docker-disk-report.sh` |

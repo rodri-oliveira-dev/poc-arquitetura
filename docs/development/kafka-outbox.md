@@ -20,6 +20,8 @@ Configuracao neutra:
 
 Para a publicacao Pub/Sub do Ledger e o consumo Pub/Sub do Balance, use `Messaging:Provider=PubSub`. A configuracao `PubSub:Enabled=false` desliga os hosted services relacionados a Pub/Sub de forma equivalente ao flag Kafka.
 
+Para executar esse provider localmente com Pub/Sub emulator, use `./scripts/start-local-stack-pubsub.ps1` no Windows ou `./scripts/start-local-stack-pubsub.sh` no Linux/macOS. O overlay `compose.pubsub.yaml` define `PUBSUB_EMULATOR_HOST`, configura `PUBSUB_PROJECT_ID` e cria topic principal, topic de DLQ e subscription do Balance de forma idempotente. O setup detalhado fica em [desenvolvimento local](local-development.md#pubsub-emulator-local).
+
 ## Fluxo
 
 1. `LedgerService.Api` cria um lancamento, registra uma solicitacao de estorno ou registra uma solicitacao de reprocessamento.

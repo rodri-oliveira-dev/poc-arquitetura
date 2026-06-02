@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
   [string]$ComposeFile = "",
+  [string]$OverlayFile = "",
   [switch]$NoBuild,
   [switch]$Observability
 )
@@ -74,6 +75,15 @@ function Invoke-DockerCompose([string[]]$Arguments) {
   }
 }
 
+function Get-ComposeArguments {
+  $arguments = @("compose", "-f", $ComposeFile)
+  if (-not [string]::IsNullOrWhiteSpace($OverlayFile)) {
+    $arguments += @("-f", $OverlayFile)
+  }
+
+  return $arguments
+}
+
 function Invoke-Dotnet([string[]]$Arguments) {
   & dotnet @Arguments
   if ($LASTEXITCODE -ne 0) {
@@ -82,8 +92,9 @@ function Invoke-Dotnet([string[]]$Arguments) {
 }
 
 function Wait-Database([string]$Service, [string]$User, [string]$Database) {
+  $composeArguments = @(Get-ComposeArguments)
   for ($i = 1; $i -le 60; $i++) {
-    & docker compose -f $ComposeFile exec -T $Service pg_isready -U $User -d $Database *> $null
+    & docker @composeArguments exec -T $Service pg_isready -U $User -d $Database *> $null
     if ($LASTEXITCODE -eq 0) {
       return
     }
@@ -95,10 +106,11 @@ function Wait-Database([string]$Service, [string]$User, [string]$Database) {
 }
 
 function Assert-BalanceDatabaseAuthentication {
+  $composeArguments = @(Get-ComposeArguments)
   $previousErrorActionPreference = $ErrorActionPreference
   try {
     $ErrorActionPreference = "Continue"
-    & docker compose -f $ComposeFile exec -T `
+    & docker @composeArguments exec -T `
       -e "PGPASSWORD=$balanceDbPassword" `
       "balance-db" `
       psql -h $balanceDbHost -U $balanceDbUser -d $balanceDbName -v "ON_ERROR_STOP=1" -c "select 1;" 1>$null 2>$null
@@ -155,9 +167,9 @@ try {
 
   Invoke-Dotnet @("tool", "restore")
 
-  $infraArgs = @("compose", "-f", $ComposeFile, "up", "-d")
+  $infraArgs = @(Get-ComposeArguments) + @("up", "-d")
   if ($Observability) {
-    $infraArgs = @("compose", "-f", $ComposeFile, "-f", $composeObservabilityFile, "--profile", "observability", "up", "-d")
+    $infraArgs = @(Get-ComposeArguments) + @("-f", $composeObservabilityFile, "--profile", "observability", "up", "-d")
   }
 
   if (-not $NoBuild) {
@@ -200,9 +212,9 @@ try {
     "src/BalanceService.Api/BalanceService.Api.csproj" `
     "BalanceDbContext"
 
-  $apiArgs = @("compose", "-f", $ComposeFile, "up", "-d")
+  $apiArgs = @(Get-ComposeArguments) + @("up", "-d")
   if ($Observability) {
-    $apiArgs = @("compose", "-f", $ComposeFile, "-f", $composeObservabilityFile, "--profile", "observability", "up", "-d")
+    $apiArgs = @(Get-ComposeArguments) + @("-f", $composeObservabilityFile, "--profile", "observability", "up", "-d")
   }
 
   if (-not $NoBuild) {

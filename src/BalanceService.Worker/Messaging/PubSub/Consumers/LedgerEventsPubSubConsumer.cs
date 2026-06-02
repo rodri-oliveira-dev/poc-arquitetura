@@ -1,6 +1,7 @@
 using BalanceService.Worker.Messaging.Processors;
 using BalanceService.Worker.Messaging.PubSub.Configuration;
 
+using Google.Api.Gax;
 using Google.Cloud.PubSub.V1;
 
 using Microsoft.Extensions.Hosting;
@@ -145,6 +146,7 @@ internal sealed class GooglePubSubSubscriberClientFactory : IPubSubSubscriberCli
     {
         SubscriberClientBuilder builder = new()
         {
+            EmulatorDetection = EmulatorDetection.EmulatorOrProduction,
             SubscriptionName = SubscriptionName.FromProjectSubscription(projectId, subscriptionId),
             ClientCount = subscriberClientCount
         };

@@ -12,11 +12,11 @@ O projeto usa Kafka como provider atual para publicar eventos do `LedgerService`
 Para permitir uma migracao gradual para Google Cloud Pub/Sub, o projeto precisa registrar como esse novo adapter sera introduzido sem substituir Kafka imediatamente e sem perder as garantias atuais de publicacao e consumo.
 
 ## Decisao
-Implementar Google Cloud Pub/Sub em uma etapa posterior como provider alternativo de mensageria:
+Implementar Google Cloud Pub/Sub de forma incremental como provider alternativo de mensageria:
 
 - Kafka permanece funcionando como provider atual.
-- A configuracao `Messaging:Provider` passara a aceitar `PubSub` quando o adapter estiver implementado.
-- O adapter Pub/Sub sera adicionado nas composition roots e nos boundaries definidos pela ADR-0075, sem substituir Kafka de forma imediata.
+- A configuracao `Messaging:Provider` aceita `PubSub` quando o adapter correspondente esta configurado.
+- O adapter Pub/Sub sera completado nas composition roots e nos boundaries definidos pela ADR-0075, sem substituir Kafka de forma imediata.
 - A Outbox sera preservada para publicacao confiavel.
 - Os consumidores continuarao idempotentes para tratar entregas repetidas.
 - Metadados de correlacao, rastreamento, tipo de evento e idempotencia serao transportados por attributes do Pub/Sub no lugar de headers Kafka.
@@ -41,7 +41,7 @@ A DLQ de aplicacao permanece distinta e continua cobrindo mensagens invalidas, c
 ## Provisionamento e desenvolvimento local
 Os recursos reais do Pub/Sub na GCP serao provisionados com Terraform, incluindo topics, subscriptions, dead-letter topics, dead-letter subscriptions e configuracoes necessarias ao provider.
 
-Para desenvolvimento local, sera usado o Pub/Sub emulator. O emulator fica fora do Terraform: sua inicializacao e configuracao pertencem ao setup local da POC, sem representar o provisionamento real da GCP.
+Como primeira entrega operacional, o desenvolvimento local usa o Pub/Sub emulator pelo overlay `compose.pubsub.yaml` e pelos scripts `scripts/start-local-stack-pubsub.*`. O emulator fica fora do Terraform: sua inicializacao e configuracao pertencem ao setup local da POC, sem representar o provisionamento real da GCP.
 
 ## Consequencias
 
@@ -58,10 +58,9 @@ Para desenvolvimento local, sera usado o Pub/Sub emulator. O emulator fica fora 
 - Ordering keys devem ser habilitadas apenas nos fluxos que realmente exigirem ordenacao por agregado.
 
 ## Fora do escopo
-- Implementar o adapter Pub/Sub nesta etapa.
 - Alterar o valor padrao de `Messaging:Provider`.
 - Remover Kafka.
-- Criar recursos Terraform ou configurar o Pub/Sub emulator.
+- Usar Terraform para configurar o Pub/Sub emulator.
 
 ## Validacao esperada
 A implementacao futura deve validar:

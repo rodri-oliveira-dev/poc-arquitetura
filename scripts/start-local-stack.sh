@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_FILE="${COMPOSE_FILE:-$ROOT_DIR/compose.yaml}"
+COMPOSE_OVERLAY_FILE="${COMPOSE_OVERLAY_FILE:-}"
 COMPOSE_OBSERVABILITY_FILE="${COMPOSE_OBSERVABILITY_FILE:-$ROOT_DIR/compose.observability.yaml}"
 NO_BUILD="${NO_BUILD:-false}"
 OBSERVABILITY="${OBSERVABILITY:-false}"
@@ -46,13 +47,18 @@ BALANCE_DB_USER="$(get_local_config_value BALANCE_DB_USER userBalance)"
 BALANCE_DB_PASSWORD="$(get_local_config_value BALANCE_DB_PASSWORD local_dev_password)"
 BALANCE_DB_HOST_PORT="$(get_local_config_value BALANCE_DB_HOST_PORT 15433)"
 
+compose_files=(-f "$COMPOSE_FILE")
+if [[ -n "$COMPOSE_OVERLAY_FILE" ]]; then
+  compose_files+=(-f "$COMPOSE_OVERLAY_FILE")
+fi
+
 wait_database() {
   local service="$1"
   local user="$2"
   local database="$3"
 
   for _ in $(seq 1 60); do
-    if docker compose -f "$COMPOSE_FILE" exec -T "$service" pg_isready -U "$user" -d "$database" >/dev/null 2>&1; then
+    if docker compose "${compose_files[@]}" exec -T "$service" pg_isready -U "$user" -d "$database" >/dev/null 2>&1; then
       return 0
     fi
 
@@ -64,7 +70,7 @@ wait_database() {
 }
 
 assert_balance_database_authentication() {
-  if ! docker compose -f "$COMPOSE_FILE" exec -T \
+  if ! docker compose "${compose_files[@]}" exec -T \
     -e "PGPASSWORD=$BALANCE_DB_PASSWORD" \
     balance-db \
     psql -h "$BALANCE_DB_HOST" -U "$BALANCE_DB_USER" -d "$BALANCE_DB_NAME" -v "ON_ERROR_STOP=1" -c "select 1;" >/dev/null 2>&1; then
@@ -105,10 +111,10 @@ cd "$ROOT_DIR"
 
 dotnet tool restore
 
-compose_up=(docker compose -f "$COMPOSE_FILE" up -d)
+compose_up=(docker compose "${compose_files[@]}" up -d)
 if [[ "$OBSERVABILITY" == "true" ]]; then
   export OTEL_ENABLED="${OTEL_ENABLED:-true}"
-  compose_up=(docker compose -f "$COMPOSE_FILE" -f "$COMPOSE_OBSERVABILITY_FILE" --profile observability up -d)
+  compose_up=(docker compose "${compose_files[@]}" -f "$COMPOSE_OBSERVABILITY_FILE" --profile observability up -d)
 fi
 
 if [[ "$NO_BUILD" != "true" ]]; then
@@ -142,9 +148,9 @@ run_migration \
   "src/BalanceService.Api/BalanceService.Api.csproj" \
   "BalanceDbContext"
 
-api_up=(docker compose -f "$COMPOSE_FILE" up -d)
+api_up=(docker compose "${compose_files[@]}" up -d)
 if [[ "$OBSERVABILITY" == "true" ]]; then
-  api_up=(docker compose -f "$COMPOSE_FILE" -f "$COMPOSE_OBSERVABILITY_FILE" --profile observability up -d)
+  api_up=(docker compose "${compose_files[@]}" -f "$COMPOSE_OBSERVABILITY_FILE" --profile observability up -d)
 fi
 
 if [[ "$NO_BUILD" != "true" ]]; then
