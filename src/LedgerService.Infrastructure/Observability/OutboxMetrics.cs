@@ -50,15 +50,15 @@ public sealed class OutboxMetrics : IDisposable
         _messagesPublished = _meter.CreateCounter<long>(
             MessagesPublishedMetricName,
             unit: "1",
-            description: "Total de mensagens Outbox publicadas ou tentadas no Kafka por resultado.");
+            description: "Total de mensagens Outbox publicadas ou tentadas por resultado.");
         _publishDuration = _meter.CreateHistogram<double>(
             PublishDurationMetricName,
             unit: "ms",
-            description: "Duracao da operacao tecnica de publicacao de uma mensagem Outbox no Kafka.");
+            description: "Duracao da operacao tecnica de publicacao de uma mensagem Outbox.");
         _publishAttempts = _meter.CreateCounter<long>(
             PublishAttemptsMetricName,
             unit: "1",
-            description: "Total de tentativas tecnicas de publicacao de mensagens Outbox no Kafka.");
+            description: "Total de tentativas tecnicas de publicacao de mensagens Outbox.");
         _meter.CreateObservableGauge(
             MessagesPendingMetricName,
             () => ObserveOutboxStatus(OutboxStatus.Pending),

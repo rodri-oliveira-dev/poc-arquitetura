@@ -127,13 +127,75 @@ function Wait-ComposeServiceHealthy([string]$Service, [int]$TimeoutSeconds = 240
   throw "Timeout aguardando $Service ficar healthy. Ultimo health: $lastHealth"
 }
 
+function Assert-LocalPubSubStack {
+  $config = (& docker compose -f $ComposeFile config | Out-String)
+  if ($LASTEXITCODE -ne 0) { throw "docker compose config falhou ao validar Pub/Sub local." }
+
+  foreach ($expected in @(
+    "Messaging__Provider: PubSub",
+    "PUBSUB_EMULATOR_HOST: pubsub-emulator:8085"
+  )) {
+    if (-not $config.Contains($expected)) {
+      throw "Stack k6 deve usar Pub/Sub emulator local. Configuracao ausente: $expected"
+    }
+  }
+
+  $runningServices = @(& docker compose -f $ComposeFile ps --status running --services)
+  if ($LASTEXITCODE -ne 0) { throw "docker compose ps falhou ao validar Pub/Sub local." }
+
+  foreach ($service in @("pubsub-emulator", "ledger-worker", "balance-worker")) {
+    if ($runningServices -notcontains $service) {
+      throw "Servico obrigatorio para k6 local nao esta em execucao: $service. Suba ./scripts/start-local-stack.ps1 antes do teste."
+    }
+  }
+
+  $pubSubInitJson = & docker compose -f $ComposeFile ps -a pubsub-init --format json
+  if ($LASTEXITCODE -ne 0) { throw "docker compose ps falhou ao validar pubsub-init." }
+  $pubSubInit = $pubSubInitJson | ConvertFrom-Json
+  if ([string]$pubSubInit.State -ne "exited" -or [int]$pubSubInit.ExitCode -ne 0) {
+    throw "pubsub-init nao concluiu com sucesso. Confira: docker compose logs pubsub-init"
+  }
+}
+
+function Get-PostgresCount([string]$Service, [string]$User, [string]$Database, [string]$Sql) {
+  $value = & docker compose -f $ComposeFile exec -T $Service psql -U $User -d $Database -t -A -c $Sql
+  if ($LASTEXITCODE -ne 0) { throw "Falha ao consultar $Service durante validacao do smoke Pub/Sub." }
+  return [int](($value | Out-String).Trim())
+}
+
+function Get-AsyncFlowCounts {
+  $balanceUser = Get-LocalConfigValue "BALANCE_DB_USER" "userBalance"
+  $balanceDatabase = Get-LocalConfigValue "BALANCE_DB_NAME" "dbBalance"
+  return @{
+    OutboxProcessed = (Get-PostgresCount "ledger-db" "appuser" "appdb" "SELECT COUNT(*) FROM outbox_messages WHERE event_type = 'LedgerEntryCreated.v1' AND status = 'Processed';")
+    BalanceProcessed = (Get-PostgresCount "balance-db" $balanceUser $balanceDatabase "SELECT COUNT(*) FROM processed_events;")
+  }
+}
+
+function Wait-AsyncFlowProgress([hashtable]$Before, [int]$TimeoutSeconds = 90) {
+  $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+  do {
+    $current = Get-AsyncFlowCounts
+    if ($current.OutboxProcessed -gt $Before.OutboxProcessed -and $current.BalanceProcessed -gt $Before.BalanceProcessed) {
+      Write-Host "OK. Smoke Pub/Sub publicou Outbox e projetou evento no Balance."
+      return
+    }
+
+    Start-Sleep -Seconds 2
+  } while ((Get-Date) -lt $deadline)
+
+  throw "Timeout aguardando publish/consume via Pub/Sub emulator apos smoke k6."
+}
+
 # a) gerar env
 powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "scripts\compose-env.ps1") -ComposeFile $ComposeFile -OutFile $EnvFile | Out-Host
+
+Assert-LocalPubSubStack
 
 # Aplica o override de carga nas APIs antes de executar o k6. O compose.k6.yaml
 # mantem os testes apontando para as APIs HTTP e aumenta apenas limites tecnicos
 # que poderiam transformar o cenario de throughput em teste de rate limiting.
-& docker compose -f $ComposeFile -f $ComposeK6File up -d --no-build --force-recreate keycloak ledger-service balance-service
+& docker compose -f $ComposeFile -f $ComposeK6File up -d --no-build --force-recreate ledger-service balance-service
 if ($LASTEXITCODE -ne 0) { throw "docker compose falhou ao aplicar override k6: $LASTEXITCODE" }
 
 Wait-ComposeServiceHealthy "keycloak"
@@ -263,7 +325,9 @@ function Run-K6([string]$scenarioName, [string]$scriptPath, [hashtable]$envVars)
 
 switch ($Mode) {
   "smoke" {
+    $asyncFlowBefore = Get-AsyncFlowCounts
     Run-K6 "ledger_resilience" "scenarios/ledger_resilience.js" @{ TOKEN = $token; VUS = "1"; DURATION = "10s" }
+    Wait-AsyncFlowProgress $asyncFlowBefore
     Run-K6 "balance_daily_50rps" "scenarios/balance_daily_50rps.js" @{ TOKEN = $token; RATE = "1"; DURATION = "10s"; PREALLOCATED_VUS = "5"; MAX_VUS = "10" }
   }
   "balance50" {

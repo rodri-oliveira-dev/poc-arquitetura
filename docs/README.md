@@ -5,7 +5,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 ## Tutorial
 
 - [README do projeto](../README.md): problema, solucao, quickstart, comandos principais e links.
-- [Desenvolvimento local](development/local-development.md): compose, portas, migrations, execucao no host, VS Code, Testcontainers e load tests.
+- [Desenvolvimento local](development/local-development.md): compose, Pub/Sub emulator padrao, Kafka legado opcional, portas, migrations, execucao no host, VS Code, Testcontainers e load tests.
 - [Dev Container opcional](development/devcontainer.md): ambiente VS Code conteinerizado sem substituir o fluxo local do host.
 - [FAQ](faq.md): respostas curtas para as duvidas mais provaveis de leitura tecnica.
 - [Maturidade tecnica da POC](maturity.md): criterios atuais de documentacao, seguranca, testes, CI, observabilidade e pendencias.
@@ -13,12 +13,17 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 ## How-to
 
 - [Autenticacao e autorizacao](development/authentication.md): obter token local, validar scopes, audiences e autorizacao por merchant.
-- [Kafka, Outbox e DLQ](development/kafka-outbox.md): validar mensageria, provider Kafka atual, publicacao, consumo, DLQ, requeue e fluxos assincronos.
+- [Mensageria, Outbox e DLQ](development/kafka-outbox.md): validar Pub/Sub principal, Kafka legado opcional, publicacao, consumo, DLQ, requeue e fluxos assincronos.
 - [Cobertura de testes](development/test-coverage.md): executar testes com cobertura, interpretar falhas e entender os gates de 85% global e dos workers.
 - [SonarQube local](quality/sonarqube.md): subir SonarQube com Docker Compose e executar analise estatica local.
 - [Mutation testing com Stryker.NET](development/mutation-testing-stryker.md): executar mutation testing local e interpretar relatorios.
 - [OWASP ZAP local](development/owasp-zap.md): executar DAST baseline local contra Ledger e Balance, com Auth.Api legado apenas opcional, salvando relatorios em `zap-reports/`.
 - [Git hooks locais](development/git-hooks.md): instalar e entender `commit-msg`, `post-merge` e `pre-push`.
+- [Setup local Terraform e GCP](development/terraform-gcp-local-setup.md): instalar Terraform CLI, Google Cloud CLI e TFLint no Windows e executar validacoes locais seguras.
+- [Checklist manual para primeiro apply Pub/Sub em GCP dev](development/pubsub-gcp-dev-apply-checklist.md): preparar projeto descartavel, revisar plano, autorizar apply manualmente e limpar recursos apos a validacao.
+- [Contrato Pub/Sub entre infraestrutura e aplicacao](development/pubsub-infra-app-contract.md): mapear outputs Terraform para options dos workers, IAM minimo e checklist para GCP real.
+- [Custo e free tier do Pub/Sub](development/pubsub-cost-and-free-tier.md): estimar throughput, identificar recursos que podem gerar custo e coletar dados para uma estimativa real.
+- [Operacao do Pub/Sub](operations/pubsub.md): selecionar provider, subir emulator, aplicar Terraform dev manualmente, configurar workers e diagnosticar falhas comuns.
 - [Validacao de pull requests](development/pull-request-validation.md): entender checks obrigatorios, workflows e branch protection.
 - [GitHub Pages e LikeC4](development/github-pages.md): gerar e publicar a documentacao arquitetural.
 - [Releases e versionamento](development/releases.md): SemVer com GitVersion, commits semanticos, tags e GitHub Releases.
@@ -44,7 +49,9 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [Boundaries arquiteturais](architecture/boundaries.md): responsabilidades de `Api`, `Application`, `Domain` e `Infrastructure`.
 - [Analise arquitetural e decisoes recomendadas](architecture/decisions.md): riscos, simplificacoes e roadmap pragmatico.
 - [ADRs](adrs/README.md): historico de decisoes arquiteturais e pontos de melhoria.
-- [Mensageria por ports and adapters](adrs/0075-mensageria-ports-adapters-kafka-provider.md): Kafka como provider atual e Pub/Sub apenas como adapter futuro.
+- [Mensageria por ports and adapters](adrs/0075-mensageria-ports-adapters-kafka-provider.md): historico da introducao do boundary quando Kafka ainda era o provider atual.
+- [Pub/Sub como provider principal](adrs/0078-pubsub-provider-principal-local-emulator.md): adota Pub/Sub como caminho principal, emulator como default local e Kafka como opcao legada.
+- [Pub/Sub como provider alternativo](adrs/0077-pubsub-provider-mensageria.md): historico do plano incremental que precedeu a adocao principal.
 - [Plano de migracao Auth.Api para Keycloak/OIDC](adrs/0073-plano-migracao-auth-api-keycloak-oidc.md): execucao incremental mantendo validacao JWT offline via JWKS.
 - [Keycloak como identidade principal](adrs/0074-keycloak-como-identidade-principal.md): decisao final de remover Auth.Api da stack principal e mante-lo apenas como legado por overlay.
 - [Avaliacao de .NET Aspire e riscos OWASP](reports/aspire-and-owasp-assessment.md): relatorio historico de contexto, nao estado operacional mais recente.

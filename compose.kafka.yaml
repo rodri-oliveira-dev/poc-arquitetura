@@ -1,0 +1,28 @@
+name: poc-arquitetura
+
+services:
+  pubsub-emulator:
+    profiles:
+      - pubsub-disabled-in-kafka-mode
+
+  pubsub-init:
+    profiles:
+      - pubsub-disabled-in-kafka-mode
+
+  ledger-worker:
+    depends_on: !reset
+      ledger-db:
+        condition: service_healthy
+      kafka-init-topics:
+        condition: service_completed_successfully
+    environment:
+      Messaging__Provider: "Kafka"
+
+  balance-worker:
+    depends_on: !reset
+      balance-db:
+        condition: service_healthy
+      kafka-init-topics:
+        condition: service_completed_successfully
+    environment:
+      Messaging__Provider: "Kafka"

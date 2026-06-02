@@ -117,13 +117,89 @@ wait_compose_service_healthy() {
   exit 1
 }
 
+assert_local_pubsub_stack() {
+  local config
+  local running_services
+  config="$(docker compose -f "$COMPOSE_FILE" config)"
+
+  for expected in \
+    "Messaging__Provider: PubSub" \
+    "PUBSUB_EMULATOR_HOST: pubsub-emulator:8085"
+  do
+    if ! grep -Fq "$expected" <<<"$config"; then
+      echo "Stack k6 deve usar Pub/Sub emulator local. Configuracao ausente: $expected" >&2
+      exit 1
+    fi
+  done
+
+  running_services="$(docker compose -f "$COMPOSE_FILE" ps --status running --services)"
+  for service in pubsub-emulator ledger-worker balance-worker; do
+    if ! grep -qx "$service" <<<"$running_services"; then
+      echo "Servico obrigatorio para k6 local nao esta em execucao: $service. Suba ./scripts/start-local-stack.sh antes do teste." >&2
+      exit 1
+    fi
+  done
+
+  local pubsub_init
+  pubsub_init="$(docker compose -f "$COMPOSE_FILE" ps -a pubsub-init --format json)"
+  if ! grep -q '"State":"exited"' <<<"$pubsub_init" ||
+    ! grep -q '"ExitCode":0' <<<"$pubsub_init"; then
+    echo "pubsub-init nao concluiu com sucesso. Confira: docker compose logs pubsub-init" >&2
+    exit 1
+  fi
+}
+
+postgres_count() {
+  local service="$1"
+  local user="$2"
+  local database="$3"
+  local sql="$4"
+  docker compose -f "$COMPOSE_FILE" exec -T "$service" \
+    psql -U "$user" -d "$database" -t -A -c "$sql" |
+    tr -d '[:space:]'
+}
+
+async_flow_counts() {
+  local balance_user
+  local balance_database
+  local outbox_processed
+  local balance_processed
+  balance_user="$(get_local_config_value BALANCE_DB_USER userBalance)"
+  balance_database="$(get_local_config_value BALANCE_DB_NAME dbBalance)"
+  outbox_processed="$(postgres_count ledger-db appuser appdb "SELECT COUNT(*) FROM outbox_messages WHERE event_type = 'LedgerEntryCreated.v1' AND status = 'Processed';")"
+  balance_processed="$(postgres_count balance-db "$balance_user" "$balance_database" "SELECT COUNT(*) FROM processed_events;")"
+  printf '%s %s\n' "$outbox_processed" "$balance_processed"
+}
+
+wait_async_flow_progress() {
+  local before_outbox="$1"
+  local before_balance="$2"
+  local deadline=$((SECONDS + 90))
+  local current_outbox
+  local current_balance
+
+  while (( SECONDS < deadline )); do
+    read -r current_outbox current_balance < <(async_flow_counts)
+    if (( current_outbox > before_outbox && current_balance > before_balance )); then
+      echo "OK. Smoke Pub/Sub publicou Outbox e projetou evento no Balance."
+      return 0
+    fi
+    sleep 2
+  done
+
+  echo "Timeout aguardando publish/consume via Pub/Sub emulator apos smoke k6." >&2
+  exit 1
+}
+
 # a) gerar env
 COMPOSE_FILE="$COMPOSE_FILE" OUT_FILE="$ENV_FILE" "$ROOT_DIR/scripts/compose-env.sh" >/dev/null
+
+assert_local_pubsub_stack
 
 # Aplica o override de carga nas APIs antes de executar o k6. O compose.k6.yaml
 # mantem os testes apontando para as APIs HTTP e aumenta apenas limites tecnicos
 # que poderiam transformar o cenario de throughput em teste de rate limiting.
-docker compose -f "$COMPOSE_FILE" -f "$COMPOSE_K6_FILE" up -d --no-build --force-recreate keycloak ledger-service balance-service
+docker compose -f "$COMPOSE_FILE" -f "$COMPOSE_K6_FILE" up -d --no-build --force-recreate ledger-service balance-service
 
 wait_compose_service_healthy keycloak
 assert_balance_database_authentication
@@ -213,7 +289,9 @@ PY
 
 case "$MODE" in
   smoke)
+    read -r before_outbox before_balance < <(async_flow_counts)
     run_k6 ledger_resilience scenarios/ledger_resilience.js -e VUS=1 -e DURATION=10s
+    wait_async_flow_progress "$before_outbox" "$before_balance"
     run_k6 balance_daily_50rps scenarios/balance_daily_50rps.js -e RATE=1 -e DURATION=10s -e PREALLOCATED_VUS=5 -e MAX_VUS=10
     ;;
   balance50)

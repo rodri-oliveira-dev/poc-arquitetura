@@ -2,7 +2,7 @@ using System.Diagnostics.Metrics;
 
 namespace BalanceService.Worker.Observability;
 
-public sealed class KafkaMessagingMetrics : IDisposable
+public sealed class MessagingMetrics : IDisposable
 {
     public const string MeterName = "BalanceService.Kafka";
     public const string ConsumerMessagesConsumedMetricName = "balance.kafka.consumer.messages.consumed";
@@ -20,30 +20,30 @@ public sealed class KafkaMessagingMetrics : IDisposable
     private readonly Counter<long> _dlqMessagesPublished;
     private readonly Counter<long> _dlqPublishErrors;
 
-    public KafkaMessagingMetrics()
+    public MessagingMetrics()
         : this(MeterName)
     {
     }
 
-    public KafkaMessagingMetrics(string meterName)
+    public MessagingMetrics(string meterName)
     {
         _meter = new Meter(meterName);
         _consumerMessagesConsumed = _meter.CreateCounter<long>(
             ConsumerMessagesConsumedMetricName,
             unit: "1",
-            description: "Total de mensagens consumidas do Kafka pelo Balance por resultado tecnico.");
+            description: "Total de mensagens consumidas pelo Balance por resultado tecnico.");
         _consumerProcessingDuration = _meter.CreateHistogram<double>(
             ConsumerProcessingDurationMetricName,
             unit: "ms",
-            description: "Duracao do processamento de mensagens Kafka pelo Balance.");
+            description: "Duracao do processamento de mensagens pelo Balance.");
         _consumerErrors = _meter.CreateCounter<long>(
             ConsumerErrorsMetricName,
             unit: "1",
-            description: "Total de erros do consumer Kafka do Balance por tipo estavel de erro.");
+            description: "Total de erros do consumer do Balance por tipo estavel de erro.");
         _consumerDuplicates = _meter.CreateCounter<long>(
             ConsumerDuplicatesMetricName,
             unit: "1",
-            description: "Total de mensagens Kafka duplicadas ignoradas pela idempotencia do Balance.");
+            description: "Total de mensagens duplicadas ignoradas pela idempotencia do Balance.");
         _dlqMessagesPublished = _meter.CreateCounter<long>(
             DlqMessagesPublishedMetricName,
             unit: "1",

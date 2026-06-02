@@ -133,7 +133,7 @@ assert_no_external_port_conflicts() {
     "Alertmanager:9093"
     "Loki:3100"
     "Grafana Alloy:12345"
-    "Kafka:19092"
+    "Pub/Sub emulator:8085"
     "PostgreSQL Ledger:15432"
     "PostgreSQL Balance:15433"
     "Jaeger OTLP gRPC:4317"

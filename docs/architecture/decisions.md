@@ -2,7 +2,7 @@
 
 ## Resumo executivo
 
-A arquitetura atual esta mais proxima de Clean Architecture/DDD por microservico, mas nao e pura. Na pratica, e uma arquitetura hibrida e coerente com uma POC de microservicos: camadas internas nos servicos com dominio relevante, APIs HTTP e workers separados por processo, Kafka/Outbox para consistencia eventual e Keycloak como provedor principal de identidade local.
+A arquitetura atual esta mais proxima de Clean Architecture/DDD por microservico, mas nao e pura. Na pratica, e uma arquitetura hibrida e coerente com uma POC de microservicos: camadas internas nos servicos com dominio relevante, APIs HTTP e workers separados por processo, Pub/Sub/Outbox para consistencia eventual, Kafka legado opcional e Keycloak como provedor principal de identidade local.
 
 A recomendacao e nao aumentar o numero de camadas agora. O melhor caminho e preservar a estrutura atual, corrigir assimetrias pontuais e fortalecer contratos/eventos/documentacao antes de qualquer reestruturacao.
 
@@ -12,7 +12,7 @@ A recomendacao e nao aumentar o numero de camadas agora. O melhor caminho e pres
 
 Camadas atuais: adequadas.
 
-O servico tem complexidade suficiente para justificar separacao: endpoint protegido, idempotencia, transacao, dominio com invariantes, persistencia e Outbox com Kafka. A separacao em `LedgerService.Api` e `LedgerService.Worker` ajuda escala independente, troubleshooting, readiness e observabilidade.
+O servico tem complexidade suficiente para justificar separacao: endpoint protegido, idempotencia, transacao, dominio com invariantes, persistencia e Outbox com Pub/Sub principal e Kafka legado opcional. A separacao em `LedgerService.Api` e `LedgerService.Worker` ajuda escala independente, troubleshooting, readiness e observabilidade.
 
 Excessos ou sinais de atencao:
 
@@ -30,7 +30,7 @@ Simplificacoes recomendadas:
 
 Camadas atuais: adequadas, com algum overhead aceitavel.
 
-Balance possui leitura HTTP, consumer Kafka, DLQ, idempotencia de eventos e projecao. A separacao em `BalanceService.Api` e `BalanceService.Worker`, compartilhando Application/Domain/Infrastructure por composition roots explicitos, e justificavel.
+Balance possui leitura HTTP, consumer Pub/Sub principal, adapter Kafka legado, DLQ, idempotencia de eventos e projecao. A separacao em `BalanceService.Api` e `BalanceService.Worker`, compartilhando Application/Domain/Infrastructure por composition roots explicitos, e justificavel.
 
 Excessos ou sinais de atencao:
 

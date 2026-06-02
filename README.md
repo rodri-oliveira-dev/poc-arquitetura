@@ -5,7 +5,7 @@
 [![Coverage](https://img.shields.io/badge/coverage-%3E%3D85%25-brightgreen)](docs/development/test-coverage.md)
 [![Architecture Docs](https://img.shields.io/github/actions/workflow/status/rodri-oliveira-dev/poc-arquitetura/pages-architecture.yml?branch=main&label=architecture%20docs)](https://rodri-oliveira-dev.github.io/poc-arquitetura/)
 
-POC de microservicos em .NET para validar Clean Architecture, DDD, PostgreSQL, Kafka, Outbox, autenticacao JWT/OIDC com Keycloak e JWKS, observabilidade e testes automatizados.
+POC de microservicos em .NET para validar Clean Architecture, DDD, PostgreSQL, Outbox, mensageria por ports and adapters com Kafka e Pub/Sub, autenticacao JWT/OIDC com Keycloak e JWKS, observabilidade e testes automatizados.
 
 ## Problema
 
@@ -13,7 +13,7 @@ O projeto modela um cenario comum em sistemas financeiros: registrar lancamentos
 
 ## Solucao
 
-A POC separa escrita e leitura em servicos distintos e separa APIs HTTP de workers. O `LedgerService.Api` recebe comandos de lancamento, estorno e reprocessamento, persiste os dados e grava eventos em Outbox na mesma transacao. O `LedgerService.Worker` publica a Outbox no Kafka e executa processamentos assincronos do Ledger. O `BalanceService.Worker` consome os eventos financeiros e atualiza saldos consolidados; o `BalanceService.Api` atende consultas HTTP. O Keycloak local emite tokens JWT RS256 e publica JWKS para validacao offline pelas APIs de negocio. O `Auth.Api` foi depreciado como emissor legado de POC e nao faz parte da stack principal.
+A POC separa escrita e leitura em servicos distintos e separa APIs HTTP de workers. O `LedgerService.Api` recebe comandos de lancamento, estorno e reprocessamento, persiste os dados e grava eventos em Outbox na mesma transacao. O `LedgerService.Worker` publica a Outbox pelo provider de mensageria selecionado e executa processamentos assincronos do Ledger. O `BalanceService.Worker` consome os eventos financeiros pelo provider selecionado e atualiza saldos consolidados; o `BalanceService.Api` atende consultas HTTP. Pub/Sub e o provider principal e usa emulator por padrao no fluxo local. Kafka permanece disponivel como opcao legada explicita via `Messaging:Provider=Kafka`. O Keycloak local emite tokens JWT RS256 e publica JWKS para validacao offline pelas APIs de negocio. O `Auth.Api` foi depreciado como emissor legado de POC e nao faz parte da stack principal.
 
 Principais servicos:
 
@@ -21,9 +21,9 @@ Principais servicos:
 | --- | --- |
 | Keycloak | Emite JWT RS256 via OIDC para desenvolvimento local e publica JWKS do realm `poc`. |
 | `LedgerService.Api` | API de escrita para lancamentos, estornos, reprocessamentos, Outbox e status operacionais. |
-| `LedgerService.Worker` | Processo dedicado para publicar Outbox no Kafka e processar estornos/reprocessamentos do Ledger. |
+| `LedgerService.Worker` | Processo dedicado para publicar Outbox pelo provider de mensageria selecionado e processar estornos/reprocessamentos do Ledger. |
 | `BalanceService.Api` | API de leitura de saldos consolidados projetados pelo Worker. |
-| `BalanceService.Worker` | Processo dedicado para consumir eventos Kafka do Ledger e atualizar a projecao de saldos. |
+| `BalanceService.Worker` | Processo dedicado para consumir eventos financeiros do Ledger pelo provider selecionado e atualizar a projecao de saldos. |
 
 ## Arquitetura
 
@@ -42,12 +42,33 @@ Documentacao arquitetural publicada:
 
 <https://rodri-oliveira-dev.github.io/poc-arquitetura/>
 
+## Mensageria: Kafka e Pub/Sub
+
+Kafka e Pub/Sub coexistem como adapters do boundary de mensageria dos workers. Pub/Sub e o provider principal e o desenvolvimento local usa o emulator. Kafka permanece suportado como opcao legada explicita, selecionada com `Messaging:Provider=Kafka`, sem tentar esconder as diferencas semanticas entre providers.
+
+| Kafka | Pub/Sub |
+| --- | --- |
+| Usa topic, headers, key, partition, offset e commit. | Usa topic e subscription, attributes, `ack`/`nack` e ordering key. |
+| A key influencia particionamento e ordenacao dentro da partition. | A ordering key preserva ordenacao quando habilitada, mas nao representa uma partition. |
+| O consumer controla commit de offset. | O consumer confirma ou rejeita a entrega com `ack` ou `nack`. |
+
+As portas compartilhadas preservam Outbox, idempotencia e o contrato logico dos eventos. Conceitos especificos continuam nos respectivos adapters: Pub/Sub nao deve expor nem simular partition, offset ou commit.
+
+Leitura complementar:
+
+- [ADR-0078: Pub/Sub como provider principal](docs/adrs/0078-pubsub-provider-principal-local-emulator.md)
+- [Operacao do Pub/Sub e emulator local](docs/operations/pubsub.md)
+- [Contrato Pub/Sub entre Terraform e aplicacao](docs/development/pubsub-infra-app-contract.md)
+- [Modulo Terraform Pub/Sub Ledger Events](infra/terraform/modules/pubsub-ledger-events/README.md)
+- [Custo e free tier do Pub/Sub](docs/development/pubsub-cost-and-free-tier.md)
+- [Execucao local com Pub/Sub emulator](docs/development/local-development.md#pubsub-emulator-local)
+
 ## Pre-requisitos
 
 - .NET SDK conforme `global.json`.
 - Docker-compatible API para Testcontainers e stack local.
 - CLI `docker` com suporte a `docker compose` para a stack local.
-- PostgreSQL e Kafka acessiveis quando rodar APIs e workers fora de container.
+- PostgreSQL e o provider de mensageria selecionado acessiveis quando rodar APIs e workers fora de container. Pub/Sub emulator e o default local; Pub/Sub real exige configuracao explicita sem `PUBSUB_EMULATOR_HOST`, e Kafka permanece opcional.
 
 O projeto nao exige Docker Desktop como premissa. No Windows sem Docker Desktop, o ambiente recomendado e Rancher Desktop com `moby/dockerd`.
 
@@ -76,7 +97,7 @@ No Linux/macOS:
 ./scripts/start-local-stack.sh
 ```
 
-Esse script sobe o core funcional local: bancos Ledger/Balance persistentes, Kafka, Keycloak, APIs e workers. Ele aplica migrations pelo host e inicia as APIs depois do schema estar pronto. O passo a passo manual fica em [desenvolvimento local](docs/development/local-development.md).
+Esse script sobe o core funcional local: bancos Ledger/Balance persistentes, Pub/Sub emulator, Keycloak, APIs e workers. Ele aplica migrations pelo host e inicia as APIs depois do schema estar pronto. O passo a passo manual fica em [desenvolvimento local](docs/development/local-development.md).
 
 Para incluir observabilidade local completa:
 
@@ -91,6 +112,20 @@ OBSERVABILITY=true ./scripts/start-local-stack.sh
 ```
 
 A observabilidade fica no overlay `compose.observability.yaml`. O modo padrao de desenvolvimento nao sobe Jaeger, Collector, Prometheus, Loki, Alloy, Alertmanager nem Grafana, mas continua subindo `ledger-worker` e `balance-worker` para preservar o fluxo ponta a ponta.
+
+Os aliases abaixo continuam disponiveis para explicitar o mesmo fluxo Pub/Sub local:
+
+```powershell
+./scripts/start-local-stack-pubsub.ps1
+```
+
+No Linux/macOS:
+
+```bash
+./scripts/start-local-stack-pubsub.sh
+```
+
+Esse fluxo usa o `compose.yaml` principal, cria topic principal, topic de DLQ, subscription do Balance e subscription de inspecao da DLQ de aplicacao de forma idempotente e inicia os workers com `Messaging:Provider=PubSub`. Kafka nao e iniciado. Para usar o provider legado, execute `./scripts/start-local-stack-kafka.ps1` ou `./scripts/start-local-stack-kafka.sh`. Detalhes ficam em [desenvolvimento local](docs/development/local-development.md#pubsub-emulator-local) e no runbook de [operacao do Pub/Sub](docs/operations/pubsub.md).
 
 Para subir a stack completa com observabilidade e Nginx HTTPS local, gere antes os certificados em `infra/nginx/certs/` conforme [desenvolvimento local](docs/development/local-development.md#borda-local-https-com-nginx):
 
@@ -119,6 +154,8 @@ Se houver containers antigos ou rede local presa do proprio projeto, o script pe
 | Analise SonarQube local | `bash scripts/sonar-analyze.sh` |
 | Stack local minima | `./scripts/start-local-stack.ps1` ou `./scripts/start-local-stack.sh` |
 | Stack com observabilidade | `./scripts/start-local-stack.ps1 -Observability` ou `OBSERVABILITY=true ./scripts/start-local-stack.sh` |
+| Stack local com Pub/Sub emulator | `./scripts/start-local-stack-pubsub.ps1` ou `./scripts/start-local-stack-pubsub.sh` |
+| Stack local com Kafka legado | `./scripts/start-local-stack-kafka.ps1` ou `./scripts/start-local-stack-kafka.sh` |
 | Stack completa com Nginx | `./scripts/start-full-stack.ps1` ou `./scripts/start-full-stack.sh` |
 | Parar stack completa | `./scripts/stop-full-stack.ps1` ou `./scripts/stop-full-stack.sh` |
 | Diagnosticar disco Docker | `./scripts/docker-disk-report.ps1` ou `./scripts/docker-disk-report.sh` |
@@ -155,6 +192,9 @@ Os scripts executam testes com cobertura e aplicam gate minimo de 85% de cobertu
 - [ADRs](docs/adrs/README.md)
 - [Autenticacao e autorizacao](docs/development/authentication.md)
 - [Kafka, Outbox e DLQ](docs/development/kafka-outbox.md)
+- [Pub/Sub: operacao e emulator local](docs/operations/pubsub.md)
+- [Pub/Sub: contrato entre Terraform e aplicacao](docs/development/pubsub-infra-app-contract.md)
+- [Pub/Sub: custo e free tier](docs/development/pubsub-cost-and-free-tier.md)
 - [Observabilidade e operacao minima](docs/observability.md)
 - [Testes e cobertura](docs/development/test-coverage.md)
 - [SonarQube local](docs/quality/sonarqube.md)
@@ -167,7 +207,7 @@ Os scripts executam testes com cobertura e aplicam gate minimo de 85% de cobertu
 
 **O que este projeto demonstra tecnicamente?**
 
-Microservicos .NET com separacao de escrita/leitura, Clean Architecture/DDD, Outbox, Kafka, PostgreSQL, JWT/JWKS, idempotencia, observabilidade e validacao automatizada. Veja [FAQ completa](docs/faq.md).
+Microservicos .NET com separacao de escrita/leitura, Clean Architecture/DDD, Outbox, mensageria por ports and adapters com Pub/Sub principal e Kafka legado opcional, PostgreSQL, JWT/JWKS, idempotencia, observabilidade e validacao automatizada. Veja [FAQ completa](docs/faq.md).
 
 **Como executo localmente?**
 
@@ -179,7 +219,7 @@ Use o indice de [ADRs](docs/adrs/README.md) e a leitura de [arquitetura](docs/ar
 
 **Como resolvo erros comuns?**
 
-Consulte [troubleshooting](docs/troubleshooting.md), especialmente para migrations, Docker-compatible API, Testcontainers, Swagger, Kafka/Outbox e observabilidade local.
+Consulte [troubleshooting](docs/troubleshooting.md), especialmente para migrations, Docker-compatible API, Testcontainers, Swagger, Pub/Sub, Kafka legado, Outbox e observabilidade local. Para Pub/Sub, use tambem o runbook de [operacao](docs/operations/pubsub.md#troubleshooting).
 
 ## Observacoes
 

@@ -15,13 +15,13 @@ public sealed class LedgerEventsConsumer : BackgroundService
 {
     private readonly KafkaConsumerOptions _options;
     private readonly LedgerEntryCreatedMessageProcessor _messageProcessor;
-    private readonly KafkaMessagingMetrics _metrics;
+    private readonly MessagingMetrics _metrics;
     private readonly ILogger<LedgerEventsConsumer> _logger;
 
     public LedgerEventsConsumer(
         IOptions<KafkaConsumerOptions> options,
         LedgerEntryCreatedMessageProcessor messageProcessor,
-        KafkaMessagingMetrics metrics,
+        MessagingMetrics metrics,
         ILogger<LedgerEventsConsumer> logger)
     {
         _options = options.Value;

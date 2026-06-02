@@ -5,12 +5,12 @@ deployment {
   environment local "Ambiente local" {
     technology "Docker Compose / nerdctl compose"
     summary "Ambiente local da POC definido no compose.yaml."
-    description "Ambiente local executado em Docker Compose, com APIs, workers, bancos, Kafka e stack de observabilidade na rede poc-net."
+    description "Ambiente local executado em Docker Compose, com APIs, workers, bancos, Pub/Sub emulator principal, Kafka legado opcional e stack de observabilidade na rede poc-net."
 
     composeNetwork pocNet "poc-net" {
       technology "Docker bridge network"
       summary "Rede bridge compartilhada pelos servicos do compose local."
-      description "Rede Docker Compose usada para comunicacao interna entre APIs, workers, bancos, Kafka e observabilidade."
+      description "Rede Docker Compose usada para comunicacao interna entre APIs, workers, bancos, Pub/Sub emulator principal, Kafka legado opcional e observabilidade."
 
       composeService keycloak "keycloak" {
         technology "Docker container / Keycloak"
@@ -88,7 +88,7 @@ deployment {
 
         worker = instanceOf balance.balanceWorker {
           title "poc-balance-worker"
-          description "Worker local do BalanceService para consumo Kafka e atualizacao da projecao."
+          description "Worker local do BalanceService para consumo Pub/Sub por padrao e atualizacao da projecao."
         }
       }
 
@@ -114,7 +114,7 @@ deployment {
 
       composeService kafkaBroker "kafka" {
         technology "Apache Kafka 3.7.0 / KRaft"
-        description "Servico Docker Compose que executa o broker Kafka local."
+        description "Servico Docker Compose legado ativado explicitamente pelo profile legacy-kafka."
 
         kafkaInstance = instanceOf kafka {
           title "poc-kafka"
@@ -125,6 +125,21 @@ deployment {
       composeService kafkaInitTopics "kafka-init-topics" {
         technology "Apache Kafka 3.7.0 / init container"
         description "Container auxiliar e idempotente que cria os topicos Kafka locais apos o broker ficar saudavel; nao possui elemento logico proprio."
+      }
+
+      composeService pubsubEmulator "pubsub-emulator" {
+        technology "Google Cloud CLI / Pub/Sub emulator"
+        description "Servico do compose.yaml principal, fora do Terraform e exposto na porta 8085 do host."
+
+        emulator = instanceOf pubsubLocal {
+          title "poc-pubsub-emulator"
+          description "Emulator local descartavel usado por padrao pelos workers com PUBSUB_EMULATOR_HOST=pubsub-emulator:8085."
+        }
+      }
+
+      composeService pubsubInit "pubsub-init" {
+        technology "curl / init container"
+        description "Container auxiliar e idempotente do compose.yaml que cria topic principal, topic de DLQ, subscription pull do BalanceService.Worker e subscription de inspecao da DLQ de aplicacao no Pub/Sub emulator."
       }
 
       composeService jaeger "jaeger" {

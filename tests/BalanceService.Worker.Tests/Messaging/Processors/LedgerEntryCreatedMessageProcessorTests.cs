@@ -32,6 +32,7 @@ public sealed class LedgerEntryCreatedMessageProcessorTests
         Assert.Single(dlq.Messages);
         Assert.Equal("{invalid-json", dlq.Messages[0].OriginalPayload);
         Assert.Equal("ledger.ledgerentry.created", dlq.Messages[0].Source);
+        Assert.Equal("kafka", dlq.Messages[0].Provider);
         Assert.Equal("ledger.ledgerentry.created", dlq.Messages[0].TransportMetadata["topic"]);
         Assert.Equal("0", dlq.Messages[0].TransportMetadata["partition"]);
         Assert.Equal("42", dlq.Messages[0].TransportMetadata["offset"]);
@@ -281,7 +282,7 @@ public sealed class LedgerEntryCreatedMessageProcessorTests
         return new LedgerEntryCreatedMessageProcessor(
             services.BuildServiceProvider(),
             dlq,
-            new KafkaMessagingMetrics($"{KafkaMessagingMetrics.MeterName}.Tests.{Guid.NewGuid():N}"),
+            new MessagingMetrics($"{MessagingMetrics.MeterName}.Tests.{Guid.NewGuid():N}"),
             NullLogger<LedgerEntryCreatedMessageProcessor>.Instance);
 #pragma warning restore CA2000
     }

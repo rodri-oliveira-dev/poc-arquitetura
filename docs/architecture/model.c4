@@ -125,7 +125,7 @@ model {
       description "Processo dedicado sem HTTP que hospeda os workers do Ledger para Outbox, estornos e reprocessamentos, com composition root proprio."
 
       ledgerWorkerComposition = component "Worker composition root" {
-        description "Registra Application, persistencia, repositorios, AddLedgerMessaging e HostedServices explicitamente no processo Worker; Kafka e o provider atual."
+        description "Registra Application, persistencia, repositorios, AddLedgerMessaging e HostedServices explicitamente no processo Worker; Pub/Sub e o provider principal e Kafka permanece legado."
       }
 
       ledgerWorkerApplication = component "Application handlers" {
@@ -133,7 +133,7 @@ model {
       }
 
       ledgerWorkerInfrastructure = component "Worker infrastructure" {
-        description "Adapters exclusivos do Worker: provider Kafka atual, consumers, metrics e HostedServices registrados pelo processo Worker."
+        description "Adapters exclusivos do Worker: Pub/Sub principal, Kafka legado, consumers, metrics e HostedServices registrados pelo processo Worker."
       }
 
       ledgerOutbox = component "Outbox publisher" {
@@ -145,7 +145,11 @@ model {
       }
 
       ledgerKafkaOutboxPublisher = component "KafkaOutboxMessagePublisher" {
-        description "Adapter Kafka atual da porta IOutboxMessagePublisher; resolve topicos, keys, headers e confirmacao de publicacao."
+        description "Adapter Kafka legado da porta IOutboxMessagePublisher; resolve topicos, keys, headers e confirmacao de publicacao."
+      }
+
+      ledgerPubSubOutboxPublisher = component "PubSubOutboxMessagePublisher" {
+        description "Adapter Pub/Sub principal da porta IOutboxMessagePublisher; resolve topics, ordering key, attributes e confirmacao de publicacao."
       }
 
       ledgerEstornoProcessor = component "Estorno processor" {
@@ -153,7 +157,15 @@ model {
       }
 
       ledgerReprocessamentoConsumer = component "Reprocessamento consumer" {
-        description "BackgroundService Kafka que consome ReprocessamentoLancamentosSolicitado.v1, envia ProcessarReprocessamentoLancamentosCommand e registra replay idempotente de LedgerEntryCreated.v1."
+        description "BackgroundService Kafka que consome ReprocessamentoLancamentosSolicitado.v1, controla commit e delega o conteudo para o mapper e processor neutro."
+      }
+
+      ledgerReprocessamentoReceivedMessageMapper = component "KafkaReprocessamentoReceivedMessageMapper" {
+        description "Mapper do adapter Kafka que transforma ConsumeResult em ReceivedMessage, preservando attributes, ordering key e TransportMessageContext."
+      }
+
+      ledgerReprocessamentoMessageProcessor = component "ReprocessamentoLancamentosMessageProcessor" {
+        description "Processor neutro que recebe ReceivedMessage, valida fonte logica, event_type e payload, envia ProcessarReprocessamentoLancamentosCommand e registra replay idempotente de LedgerEntryCreated.v1."
       }
     }
 
@@ -192,7 +204,7 @@ model {
       description "Processo dedicado sem HTTP que hospeda o consumidor do provider de mensageria atual para projetar saldos, com composition root proprio."
 
       balanceWorkerComposition = component "Worker composition root" {
-        description "Registra Application, persistencia, repositorios, AddBalanceMessaging, DLQ e HostedServices explicitamente no processo Worker; Kafka e o provider atual."
+        description "Registra Application, persistencia, repositorios, AddBalanceMessaging, DLQ e HostedServices explicitamente no processo Worker; Pub/Sub e o provider principal e Kafka permanece legado."
       }
 
       balanceWorkerApplication = component "Application handlers" {
@@ -200,15 +212,23 @@ model {
       }
 
       balanceWorkerInfrastructure = component "Worker infrastructure" {
-        description "Adapters exclusivos do Worker: provider Kafka atual, DLQ, metrics e HostedService registrados pelo processo Worker."
+        description "Adapters exclusivos do Worker: Pub/Sub principal, Kafka legado, DLQ, metrics e HostedService registrados pelo processo Worker."
       }
 
       balanceConsumer = component "Kafka ledger events consumer" {
-        description "Adapter Kafka que consome LedgerEntryCreated.v1, controla commit e delega o conteudo para o mapper e processor neutro."
+        description "Adapter Kafka legado que consome LedgerEntryCreated.v1, controla commit e delega o conteudo para o mapper e processor neutro."
       }
 
       balanceReceivedMessageMapper = component "KafkaReceivedMessageMapper" {
         description "Mapper do adapter Kafka que transforma ConsumeResult em ReceivedMessage, preservando attributes, ordering key e TransportMessageContext."
+      }
+
+      balancePubSubConsumer = component "LedgerEventsPubSubConsumer" {
+        description "Adapter Pub/Sub principal que consome LedgerEntryCreated.v1, responde ack/nack e delega o conteudo para o mapper e processor neutro."
+      }
+
+      balancePubSubReceivedMessageMapper = component "PubSubReceivedMessageMapper" {
+        description "Mapper do adapter Pub/Sub que transforma PubsubMessage em ReceivedMessage, preservando attributes, ordering key e TransportMessageContext."
       }
 
       balanceMessageProcessor = component "LedgerEntryCreatedMessageProcessor" {
@@ -216,7 +236,7 @@ model {
       }
 
       balanceDeadLetterPort = component "IDeadLetterPublisher" {
-        description "Porta neutra de DLQ usada pelo processor; KafkaDeadLetterPublisher e a implementacao atual."
+        description "Porta neutra de DLQ usada pelo processor; PubSubDeadLetterPublisher e a implementacao principal."
       }
     }
 
@@ -227,7 +247,7 @@ model {
   }
 
   kafka = softwareSystem "Kafka" {
-    description "Broker Kafka local em KRaft, com topico principal e DLQ."
+    description "Broker Kafka legado local em KRaft, com topico principal e DLQ."
 
     ledgerTopic = container "ledger.ledgerentry.created" {
       technology "Kafka topic"
@@ -247,6 +267,64 @@ model {
     ledgerDlq = container "ledger.ledgerentry.created.dlq" {
       technology "Kafka topic"
       description "DLQ usada pelo BalanceService para mensagens invalidas ou nao recuperaveis."
+    }
+  }
+
+  pubsubLocal = softwareSystem "Pub/Sub emulator local" {
+    description "Provider principal no desenvolvimento local. Executa no compose.yaml, fora do Terraform, sem reproduzir integralmente limites, IAM ou dead-letter policy nativa do Pub/Sub real."
+
+    ledgerTopic = container "ledger.ledgerentry.created.local" {
+      technology "Pub/Sub topic"
+      description "Topic principal local do evento financeiro LedgerEntryCreated.v1."
+    }
+
+    balanceSubscription = container "balance-service-ledger-events-local" {
+      technology "Pub/Sub subscription"
+      description "Subscription pull principal local consumida pelo BalanceService.Worker."
+    }
+
+    applicationDlqTopic = container "ledger.ledgerentry.created.dlq.local" {
+      technology "Pub/Sub topic"
+      description "Topic local da DLQ de aplicacao publicada pelo BalanceService.Worker."
+    }
+
+    applicationDlqSubscription = container "ledger-events-application-dlq-inspection-local" {
+      technology "Pub/Sub subscription"
+      description "Subscription local para inspecao da DLQ de aplicacao."
+    }
+  }
+
+  pubsubGcp = softwareSystem "Google Cloud Pub/Sub real" {
+    description "Provider principal em GCP quando configurado explicitamente pelos outputs Terraform e sem PUBSUB_EMULATOR_HOST."
+
+    ledgerTopic = container "ledger.ledgerentry.created.dev" {
+      technology "Pub/Sub topic"
+      description "Topic principal real do evento financeiro LedgerEntryCreated.v1 provisionado pelo Terraform dev."
+    }
+
+    balanceSubscription = container "balance-service-ledger-events-dev" {
+      technology "Pub/Sub subscription"
+      description "Subscription pull principal real consumida pelo BalanceService.Worker."
+    }
+
+    applicationDlqTopic = container "ledger.ledgerentry.created.dlq.dev" {
+      technology "Pub/Sub topic"
+      description "DLQ de aplicacao real publicada pelo BalanceService.Worker para mensagens invalidas ou nao recuperaveis."
+    }
+
+    applicationDlqSubscription = container "balance-service-ledger-events-dlq-dev" {
+      technology "Pub/Sub subscription"
+      description "Subscription real de inspecao da DLQ de aplicacao."
+    }
+
+    technicalDlqTopic = container "ledger.ledgerentry.created.technical.dlq.dev" {
+      technology "Pub/Sub topic"
+      description "DLQ tecnica real usada exclusivamente pela dead-letter policy nativa da subscription principal."
+    }
+
+    technicalDlqSubscription = container "balance-service-ledger-events-technical-dlq-dev" {
+      technology "Pub/Sub subscription"
+      description "Subscription real de inspecao da DLQ tecnica."
     }
   }
 
@@ -271,23 +349,40 @@ model {
   ledger.ledgerWorker.ledgerEstornoProcessor -> ledger.ledgerWorker.ledgerWorkerApplication "Envia ProcessarEstornoLancamentoCommand" "MediatR"
   ledger.ledgerWorker.ledgerOutbox -> ledger.ledgerDb "Le e atualiza outbox_messages" "EF Core / SQL"
   ledger.ledgerWorker.ledgerOutbox -> ledger.ledgerWorker.ledgerOutboxPublisherPort "Publica mensagens pendentes" "porta"
-  ledger.ledgerWorker.ledgerOutboxPublisherPort -> ledger.ledgerWorker.ledgerKafkaOutboxPublisher "Adapter atual" "DI"
+  ledger.ledgerWorker.ledgerOutboxPublisherPort -> ledger.ledgerWorker.ledgerPubSubOutboxPublisher "Adapter principal" "DI"
+  ledger.ledgerWorker.ledgerPubSubOutboxPublisher -> pubsubLocal.ledgerTopic "Publica LedgerEntryCreated.v1 no desenvolvimento local" "Pub/Sub emulator"
+  ledger.ledgerWorker.ledgerPubSubOutboxPublisher -> pubsubGcp.ledgerTopic "Publica LedgerEntryCreated.v1 quando configurado para GCP" "Pub/Sub"
+  ledger.ledgerWorker.ledgerOutboxPublisherPort -> ledger.ledgerWorker.ledgerKafkaOutboxPublisher "Adapter legado" "DI"
   ledger.ledgerWorker.ledgerKafkaOutboxPublisher -> kafka.ledgerTopic "Publica LedgerEntryCreated.v1" "Kafka"
   ledger.ledgerWorker.ledgerKafkaOutboxPublisher -> kafka.ledgerEstornoTopic "Publica LancamentoEstornoSolicitado.v1" "Kafka"
   ledger.ledgerWorker.ledgerKafkaOutboxPublisher -> kafka.ledgerReprocessamentoTopic "Publica ReprocessamentoLancamentosSolicitado.v1" "Kafka"
   ledger.ledgerWorker.ledgerReprocessamentoConsumer -> kafka.ledgerReprocessamentoTopic "Consome ReprocessamentoLancamentosSolicitado.v1" "Kafka"
-  ledger.ledgerWorker.ledgerReprocessamentoConsumer -> ledger.ledgerWorker.ledgerWorkerApplication "Envia ProcessarReprocessamentoLancamentosCommand" "MediatR"
-  ledger.ledgerWorker.ledgerReprocessamentoConsumer -> ledger.ledgerDb "Atualiza status e registra eventos finais no Outbox" "EF Core / SQL"
+  ledger.ledgerWorker.ledgerReprocessamentoConsumer -> ledger.ledgerWorker.ledgerReprocessamentoReceivedMessageMapper "Mapeia transporte Kafka para ReceivedMessage" "mapper"
+  ledger.ledgerWorker.ledgerReprocessamentoReceivedMessageMapper -> ledger.ledgerWorker.ledgerReprocessamentoMessageProcessor "Entrega modelo neutro" "ReceivedMessage"
+  ledger.ledgerWorker.ledgerReprocessamentoMessageProcessor -> ledger.ledgerWorker.ledgerWorkerApplication "Envia ProcessarReprocessamentoLancamentosCommand" "MediatR"
+  ledger.ledgerWorker.ledgerReprocessamentoMessageProcessor -> ledger.ledgerDb "Atualiza status e registra eventos finais no Outbox" "EF Core / SQL"
 
   balance.balanceWorker.balanceWorkerComposition -> balance.balanceWorker.balanceWorkerApplication "Registra casos de uso e handlers" "DI / MediatR"
   balance.balanceWorker.balanceWorkerComposition -> balance.balanceWorker.balanceWorkerInfrastructure "Registra adapters e HostedServices" "DI"
   balance.balanceWorker.balanceWorkerInfrastructure -> balance.balanceDb "Usa persistence e repositories" "EF Core"
+  balance.balanceWorker.balancePubSubConsumer -> pubsubLocal.balanceSubscription "Consome LedgerEntryCreated.v1 no desenvolvimento local" "Pub/Sub emulator"
+  pubsubLocal.ledgerTopic -> pubsubLocal.balanceSubscription "Entrega eventos financeiros locais" "Pub/Sub emulator"
+  balance.balanceWorker.balancePubSubConsumer -> pubsubGcp.balanceSubscription "Consome LedgerEntryCreated.v1 quando configurado para GCP" "Pub/Sub"
+  pubsubGcp.ledgerTopic -> pubsubGcp.balanceSubscription "Entrega eventos financeiros reais" "Pub/Sub"
+  pubsubGcp.balanceSubscription -> pubsubGcp.technicalDlqTopic "Encaminha falhas tecnicas quando a dead-letter policy nativa esta habilitada" "Pub/Sub"
+  balance.balanceWorker.balancePubSubConsumer -> balance.balanceWorker.balancePubSubReceivedMessageMapper "Mapeia transporte Pub/Sub para ReceivedMessage" "mapper"
+  balance.balanceWorker.balancePubSubReceivedMessageMapper -> balance.balanceWorker.balanceMessageProcessor "Entrega modelo neutro" "ReceivedMessage"
   balance.balanceWorker.balanceConsumer -> kafka.ledgerTopic "Consome LedgerEntryCreated.v1, inclusive compensatorios e replays de reprocessamento" "Kafka"
   balance.balanceWorker.balanceConsumer -> balance.balanceWorker.balanceReceivedMessageMapper "Mapeia transporte Kafka para ReceivedMessage" "mapper"
   balance.balanceWorker.balanceReceivedMessageMapper -> balance.balanceWorker.balanceMessageProcessor "Entrega modelo neutro" "ReceivedMessage"
   balance.balanceWorker.balanceMessageProcessor -> balance.balanceWorker.balanceWorkerApplication "Envia comando de aplicacao de evento" "MediatR"
   balance.balanceWorker.balanceMessageProcessor -> balance.balanceWorker.balanceDeadLetterPort "Publica invalidas ou nao recuperaveis" "porta"
   balance.balanceWorker.balanceDeadLetterPort -> kafka.ledgerDlq "Adapter Kafka publica na DLQ atual" "Kafka"
+  balance.balanceWorker.balanceDeadLetterPort -> pubsubLocal.applicationDlqTopic "Adapter Pub/Sub publica na DLQ de aplicacao local" "Pub/Sub emulator"
+  pubsubLocal.applicationDlqTopic -> pubsubLocal.applicationDlqSubscription "Retem mensagens para inspecao local" "Pub/Sub emulator"
+  balance.balanceWorker.balanceDeadLetterPort -> pubsubGcp.applicationDlqTopic "Adapter Pub/Sub publica na DLQ de aplicacao real" "Pub/Sub"
+  pubsubGcp.applicationDlqTopic -> pubsubGcp.applicationDlqSubscription "Retem mensagens para inspecao operacional" "Pub/Sub"
+  pubsubGcp.technicalDlqTopic -> pubsubGcp.technicalDlqSubscription "Retem falhas tecnicas para inspecao operacional" "Pub/Sub"
   balance.balanceWorker.balanceMessageProcessor -> balance.balanceDb "Atualiza daily_balances e processed_events" "EF Core"
   balance.balanceApi -> balance.balanceDb "Consulta projecao" "EF Core"
 

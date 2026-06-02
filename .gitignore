@@ -103,3 +103,17 @@ nunit-*.xml
 artifacts/k6/
 artifacts/k6/*
 zap-reports
+
+# Terraform
+**/.terraform/
+infra/terraform/modules/**/.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+*.tfplan
+tfplan
+
+# Google Cloud CLI / credenciais locais
+application_default_credentials.json
+service-account-key.json

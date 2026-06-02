@@ -6,7 +6,7 @@ using LedgerService.Worker.Messaging.Kafka.Configuration;
 using LedgerService.Worker.Messaging.Kafka.Producers;
 using LedgerService.Worker.Outbox;
 using LedgerService.Worker.Messaging.Kafka.Consumers;
-using LedgerService.Worker.Messaging.Kafka.Processors;
+using LedgerService.Worker.Messaging.Processors;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;

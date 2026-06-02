@@ -1,35 +1,53 @@
-# Kafka, Outbox e DLQ
+# Mensageria, Outbox e DLQ
 
 Este documento concentra a referencia de mensageria entre `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Worker` e `BalanceService.Api`.
 
-Kafka e a implementacao atual de mensageria nesta POC. O boundary dos workers usa portas neutras para publicacao, consumo e DLQ, enquanto os adapters Kafka concentram detalhes como topicos, partitions, offsets, keys e commit. Pub/Sub nao esta implementado; ele e apenas um adapter futuro possivel.
+Pub/Sub e o provider principal desta POC. Kafka permanece disponivel como provider legado completo. O boundary dos workers usa portas neutras para publicacao, consumo e DLQ, enquanto os adapters Kafka concentram detalhes como topicos, partitions, offsets, keys e commit. O `LedgerService.Worker` publica a Outbox em Pub/Sub por padrao, e o `BalanceService.Worker` registra o consumer e a DLQ Pub/Sub quando esse provider e selecionado.
 
-Em termos de desenho, a aplicacao trata `OrderingKey` como conceito logico de ordenacao por agregado/entidade. No adapter Kafka atual, esse valor e materializado como message key e influencia o particionamento; em um adapter Pub/Sub futuro, ordering key, ack/nack, subscription e delivery attempt devem ser tratados como semantica propria do provider, sem simular partition, offset ou commit dentro dos processors neutros.
+Em termos de desenho, a aplicacao trata `OrderingKey` como conceito logico de ordenacao por agregado/entidade. No adapter Kafka, esse valor e materializado como message key e influencia o particionamento; no producer Pub/Sub, a ordering key opcional usa o `AggregateId`. Ack/nack, subscription e delivery attempt sao tratados como semantica propria do provider nos consumers Pub/Sub, sem simular partition, offset ou commit dentro dos processors neutros.
 
 Configuracao neutra:
 
 ```json
 {
   "Messaging": {
-    "Provider": "Kafka"
+    "Provider": "PubSub"
   }
 }
 ```
 
-`Messaging:Provider` usa `Kafka` como default quando ausente. A configuracao existente `Kafka:Enabled=false` continua suportada para desligar os hosted services de mensageria em testes e cenarios locais especificos.
+`Messaging:Provider` usa `PubSub` como default quando ausente. A configuracao existente `Kafka:Enabled=false` continua suportada para desligar os hosted services Kafka em testes e cenarios locais especificos.
+
+Para a publicacao Pub/Sub do Ledger e o consumo Pub/Sub do Balance, use `Messaging:Provider=PubSub`. A configuracao `PubSub:Enabled=false` desliga os hosted services relacionados a Pub/Sub de forma equivalente ao flag Kafka.
+
+Para executar esse provider localmente com Pub/Sub emulator, use `./scripts/start-local-stack.ps1` no Windows ou `./scripts/start-local-stack.sh` no Linux/macOS. O `compose.yaml` principal define `PUBSUB_EMULATOR_HOST`, configura `PUBSUB_PROJECT_ID` e cria topic principal, topic de DLQ, subscription do Balance e subscription de inspecao da DLQ de aplicacao de forma idempotente. O setup detalhado fica em [desenvolvimento local](local-development.md#pubsub-emulator-local).
+
+Para executar Kafka legado, use `./scripts/start-local-stack-kafka.ps1` ou `./scripts/start-local-stack-kafka.sh`. O fluxo de reprocessamento assincrono ponta a ponta ainda depende desse modo enquanto o consumer Pub/Sub correspondente nao existir.
+
+Para executar os workers diretamente no host contra um emulator ja iniciado, use o perfil de exemplo `PubSub`:
+
+```powershell
+$env:DOTNET_ENVIRONMENT='PubSub'
+$env:PUBSUB_EMULATOR_HOST='127.0.0.1:8085'
+$env:PUBSUB_PROJECT_ID='poc-local'
+dotnet run --project ./src/LedgerService.Worker
+dotnet run --project ./src/BalanceService.Worker
+```
+
+Execute cada worker em um terminal separado. Os arquivos `src/LedgerService.Worker/appsettings.PubSub.json` e `src/BalanceService.Worker/appsettings.PubSub.json` mantem os valores locais ficticios alinhados ao compose principal. `PUBSUB_EMULATOR_HOST` direciona os clients Google para o emulator sem credenciais. `PUBSUB_PROJECT_ID` identifica o projeto local usado ao inicializar recursos; quando necessario, sobrescreva tambem `PubSub__Producer__ProjectId` e `PubSub__Consumer__ProjectId` para manter o bind das options alinhado ao mesmo projeto.
 
 ## Fluxo
 
 1. `LedgerService.Api` cria um lancamento, registra uma solicitacao de estorno ou registra uma solicitacao de reprocessamento.
 2. A mesma transacao grava a mensagem em `outbox_messages`.
-3. `LedgerService.Worker` hospeda `OutboxPublisherService`, que le mensagens pendentes e publica pela porta de mensageria configurada; nesta POC, o provider configurado e Kafka.
+3. `LedgerService.Worker` hospeda `OutboxPublisherService`, que le mensagens pendentes e publica pela porta de mensageria configurada: Kafka ou Pub/Sub.
 4. `LedgerService.Worker` hospeda `EstornoLancamentoProcessorService`, que processa solicitacoes `Pending` e cria lancamentos compensatorios.
 5. O estorno concluido grava `LedgerEntryCreated.v1` do lancamento compensatorio no Outbox.
 6. `LedgerService.Worker` hospeda `ReprocessamentoLancamentosConsumerService`, que consome `ledger.lancamentos.reprocessamento.solicitado`, chama o caso de uso de reprocessamento e registra eventos financeiros finais no Outbox quando houver lancamentos elegiveis.
 7. `BalanceService.Worker` consome apenas `LedgerEntryCreated.v1` e atualiza a projecao `daily_balances`.
-8. Mensagens invalidas ou nao recuperaveis do fluxo consumido pelo Balance sao publicadas pela porta neutra de DLQ; nesta POC, a DLQ concreta e um topico Kafka.
+8. Mensagens invalidas ou nao recuperaveis do fluxo consumido pelo Balance sao publicadas pela porta neutra de DLQ; o adapter concreto segue o provider selecionado no worker.
 
-No consumo do Balance, o fluxo interno esperado e:
+No consumo Kafka do Balance, o fluxo interno esperado e:
 
 ```text
 KafkaLedgerEventsConsumer
@@ -39,7 +57,31 @@ KafkaLedgerEventsConsumer
   -> Application Handler
 ```
 
-## Topicos e evento
+O adapter Pub/Sub equivalente usa:
+
+```text
+LedgerEventsPubSubConsumer
+  -> PubSubReceivedMessageMapper
+  -> ReceivedMessage
+  -> LedgerEntryCreatedMessageProcessor
+  -> Application Handler
+```
+
+Quando o processor retorna `true`, o consumer responde com `ack`. Quando retorna `false` ou ocorre falha recuperavel, responde com `nack`.
+
+No reprocessamento Kafka do Ledger, o fluxo interno esperado e:
+
+```text
+ReprocessamentoLancamentosConsumerService
+  -> KafkaReprocessamentoReceivedMessageMapper
+  -> ReceivedMessage
+  -> ReprocessamentoLancamentosMessageProcessor
+  -> Application Handler
+```
+
+O mapper concentra headers e coordenadas Kafka. O processor valida a fonte logica, `event_type` e payload usando o contrato neutro, sem depender de `ConsumeResult`, partition ou offset. O consumer Pub/Sub de reprocessamento ainda nao esta implementado.
+
+## Topicos Kafka legados e evento
 
 | Item | Valor |
 | --- | --- |
@@ -60,7 +102,7 @@ O contrato formal, o exemplo valido e a politica de compatibilidade de `LedgerEn
 
 `ReprocessamentoLancamentosSolicitado.v1` tambem e evento operacional/intencao interna. Ele nao representa conclusao nem alteracao direta de saldo. O `LedgerService` e o dono do processamento: o consumer de reprocessamento le esse topico, localiza a solicitacao persistida, muda o status e republica `LedgerEntryCreated.v1` para os lancamentos elegiveis como evento financeiro final. O `BalanceService` nao consome a solicitacao operacional.
 
-O compose cria os topicos no startup local. O consumer do Balance usa `AllowAutoCreateTopics=false`.
+O modo Kafka legado cria os topicos no startup local. O consumer Kafka do Balance usa `AllowAutoCreateTopics=false`.
 
 ## Headers
 
@@ -73,11 +115,13 @@ Headers publicados pelo producer:
 - `tracestate`, quando houver contexto W3C com tracestate;
 - `baggage`, quando houver baggage persistido na Outbox ou `Activity` atual.
 
+No producer Pub/Sub do Ledger, os mesmos metadados logicos sao publicados como attributes.
+
 O `BalanceService.Worker` exige `event_type=LedgerEntryCreated.v1`, usa `event_id` para rastreabilidade e idempotencia quando presente, restaura `traceparent`/`tracestate` como parent do span `kafka.consume`, reidrata `baggage` quando possivel e preserva headers relevantes ao enviar mensagens para a DLQ. Mensagens antigas sem headers W3C continuam validas; nesse caso, o consumo segue pelo fallback funcional e pode criar um span raiz quando OpenTelemetry estiver habilitado.
 
 ## Outbox
 
-A Outbox e neutra em relacao ao provider de mensageria: ela persiste a intencao de publicacao e o worker usa `IOutboxMessagePublisher` para entregar a mensagem pelo adapter configurado. Nesta POC, esse adapter e Kafka.
+A Outbox e neutra em relacao ao provider de mensageria: ela persiste a intencao de publicacao e o worker usa `IOutboxMessagePublisher` para entregar a mensagem pelo adapter configurado. No Ledger, esse adapter pode ser Kafka ou Pub/Sub.
 
 Estados esperados:
 
@@ -88,7 +132,7 @@ Estados esperados:
 
 Mensagens `DeadLetter` exigem investigacao antes de qualquer nova tentativa. O requeue operacional recoloca somente mensagens `DeadLetter` em `Pending`; mensagens `Processed` nao sao reprocessadas e mensagens `Processing` validas continuam sob responsabilidade do lock do publisher.
 
-A Outbox tambem persiste metadados opcionais de propagacao distribuida em `traceparent`, `tracestate` e `baggage`. Esses campos nao fazem parte do payload do evento, nao mudam contrato de negocio e servem apenas para reconstruir a arvore W3C entre o request HTTP original, o polling da Outbox, Kafka e o consumer do Balance. Quando OpenTelemetry esta desligado ou nao existe `Activity.Current`, esses campos ficam nulos e o fluxo continua usando `correlation_id`.
+A Outbox tambem persiste metadados opcionais de propagacao distribuida em `traceparent`, `tracestate` e `baggage`. Esses campos nao fazem parte do payload do evento, nao mudam contrato de negocio e servem apenas para reconstruir a arvore W3C entre o request HTTP original, o polling da Outbox, o provider selecionado e o consumer do Balance. Quando OpenTelemetry esta desligado ou nao existe `Activity.Current`, esses campos ficam nulos e o fluxo continua usando `correlation_id`.
 
 Configuracoes principais em `Outbox:Publisher`:
 
@@ -103,7 +147,7 @@ O claim ocorre antes da publicacao paralela e cada mensagem e validada novamente
 
 ## DLQ em banco e requeue operacional
 
-Use o requeue quando a causa da falha ja tiver sido corrigida ou classificada como transiente, por exemplo indisponibilidade temporaria de Kafka, credenciais/ACL corrigidas, topico recriado ou configuracao de producer ajustada. Nao use para mascarar erro permanente de contrato, payload invalido, topico incorreto ou incompatibilidade de consumidor.
+Use o requeue quando a causa da falha ja tiver sido corrigida ou classificada como transiente, por exemplo indisponibilidade temporaria do provider selecionado, credenciais/IAM/ACL corrigidas, topic recriado ou configuracao de producer ajustada. Nao use para mascarar erro permanente de contrato, payload invalido, topic incorreto ou incompatibilidade de consumidor.
 
 Endpoint administrativo:
 
@@ -135,7 +179,7 @@ Cada mensagem requeued registra `requeue_count`, `last_requeued_at`, `last_reque
 
 Procedimento recomendado:
 
-1. Identifique a causa do `DeadLetter` em logs, `last_error` e configuracao Kafka.
+1. Identifique a causa do `DeadLetter` em logs, `last_error` e configuracao do provider selecionado.
 2. Corrija a causa raiz antes do requeue.
 3. Prefira `outboxMessageId` para recuperacao pontual; use filtros por `eventType` e data apenas para incidentes conhecidos.
 4. Execute o endpoint com `reason` claro e limite pequeno.
@@ -151,7 +195,7 @@ Limitacoes e riscos:
 
 ## DLQ
 
-Mensagens com falha de desserializacao, contrato invalido, payload invalido ou falha nao recuperavel sao publicadas pela porta `IDeadLetterPublisher`. Nesta POC, o adapter Kafka publica em `ledger.ledgerentry.created.dlq`.
+Mensagens com falha de desserializacao, contrato invalido, payload invalido ou falha nao recuperavel sao publicadas pela porta `IDeadLetterPublisher`. O adapter Kafka publica em `ledger.ledgerentry.created.dlq`; o adapter Pub/Sub publica no topic configurado em `PubSub:Consumer:DeadLetterTopicId`.
 
 Politica de commit:
 
@@ -159,7 +203,7 @@ Politica de commit:
 - publicacao na DLQ com sucesso: commita o offset original;
 - falha ao publicar na DLQ: nao commita o offset original.
 
-O envelope neutro da DLQ preserva payload original quando disponivel, origem logica, tipo de evento, attributes/headers relevantes, motivo, tipo da excecao, timestamp e metadados de transporte. No adapter Kafka, os metadados de transporte incluem topico, particao, offset e key quando disponivel; esses valores continuam sendo propagados nos headers Kafka da DLQ como `original_topic`, `original_partition` e `original_offset`. Processors neutros nao devem depender de offset, partition ou commit.
+O envelope neutro da DLQ preserva payload original quando disponivel, origem logica, provider original, tipo de evento, attributes/headers relevantes, motivo, tipo da excecao, timestamp e metadados de transporte. No adapter Kafka, os metadados de transporte incluem topico, particao, offset e key quando disponivel; esses valores continuam sendo propagados nos headers Kafka da DLQ como `original_topic`, `original_partition` e `original_offset`. No adapter Pub/Sub, os metadados originais usam attributes com prefixo neutro `original_metadata_`, sem tornar topico, particao ou offset obrigatorios. Processors neutros nao devem depender de offset, partition ou commit.
 
 ## Metricas operacionais
 
@@ -200,7 +244,7 @@ Interpretacao rapida:
 - desvio para DLQ: observe `balance.kafka.dlq.messages.published` por `reason`;
 - falha critica de DLQ: observe `balance.kafka.dlq.publish.errors`, pois o offset original nao deve ser commitado.
 
-Estas metricas nao possuem dashboard especifico nem alertas nesta etapa. No compose local, o OpenTelemetry Collector recebe metricas OTLP e as expoe no exporter Prometheus em `otel-collector:9464`; o Prometheus faz scrape apenas do Collector e o Grafana usa o datasource Prometheus provisionado. A validacao operacional do fluxo distribuido continua focada em traces no Jaeger e estados funcionais, sem alterar contratos Kafka, payloads, topicos ou politica de DLQ.
+Estas metricas nao possuem dashboard especifico nem alertas nesta etapa. No compose local, o OpenTelemetry Collector recebe metricas OTLP e as expoe no exporter Prometheus em `otel-collector:9464`; o Prometheus faz scrape apenas do Collector e o Grafana usa o datasource Prometheus provisionado. A validacao operacional do fluxo distribuido continua focada em traces no Jaeger e estados funcionais, sem alterar contratos de evento, payloads, topics ou politica de DLQ.
 
 ## Configuracao
 
@@ -210,6 +254,8 @@ Ledger:
 
 - `Messaging:Provider`;
 - `Kafka:Producer`;
+- `PubSub:Enabled`;
+- `PubSub:Producer`;
 - `Outbox:Publisher`.
 - `Reprocessamentos:Consumer`.
 
@@ -219,9 +265,11 @@ Balance:
 
 - `Messaging:Provider`;
 - `Kafka:Consumer`;
-- `Kafka:Consumer:DeadLetterTopic`.
+- `Kafka:Consumer:DeadLetterTopic`;
+- `PubSub:Enabled`;
+- `PubSub:Consumer`.
 
-Somente `Kafka` e aceito em `Messaging:Provider` nesta etapa. Qualquer outro valor falha no startup com erro explicito de provider nao suportado. Pub/Sub nao possui configuracao, adapter, topicos/subscriptions ou testes nesta versao.
+Os workers de Ledger e Balance aceitam `Kafka` e `PubSub` em `Messaging:Provider`; qualquer outro valor falha no startup com erro explicito de provider nao suportado.
 
 `SecurityProtocol=Plaintext` existe apenas para execucao local (`Development`/`Local`) e para o ambiente `Test`. Em ambientes compartilhados ou produtivos, configure `SSL` ou `SASL_SSL` com os parametros operacionais por variaveis de ambiente ou secret store.
 
@@ -235,9 +283,9 @@ Somente `Kafka` e aceito em `Messaging:Provider` nesta etapa. Qualquer outro val
 6. Aguarde o polling e confirme transicao para `Processed`.
 7. Consulte o Balance para confirmar atualizacao da projecao.
 
-Em falha do Kafka, as APIs HTTP nao devem cair por causa do processamento assincrono. O Worker registra erro, incrementa `retry_count` e agenda `next_retry_at` com backoff exponencial e jitter. Ao atingir `MaxAttempts`, a mensagem vira `DeadLetter` e sai do processamento automatico ate requeue administrativo.
+Em falha do provider selecionado, as APIs HTTP nao devem cair por causa do processamento assincrono. O Worker registra erro, incrementa `retry_count` e agenda `next_retry_at` com backoff exponencial e jitter. Ao atingir `MaxAttempts`, a mensagem vira `DeadLetter` e sai do processamento automatico ate requeue administrativo.
 
-Para o roteiro operacional completo Keycloak -> Ledger -> Outbox -> Kafka -> Balance, incluindo `X-Correlation-Id`, logs, consultas SQL, Balance e Jaeger, use a secao [Validacao Keycloak -> Ledger -> Outbox -> Kafka -> Balance](../observability.md#validacao-keycloak---ledger---outbox---kafka---balance). O script recomendado e:
+Para o roteiro operacional completo Keycloak -> Ledger -> Outbox -> Pub/Sub emulator -> Balance, incluindo `X-Correlation-Id`, logs, consultas SQL, Balance e Jaeger, use a secao [Validacao Keycloak -> Ledger -> Outbox -> Pub/Sub emulator -> Balance](../observability.md#validacao-keycloak---ledger---outbox---pubsub-emulator---balance). O script recomendado e:
 
 ```powershell
 ./scripts/validate-auth-ledger-trace.ps1
@@ -272,7 +320,7 @@ A idempotencia e garantida por indice unico filtrado para uma solicitacao ativa 
 
 `POST /api/v1/lancamentos/reprocessar` persiste solicitacoes em `reprocessamentos_lancamentos` e grava `ReprocessamentoLancamentosSolicitado.v1` no Outbox na mesma transacao. O status inicial e `Pending`, com periodo maximo inclusivo de 31 dias e idempotencia por `merchantId` + `Idempotency-Key`.
 
-O processamento efetivo ocorre no `ReprocessamentoLancamentosConsumerService`, em `LedgerService.Worker`. O hosted service usa as configuracoes de `Reprocessamentos:Consumer`, assina o topico `ledger.lancamentos.reprocessamento.solicitado`, valida `event_type=ReprocessamentoLancamentosSolicitado.v1` e delega o trabalho ao Mediator com `ProcessarReprocessamentoLancamentosCommand`.
+O processamento efetivo ocorre no `ReprocessamentoLancamentosConsumerService`, em `LedgerService.Worker`. O hosted service usa as configuracoes de `Reprocessamentos:Consumer`, assina o topico `ledger.lancamentos.reprocessamento.solicitado`, mapeia a mensagem Kafka para `ReceivedMessage` e delega ao processor neutro. O processor valida a fonte logica e `event_type=ReprocessamentoLancamentosSolicitado.v1` antes de chamar o Mediator com `ProcessarReprocessamentoLancamentosCommand`.
 
 O handler:
 

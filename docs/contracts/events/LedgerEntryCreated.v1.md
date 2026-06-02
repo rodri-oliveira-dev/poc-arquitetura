@@ -9,7 +9,9 @@
 | `event_type` | `LedgerEntryCreated.v1` |
 | Origem | `LedgerService` |
 | Consumidor | `BalanceService.Worker` |
-| Topico Kafka atual | `ledger.ledgerentry.created` |
+| Topic Pub/Sub local principal | `ledger.ledgerentry.created.local` |
+| Topic Pub/Sub GCP dev | `ledger.ledgerentry.created.dev` |
+| Topico Kafka legado | `ledger.ledgerentry.created` |
 | Schema | [`LedgerEntryCreated.v1.schema.json`](LedgerEntryCreated.v1.schema.json) |
 | Exemplo valido | [`LedgerEntryCreated.v1.example.json`](LedgerEntryCreated.v1.example.json) |
 

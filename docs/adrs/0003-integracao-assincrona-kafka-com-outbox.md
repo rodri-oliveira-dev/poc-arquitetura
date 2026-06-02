@@ -23,6 +23,11 @@ Adotar o padrão **Outbox** no `LedgerService`:
 - Um `BackgroundService` (`OutboxKafkaPublisherService`) faz polling, **claim** de mensagens pendentes e publica no Kafka.
 
 Nota de evolucao em 2026-05-28: o nome atual do hosted service e `OutboxPublisherService`. A publicacao passa pela porta neutra `IOutboxMessagePublisher`, e Kafka permanece como adapter concreto atual (`KafkaOutboxMessagePublisher`). Pub/Sub nao esta implementado.
+
+Nota de evolucao em 2026-06-02: a [ADR-0078](0078-pubsub-provider-principal-local-emulator.md)
+promoveu Pub/Sub a provider principal, com emulator no fluxo local padrao e
+recursos reais provisionados por Terraform na GCP. Kafka permanece legado e
+opcional para compatibilidade e comparacao.
 - A entrega é **at-least-once** (podem existir duplicatas), e o pipeline trata falhas com retentativas/backoff.
 
 Detalhes relevantes (estado atual):

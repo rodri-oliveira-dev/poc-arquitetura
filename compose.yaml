@@ -73,8 +73,89 @@ services:
       timeout: 3s
       retries: 20
 
+  # --- Pub/Sub emulator (provider local principal) ---
+  pubsub-emulator:
+    image: gcr.io/google.com/cloudsdktool/google-cloud-cli:548.0.0-emulators
+    container_name: poc-pubsub-emulator
+    logging: *default-logging
+    command:
+      - gcloud
+      - beta
+      - emulators
+      - pubsub
+      - start
+      - "--host-port=0.0.0.0:8085"
+      - "--project=${PUBSUB_PROJECT_ID:-poc-local}"
+    ports:
+      - "${PUBSUB_EMULATOR_HOST_PORT:-8085}:8085"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512m
+          pids: 256
+    networks:
+      - poc-net
+    healthcheck:
+      test: [ "CMD-SHELL", "bash -ec 'exec 3<>/dev/tcp/127.0.0.1/8085'" ]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  pubsub-init:
+    image: docker.io/curlimages/curl:8.16.0
+    container_name: poc-pubsub-init
+    logging: *default-logging
+    depends_on:
+      pubsub-emulator:
+        condition: service_healthy
+    environment:
+      PUBSUB_PROJECT_ID: "${PUBSUB_PROJECT_ID:-poc-local}"
+      PUBSUB_LEDGER_EVENTS_TOPIC_ID: "${PUBSUB_LEDGER_EVENTS_TOPIC_ID:-ledger.ledgerentry.created.local}"
+      PUBSUB_LEDGER_EVENTS_DLQ_TOPIC_ID: "${PUBSUB_LEDGER_EVENTS_DLQ_TOPIC_ID:-ledger.ledgerentry.created.dlq.local}"
+      PUBSUB_BALANCE_SUBSCRIPTION_ID: "${PUBSUB_BALANCE_SUBSCRIPTION_ID:-balance-service-ledger-events-local}"
+      PUBSUB_LEDGER_EVENTS_DLQ_INSPECTION_SUBSCRIPTION_ID: "${PUBSUB_LEDGER_EVENTS_DLQ_INSPECTION_SUBSCRIPTION_ID:-ledger-events-application-dlq-inspection-local}"
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - |
+        emulator_url="http://pubsub-emulator:8085";
+        create_resource() {
+          resource_path="$$1";
+          body="$$2";
+          status="$$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            --request PUT \
+            --header 'Content-Type: application/json' \
+            --data "$$body" \
+            "$$emulator_url/v1/$$resource_path")";
+          case "$$status" in
+            200|409) ;;
+            *) echo "[pubsub-init] Falha ao criar $$resource_path: HTTP $$status" >&2; exit 1 ;;
+          esac;
+        };
+        echo "[pubsub-init] Criando recursos Pub/Sub locais (idempotente)...";
+        create_resource "projects/$$PUBSUB_PROJECT_ID/topics/$$PUBSUB_LEDGER_EVENTS_TOPIC_ID" '{}';
+        create_resource "projects/$$PUBSUB_PROJECT_ID/topics/$$PUBSUB_LEDGER_EVENTS_DLQ_TOPIC_ID" '{}';
+        create_resource \
+          "projects/$$PUBSUB_PROJECT_ID/subscriptions/$$PUBSUB_BALANCE_SUBSCRIPTION_ID" \
+          "{\"topic\":\"projects/$$PUBSUB_PROJECT_ID/topics/$$PUBSUB_LEDGER_EVENTS_TOPIC_ID\",\"ackDeadlineSeconds\":60,\"enableMessageOrdering\":false}";
+        create_resource \
+          "projects/$$PUBSUB_PROJECT_ID/subscriptions/$$PUBSUB_LEDGER_EVENTS_DLQ_INSPECTION_SUBSCRIPTION_ID" \
+          "{\"topic\":\"projects/$$PUBSUB_PROJECT_ID/topics/$$PUBSUB_LEDGER_EVENTS_DLQ_TOPIC_ID\",\"ackDeadlineSeconds\":60}";
+        echo "[pubsub-init] OK.";
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128m
+          pids: 128
+    networks:
+      - poc-net
+
   # --- Kafka (KRaft single node) ---
   kafka:
+    profiles:
+      - legacy-kafka
     # Usamos a imagem oficial do Apache Kafka no Docker Hub.
     image: docker.io/apache/kafka:3.7.0
     container_name: poc-kafka
@@ -119,6 +200,8 @@ services:
 
   # Consumer está com AllowAutoCreateTopics=false, então garantimos o tópico via init.
   kafka-init-topics:
+    profiles:
+      - legacy-kafka
     image: docker.io/apache/kafka:3.7.0
     container_name: poc-kafka-init-topics
     logging: *default-logging
@@ -162,10 +245,6 @@ services:
     depends_on:
       ledger-db:
         condition: service_healthy
-      kafka:
-        condition: service_healthy
-      kafka-init-topics:
-        condition: service_completed_successfully
     environment:
       ASPNETCORE_URLS: "http://+:8080"
       ASPNETCORE_ENVIRONMENT: "Development"
@@ -205,15 +284,21 @@ services:
     depends_on:
       ledger-db:
         condition: service_healthy
-      kafka:
-        condition: service_healthy
-      kafka-init-topics:
+      pubsub-init:
         condition: service_completed_successfully
     environment:
       DOTNET_ENVIRONMENT: "Development"
 
       # Overrides dos appsettings (no container, 127.0.0.1 aponta para ele mesmo)
       ConnectionStrings__DefaultConnection: "Host=ledger-db;Port=5432;Database=appdb;Username=appuser;Password=${POSTGRES_PASSWORD:-local_dev_password}"
+      Messaging__Provider: "PubSub"
+      PubSub__Enabled: "true"
+      PUBSUB_EMULATOR_HOST: "pubsub-emulator:8085"
+      PUBSUB_PROJECT_ID: "${PUBSUB_PROJECT_ID:-poc-local}"
+      PubSub__Producer__ProjectId: "${PUBSUB_PROJECT_ID:-poc-local}"
+      PubSub__Producer__DefaultTopicId: "${PUBSUB_LEDGER_EVENTS_TOPIC_ID:-ledger.ledgerentry.created.local}"
+      PubSub__Producer__EnableMessageOrdering: "false"
+      PubSub__Producer__TopicMap__LedgerEntryCreated.v1: "${PUBSUB_LEDGER_EVENTS_TOPIC_ID:-ledger.ledgerentry.created.local}"
       Kafka__Producer__BootstrapServers: "kafka:9092"
       Kafka__Producer__SecurityProtocol: "Plaintext"
       Reprocessamentos__Consumer__BootstrapServers: "kafka:9092"
@@ -240,10 +325,6 @@ services:
     depends_on:
       balance-db:
         condition: service_healthy
-      kafka:
-        condition: service_healthy
-      kafka-init-topics:
-        condition: service_completed_successfully
     environment:
       ASPNETCORE_URLS: "http://+:8080"
       ASPNETCORE_ENVIRONMENT: "Development"
@@ -282,15 +363,23 @@ services:
     depends_on:
       balance-db:
         condition: service_healthy
-      kafka:
-        condition: service_healthy
-      kafka-init-topics:
+      pubsub-init:
         condition: service_completed_successfully
     environment:
       DOTNET_ENVIRONMENT: "Development"
 
       # Overrides dos appsettings (no container, 127.0.0.1 aponta para ele mesmo)
       ConnectionStrings__DefaultConnection: "Host=${BALANCE_DB_HOST:-balance-db};Port=${BALANCE_DB_PORT:-5432};Database=${BALANCE_DB_NAME:-dbBalance};Username=${BALANCE_DB_USER:-userBalance};Password=${BALANCE_DB_PASSWORD:-local_dev_password}"
+      Messaging__Provider: "PubSub"
+      PubSub__Enabled: "true"
+      PUBSUB_EMULATOR_HOST: "pubsub-emulator:8085"
+      PUBSUB_PROJECT_ID: "${PUBSUB_PROJECT_ID:-poc-local}"
+      PubSub__Consumer__ProjectId: "${PUBSUB_PROJECT_ID:-poc-local}"
+      PubSub__Consumer__SubscriptionId: "${PUBSUB_BALANCE_SUBSCRIPTION_ID:-balance-service-ledger-events-local}"
+      PubSub__Consumer__DeadLetterTopicId: "${PUBSUB_LEDGER_EVENTS_DLQ_TOPIC_ID:-ledger.ledgerentry.created.dlq.local}"
+      PubSub__Consumer__EnableExactlyOnceDelivery: "false"
+      PubSub__Consumer__AckDeadlineSeconds: "60"
+      PubSub__Consumer__ProcessingErrorRetryDelay: "00:00:05"
       Kafka__Consumer__BootstrapServers: "kafka:9092"
       Kafka__Consumer__SecurityProtocol: "Plaintext"
       Observability__OpenTelemetry__Enabled: "${OTEL_ENABLED:-false}"

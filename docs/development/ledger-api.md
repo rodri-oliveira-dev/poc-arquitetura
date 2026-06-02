@@ -444,12 +444,13 @@ Esse evento representa uma intencao operacional interna. Ele nao e fato financei
 O processamento efetivo ocorre no `ReprocessamentoLancamentosConsumerService`, em `LedgerService.Worker`. O consumer:
 
 1. consome `ledger.lancamentos.reprocessamento.solicitado`;
-2. valida `event_type=ReprocessamentoLancamentosSolicitado.v1`;
-3. chama `ProcessarReprocessamentoLancamentosCommand` via Mediator;
-4. o handler marca a solicitacao como `Processing`;
-5. busca lancamentos do mesmo `merchantId` dentro do periodo informado;
-6. registra no Outbox um `LedgerEntryCreated.v1` para cada lancamento elegivel;
-7. conclui como `Completed` ou `CompletedWithWarnings`.
+2. mapeia a mensagem Kafka para o contrato neutro `ReceivedMessage`;
+3. valida a fonte logica e `event_type=ReprocessamentoLancamentosSolicitado.v1`;
+4. chama `ProcessarReprocessamentoLancamentosCommand` via Mediator;
+5. o handler marca a solicitacao como `Processing`;
+6. busca lancamentos do mesmo `merchantId` dentro do periodo informado;
+7. registra no Outbox um `LedgerEntryCreated.v1` para cada lancamento elegivel;
+8. conclui como `Completed` ou `CompletedWithWarnings`.
 
 Nesta POC, "reprocessar valores" significa republicar os fatos financeiros ja persistidos no Ledger usando o valor atual do `LedgerEntry` (`Amount`, `Type`, `OccurredAt`, `MerchantId`, `Currency` etc.). O `BalanceService` continua consumindo apenas `LedgerEntryCreated.v1`; como o identificador do evento financeiro e o mesmo (`lan_{lancamentoId}`), a idempotencia por `processed_events` evita duplicidade em retry/reentrega e permite aplicar lancamentos que ainda nao tinham sido projetados.
 

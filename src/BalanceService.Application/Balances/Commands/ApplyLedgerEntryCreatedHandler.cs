@@ -88,7 +88,6 @@ public sealed class ApplyLedgerEntryCreatedHandler : IRequestHandler<ApplyLedger
             });
 
             using var activity = _activitySource.StartActivity("balance.apply", ActivityKind.Internal);
-            activity?.SetTag("messaging.system", "kafka");
             activity?.SetTag("balance.event_id", evt.Id);
             activity?.SetTag("balance.merchant_id", evt.MerchantId);
             activity?.SetTag("balance.occurred_at", evt.OccurredAt.ToString("o", CultureInfo.InvariantCulture));

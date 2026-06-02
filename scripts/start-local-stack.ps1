@@ -1,6 +1,9 @@
 [CmdletBinding()]
 param(
   [string]$ComposeFile = "",
+  [string]$OverlayFile = "",
+  [ValidateSet("PubSub", "Kafka")]
+  [string]$MessagingProvider = "PubSub",
   [switch]$NoBuild,
   [switch]$Observability
 )
@@ -10,6 +13,7 @@ $ErrorActionPreference = "Stop"
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $root = (Resolve-Path (Join-Path $scriptDir ".."))
 $composeObservabilityFile = Join-Path $root "compose.observability.yaml"
+$composeKafkaFile = Join-Path $root "compose.kafka.yaml"
 
 function Get-LocalEnvValue([string]$Name) {
   $envPath = Join-Path $root ".env"
@@ -66,12 +70,27 @@ $balanceDbHostPort = Get-LocalConfigValue "BALANCE_DB_HOST_PORT" "15433"
 if ([string]::IsNullOrWhiteSpace($ComposeFile)) {
   $ComposeFile = (Join-Path $root "compose.yaml")
 }
+if ([string]::IsNullOrWhiteSpace($OverlayFile)) {
+  $OverlayFile = if ($MessagingProvider -eq "Kafka") { $composeKafkaFile } else { "" }
+}
 
 function Invoke-DockerCompose([string[]]$Arguments) {
   & docker @Arguments
   if ($LASTEXITCODE -ne 0) {
     throw "docker compose falhou: $LASTEXITCODE"
   }
+}
+
+function Get-ComposeArguments {
+  $arguments = @("compose", "-f", $ComposeFile)
+  if (-not [string]::IsNullOrWhiteSpace($OverlayFile)) {
+    $arguments += @("-f", $OverlayFile)
+  }
+  if ($MessagingProvider -eq "Kafka") {
+    $arguments += @("--profile", "legacy-kafka")
+  }
+
+  return $arguments
 }
 
 function Invoke-Dotnet([string[]]$Arguments) {
@@ -82,8 +101,9 @@ function Invoke-Dotnet([string[]]$Arguments) {
 }
 
 function Wait-Database([string]$Service, [string]$User, [string]$Database) {
+  $composeArguments = @(Get-ComposeArguments)
   for ($i = 1; $i -le 60; $i++) {
-    & docker compose -f $ComposeFile exec -T $Service pg_isready -U $User -d $Database *> $null
+    & docker @composeArguments exec -T $Service pg_isready -U $User -d $Database *> $null
     if ($LASTEXITCODE -eq 0) {
       return
     }
@@ -95,10 +115,11 @@ function Wait-Database([string]$Service, [string]$User, [string]$Database) {
 }
 
 function Assert-BalanceDatabaseAuthentication {
+  $composeArguments = @(Get-ComposeArguments)
   $previousErrorActionPreference = $ErrorActionPreference
   try {
     $ErrorActionPreference = "Continue"
-    & docker compose -f $ComposeFile exec -T `
+    & docker @composeArguments exec -T `
       -e "PGPASSWORD=$balanceDbPassword" `
       "balance-db" `
       psql -h $balanceDbHost -U $balanceDbUser -d $balanceDbName -v "ON_ERROR_STOP=1" -c "select 1;" 1>$null 2>$null
@@ -155,9 +176,9 @@ try {
 
   Invoke-Dotnet @("tool", "restore")
 
-  $infraArgs = @("compose", "-f", $ComposeFile, "up", "-d")
+  $infraArgs = @(Get-ComposeArguments) + @("up", "-d")
   if ($Observability) {
-    $infraArgs = @("compose", "-f", $ComposeFile, "-f", $composeObservabilityFile, "--profile", "observability", "up", "-d")
+    $infraArgs = @(Get-ComposeArguments) + @("-f", $composeObservabilityFile, "--profile", "observability", "up", "-d")
   }
 
   if (-not $NoBuild) {
@@ -167,10 +188,14 @@ try {
   $infraArgs += @(
     "ledger-db",
     "balance-db",
-    "kafka",
-    "kafka-init-topics",
     "keycloak"
   )
+  if ($MessagingProvider -eq "PubSub") {
+    $infraArgs += @("pubsub-emulator", "pubsub-init")
+  }
+  else {
+    $infraArgs += @("kafka", "kafka-init-topics")
+  }
   if ($Observability) {
     $infraArgs += @(
       "jaeger",
@@ -200,9 +225,9 @@ try {
     "src/BalanceService.Api/BalanceService.Api.csproj" `
     "BalanceDbContext"
 
-  $apiArgs = @("compose", "-f", $ComposeFile, "up", "-d")
+  $apiArgs = @(Get-ComposeArguments) + @("up", "-d")
   if ($Observability) {
-    $apiArgs = @("compose", "-f", $ComposeFile, "-f", $composeObservabilityFile, "--profile", "observability", "up", "-d")
+    $apiArgs = @(Get-ComposeArguments) + @("-f", $composeObservabilityFile, "--profile", "observability", "up", "-d")
   }
 
   if (-not $NoBuild) {

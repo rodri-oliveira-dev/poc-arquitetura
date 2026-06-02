@@ -17,13 +17,13 @@ public sealed class KafkaDeadLetterPublisher : IDeadLetterPublisher, IDisposable
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly KafkaConsumerOptions _options;
-    private readonly KafkaMessagingMetrics _metrics;
+    private readonly MessagingMetrics _metrics;
     private readonly ILogger<KafkaDeadLetterPublisher> _logger;
     private readonly IProducer<string, string> _producer;
 
     public KafkaDeadLetterPublisher(
         IOptions<KafkaConsumerOptions> options,
-        KafkaMessagingMetrics metrics,
+        MessagingMetrics metrics,
         ILogger<KafkaDeadLetterPublisher> logger)
     {
         _options = options.Value;

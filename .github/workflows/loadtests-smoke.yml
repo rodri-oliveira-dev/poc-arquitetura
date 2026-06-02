@@ -47,7 +47,6 @@ jobs:
         shell: bash
         run: |
           for url in \
-            http://localhost:5030/health \
             http://localhost:5226/health \
             http://localhost:5228/health
           do

@@ -1,10 +1,14 @@
 using LedgerService.Api.Extensions;
 using LedgerService.Worker.Estornos;
-using LedgerService.Worker.Outbox;
+using LedgerService.Worker.Extensions;
+using LedgerService.Worker.Messaging.Abstractions;
 using LedgerService.Worker.Messaging.Kafka.Configuration;
 using LedgerService.Worker.Messaging.Kafka.Consumers;
-using LedgerService.Worker.Messaging.Kafka.Processors;
-using LedgerService.Worker.Extensions;
+using LedgerService.Worker.Messaging.Processors;
+using LedgerService.Worker.Messaging.Kafka.Producers;
+using LedgerService.Worker.Messaging.PubSub.Configuration;
+using LedgerService.Worker.Messaging.PubSub.Producers;
+using LedgerService.Worker.Outbox;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -32,8 +36,12 @@ public sealed class ProcessCompositionPolicyTests
     {
         var services = new ServiceCollection();
 
-        services.AddLedgerWorkerComposition(CreateConfiguration(), CreateEnvironment());
+        services.AddLedgerWorkerComposition(CreateConfiguration(new Dictionary<string, string?>
+        {
+            ["Messaging:Provider"] = "Kafka"
+        }), CreateEnvironment());
 
+        services.ContainSingleton<IOutboxMessagePublisher, KafkaOutboxMessagePublisher>();
         services.ContainHostedService<OutboxPublisherService>();
         services.ContainHostedService<EstornoLancamentoProcessorService>();
         services.ContainHostedService<ReprocessamentoLancamentosConsumerService>();
@@ -46,11 +54,61 @@ public sealed class ProcessCompositionPolicyTests
 
         services.AddLedgerWorkerComposition(CreateConfiguration(new Dictionary<string, string?>
         {
+            ["Messaging:Provider"] = "Kafka",
             ["Kafka:Enabled"] = "false"
         }), CreateEnvironment());
 
         services.NotContainHostedService<OutboxPublisherService>();
         services.NotContainHostedService<ReprocessamentoLancamentosConsumerService>();
+        services.ContainHostedService<EstornoLancamentoProcessorService>();
+    }
+
+    [Fact]
+    public void LedgerServiceWorker_should_host_pubsub_outbox_publisher_when_pubsub_is_enabled()
+    {
+        var services = new ServiceCollection();
+
+        services.AddLedgerWorkerComposition(CreateConfiguration(new Dictionary<string, string?>
+        {
+            ["Messaging:Provider"] = "PubSub",
+            ["PubSub:Enabled"] = "true",
+            ["PubSub:Producer:ProjectId"] = "poc-project",
+            ["PubSub:Producer:DefaultTopicId"] = "ledger-events"
+        }), CreateEnvironment());
+
+        services.ContainSingleton<IOutboxMessagePublisher, PubSubOutboxMessagePublisher>();
+        services.ContainHostedService<OutboxPublisherService>();
+        services.NotContainHostedService<ReprocessamentoLancamentosConsumerService>();
+    }
+
+    [Fact]
+    public void LedgerServiceWorker_should_use_pubsub_when_provider_is_not_configured()
+    {
+        var services = new ServiceCollection();
+
+        services.AddLedgerWorkerComposition(CreateConfiguration(new Dictionary<string, string?>
+        {
+            ["PubSub:Producer:ProjectId"] = "poc-project",
+            ["PubSub:Producer:DefaultTopicId"] = "ledger-events"
+        }), CreateEnvironment());
+
+        services.ContainSingleton<IOutboxMessagePublisher, PubSubOutboxMessagePublisher>();
+        services.ContainHostedService<OutboxPublisherService>();
+        services.NotContainHostedService<ReprocessamentoLancamentosConsumerService>();
+    }
+
+    [Fact]
+    public void LedgerServiceWorker_should_not_host_pubsub_outbox_worker_when_pubsub_is_disabled()
+    {
+        var services = new ServiceCollection();
+
+        services.AddLedgerWorkerComposition(CreateConfiguration(new Dictionary<string, string?>
+        {
+            ["Messaging:Provider"] = "PubSub",
+            ["PubSub:Enabled"] = "false"
+        }), CreateEnvironment());
+
+        services.NotContainHostedService<OutboxPublisherService>();
         services.ContainHostedService<EstornoLancamentoProcessorService>();
     }
 
@@ -61,11 +119,11 @@ public sealed class ProcessCompositionPolicyTests
 
         var act = () => services.AddLedgerWorkerComposition(CreateConfiguration(new Dictionary<string, string?>
         {
-            ["Messaging:Provider"] = "PubSub"
+            ["Messaging:Provider"] = "RabbitMq"
         }), CreateEnvironment());
 
         var ex = Assert.Throws<InvalidOperationException>(act);
-        Assert.Equal("Unsupported messaging provider 'PubSub'.", ex.Message);
+        Assert.Equal("Unsupported messaging provider 'RabbitMq'.", ex.Message);
     }
 
     [Fact]
@@ -98,6 +156,21 @@ public sealed class ProcessCompositionPolicyTests
     }
 
     [Fact]
+    public void LedgerServiceWorker_should_validate_pubsub_producer_options()
+    {
+        using var provider = CreateProvider(new Dictionary<string, string?>
+        {
+            ["Messaging:Provider"] = "PubSub",
+            ["PubSub:Producer:ProjectId"] = "",
+            ["PubSub:Producer:DefaultTopicId"] = "ledger-events"
+        });
+
+        var act = () => provider.GetRequiredService<IOptions<PubSubProducerOptions>>().Value;
+        var ex = Assert.Throws<OptionsValidationException>(act);
+        Assert.Matches("^" + System.Text.RegularExpressions.Regex.Escape("*PubSub ProjectId*").Replace("\\*", ".*") + "$", ex.Message);
+    }
+
+    [Fact]
     public void LedgerServiceWorker_should_validate_estorno_processor_options()
     {
         using var provider = CreateProvider(new Dictionary<string, string?>
@@ -115,6 +188,7 @@ public sealed class ProcessCompositionPolicyTests
     {
         using var provider = CreateProvider(new Dictionary<string, string?>
         {
+            ["Messaging:Provider"] = "Kafka",
             ["Reprocessamentos:Consumer:Topic"] = ""
         });
 
@@ -176,6 +250,14 @@ public sealed class ProcessCompositionPolicyTests
 
 file static class HostedServiceAssertions
 {
+    public static void ContainSingleton<TService, TImplementation>(this IServiceCollection services)
+    {
+        Assert.Contains(services, d =>
+            d.ServiceType == typeof(TService) &&
+            d.ImplementationType == typeof(TImplementation) &&
+            d.Lifetime == ServiceLifetime.Singleton);
+    }
+
     public static void ContainHostedService<THostedService>(this IServiceCollection services)
         where THostedService : IHostedService
     {

@@ -3,10 +3,12 @@ using LedgerService.Infrastructure;
 using LedgerService.Worker.Estornos;
 using LedgerService.Worker.Messaging.Abstractions;
 using LedgerService.Worker.Messaging.Kafka.Configuration;
-using LedgerService.Worker.Messaging.Kafka.Producers;
-using LedgerService.Worker.Outbox;
 using LedgerService.Worker.Messaging.Kafka.Consumers;
-using LedgerService.Worker.Messaging.Kafka.Processors;
+using LedgerService.Worker.Messaging.Kafka.Producers;
+using LedgerService.Worker.Messaging.Processors;
+using LedgerService.Worker.Messaging.PubSub.Configuration;
+using LedgerService.Worker.Messaging.PubSub.Producers;
+using LedgerService.Worker.Outbox;
 
 namespace LedgerService.Worker.Extensions;
 
@@ -14,6 +16,7 @@ public static class WorkerCompositionExtensions
 {
     private const string MessagingProviderConfigurationKey = "Messaging:Provider";
     private const string KafkaProvider = "Kafka";
+    private const string PubSubProvider = "PubSub";
 
     public static IServiceCollection AddLedgerWorkerComposition(
         this IServiceCollection services,
@@ -37,11 +40,12 @@ public static class WorkerCompositionExtensions
         IConfiguration configuration,
         IHostEnvironment environment)
     {
-        var provider = configuration.GetValue<string>(MessagingProviderConfigurationKey) ?? KafkaProvider;
+        var provider = configuration.GetValue<string>(MessagingProviderConfigurationKey) ?? PubSubProvider;
 
         return provider.Trim().ToUpperInvariant() switch
         {
             "KAFKA" => services.AddLedgerKafkaMessaging(configuration, environment),
+            "PUBSUB" => services.AddLedgerPubSubMessaging(configuration, environment),
             _ => throw new InvalidOperationException($"Unsupported messaging provider '{provider}'.")
         };
     }
@@ -55,6 +59,16 @@ public static class WorkerCompositionExtensions
             .AddLedgerKafkaProducer(configuration, environment)
             .AddLedgerOutboxWorker(configuration)
             .AddLedgerReprocessamentoWorker(configuration, environment);
+    }
+
+    public static IServiceCollection AddLedgerPubSubMessaging(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        IHostEnvironment environment)
+    {
+        return services
+            .AddLedgerPubSubProducer(configuration, environment)
+            .AddLedgerPubSubOutboxWorker(configuration);
     }
 
     public static IServiceCollection AddLedgerKafkaProducer(
@@ -77,6 +91,27 @@ public static class WorkerCompositionExtensions
         return services;
     }
 
+    public static IServiceCollection AddLedgerPubSubProducer(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        IHostEnvironment _)
+    {
+        var pubSubEnabled = configuration.GetValue<bool>($"{PubSubProvider}:Enabled", defaultValue: true);
+        if (!pubSubEnabled)
+            return services;
+
+        services.AddOptions<PubSubProducerOptions>()
+            .Bind(configuration.GetSection(PubSubProducerOptions.SectionName))
+            .Validate(o => !string.IsNullOrWhiteSpace(o.ProjectId), "PubSub ProjectId nao configurado.")
+            .Validate(o => !string.IsNullOrWhiteSpace(o.DefaultTopicId), "PubSub DefaultTopicId nao configurado.")
+            .Validate(o => o.ShutdownTimeoutSeconds > 0, "PubSub ShutdownTimeoutSeconds deve ser maior que zero.")
+            .ValidateOnStart();
+
+        services.AddSingleton<IOutboxMessagePublisher, PubSubOutboxMessagePublisher>();
+
+        return services;
+    }
+
     public static IServiceCollection AddLedgerOutboxWorker(
         this IServiceCollection services,
         IConfiguration configuration)
@@ -85,6 +120,24 @@ public static class WorkerCompositionExtensions
         if (!kafkaEnabled)
             return services;
 
+        return services.AddLedgerOutboxPublisherWorker(configuration);
+    }
+
+    public static IServiceCollection AddLedgerPubSubOutboxWorker(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        var pubSubEnabled = configuration.GetValue<bool>($"{PubSubProvider}:Enabled", defaultValue: true);
+        if (!pubSubEnabled)
+            return services;
+
+        return services.AddLedgerOutboxPublisherWorker(configuration);
+    }
+
+    private static IServiceCollection AddLedgerOutboxPublisherWorker(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
         services.AddOptions<OutboxPublisherOptions>()
             .Bind(configuration.GetSection(OutboxPublisherOptions.SectionName))
             .Validate(o => o.PollingIntervalSeconds > 0, "Outbox Publisher PollingIntervalSeconds deve ser maior que zero.")

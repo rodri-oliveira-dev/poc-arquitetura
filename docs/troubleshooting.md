@@ -248,9 +248,9 @@ As APIs usam `UseForwardedHeaders` antes de Swagger, redirecionamento HTTPS, aut
 - conexao com PostgreSQL;
 - connection strings usadas no ambiente.
 
-Kafka, topicos, `Kafka:Enabled`, bootstrap servers e DLQ pertencem aos workers. Quando houver falha de consumo ou publicacao, investigue logs e metricas de `LedgerService.Worker` e `BalanceService.Worker`; a indisponibilidade do Kafka consumer nao deve derrubar o readiness do `BalanceService.Api`.
+Pub/Sub, Kafka legado, topics, subscriptions, flags de provider e DLQ pertencem aos workers. Quando houver falha de consumo ou publicacao, investigue logs e metricas de `LedgerService.Worker` e `BalanceService.Worker`; a indisponibilidade do consumer nao deve derrubar o readiness do `BalanceService.Api`.
 
-No compose local, use `docker compose logs -f ledger-worker` para Outbox/estornos/reprocessamentos e `docker compose logs -f balance-worker` para consumo Kafka/DLQ. `ledger-service` e `balance-service` representam apenas as APIs HTTP.
+No compose local, use `docker compose -f compose.yaml logs -f ledger-worker balance-worker pubsub-emulator pubsub-init` para o fluxo principal. No modo Kafka legado, use `docker compose -f compose.yaml -f compose.kafka.yaml --profile legacy-kafka logs -f ledger-worker balance-worker kafka kafka-init-topics`. `ledger-service` e `balance-service` representam apenas as APIs HTTP.
 
 Detalhes ficam em [observabilidade](observability.md#readiness) e [Kafka, Outbox e DLQ](development/kafka-outbox.md).
 
@@ -307,7 +307,7 @@ Nenhum script do repositorio remove volumes automaticamente.
 
 ## Outbox fica em Pending ou DeadLetter
 
-Mensagens `Pending` podem ser normais durante a janela de polling. Se permanecerem acumuladas ou chegarem a `DeadLetter`, investigue Kafka, topic map, ACL/configuracao local, serializacao e `last_error`.
+Mensagens `Pending` podem ser normais durante a janela de polling. Se permanecerem acumuladas ou chegarem a `DeadLetter`, investigue o provider selecionado, topic map, IAM/ACL ou configuracao local, serializacao e `last_error`.
 
 O publisher roda no `LedgerService.Worker`; se o `LedgerService.Api` estiver saudavel mas a Outbox nao avancar, valide primeiro se o container/processo `ledger-worker` esta ativo e com `ServiceName=LedgerService.Worker`.
 
@@ -324,7 +324,7 @@ Confirme a cadeia completa:
 5. `balance-worker` atualizou `daily_balances`;
 6. ausencia de mensagem inesperada na DLQ.
 
-O roteiro operacional completo fica em [validacao Keycloak -> Ledger -> Outbox -> Kafka -> Balance](observability.md#validacao-keycloak---ledger---outbox---kafka---balance).
+O roteiro operacional completo fica em [validacao Keycloak -> Ledger -> Outbox -> Pub/Sub emulator -> Balance](observability.md#validacao-keycloak---ledger---outbox---pubsub-emulator---balance).
 
 ## Token JWT e rejeitado
 
@@ -373,7 +373,7 @@ Para investigar a partir de um dashboard:
 4. Ajuste o periodo e clique em `Logs no Loki`.
 5. No Explore, pesquise `CorrelationId=<valor>` ou `TraceId=<valor>`.
 
-Quando o log contem `TraceId=<valor>`, o datasource Loki mostra o link `Abrir trace no Jaeger`. Use `TraceId` para navegar para a arvore de spans no Jaeger e use `CorrelationId` para conectar logs, responses HTTP, Outbox, Kafka e consultas SQL do fluxo funcional.
+Quando o log contem `TraceId=<valor>`, o datasource Loki mostra o link `Abrir trace no Jaeger`. Use `TraceId` para navegar para a arvore de spans no Jaeger e use `CorrelationId` para conectar logs, responses HTTP, Outbox, mensagens do provider selecionado e consultas SQL do fluxo funcional.
 
 ## Load tests falham
 

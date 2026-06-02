@@ -43,7 +43,7 @@ public sealed class WorkerCoverageCompositionTests
     [Fact]
     public async Task KafkaDeadLetterPublisher_should_validate_dead_letter_topic_before_publishing()
     {
-        using var metrics = new KafkaMessagingMetrics("BalanceService.Worker.Tests.Dlq");
+        using var metrics = new MessagingMetrics("BalanceService.Worker.Tests.Dlq");
         using var sut = new KafkaDeadLetterPublisher(
             Options.Create(ValidConsumerOptions(deadLetterTopic: "")),
             metrics,
@@ -52,6 +52,7 @@ public sealed class WorkerCoverageCompositionTests
         var message = new DeadLetterMessage(
             "{}",
             "ledger.ledgerentry.created",
+            "kafka",
             "unknown",
             "Missing required message attribute event_id.",
             nameof(InvalidOperationException),

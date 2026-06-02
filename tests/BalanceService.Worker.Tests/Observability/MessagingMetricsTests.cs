@@ -5,7 +5,7 @@ using BalanceService.Worker.Observability;
 
 namespace BalanceService.Worker.Tests.Observability;
 
-public sealed class KafkaMessagingMetricsTests
+public sealed class MessagingMetricsTests
 {
     private static readonly string[] ProhibitedTags =
     [
@@ -21,11 +21,23 @@ public sealed class KafkaMessagingMetricsTests
     ];
 
     [Fact]
+    public void Metric_names_should_preserve_existing_dashboard_compatibility()
+    {
+        Assert.Equal("BalanceService.Kafka", MessagingMetrics.MeterName);
+        Assert.Equal("balance.kafka.consumer.messages.consumed", MessagingMetrics.ConsumerMessagesConsumedMetricName);
+        Assert.Equal("balance.kafka.consumer.processing.duration", MessagingMetrics.ConsumerProcessingDurationMetricName);
+        Assert.Equal("balance.kafka.consumer.errors", MessagingMetrics.ConsumerErrorsMetricName);
+        Assert.Equal("balance.kafka.consumer.duplicates", MessagingMetrics.ConsumerDuplicatesMetricName);
+        Assert.Equal("balance.kafka.dlq.messages.published", MessagingMetrics.DlqMessagesPublishedMetricName);
+        Assert.Equal("balance.kafka.dlq.publish.errors", MessagingMetrics.DlqPublishErrorsMetricName);
+    }
+
+    [Fact]
     public void RecordConsumerMessageConsumed_should_emit_only_low_cardinality_tags()
     {
-        var meterName = $"{KafkaMessagingMetrics.MeterName}.Tests.{Guid.NewGuid():N}";
+        var meterName = $"{MessagingMetrics.MeterName}.Tests.{Guid.NewGuid():N}";
         using var listener = new MeterListener();
-        using var metrics = new KafkaMessagingMetrics(meterName);
+        using var metrics = new MessagingMetrics(meterName);
 
         long? measurement = null;
         Dictionary<string, object?>? observedTags = null;
@@ -33,7 +45,7 @@ public sealed class KafkaMessagingMetricsTests
         listener.InstrumentPublished = (instrument, meterListener) =>
         {
             if (instrument.Meter.Name == meterName &&
-                instrument.Name == KafkaMessagingMetrics.ConsumerMessagesConsumedMetricName)
+                instrument.Name == MessagingMetrics.ConsumerMessagesConsumedMetricName)
             {
                 meterListener.EnableMeasurementEvents(instrument);
             }
@@ -59,16 +71,16 @@ public sealed class KafkaMessagingMetricsTests
     [Fact]
     public void RecordDlqMessagePublished_should_use_stable_reason_tag()
     {
-        var meterName = $"{KafkaMessagingMetrics.MeterName}.Tests.{Guid.NewGuid():N}";
+        var meterName = $"{MessagingMetrics.MeterName}.Tests.{Guid.NewGuid():N}";
         using var listener = new MeterListener();
-        using var metrics = new KafkaMessagingMetrics(meterName);
+        using var metrics = new MessagingMetrics(meterName);
 
         Dictionary<string, object?>? observedTags = null;
 
         listener.InstrumentPublished = (instrument, meterListener) =>
         {
             if (instrument.Meter.Name == meterName &&
-                instrument.Name == KafkaMessagingMetrics.DlqMessagesPublishedMetricName)
+                instrument.Name == MessagingMetrics.DlqMessagesPublishedMetricName)
             {
                 meterListener.EnableMeasurementEvents(instrument);
             }
@@ -90,9 +102,9 @@ public sealed class KafkaMessagingMetricsTests
     }
 
     [Fact]
-    public void KafkaMessagingMetrics_should_record_remaining_low_cardinality_metrics()
+    public void MessagingMetrics_should_record_remaining_low_cardinality_metrics()
     {
-        using var metrics = new KafkaMessagingMetrics($"{KafkaMessagingMetrics.MeterName}.Tests.{Guid.NewGuid():N}");
+        using var metrics = new MessagingMetrics($"{MessagingMetrics.MeterName}.Tests.{Guid.NewGuid():N}");
 
         metrics.RecordConsumerProcessingDuration(12.5, "ledger.ledgerentry.created", "LedgerEntryCreated.v1", "success");
         metrics.RecordConsumerError("ledger.ledgerentry.created", "LedgerEntryCreated.v1", "TimeoutException");

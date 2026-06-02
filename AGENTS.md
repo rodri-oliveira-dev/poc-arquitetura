@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-Este repositorio e uma POC de microservicos em .NET com Clean Architecture, DDD, PostgreSQL, Kafka, Outbox, JWT/JWKS, observabilidade e testes automatizados. O trabalho do Codex deve ser pequeno, correto, reproduzivel e coerente com a arquitetura existente.
+Este repositorio e uma POC de microservicos em .NET com Clean Architecture, DDD, PostgreSQL, Pub/Sub principal, Kafka legado opcional, Outbox, JWT/JWKS, observabilidade e testes automatizados. O trabalho do Codex deve ser pequeno, correto, reproduzivel e coerente com a arquitetura existente.
 
 Responda em portugues, salvo pedido explicito em outro idioma.
 
@@ -63,7 +63,7 @@ Componentes principais:
 - `Api`: entrada/saida HTTP, autenticacao, autorizacao, Swagger, health/readiness, middlewares e DI.
 - `Application`: casos de uso, handlers, services, validacao de entrada e orquestracao.
 - `Domain`: entidades, invariantes e modelos de dominio sem dependencia de infraestrutura.
-- `Infrastructure`: EF Core, PostgreSQL, Kafka, Outbox, DLQ, hosted services, integracoes e detalhes tecnicos.
+- `Infrastructure`: EF Core, PostgreSQL, Pub/Sub, Kafka legado, Outbox, DLQ, hosted services, integracoes e detalhes tecnicos.
 
 Ao alterar endpoints protegidos, revise issuer, audience, scopes, policies e autorizacao por merchant. Ao alterar eventos, preserve correlacao, headers, idempotencia e contrato entre produtor e consumidor.
 

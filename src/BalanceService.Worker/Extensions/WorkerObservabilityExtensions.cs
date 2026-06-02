@@ -42,7 +42,7 @@ public static class WorkerObservabilityExtensions
                 {
                     metrics
                         .AddRuntimeInstrumentation()
-                        .AddMeter(KafkaMessagingMetrics.MeterName);
+                        .AddMeter(MessagingMetrics.MeterName);
 
                     if (otelOptions.UseConsoleExporter)
                         metrics.AddConsoleExporter();
