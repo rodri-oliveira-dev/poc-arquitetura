@@ -1,5 +1,5 @@
 using System.Xml.Linq;
-using ArchUnitNET.Domain;
+
 using ArchUnitNET.Loader;
 using ArchUnitNET.xUnitV3;
 
@@ -18,7 +18,8 @@ public sealed class LayerDependencyTests
     [
         "Microsoft.AspNetCore",
         "Microsoft.EntityFrameworkCore",
-        "Confluent.Kafka"
+        "Confluent.Kafka",
+        "Google.Cloud.PubSub.V1"
     ];
     private static readonly string[] ApplicationForbiddenReferences =
     [
@@ -26,8 +27,10 @@ public sealed class LayerDependencyTests
         "Microsoft.AspNetCore.Mvc",
         "Microsoft.OpenApi",
         "Swashbuckle.AspNetCore",
-        "Confluent.Kafka"
+        "Confluent.Kafka",
+        "Google.Cloud.PubSub.V1"
     ];
+    private static readonly string[] MessagingProviderNames = ["Kafka", "PubSub"];
     private static readonly string[] WorkerForbiddenReferences =
     [
         "Microsoft.OpenApi",
@@ -51,7 +54,7 @@ public sealed class LayerDependencyTests
 
     [Theory]
     [MemberData(nameof(Services))]
-    public void Domain_should_not_depend_on_web_ef_core_or_kafka(string serviceName)
+    public void Domain_should_not_depend_on_web_ef_core_or_messaging_providers(string serviceName)
     {
         // Domain stays independent from framework and infrastructure concerns.
         AssertNoForbiddenDependencies($"{serviceName}.Domain", DomainForbiddenReferences);
@@ -64,12 +67,20 @@ public sealed class LayerDependencyTests
 
     [Theory]
     [MemberData(nameof(Services))]
-    public void Application_should_not_depend_on_http_swagger_or_kafka(string serviceName)
+    public void Application_should_not_depend_on_http_swagger_or_messaging_providers(string serviceName)
     {
         // Application orchestrates use cases without transport or messaging implementations.
         AssertNoForbiddenDependencies($"{serviceName}.Application", ApplicationForbiddenReferences);
         AssertProjectHasNoForbiddenReferences(serviceName, "Application", ApplicationForbiddenReferences);
         AssertProjectHasNoForbiddenLayerReferences(serviceName, "Application", ["Api", "Infrastructure", "Worker"]);
+    }
+
+    [Theory]
+    [MemberData(nameof(Services))]
+    public void Domain_and_application_should_not_name_messaging_providers(string serviceName)
+    {
+        AssertSourceFilesDoNotContainProviderNames(serviceName, "Domain");
+        AssertSourceFilesDoNotContainProviderNames(serviceName, "Application");
     }
 
     [Theory]
@@ -213,6 +224,28 @@ public sealed class LayerDependencyTests
             .ToArray();
 
         Assert.Contains(packageName, packageReferences);
+    }
+
+    private static void AssertSourceFilesDoNotContainProviderNames(string serviceName, string layerName)
+    {
+        string sourceDirectory = Path.Combine(RepositoryRoot.FullName, "src", $"{serviceName}.{layerName}");
+        string[] sourceFiles = Directory.GetFiles(sourceDirectory, "*.cs", SearchOption.AllDirectories)
+            .Where(sourceFile => !sourceFile.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
+            .Where(sourceFile => !sourceFile.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+
+        foreach (string providerName in MessagingProviderNames)
+        {
+            string[] violations = sourceFiles
+                .Where(sourceFile => File.ReadAllText(sourceFile).Contains(providerName, StringComparison.OrdinalIgnoreCase))
+                .Select(sourceFile => Path.GetRelativePath(RepositoryRoot.FullName, sourceFile))
+                .ToArray();
+
+            Assert.True(
+                violations.Length == 0,
+                $"{serviceName}.{layerName} must not name messaging provider {providerName}. "
+                + $"Found: {string.Join(", ", violations)}");
+        }
     }
 
     private static XDocument LoadProject(string serviceName, string layerName)

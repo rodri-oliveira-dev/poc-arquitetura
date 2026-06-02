@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 namespace BalanceService.Domain.Balances;
 
 /// <summary>
-/// Evento consumido do Kafka (LedgerEntryCreated).
+/// Evento de criacao de lancamento recebido pelo Balance.
 /// </summary>
 /// <remarks>
 /// Contrato atual (evidência: payload descrito na tarefa). Campos seguem JSON camelCase.
