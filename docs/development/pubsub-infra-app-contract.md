@@ -12,6 +12,8 @@ local e usam nomes `*.local`. Contra GCP real, use os outputs Terraform `*.dev`.
 
 | Terraform output | Appsettings key | Observacao |
 | --- | --- | --- |
+| Nao se aplica | `Messaging:Provider` | Configuracao runtime dos dois workers. Defina `PubSub` para selecionar o adapter. |
+| Nao se aplica | `PubSub:Enabled` | Feature switch runtime dos dois workers, com default `true`. Nao representa recurso provisionado. |
 | `project_id` | `PubSub:Producer:ProjectId` | Projeto GCP do `LedgerService.Worker`. |
 | `ledger_events_topic_name` | `PubSub:Producer:DefaultTopicId` | Topic ID simples: `ledger.ledgerentry.created.dev`. |
 | `ledger_events_topic_map` | `PubSub:Producer:TopicMap` | Mapeia `LedgerEntryCreated.v1` para o topic principal. |
@@ -21,12 +23,10 @@ local e usam nomes `*.local`. Contra GCP real, use os outputs Terraform `*.dev`.
 | `application_dlq_topic_name` | `PubSub:Consumer:DeadLetterTopicId` | Topic ID simples usado exclusivamente pela DLQ de aplicacao. |
 | `enable_exactly_once_delivery` | `PubSub:Consumer:EnableExactlyOnceDelivery` | Espelha a configuracao da subscription. |
 | `ack_deadline_seconds` | `PubSub:Consumer:AckDeadlineSeconds` | Espelha a configuracao da subscription. |
+| Nao se aplica | `PubSub:Consumer:ProcessingErrorRetryDelay` | Option local do worker, com default `00:00:05`. A retry policy nativa governa o redelivery. |
 
-`PubSub:Consumer:ProcessingErrorRetryDelay` e uma option local do worker, com
-default `00:00:05`; nao possui output Terraform equivalente. O adapter responde
-`nack` em falhas recuperaveis e a retry policy nativa da subscription governa o
-redelivery. `Messaging:Provider=PubSub` tambem deve ser definido nos dois
-workers.
+O adapter responde `nack` em falhas recuperaveis e a retry policy nativa da
+subscription governa o redelivery.
 
 ## IAM minimo
 
