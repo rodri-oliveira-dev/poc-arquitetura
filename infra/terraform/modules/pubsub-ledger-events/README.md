@@ -30,9 +30,9 @@ estimate.
   project.
 - The identity executing Terraform must be allowed to manage Pub/Sub resources,
   service accounts, and the resource-level IAM bindings declared by this module.
-- The Google-managed Pub/Sub service agent must exist in the target project. Its
-  address is derived from the project number as
-  `service-{project_number}@gcp-sa-pubsub.iam.gserviceaccount.com`.
+- The root module must guarantee the Google-managed Pub/Sub service agent with
+  `google_project_service_identity` and pass its `member` attribute to this
+  module.
 
 ## Usage
 
@@ -43,6 +43,10 @@ terraform {
       source  = "hashicorp/google"
       version = ">= 7.0.0, < 8.0.0"
     }
+    google-beta = {
+      source  = "hashicorp/google-beta"
+      version = ">= 7.0.0, < 8.0.0"
+    }
   }
 }
 
@@ -51,10 +55,30 @@ provider "google" {
   region  = var.region
 }
 
+provider "google-beta" {
+  project = var.project_id
+  region  = var.region
+}
+
+resource "google_project_service" "pubsub" {
+  project = var.project_id
+  service = "pubsub.googleapis.com"
+
+  disable_on_destroy = false
+}
+
+resource "google_project_service_identity" "pubsub" {
+  provider = google-beta
+
+  project = var.project_id
+  service = google_project_service.pubsub.service
+}
+
 module "pubsub_ledger_events" {
   source = "../../modules/pubsub-ledger-events"
 
   project_id                        = var.project_id
+  pubsub_service_agent_member       = google_project_service_identity.pubsub.member
   region                            = var.region
   allowed_persistence_regions       = ["southamerica-east1"]
   enforce_in_transit                = false
@@ -83,6 +107,8 @@ module "pubsub_ledger_events" {
   labels = {
     managed_by = "terraform"
   }
+
+  depends_on = [google_project_service.pubsub]
 }
 ```
 

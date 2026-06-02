@@ -8,6 +8,16 @@ variable "project_id" {
   }
 }
 
+variable "pubsub_service_agent_member" {
+  description = "IAM member returned by google_project_service_identity for pubsub.googleapis.com."
+  type        = string
+
+  validation {
+    condition     = startswith(var.pubsub_service_agent_member, "serviceAccount:")
+    error_message = "pubsub_service_agent_member must use the serviceAccount:<email> IAM member format."
+  }
+}
+
 variable "region" {
   description = "Deployment region used as resource metadata. Pub/Sub topics and subscriptions are global resources."
   type        = string

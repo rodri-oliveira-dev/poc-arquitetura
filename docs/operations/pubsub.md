@@ -133,7 +133,7 @@ emulator. Para GCP real, use os outputs `*.dev` do Terraform conforme o
 
 ## Aplicar Terraform em dev
 
-O root module `infra/terraform/environments/dev` provisiona recursos reais na GCP: API Pub/Sub, topics, subscriptions, service accounts dedicadas e bindings IAM de menor privilegio. O state ainda e local; nao versione `terraform.tfvars`, `tfplan`, state ou credenciais.
+O root module `infra/terraform/environments/dev` provisiona recursos reais na GCP: API Pub/Sub, service identity gerenciada, topics, subscriptions, service accounts dedicadas e bindings IAM de menor privilegio. O state ainda e local; nao versione `terraform.tfvars`, `tfplan`, state ou credenciais.
 
 Antes do apply, confirme a identidade autenticada, o projeto dev alvo e a permissao para habilitar servicos e gerenciar Pub/Sub, service accounts e IAM dos recursos. Prefira ADC com impersonation em vez de chave JSON.
 
@@ -156,6 +156,11 @@ terraform output
 ```
 
 O apply habilita `pubsub.googleapis.com` e pode gerar custo no projeto informado. Nao execute `terraform apply` automaticamente e nao use esse fluxo contra o emulator.
+
+Em projetos novos, revise no primeiro `terraform plan` a criacao de
+`google_project_service_identity.pubsub`. O recurso usa `hashicorp/google-beta`
+porque `google_project_service_identity` permanece beta no provider e garante a
+identidade antes dos bindings IAM exclusivos da DLQ tecnica.
 
 O exemplo dev mantem `allowed_persistence_regions=[]` e
 `enforce_in_transit=false`. Assim, os topics nao recebem
@@ -282,7 +287,7 @@ Use esta ordem para reduzir diagnosticos ambiguos:
 - **Sem permissao de subscriber:** confirme se o `BalanceService.Worker` usa a service account esperada e se ela possui `roles/pubsub.subscriber` na subscription principal.
 - **Subscription sem mensagens:** confirme topic e subscription configurados, valide se a subscription aponta para o topic principal e verifique se a Outbox saiu de `Pending` para `Processed`.
 - **Emulator nao configurado:** confirme `PUBSUB_EMULATOR_HOST=127.0.0.1:8085` no host ou `pubsub-emulator:8085` nos containers. Inspecione `pubsub-emulator` e `pubsub-init`.
-- **DLQ tecnica sem IAM do service agent:** confirme se o service agent `service-{project_number}@gcp-sa-pubsub.iam.gserviceaccount.com` possui `roles/pubsub.publisher` no topic da DLQ tecnica e `roles/pubsub.subscriber` na subscription principal.
+- **DLQ tecnica sem IAM do service agent:** confirme se o `member` retornado por `google_project_service_identity.pubsub` possui `roles/pubsub.publisher` no topic da DLQ tecnica e `roles/pubsub.subscriber` na subscription principal.
 - **DLQ de aplicacao sem publish:** confirme se a service account do `BalanceService.Worker` possui `roles/pubsub.publisher` somente no topic da DLQ de aplicacao e se `PubSub:Consumer:DeadLetterTopicId` aponta para `application_dlq_topic_name`.
 - **Mensagem duplicada:** trate como possibilidade esperada do fluxo at-least-once. Confirme a idempotencia do Balance pela identidade do evento antes de tentar republicar ou remover mensagens.
 

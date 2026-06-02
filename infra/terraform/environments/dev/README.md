@@ -1,9 +1,10 @@
 # Terraform Dev Environment
 
 This root module composes the Pub/Sub resources for the dev deployment of
-the Ledger events flow. It enables `pubsub.googleapis.com`, calls the reusable
-`pubsub-ledger-events` module, and exposes primitive outputs that feed
-appsettings or environment variables used by the Pub/Sub adapters.
+the Ledger events flow. It enables `pubsub.googleapis.com`, guarantees the
+Google-managed Pub/Sub service identity with `google_project_service_identity`,
+calls the reusable `pubsub-ledger-events` module, and exposes primitive outputs
+that feed appsettings or environment variables used by the Pub/Sub adapters.
 
 The module provisions separate application and technical DLQ topics with
 dedicated inspection subscriptions. Configure the Balance Worker
@@ -69,6 +70,8 @@ default. Do not commit `terraform.tfvars`, state files, plans, or credentials.
   outside the repository.
 - Permission to enable services and manage the Pub/Sub, service account, and
   resource-level IAM resources declared by the module.
+- Permission to generate the Pub/Sub service identity through the Service Usage
+  API.
 
 ## Configure
 
@@ -100,7 +103,9 @@ terraform apply tfplan
 ```
 
 `terraform apply` is intentionally manual. It enables the Pub/Sub API in the
-configured project and provisions real Google Cloud resources.
+configured project, guarantees the Google-managed Pub/Sub service identity, and
+provisions real Google Cloud resources. In a newly created project, review that
+the first plan includes `google_project_service_identity.pubsub`.
 
 Inspect the values available to runtime configuration with:
 

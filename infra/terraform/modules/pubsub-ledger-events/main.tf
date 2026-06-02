@@ -9,16 +9,11 @@ terraform {
   }
 }
 
-data "google_project" "current" {
-  project_id = var.project_id
-}
-
 locals {
   resource_prefix = "${var.app_name}-${var.environment}"
 
   ledger_worker_service_account_id  = "${substr(local.resource_prefix, 0, 13)}-ledger-${substr(md5(local.resource_prefix), 0, 6)}"
   balance_worker_service_account_id = "${substr(local.resource_prefix, 0, 13)}-balance-${substr(md5(local.resource_prefix), 0, 6)}"
-  pubsub_service_agent_member       = "serviceAccount:service-${data.google_project.current.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
 
   common_labels = merge(var.labels, {
     app         = var.app_name
@@ -212,7 +207,9 @@ resource "google_pubsub_topic_iam_member" "pubsub_service_agent_publish_technica
   project = var.project_id
   topic   = google_pubsub_topic.technical_dlq.name
   role    = "roles/pubsub.publisher"
-  member  = local.pubsub_service_agent_member
+  member  = var.pubsub_service_agent_member
+
+  depends_on = [google_pubsub_topic.technical_dlq]
 }
 
 resource "google_pubsub_subscription_iam_member" "pubsub_service_agent_ack_ledger_events" {
@@ -221,5 +218,7 @@ resource "google_pubsub_subscription_iam_member" "pubsub_service_agent_ack_ledge
   project      = var.project_id
   subscription = google_pubsub_subscription.balance_ledger_events.name
   role         = "roles/pubsub.subscriber"
-  member       = local.pubsub_service_agent_member
+  member       = var.pubsub_service_agent_member
+
+  depends_on = [google_pubsub_topic.technical_dlq]
 }

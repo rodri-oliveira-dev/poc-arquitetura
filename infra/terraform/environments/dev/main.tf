@@ -6,10 +6,19 @@ terraform {
       source  = "hashicorp/google"
       version = ">= 7.0.0, < 8.0.0"
     }
+    google-beta = {
+      source  = "hashicorp/google-beta"
+      version = ">= 7.0.0, < 8.0.0"
+    }
   }
 }
 
 provider "google" {
+  project = var.project_id
+  region  = var.region
+}
+
+provider "google-beta" {
   project = var.project_id
   region  = var.region
 }
@@ -21,10 +30,18 @@ resource "google_project_service" "pubsub" {
   disable_on_destroy = false
 }
 
+resource "google_project_service_identity" "pubsub" {
+  provider = google-beta
+
+  project = var.project_id
+  service = google_project_service.pubsub.service
+}
+
 module "pubsub_ledger_events" {
   source = "../../modules/pubsub-ledger-events"
 
   project_id                        = var.project_id
+  pubsub_service_agent_member       = google_project_service_identity.pubsub.member
   region                            = var.region
   allowed_persistence_regions       = var.allowed_persistence_regions
   enforce_in_transit                = var.enforce_in_transit

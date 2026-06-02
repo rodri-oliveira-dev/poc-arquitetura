@@ -43,6 +43,11 @@ Quando `enable_technical_dead_letter=false`, os dois bindings do Pub/Sub service
 agent nao sao criados. Os bindings do Ledger Worker e do Balance Worker
 permanecem inalterados.
 
+O root module dev garante previamente a identidade gerenciada do Pub/Sub com
+`google_project_service_identity.pubsub`. Os bindings IAM usam o atributo
+`member` retornado pelo recurso, sem montar o e-mail a partir do numero do
+projeto.
+
 ## Nomes esperados em dev
 
 | Recurso | Nome |
@@ -80,5 +85,6 @@ ativacao posterior durante rollout incremental.
 - Confirmar `main_subscription_expiration_ttl=""` para preservar a subscription principal.
 - Revisar se os TTLs finitos das inspections de DLQ sao maiores que a retencao e adequados ao ambiente.
 - Quando a policy tecnica estiver habilitada, confirmar o IAM do Pub/Sub service agent.
+- Em projeto novo, revisar no primeiro `terraform plan` a criacao de `google_project_service_identity.pubsub` antes dos bindings IAM.
 - Confirmar que `PubSub:Consumer:DeadLetterTopicId` usa `application_dlq_topic_name`; a DLQ tecnica nao e configurada na aplicacao.
 - Publicar um evento de teste e validar consumo, projecao e inspecao da DLQ.
