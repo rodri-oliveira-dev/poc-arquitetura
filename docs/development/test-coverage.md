@@ -55,6 +55,21 @@ dotnet test ./tests/LedgerService.IntegrationTests/LedgerService.IntegrationTest
 dotnet test ./tests/BalanceService.IntegrationTests/BalanceService.IntegrationTests.csproj --configuration Release
 ```
 
+## Testes opcionais com Pub/Sub emulator
+
+Os testes de integracao do publisher Pub/Sub permanecem opcionais para nao tornar o build local dependente de infraestrutura externa. Quando `PUBSUB_EMULATOR_HOST` nao esta definido, eles sao marcados como pulados pelo xUnit.
+
+Para executa-los contra o emulator local, suba apenas o servico descartavel, configure o processo de teste e aplique um filtro:
+
+```powershell
+docker compose -f compose.yaml -f compose.pubsub.yaml up -d pubsub-emulator
+$env:PUBSUB_EMULATOR_HOST='127.0.0.1:8085'
+$env:PUBSUB_PROJECT_ID='poc-integration-tests'
+dotnet test ./tests/LedgerService.IntegrationTests/LedgerService.IntegrationTests.csproj --configuration Release --filter "FullyQualifiedName~PubSubOutboxMessagePublisherEmulatorTests"
+```
+
+Os testes criam topic e subscription com nomes unicos, publicam pelo `PubSubOutboxMessagePublisher`, consomem via pull e removem os recursos ao final. O projeto informado e apenas um identificador local do emulator; nao sao usadas credenciais GCP reais.
+
 Para executar somente os cenarios PostgreSQL criticos:
 
 ```powershell
