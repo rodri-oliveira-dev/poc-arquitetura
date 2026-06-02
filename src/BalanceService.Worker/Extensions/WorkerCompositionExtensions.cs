@@ -78,7 +78,7 @@ public static class WorkerCompositionExtensions
         if (!kafkaEnabled)
             return services;
 
-        services.AddSingleton<KafkaMessagingMetrics>();
+        services.AddSingleton<MessagingMetrics>();
 
         services.AddOptions<KafkaConsumerOptions>()
             .Bind(configuration.GetSection(KafkaConsumerOptions.SectionName))
@@ -107,7 +107,7 @@ public static class WorkerCompositionExtensions
         if (!pubSubEnabled)
             return services;
 
-        services.AddSingleton<KafkaMessagingMetrics>();
+        services.AddSingleton<MessagingMetrics>();
 
         services.AddOptions<PubSubConsumerOptions>()
             .Bind(configuration.GetSection(PubSubConsumerOptions.SectionName))

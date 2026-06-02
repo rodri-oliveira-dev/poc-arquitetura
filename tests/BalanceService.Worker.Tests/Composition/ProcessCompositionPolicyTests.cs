@@ -110,7 +110,7 @@ public sealed class ProcessCompositionPolicyTests
         services.AddBalanceWorkerComposition(CreateConfiguration(), CreateEnvironment());
         Assert.Contains(services, d => d.ServiceType == typeof(LedgerEntryCreatedMessageProcessor));
         Assert.Contains(services, d => d.ServiceType == typeof(IDeadLetterPublisher));
-        Assert.Contains(services, d => d.ServiceType == typeof(KafkaMessagingMetrics));
+        Assert.Contains(services, d => d.ServiceType == typeof(MessagingMetrics));
         Assert.Contains(services, d => d.ServiceType == typeof(IDailyBalanceRepository));
         Assert.Contains(services, d => d.ServiceType == typeof(IProcessedEventRepository));
     }

@@ -30,13 +30,13 @@ public sealed partial class LedgerEntryCreatedMessageProcessor
 
     private readonly IServiceProvider _serviceProvider;
     private readonly IDeadLetterPublisher _deadLetterPublisher;
-    private readonly KafkaMessagingMetrics _metrics;
+    private readonly MessagingMetrics _metrics;
     private readonly ILogger<LedgerEntryCreatedMessageProcessor> _logger;
 
     public LedgerEntryCreatedMessageProcessor(
         IServiceProvider serviceProvider,
         IDeadLetterPublisher deadLetterPublisher,
-        KafkaMessagingMetrics metrics,
+        MessagingMetrics metrics,
         ILogger<LedgerEntryCreatedMessageProcessor> logger)
     {
         _serviceProvider = serviceProvider;

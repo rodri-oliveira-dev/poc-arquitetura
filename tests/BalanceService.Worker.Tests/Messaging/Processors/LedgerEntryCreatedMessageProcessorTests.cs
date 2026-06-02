@@ -282,7 +282,7 @@ public sealed class LedgerEntryCreatedMessageProcessorTests
         return new LedgerEntryCreatedMessageProcessor(
             services.BuildServiceProvider(),
             dlq,
-            new KafkaMessagingMetrics($"{KafkaMessagingMetrics.MeterName}.Tests.{Guid.NewGuid():N}"),
+            new MessagingMetrics($"{MessagingMetrics.MeterName}.Tests.{Guid.NewGuid():N}"),
             NullLogger<LedgerEntryCreatedMessageProcessor>.Instance);
 #pragma warning restore CA2000
     }
