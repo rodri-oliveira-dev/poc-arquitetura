@@ -79,3 +79,35 @@ O hook `.githooks/pre-push` executa a mesma validacao quando encontra arquivos `
 - Nao dependa de projeto, conta ou regiao padrao para operacoes que possam afetar recursos reais.
 
 O Google Cloud CLI esta disponivel para autenticacao e descoberta controlada. Este fluxo de validacao local nao executa login, habilitacao de APIs, alteracoes de IAM ou deploy.
+
+## Validacao no CI
+
+O workflow `.github/workflows/terraform-validation.yml`, chamado `terraform-validation`, roda em pull requests que alteram `infra/terraform/**` ou o proprio workflow. Ele executa:
+
+```bash
+terraform fmt -check -recursive ./infra/terraform
+terraform -chdir=./infra/terraform/environments/dev init -backend=false -input=false
+terraform -chdir=./infra/terraform/environments/dev validate
+```
+
+O job opcional `Plan Terraform Dev` executa `terraform plan` somente em pull requests internos quando as seguintes GitHub Actions repository variables estiverem configuradas:
+
+| Variavel | Finalidade |
+| --- | --- |
+| `GCP_PROJECT_ID` | Projeto GCP de desenvolvimento usado pelo root module. |
+| `GCP_REGION` | Regiao GCP; quando ausente, o workflow usa `us-central1`. |
+| `GCP_WORKLOAD_IDENTITY_PROVIDER` | Identificador completo do provider de Workload Identity Federation. |
+| `GCP_TERRAFORM_SERVICE_ACCOUNT` | E-mail da service account usada apenas para planejar a infraestrutura. |
+
+O fluxo recomendado nao exige GitHub Actions secrets nem chave JSON. A service account deve confiar no repositorio via Workload Identity Federation, com `roles/iam.workloadIdentityUser` concedido somente ao principal federado esperado. Restrinja a federacao ao repositorio e aos refs aceitos pela politica do ambiente dev.
+
+Para um plano real, conceda somente leitura suficiente para atualizar o estado conhecido pelo provider, revisando o menor privilegio no projeto dev. O baseline esperado e:
+
+- `roles/browser`;
+- `roles/serviceusage.serviceUsageViewer`;
+- `roles/pubsub.viewer`;
+- `roles/iam.serviceAccountViewer`.
+
+Essas permissoes sao para `plan`. Qualquer permissao de escrita necessaria para um `apply` manual deve ser tratada separadamente e nao e usada pelo workflow.
+
+Pull requests de forks nao recebem autenticacao GCP e nao executam o plano. O workflow nao executa `terraform apply`, nao gera plano binario e nao publica credenciais.
