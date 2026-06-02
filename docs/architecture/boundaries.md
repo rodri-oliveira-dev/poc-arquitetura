@@ -55,7 +55,7 @@ Nao deve conter:
 - validacao de JWT/JWKS de requests HTTP;
 - regras de negocio duplicadas fora da Application/Domain.
 
-Observacao real: `LedgerService.Worker` registra Outbox, estorno e reprocessamento; `BalanceService.Worker` registra o consumer de eventos do Ledger e DLQ. APIs e workers compartilham Application/Infrastructure, mas cada processo decide explicitamente quais adapters e HostedServices registra. A composition root deve preferir entradas neutras como `AddLedgerMessaging` e `AddBalanceMessaging`. O Ledger seleciona Kafka ou Pub/Sub para publicar a Outbox; os consumers e a DLQ permanecem Kafka nesta etapa.
+Observacao real: `LedgerService.Worker` registra Outbox, estorno e reprocessamento; `BalanceService.Worker` registra o consumer de eventos do Ledger e DLQ. APIs e workers compartilham Application/Infrastructure, mas cada processo decide explicitamente quais adapters e HostedServices registra. A composition root deve preferir entradas neutras como `AddLedgerMessaging` e `AddBalanceMessaging`. O Ledger seleciona Kafka ou Pub/Sub para publicar a Outbox; o Balance seleciona Kafka ou Pub/Sub para consumir eventos e publicar na DLQ de aplicacao.
 
 ### Application
 

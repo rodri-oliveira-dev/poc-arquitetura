@@ -5,6 +5,9 @@ using BalanceService.Worker.Messaging.Kafka.Configuration;
 using BalanceService.Worker.Messaging.Kafka.Consumers;
 using BalanceService.Worker.Messaging.Kafka.DeadLetter;
 using BalanceService.Worker.Messaging.Processors;
+using BalanceService.Worker.Messaging.PubSub.Configuration;
+using BalanceService.Worker.Messaging.PubSub.Consumers;
+using BalanceService.Worker.Messaging.PubSub.DeadLetter;
 using BalanceService.Worker.Observability;
 
 namespace BalanceService.Worker.Extensions;
@@ -13,6 +16,7 @@ public static class WorkerCompositionExtensions
 {
     private const string MessagingProviderConfigurationKey = "Messaging:Provider";
     private const string KafkaProvider = "Kafka";
+    private const string PubSubProvider = "PubSub";
 
     public static IServiceCollection AddBalanceWorkerComposition(
         this IServiceCollection services,
@@ -40,6 +44,7 @@ public static class WorkerCompositionExtensions
         return provider.Trim().ToUpperInvariant() switch
         {
             "KAFKA" => services.AddBalanceKafkaMessaging(configuration, environment),
+            "PUBSUB" => services.AddBalancePubSubMessaging(configuration, environment),
             _ => throw new InvalidOperationException($"Unsupported messaging provider '{provider}'.")
         };
     }
@@ -52,6 +57,16 @@ public static class WorkerCompositionExtensions
         return services
             .AddBalanceKafkaConsumer(configuration, environment)
             .AddBalanceLedgerEventsWorker(configuration);
+    }
+
+    public static IServiceCollection AddBalancePubSubMessaging(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        IHostEnvironment environment)
+    {
+        return services
+            .AddBalancePubSubConsumer(configuration, environment)
+            .AddBalancePubSubLedgerEventsWorker(configuration);
     }
 
     public static IServiceCollection AddBalanceKafkaConsumer(
@@ -83,6 +98,33 @@ public static class WorkerCompositionExtensions
         return services;
     }
 
+    public static IServiceCollection AddBalancePubSubConsumer(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        IHostEnvironment _)
+    {
+        var pubSubEnabled = configuration.GetValue<bool>($"{PubSubProvider}:Enabled", defaultValue: true);
+        if (!pubSubEnabled)
+            return services;
+
+        services.AddSingleton<KafkaMessagingMetrics>();
+
+        services.AddOptions<PubSubConsumerOptions>()
+            .Bind(configuration.GetSection(PubSubConsumerOptions.SectionName))
+            .Validate(o => !string.IsNullOrWhiteSpace(o.ProjectId), "PubSub ProjectId nao configurado.")
+            .Validate(o => !string.IsNullOrWhiteSpace(o.SubscriptionId), "PubSub SubscriptionId nao configurado.")
+            .Validate(o => !string.IsNullOrWhiteSpace(o.DeadLetterTopicId), "PubSub DeadLetterTopicId nao configurado.")
+            .Validate(o => o.ProcessingErrorRetryDelay > TimeSpan.Zero, "PubSub Consumer ProcessingErrorRetryDelay deve ser maior que zero.")
+            .Validate(o => o.SubscriberClientCount > 0, "PubSub Consumer SubscriberClientCount deve ser maior que zero.")
+            .Validate(o => o.AckDeadlineSeconds is >= 1 and <= 600, "PubSub Consumer AckDeadlineSeconds deve estar entre 1 e 600.")
+            .ValidateOnStart();
+
+        services.AddSingleton<IDeadLetterPublisher, PubSubDeadLetterPublisher>();
+        services.AddSingleton<LedgerEntryCreatedMessageProcessor>();
+
+        return services;
+    }
+
     public static IServiceCollection AddBalanceLedgerEventsWorker(
         this IServiceCollection services,
         IConfiguration configuration)
@@ -92,6 +134,19 @@ public static class WorkerCompositionExtensions
             return services;
 
         services.AddHostedService<LedgerEventsConsumer>();
+
+        return services;
+    }
+
+    public static IServiceCollection AddBalancePubSubLedgerEventsWorker(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        var pubSubEnabled = configuration.GetValue<bool>($"{PubSubProvider}:Enabled", defaultValue: true);
+        if (!pubSubEnabled)
+            return services;
+
+        services.AddHostedService<LedgerEventsPubSubConsumer>();
 
         return services;
     }

@@ -2,12 +2,16 @@ using BalanceService.Api.Extensions;
 using BalanceService.Application.Abstractions.Persistence;
 using BalanceService.Worker.Messaging.Abstractions;
 using BalanceService.Worker.Messaging.Kafka.Consumers;
+using BalanceService.Worker.Messaging.PubSub.Configuration;
+using BalanceService.Worker.Messaging.PubSub.Consumers;
+using BalanceService.Worker.Messaging.PubSub.DeadLetter;
 using BalanceService.Worker.Messaging.Processors;
 using BalanceService.Worker.Observability;
 using BalanceService.Worker.Extensions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using Moq;
 
 namespace BalanceService.Worker.Tests.Composition;
@@ -25,13 +29,17 @@ public sealed class ProcessCompositionPolicyTests
     }
 
     [Fact]
-    public void BalanceServiceWorker_should_host_ledger_events_consumer_when_kafka_is_enabled()
+    public void BalanceServiceWorker_should_host_kafka_ledger_events_consumer_when_kafka_is_enabled()
     {
         var services = new ServiceCollection();
 
-        services.AddBalanceWorkerComposition(CreateConfiguration(), CreateEnvironment());
+        services.AddBalanceWorkerComposition(CreateConfiguration(new Dictionary<string, string?>
+        {
+            ["Messaging:Provider"] = "Kafka"
+        }), CreateEnvironment());
 
         services.ContainHostedService<LedgerEventsConsumer>();
+        services.NotContainHostedService<LedgerEventsPubSubConsumer>();
     }
 
     [Fact]
@@ -48,17 +56,50 @@ public sealed class ProcessCompositionPolicyTests
     }
 
     [Fact]
+    public void BalanceServiceWorker_should_host_pubsub_ledger_events_consumer_when_pubsub_is_enabled()
+    {
+        var services = new ServiceCollection();
+
+        services.AddBalanceWorkerComposition(CreateConfiguration(new Dictionary<string, string?>
+        {
+            ["Messaging:Provider"] = "PubSub",
+            ["PubSub:Enabled"] = "true",
+            ["PubSub:Consumer:ProjectId"] = "poc-project",
+            ["PubSub:Consumer:SubscriptionId"] = "ledger-events-balance",
+            ["PubSub:Consumer:DeadLetterTopicId"] = "ledger-events-dlq"
+        }), CreateEnvironment());
+
+        services.ContainSingleton<IDeadLetterPublisher, PubSubDeadLetterPublisher>();
+        services.ContainHostedService<LedgerEventsPubSubConsumer>();
+        services.NotContainHostedService<LedgerEventsConsumer>();
+    }
+
+    [Fact]
+    public void BalanceServiceWorker_should_not_host_pubsub_ledger_events_consumer_when_pubsub_is_disabled()
+    {
+        var services = new ServiceCollection();
+
+        services.AddBalanceWorkerComposition(CreateConfiguration(new Dictionary<string, string?>
+        {
+            ["Messaging:Provider"] = "PubSub",
+            ["PubSub:Enabled"] = "false"
+        }), CreateEnvironment());
+
+        services.NotContainHostedService<LedgerEventsPubSubConsumer>();
+    }
+
+    [Fact]
     public void BalanceServiceWorker_should_reject_unsupported_messaging_provider()
     {
         var services = new ServiceCollection();
 
         var act = () => services.AddBalanceWorkerComposition(CreateConfiguration(new Dictionary<string, string?>
         {
-            ["Messaging:Provider"] = "PubSub"
+            ["Messaging:Provider"] = "RabbitMq"
         }), CreateEnvironment());
 
         var ex = Assert.Throws<InvalidOperationException>(act);
-        Assert.Equal("Unsupported messaging provider 'PubSub'.", ex.Message);
+        Assert.Equal("Unsupported messaging provider 'RabbitMq'.", ex.Message);
     }
 
     [Fact]
@@ -72,6 +113,29 @@ public sealed class ProcessCompositionPolicyTests
         Assert.Contains(services, d => d.ServiceType == typeof(KafkaMessagingMetrics));
         Assert.Contains(services, d => d.ServiceType == typeof(IDailyBalanceRepository));
         Assert.Contains(services, d => d.ServiceType == typeof(IProcessedEventRepository));
+    }
+
+    [Fact]
+    public void BalanceServiceWorker_should_validate_pubsub_consumer_options()
+    {
+        using var provider = CreateProvider(new Dictionary<string, string?>
+        {
+            ["Messaging:Provider"] = "PubSub",
+            ["PubSub:Consumer:ProjectId"] = "",
+            ["PubSub:Consumer:SubscriptionId"] = "ledger-events-balance",
+            ["PubSub:Consumer:DeadLetterTopicId"] = "ledger-events-dlq"
+        });
+
+        var act = () => provider.GetRequiredService<IOptions<PubSubConsumerOptions>>().Value;
+        var ex = Assert.Throws<OptionsValidationException>(act);
+        Assert.Matches("^" + System.Text.RegularExpressions.Regex.Escape("*PubSub ProjectId*").Replace("\\*", ".*") + "$", ex.Message);
+    }
+
+    private static ServiceProvider CreateProvider(Dictionary<string, string?> overrides)
+    {
+        var services = new ServiceCollection();
+        services.AddBalanceWorkerComposition(CreateConfiguration(overrides), CreateEnvironment());
+        return services.BuildServiceProvider();
     }
 
     private static IConfiguration CreateConfiguration(Dictionary<string, string?>? overrides = null)
@@ -109,6 +173,14 @@ public sealed class ProcessCompositionPolicyTests
 
 file static class HostedServiceAssertions
 {
+    public static void ContainSingleton<TService, TImplementation>(this IServiceCollection services)
+    {
+        Assert.Contains(services, d =>
+            d.ServiceType == typeof(TService) &&
+            d.ImplementationType == typeof(TImplementation) &&
+            d.Lifetime == ServiceLifetime.Singleton);
+    }
+
     public static void ContainHostedService<THostedService>(this IServiceCollection services)
         where THostedService : IHostedService
     {

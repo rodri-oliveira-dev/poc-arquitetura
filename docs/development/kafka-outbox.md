@@ -2,9 +2,9 @@
 
 Este documento concentra a referencia de mensageria entre `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Worker` e `BalanceService.Api`.
 
-Kafka permanece como provider completo de mensageria nesta POC. O boundary dos workers usa portas neutras para publicacao, consumo e DLQ, enquanto os adapters Kafka concentram detalhes como topicos, partitions, offsets, keys e commit. O `LedgerService.Worker` tambem suporta Pub/Sub como provider alternativo para publicar a Outbox. O consumer e a DLQ Pub/Sub do Balance ja possuem adapters, mas ainda nao foram ativados na composition root nesta etapa.
+Kafka permanece disponivel como provider completo de mensageria nesta POC. O boundary dos workers usa portas neutras para publicacao, consumo e DLQ, enquanto os adapters Kafka concentram detalhes como topicos, partitions, offsets, keys e commit. O `LedgerService.Worker` tambem suporta Pub/Sub como provider alternativo para publicar a Outbox, e o `BalanceService.Worker` registra o consumer e a DLQ Pub/Sub quando esse provider e selecionado.
 
-Em termos de desenho, a aplicacao trata `OrderingKey` como conceito logico de ordenacao por agregado/entidade. No adapter Kafka, esse valor e materializado como message key e influencia o particionamento; no producer Pub/Sub, a ordering key opcional usa o `AggregateId`. Ack/nack, subscription e delivery attempt devem ser tratados como semantica propria do provider quando os consumers Pub/Sub forem implementados, sem simular partition, offset ou commit dentro dos processors neutros.
+Em termos de desenho, a aplicacao trata `OrderingKey` como conceito logico de ordenacao por agregado/entidade. No adapter Kafka, esse valor e materializado como message key e influencia o particionamento; no producer Pub/Sub, a ordering key opcional usa o `AggregateId`. Ack/nack, subscription e delivery attempt sao tratados como semantica propria do provider nos consumers Pub/Sub, sem simular partition, offset ou commit dentro dos processors neutros.
 
 Configuracao neutra:
 
@@ -18,7 +18,7 @@ Configuracao neutra:
 
 `Messaging:Provider` usa `Kafka` como default quando ausente. A configuracao existente `Kafka:Enabled=false` continua suportada para desligar os hosted services de mensageria em testes e cenarios locais especificos.
 
-Para a publicacao Pub/Sub do Ledger, use `Messaging:Provider=PubSub`. A configuracao `PubSub:Enabled=false` desliga os hosted services relacionados a Pub/Sub de forma equivalente ao flag Kafka.
+Para a publicacao Pub/Sub do Ledger e o consumo Pub/Sub do Balance, use `Messaging:Provider=PubSub`. A configuracao `PubSub:Enabled=false` desliga os hosted services relacionados a Pub/Sub de forma equivalente ao flag Kafka.
 
 ## Fluxo
 
@@ -29,7 +29,7 @@ Para a publicacao Pub/Sub do Ledger, use `Messaging:Provider=PubSub`. A configur
 5. O estorno concluido grava `LedgerEntryCreated.v1` do lancamento compensatorio no Outbox.
 6. `LedgerService.Worker` hospeda `ReprocessamentoLancamentosConsumerService`, que consome `ledger.lancamentos.reprocessamento.solicitado`, chama o caso de uso de reprocessamento e registra eventos financeiros finais no Outbox quando houver lancamentos elegiveis.
 7. `BalanceService.Worker` consome apenas `LedgerEntryCreated.v1` e atualiza a projecao `daily_balances`.
-8. Mensagens invalidas ou nao recuperaveis do fluxo consumido pelo Balance sao publicadas pela porta neutra de DLQ; nesta POC, a DLQ concreta e um topico Kafka.
+8. Mensagens invalidas ou nao recuperaveis do fluxo consumido pelo Balance sao publicadas pela porta neutra de DLQ; o adapter concreto segue o provider selecionado no worker.
 
 No consumo Kafka do Balance, o fluxo interno esperado e:
 
@@ -41,7 +41,7 @@ KafkaLedgerEventsConsumer
   -> Application Handler
 ```
 
-O adapter Pub/Sub equivalente, ainda nao ativado na composition root, usa:
+O adapter Pub/Sub equivalente usa:
 
 ```text
 LedgerEventsPubSubConsumer
@@ -167,7 +167,7 @@ Limitacoes e riscos:
 
 ## DLQ
 
-Mensagens com falha de desserializacao, contrato invalido, payload invalido ou falha nao recuperavel sao publicadas pela porta `IDeadLetterPublisher`. Nesta POC, o adapter Kafka publica em `ledger.ledgerentry.created.dlq`.
+Mensagens com falha de desserializacao, contrato invalido, payload invalido ou falha nao recuperavel sao publicadas pela porta `IDeadLetterPublisher`. O adapter Kafka publica em `ledger.ledgerentry.created.dlq`; o adapter Pub/Sub publica no topic configurado em `PubSub:Consumer:DeadLetterTopicId`.
 
 Politica de commit:
 
@@ -237,10 +237,11 @@ Balance:
 
 - `Messaging:Provider`;
 - `Kafka:Consumer`;
-- `Kafka:Consumer:DeadLetterTopic`.
-- `PubSub:Consumer` (adapter implementado, ainda nao ativado na composition root).
+- `Kafka:Consumer:DeadLetterTopic`;
+- `PubSub:Enabled`;
+- `PubSub:Consumer`.
 
-O `LedgerService.Worker` aceita `Kafka` e `PubSub` em `Messaging:Provider`; qualquer outro valor falha no startup com erro explicito de provider nao suportado. O `BalanceService.Worker` continua aceitando apenas `Kafka` nesta etapa.
+Os workers de Ledger e Balance aceitam `Kafka` e `PubSub` em `Messaging:Provider`; qualquer outro valor falha no startup com erro explicito de provider nao suportado.
 
 `SecurityProtocol=Plaintext` existe apenas para execucao local (`Development`/`Local`) e para o ambiente `Test`. Em ambientes compartilhados ou produtivos, configure `SSL` ou `SASL_SSL` com os parametros operacionais por variaveis de ambiente ou secret store.
 
