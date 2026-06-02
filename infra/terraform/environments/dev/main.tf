@@ -40,19 +40,20 @@ resource "google_project_service_identity" "pubsub" {
 module "pubsub_ledger_events" {
   source = "../../modules/pubsub-ledger-events"
 
-  project_id                        = var.project_id
-  pubsub_service_agent_member       = google_project_service_identity.pubsub.member
-  region                            = var.region
-  allowed_persistence_regions       = var.allowed_persistence_regions
-  enforce_in_transit                = var.enforce_in_transit
-  environment                       = "dev"
-  app_name                          = "poc-ledger"
-  ledger_events_topic_name          = "ledger.ledgerentry.created.dev"
-  ledger_events_subscription_name   = "balance-service-ledger-events-dev"
-  application_dlq_topic_name        = "ledger.ledgerentry.created.dlq.dev"
-  technical_dlq_topic_name          = "ledger.ledgerentry.created.technical.dlq.dev"
-  application_dlq_subscription_name = "balance-service-ledger-events-dlq-dev"
-  technical_dlq_subscription_name   = "balance-service-ledger-events-technical-dlq-dev"
+  project_id                            = var.project_id
+  pubsub_service_agent_member           = google_project_service_identity.pubsub.member
+  region                                = var.region
+  allowed_persistence_regions           = var.allowed_persistence_regions
+  enforce_in_transit                    = var.enforce_in_transit
+  service_account_token_creator_members = var.service_account_token_creator_members
+  environment                           = "dev"
+  app_name                              = "poc-ledger"
+  ledger_events_topic_name              = "ledger.ledgerentry.created.dev"
+  ledger_events_subscription_name       = "balance-service-ledger-events-dev"
+  application_dlq_topic_name            = "ledger.ledgerentry.created.dlq.dev"
+  technical_dlq_topic_name              = "ledger.ledgerentry.created.technical.dlq.dev"
+  application_dlq_subscription_name     = "balance-service-ledger-events-dlq-dev"
+  technical_dlq_subscription_name       = "balance-service-ledger-events-technical-dlq-dev"
 
   enable_message_ordering                     = true
   enable_technical_dead_letter                = var.enable_technical_dead_letter

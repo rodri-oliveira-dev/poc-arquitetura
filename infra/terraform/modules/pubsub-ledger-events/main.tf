@@ -180,6 +180,22 @@ resource "google_service_account" "balance_worker" {
   description  = "Consumes Ledger events and publishes application DLQ messages."
 }
 
+resource "google_service_account_iam_member" "ledger_worker_token_creator" {
+  for_each = toset(var.service_account_token_creator_members)
+
+  service_account_id = google_service_account.ledger_worker.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = each.value
+}
+
+resource "google_service_account_iam_member" "balance_worker_token_creator" {
+  for_each = toset(var.service_account_token_creator_members)
+
+  service_account_id = google_service_account.balance_worker.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = each.value
+}
+
 resource "google_pubsub_topic_iam_member" "ledger_worker_publish_ledger_events" {
   project = var.project_id
   topic   = google_pubsub_topic.ledger_events.name

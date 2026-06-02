@@ -82,6 +82,7 @@ module "pubsub_ledger_events" {
   region                            = var.region
   allowed_persistence_regions       = ["southamerica-east1"]
   enforce_in_transit                = false
+  service_account_token_creator_members = []
   environment                       = "dev"
   app_name                          = "ledger"
   ledger_events_topic_name          = "ledger-entry-created-v1"
@@ -121,11 +122,16 @@ module "pubsub_ledger_events" {
 | Balance Worker service account | Application DLQ topic | `roles/pubsub.publisher` | Publish application-classified DLQ messages |
 | Pub/Sub service agent | Technical DLQ topic | `roles/pubsub.publisher` | Forward messages to the technical DLQ when `enable_technical_dead_letter=true` |
 | Pub/Sub service agent | Balance pull subscription | `roles/pubsub.subscriber` | Acknowledge messages forwarded by the native dead-letter policy when `enable_technical_dead_letter=true` |
+| Configured local smoke-test members | Ledger Worker and Balance Worker service accounts | `roles/iam.serviceAccountTokenCreator` | Impersonate dedicated worker identities only when explicitly configured in a controlled environment |
 
 The application DLQ is published directly by the Balance Worker. The technical
 DLQ is used only by the native dead-letter policy on the main subscription.
 Separate inspection subscriptions retain each flow independently for triage,
 alerting, and reprocessing decisions.
+
+`service_account_token_creator_members` defaults to an empty list. Use it only
+for controlled local smoke tests that need ADC impersonation, and keep real
+member values outside versioned files.
 
 ## Retention And Expiration
 

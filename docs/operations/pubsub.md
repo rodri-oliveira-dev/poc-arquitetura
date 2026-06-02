@@ -157,6 +157,35 @@ terraform output
 
 O apply habilita `pubsub.googleapis.com` e pode gerar custo no projeto informado. Nao execute `terraform apply` automaticamente e nao use esse fluxo contra o emulator.
 
+### Impersonation local para smoke test
+
+Para executar os workers localmente contra GCP real com ADC impersonation,
+preencha `service_account_token_creator_members` somente no
+`terraform.tfvars` local ignorado pelo Git. O modulo concede
+`roles/iam.serviceAccountTokenCreator` diretamente nas duas service accounts
+dedicadas dos workers; nao existe binding no nivel do projeto. Essa permissao
+serve apenas ao smoke test local controlado.
+
+Depois do smoke test, limpe a lista e reaplique Terraform manualmente para
+remover os bindings temporarios.
+
+Em GitHub Actions, passe o valor por variable:
+
+```yaml
+env:
+  TF_VAR_service_account_token_creator_members: '["user:${{ vars.GCP_IMPERSONATION_USER_EMAIL }}"]'
+```
+
+ou por secret:
+
+```yaml
+env:
+  TF_VAR_service_account_token_creator_members: '["user:${{ secrets.GCP_IMPERSONATION_USER_EMAIL }}"]'
+```
+
+Para um CI/CD mais maduro, evolua para Workload Identity Federation com OIDC em
+vez de usar e-mail humano.
+
 Em projetos novos, revise no primeiro `terraform plan` a criacao de
 `google_project_service_identity.pubsub`. O recurso usa `hashicorp/google-beta`
 porque `google_project_service_identity` permanece beta no provider e garante a

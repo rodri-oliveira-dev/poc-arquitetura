@@ -17,6 +17,8 @@ O root module dev deve administrar somente:
 - tres subscriptions Pub/Sub: consumo principal e inspecao das duas DLQs;
 - duas service accounts dedicadas aos workers;
 - bindings IAM de menor privilegio nos topics e subscriptions.
+- bindings opcionais `roles/iam.serviceAccountTokenCreator` diretamente nas
+  duas service accounts dedicadas, somente para smoke test local controlado.
 
 O Terraform nao vincula billing, nao cria projeto GCP e nao cria chaves JSON de
 service account.
@@ -33,6 +35,8 @@ service account.
   projeto. Essa acao e externa ao Terraform deste repositorio.
 - Criar localmente `terraform.tfvars` a partir de
   `terraform.tfvars.example`, preencher `project_id` e revisar `region`.
+- Para smoke test local com ADC impersonation, preencher
+  `service_account_token_creator_members` somente no `terraform.tfvars` local.
 - Nao versionar `terraform.tfvars`, state, planos binarios ou credenciais.
 
 O root module habilita explicitamente apenas `pubsub.googleapis.com`. O
@@ -103,6 +107,7 @@ qualquer apply.
 - [ ] A DLQ de aplicacao permanece separada da DLQ tecnica nativa.
 - [ ] `google_project_service_identity.pubsub` fornece o service agent correto.
 - [ ] Os bindings do service agent existem somente para a DLQ tecnica quando `enable_technical_dead_letter=true`.
+- [ ] Os bindings opcionais `roles/iam.serviceAccountTokenCreator`, quando necessarios ao smoke test local, existem somente nas duas service accounts dedicadas.
 - [ ] Os outputs permanecem compativeis com o [contrato de appsettings](pubsub-infra-app-contract.md).
 - [ ] `PubSub:Consumer:DeadLetterTopicId` sera preenchido com `application_dlq_topic_name`, nunca com a DLQ tecnica.
 - [ ] `allowed_persistence_regions`, `enforce_in_transit`, retencao e expiracao foram revisados para o teste.
@@ -122,6 +127,7 @@ o `project_id` de `terraform.tfvars` e o projeto retornado pelo `gcloud`.
 - [ ] Configurar os appsettings ou variaveis de ambiente dos workers conforme o contrato.
 - [ ] Remover `PUBSUB_EMULATOR_HOST` do ambiente usado contra GCP real.
 - [ ] Executar smoke test de publish e consume, validando a projecao no Balance.
+- [ ] Depois do smoke test local, limpar `service_account_token_creator_members` e reaplicar Terraform manualmente para remover a permissao temporaria.
 - [ ] Se o ambiente serviu apenas para validacao descartavel, revisar e executar `terraform destroy` manualmente.
 - [ ] Depois da limpeza, conferir se billing e o proprio projeto descartavel tambem devem ser desativados ou removidos manualmente.
 

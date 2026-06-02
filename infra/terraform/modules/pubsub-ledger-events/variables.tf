@@ -18,6 +18,12 @@ variable "pubsub_service_agent_member" {
   }
 }
 
+variable "service_account_token_creator_members" {
+  type        = list(string)
+  description = "Membros autorizados a impersonar as service accounts dos workers para smoke tests locais. Use apenas em ambientes dev/controlados."
+  default     = []
+}
+
 variable "region" {
   description = "Deployment region used as resource metadata. Pub/Sub topics and subscriptions are global resources."
   type        = string

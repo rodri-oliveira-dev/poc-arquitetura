@@ -82,6 +82,31 @@ replace the placeholder project ID:
 Copy-Item terraform.tfvars.example terraform.tfvars
 ```
 
+For a local smoke test against real GCP resources with ADC impersonation, set
+`service_account_token_creator_members` only in the ignored local
+`terraform.tfvars`. The module grants `roles/iam.serviceAccountTokenCreator`
+directly on the two dedicated worker service accounts, never at project level.
+After the smoke test, clear the list and reapply Terraform manually to remove
+the temporary permission.
+
+For GitHub Actions, the same input can be passed without committing a human
+email:
+
+```yaml
+env:
+  TF_VAR_service_account_token_creator_members: '["user:${{ vars.GCP_IMPERSONATION_USER_EMAIL }}"]'
+```
+
+or, when the value is stored as a secret:
+
+```yaml
+env:
+  TF_VAR_service_account_token_creator_members: '["user:${{ secrets.GCP_IMPERSONATION_USER_EMAIL }}"]'
+```
+
+For a mature CI/CD setup, prefer Workload Identity Federation with OIDC instead
+of a human email.
+
 ## Validate
 
 Run local validation without configuring a backend:

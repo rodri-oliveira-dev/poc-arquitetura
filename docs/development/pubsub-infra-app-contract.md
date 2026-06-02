@@ -37,6 +37,7 @@ subscription governa o redelivery.
 | Balance Worker | `roles/pubsub.publisher` no topic da DLQ de aplicacao | Publicar mensagens classificadas pela aplicacao. |
 | Pub/Sub service agent | `roles/pubsub.publisher` no topic da DLQ tecnica | Encaminhar mensagens pela dead-letter policy nativa quando `enable_technical_dead_letter=true`. |
 | Pub/Sub service agent | `roles/pubsub.subscriber` na subscription principal | Confirmar mensagens encaminhadas pela dead-letter policy nativa quando `enable_technical_dead_letter=true`. |
+| Membros configurados para smoke test local | `roles/iam.serviceAccountTokenCreator` diretamente nas duas service accounts dos workers | Permitir ADC impersonation temporaria somente em ambiente dev/controlado. |
 
 O modulo nao concede `Owner`, `Editor` nem `Viewer` no projeto aos workloads.
 Quando `enable_technical_dead_letter=false`, os dois bindings do Pub/Sub service
@@ -47,6 +48,11 @@ O root module dev garante previamente a identidade gerenciada do Pub/Sub com
 `google_project_service_identity.pubsub`. Os bindings IAM usam o atributo
 `member` retornado pelo recurso, sem montar o e-mail a partir do numero do
 projeto.
+
+`service_account_token_creator_members` usa lista vazia por padrao. Valores
+reais devem existir somente no `terraform.tfvars` local ignorado pelo Git. Apos
+o smoke test, limpe a lista e reaplique Terraform manualmente para remover os
+bindings temporarios.
 
 ## Nomes esperados em dev
 

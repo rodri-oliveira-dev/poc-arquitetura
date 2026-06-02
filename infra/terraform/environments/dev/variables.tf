@@ -30,6 +30,12 @@ variable "enforce_in_transit" {
   default     = false
 }
 
+variable "service_account_token_creator_members" {
+  type        = list(string)
+  description = "Membros autorizados a impersonar as service accounts dos workers para smoke tests locais em dev."
+  default     = []
+}
+
 variable "enable_technical_dead_letter" {
   description = "Whether the native Pub/Sub dead-letter policy is enabled on the main subscription."
   type        = bool
