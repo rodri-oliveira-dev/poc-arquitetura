@@ -8,6 +8,13 @@ output "ledger_events_topic_name" {
   value       = google_pubsub_topic.ledger_events.name
 }
 
+output "ledger_events_topic_map" {
+  description = "Event type to topic name mapping used by the Ledger Worker Pub/Sub producer."
+  value = {
+    "LedgerEntryCreated.v1" = google_pubsub_topic.ledger_events.name
+  }
+}
+
 output "ledger_events_subscription_id" {
   description = "Fully qualified ID of the Balance Worker pull subscription."
   value       = google_pubsub_subscription.balance_ledger_events.id
@@ -46,4 +53,19 @@ output "ledger_worker_service_account_email" {
 output "balance_worker_service_account_email" {
   description = "Email of the dedicated Balance Worker service account."
   value       = google_service_account.balance_worker.email
+}
+
+output "enable_message_ordering" {
+  description = "Whether ordered delivery is enabled on the Balance Worker subscription."
+  value       = google_pubsub_subscription.balance_ledger_events.enable_message_ordering
+}
+
+output "enable_exactly_once_delivery" {
+  description = "Whether exactly-once delivery is enabled on the Balance Worker subscription."
+  value       = google_pubsub_subscription.balance_ledger_events.enable_exactly_once_delivery
+}
+
+output "ack_deadline_seconds" {
+  description = "Acknowledgement deadline configured on the Balance Worker subscription."
+  value       = google_pubsub_subscription.balance_ledger_events.ack_deadline_seconds
 }

@@ -115,13 +115,21 @@ Para configurar sem perfil `appsettings.PubSub.json`, use os outputs do Terrafor
 | Ledger | `Messaging__Provider=PubSub` | Seleciona o adapter Pub/Sub. |
 | Ledger | `PubSub__Producer__ProjectId` | Projeto GCP. |
 | Ledger | `PubSub__Producer__DefaultTopicId` | Topic principal para eventos financeiros. |
+| Ledger | `PubSub__Producer__TopicMap__LedgerEntryCreated.v1` | Mapeia explicitamente o contrato atual para o topic principal. |
 | Ledger | `PubSub__Producer__EnableMessageOrdering` | Habilita ordering key quando o fluxo exigir ordenacao por agregado. |
 | Balance | `Messaging__Provider=PubSub` | Seleciona o adapter Pub/Sub. |
 | Balance | `PubSub__Consumer__ProjectId` | Projeto GCP. |
 | Balance | `PubSub__Consumer__SubscriptionId` | Subscription pull consumida pelo Balance. |
 | Balance | `PubSub__Consumer__DeadLetterTopicId` | Topic usado pela DLQ de aplicacao. |
+| Balance | `PubSub__Consumer__EnableExactlyOnceDelivery` | Espelha a configuracao da subscription provisionada. |
+| Balance | `PubSub__Consumer__AckDeadlineSeconds` | Espelha o ack deadline da subscription provisionada. |
+| Balance | `PubSub__Consumer__ProcessingErrorRetryDelay` | Valor validado pelo worker; o redelivery Pub/Sub continua governado pela retry policy nativa. |
 
 `PUBSUB_EMULATOR_HOST` deve existir apenas quando o processo aponta para o emulator. Fora do ambiente local, use a identidade do workload e nao configure credenciais no repositorio.
+
+Os perfis `appsettings.PubSub.json` usam nomes `*.local` exclusivamente para o
+emulator. Para GCP real, use os outputs `*.dev` do Terraform conforme o
+[contrato entre infraestrutura e aplicacao](../development/pubsub-infra-app-contract.md).
 
 ## Aplicar Terraform em dev
 
@@ -153,9 +161,13 @@ Outputs relevantes para configurar os workers:
 
 - `project_id`;
 - `ledger_events_topic_name`;
+- `ledger_events_topic_map`;
 - `ledger_events_subscription_name`;
 - `ledger_events_dlq_topic_name`;
 - `ledger_events_dlq_subscription_name`;
+- `enable_message_ordering`;
+- `enable_exactly_once_delivery`;
+- `ack_deadline_seconds`;
 - `ledger_worker_service_account_email`;
 - `balance_worker_service_account_email`.
 

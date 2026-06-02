@@ -1,6 +1,6 @@
 # Pub/Sub Ledger Events Terraform Module
 
-This module provisions the Google Cloud Pub/Sub resources required for the future
+This module provisions the Google Cloud Pub/Sub resources required for the
 `LedgerService.Worker` to `BalanceService.Worker` event flow:
 
 - main Ledger events topic;

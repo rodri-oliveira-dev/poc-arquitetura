@@ -70,7 +70,7 @@ services:
         create_resource "projects/$$PUBSUB_PROJECT_ID/topics/$$PUBSUB_LEDGER_EVENTS_DLQ_TOPIC_ID" '{}';
         create_resource \
           "projects/$$PUBSUB_PROJECT_ID/subscriptions/$$PUBSUB_BALANCE_SUBSCRIPTION_ID" \
-          "{\"topic\":\"projects/$$PUBSUB_PROJECT_ID/topics/$$PUBSUB_LEDGER_EVENTS_TOPIC_ID\"}";
+          "{\"topic\":\"projects/$$PUBSUB_PROJECT_ID/topics/$$PUBSUB_LEDGER_EVENTS_TOPIC_ID\",\"ackDeadlineSeconds\":60,\"enableMessageOrdering\":false}";
         echo "[pubsub-init] OK.";
     deploy:
       resources:
@@ -91,6 +91,8 @@ services:
       PUBSUB_PROJECT_ID: "${PUBSUB_PROJECT_ID:-poc-local}"
       PubSub__Producer__ProjectId: "${PUBSUB_PROJECT_ID:-poc-local}"
       PubSub__Producer__DefaultTopicId: "${PUBSUB_LEDGER_EVENTS_TOPIC_ID:-ledger.ledgerentry.created.local}"
+      PubSub__Producer__EnableMessageOrdering: "false"
+      PubSub__Producer__TopicMap__LedgerEntryCreated.v1: "${PUBSUB_LEDGER_EVENTS_TOPIC_ID:-ledger.ledgerentry.created.local}"
 
   balance-worker:
     depends_on:
@@ -103,3 +105,6 @@ services:
       PubSub__Consumer__ProjectId: "${PUBSUB_PROJECT_ID:-poc-local}"
       PubSub__Consumer__SubscriptionId: "${PUBSUB_BALANCE_SUBSCRIPTION_ID:-balance-service-ledger-events-local}"
       PubSub__Consumer__DeadLetterTopicId: "${PUBSUB_LEDGER_EVENTS_DLQ_TOPIC_ID:-ledger.ledgerentry.created.dlq.local}"
+      PubSub__Consumer__EnableExactlyOnceDelivery: "false"
+      PubSub__Consumer__AckDeadlineSeconds: "60"
+      PubSub__Consumer__ProcessingErrorRetryDelay: "00:00:05"
