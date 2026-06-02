@@ -169,6 +169,24 @@ serve apenas ao smoke test local controlado.
 Depois do smoke test, limpe a lista e reaplique Terraform manualmente para
 remover os bindings temporarios.
 
+Como o ADC local e global para o ambiente do usuario, execute o smoke test
+contra GCP real sequencialmente:
+
+1. configure ADC impersonando a service account do `LedgerService.Worker`;
+2. inicie somente o Ledger Worker e aguarde a Outbox ser marcada como
+   `Processed`;
+3. pare o Ledger Worker;
+4. configure ADC impersonando a service account do `BalanceService.Worker`;
+5. inicie somente o Balance Worker e valide `processed_events`,
+   `daily_balances` e a API de consulta;
+6. pare o Balance Worker;
+7. restaure ADC humano antes de executar `terraform plan`, `terraform apply`
+   ou `terraform destroy`.
+
+As service accounts dedicadas dos workers possuem somente permissoes runtime.
+Usar ADC impersonado de worker para administrar Terraform deve falhar por
+permissao e nao deve ser contornado ampliando IAM do workload.
+
 Em GitHub Actions, passe o valor por variable:
 
 ```yaml

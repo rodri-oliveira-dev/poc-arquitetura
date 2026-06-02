@@ -672,6 +672,10 @@ No modo legado, as portas e variaveis antigas continuam as mesmas: `http://local
 
 O compose nao aplica migrations automaticamente. Na primeira execucao com banco vazio, e sempre que houver mudanca de schema, aplique as migrations pelo host usando as portas expostas.
 
+Execute as migrations dos dois servicos sequencialmente. As invocacoes de
+`dotnet-ef` compilam projetos compartilhados da solution; executa-las em
+paralelo pode causar disputa por artefatos em `bin/` e `obj/`.
+
 LedgerService:
 
 ```powershell
@@ -720,12 +724,17 @@ As portas padrao sao:
 
 `LedgerService.Worker` e `BalanceService.Worker` nao expoem porta HTTP; acompanhe pelo console ou logs dos containers.
 
+Quando as APIs rodam no host contra os bancos iniciados pelo compose, use as
+portas publicadas no host: Ledger em `15432` e Balance em `15433`. O perfil
+`Development` da `LedgerService.Api` ja sobrescreve a porta do Ledger para
+`15432`.
+
 ## Configuracao
 
 Configuracoes versionadas ficam nos `appsettings*.json` dos projetos de API e do Worker. Para sobrescrever valores localmente, use variaveis de ambiente com `__` como separador de secoes:
 
 ```powershell
-$env:ConnectionStrings__DefaultConnection = "Host=127.0.0.1;Port=5432;Database=appdb;Username=appuser;Password=__REDACTED__"
+$env:ConnectionStrings__DefaultConnection = "Host=127.0.0.1;Port=15432;Database=appdb;Username=appuser;Password=__REDACTED__"
 $env:Kafka__Producer__BootstrapServers = "127.0.0.1:9092"
 ```
 
