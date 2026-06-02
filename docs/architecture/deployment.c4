@@ -129,12 +129,12 @@ deployment {
 
       composeService pubsubEmulator "pubsub-emulator" {
         technology "Google Cloud CLI / Pub/Sub emulator"
-        description "Servico Docker Compose principal dos scripts locais, definido em compose.pubsub.yaml, fora do Terraform e exposto na porta 8085 do host."
+        description "Servico do compose.yaml principal, fora do Terraform e exposto na porta 8085 do host."
       }
 
       composeService pubsubInit "pubsub-init" {
         technology "curl / init container"
-        description "Container auxiliar e idempotente do overlay compose.pubsub.yaml que cria topic principal, topic de DLQ e subscription pull do BalanceService.Worker no Pub/Sub emulator."
+        description "Container auxiliar e idempotente do compose.yaml que cria topic principal, topic de DLQ, subscription pull do BalanceService.Worker e subscription de inspecao da DLQ de aplicacao no Pub/Sub emulator."
       }
 
       composeService jaeger "jaeger" {

@@ -4,7 +4,6 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_FILE="$ROOT_DIR/compose.yaml"
 COMPOSE_OBSERVABILITY_FILE="$ROOT_DIR/compose.observability.yaml"
-COMPOSE_PUBSUB_FILE="$ROOT_DIR/compose.pubsub.yaml"
 COMPOSE_NGINX_FILE="$ROOT_DIR/compose.nginx.yaml"
 TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-20}"
 
@@ -52,7 +51,6 @@ echo "Parando overlay Nginx da stack completa..."
 docker compose \
   -f "$COMPOSE_FILE" \
   -f "$COMPOSE_OBSERVABILITY_FILE" \
-  -f "$COMPOSE_PUBSUB_FILE" \
   -f "$COMPOSE_NGINX_FILE" \
   --profile observability \
   stop \
@@ -65,7 +63,6 @@ echo "Parando stack base e observabilidade..."
 docker compose \
   -f "$COMPOSE_FILE" \
   -f "$COMPOSE_OBSERVABILITY_FILE" \
-  -f "$COMPOSE_PUBSUB_FILE" \
   --profile observability \
   stop \
   --timeout "$TIMEOUT_SECONDS"

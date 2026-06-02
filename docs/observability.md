@@ -2,7 +2,7 @@
 
 Este documento define o inventario operacional minimo da POC para Keycloak, `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker`.
 
-OpenTelemetry fica desabilitado por padrao. A correlacao via `X-Correlation-Id` permanece sempre ativa nas APIs e e usada para conectar logs, respostas HTTP e mensagens do provider selecionado. O core funcional local usa `compose.yaml` com o overlay `compose.pubsub.yaml` para PostgreSQL, Pub/Sub emulator, Keycloak, APIs e workers; OpenTelemetry Collector, Jaeger, Prometheus, Loki, Grafana Alloy, Alertmanager e Grafana ficam no overlay `compose.observability.yaml` com profile `observability`, conforme documentado em [desenvolvimento local](development/local-development.md).
+OpenTelemetry fica desabilitado por padrao. A correlacao via `X-Correlation-Id` permanece sempre ativa nas APIs e e usada para conectar logs, respostas HTTP e mensagens do provider selecionado. O core funcional local usa `compose.yaml` para PostgreSQL, Pub/Sub emulator, Keycloak, APIs e workers; OpenTelemetry Collector, Jaeger, Prometheus, Loki, Grafana Alloy, Alertmanager e Grafana ficam no overlay `compose.observability.yaml` com profile `observability`, conforme documentado em [desenvolvimento local](development/local-development.md).
 
 ## Como navegar
 

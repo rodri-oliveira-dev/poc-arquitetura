@@ -125,7 +125,7 @@ No Linux/macOS:
 ./scripts/start-local-stack-pubsub.sh
 ```
 
-Esse fluxo aplica o overlay `compose.pubsub.yaml`, cria topic principal, topic de DLQ e subscription do Balance de forma idempotente e inicia os workers com `Messaging:Provider=PubSub`. Kafka nao e iniciado. Para usar o provider legado, execute `./scripts/start-local-stack-kafka.ps1` ou `./scripts/start-local-stack-kafka.sh`. Detalhes ficam em [desenvolvimento local](docs/development/local-development.md#pubsub-emulator-local) e no runbook de [operacao do Pub/Sub](docs/operations/pubsub.md).
+Esse fluxo usa o `compose.yaml` principal, cria topic principal, topic de DLQ, subscription do Balance e subscription de inspecao da DLQ de aplicacao de forma idempotente e inicia os workers com `Messaging:Provider=PubSub`. Kafka nao e iniciado. Para usar o provider legado, execute `./scripts/start-local-stack-kafka.ps1` ou `./scripts/start-local-stack-kafka.sh`. Detalhes ficam em [desenvolvimento local](docs/development/local-development.md#pubsub-emulator-local) e no runbook de [operacao do Pub/Sub](docs/operations/pubsub.md).
 
 Para subir a stack completa com observabilidade e Nginx HTTPS local, gere antes os certificados em `infra/nginx/certs/` conforme [desenvolvimento local](docs/development/local-development.md#borda-local-https-com-nginx):
 

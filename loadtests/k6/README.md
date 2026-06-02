@@ -18,7 +18,7 @@ Os runners `./scripts/run-loadtests.ps1` e `./scripts/run-loadtests.sh` expoem t
 
 | Modo | Cenario k6 | Objetivo | Carga padrao | Duracao padrao | Criterios de aceite atuais |
 | --- | --- | --- | --- | --- | --- |
-| `smoke` | `ledger_resilience` e `balance_daily_50rps` | Validar que Ledger e Balance respondem no ambiente local com carga minima antes de cenarios maiores. | Ledger: 1 VU constante. Balance: 1 req/s, 5 VUs pre-alocados e maximo 10 VUs. | 10s por cenario. | Sem checks falhos, `http_req_failed <= 0.05` e `dropped_iterations == 0` no summary validado pelo runner. |
+| `smoke` | `ledger_resilience` e `balance_daily_50rps` | Validar que Ledger e Balance respondem no ambiente local e que ao menos um evento percorre Outbox -> Pub/Sub emulator -> Balance antes de cenarios maiores. | Ledger: 1 VU constante. Balance: 1 req/s, 5 VUs pre-alocados e maximo 10 VUs. | 10s por cenario. | Sem checks falhos, `http_req_failed <= 0.05`, `dropped_iterations == 0` e incremento de Outbox processada e `processed_events` no Balance. |
 | `balance50` | `balance_daily_50rps` | Exercitar consulta de consolidado diario no BalanceService.Api com taxa constante controlada. | 50 req/s, 50 VUs pre-alocados e maximo 200 VUs. | 1m. | Sem checks falhos, `http_req_failed <= 0.05` e `dropped_iterations == 0`. O script tambem declara thresholds k6 para `http_req_failed` e `dropped_iterations`. |
 | `resilience` | `ledger_resilience` | Exercitar criacao de lancamentos no LedgerService.Api com idempotency key e correlation id por iteracao. | 5 VUs constantes. | 1m. | Sem checks falhos, `http_req_failed <= 0.05` e `dropped_iterations == 0` no summary validado pelo runner. O script declara threshold k6 para `http_req_failed`. |
 
@@ -40,11 +40,11 @@ Execute a stack local antes dos testes. Os runners precisam do Keycloak local pa
 
 `Auth.Api` permanece disponível somente como fallback de transição quando `TOKEN_PROVIDER=auth-api` também estiver acompanhado da configuração JWT legada das APIs, conforme `docs/development/authentication.md`.
 
-Mantenha `LedgerService.Worker` e `BalanceService.Worker` em execucao quando quiser validar efeitos assincronos entre Outbox, Pub/Sub e projecao de saldos. Os workers nao sao tratados como APIs HTTP.
+Os runners exigem `pubsub-emulator`, `LedgerService.Worker` e `BalanceService.Worker` em execucao e confirmam que os workers usam `Messaging__Provider=PubSub` com `PUBSUB_EMULATOR_HOST=pubsub-emulator:8085`. Isso impede que o fluxo local publique contra Pub/Sub real por acidente. Os workers nao sao tratados como APIs HTTP.
 
 ## Mensageria, Outbox e cenarios futuros
 
-Os cenarios k6 atuais exercitam as APIs HTTP e, indiretamente, podem gerar backlog na Outbox quando os workers estao ativos. Eles nao validam diretamente internals de provider, `ack`/`nack`, commit Kafka legado, DLQ ou idempotencia do consumer.
+Os cenarios k6 atuais exercitam as APIs HTTP e podem gerar backlog na Outbox. O modo `smoke` aguarda ao menos uma publicacao e projecao via Pub/Sub emulator; ele nao valida diretamente `ack`/`nack`, commit Kafka legado, DLQ ou idempotencia do consumer.
 
 Para carga focada no fluxo assincrono, mantenha Pub/Sub emulator como provider local principal e acompanhe banco, logs e metricas dos workers. Use Kafka legado apenas quando o cenario depender desse adapter. Cenarios recomendados para evolucao futura:
 
@@ -56,7 +56,7 @@ Para carga focada no fluxo assincrono, mantenha Pub/Sub emulator como provider l
 - falhas temporarias do broker atual e efeito em retry/backoff;
 - DLQ por payload invalido ou contrato rejeitado.
 
-Os adapters Pub/Sub tratam `ack`/`nack`, subscription, delivery attempt e ordering key como detalhes desse provider, sem usar partition/offset/commit como expectativa generica. Os cenarios k6 atuais continuam HTTP e nao constituem smoke dedicado do transporte.
+Os adapters Pub/Sub tratam `ack`/`nack`, subscription, delivery attempt e ordering key como detalhes desse provider, sem usar partition/offset/commit como expectativa generica. O smoke k6 confirma o efeito ponta a ponta do transporte local, sem inspecionar internals do emulator.
 
 O override `compose.k6.yaml` aumenta limites tecnicos de rate limiting das APIs durante a execucao de carga. Os runners recriam os containers HTTP alvo para garantir que os overrides e connection strings efetivos sejam aplicados. Isso evita que os cenarios de throughput validem apenas o limitador local, mantendo os asserts de status e erro HTTP.
 

@@ -62,7 +62,7 @@ Os testes de integracao do publisher Pub/Sub permanecem opcionais para nao torna
 Para executa-los contra o emulator local, suba apenas o servico descartavel, configure o processo de teste e aplique um filtro:
 
 ```powershell
-docker compose -f compose.yaml -f compose.pubsub.yaml up -d pubsub-emulator
+docker compose -f compose.yaml up -d pubsub-emulator
 $env:PUBSUB_EMULATOR_HOST='127.0.0.1:8085'
 $env:PUBSUB_PROJECT_ID='poc-integration-tests'
 dotnet test ./tests/LedgerService.IntegrationTests/LedgerService.IntegrationTests.csproj --configuration Release --filter "FullyQualifiedName~PubSubOutboxMessagePublisherEmulatorTests"

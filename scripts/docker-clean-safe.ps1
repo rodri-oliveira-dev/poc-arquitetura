@@ -9,7 +9,6 @@ $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $root = (Resolve-Path (Join-Path $scriptDir ".."))
 $composeFile = Join-Path $root "compose.yaml"
 $composeObservabilityFile = Join-Path $root "compose.observability.yaml"
-$composePubSubFile = Join-Path $root "compose.pubsub.yaml"
 $composeKafkaFile = Join-Path $root "compose.kafka.yaml"
 $composeNginxFile = Join-Path $root "compose.nginx.yaml"
 $composeK6File = Join-Path $root "compose.k6.yaml"
@@ -43,7 +42,6 @@ try {
     "compose",
     "-f", $composeFile,
     "-f", $composeObservabilityFile,
-    "-f", $composePubSubFile,
     "-f", $composeKafkaFile,
     "-f", $composeNginxFile,
     "-f", $composeK6File,

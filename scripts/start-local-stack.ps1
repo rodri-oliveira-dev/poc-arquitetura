@@ -13,7 +13,6 @@ $ErrorActionPreference = "Stop"
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $root = (Resolve-Path (Join-Path $scriptDir ".."))
 $composeObservabilityFile = Join-Path $root "compose.observability.yaml"
-$composePubSubFile = Join-Path $root "compose.pubsub.yaml"
 $composeKafkaFile = Join-Path $root "compose.kafka.yaml"
 
 function Get-LocalEnvValue([string]$Name) {
@@ -72,7 +71,7 @@ if ([string]::IsNullOrWhiteSpace($ComposeFile)) {
   $ComposeFile = (Join-Path $root "compose.yaml")
 }
 if ([string]::IsNullOrWhiteSpace($OverlayFile)) {
-  $OverlayFile = if ($MessagingProvider -eq "PubSub") { $composePubSubFile } else { $composeKafkaFile }
+  $OverlayFile = if ($MessagingProvider -eq "Kafka") { $composeKafkaFile } else { "" }
 }
 
 function Invoke-DockerCompose([string[]]$Arguments) {

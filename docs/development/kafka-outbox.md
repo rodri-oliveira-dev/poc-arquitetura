@@ -20,7 +20,7 @@ Configuracao neutra:
 
 Para a publicacao Pub/Sub do Ledger e o consumo Pub/Sub do Balance, use `Messaging:Provider=PubSub`. A configuracao `PubSub:Enabled=false` desliga os hosted services relacionados a Pub/Sub de forma equivalente ao flag Kafka.
 
-Para executar esse provider localmente com Pub/Sub emulator, use `./scripts/start-local-stack.ps1` no Windows ou `./scripts/start-local-stack.sh` no Linux/macOS. O overlay padrao `compose.pubsub.yaml` define `PUBSUB_EMULATOR_HOST`, configura `PUBSUB_PROJECT_ID` e cria topic principal, topic de DLQ e subscription do Balance de forma idempotente. O setup detalhado fica em [desenvolvimento local](local-development.md#pubsub-emulator-local).
+Para executar esse provider localmente com Pub/Sub emulator, use `./scripts/start-local-stack.ps1` no Windows ou `./scripts/start-local-stack.sh` no Linux/macOS. O `compose.yaml` principal define `PUBSUB_EMULATOR_HOST`, configura `PUBSUB_PROJECT_ID` e cria topic principal, topic de DLQ, subscription do Balance e subscription de inspecao da DLQ de aplicacao de forma idempotente. O setup detalhado fica em [desenvolvimento local](local-development.md#pubsub-emulator-local).
 
 Para executar Kafka legado, use `./scripts/start-local-stack-kafka.ps1` ou `./scripts/start-local-stack-kafka.sh`. O fluxo de reprocessamento assincrono ponta a ponta ainda depende desse modo enquanto o consumer Pub/Sub correspondente nao existir.
 
@@ -34,7 +34,7 @@ dotnet run --project ./src/LedgerService.Worker
 dotnet run --project ./src/BalanceService.Worker
 ```
 
-Execute cada worker em um terminal separado. Os arquivos `src/LedgerService.Worker/appsettings.PubSub.json` e `src/BalanceService.Worker/appsettings.PubSub.json` mantem os valores locais ficticios alinhados ao overlay Compose. `PUBSUB_EMULATOR_HOST` direciona os clients Google para o emulator sem credenciais. `PUBSUB_PROJECT_ID` identifica o projeto local usado ao inicializar recursos; quando necessario, sobrescreva tambem `PubSub__Producer__ProjectId` e `PubSub__Consumer__ProjectId` para manter o bind das options alinhado ao mesmo projeto.
+Execute cada worker em um terminal separado. Os arquivos `src/LedgerService.Worker/appsettings.PubSub.json` e `src/BalanceService.Worker/appsettings.PubSub.json` mantem os valores locais ficticios alinhados ao compose principal. `PUBSUB_EMULATOR_HOST` direciona os clients Google para o emulator sem credenciais. `PUBSUB_PROJECT_ID` identifica o projeto local usado ao inicializar recursos; quando necessario, sobrescreva tambem `PubSub__Producer__ProjectId` e `PubSub__Consumer__ProjectId` para manter o bind das options alinhado ao mesmo projeto.
 
 ## Fluxo
 

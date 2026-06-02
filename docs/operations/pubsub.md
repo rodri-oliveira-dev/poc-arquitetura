@@ -58,10 +58,10 @@ No Linux/macOS:
 ./scripts/start-local-stack.sh
 ```
 
-Os scripts aplicam o overlay `compose.pubsub.yaml`, executam migrations e iniciam APIs e workers. O overlay:
+Os scripts usam o `compose.yaml` principal, executam migrations e iniciam APIs e workers. O compose:
 
 - sobe `pubsub-emulator` em `localhost:8085` por padrao;
-- cria idempotentemente topic principal, topic de DLQ e subscription pull do Balance;
+- cria idempotentemente topic principal, topic de DLQ, subscription pull do Balance e subscription de inspecao da DLQ de aplicacao;
 - configura os workers com `Messaging__Provider=PubSub`;
 - nao inicia Kafka.
 
@@ -75,14 +75,15 @@ Defaults locais:
 | Topic principal | `ledger.ledgerentry.created.local` |
 | Topic de DLQ | `ledger.ledgerentry.created.dlq.local` |
 | Subscription do Balance | `balance-service-ledger-events-local` |
+| Subscription de inspecao da DLQ de aplicacao | `ledger-events-application-dlq-inspection-local` |
 
-Copie `.env.example` para `.env` quando precisar sobrescrever `PUBSUB_EMULATOR_HOST_PORT`, `PUBSUB_PROJECT_ID`, `PUBSUB_LEDGER_EVENTS_TOPIC_ID`, `PUBSUB_LEDGER_EVENTS_DLQ_TOPIC_ID` ou `PUBSUB_BALANCE_SUBSCRIPTION_ID`. Nao versione `.env`.
+Copie `.env.example` para `.env` quando precisar sobrescrever `PUBSUB_EMULATOR_HOST_PORT`, `PUBSUB_PROJECT_ID`, `PUBSUB_LEDGER_EVENTS_TOPIC_ID`, `PUBSUB_LEDGER_EVENTS_DLQ_TOPIC_ID`, `PUBSUB_BALANCE_SUBSCRIPTION_ID` ou `PUBSUB_LEDGER_EVENTS_DLQ_INSPECTION_SUBSCRIPTION_ID`. Nao versione `.env`.
 
 Para inspecionar a configuracao efetiva e os logs:
 
 ```bash
-docker compose -f compose.yaml -f compose.pubsub.yaml config
-docker compose -f compose.yaml -f compose.pubsub.yaml logs pubsub-emulator pubsub-init ledger-worker balance-worker
+docker compose -f compose.yaml config
+docker compose -f compose.yaml logs pubsub-emulator pubsub-init ledger-worker balance-worker
 ```
 
 ## Configurar os workers

@@ -55,6 +55,7 @@ O compose usa defaults ficticios para desenvolvimento local. Para sobrescrever, 
 - `PUBSUB_LEDGER_EVENTS_TOPIC_ID=ledger.ledgerentry.created.local`
 - `PUBSUB_LEDGER_EVENTS_DLQ_TOPIC_ID=ledger.ledgerentry.created.dlq.local`
 - `PUBSUB_BALANCE_SUBSCRIPTION_ID=balance-service-ledger-events-local`
+- `PUBSUB_LEDGER_EVENTS_DLQ_INSPECTION_SUBSCRIPTION_ID=ledger-events-application-dlq-inspection-local`
 
 As variaveis `AUTH_POC_USERNAME`, `AUTH_POC_PASSWORD` e `AUTH_POC_SCOPE` continuam aceitas apenas pelo overlay legado `compose.auth-legacy.yaml`.
 
@@ -64,7 +65,7 @@ Nao reutilize esses valores fora da maquina local. Em ambientes compartilhados o
 
 ## Stack local com compose
 
-Os scripts `start-local-stack.*` sobem por padrao o core funcional de desenvolvimento com `compose.yaml` e `compose.pubsub.yaml`:
+Os scripts `start-local-stack.*` sobem por padrao o core funcional de desenvolvimento com `compose.yaml`:
 
 - Keycloak;
 - `LedgerService.Api`;
@@ -74,7 +75,7 @@ Os scripts `start-local-stack.*` sobem por padrao o core funcional de desenvolvi
 - PostgreSQL Ledger;
 - PostgreSQL Balance;
 - Pub/Sub emulator;
-- job idempotente de inicializacao do topic principal, DLQ de aplicacao e subscription do Balance.
+- job idempotente de inicializacao do topic principal, DLQ de aplicacao, subscription do Balance e subscription de inspecao da DLQ de aplicacao.
 
 Esse modo tambem pode ser chamado de Dev Lite quando o foco for reduzir consumo local: ele significa core funcional sem observabilidade, SonarQube, k6, Nginx overlay e `Auth.Api` legado. Dev Lite nao significa "sem workers"; `LedgerService.Worker` e `BalanceService.Worker` continuam no fluxo padrao porque validam Outbox, Pub/Sub e projecao ponta a ponta.
 
@@ -85,7 +86,7 @@ Componentes opcionais ficam em arquivos Compose separados:
 - `compose.nginx.yaml`: borda local Nginx opcional;
 - `compose.sonar.yaml` com profile `quality`: SonarQube local;
 - `compose.auth-legacy.yaml` com profile `legacy-auth`: `Auth.Api` legado.
-- `compose.pubsub.yaml`: overlay padrao dos scripts locais com Pub/Sub emulator, init idempotente dos recursos e overrides dos workers para `Messaging:Provider=PubSub`.
+- `compose.yaml`: stack principal com Pub/Sub emulator, init idempotente dos recursos e workers configurados com `Messaging:Provider=PubSub`.
 - `compose.kafka.yaml` com profile `legacy-kafka`: overrides dos workers para `Messaging:Provider=Kafka`; use apenas para validar o caminho legado.
 
 Tambem existe um overlay opcional `compose.nginx.yaml` para adicionar uma borda local com Nginx e HTTPS em desenvolvimento. Ele nao faz parte do core funcional e nao altera as APIs, que continuam rodando internamente em HTTP com `ASPNETCORE_URLS=http://+:8080`. Quando o overlay e usado, o Nginx cria um upstream local `ledger_api` com duas instancias da `LedgerService.Api` e algoritmo `least_conn`. O `Auth.Api` foi removido do core funcional e permanece apenas no overlay legado `compose.auth-legacy.yaml`.
@@ -131,20 +132,20 @@ OBSERVABILITY=true ./scripts/start-local-stack.sh
 Para subir somente o core funcional pelo compose, sem aplicar migrations:
 
 ```bash
-docker compose -f compose.yaml -f compose.pubsub.yaml up -d --build
+docker compose -f compose.yaml up -d --build
 ```
 
 Esse comando inicia apenas o core funcional. Para habilitar observabilidade completa pelo compose, incluindo coleta local de logs via Docker API, use:
 
 ```bash
-OTEL_ENABLED=true docker compose -f compose.yaml -f compose.pubsub.yaml -f compose.observability.yaml --profile observability up -d --build
+OTEL_ENABLED=true docker compose -f compose.yaml -f compose.observability.yaml --profile observability up -d --build
 ```
 
 `OTEL_ENABLED=true` habilita as aplicacoes a exportarem traces e metricas para `otel-collector:4317`. Sem essa variavel, os backends de observabilidade podem subir, mas as aplicacoes permanecem com OpenTelemetry desabilitado para manter o core funcional leve.
 
 ### Pub/Sub emulator local
 
-Pub/Sub e o provider principal. Os scripts `start-local-stack.*` aplicam o overlay `compose.pubsub.yaml` por padrao e usam o emulator local sem iniciar Kafka. Os aliases abaixo deixam essa escolha explicita:
+Pub/Sub e o provider principal. Os scripts `start-local-stack.*` usam o `compose.yaml` com emulator local sem iniciar Kafka. Os aliases abaixo deixam essa escolha explicita:
 
 ```powershell
 ./scripts/start-local-stack-pubsub.ps1
@@ -159,7 +160,7 @@ No Linux/macOS:
 Os scripts reaproveitam o fluxo padrao: sobem infraestrutura, restauram tools .NET, aplicam migrations pelo host e iniciam APIs e workers. O overlay adiciona:
 
 - `pubsub-emulator`, exposto no host em `localhost:8085` por padrao;
-- `pubsub-init`, que cria idempotentemente o topic principal, o topic de DLQ e a subscription pull do `BalanceService.Worker`;
+- `pubsub-init`, que cria idempotentemente o topic principal, o topic de DLQ, a subscription pull do `BalanceService.Worker` e a subscription de inspecao da DLQ de aplicacao;
 - `PUBSUB_EMULATOR_HOST=pubsub-emulator:8085` e `PUBSUB_PROJECT_ID` nos workers que usam Pub/Sub;
 - overrides `PubSub__Producer__*`, `PubSub__Consumer__*` e `Messaging__Provider=PubSub`.
 
@@ -171,6 +172,7 @@ Os nomes locais seguem a configuracao de `.env.example` e podem ser sobrescritos
 | Topic principal | `ledger.ledgerentry.created.local` |
 | Topic de DLQ | `ledger.ledgerentry.created.dlq.local` |
 | Subscription do Balance | `balance-service-ledger-events-local` |
+| Subscription de inspecao da DLQ de aplicacao | `ledger-events-application-dlq-inspection-local` |
 
 O emulator e descartavel, nao usa credenciais GCP e fica fora do Terraform. Ele nao reproduz integralmente comportamento, limites e garantias do servico real. A DLQ tecnica nativa nao e simulada localmente; o topic de DLQ criado pelo init e a DLQ de aplicacao.
 
@@ -199,8 +201,8 @@ OBSERVABILITY=true ./scripts/start-local-stack-pubsub.sh
 Para inspecionar a configuracao Compose efetiva sem subir containers:
 
 ```bash
-docker compose -f compose.yaml -f compose.pubsub.yaml config
-docker compose -f compose.yaml -f compose.pubsub.yaml config --services
+docker compose -f compose.yaml config
+docker compose -f compose.yaml config --services
 ```
 
 O socket Docker, mesmo montado como somente leitura, e uma superficie sensivel. Use o profile `observability` apenas em maquina local confiavel; nao use em ambiente compartilhado ou produtivo sem redesenhar a coleta de logs e revisar permissoes.
@@ -432,7 +434,7 @@ Para parar a stack completa sem remover containers, redes, volumes, bancos locai
 ./scripts/stop-full-stack.sh
 ```
 
-Esse fluxo para primeiro `nginx-edge`, `ledger-service-1` e `ledger-service-2` pelos overlays locais, e depois para o core funcional com `compose.pubsub.yaml` e `compose.observability.yaml`.
+Esse fluxo para primeiro `nginx-edge`, `ledger-service-1` e `ledger-service-2` pelos overlays locais, e depois para o core funcional com `compose.yaml` e `compose.observability.yaml`.
 
 ### Borda local HTTPS com Nginx
 
@@ -652,7 +654,7 @@ Portas expostas no host:
 | BalanceService.Api | `http://localhost:5228/` |
 | PostgreSQL Ledger | `localhost:15432` |
 | PostgreSQL Balance | `localhost:15433` |
-| Pub/Sub emulator | `localhost:8085` com `compose.pubsub.yaml` |
+| Pub/Sub emulator | `localhost:8085` com `compose.yaml` |
 | Kafka legado | `localhost:19092` com `compose.kafka.yaml` e profile `legacy-kafka` |
 | Jaeger UI | `http://localhost:16686/` com profile `observability` |
 | Jaeger OTLP | `localhost:4317` e `localhost:4318` com profile `observability`, para diagnostico direto |
@@ -923,7 +925,7 @@ Linux/macOS:
 
 Arquivos gerados em `artifacts/k6` e `.env.k6.auto` nao sao versionados.
 
-Os runners aplicam `compose.k6.yaml` e recriam os containers HTTP alvo antes do k6 para manter os testes apontando para as APIs e garantir que overrides de ambiente entrem em vigor. Os workers continuam sem endpoint HTTP nos cenarios de carga. Antes de obter token e executar o k6, os runners validam uma conexao real no PostgreSQL do Balance usando `BALANCE_DB_USER`, `BALANCE_DB_NAME` e `BALANCE_DB_PASSWORD`; se a senha do volume local divergir da configuracao, o fluxo falha cedo com diagnostico e nenhuma acao destrutiva.
+Os runners aplicam `compose.k6.yaml` e recriam os containers HTTP alvo antes do k6 para manter os testes apontando para as APIs e garantir que overrides de ambiente entrem em vigor. Os workers continuam sem endpoint HTTP nos cenarios de carga. Antes de obter token e executar o k6, os runners exigem `pubsub-emulator`, `ledger-worker` e `balance-worker` ativos, confirmam `Messaging__Provider=PubSub` e `PUBSUB_EMULATOR_HOST=pubsub-emulator:8085`, e validam uma conexao real no PostgreSQL do Balance usando `BALANCE_DB_USER`, `BALANCE_DB_NAME` e `BALANCE_DB_PASSWORD`; se a senha do volume local divergir da configuracao, o fluxo falha cedo com diagnostico e nenhuma acao destrutiva. No modo `smoke`, o runner tambem aguarda incremento de Outbox processada e de `processed_events` para confirmar publish/consume via emulator.
 
 O token usado nos cenarios k6 e obtido pelos runners com `scripts/get-token.*`. O fluxo oficial local e `TOKEN_PROVIDER=keycloak`, usando `KEYCLOAK_CLIENT_ID`, `KEYCLOAK_CLIENT_SECRET`, `KEYCLOAK_REALM` e `KEYCLOAK_BASE_URL`/`KEYCLOAK_HOST_PORT`. Para usar temporariamente o fallback `Auth.Api`, suba `compose.auth-legacy.yaml` e configure tambem as APIs de negocio com `JWT_ISSUER=https://auth-api`, `JWT_JWKS_URL=http://auth-api:8080/.well-known/jwks.json` e `TOKEN_PROVIDER=auth-api`, conforme [autenticacao e autorizacao](authentication.md).
 

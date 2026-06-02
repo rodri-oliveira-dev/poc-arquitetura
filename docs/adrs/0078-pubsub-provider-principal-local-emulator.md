@@ -18,7 +18,8 @@ Pub/Sub passa a ser o provider principal da POC:
 - o fallback de `Messaging:Provider` nos workers passa a ser `PubSub`;
 - os `appsettings.json` dos workers usam `Messaging:Provider=PubSub` e
   `PubSub:Enabled=true`;
-- `scripts/start-local-stack.*` usa `compose.pubsub.yaml` por padrao;
+- `compose.yaml` inclui o emulator e os recursos locais por padrao;
+- `scripts/start-local-stack.*` usa somente `compose.yaml` no fluxo Pub/Sub;
 - o desenvolvimento local usa Pub/Sub emulator com projeto `poc-local`, topic
   principal `ledger.ledgerentry.created.local`, subscription
   `balance-service-ledger-events-local` e DLQ de aplicacao
@@ -32,9 +33,9 @@ Pub/Sub passa a ser o provider principal da POC:
 - Pub/Sub real exige configuracao explicita pelos outputs Terraform e ausencia
   de `PUBSUB_EMULATOR_HOST`.
 
-O emulator local cria topic principal, topic de DLQ de aplicacao e subscription
-principal. A DLQ tecnica nativa continua fora do emulator local e pertence ao
-provisionamento real Terraform.
+O emulator local cria topic principal, topic de DLQ de aplicacao, subscription
+principal e subscription de inspecao da DLQ de aplicacao. A DLQ tecnica nativa
+continua fora do emulator local e pertence ao provisionamento real Terraform.
 
 ## Consequencias
 

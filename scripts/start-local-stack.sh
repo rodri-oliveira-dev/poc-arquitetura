@@ -5,7 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_FILE="${COMPOSE_FILE:-$ROOT_DIR/compose.yaml}"
 MESSAGING_PROVIDER="${MESSAGING_PROVIDER:-PubSub}"
 if [[ "$MESSAGING_PROVIDER" == "PubSub" ]]; then
-  COMPOSE_OVERLAY_FILE="${COMPOSE_OVERLAY_FILE:-$ROOT_DIR/compose.pubsub.yaml}"
+  COMPOSE_OVERLAY_FILE="${COMPOSE_OVERLAY_FILE:-}"
 elif [[ "$MESSAGING_PROVIDER" == "Kafka" ]]; then
   COMPOSE_OVERLAY_FILE="${COMPOSE_OVERLAY_FILE:-$ROOT_DIR/compose.kafka.yaml}"
 else

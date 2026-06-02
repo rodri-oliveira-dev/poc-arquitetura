@@ -4,7 +4,6 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_FILE="$ROOT_DIR/compose.yaml"
 COMPOSE_OBSERVABILITY_FILE="$ROOT_DIR/compose.observability.yaml"
-COMPOSE_PUBSUB_FILE="$ROOT_DIR/compose.pubsub.yaml"
 COMPOSE_KAFKA_FILE="$ROOT_DIR/compose.kafka.yaml"
 COMPOSE_NGINX_FILE="$ROOT_DIR/compose.nginx.yaml"
 COMPOSE_K6_FILE="$ROOT_DIR/compose.k6.yaml"
@@ -65,7 +64,6 @@ echo "Parando/removendo containers e redes do projeto sem remover volumes..."
 docker compose \
   -f "$COMPOSE_FILE" \
   -f "$COMPOSE_OBSERVABILITY_FILE" \
-  -f "$COMPOSE_PUBSUB_FILE" \
   -f "$COMPOSE_KAFKA_FILE" \
   -f "$COMPOSE_NGINX_FILE" \
   -f "$COMPOSE_K6_FILE" \

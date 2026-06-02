@@ -11,7 +11,6 @@ $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $root = (Resolve-Path (Join-Path $scriptDir ".."))
 $composeFile = Join-Path $root "compose.yaml"
 $composeObservabilityFile = Join-Path $root "compose.observability.yaml"
-$composePubSubFile = Join-Path $root "compose.pubsub.yaml"
 $composeNginxFile = Join-Path $root "compose.nginx.yaml"
 $certFile = Join-Path $root "infra\nginx\certs\localhost.crt"
 $keyFile = Join-Path $root "infra\nginx\certs\localhost.key"
@@ -169,7 +168,6 @@ function Invoke-NonDestructiveProjectCleanup {
     "compose",
     "-f", $composeFile,
     "-f", $composeObservabilityFile,
-    "-f", $composePubSubFile,
     "-f", $composeNginxFile,
     "--profile", "observability",
     "--profile", "direct-ledger",
@@ -267,7 +265,6 @@ try {
     "compose",
     "-f", $composeFile,
     "-f", $composeObservabilityFile,
-    "-f", $composePubSubFile,
     "-f", $composeNginxFile,
     "--profile", "observability",
     "up",
@@ -285,7 +282,6 @@ try {
     "compose",
     "-f", $composeFile,
     "-f", $composeObservabilityFile,
-    "-f", $composePubSubFile,
     "-f", $composeNginxFile,
     "--profile", "observability",
     "ps"
