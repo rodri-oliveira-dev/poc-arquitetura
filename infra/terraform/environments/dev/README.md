@@ -12,6 +12,13 @@ output. The technical DLQ is reserved for the native Pub/Sub dead-letter policy.
 The existing shared DLQ topic and inspection subscription are retained as the
 application DLQ during state migration.
 
+The tracked `terraform.tfvars.example` explicitly enables the native technical
+policy with `enable_technical_dead_letter=true`. Set it to `false` in the local
+`terraform.tfvars` for incremental rollout or dev tests that do not need native
+forwarding. The technical DLQ topic and inspection subscription remain created,
+but the native policy and its Pub/Sub service agent IAM bindings are omitted.
+The Balance Worker subscription and application DLQ remain available.
+
 No remote backend is configured at this stage. Terraform uses local state by
 default. Do not commit `terraform.tfvars`, state files, plans, or credentials.
 

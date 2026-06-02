@@ -115,6 +115,12 @@ variable "max_retry_backoff" {
   default     = "600s"
 }
 
+variable "enable_technical_dead_letter" {
+  type        = bool
+  description = "Habilita dead-letter policy técnica do Pub/Sub na subscription principal."
+  default     = true
+}
+
 variable "max_delivery_attempts" {
   description = "Approximate number of delivery attempts before Pub/Sub forwards a message to the technical DLQ."
   type        = number

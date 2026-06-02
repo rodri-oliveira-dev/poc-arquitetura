@@ -35,10 +35,13 @@ workers.
 | Ledger Worker | `roles/pubsub.publisher` no topic principal | Publicar eventos da Outbox. |
 | Balance Worker | `roles/pubsub.subscriber` na subscription principal | Consumir e confirmar eventos financeiros. |
 | Balance Worker | `roles/pubsub.publisher` no topic da DLQ de aplicacao | Publicar mensagens classificadas pela aplicacao. |
-| Pub/Sub service agent | `roles/pubsub.publisher` no topic da DLQ tecnica | Encaminhar mensagens pela dead-letter policy nativa. |
-| Pub/Sub service agent | `roles/pubsub.subscriber` na subscription principal | Confirmar mensagens encaminhadas pela dead-letter policy nativa. |
+| Pub/Sub service agent | `roles/pubsub.publisher` no topic da DLQ tecnica | Encaminhar mensagens pela dead-letter policy nativa quando `enable_technical_dead_letter=true`. |
+| Pub/Sub service agent | `roles/pubsub.subscriber` na subscription principal | Confirmar mensagens encaminhadas pela dead-letter policy nativa quando `enable_technical_dead_letter=true`. |
 
 O modulo nao concede `Owner`, `Editor` nem `Viewer` no projeto aos workloads.
+Quando `enable_technical_dead_letter=false`, os dois bindings do Pub/Sub service
+agent nao sao criados. Os bindings do Ledger Worker e do Balance Worker
+permanecem inalterados.
 
 ## Nomes esperados em dev
 
@@ -55,6 +58,10 @@ O modulo nao concede `Owner`, `Editor` nem `Viewer` no projeto aos workloads.
 O topic compartilhado e sua subscription de inspecao existentes sao preservados
 como DLQ de aplicacao por `moved` blocks do Terraform. A DLQ tecnica e criada
 separadamente para os novos encaminhamentos da dead-letter policy nativa.
+O topic e a subscription de inspecao da DLQ tecnica continuam criados quando
+`enable_technical_dead_letter=false`; somente a policy nativa e seu IAM
+especifico sao omitidos. Essa escolha preserva outputs estaveis e simplifica a
+ativacao posterior durante rollout incremental.
 
 ## Checklist antes de usar GCP real
 
@@ -65,6 +72,7 @@ separadamente para os novos encaminhamentos da dead-letter policy nativa.
 - Configurar a service account dedicada de cada worker sem chave JSON versionada.
 - Remover `PUBSUB_EMULATOR_HOST` do ambiente dos workers.
 - Confirmar `enable_message_ordering=true` no producer e na subscription dev.
-- Confirmar o IAM do Pub/Sub service agent para a dead-letter policy.
+- Confirmar `enable_technical_dead_letter` conforme a fase do rollout.
+- Quando a policy tecnica estiver habilitada, confirmar o IAM do Pub/Sub service agent.
 - Confirmar que `PubSub:Consumer:DeadLetterTopicId` usa `application_dlq_topic_name`; a DLQ tecnica nao e configurada na aplicacao.
 - Publicar um evento de teste e validar consumo, projecao e inspecao da DLQ.

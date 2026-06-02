@@ -67,9 +67,13 @@ resource "google_pubsub_subscription" "balance_ledger_events" {
     maximum_backoff = var.max_retry_backoff
   }
 
-  dead_letter_policy {
-    dead_letter_topic     = google_pubsub_topic.technical_dlq.id
-    max_delivery_attempts = var.max_delivery_attempts
+  dynamic "dead_letter_policy" {
+    for_each = var.enable_technical_dead_letter ? [1] : []
+
+    content {
+      dead_letter_topic     = google_pubsub_topic.technical_dlq.id
+      max_delivery_attempts = var.max_delivery_attempts
+    }
   }
 }
 
@@ -134,6 +138,8 @@ resource "google_pubsub_topic_iam_member" "balance_worker_publish_application_dl
 }
 
 resource "google_pubsub_topic_iam_member" "pubsub_service_agent_publish_technical_dlq" {
+  count = var.enable_technical_dead_letter ? 1 : 0
+
   project = var.project_id
   topic   = google_pubsub_topic.technical_dlq.name
   role    = "roles/pubsub.publisher"
@@ -141,6 +147,8 @@ resource "google_pubsub_topic_iam_member" "pubsub_service_agent_publish_technica
 }
 
 resource "google_pubsub_subscription_iam_member" "pubsub_service_agent_ack_ledger_events" {
+  count = var.enable_technical_dead_letter ? 1 : 0
+
   project      = var.project_id
   subscription = google_pubsub_subscription.balance_ledger_events.name
   role         = "roles/pubsub.subscriber"

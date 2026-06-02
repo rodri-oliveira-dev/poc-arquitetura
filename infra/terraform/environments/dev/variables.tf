@@ -17,3 +17,9 @@ variable "region" {
     error_message = "region must be a valid Google Cloud region name, such as us-central1."
   }
 }
+
+variable "enable_technical_dead_letter" {
+  description = "Whether the native Pub/Sub dead-letter policy is enabled on the main subscription."
+  type        = bool
+  default     = true
+}

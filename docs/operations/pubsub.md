@@ -167,6 +167,7 @@ Outputs relevantes para configurar os workers:
 - `application_dlq_subscription_name`;
 - `technical_dlq_topic_name`;
 - `technical_dlq_subscription_name`;
+- `enable_technical_dead_letter`;
 - `enable_message_ordering`;
 - `enable_exactly_once_delivery`;
 - `ack_deadline_seconds`;
@@ -183,6 +184,14 @@ Outputs relevantes para configurar os workers:
 6. Falhas tecnicas de entrega podem ser encaminhadas pela dead-letter policy nativa da subscription para a DLQ tecnica do Pub/Sub.
 
 O modulo Terraform usa topics e subscriptions de inspecao separados para a DLQ de aplicacao e a DLQ tecnica. Configure `PubSub:Consumer:DeadLetterTopicId` somente com o output `application_dlq_topic_name`; a DLQ tecnica pertence exclusivamente a dead-letter policy nativa.
+
+Para rollout incremental ou testes em dev que nao precisem do encaminhamento
+nativo, defina `enable_technical_dead_letter=false` no `terraform.tfvars`. A
+subscription principal continua criada e o `BalanceService.Worker` continua
+consumindo mensagens normalmente. A DLQ de aplicacao tambem continua criada e
+publicada pelo worker. O topic e a subscription de inspecao da DLQ tecnica
+permanecem provisionados para simplificar a ativacao posterior, mas a policy
+nativa e os dois bindings IAM exclusivos do Pub/Sub service agent sao omitidos.
 
 ## Kafka e Pub/Sub
 

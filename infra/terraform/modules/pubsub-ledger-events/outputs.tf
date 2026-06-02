@@ -85,6 +85,11 @@ output "enable_exactly_once_delivery" {
   value       = google_pubsub_subscription.balance_ledger_events.enable_exactly_once_delivery
 }
 
+output "enable_technical_dead_letter" {
+  description = "Whether the native technical dead-letter policy is enabled on the Balance Worker subscription."
+  value       = var.enable_technical_dead_letter
+}
+
 output "ack_deadline_seconds" {
   description = "Acknowledgement deadline configured on the Balance Worker subscription."
   value       = google_pubsub_subscription.balance_ledger_events.ack_deadline_seconds

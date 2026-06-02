@@ -38,6 +38,8 @@ A dead-letter policy nativa do Pub/Sub sera tratada como DLQ tecnica do transpor
 
 A DLQ de aplicacao permanece distinta e continua cobrindo mensagens invalidas, contratos nao suportados e falhas classificadas pela aplicacao como nao recuperaveis. A implementacao futura deve preservar essa separacao operacional e tornar observavel a origem de cada mensagem encaminhada para DLQ.
 
+O Terraform permite desligar a policy tecnica nativa por ambiente com `enable_technical_dead_letter=false`, sem remover a subscription principal nem a DLQ de aplicacao publicada pelo `BalanceService.Worker`. O topic e a subscription de inspecao da DLQ tecnica permanecem provisionados para preservar outputs estaveis e simplificar a ativacao posterior. Quando a policy esta desligada, os bindings IAM do Pub/Sub service agent exclusivos desse fluxo tecnico nao sao criados.
+
 ## Provisionamento e desenvolvimento local
 Os recursos reais do Pub/Sub na GCP serao provisionados com Terraform, incluindo topics, subscriptions, dead-letter topics, dead-letter subscriptions e configuracoes necessarias ao provider.
 
@@ -54,6 +56,7 @@ Como primeira entrega operacional, o desenvolvimento local usa o Pub/Sub emulato
 ### Trade-offs / riscos
 - Durante a migracao, o projeto precisara operar e testar dois providers.
 - Configuracoes, metricas, observabilidade e procedimentos operacionais devem distinguir Kafka, Pub/Sub, DLQ tecnica e DLQ de aplicacao.
+- A policy tecnica pode ser desligada em rollouts incrementais e testes de dev, mas mensagens com falha de entrega deixam de ser encaminhadas automaticamente pelo transporte enquanto a flag estiver desabilitada.
 - O emulator local nao reproduz integralmente o comportamento e os limites do servico real na GCP.
 - Ordering keys devem ser habilitadas apenas nos fluxos que realmente exigirem ordenacao por agregado.
 

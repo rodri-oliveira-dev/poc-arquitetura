@@ -6,7 +6,8 @@ This module provisions the Google Cloud Pub/Sub resources required for the
 - main Ledger events topic;
 - application DLQ topic and inspection subscription;
 - technical DLQ topic and inspection subscription;
-- Balance Worker pull subscription with retry and dead-letter policies;
+- Balance Worker pull subscription with retry policy and optional native
+  dead-letter policy;
 - dedicated Ledger Worker and Balance Worker service accounts;
 - resource-level IAM bindings with the minimum permissions required by the flow.
 
@@ -61,6 +62,7 @@ module "pubsub_ledger_events" {
   retain_acked_messages        = false
   enable_message_ordering      = true
   enable_exactly_once_delivery = false
+  enable_technical_dead_letter = true
   min_retry_backoff            = "10s"
   max_retry_backoff            = "600s"
   max_delivery_attempts        = 5
@@ -78,13 +80,19 @@ module "pubsub_ledger_events" {
 | Ledger Worker service account | Main Ledger events topic | `roles/pubsub.publisher` | Publish Ledger events |
 | Balance Worker service account | Balance pull subscription | `roles/pubsub.subscriber` | Consume and acknowledge Ledger events |
 | Balance Worker service account | Application DLQ topic | `roles/pubsub.publisher` | Publish application-classified DLQ messages |
-| Pub/Sub service agent | Technical DLQ topic | `roles/pubsub.publisher` | Forward messages to the technical DLQ |
-| Pub/Sub service agent | Balance pull subscription | `roles/pubsub.subscriber` | Acknowledge messages forwarded by the native dead-letter policy |
+| Pub/Sub service agent | Technical DLQ topic | `roles/pubsub.publisher` | Forward messages to the technical DLQ when `enable_technical_dead_letter=true` |
+| Pub/Sub service agent | Balance pull subscription | `roles/pubsub.subscriber` | Acknowledge messages forwarded by the native dead-letter policy when `enable_technical_dead_letter=true` |
 
 The application DLQ is published directly by the Balance Worker. The technical
 DLQ is used only by the native dead-letter policy on the main subscription.
 Separate inspection subscriptions retain each flow independently for triage,
 alerting, and reprocessing decisions.
+
+Set `enable_technical_dead_letter=false` to omit the native dead-letter policy
+from the main subscription during incremental rollout or cost-conscious dev
+tests. The main subscription, application DLQ, technical DLQ topic, and technical
+DLQ inspection subscription remain provisioned. Only the service agent IAM
+bindings used by the native technical flow are omitted.
 
 The `moved` blocks preserve the former shared DLQ topic and subscription as the
 application DLQ during state migration. The technical DLQ resources are new.
