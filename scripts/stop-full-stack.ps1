@@ -9,6 +9,7 @@ $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $root = (Resolve-Path (Join-Path $scriptDir ".."))
 $composeFile = Join-Path $root "compose.yaml"
 $composeObservabilityFile = Join-Path $root "compose.observability.yaml"
+$composePubSubFile = Join-Path $root "compose.pubsub.yaml"
 $composeNginxFile = Join-Path $root "compose.nginx.yaml"
 
 function Assert-DockerComposeAvailable {
@@ -38,6 +39,7 @@ try {
     "compose",
     "-f", $composeFile,
     "-f", $composeObservabilityFile,
+    "-f", $composePubSubFile,
     "-f", $composeNginxFile,
     "--profile", "observability",
     "stop",
@@ -52,6 +54,7 @@ try {
     "compose",
     "-f", $composeFile,
     "-f", $composeObservabilityFile,
+    "-f", $composePubSubFile,
     "--profile", "observability",
     "stop",
     "--timeout", $TimeoutSeconds.ToString()

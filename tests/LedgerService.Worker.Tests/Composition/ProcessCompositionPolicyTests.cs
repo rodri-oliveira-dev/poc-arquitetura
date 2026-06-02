@@ -54,6 +54,7 @@ public sealed class ProcessCompositionPolicyTests
 
         services.AddLedgerWorkerComposition(CreateConfiguration(new Dictionary<string, string?>
         {
+            ["Messaging:Provider"] = "Kafka",
             ["Kafka:Enabled"] = "false"
         }), CreateEnvironment());
 
@@ -71,6 +72,22 @@ public sealed class ProcessCompositionPolicyTests
         {
             ["Messaging:Provider"] = "PubSub",
             ["PubSub:Enabled"] = "true",
+            ["PubSub:Producer:ProjectId"] = "poc-project",
+            ["PubSub:Producer:DefaultTopicId"] = "ledger-events"
+        }), CreateEnvironment());
+
+        services.ContainSingleton<IOutboxMessagePublisher, PubSubOutboxMessagePublisher>();
+        services.ContainHostedService<OutboxPublisherService>();
+        services.NotContainHostedService<ReprocessamentoLancamentosConsumerService>();
+    }
+
+    [Fact]
+    public void LedgerServiceWorker_should_use_pubsub_when_provider_is_not_configured()
+    {
+        var services = new ServiceCollection();
+
+        services.AddLedgerWorkerComposition(CreateConfiguration(new Dictionary<string, string?>
+        {
             ["PubSub:Producer:ProjectId"] = "poc-project",
             ["PubSub:Producer:DefaultTopicId"] = "ledger-events"
         }), CreateEnvironment());
@@ -171,6 +188,7 @@ public sealed class ProcessCompositionPolicyTests
     {
         using var provider = CreateProvider(new Dictionary<string, string?>
         {
+            ["Messaging:Provider"] = "Kafka",
             ["Reprocessamentos:Consumer:Topic"] = ""
         });
 

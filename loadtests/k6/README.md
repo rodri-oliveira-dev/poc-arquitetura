@@ -26,7 +26,7 @@ Os runners `./scripts/run-loadtests.ps1` e `./scripts/run-loadtests.sh` expoem t
 
 Os runners falham quando ha qualquer check k6 falho, taxa de erro HTTP acima de 5% ou `dropped_iterations` maior que zero. Para `balance_daily_50rps.js`, o threshold de `dropped_iterations` tambem esta declarado no script. Para `ledger_resilience.js`, o runner valida `dropped_iterations` pelo summary exportado.
 
-Os scripts atuais nao possuem threshold formal para latencia p95 ou p99. A recomendacao futura e definir limites por cenario apenas depois de registrar uma linha de base local reprodutivel, separando latencia de API, banco, Kafka, workers e runtime Docker.
+Os scripts atuais nao possuem threshold formal para latencia p95 ou p99. A recomendacao futura e definir limites por cenario apenas depois de registrar uma linha de base local reprodutivel, separando latencia de API, banco, mensageria, workers e runtime Docker.
 
 Estes testes validam comportamento local/controlado da POC. Eles nao comprovam capacidade produtiva, dimensionamento, autoscaling, limites de infraestrutura, comportamento multi-tenant real, seguranca de borda ou resiliencia sob falhas de dependencias gerenciadas.
 
@@ -40,23 +40,23 @@ Execute a stack local antes dos testes. Os runners precisam do Keycloak local pa
 
 `Auth.Api` permanece disponível somente como fallback de transição quando `TOKEN_PROVIDER=auth-api` também estiver acompanhado da configuração JWT legada das APIs, conforme `docs/development/authentication.md`.
 
-Mantenha `LedgerService.Worker` e `BalanceService.Worker` em execucao quando quiser validar efeitos assincronos entre Outbox, Kafka e projecao de saldos. Os workers nao sao tratados como APIs HTTP.
+Mantenha `LedgerService.Worker` e `BalanceService.Worker` em execucao quando quiser validar efeitos assincronos entre Outbox, Pub/Sub e projecao de saldos. Os workers nao sao tratados como APIs HTTP.
 
 ## Mensageria, Outbox e cenarios futuros
 
-Os cenarios k6 atuais exercitam as APIs HTTP e, indiretamente, podem gerar backlog na Outbox quando os workers estao ativos. Eles nao validam diretamente internals de provider, commit Kafka, DLQ ou idempotencia do consumer.
+Os cenarios k6 atuais exercitam as APIs HTTP e, indiretamente, podem gerar backlog na Outbox quando os workers estao ativos. Eles nao validam diretamente internals de provider, `ack`/`nack`, commit Kafka legado, DLQ ou idempotencia do consumer.
 
-Para carga focada no fluxo assincrono, mantenha Kafka como provider atual e acompanhe banco, logs e metricas dos workers. Cenarios recomendados para evolucao futura:
+Para carga focada no fluxo assincrono, mantenha Pub/Sub emulator como provider local principal e acompanhe banco, logs e metricas dos workers. Use Kafka legado apenas quando o cenario depender desse adapter. Cenarios recomendados para evolucao futura:
 
 - alto volume de criacao de lancamentos no `LedgerService.Api`;
 - crescimento e drenagem de `outbox_messages` por status;
 - publicacao em lote pelo `OutboxPublisherService` via `IOutboxMessagePublisher`;
-- consumo pelo `BalanceService.Worker` apos mapeamento Kafka para `ReceivedMessage`;
+- consumo pelo `BalanceService.Worker` apos mapeamento do provider para `ReceivedMessage`;
 - duplicidade de mensagens e idempotencia em `processed_events`;
 - falhas temporarias do broker atual e efeito em retry/backoff;
 - DLQ por payload invalido ou contrato rejeitado.
 
-Pub/Sub nao esta implementado e nao deve aparecer como alvo de carga nesta etapa. Quando existir adapter Pub/Sub, os cenarios devem tratar ack/nack, subscription, delivery attempt e ordering key como detalhes desse provider, sem usar partition/offset/commit como expectativa generica.
+Os adapters Pub/Sub tratam `ack`/`nack`, subscription, delivery attempt e ordering key como detalhes desse provider, sem usar partition/offset/commit como expectativa generica. Os cenarios k6 atuais continuam HTTP e nao constituem smoke dedicado do transporte.
 
 O override `compose.k6.yaml` aumenta limites tecnicos de rate limiting das APIs durante a execucao de carga. Os runners recriam os containers HTTP alvo para garantir que os overrides e connection strings efetivos sejam aplicados. Isso evita que os cenarios de throughput validem apenas o limitador local, mantendo os asserts de status e erro HTTP.
 

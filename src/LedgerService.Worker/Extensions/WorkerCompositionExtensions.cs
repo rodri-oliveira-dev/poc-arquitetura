@@ -40,7 +40,7 @@ public static class WorkerCompositionExtensions
         IConfiguration configuration,
         IHostEnvironment environment)
     {
-        var provider = configuration.GetValue<string>(MessagingProviderConfigurationKey) ?? KafkaProvider;
+        var provider = configuration.GetValue<string>(MessagingProviderConfigurationKey) ?? PubSubProvider;
 
         return provider.Trim().ToUpperInvariant() switch
         {

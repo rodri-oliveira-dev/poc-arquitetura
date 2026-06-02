@@ -11,6 +11,7 @@ $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $root = (Resolve-Path (Join-Path $scriptDir ".."))
 $composeFile = Join-Path $root "compose.yaml"
 $composeObservabilityFile = Join-Path $root "compose.observability.yaml"
+$composePubSubFile = Join-Path $root "compose.pubsub.yaml"
 $composeNginxFile = Join-Path $root "compose.nginx.yaml"
 $certFile = Join-Path $root "infra\nginx\certs\localhost.crt"
 $keyFile = Join-Path $root "infra\nginx\certs\localhost.key"
@@ -28,7 +29,7 @@ $requiredPorts = @(
   @{ Name = "Alertmanager"; Port = 9093 },
   @{ Name = "Loki"; Port = 3100 },
   @{ Name = "Grafana Alloy"; Port = 12345 },
-  @{ Name = "Kafka"; Port = 19092 },
+  @{ Name = "Pub/Sub emulator"; Port = 8085 },
   @{ Name = "PostgreSQL Ledger"; Port = 15432 },
   @{ Name = "PostgreSQL Balance"; Port = 15433 },
   @{ Name = "Jaeger OTLP gRPC"; Port = 4317 },
@@ -168,6 +169,7 @@ function Invoke-NonDestructiveProjectCleanup {
     "compose",
     "-f", $composeFile,
     "-f", $composeObservabilityFile,
+    "-f", $composePubSubFile,
     "-f", $composeNginxFile,
     "--profile", "observability",
     "--profile", "direct-ledger",
@@ -265,6 +267,7 @@ try {
     "compose",
     "-f", $composeFile,
     "-f", $composeObservabilityFile,
+    "-f", $composePubSubFile,
     "-f", $composeNginxFile,
     "--profile", "observability",
     "up",
@@ -282,6 +285,7 @@ try {
     "compose",
     "-f", $composeFile,
     "-f", $composeObservabilityFile,
+    "-f", $composePubSubFile,
     "-f", $composeNginxFile,
     "--profile", "observability",
     "ps"

@@ -49,6 +49,7 @@ public sealed class ProcessCompositionPolicyTests
 
         services.AddBalanceWorkerComposition(CreateConfiguration(new Dictionary<string, string?>
         {
+            ["Messaging:Provider"] = "Kafka",
             ["Kafka:Enabled"] = "false"
         }), CreateEnvironment());
 
@@ -64,6 +65,23 @@ public sealed class ProcessCompositionPolicyTests
         {
             ["Messaging:Provider"] = "PubSub",
             ["PubSub:Enabled"] = "true",
+            ["PubSub:Consumer:ProjectId"] = "poc-project",
+            ["PubSub:Consumer:SubscriptionId"] = "ledger-events-balance",
+            ["PubSub:Consumer:DeadLetterTopicId"] = "ledger-events-dlq"
+        }), CreateEnvironment());
+
+        services.ContainSingleton<IDeadLetterPublisher, PubSubDeadLetterPublisher>();
+        services.ContainHostedService<LedgerEventsPubSubConsumer>();
+        services.NotContainHostedService<LedgerEventsConsumer>();
+    }
+
+    [Fact]
+    public void BalanceServiceWorker_should_use_pubsub_when_provider_is_not_configured()
+    {
+        var services = new ServiceCollection();
+
+        services.AddBalanceWorkerComposition(CreateConfiguration(new Dictionary<string, string?>
+        {
             ["PubSub:Consumer:ProjectId"] = "poc-project",
             ["PubSub:Consumer:SubscriptionId"] = "ledger-events-balance",
             ["PubSub:Consumer:DeadLetterTopicId"] = "ledger-events-dlq"
@@ -103,7 +121,7 @@ public sealed class ProcessCompositionPolicyTests
     }
 
     [Fact]
-    public void BalanceServiceWorker_should_register_consumer_dependencies_when_kafka_is_enabled()
+    public void BalanceServiceWorker_should_register_consumer_dependencies_when_pubsub_is_default()
     {
         var services = new ServiceCollection();
 

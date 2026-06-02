@@ -2,6 +2,8 @@
 param(
   [string]$ComposeFile = "",
   [string]$OverlayFile = "",
+  [ValidateSet("PubSub", "Kafka")]
+  [string]$MessagingProvider = "PubSub",
   [switch]$NoBuild,
   [switch]$Observability
 )
@@ -11,6 +13,8 @@ $ErrorActionPreference = "Stop"
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $root = (Resolve-Path (Join-Path $scriptDir ".."))
 $composeObservabilityFile = Join-Path $root "compose.observability.yaml"
+$composePubSubFile = Join-Path $root "compose.pubsub.yaml"
+$composeKafkaFile = Join-Path $root "compose.kafka.yaml"
 
 function Get-LocalEnvValue([string]$Name) {
   $envPath = Join-Path $root ".env"
@@ -67,6 +71,9 @@ $balanceDbHostPort = Get-LocalConfigValue "BALANCE_DB_HOST_PORT" "15433"
 if ([string]::IsNullOrWhiteSpace($ComposeFile)) {
   $ComposeFile = (Join-Path $root "compose.yaml")
 }
+if ([string]::IsNullOrWhiteSpace($OverlayFile)) {
+  $OverlayFile = if ($MessagingProvider -eq "PubSub") { $composePubSubFile } else { $composeKafkaFile }
+}
 
 function Invoke-DockerCompose([string[]]$Arguments) {
   & docker @Arguments
@@ -79,6 +86,9 @@ function Get-ComposeArguments {
   $arguments = @("compose", "-f", $ComposeFile)
   if (-not [string]::IsNullOrWhiteSpace($OverlayFile)) {
     $arguments += @("-f", $OverlayFile)
+  }
+  if ($MessagingProvider -eq "Kafka") {
+    $arguments += @("--profile", "legacy-kafka")
   }
 
   return $arguments
@@ -179,10 +189,14 @@ try {
   $infraArgs += @(
     "ledger-db",
     "balance-db",
-    "kafka",
-    "kafka-init-topics",
     "keycloak"
   )
+  if ($MessagingProvider -eq "PubSub") {
+    $infraArgs += @("pubsub-emulator", "pubsub-init")
+  }
+  else {
+    $infraArgs += @("kafka", "kafka-init-topics")
+  }
   if ($Observability) {
     $infraArgs += @(
       "jaeger",

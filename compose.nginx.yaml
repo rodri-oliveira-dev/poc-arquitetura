@@ -19,10 +19,6 @@ services:
     depends_on:
       ledger-db:
         condition: service_healthy
-      kafka:
-        condition: service_healthy
-      kafka-init-topics:
-        condition: service_completed_successfully
     environment:
       ASPNETCORE_URLS: "http://+:8080"
       ASPNETCORE_ENVIRONMENT: "Development"
@@ -50,10 +46,6 @@ services:
     depends_on:
       ledger-db:
         condition: service_healthy
-      kafka:
-        condition: service_healthy
-      kafka-init-topics:
-        condition: service_completed_successfully
     environment:
       ASPNETCORE_URLS: "http://+:8080"
       ASPNETCORE_ENVIRONMENT: "Development"

@@ -9,9 +9,9 @@ $ErrorActionPreference = "Stop"
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $root = (Resolve-Path (Join-Path $scriptDir ".."))
 $startLocalScript = Join-Path $scriptDir "start-local-stack.ps1"
-$composePubSubFile = Join-Path $root "compose.pubsub.yaml"
+$composeKafkaFile = Join-Path $root "compose.kafka.yaml"
 
-$arguments = @("-MessagingProvider", "PubSub", "-OverlayFile", $composePubSubFile)
+$arguments = @("-MessagingProvider", "Kafka", "-OverlayFile", $composeKafkaFile)
 if ($NoBuild) {
   $arguments += "-NoBuild"
 }

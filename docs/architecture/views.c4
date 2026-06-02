@@ -8,7 +8,7 @@ views {
   }
 
   view containers {
-    title "Container View - APIs, workers, bancos, Kafka e observabilidade"
+    title "Container View - APIs, workers, bancos, Pub/Sub, Kafka legado e observabilidade"
     include customer
     include edge.nginx
     include edge.nginx.portal
@@ -23,6 +23,9 @@ views {
     include kafka.ledgerEstornoTopic
     include kafka.ledgerReprocessamentoTopic
     include kafka.ledgerDlq
+    include pubsub.ledgerTopic
+    include pubsub.balanceSubscription
+    include pubsub.applicationDlqTopic
     include observability.collector
     include observability.jaeger
     include observability.prometheus
@@ -35,17 +38,18 @@ views {
   }
 
   view distributedFlow {
-    title "Fluxo distribuido - Keycloak, Ledger, Outbox, Kafka e Balance"
+    title "Fluxo distribuido principal - Keycloak, Ledger, Outbox, Pub/Sub e Balance"
     include customer
     include identity.keycloak
     include ledger.ledgerApi
     include ledger.ledgerDb
     include ledger.ledgerWorker
     include ledger.ledgerOutbox
-    include kafka.ledgerTopic
+    include pubsub.ledgerTopic
+    include pubsub.balanceSubscription
     include balance.balanceWorker
-    include balance.balanceConsumer
-    include balance.balanceReceivedMessageMapper
+    include balance.balancePubSubConsumer
+    include balance.balancePubSubReceivedMessageMapper
     include balance.balanceMessageProcessor
     include balance.balanceDb
     include balance.balanceApi
@@ -98,6 +102,7 @@ views {
     include ledger.ledgerOutbox
     include ledger.ledgerOutboxPublisherPort
     include ledger.ledgerKafkaOutboxPublisher
+    include ledger.ledgerPubSubOutboxPublisher
     include ledger.ledgerEstornoProcessor
     include ledger.ledgerReprocessamentoConsumer
     include ledger.ledgerReprocessamentoReceivedMessageMapper
@@ -106,6 +111,7 @@ views {
     include kafka.ledgerTopic
     include kafka.ledgerEstornoTopic
     include kafka.ledgerReprocessamentoTopic
+    include pubsub.ledgerTopic
     autoLayout LeftRight
   }
 
@@ -127,11 +133,16 @@ views {
     include balance.balanceWorkerInfrastructure
     include balance.balanceConsumer
     include balance.balanceReceivedMessageMapper
+    include balance.balancePubSubConsumer
+    include balance.balancePubSubReceivedMessageMapper
     include balance.balanceMessageProcessor
     include balance.balanceDeadLetterPort
     include balance.balanceDb
     include kafka.ledgerTopic
     include kafka.ledgerDlq
+    include pubsub.ledgerTopic
+    include pubsub.balanceSubscription
+    include pubsub.applicationDlqTopic
     autoLayout LeftRight
   }
 

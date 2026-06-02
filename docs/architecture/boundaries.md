@@ -140,7 +140,7 @@ Pontos de atencao:
 
 Camadas tambem fazem sentido, porque o servico possui leitura HTTP, consumidor Kafka, idempotencia por evento, projecao e DLQ.
 
-Operacionalmente, `BalanceService.Api` atende consultas HTTP sobre a projecao; `BalanceService.Worker` consome `LedgerEntryCreated.v1` pelo provider de mensageria configurado, aplica idempotencia, atualiza `daily_balances`/`processed_events` e envia mensagens invalidas para DLQ. Hoje o provider implementado e Kafka; Pub/Sub e apenas possibilidade futura e exigiria adapter proprio.
+Operacionalmente, `BalanceService.Api` atende consultas HTTP sobre a projecao; `BalanceService.Worker` consome `LedgerEntryCreated.v1` pelo provider de mensageria configurado, aplica idempotencia, atualiza `daily_balances`/`processed_events` e envia mensagens invalidas para DLQ. Pub/Sub e o provider principal; Kafka permanece como adapter legado opcional.
 
 Pontos de atencao:
 

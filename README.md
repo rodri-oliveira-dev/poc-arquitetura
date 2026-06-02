@@ -13,7 +13,7 @@ O projeto modela um cenario comum em sistemas financeiros: registrar lancamentos
 
 ## Solucao
 
-A POC separa escrita e leitura em servicos distintos e separa APIs HTTP de workers. O `LedgerService.Api` recebe comandos de lancamento, estorno e reprocessamento, persiste os dados e grava eventos em Outbox na mesma transacao. O `LedgerService.Worker` publica a Outbox pelo provider de mensageria selecionado e executa processamentos assincronos do Ledger. O `BalanceService.Worker` consome os eventos financeiros pelo provider selecionado e atualiza saldos consolidados; o `BalanceService.Api` atende consultas HTTP. Kafka continua sendo o provider padrao e principal no fluxo local, enquanto Pub/Sub ja existe como alternativa suportada via `Messaging:Provider=PubSub`. O Keycloak local emite tokens JWT RS256 e publica JWKS para validacao offline pelas APIs de negocio. O `Auth.Api` foi depreciado como emissor legado de POC e nao faz parte da stack principal.
+A POC separa escrita e leitura em servicos distintos e separa APIs HTTP de workers. O `LedgerService.Api` recebe comandos de lancamento, estorno e reprocessamento, persiste os dados e grava eventos em Outbox na mesma transacao. O `LedgerService.Worker` publica a Outbox pelo provider de mensageria selecionado e executa processamentos assincronos do Ledger. O `BalanceService.Worker` consome os eventos financeiros pelo provider selecionado e atualiza saldos consolidados; o `BalanceService.Api` atende consultas HTTP. Pub/Sub e o provider principal e usa emulator por padrao no fluxo local. Kafka permanece disponivel como opcao legada explicita via `Messaging:Provider=Kafka`. O Keycloak local emite tokens JWT RS256 e publica JWKS para validacao offline pelas APIs de negocio. O `Auth.Api` foi depreciado como emissor legado de POC e nao faz parte da stack principal.
 
 Principais servicos:
 
@@ -44,7 +44,7 @@ Documentacao arquitetural publicada:
 
 ## Mensageria: Kafka e Pub/Sub
 
-Kafka e Pub/Sub coexistem como adapters do boundary de mensageria dos workers. Kafka permanece como provider padrao, atual e principal da stack local. Pub/Sub e um provider alternativo suportado, selecionado com `Messaging:Provider=PubSub`, sem remover Kafka e sem tentar simular sua semantica.
+Kafka e Pub/Sub coexistem como adapters do boundary de mensageria dos workers. Pub/Sub e o provider principal e o desenvolvimento local usa o emulator. Kafka permanece suportado como opcao legada explicita, selecionada com `Messaging:Provider=Kafka`, sem tentar esconder as diferencas semanticas entre providers.
 
 | Kafka | Pub/Sub |
 | --- | --- |
@@ -56,7 +56,7 @@ As portas compartilhadas preservam Outbox, idempotencia e o contrato logico dos 
 
 Leitura complementar:
 
-- [ADR-0077: Pub/Sub como provider alternativo](docs/adrs/0077-pubsub-provider-mensageria.md)
+- [ADR-0078: Pub/Sub como provider principal](docs/adrs/0078-pubsub-provider-principal-local-emulator.md)
 - [Operacao do Pub/Sub e emulator local](docs/operations/pubsub.md)
 - [Contrato Pub/Sub entre Terraform e aplicacao](docs/development/pubsub-infra-app-contract.md)
 - [Modulo Terraform Pub/Sub Ledger Events](infra/terraform/modules/pubsub-ledger-events/README.md)
@@ -68,7 +68,7 @@ Leitura complementar:
 - .NET SDK conforme `global.json`.
 - Docker-compatible API para Testcontainers e stack local.
 - CLI `docker` com suporte a `docker compose` para a stack local.
-- PostgreSQL e o provider de mensageria selecionado acessiveis quando rodar APIs e workers fora de container. Kafka e o default local; Pub/Sub pode usar emulator local ou recursos reais configurados na GCP.
+- PostgreSQL e o provider de mensageria selecionado acessiveis quando rodar APIs e workers fora de container. Pub/Sub emulator e o default local; Pub/Sub real exige configuracao explicita sem `PUBSUB_EMULATOR_HOST`, e Kafka permanece opcional.
 
 O projeto nao exige Docker Desktop como premissa. No Windows sem Docker Desktop, o ambiente recomendado e Rancher Desktop com `moby/dockerd`.
 
@@ -97,7 +97,7 @@ No Linux/macOS:
 ./scripts/start-local-stack.sh
 ```
 
-Esse script sobe o core funcional local: bancos Ledger/Balance persistentes, Kafka, Keycloak, APIs e workers. Ele aplica migrations pelo host e inicia as APIs depois do schema estar pronto. O passo a passo manual fica em [desenvolvimento local](docs/development/local-development.md).
+Esse script sobe o core funcional local: bancos Ledger/Balance persistentes, Pub/Sub emulator, Keycloak, APIs e workers. Ele aplica migrations pelo host e inicia as APIs depois do schema estar pronto. O passo a passo manual fica em [desenvolvimento local](docs/development/local-development.md).
 
 Para incluir observabilidade local completa:
 
@@ -113,7 +113,7 @@ OBSERVABILITY=true ./scripts/start-local-stack.sh
 
 A observabilidade fica no overlay `compose.observability.yaml`. O modo padrao de desenvolvimento nao sobe Jaeger, Collector, Prometheus, Loki, Alloy, Alertmanager nem Grafana, mas continua subindo `ledger-worker` e `balance-worker` para preservar o fluxo ponta a ponta.
 
-Para validar o provider alternativo com Pub/Sub emulator local, mantendo Kafka disponivel:
+Os aliases abaixo continuam disponiveis para explicitar o mesmo fluxo Pub/Sub local:
 
 ```powershell
 ./scripts/start-local-stack-pubsub.ps1
@@ -125,7 +125,7 @@ No Linux/macOS:
 ./scripts/start-local-stack-pubsub.sh
 ```
 
-Esse fluxo aplica o overlay `compose.pubsub.yaml`, cria topic principal, topic de DLQ e subscription do Balance de forma idempotente e inicia os workers com `Messaging:Provider=PubSub`. Detalhes ficam em [desenvolvimento local](docs/development/local-development.md#pubsub-emulator-local) e no runbook de [operacao do Pub/Sub](docs/operations/pubsub.md).
+Esse fluxo aplica o overlay `compose.pubsub.yaml`, cria topic principal, topic de DLQ e subscription do Balance de forma idempotente e inicia os workers com `Messaging:Provider=PubSub`. Kafka nao e iniciado. Para usar o provider legado, execute `./scripts/start-local-stack-kafka.ps1` ou `./scripts/start-local-stack-kafka.sh`. Detalhes ficam em [desenvolvimento local](docs/development/local-development.md#pubsub-emulator-local) e no runbook de [operacao do Pub/Sub](docs/operations/pubsub.md).
 
 Para subir a stack completa com observabilidade e Nginx HTTPS local, gere antes os certificados em `infra/nginx/certs/` conforme [desenvolvimento local](docs/development/local-development.md#borda-local-https-com-nginx):
 
@@ -155,6 +155,7 @@ Se houver containers antigos ou rede local presa do proprio projeto, o script pe
 | Stack local minima | `./scripts/start-local-stack.ps1` ou `./scripts/start-local-stack.sh` |
 | Stack com observabilidade | `./scripts/start-local-stack.ps1 -Observability` ou `OBSERVABILITY=true ./scripts/start-local-stack.sh` |
 | Stack local com Pub/Sub emulator | `./scripts/start-local-stack-pubsub.ps1` ou `./scripts/start-local-stack-pubsub.sh` |
+| Stack local com Kafka legado | `./scripts/start-local-stack-kafka.ps1` ou `./scripts/start-local-stack-kafka.sh` |
 | Stack completa com Nginx | `./scripts/start-full-stack.ps1` ou `./scripts/start-full-stack.sh` |
 | Parar stack completa | `./scripts/stop-full-stack.ps1` ou `./scripts/stop-full-stack.sh` |
 | Diagnosticar disco Docker | `./scripts/docker-disk-report.ps1` ou `./scripts/docker-disk-report.sh` |
@@ -206,7 +207,7 @@ Os scripts executam testes com cobertura e aplicam gate minimo de 85% de cobertu
 
 **O que este projeto demonstra tecnicamente?**
 
-Microservicos .NET com separacao de escrita/leitura, Clean Architecture/DDD, Outbox, mensageria por ports and adapters com Kafka padrao e Pub/Sub alternativo, PostgreSQL, JWT/JWKS, idempotencia, observabilidade e validacao automatizada. Veja [FAQ completa](docs/faq.md).
+Microservicos .NET com separacao de escrita/leitura, Clean Architecture/DDD, Outbox, mensageria por ports and adapters com Pub/Sub principal e Kafka legado opcional, PostgreSQL, JWT/JWKS, idempotencia, observabilidade e validacao automatizada. Veja [FAQ completa](docs/faq.md).
 
 **Como executo localmente?**
 

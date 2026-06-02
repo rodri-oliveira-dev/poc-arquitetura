@@ -2,7 +2,7 @@
 
 ## Resumo executivo
 
-A arquitetura atual esta mais proxima de Clean Architecture/DDD por microservico, mas nao e pura. Na pratica, e uma arquitetura hibrida e coerente com uma POC de microservicos: camadas internas nos servicos com dominio relevante, APIs HTTP e workers separados por processo, Kafka/Outbox para consistencia eventual e Keycloak como provedor principal de identidade local.
+A arquitetura atual esta mais proxima de Clean Architecture/DDD por microservico, mas nao e pura. Na pratica, e uma arquitetura hibrida e coerente com uma POC de microservicos: camadas internas nos servicos com dominio relevante, APIs HTTP e workers separados por processo, Pub/Sub/Outbox para consistencia eventual, Kafka legado opcional e Keycloak como provedor principal de identidade local.
 
 A recomendacao e nao aumentar o numero de camadas agora. O melhor caminho e preservar a estrutura atual, corrigir assimetrias pontuais e fortalecer contratos/eventos/documentacao antes de qualquer reestruturacao.
 

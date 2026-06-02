@@ -87,6 +87,7 @@ services:
         condition: service_completed_successfully
     environment:
       Messaging__Provider: "PubSub"
+      PubSub__Enabled: "true"
       PUBSUB_EMULATOR_HOST: "pubsub-emulator:8085"
       PUBSUB_PROJECT_ID: "${PUBSUB_PROJECT_ID:-poc-local}"
       PubSub__Producer__ProjectId: "${PUBSUB_PROJECT_ID:-poc-local}"
@@ -100,6 +101,7 @@ services:
         condition: service_completed_successfully
     environment:
       Messaging__Provider: "PubSub"
+      PubSub__Enabled: "true"
       PUBSUB_EMULATOR_HOST: "pubsub-emulator:8085"
       PUBSUB_PROJECT_ID: "${PUBSUB_PROJECT_ID:-poc-local}"
       PubSub__Consumer__ProjectId: "${PUBSUB_PROJECT_ID:-poc-local}"

@@ -5,7 +5,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 ## Tutorial
 
 - [README do projeto](../README.md): problema, solucao, quickstart, comandos principais e links.
-- [Desenvolvimento local](development/local-development.md): compose, Pub/Sub emulator opcional, portas, migrations, execucao no host, VS Code, Testcontainers e load tests.
+- [Desenvolvimento local](development/local-development.md): compose, Pub/Sub emulator padrao, Kafka legado opcional, portas, migrations, execucao no host, VS Code, Testcontainers e load tests.
 - [Dev Container opcional](development/devcontainer.md): ambiente VS Code conteinerizado sem substituir o fluxo local do host.
 - [FAQ](faq.md): respostas curtas para as duvidas mais provaveis de leitura tecnica.
 - [Maturidade tecnica da POC](maturity.md): criterios atuais de documentacao, seguranca, testes, CI, observabilidade e pendencias.
@@ -49,8 +49,9 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [Boundaries arquiteturais](architecture/boundaries.md): responsabilidades de `Api`, `Application`, `Domain` e `Infrastructure`.
 - [Analise arquitetural e decisoes recomendadas](architecture/decisions.md): riscos, simplificacoes e roadmap pragmatico.
 - [ADRs](adrs/README.md): historico de decisoes arquiteturais e pontos de melhoria.
-- [Mensageria por ports and adapters](adrs/0075-mensageria-ports-adapters-kafka-provider.md): Kafka como provider atual e Pub/Sub apenas como adapter futuro.
-- [Pub/Sub como provider alternativo](adrs/0077-pubsub-provider-mensageria.md): plano incremental para adicionar Pub/Sub sem remover Kafka nem esconder diferencas semanticas entre providers.
+- [Mensageria por ports and adapters](adrs/0075-mensageria-ports-adapters-kafka-provider.md): historico da introducao do boundary quando Kafka ainda era o provider atual.
+- [Pub/Sub como provider principal](adrs/0078-pubsub-provider-principal-local-emulator.md): adota Pub/Sub como caminho principal, emulator como default local e Kafka como opcao legada.
+- [Pub/Sub como provider alternativo](adrs/0077-pubsub-provider-mensageria.md): historico do plano incremental que precedeu a adocao principal.
 - [Plano de migracao Auth.Api para Keycloak/OIDC](adrs/0073-plano-migracao-auth-api-keycloak-oidc.md): execucao incremental mantendo validacao JWT offline via JWKS.
 - [Keycloak como identidade principal](adrs/0074-keycloak-como-identidade-principal.md): decisao final de remover Auth.Api da stack principal e mante-lo apenas como legado por overlay.
 - [Avaliacao de .NET Aspire e riscos OWASP](reports/aspire-and-owasp-assessment.md): relatorio historico de contexto, nao estado operacional mais recente.

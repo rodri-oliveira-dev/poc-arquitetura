@@ -2,7 +2,7 @@
 
 Este documento concentra a referencia de mensageria entre `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Worker` e `BalanceService.Api`.
 
-Kafka permanece disponivel como provider completo de mensageria nesta POC. O boundary dos workers usa portas neutras para publicacao, consumo e DLQ, enquanto os adapters Kafka concentram detalhes como topicos, partitions, offsets, keys e commit. O `LedgerService.Worker` tambem suporta Pub/Sub como provider alternativo para publicar a Outbox, e o `BalanceService.Worker` registra o consumer e a DLQ Pub/Sub quando esse provider e selecionado.
+Pub/Sub e o provider principal desta POC. Kafka permanece disponivel como provider legado completo. O boundary dos workers usa portas neutras para publicacao, consumo e DLQ, enquanto os adapters Kafka concentram detalhes como topicos, partitions, offsets, keys e commit. O `LedgerService.Worker` publica a Outbox em Pub/Sub por padrao, e o `BalanceService.Worker` registra o consumer e a DLQ Pub/Sub quando esse provider e selecionado.
 
 Em termos de desenho, a aplicacao trata `OrderingKey` como conceito logico de ordenacao por agregado/entidade. No adapter Kafka, esse valor e materializado como message key e influencia o particionamento; no producer Pub/Sub, a ordering key opcional usa o `AggregateId`. Ack/nack, subscription e delivery attempt sao tratados como semantica propria do provider nos consumers Pub/Sub, sem simular partition, offset ou commit dentro dos processors neutros.
 
@@ -11,16 +11,18 @@ Configuracao neutra:
 ```json
 {
   "Messaging": {
-    "Provider": "Kafka"
+    "Provider": "PubSub"
   }
 }
 ```
 
-`Messaging:Provider` usa `Kafka` como default quando ausente. A configuracao existente `Kafka:Enabled=false` continua suportada para desligar os hosted services de mensageria em testes e cenarios locais especificos.
+`Messaging:Provider` usa `PubSub` como default quando ausente. A configuracao existente `Kafka:Enabled=false` continua suportada para desligar os hosted services Kafka em testes e cenarios locais especificos.
 
 Para a publicacao Pub/Sub do Ledger e o consumo Pub/Sub do Balance, use `Messaging:Provider=PubSub`. A configuracao `PubSub:Enabled=false` desliga os hosted services relacionados a Pub/Sub de forma equivalente ao flag Kafka.
 
-Para executar esse provider localmente com Pub/Sub emulator, use `./scripts/start-local-stack-pubsub.ps1` no Windows ou `./scripts/start-local-stack-pubsub.sh` no Linux/macOS. O overlay `compose.pubsub.yaml` define `PUBSUB_EMULATOR_HOST`, configura `PUBSUB_PROJECT_ID` e cria topic principal, topic de DLQ e subscription do Balance de forma idempotente. O setup detalhado fica em [desenvolvimento local](local-development.md#pubsub-emulator-local).
+Para executar esse provider localmente com Pub/Sub emulator, use `./scripts/start-local-stack.ps1` no Windows ou `./scripts/start-local-stack.sh` no Linux/macOS. O overlay padrao `compose.pubsub.yaml` define `PUBSUB_EMULATOR_HOST`, configura `PUBSUB_PROJECT_ID` e cria topic principal, topic de DLQ e subscription do Balance de forma idempotente. O setup detalhado fica em [desenvolvimento local](local-development.md#pubsub-emulator-local).
+
+Para executar Kafka legado, use `./scripts/start-local-stack-kafka.ps1` ou `./scripts/start-local-stack-kafka.sh`. O fluxo de reprocessamento assincrono ponta a ponta ainda depende desse modo enquanto o consumer Pub/Sub correspondente nao existir.
 
 Para executar os workers diretamente no host contra um emulator ja iniciado, use o perfil de exemplo `PubSub`:
 

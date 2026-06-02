@@ -248,9 +248,9 @@ As APIs usam `UseForwardedHeaders` antes de Swagger, redirecionamento HTTPS, aut
 - conexao com PostgreSQL;
 - connection strings usadas no ambiente.
 
-Kafka, topicos, `Kafka:Enabled`, bootstrap servers e DLQ pertencem aos workers. Quando houver falha de consumo ou publicacao, investigue logs e metricas de `LedgerService.Worker` e `BalanceService.Worker`; a indisponibilidade do Kafka consumer nao deve derrubar o readiness do `BalanceService.Api`.
+Pub/Sub, Kafka legado, topics, subscriptions, flags de provider e DLQ pertencem aos workers. Quando houver falha de consumo ou publicacao, investigue logs e metricas de `LedgerService.Worker` e `BalanceService.Worker`; a indisponibilidade do consumer nao deve derrubar o readiness do `BalanceService.Api`.
 
-No compose local, use `docker compose logs -f ledger-worker` para Outbox/estornos/reprocessamentos e `docker compose logs -f balance-worker` para consumo Kafka/DLQ. `ledger-service` e `balance-service` representam apenas as APIs HTTP.
+No compose local, use `docker compose -f compose.yaml -f compose.pubsub.yaml logs -f ledger-worker balance-worker pubsub-emulator pubsub-init` para o fluxo principal. No modo Kafka legado, use `docker compose -f compose.yaml -f compose.kafka.yaml --profile legacy-kafka logs -f ledger-worker balance-worker kafka kafka-init-topics`. `ledger-service` e `balance-service` representam apenas as APIs HTTP.
 
 Detalhes ficam em [observabilidade](observability.md#readiness) e [Kafka, Outbox e DLQ](development/kafka-outbox.md).
 

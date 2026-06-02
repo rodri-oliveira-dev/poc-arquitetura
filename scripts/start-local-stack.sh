@@ -3,7 +3,15 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_FILE="${COMPOSE_FILE:-$ROOT_DIR/compose.yaml}"
-COMPOSE_OVERLAY_FILE="${COMPOSE_OVERLAY_FILE:-}"
+MESSAGING_PROVIDER="${MESSAGING_PROVIDER:-PubSub}"
+if [[ "$MESSAGING_PROVIDER" == "PubSub" ]]; then
+  COMPOSE_OVERLAY_FILE="${COMPOSE_OVERLAY_FILE:-$ROOT_DIR/compose.pubsub.yaml}"
+elif [[ "$MESSAGING_PROVIDER" == "Kafka" ]]; then
+  COMPOSE_OVERLAY_FILE="${COMPOSE_OVERLAY_FILE:-$ROOT_DIR/compose.kafka.yaml}"
+else
+  echo "MESSAGING_PROVIDER invalido: $MESSAGING_PROVIDER (use PubSub ou Kafka)" >&2
+  exit 2
+fi
 COMPOSE_OBSERVABILITY_FILE="${COMPOSE_OBSERVABILITY_FILE:-$ROOT_DIR/compose.observability.yaml}"
 NO_BUILD="${NO_BUILD:-false}"
 OBSERVABILITY="${OBSERVABILITY:-false}"
@@ -50,6 +58,9 @@ BALANCE_DB_HOST_PORT="$(get_local_config_value BALANCE_DB_HOST_PORT 15433)"
 compose_files=(-f "$COMPOSE_FILE")
 if [[ -n "$COMPOSE_OVERLAY_FILE" ]]; then
   compose_files+=(-f "$COMPOSE_OVERLAY_FILE")
+fi
+if [[ "$MESSAGING_PROVIDER" == "Kafka" ]]; then
+  compose_files+=(--profile legacy-kafka)
 fi
 
 wait_database() {
@@ -124,9 +135,13 @@ fi
 "${compose_up[@]}" \
   ledger-db \
   balance-db \
-  kafka \
-  kafka-init-topics \
   keycloak
+
+if [[ "$MESSAGING_PROVIDER" == "PubSub" ]]; then
+  "${compose_up[@]}" pubsub-emulator pubsub-init
+else
+  "${compose_up[@]}" kafka kafka-init-topics
+fi
 
 if [[ "$OBSERVABILITY" == "true" ]]; then
   "${compose_up[@]}" jaeger otel-collector prometheus alertmanager loki alloy grafana

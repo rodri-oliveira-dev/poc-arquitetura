@@ -1,0 +1,16 @@
+name: poc-arquitetura
+
+services:
+  ledger-worker:
+    depends_on:
+      kafka-init-topics:
+        condition: service_completed_successfully
+    environment:
+      Messaging__Provider: "Kafka"
+
+  balance-worker:
+    depends_on:
+      kafka-init-topics:
+        condition: service_completed_successfully
+    environment:
+      Messaging__Provider: "Kafka"

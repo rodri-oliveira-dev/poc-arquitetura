@@ -75,6 +75,8 @@ services:
 
   # --- Kafka (KRaft single node) ---
   kafka:
+    profiles:
+      - legacy-kafka
     # Usamos a imagem oficial do Apache Kafka no Docker Hub.
     image: docker.io/apache/kafka:3.7.0
     container_name: poc-kafka
@@ -119,6 +121,8 @@ services:
 
   # Consumer está com AllowAutoCreateTopics=false, então garantimos o tópico via init.
   kafka-init-topics:
+    profiles:
+      - legacy-kafka
     image: docker.io/apache/kafka:3.7.0
     container_name: poc-kafka-init-topics
     logging: *default-logging
@@ -162,10 +166,6 @@ services:
     depends_on:
       ledger-db:
         condition: service_healthy
-      kafka:
-        condition: service_healthy
-      kafka-init-topics:
-        condition: service_completed_successfully
     environment:
       ASPNETCORE_URLS: "http://+:8080"
       ASPNETCORE_ENVIRONMENT: "Development"
@@ -205,10 +205,6 @@ services:
     depends_on:
       ledger-db:
         condition: service_healthy
-      kafka:
-        condition: service_healthy
-      kafka-init-topics:
-        condition: service_completed_successfully
     environment:
       DOTNET_ENVIRONMENT: "Development"
 
@@ -240,10 +236,6 @@ services:
     depends_on:
       balance-db:
         condition: service_healthy
-      kafka:
-        condition: service_healthy
-      kafka-init-topics:
-        condition: service_completed_successfully
     environment:
       ASPNETCORE_URLS: "http://+:8080"
       ASPNETCORE_ENVIRONMENT: "Development"
@@ -282,10 +274,6 @@ services:
     depends_on:
       balance-db:
         condition: service_healthy
-      kafka:
-        condition: service_healthy
-      kafka-init-topics:
-        condition: service_completed_successfully
     environment:
       DOTNET_ENVIRONMENT: "Development"
 

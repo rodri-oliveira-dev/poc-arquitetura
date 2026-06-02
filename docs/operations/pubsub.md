@@ -2,23 +2,13 @@
 
 Este runbook descreve como selecionar, executar e diagnosticar o provider Pub/Sub no fluxo de eventos financeiros entre `LedgerService.Worker` e `BalanceService.Worker`.
 
-Kafka continua sendo o provider padrao. Pub/Sub e uma alternativa incremental: preserve Outbox, idempotencia e a separacao entre DLQ de aplicacao e DLQ tecnica do transporte.
+Pub/Sub e o provider principal. Kafka permanece como opcao legada explicita: preserve Outbox, idempotencia e a separacao entre DLQ de aplicacao e DLQ tecnica do transporte.
 
 ## Escolher o provider
 
 Os workers aceitam os valores `Kafka` e `PubSub` em `Messaging:Provider`. Qualquer outro valor falha no startup.
 
-Em `appsettings*.json`:
-
-```json
-{
-  "Messaging": {
-    "Provider": "Kafka"
-  }
-}
-```
-
-Para usar Pub/Sub:
+O default versionado e:
 
 ```json
 {
@@ -28,16 +18,26 @@ Para usar Pub/Sub:
 }
 ```
 
+Para usar Kafka legado:
+
+```json
+{
+  "Messaging": {
+    "Provider": "Kafka"
+  }
+}
+```
+
 Com variaveis de ambiente, use `__` para separar secoes:
 
 ```powershell
-$env:Messaging__Provider = "Kafka"
+$env:Messaging__Provider = "PubSub"
 ```
 
 ou:
 
 ```powershell
-$env:Messaging__Provider = "PubSub"
+$env:Messaging__Provider = "Kafka"
 ```
 
 `Kafka:Enabled=false` e `PubSub:Enabled=false` desligam os hosted services do provider correspondente em testes ou cenarios locais especificos.
@@ -46,16 +46,16 @@ $env:Messaging__Provider = "PubSub"
 
 O emulator e descartavel, nao usa credenciais GCP e fica fora do Terraform. Ele nao reproduz integralmente limites e garantias do servico real.
 
-No Windows:
+Os scripts locais padrao ja aplicam o emulator. No Windows:
 
 ```powershell
-./scripts/start-local-stack-pubsub.ps1
+./scripts/start-local-stack.ps1
 ```
 
 No Linux/macOS:
 
 ```bash
-./scripts/start-local-stack-pubsub.sh
+./scripts/start-local-stack.sh
 ```
 
 Os scripts aplicam o overlay `compose.pubsub.yaml`, executam migrations e iniciam APIs e workers. O overlay:
@@ -63,7 +63,7 @@ Os scripts aplicam o overlay `compose.pubsub.yaml`, executam migrations e inicia
 - sobe `pubsub-emulator` em `localhost:8085` por padrao;
 - cria idempotentemente topic principal, topic de DLQ e subscription pull do Balance;
 - configura os workers com `Messaging__Provider=PubSub`;
-- mantem Kafka disponivel para comparacao entre providers.
+- nao inicia Kafka.
 
 O overlay local nao configura a dead-letter policy nativa da subscription. Esse comportamento tecnico pertence aos recursos reais provisionados pelo Terraform.
 
@@ -87,7 +87,8 @@ docker compose -f compose.yaml -f compose.pubsub.yaml logs pubsub-emulator pubsu
 
 ## Configurar os workers
 
-Os perfis locais versionados ficam em:
+Os defaults locais versionados ficam em `appsettings.json`; os perfis
+`appsettings.PubSub.json` permanecem como exemplos explicitos:
 
 - `src/LedgerService.Worker/appsettings.PubSub.json`;
 - `src/BalanceService.Worker/appsettings.PubSub.json`.
@@ -130,6 +131,24 @@ Para configurar sem perfil `appsettings.PubSub.json`, use os outputs do Terrafor
 Os perfis `appsettings.PubSub.json` usam nomes `*.local` exclusivamente para o
 emulator. Para GCP real, use os outputs `*.dev` do Terraform conforme o
 [contrato entre infraestrutura e aplicacao](../development/pubsub-infra-app-contract.md).
+Remova `PUBSUB_EMULATOR_HOST` do processo antes de apontar para GCP real.
+
+## Kafka legado
+
+Para iniciar Kafka explicitamente no local:
+
+```powershell
+./scripts/start-local-stack-kafka.ps1
+```
+
+```bash
+./scripts/start-local-stack-kafka.sh
+```
+
+Esse fluxo usa `compose.kafka.yaml`, profile `legacy-kafka` e
+`Messaging__Provider=Kafka`. Ele continua necessario para validar o
+reprocessamento assincrono ponta a ponta enquanto o consumer Pub/Sub
+correspondente nao existir.
 
 ## Aplicar Terraform em dev
 
@@ -338,4 +357,4 @@ Use esta ordem para reduzir diagnosticos ambiguos:
 - **DLQ de aplicacao sem publish:** confirme se a service account do `BalanceService.Worker` possui `roles/pubsub.publisher` somente no topic da DLQ de aplicacao e se `PubSub:Consumer:DeadLetterTopicId` aponta para `application_dlq_topic_name`.
 - **Mensagem duplicada:** trate como possibilidade esperada do fluxo at-least-once. Confirme a idempotencia do Balance pela identidade do evento antes de tentar republicar ou remover mensagens.
 
-Para detalhes complementares, consulte [Kafka, Outbox e DLQ](../development/kafka-outbox.md), [desenvolvimento local](../development/local-development.md#pubsub-emulator-local), [setup local Terraform e GCP](../development/terraform-gcp-local-setup.md) e [ADR-0077](../adrs/0077-pubsub-provider-mensageria.md).
+Para detalhes complementares, consulte [Kafka, Outbox e DLQ](../development/kafka-outbox.md), [desenvolvimento local](../development/local-development.md#pubsub-emulator-local), [setup local Terraform e GCP](../development/terraform-gcp-local-setup.md) e [ADR-0078](../adrs/0078-pubsub-provider-principal-local-emulator.md).

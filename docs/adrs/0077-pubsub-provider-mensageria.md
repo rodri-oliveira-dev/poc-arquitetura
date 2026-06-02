@@ -1,7 +1,7 @@
 # ADR-0077: Pub/Sub como provider alternativo de mensageria
 
 ## Status
-Proposto
+Substituido pela [ADR-0078](0078-pubsub-provider-principal-local-emulator.md)
 
 ## Data
 2026-06-01
