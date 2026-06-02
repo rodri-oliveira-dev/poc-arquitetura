@@ -22,6 +22,18 @@ Para a publicacao Pub/Sub do Ledger e o consumo Pub/Sub do Balance, use `Messagi
 
 Para executar esse provider localmente com Pub/Sub emulator, use `./scripts/start-local-stack-pubsub.ps1` no Windows ou `./scripts/start-local-stack-pubsub.sh` no Linux/macOS. O overlay `compose.pubsub.yaml` define `PUBSUB_EMULATOR_HOST`, configura `PUBSUB_PROJECT_ID` e cria topic principal, topic de DLQ e subscription do Balance de forma idempotente. O setup detalhado fica em [desenvolvimento local](local-development.md#pubsub-emulator-local).
 
+Para executar os workers diretamente no host contra um emulator ja iniciado, use o perfil de exemplo `PubSub`:
+
+```powershell
+$env:DOTNET_ENVIRONMENT='PubSub'
+$env:PUBSUB_EMULATOR_HOST='127.0.0.1:8085'
+$env:PUBSUB_PROJECT_ID='poc-local'
+dotnet run --project ./src/LedgerService.Worker
+dotnet run --project ./src/BalanceService.Worker
+```
+
+Execute cada worker em um terminal separado. Os arquivos `src/LedgerService.Worker/appsettings.PubSub.json` e `src/BalanceService.Worker/appsettings.PubSub.json` mantem os valores locais ficticios alinhados ao overlay Compose. `PUBSUB_EMULATOR_HOST` direciona os clients Google para o emulator sem credenciais. `PUBSUB_PROJECT_ID` identifica o projeto local usado ao inicializar recursos; quando necessario, sobrescreva tambem `PubSub__Producer__ProjectId` e `PubSub__Consumer__ProjectId` para manter o bind das options alinhado ao mesmo projeto.
+
 ## Fluxo
 
 1. `LedgerService.Api` cria um lancamento, registra uma solicitacao de estorno ou registra uma solicitacao de reprocessamento.
