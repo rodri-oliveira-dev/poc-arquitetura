@@ -94,3 +94,28 @@ output "ack_deadline_seconds" {
   description = "Acknowledgement deadline configured on the Balance Worker subscription."
   value       = google_pubsub_subscription.balance_ledger_events.ack_deadline_seconds
 }
+
+output "message_retention_duration" {
+  description = "Message retention duration configured on all subscriptions."
+  value       = var.message_retention_duration
+}
+
+output "retain_acked_messages" {
+  description = "Whether acknowledged messages remain retained on all subscriptions."
+  value       = var.retain_acked_messages
+}
+
+output "main_subscription_expiration_ttl" {
+  description = "Inactivity TTL configured on the Balance Worker subscription. An empty string means that it never expires."
+  value       = var.main_subscription_expiration_ttl
+}
+
+output "application_dlq_subscription_expiration_ttl" {
+  description = "Inactivity TTL configured on the application DLQ inspection subscription. An empty string means that it never expires."
+  value       = var.application_dlq_subscription_expiration_ttl
+}
+
+output "technical_dlq_subscription_expiration_ttl" {
+  description = "Inactivity TTL configured on the technical DLQ inspection subscription. An empty string means that it never expires."
+  value       = var.technical_dlq_subscription_expiration_ttl
+}

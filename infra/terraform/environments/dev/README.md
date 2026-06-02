@@ -19,6 +19,21 @@ forwarding. The technical DLQ topic and inspection subscription remain created,
 but the native policy and its Pub/Sub service agent IAM bindings are omitted.
 The Balance Worker subscription and application DLQ remain available.
 
+The tracked example also declares the subscription expiration policies:
+
+| Subscription | Dev expiration TTL | Rationale |
+| --- | --- | --- |
+| Balance Worker main subscription | `""` (never expire) | Preserve the production-like consumer backlog independently of inactivity. |
+| Application DLQ inspection | `"2592000s"` (30 days) | Remove an inactive inspection subscription in disposable dev environments. |
+| Technical DLQ inspection | `"2592000s"` (30 days) | Remove an inactive inspection subscription in disposable dev environments. |
+
+All subscriptions keep the module default of seven days for unacknowledged
+message retention and use `retain_acked_messages=false`. Finite expiration TTLs
+must remain greater than message retention. Backlogs and accumulated DLQ
+messages can generate Pub/Sub storage costs. For permanent environments,
+override either DLQ expiration TTL with `""` when the inspection subscription
+must survive long inactivity.
+
 No remote backend is configured at this stage. Terraform uses local state by
 default. Do not commit `terraform.tfvars`, state files, plans, or credentials.
 

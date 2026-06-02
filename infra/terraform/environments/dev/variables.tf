@@ -23,3 +23,21 @@ variable "enable_technical_dead_letter" {
   type        = bool
   default     = true
 }
+
+variable "main_subscription_expiration_ttl" {
+  description = "Inactivity TTL for the Balance Worker subscription. Set to an empty string to never expire."
+  type        = string
+  default     = ""
+}
+
+variable "application_dlq_subscription_expiration_ttl" {
+  description = "Inactivity TTL for the application DLQ inspection subscription. Set to an empty string to never expire."
+  type        = string
+  default     = "2592000s"
+}
+
+variable "technical_dlq_subscription_expiration_ttl" {
+  description = "Inactivity TTL for the technical DLQ inspection subscription. Set to an empty string to never expire."
+  type        = string
+  default     = "2592000s"
+}

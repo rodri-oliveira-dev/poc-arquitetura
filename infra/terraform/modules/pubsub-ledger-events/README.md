@@ -60,6 +60,9 @@ module "pubsub_ledger_events" {
   ack_deadline_seconds         = 30
   message_retention_duration   = "604800s"
   retain_acked_messages        = false
+  main_subscription_expiration_ttl            = ""
+  application_dlq_subscription_expiration_ttl = "2592000s"
+  technical_dlq_subscription_expiration_ttl   = "2592000s"
   enable_message_ordering      = true
   enable_exactly_once_delivery = false
   enable_technical_dead_letter = true
@@ -87,6 +90,26 @@ The application DLQ is published directly by the Balance Worker. The technical
 DLQ is used only by the native dead-letter policy on the main subscription.
 Separate inspection subscriptions retain each flow independently for triage,
 alerting, and reprocessing decisions.
+
+## Retention And Expiration
+
+All subscriptions retain unacknowledged messages for seven days by default
+(`message_retention_duration = "604800s"`) and do not retain acknowledged
+messages (`retain_acked_messages = false`). Backlogs that are not processed and
+DLQ messages that accumulate during that window can generate Pub/Sub storage
+costs.
+
+Each subscription declares an explicit `expiration_policy`. Set its TTL input to
+an empty string (`""`) to keep the subscription regardless of inactivity. Use a
+Google duration such as `"2592000s"` to remove an inactive subscription after a
+finite period. Any finite expiration TTL must be greater than
+`message_retention_duration`.
+
+The reusable module defaults keep the main Balance Worker subscription
+persistent and expire inactive application and technical DLQ inspection
+subscriptions after 30 days. Permanent environments can override either DLQ TTL
+with `""` when preserving inspection subscriptions across long inactive periods
+is operationally required.
 
 Set `enable_technical_dead_letter=false` to omit the native dead-letter policy
 from the main subscription during incremental rollout or cost-conscious dev

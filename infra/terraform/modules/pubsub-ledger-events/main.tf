@@ -62,6 +62,10 @@ resource "google_pubsub_subscription" "balance_ledger_events" {
   enable_message_ordering      = var.enable_message_ordering
   enable_exactly_once_delivery = var.enable_exactly_once_delivery
 
+  expiration_policy {
+    ttl = var.main_subscription_expiration_ttl
+  }
+
   retry_policy {
     minimum_backoff = var.min_retry_backoff
     maximum_backoff = var.max_retry_backoff
@@ -73,6 +77,16 @@ resource "google_pubsub_subscription" "balance_ledger_events" {
     content {
       dead_letter_topic     = google_pubsub_topic.technical_dlq.id
       max_delivery_attempts = var.max_delivery_attempts
+    }
+  }
+
+  lifecycle {
+    precondition {
+      condition = var.main_subscription_expiration_ttl == "" || try(
+        tonumber(trimsuffix(var.main_subscription_expiration_ttl, "s")) > tonumber(trimsuffix(var.message_retention_duration, "s")),
+        false
+      )
+      error_message = "main_subscription_expiration_ttl must be empty to never expire or greater than message_retention_duration."
     }
   }
 }
@@ -90,6 +104,20 @@ resource "google_pubsub_subscription" "application_dlq" {
 
   message_retention_duration = var.message_retention_duration
   retain_acked_messages      = var.retain_acked_messages
+
+  expiration_policy {
+    ttl = var.application_dlq_subscription_expiration_ttl
+  }
+
+  lifecycle {
+    precondition {
+      condition = var.application_dlq_subscription_expiration_ttl == "" || try(
+        tonumber(trimsuffix(var.application_dlq_subscription_expiration_ttl, "s")) > tonumber(trimsuffix(var.message_retention_duration, "s")),
+        false
+      )
+      error_message = "application_dlq_subscription_expiration_ttl must be empty to never expire or greater than message_retention_duration."
+    }
+  }
 }
 
 resource "google_pubsub_subscription" "technical_dlq" {
@@ -100,6 +128,20 @@ resource "google_pubsub_subscription" "technical_dlq" {
 
   message_retention_duration = var.message_retention_duration
   retain_acked_messages      = var.retain_acked_messages
+
+  expiration_policy {
+    ttl = var.technical_dlq_subscription_expiration_ttl
+  }
+
+  lifecycle {
+    precondition {
+      condition = var.technical_dlq_subscription_expiration_ttl == "" || try(
+        tonumber(trimsuffix(var.technical_dlq_subscription_expiration_ttl, "s")) > tonumber(trimsuffix(var.message_retention_duration, "s")),
+        false
+      )
+      error_message = "technical_dlq_subscription_expiration_ttl must be empty to never expire or greater than message_retention_duration."
+    }
+  }
 }
 
 resource "google_service_account" "ledger_worker" {

@@ -35,8 +35,11 @@ module "pubsub_ledger_events" {
   application_dlq_subscription_name = "balance-service-ledger-events-dlq-dev"
   technical_dlq_subscription_name   = "balance-service-ledger-events-technical-dlq-dev"
 
-  enable_message_ordering      = true
-  enable_technical_dead_letter = var.enable_technical_dead_letter
+  enable_message_ordering                     = true
+  enable_technical_dead_letter                = var.enable_technical_dead_letter
+  main_subscription_expiration_ttl            = var.main_subscription_expiration_ttl
+  application_dlq_subscription_expiration_ttl = var.application_dlq_subscription_expiration_ttl
+  technical_dlq_subscription_expiration_ttl   = var.technical_dlq_subscription_expiration_ttl
 
   labels = {
     managed_by = "terraform"

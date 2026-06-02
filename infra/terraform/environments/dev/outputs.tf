@@ -92,3 +92,28 @@ output "ack_deadline_seconds" {
   description = "Acknowledgement deadline configured on the Balance subscription."
   value       = module.pubsub_ledger_events.ack_deadline_seconds
 }
+
+output "message_retention_duration" {
+  description = "Message retention duration configured on all Pub/Sub subscriptions."
+  value       = module.pubsub_ledger_events.message_retention_duration
+}
+
+output "retain_acked_messages" {
+  description = "Whether acknowledged messages remain retained on all Pub/Sub subscriptions."
+  value       = module.pubsub_ledger_events.retain_acked_messages
+}
+
+output "main_subscription_expiration_ttl" {
+  description = "Inactivity TTL configured on the Balance subscription. An empty string means that it never expires."
+  value       = module.pubsub_ledger_events.main_subscription_expiration_ttl
+}
+
+output "application_dlq_subscription_expiration_ttl" {
+  description = "Inactivity TTL configured on the application DLQ inspection subscription. An empty string means that it never expires."
+  value       = module.pubsub_ledger_events.application_dlq_subscription_expiration_ttl
+}
+
+output "technical_dlq_subscription_expiration_ttl" {
+  description = "Inactivity TTL configured on the technical DLQ inspection subscription. An empty string means that it never expires."
+  value       = module.pubsub_ledger_events.technical_dlq_subscription_expiration_ttl
+}

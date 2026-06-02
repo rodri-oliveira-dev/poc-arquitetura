@@ -83,12 +83,68 @@ variable "message_retention_duration" {
   description = "Subscription message retention duration using the Google duration format, such as 604800s."
   type        = string
   default     = "604800s"
+
+  validation {
+    condition = can(regex("^[0-9]+(\\.[0-9]{1,9})?s$", var.message_retention_duration)) && try(
+      tonumber(trimsuffix(var.message_retention_duration, "s")) >= 600 &&
+      tonumber(trimsuffix(var.message_retention_duration, "s")) <= 2678400,
+      false
+    )
+    error_message = "message_retention_duration must be between 600s and 2678400s using the Google duration format."
+  }
 }
 
 variable "retain_acked_messages" {
   description = "Whether subscriptions retain acknowledged messages during the retention window."
   type        = bool
   default     = false
+
+  validation {
+    condition     = !var.retain_acked_messages
+    error_message = "retain_acked_messages must remain false unless a documented operational requirement justifies retaining acknowledged messages."
+  }
+}
+
+variable "main_subscription_expiration_ttl" {
+  description = "Inactivity TTL for the Balance Worker subscription using the Google duration format. Set to an empty string to never expire."
+  type        = string
+  default     = ""
+
+  validation {
+    condition = var.main_subscription_expiration_ttl == "" || (
+      can(regex("^[0-9]+(\\.[0-9]{1,9})?s$", var.main_subscription_expiration_ttl)) &&
+      try(tonumber(trimsuffix(var.main_subscription_expiration_ttl, "s")) >= 86400, false)
+    )
+    error_message = "main_subscription_expiration_ttl must be empty to never expire or at least 86400s using the Google duration format."
+  }
+}
+
+variable "application_dlq_subscription_expiration_ttl" {
+  description = "Inactivity TTL for the application DLQ inspection subscription using the Google duration format. Set to an empty string to never expire."
+  type        = string
+  default     = "2592000s"
+
+  validation {
+    condition = var.application_dlq_subscription_expiration_ttl == "" || (
+      can(regex("^[0-9]+(\\.[0-9]{1,9})?s$", var.application_dlq_subscription_expiration_ttl)) &&
+      try(tonumber(trimsuffix(var.application_dlq_subscription_expiration_ttl, "s")) >= 86400, false)
+    )
+    error_message = "application_dlq_subscription_expiration_ttl must be empty to never expire or at least 86400s using the Google duration format."
+  }
+}
+
+variable "technical_dlq_subscription_expiration_ttl" {
+  description = "Inactivity TTL for the technical DLQ inspection subscription using the Google duration format. Set to an empty string to never expire."
+  type        = string
+  default     = "2592000s"
+
+  validation {
+    condition = var.technical_dlq_subscription_expiration_ttl == "" || (
+      can(regex("^[0-9]+(\\.[0-9]{1,9})?s$", var.technical_dlq_subscription_expiration_ttl)) &&
+      try(tonumber(trimsuffix(var.technical_dlq_subscription_expiration_ttl, "s")) >= 86400, false)
+    )
+    error_message = "technical_dlq_subscription_expiration_ttl must be empty to never expire or at least 86400s using the Google duration format."
+  }
 }
 
 variable "enable_message_ordering" {

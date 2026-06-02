@@ -40,6 +40,13 @@ A DLQ de aplicacao permanece distinta e continua cobrindo mensagens invalidas, c
 
 O Terraform permite desligar a policy tecnica nativa por ambiente com `enable_technical_dead_letter=false`, sem remover a subscription principal nem a DLQ de aplicacao publicada pelo `BalanceService.Worker`. O topic e a subscription de inspecao da DLQ tecnica permanecem provisionados para preservar outputs estaveis e simplificar a ativacao posterior. Quando a policy esta desligada, os bindings IAM do Pub/Sub service agent exclusivos desse fluxo tecnico nao sao criados.
 
+As subscriptions declaram `expiration_policy` explicitamente. A subscription
+principal nao expira por inatividade. Em dev, as subscriptions de inspecao das
+DLQs expiram apos 30 dias sem atividade; ambientes permanentes podem configura-las
+para nao expirar. Todas mantem a retencao de mensagens nao confirmadas em sete
+dias e nao retem mensagens confirmadas. TTLs de expiracao finitos devem ser
+maiores que a janela de retencao.
+
 ## Provisionamento e desenvolvimento local
 Os recursos reais do Pub/Sub na GCP serao provisionados com Terraform, incluindo topics, subscriptions, dead-letter topics, dead-letter subscriptions e configuracoes necessarias ao provider.
 
@@ -57,6 +64,7 @@ Como primeira entrega operacional, o desenvolvimento local usa o Pub/Sub emulato
 - Durante a migracao, o projeto precisara operar e testar dois providers.
 - Configuracoes, metricas, observabilidade e procedimentos operacionais devem distinguir Kafka, Pub/Sub, DLQ tecnica e DLQ de aplicacao.
 - A policy tecnica pode ser desligada em rollouts incrementais e testes de dev, mas mensagens com falha de entrega deixam de ser encaminhadas automaticamente pelo transporte enquanto a flag estiver desabilitada.
+- Backlogs nao processados e DLQs acumuladas durante a janela de retencao podem gerar custo de armazenamento no Pub/Sub.
 - O emulator local nao reproduz integralmente o comportamento e os limites do servico real na GCP.
 - Ordering keys devem ser habilitadas apenas nos fluxos que realmente exigirem ordenacao por agregado.
 

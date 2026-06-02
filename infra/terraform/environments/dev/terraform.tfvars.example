@@ -1,3 +1,6 @@
-project_id                   = "replace-with-your-gcp-project-id"
-region                       = "us-central1"
-enable_technical_dead_letter = true
+project_id                                  = "replace-with-your-gcp-project-id"
+region                                      = "us-central1"
+enable_technical_dead_letter                = true
+main_subscription_expiration_ttl            = ""
+application_dlq_subscription_expiration_ttl = "2592000s"
+technical_dlq_subscription_expiration_ttl   = "2592000s"

@@ -73,6 +73,9 @@ ativacao posterior durante rollout incremental.
 - Remover `PUBSUB_EMULATOR_HOST` do ambiente dos workers.
 - Confirmar `enable_message_ordering=true` no producer e na subscription dev.
 - Confirmar `enable_technical_dead_letter` conforme a fase do rollout.
+- Confirmar `message_retention_duration="604800s"` e `retain_acked_messages=false`.
+- Confirmar `main_subscription_expiration_ttl=""` para preservar a subscription principal.
+- Revisar se os TTLs finitos das inspections de DLQ sao maiores que a retencao e adequados ao ambiente.
 - Quando a policy tecnica estiver habilitada, confirmar o IAM do Pub/Sub service agent.
 - Confirmar que `PubSub:Consumer:DeadLetterTopicId` usa `application_dlq_topic_name`; a DLQ tecnica nao e configurada na aplicacao.
 - Publicar um evento de teste e validar consumo, projecao e inspecao da DLQ.

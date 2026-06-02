@@ -171,6 +171,11 @@ Outputs relevantes para configurar os workers:
 - `enable_message_ordering`;
 - `enable_exactly_once_delivery`;
 - `ack_deadline_seconds`;
+- `message_retention_duration`;
+- `retain_acked_messages`;
+- `main_subscription_expiration_ttl`;
+- `application_dlq_subscription_expiration_ttl`;
+- `technical_dlq_subscription_expiration_ttl`;
 - `ledger_worker_service_account_email`;
 - `balance_worker_service_account_email`.
 
@@ -192,6 +197,30 @@ consumindo mensagens normalmente. A DLQ de aplicacao tambem continua criada e
 publicada pelo worker. O topic e a subscription de inspecao da DLQ tecnica
 permanecem provisionados para simplificar a ativacao posterior, mas a policy
 nativa e os dois bindings IAM exclusivos do Pub/Sub service agent sao omitidos.
+
+## Retencao, expiracao e custo
+
+As tres subscriptions provisionadas pelo Terraform declaram
+`expiration_policy` explicitamente:
+
+| Subscription | Default em dev | Motivo |
+| --- | --- | --- |
+| Principal do Balance | `ttl = ""` | Nao expirar por inatividade e preservar o backlog do consumidor. |
+| Inspecao da DLQ de aplicacao | `ttl = "2592000s"` | Expirar apos 30 dias sem atividade em dev descartavel. |
+| Inspecao da DLQ tecnica | `ttl = "2592000s"` | Expirar apos 30 dias sem atividade em dev descartavel. |
+
+O provider Terraform representa "nunca expirar" com o bloco
+`expiration_policy` presente e `ttl = ""`. Em ambientes permanentes, defina
+tambem `application_dlq_subscription_expiration_ttl=""` e
+`technical_dlq_subscription_expiration_ttl=""` quando as subscriptions de
+inspecao precisarem sobreviver a longos periodos sem uso.
+
+Todas as subscriptions mantem mensagens nao confirmadas por sete dias
+(`message_retention_duration = "604800s"`) e nao mantem mensagens confirmadas
+(`retain_acked_messages = false`). Um TTL de expiracao finito deve ser maior que
+a retencao. Backlog nao processado e DLQ acumulada durante a janela de retencao
+podem gerar custo de armazenamento no Pub/Sub; acompanhe crescimento e descarte
+ou reprocesse mensagens conforme o procedimento operacional aplicavel.
 
 ## Kafka e Pub/Sub
 
