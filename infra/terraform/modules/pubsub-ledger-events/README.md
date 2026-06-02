@@ -18,6 +18,12 @@ with regional workloads. Use `allowed_persistence_regions` to configure an
 explicit `message_storage_policy` on all three topics when an environment has a
 defined data residency requirement.
 
+Review the [Pub/Sub cost and free tier
+guide](../../../../docs/development/pubsub-cost-and-free-tier.md) before
+provisioning a real environment. It records the standard free tier assumptions,
+storage risks for backlog and DLQs, and the data required for a realistic
+estimate.
+
 ## Prerequisites
 
 - The Pub/Sub API (`pubsub.googleapis.com`) must already be enabled in the target
