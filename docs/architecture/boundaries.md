@@ -71,7 +71,7 @@ Deve conter:
 Nao deve conter:
 
 - controllers, attributes HTTP ou contratos OpenAPI;
-- `DbContext`, SQL, Kafka client ou configuracao de infraestrutura;
+- `DbContext`, SQL, client Pub/Sub, Kafka client ou configuracao de infraestrutura;
 - autorizacao baseada em `ClaimsPrincipal`;
 - detalhes de transporte como topic, partition, offset, commit, subscription ou ack/nack.
 
@@ -92,7 +92,7 @@ Deve conter:
 Nao deve conter:
 
 - EF Core attributes/configurations;
-- Kafka headers, nomes de topico ou DTOs de transporte;
+- attributes Pub/Sub, Kafka headers, nomes de topic/topico ou DTOs de transporte;
 - claims, scopes, JWT, JWKS;
 - clock do sistema, salvo por abstracao recebida de fora.
 

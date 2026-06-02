@@ -307,7 +307,7 @@ Nenhum script do repositorio remove volumes automaticamente.
 
 ## Outbox fica em Pending ou DeadLetter
 
-Mensagens `Pending` podem ser normais durante a janela de polling. Se permanecerem acumuladas ou chegarem a `DeadLetter`, investigue Kafka, topic map, ACL/configuracao local, serializacao e `last_error`.
+Mensagens `Pending` podem ser normais durante a janela de polling. Se permanecerem acumuladas ou chegarem a `DeadLetter`, investigue o provider selecionado, topic map, IAM/ACL ou configuracao local, serializacao e `last_error`.
 
 O publisher roda no `LedgerService.Worker`; se o `LedgerService.Api` estiver saudavel mas a Outbox nao avancar, valide primeiro se o container/processo `ledger-worker` esta ativo e com `ServiceName=LedgerService.Worker`.
 
@@ -324,7 +324,7 @@ Confirme a cadeia completa:
 5. `balance-worker` atualizou `daily_balances`;
 6. ausencia de mensagem inesperada na DLQ.
 
-O roteiro operacional completo fica em [validacao Keycloak -> Ledger -> Outbox -> Kafka -> Balance](observability.md#validacao-keycloak---ledger---outbox---kafka---balance).
+O roteiro operacional completo fica em [validacao Keycloak -> Ledger -> Outbox -> Pub/Sub emulator -> Balance](observability.md#validacao-keycloak---ledger---outbox---pubsub-emulator---balance).
 
 ## Token JWT e rejeitado
 

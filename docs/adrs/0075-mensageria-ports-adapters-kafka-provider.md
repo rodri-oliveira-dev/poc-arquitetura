@@ -1,7 +1,7 @@
 # ADR-0075: Mensageria por ports and adapters com Kafka como provider atual
 
 ## Status
-Aceito
+Parcialmente substituido pela [ADR-0078](0078-pubsub-provider-principal-local-emulator.md)
 
 ## Data
 2026-05-28

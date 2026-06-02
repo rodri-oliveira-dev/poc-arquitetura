@@ -130,6 +130,11 @@ deployment {
       composeService pubsubEmulator "pubsub-emulator" {
         technology "Google Cloud CLI / Pub/Sub emulator"
         description "Servico do compose.yaml principal, fora do Terraform e exposto na porta 8085 do host."
+
+        emulator = instanceOf pubsubLocal {
+          title "poc-pubsub-emulator"
+          description "Emulator local descartavel usado por padrao pelos workers com PUBSUB_EMULATOR_HOST=pubsub-emulator:8085."
+        }
       }
 
       composeService pubsubInit "pubsub-init" {

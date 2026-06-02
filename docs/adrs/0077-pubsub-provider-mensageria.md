@@ -60,6 +60,10 @@ Os recursos reais do Pub/Sub na GCP serao provisionados com Terraform, incluindo
 
 Como primeira entrega operacional, o desenvolvimento local usa o Pub/Sub emulator pelo overlay `compose.pubsub.yaml` e pelos scripts `scripts/start-local-stack-pubsub.*`. O emulator fica fora do Terraform: sua inicializacao e configuracao pertencem ao setup local da POC, sem representar o provisionamento real da GCP.
 
+Nota de evolucao em 2026-06-02: a [ADR-0078](0078-pubsub-provider-principal-local-emulator.md)
+promoveu Pub/Sub a provider principal e incorporou o emulator ao `compose.yaml`
+principal. Kafka passou a ser ativado explicitamente por `compose.kafka.yaml`.
+
 ## Consequencias
 
 ### Beneficios

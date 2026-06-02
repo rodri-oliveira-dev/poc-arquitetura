@@ -1,4 +1,4 @@
-# Kafka, Outbox e DLQ
+# Mensageria, Outbox e DLQ
 
 Este documento concentra a referencia de mensageria entre `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Worker` e `BalanceService.Api`.
 
@@ -81,7 +81,7 @@ ReprocessamentoLancamentosConsumerService
 
 O mapper concentra headers e coordenadas Kafka. O processor valida a fonte logica, `event_type` e payload usando o contrato neutro, sem depender de `ConsumeResult`, partition ou offset. O consumer Pub/Sub de reprocessamento ainda nao esta implementado.
 
-## Topicos e evento
+## Topicos Kafka legados e evento
 
 | Item | Valor |
 | --- | --- |
@@ -102,7 +102,7 @@ O contrato formal, o exemplo valido e a politica de compatibilidade de `LedgerEn
 
 `ReprocessamentoLancamentosSolicitado.v1` tambem e evento operacional/intencao interna. Ele nao representa conclusao nem alteracao direta de saldo. O `LedgerService` e o dono do processamento: o consumer de reprocessamento le esse topico, localiza a solicitacao persistida, muda o status e republica `LedgerEntryCreated.v1` para os lancamentos elegiveis como evento financeiro final. O `BalanceService` nao consome a solicitacao operacional.
 
-O compose cria os topicos no startup local. O consumer do Balance usa `AllowAutoCreateTopics=false`.
+O modo Kafka legado cria os topicos no startup local. O consumer Kafka do Balance usa `AllowAutoCreateTopics=false`.
 
 ## Headers
 
@@ -147,7 +147,7 @@ O claim ocorre antes da publicacao paralela e cada mensagem e validada novamente
 
 ## DLQ em banco e requeue operacional
 
-Use o requeue quando a causa da falha ja tiver sido corrigida ou classificada como transiente, por exemplo indisponibilidade temporaria de Kafka, credenciais/ACL corrigidas, topico recriado ou configuracao de producer ajustada. Nao use para mascarar erro permanente de contrato, payload invalido, topico incorreto ou incompatibilidade de consumidor.
+Use o requeue quando a causa da falha ja tiver sido corrigida ou classificada como transiente, por exemplo indisponibilidade temporaria do provider selecionado, credenciais/IAM/ACL corrigidas, topic recriado ou configuracao de producer ajustada. Nao use para mascarar erro permanente de contrato, payload invalido, topic incorreto ou incompatibilidade de consumidor.
 
 Endpoint administrativo:
 
@@ -179,7 +179,7 @@ Cada mensagem requeued registra `requeue_count`, `last_requeued_at`, `last_reque
 
 Procedimento recomendado:
 
-1. Identifique a causa do `DeadLetter` em logs, `last_error` e configuracao Kafka.
+1. Identifique a causa do `DeadLetter` em logs, `last_error` e configuracao do provider selecionado.
 2. Corrija a causa raiz antes do requeue.
 3. Prefira `outboxMessageId` para recuperacao pontual; use filtros por `eventType` e data apenas para incidentes conhecidos.
 4. Execute o endpoint com `reason` claro e limite pequeno.
@@ -283,9 +283,9 @@ Os workers de Ledger e Balance aceitam `Kafka` e `PubSub` em `Messaging:Provider
 6. Aguarde o polling e confirme transicao para `Processed`.
 7. Consulte o Balance para confirmar atualizacao da projecao.
 
-Em falha do Kafka, as APIs HTTP nao devem cair por causa do processamento assincrono. O Worker registra erro, incrementa `retry_count` e agenda `next_retry_at` com backoff exponencial e jitter. Ao atingir `MaxAttempts`, a mensagem vira `DeadLetter` e sai do processamento automatico ate requeue administrativo.
+Em falha do provider selecionado, as APIs HTTP nao devem cair por causa do processamento assincrono. O Worker registra erro, incrementa `retry_count` e agenda `next_retry_at` com backoff exponencial e jitter. Ao atingir `MaxAttempts`, a mensagem vira `DeadLetter` e sai do processamento automatico ate requeue administrativo.
 
-Para o roteiro operacional completo Keycloak -> Ledger -> Outbox -> Kafka -> Balance, incluindo `X-Correlation-Id`, logs, consultas SQL, Balance e Jaeger, use a secao [Validacao Keycloak -> Ledger -> Outbox -> Kafka -> Balance](../observability.md#validacao-keycloak---ledger---outbox---kafka---balance). O script recomendado e:
+Para o roteiro operacional completo Keycloak -> Ledger -> Outbox -> Pub/Sub emulator -> Balance, incluindo `X-Correlation-Id`, logs, consultas SQL, Balance e Jaeger, use a secao [Validacao Keycloak -> Ledger -> Outbox -> Pub/Sub emulator -> Balance](../observability.md#validacao-keycloak---ledger---outbox---pubsub-emulator---balance). O script recomendado e:
 
 ```powershell
 ./scripts/validate-auth-ledger-trace.ps1

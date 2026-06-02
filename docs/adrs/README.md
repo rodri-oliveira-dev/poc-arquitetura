@@ -18,7 +18,7 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 | [ADR-0078](./0078-pubsub-provider-principal-local-emulator.md) | Aceito | Define Pub/Sub como provider principal, emulator como default local e Kafka como opcao legada explicita. |
 | [ADR-0077](./0077-pubsub-provider-mensageria.md) | Substituido | Define a fase incremental de Pub/Sub como provider alternativo, encerrada pela ADR-0078. |
 | [ADR-0076](./0076-formalizar-contrato-ledger-entry-created-v1.md) | Aceito | Formaliza `LedgerEntryCreated.v1` em JSON Schema e mantem `BRL` como limitacao conhecida fora do payload. |
-| [ADR-0075](./0075-mensageria-ports-adapters-kafka-provider.md) | Aceito | Define boundary de mensageria por ports and adapters, com `Messaging:Provider=Kafka` como provider atual e Pub/Sub fora do escopo. |
+| [ADR-0075](./0075-mensageria-ports-adapters-kafka-provider.md) | Parcialmente substituido | Define o boundary de mensageria por ports and adapters na fase em que Kafka era o provider atual; a ADR-0078 promove Pub/Sub a principal. |
 | [ADR-0074](./0074-keycloak-como-identidade-principal.md) | Aceito | Define Keycloak como identidade principal, remove Auth.Api da stack principal e o mantem apenas como legado por overlay. |
 | [ADR-0073](./0073-plano-migracao-auth-api-keycloak-oidc.md) | Substituido | Define plano executavel para migrar Auth.Api para Keycloak/OIDC mantendo JWT offline via JWKS e claims atuais na primeira fase; fechado pela ADR-0074. |
 | [ADR-0072](./0072-load-balance-local-ledger-nginx.md) | Aceito | Demonstra load balance local do LedgerService.Api com duas instancias atras do Nginx e `least_conn`. |

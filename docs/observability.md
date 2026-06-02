@@ -8,7 +8,7 @@ OpenTelemetry fica desabilitado por padrao. A correlacao via `X-Correlation-Id` 
 
 - Para estado operacional rapido, leia [Baseline](#baseline), [Endpoints operacionais](#endpoints-operacionais) e [Validacao rapida](#validacao-rapida).
 - Para setup local de observabilidade, leia [Configuracao local](#configuracao-local), [Dashboards Grafana provisionados](#dashboards-grafana-provisionados) e [Alertas tecnicos Prometheus](#alertas-tecnicos-prometheus).
-- Para diagnostico ponta a ponta, leia [Validacao Keycloak -> Ledger -> Outbox -> Kafka -> Balance](#validacao-keycloak---ledger---outbox---kafka---balance) e [Diagnostico de propagacao Kafka](#diagnostico-de-propagacao-kafka).
+- Para diagnostico ponta a ponta principal, leia [Validacao Keycloak -> Ledger -> Outbox -> Pub/Sub emulator -> Balance](#validacao-keycloak---ledger---outbox---pubsub-emulator---balance). Para o adapter legado, use [Diagnostico de propagacao Kafka](#diagnostico-de-propagacao-kafka).
 - Para instrumentacao, leia [Logs](#logs), [Traces](#traces), [Metricas](#metricas), [Kafka](#kafka), [DLQ](#dlq) e [Outbox](#outbox).
 
 ## Baseline
@@ -219,9 +219,9 @@ Quando uma linha de log contem esse valor, o Explore do Grafana exibe o link `Ab
 Dashboard -> Logs no Loki -> linha com TraceId -> Abrir trace no Jaeger
 ```
 
-O `TraceId` e a ponte tecnica entre logs e traces. Use-o quando a pergunta for temporal ou causal: qual span demorou, onde a chamada falhou, se o contexto HTTP -> Outbox -> Kafka -> Balance foi preservado e quais spans fazem parte da mesma arvore distribuida.
+O `TraceId` e a ponte tecnica entre logs e traces. Use-o quando a pergunta for temporal ou causal: qual span demorou, onde a chamada falhou, se o contexto HTTP -> Outbox -> provider selecionado -> Balance foi preservado e quais spans fazem parte da mesma arvore distribuida.
 
-O `CorrelationId` e a ponte operacional da operacao de negocio. Use-o quando a pergunta for funcional ou de suporte: qual requisicao gerou o lancamento, qual response HTTP devolveu o identificador, qual linha da Outbox possui `correlation_id`, quais mensagens Kafka carregaram `correlation_id` e quais logs do Ledger/Balance pertencem ao mesmo fluxo. Ele nao substitui o `TraceId`.
+O `CorrelationId` e a ponte operacional da operacao de negocio. Use-o quando a pergunta for funcional ou de suporte: qual requisicao gerou o lancamento, qual response HTTP devolveu o identificador, qual linha da Outbox possui `correlation_id`, quais attributes Pub/Sub ou headers Kafka carregaram `correlation_id` e quais logs do Ledger/Balance pertencem ao mesmo fluxo. Ele nao substitui o `TraceId`.
 
 O `SpanId` identifica um span especifico dentro de um trace. Ele ajuda a comparar uma linha de log com um trecho pontual da execucao, mas nao identifica a operacao inteira.
 
@@ -691,9 +691,9 @@ No Alloy, acesse `http://localhost:12345` para diagnostico local do agente quand
 
 No Grafana, acesse `http://localhost:3000` com usuario `admin` e senha local definida por `GRAFANA_ADMIN_PASSWORD` ou pelo default ficticio `local_dev_password`. Em `Connections` ou `Data sources`, confirme os datasources `Prometheus` apontando para `http://prometheus:9090`, `Loki` apontando para `http://loki:3100` e `Jaeger` apontando para `http://jaeger:16686`. Em `Dashboards`, abra a pasta `Observability` e confirme que os dashboards `APIs - Visao Geral` e `Runtime .NET - Visao Geral` foram carregados automaticamente. Para validar metricas, use Explore com uma das metricas tecnicas listadas acima. Para validar logs, use Explore com o datasource `Loki` e queries por processo, por exemplo `{service="ledger-service"}` para HTTP e `{service="ledger-worker"}` para Outbox/Kafka. Para validar o link log -> trace, abra uma linha com `TraceId=<valor>` e clique em `Abrir trace no Jaeger`.
 
-### Validacao Keycloak -> Ledger -> Outbox -> Kafka -> Balance
+### Validacao Keycloak -> Ledger -> Outbox -> Pub/Sub emulator -> Balance
 
-Para validar o fluxo distribuido completo com chamada autenticada, Outbox, Kafka, Balance, logs e Jaeger, use `scripts/get-token.ps1` para obter um JWT RS256 do Keycloak local e chame o endpoint protegido `POST /api/v1/lancamentos` no `LedgerService.Api`.
+Para validar o fluxo distribuido principal com chamada autenticada, Outbox, Pub/Sub emulator, Balance, logs e Jaeger, use `scripts/get-token.ps1` para obter um JWT RS256 do Keycloak local e chame o endpoint protegido `POST /api/v1/lancamentos` no `LedgerService.Api`.
 
 Esse endpoint foi escolhido porque:
 
@@ -702,14 +702,14 @@ Esse endpoint foi escolhido porque:
 - aceita e devolve `X-Correlation-Id`;
 - usa `merchantId` no contrato real e valida esse valor contra a claim `merchant_id` emitida pelo Keycloak;
 - grava `LedgerEntryCreated.v1` em `outbox_messages` na mesma transacao da escrita;
-- depende do `LedgerService.Worker`, que hospeda `OutboxPublisherService` e publica no topico `ledger.ledgerentry.created` via adapter Kafka;
+- depende do `LedgerService.Worker`, que hospeda `OutboxPublisherService` e publica no topic `ledger.ledgerentry.created.local` via adapter Pub/Sub;
 - alimenta o `BalanceService.Worker`, que atualiza `processed_events` e `daily_balances`; o `BalanceService.Api` apenas consulta a projecao.
 
 Pre-requisitos:
 
 - Docker-compatible API disponivel;
 - stack local com migrations aplicadas;
-- portas do compose livres: `8081`, `5226`, `5228`, `15432`, `15433`, `19092` e, com profile `observability`, `16686`, `4317`, `4318`, `9090`, `3100`, `12345`, `9093` e `3000`;
+- portas do compose livres: `8081`, `5226`, `5228`, `15432`, `15433`, `8085` e, com profile `observability`, `16686`, `4317`, `4318`, `9090`, `3100`, `12345`, `9093` e `3000`;
 - profile `observability` ativo e `OTEL_ENABLED=true` quando a validacao incluir traces no Jaeger.
 
 Suba a stack local completa. O script aplica migrations antes de iniciar Ledger e Balance:
@@ -765,7 +765,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/validate-ledger-re
 
 Pre-requisitos:
 
-- stack local completa iniciada, preferencialmente com `./scripts/start-local-stack.ps1`;
+- stack local iniciada com `./scripts/start-local-stack.ps1`; para validar reprocessamento ponta a ponta, use `./scripts/start-local-stack-kafka.ps1`;
 - migrations aplicadas pelo startup local;
 - Docker-compatible API disponivel para `docker compose exec -T ... psql`;
 - portas do compose livres e acessiveis: `8081`, `5226`, `5228` e, com profile `observability`, `16686`, `9090`, `3100`, `12345`, `9093` e `3000`;
@@ -941,7 +941,7 @@ Com OpenTelemetry desligado:
 
 Riscos e limites conhecidos:
 
-- A continuidade HTTP -> Outbox -> Kafka -> Balance depende de `Activity` ativa no request de origem. Sem OpenTelemetry/listener, nao ha contexto W3C novo a persistir.
+- A continuidade HTTP -> Outbox -> provider selecionado -> Balance depende de `Activity` ativa no request de origem. Sem OpenTelemetry/listener, nao ha contexto W3C novo a persistir.
 - Sem `traceparent`, o Balance pode gerar um span raiz para `kafka.consume`, o que e correto operacionalmente, mas representa trace quebrado para analise temporal ponta a ponta.
 - O `CorrelationId` esta separado do `TraceId`; isso evita acoplamento indevido, mas tambem significa que consultas por correlation id dependem de logs, SQL, tags ou payload, nao da identidade nativa do trace.
 - A formatacao/parsing de `baggage` e pequena e cobre o formato usado pela POC; valores com metadados W3C sao aceitos descartando metadados no baggage reidratado.

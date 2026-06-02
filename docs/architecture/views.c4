@@ -23,9 +23,14 @@ views {
     include kafka.ledgerEstornoTopic
     include kafka.ledgerReprocessamentoTopic
     include kafka.ledgerDlq
-    include pubsub.ledgerTopic
-    include pubsub.balanceSubscription
-    include pubsub.applicationDlqTopic
+    include pubsubLocal.ledgerTopic
+    include pubsubLocal.balanceSubscription
+    include pubsubLocal.applicationDlqTopic
+    include pubsubLocal.applicationDlqSubscription
+    include pubsubGcp.ledgerTopic
+    include pubsubGcp.balanceSubscription
+    include pubsubGcp.applicationDlqTopic
+    include pubsubGcp.technicalDlqTopic
     include observability.collector
     include observability.jaeger
     include observability.prometheus
@@ -45,8 +50,8 @@ views {
     include ledger.ledgerDb
     include ledger.ledgerWorker
     include ledger.ledgerOutbox
-    include pubsub.ledgerTopic
-    include pubsub.balanceSubscription
+    include pubsubLocal.ledgerTopic
+    include pubsubLocal.balanceSubscription
     include balance.balanceWorker
     include balance.balancePubSubConsumer
     include balance.balancePubSubReceivedMessageMapper
@@ -55,6 +60,39 @@ views {
     include balance.balanceApi
     include observability.collector
     include observability.jaeger
+    autoLayout LeftRight
+  }
+
+  view gcpPubSubFlow {
+    title "Fluxo Pub/Sub real em GCP - Terraform, DLQ de aplicacao e DLQ tecnica"
+    include ledger.ledgerWorker
+    include ledger.ledgerOutbox
+    include ledger.ledgerPubSubOutboxPublisher
+    include pubsubGcp.ledgerTopic
+    include pubsubGcp.balanceSubscription
+    include pubsubGcp.applicationDlqTopic
+    include pubsubGcp.applicationDlqSubscription
+    include pubsubGcp.technicalDlqTopic
+    include pubsubGcp.technicalDlqSubscription
+    include balance.balanceWorker
+    include balance.balancePubSubConsumer
+    include balance.balanceMessageProcessor
+    include balance.balanceDeadLetterPort
+    autoLayout LeftRight
+  }
+
+  view legacyKafkaFlow {
+    title "Fluxo legado opcional - Kafka"
+    include ledger.ledgerWorker
+    include ledger.ledgerKafkaOutboxPublisher
+    include ledger.ledgerReprocessamentoConsumer
+    include kafka.ledgerTopic
+    include kafka.ledgerEstornoTopic
+    include kafka.ledgerReprocessamentoTopic
+    include kafka.ledgerDlq
+    include balance.balanceWorker
+    include balance.balanceConsumer
+    include balance.balanceDeadLetterPort
     autoLayout LeftRight
   }
 
@@ -111,7 +149,8 @@ views {
     include kafka.ledgerTopic
     include kafka.ledgerEstornoTopic
     include kafka.ledgerReprocessamentoTopic
-    include pubsub.ledgerTopic
+    include pubsubLocal.ledgerTopic
+    include pubsubGcp.ledgerTopic
     autoLayout LeftRight
   }
 
@@ -140,9 +179,14 @@ views {
     include balance.balanceDb
     include kafka.ledgerTopic
     include kafka.ledgerDlq
-    include pubsub.ledgerTopic
-    include pubsub.balanceSubscription
-    include pubsub.applicationDlqTopic
+    include pubsubLocal.ledgerTopic
+    include pubsubLocal.balanceSubscription
+    include pubsubLocal.applicationDlqTopic
+    include pubsubLocal.applicationDlqSubscription
+    include pubsubGcp.ledgerTopic
+    include pubsubGcp.balanceSubscription
+    include pubsubGcp.applicationDlqTopic
+    include pubsubGcp.technicalDlqTopic
     autoLayout LeftRight
   }
 
