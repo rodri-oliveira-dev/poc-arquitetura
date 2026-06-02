@@ -64,7 +64,7 @@ Use variaveis com `__` para separar secoes, por exemplo `ConnectionStrings__Defa
 
 ## Como faco troubleshooting de erros comuns?
 
-Use [troubleshooting](troubleshooting.md). O guia aponta para diagnosticos de migrations, Testcontainers, Docker-compatible API, Swagger, Kafka/Outbox, readiness, Grafana/Prometheus/Loki e load tests.
+Use [troubleshooting](troubleshooting.md). O guia aponta para diagnosticos de migrations, Testcontainers, Docker-compatible API, Swagger, Pub/Sub, Kafka legado, Outbox, readiness, Grafana/Prometheus/Loki e load tests.
 
 ## Onde ficam as instrucoes para Codex ou agentes?
 

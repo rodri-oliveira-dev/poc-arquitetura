@@ -373,7 +373,7 @@ Para investigar a partir de um dashboard:
 4. Ajuste o periodo e clique em `Logs no Loki`.
 5. No Explore, pesquise `CorrelationId=<valor>` ou `TraceId=<valor>`.
 
-Quando o log contem `TraceId=<valor>`, o datasource Loki mostra o link `Abrir trace no Jaeger`. Use `TraceId` para navegar para a arvore de spans no Jaeger e use `CorrelationId` para conectar logs, responses HTTP, Outbox, Kafka e consultas SQL do fluxo funcional.
+Quando o log contem `TraceId=<valor>`, o datasource Loki mostra o link `Abrir trace no Jaeger`. Use `TraceId` para navegar para a arvore de spans no Jaeger e use `CorrelationId` para conectar logs, responses HTTP, Outbox, mensagens do provider selecionado e consultas SQL do fluxo funcional.
 
 ## Load tests falham
 

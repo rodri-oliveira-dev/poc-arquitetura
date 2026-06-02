@@ -219,7 +219,7 @@ Use o indice de [ADRs](docs/adrs/README.md) e a leitura de [arquitetura](docs/ar
 
 **Como resolvo erros comuns?**
 
-Consulte [troubleshooting](docs/troubleshooting.md), especialmente para migrations, Docker-compatible API, Testcontainers, Swagger, Kafka/Outbox e observabilidade local. Para Pub/Sub, use tambem o runbook de [operacao](docs/operations/pubsub.md#troubleshooting).
+Consulte [troubleshooting](docs/troubleshooting.md), especialmente para migrations, Docker-compatible API, Testcontainers, Swagger, Pub/Sub, Kafka legado, Outbox e observabilidade local. Para Pub/Sub, use tambem o runbook de [operacao](docs/operations/pubsub.md#troubleshooting).
 
 ## Observacoes
 

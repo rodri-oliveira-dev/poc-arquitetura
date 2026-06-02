@@ -132,7 +132,7 @@ Estados esperados:
 
 Mensagens `DeadLetter` exigem investigacao antes de qualquer nova tentativa. O requeue operacional recoloca somente mensagens `DeadLetter` em `Pending`; mensagens `Processed` nao sao reprocessadas e mensagens `Processing` validas continuam sob responsabilidade do lock do publisher.
 
-A Outbox tambem persiste metadados opcionais de propagacao distribuida em `traceparent`, `tracestate` e `baggage`. Esses campos nao fazem parte do payload do evento, nao mudam contrato de negocio e servem apenas para reconstruir a arvore W3C entre o request HTTP original, o polling da Outbox, Kafka e o consumer do Balance. Quando OpenTelemetry esta desligado ou nao existe `Activity.Current`, esses campos ficam nulos e o fluxo continua usando `correlation_id`.
+A Outbox tambem persiste metadados opcionais de propagacao distribuida em `traceparent`, `tracestate` e `baggage`. Esses campos nao fazem parte do payload do evento, nao mudam contrato de negocio e servem apenas para reconstruir a arvore W3C entre o request HTTP original, o polling da Outbox, o provider selecionado e o consumer do Balance. Quando OpenTelemetry esta desligado ou nao existe `Activity.Current`, esses campos ficam nulos e o fluxo continua usando `correlation_id`.
 
 Configuracoes principais em `Outbox:Publisher`:
 
@@ -244,7 +244,7 @@ Interpretacao rapida:
 - desvio para DLQ: observe `balance.kafka.dlq.messages.published` por `reason`;
 - falha critica de DLQ: observe `balance.kafka.dlq.publish.errors`, pois o offset original nao deve ser commitado.
 
-Estas metricas nao possuem dashboard especifico nem alertas nesta etapa. No compose local, o OpenTelemetry Collector recebe metricas OTLP e as expoe no exporter Prometheus em `otel-collector:9464`; o Prometheus faz scrape apenas do Collector e o Grafana usa o datasource Prometheus provisionado. A validacao operacional do fluxo distribuido continua focada em traces no Jaeger e estados funcionais, sem alterar contratos Kafka, payloads, topicos ou politica de DLQ.
+Estas metricas nao possuem dashboard especifico nem alertas nesta etapa. No compose local, o OpenTelemetry Collector recebe metricas OTLP e as expoe no exporter Prometheus em `otel-collector:9464`; o Prometheus faz scrape apenas do Collector e o Grafana usa o datasource Prometheus provisionado. A validacao operacional do fluxo distribuido continua focada em traces no Jaeger e estados funcionais, sem alterar contratos de evento, payloads, topics ou politica de DLQ.
 
 ## Configuracao
 
