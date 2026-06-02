@@ -68,7 +68,7 @@ snapshots tambem podem gerar armazenamento cobravel. Nesta POC, as subscriptions
 retêm mensagens nao reconhecidas por ate sete dias por padrao; portanto, DLQs
 sem triagem merecem monitoramento mesmo em baixa volumetria.
 
-O Pub/Sub Lite foi descontinuado e teve desligamento anunciado para
+O Pub/Sub Lite foi descontinuado e seu desligamento entrou em vigor em
 `18 de marco de 2026`. Ele nao deve ser adotado por esta POC. A comunicacao
 oficial sobre SMTs publicou AI Inference SMT como evolucao planejada; confirme
 disponibilidade e preco atual antes de considerar esse recurso.
