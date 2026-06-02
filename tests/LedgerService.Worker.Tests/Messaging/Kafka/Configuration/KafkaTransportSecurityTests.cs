@@ -1,7 +1,7 @@
 using LedgerService.Worker.Extensions;
 using LedgerService.Worker.Messaging.Kafka.Configuration;
 using LedgerService.Worker.Messaging.Kafka.Consumers;
-using LedgerService.Worker.Messaging.Kafka.Processors;
+using LedgerService.Worker.Messaging.Processors;
 using Confluent.Kafka;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;

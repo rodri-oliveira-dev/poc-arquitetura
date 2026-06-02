@@ -100,6 +100,8 @@ views {
     include ledger.ledgerKafkaOutboxPublisher
     include ledger.ledgerEstornoProcessor
     include ledger.ledgerReprocessamentoConsumer
+    include ledger.ledgerReprocessamentoReceivedMessageMapper
+    include ledger.ledgerReprocessamentoMessageProcessor
     include ledger.ledgerDb
     include kafka.ledgerTopic
     include kafka.ledgerEstornoTopic

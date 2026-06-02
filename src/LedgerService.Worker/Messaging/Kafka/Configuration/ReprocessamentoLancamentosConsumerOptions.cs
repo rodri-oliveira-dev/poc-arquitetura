@@ -1,4 +1,4 @@
-using LedgerService.Worker.Messaging.Kafka.Processors;
+using LedgerService.Worker.Messaging.Processors;
 
 namespace LedgerService.Worker.Messaging.Kafka.Configuration;
 
@@ -15,7 +15,7 @@ public sealed class ReprocessamentoLancamentosConsumerOptions
     public string SaslUsername { get; init; } = string.Empty;
     public string SaslPassword { get; init; } = string.Empty;
     public string SslCaLocation { get; init; } = string.Empty;
-    public string Topic { get; init; } = ReprocessamentoLancamentosMessageProcessor.TopicName;
+    public string Topic { get; init; } = ReprocessamentoLancamentosMessageProcessor.SourceName;
     public string AutoOffsetReset { get; init; } = "Earliest";
     public bool EnableAutoCommit { get; init; } = false;
     public bool EnableAutoOffsetStore { get; init; } = false;

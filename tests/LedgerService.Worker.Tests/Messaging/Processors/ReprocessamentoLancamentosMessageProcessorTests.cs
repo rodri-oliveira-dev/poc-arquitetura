@@ -1,19 +1,15 @@
-using System.Text;
 using System.Text.Json;
-
-using Confluent.Kafka;
 
 using LedgerService.Application.Lancamentos.Commands;
 using LedgerService.Application.Lancamentos.Events;
-using LedgerService.Worker.Messaging.Kafka.Configuration;
-using LedgerService.Worker.Messaging.Kafka.Consumers;
-using LedgerService.Worker.Messaging.Kafka.Processors;
+using LedgerService.Worker.Messaging.Abstractions;
+using LedgerService.Worker.Messaging.Processors;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
-namespace LedgerService.Worker.Tests.Messaging.Kafka.Processors;
+namespace LedgerService.Worker.Tests.Messaging.Processors;
 
 public sealed class ReprocessamentoLancamentosMessageProcessorTests
 {
@@ -30,7 +26,7 @@ public sealed class ReprocessamentoLancamentosMessageProcessorTests
         var reprocessamentoId = Guid.NewGuid();
 
         var shouldCommit = await sut.ProcessAsync(
-            CreateResult(ValidPayload(reprocessamentoId), HeadersWithEventType()),
+            CreateMessage(ValidPayload(reprocessamentoId)),
             CancellationToken.None);
         Assert.True(shouldCommit);
         Assert.NotNull(command);
@@ -44,7 +40,7 @@ public sealed class ReprocessamentoLancamentosMessageProcessorTests
         var sut = CreateSut(sender.Object);
 
         var shouldCommit = await sut.ProcessAsync(
-            CreateResult("{invalid-json", HeadersWithEventType()),
+            CreateMessage("{invalid-json"),
             CancellationToken.None);
         Assert.True(shouldCommit);
         sender.VerifyNoOtherCalls();
@@ -55,13 +51,8 @@ public sealed class ReprocessamentoLancamentosMessageProcessorTests
     {
         var sender = new Mock<ISender>(MockBehavior.Strict);
         var sut = CreateSut(sender.Object);
-        var headers = new Headers
-        {
-            { "event_type", Encoding.UTF8.GetBytes(LedgerEntryCreatedV1.EventType) }
-        };
-
         var shouldCommit = await sut.ProcessAsync(
-            CreateResult(ValidPayload(Guid.NewGuid()), headers),
+            CreateMessage(ValidPayload(Guid.NewGuid()), eventType: LedgerEntryCreatedV1.EventType),
             CancellationToken.None);
         Assert.True(shouldCommit);
         sender.VerifyNoOtherCalls();
@@ -73,12 +64,44 @@ public sealed class ReprocessamentoLancamentosMessageProcessorTests
         var sender = new Mock<ISender>(MockBehavior.Strict);
         var sut = CreateSut(sender.Object);
 
-        var result = CreateResult(
+        var message = CreateMessage(
             ValidPayload(Guid.NewGuid()),
-            HeadersWithEventType(),
             "ledger.ledgerentry.created");
 
-        var shouldCommit = await sut.ProcessAsync(result, CancellationToken.None);
+        var shouldCommit = await sut.ProcessAsync(message, CancellationToken.None);
+        Assert.True(shouldCommit);
+        sender.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task Should_ignore_missing_event_type_and_allow_commit()
+    {
+        var sender = new Mock<ISender>(MockBehavior.Strict);
+        var sut = CreateSut(sender.Object);
+
+        var shouldCommit = await sut.ProcessAsync(
+            CreateMessage(ValidPayload(Guid.NewGuid()), eventType: string.Empty),
+            CancellationToken.None);
+
+        Assert.True(shouldCommit);
+        sender.VerifyNoOtherCalls();
+    }
+
+    [Theory]
+    [InlineData("00000000-0000-0000-0000-000000000000", "m1", "42")]
+    [InlineData("17f05de3-09ec-44ef-a971-0114f214116e", "", "42")]
+    [InlineData("17f05de3-09ec-44ef-a971-0114f214116e", "m1", "invalid")]
+    public async Task Should_ignore_invalid_required_payload_fields_and_allow_commit(
+        string reprocessamentoId,
+        string merchantId,
+        string correlationId)
+    {
+        var sender = new Mock<ISender>(MockBehavior.Strict);
+        var sut = CreateSut(sender.Object);
+        var payload = ValidPayload(Guid.Parse(reprocessamentoId), merchantId, correlationId);
+
+        var shouldCommit = await sut.ProcessAsync(CreateMessage(payload), CancellationToken.None);
+
         Assert.True(shouldCommit);
         sender.VerifyNoOtherCalls();
     }
@@ -93,37 +116,33 @@ public sealed class ReprocessamentoLancamentosMessageProcessorTests
             NullLogger<ReprocessamentoLancamentosMessageProcessor>.Instance);
     }
 
-    private static ConsumeResult<string, string> CreateResult(
+    private static ReceivedMessage CreateMessage(
         string payload,
-        Headers headers,
-        string topic = ReprocessamentoLancamentosMessageProcessor.TopicName)
-        => new()
-        {
-            Topic = topic,
-            Partition = new Partition(0),
-            Offset = new Offset(42),
-            Message = new Message<string, string>
-            {
-                Key = "key",
-                Value = payload,
-                Headers = headers
-            }
-        };
+        string source = ReprocessamentoLancamentosMessageProcessor.SourceName,
+        string eventType = ReprocessamentoLancamentosSolicitadoV1.EventType)
+        => new(
+            payload,
+            eventType,
+            null,
+            null,
+            null,
+            null,
+            null,
+            "key",
+            new Dictionary<string, string>(),
+            new TransportMessageContext("kafka", source, "0", "42", null, new Dictionary<string, string>()));
 
-    private static Headers HeadersWithEventType()
-        => new()
-        {
-            { "event_type", Encoding.UTF8.GetBytes(ReprocessamentoLancamentosSolicitadoV1.EventType) }
-        };
-
-    private static string ValidPayload(Guid reprocessamentoId)
+    private static string ValidPayload(
+        Guid reprocessamentoId,
+        string merchantId = "m1",
+        string? correlationId = null)
         => JsonSerializer.Serialize(new ReprocessamentoLancamentosSolicitadoV1(
             reprocessamentoId,
-            "m1",
+            merchantId,
             new DateOnly(2026, 5, 1),
             new DateOnly(2026, 5, 6),
             "Correcao de regra de consolidacao",
             "Pending",
             "2026-05-07T10:00:00.0000000",
-            Guid.NewGuid().ToString()));
+            correlationId ?? Guid.NewGuid().ToString()));
 }

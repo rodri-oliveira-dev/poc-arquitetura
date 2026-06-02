@@ -53,6 +53,18 @@ LedgerEventsPubSubConsumer
 
 Quando o processor retorna `true`, o consumer responde com `ack`. Quando retorna `false` ou ocorre falha recuperavel, responde com `nack`.
 
+No reprocessamento Kafka do Ledger, o fluxo interno esperado e:
+
+```text
+ReprocessamentoLancamentosConsumerService
+  -> KafkaReprocessamentoReceivedMessageMapper
+  -> ReceivedMessage
+  -> ReprocessamentoLancamentosMessageProcessor
+  -> Application Handler
+```
+
+O mapper concentra headers e coordenadas Kafka. O processor valida a fonte logica, `event_type` e payload usando o contrato neutro, sem depender de `ConsumeResult`, partition ou offset. O consumer Pub/Sub de reprocessamento ainda nao esta implementado.
+
 ## Topicos e evento
 
 | Item | Valor |
@@ -292,7 +304,7 @@ A idempotencia e garantida por indice unico filtrado para uma solicitacao ativa 
 
 `POST /api/v1/lancamentos/reprocessar` persiste solicitacoes em `reprocessamentos_lancamentos` e grava `ReprocessamentoLancamentosSolicitado.v1` no Outbox na mesma transacao. O status inicial e `Pending`, com periodo maximo inclusivo de 31 dias e idempotencia por `merchantId` + `Idempotency-Key`.
 
-O processamento efetivo ocorre no `ReprocessamentoLancamentosConsumerService`, em `LedgerService.Worker`. O hosted service usa as configuracoes de `Reprocessamentos:Consumer`, assina o topico `ledger.lancamentos.reprocessamento.solicitado`, valida `event_type=ReprocessamentoLancamentosSolicitado.v1` e delega o trabalho ao Mediator com `ProcessarReprocessamentoLancamentosCommand`.
+O processamento efetivo ocorre no `ReprocessamentoLancamentosConsumerService`, em `LedgerService.Worker`. O hosted service usa as configuracoes de `Reprocessamentos:Consumer`, assina o topico `ledger.lancamentos.reprocessamento.solicitado`, mapeia a mensagem Kafka para `ReceivedMessage` e delega ao processor neutro. O processor valida a fonte logica e `event_type=ReprocessamentoLancamentosSolicitado.v1` antes de chamar o Mediator com `ProcessarReprocessamentoLancamentosCommand`.
 
 O handler:
 

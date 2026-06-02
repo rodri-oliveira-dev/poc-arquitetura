@@ -153,7 +153,15 @@ model {
       }
 
       ledgerReprocessamentoConsumer = component "Reprocessamento consumer" {
-        description "BackgroundService Kafka que consome ReprocessamentoLancamentosSolicitado.v1, envia ProcessarReprocessamentoLancamentosCommand e registra replay idempotente de LedgerEntryCreated.v1."
+        description "BackgroundService Kafka que consome ReprocessamentoLancamentosSolicitado.v1, controla commit e delega o conteudo para o mapper e processor neutro."
+      }
+
+      ledgerReprocessamentoReceivedMessageMapper = component "KafkaReprocessamentoReceivedMessageMapper" {
+        description "Mapper do adapter Kafka que transforma ConsumeResult em ReceivedMessage, preservando attributes, ordering key e TransportMessageContext."
+      }
+
+      ledgerReprocessamentoMessageProcessor = component "ReprocessamentoLancamentosMessageProcessor" {
+        description "Processor neutro que recebe ReceivedMessage, valida fonte logica, event_type e payload, envia ProcessarReprocessamentoLancamentosCommand e registra replay idempotente de LedgerEntryCreated.v1."
       }
     }
 
@@ -276,8 +284,10 @@ model {
   ledger.ledgerWorker.ledgerKafkaOutboxPublisher -> kafka.ledgerEstornoTopic "Publica LancamentoEstornoSolicitado.v1" "Kafka"
   ledger.ledgerWorker.ledgerKafkaOutboxPublisher -> kafka.ledgerReprocessamentoTopic "Publica ReprocessamentoLancamentosSolicitado.v1" "Kafka"
   ledger.ledgerWorker.ledgerReprocessamentoConsumer -> kafka.ledgerReprocessamentoTopic "Consome ReprocessamentoLancamentosSolicitado.v1" "Kafka"
-  ledger.ledgerWorker.ledgerReprocessamentoConsumer -> ledger.ledgerWorker.ledgerWorkerApplication "Envia ProcessarReprocessamentoLancamentosCommand" "MediatR"
-  ledger.ledgerWorker.ledgerReprocessamentoConsumer -> ledger.ledgerDb "Atualiza status e registra eventos finais no Outbox" "EF Core / SQL"
+  ledger.ledgerWorker.ledgerReprocessamentoConsumer -> ledger.ledgerWorker.ledgerReprocessamentoReceivedMessageMapper "Mapeia transporte Kafka para ReceivedMessage" "mapper"
+  ledger.ledgerWorker.ledgerReprocessamentoReceivedMessageMapper -> ledger.ledgerWorker.ledgerReprocessamentoMessageProcessor "Entrega modelo neutro" "ReceivedMessage"
+  ledger.ledgerWorker.ledgerReprocessamentoMessageProcessor -> ledger.ledgerWorker.ledgerWorkerApplication "Envia ProcessarReprocessamentoLancamentosCommand" "MediatR"
+  ledger.ledgerWorker.ledgerReprocessamentoMessageProcessor -> ledger.ledgerDb "Atualiza status e registra eventos finais no Outbox" "EF Core / SQL"
 
   balance.balanceWorker.balanceWorkerComposition -> balance.balanceWorker.balanceWorkerApplication "Registra casos de uso e handlers" "DI / MediatR"
   balance.balanceWorker.balanceWorkerComposition -> balance.balanceWorker.balanceWorkerInfrastructure "Registra adapters e HostedServices" "DI"

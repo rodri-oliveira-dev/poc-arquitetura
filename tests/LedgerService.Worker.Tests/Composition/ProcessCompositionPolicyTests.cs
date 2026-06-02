@@ -4,7 +4,7 @@ using LedgerService.Worker.Extensions;
 using LedgerService.Worker.Messaging.Abstractions;
 using LedgerService.Worker.Messaging.Kafka.Configuration;
 using LedgerService.Worker.Messaging.Kafka.Consumers;
-using LedgerService.Worker.Messaging.Kafka.Processors;
+using LedgerService.Worker.Messaging.Processors;
 using LedgerService.Worker.Messaging.Kafka.Producers;
 using LedgerService.Worker.Messaging.PubSub.Configuration;
 using LedgerService.Worker.Messaging.PubSub.Producers;

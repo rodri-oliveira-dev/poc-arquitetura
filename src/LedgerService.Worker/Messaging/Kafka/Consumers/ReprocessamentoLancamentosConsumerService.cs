@@ -1,7 +1,7 @@
 using Confluent.Kafka;
 
 using LedgerService.Worker.Messaging.Kafka.Configuration;
-using LedgerService.Worker.Messaging.Kafka.Processors;
+using LedgerService.Worker.Messaging.Processors;
 
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -67,7 +67,8 @@ public sealed class ReprocessamentoLancamentosConsumerService : BackgroundServic
                 if (result?.Message?.Value is null)
                     continue;
 
-                if (await _messageProcessor.ProcessAsync(result, stoppingToken))
+                var message = KafkaReprocessamentoReceivedMessageMapper.Map(result);
+                if (await _messageProcessor.ProcessAsync(message, stoppingToken))
                     consumer.Commit(result);
             }
             catch (ConsumeException ex)
@@ -83,7 +84,8 @@ public sealed class ReprocessamentoLancamentosConsumerService : BackgroundServic
             {
                 _logger.LogError(
                     ex,
-                    "Falha ao processar mensagem de reprocessamento. topic={Topic} partition={Partition} offset={Offset}",
+                    "Falha ao processar mensagem de reprocessamento. provider={TransportProvider} source={TransportSource} partition={TransportPartition} offset={TransportOffset}",
+                    "kafka",
                     result?.Topic,
                     result?.Partition.Value,
                     result?.Offset.Value);
@@ -93,7 +95,8 @@ public sealed class ReprocessamentoLancamentosConsumerService : BackgroundServic
             {
                 _logger.LogError(
                     ex,
-                    "Timeout ao processar mensagem de reprocessamento. topic={Topic} partition={Partition} offset={Offset}",
+                    "Timeout ao processar mensagem de reprocessamento. provider={TransportProvider} source={TransportSource} partition={TransportPartition} offset={TransportOffset}",
+                    "kafka",
                     result?.Topic,
                     result?.Partition.Value,
                     result?.Offset.Value);
@@ -103,7 +106,8 @@ public sealed class ReprocessamentoLancamentosConsumerService : BackgroundServic
             {
                 _logger.LogError(
                     ex,
-                    "Falha inesperada ao processar mensagem de reprocessamento. topic={Topic} partition={Partition} offset={Offset}",
+                    "Falha inesperada ao processar mensagem de reprocessamento. provider={TransportProvider} source={TransportSource} partition={TransportPartition} offset={TransportOffset}",
+                    "kafka",
                     result?.Topic,
                     result?.Partition.Value,
                     result?.Offset.Value);

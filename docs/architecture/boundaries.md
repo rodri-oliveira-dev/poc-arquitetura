@@ -128,7 +128,7 @@ Observacao real: `BalanceService.Infrastructure` concentra persistencia e reposi
 
 Camadas atuais fazem sentido para o objetivo da POC. O servico tem transacao, idempotencia, entidade com invariantes, persistencia relacional e Outbox. Separar `Application`, `Domain` e `Infrastructure` agrega valor real.
 
-Operacionalmente, `LedgerService.Api` recebe HTTP e grava Outbox; `LedgerService.Worker` publica a Outbox pelo provider de mensageria configurado, processa estornos e consome solicitacoes de reprocessamento. A publicacao da Outbox aceita Kafka ou Pub/Sub; o consumer de reprocessamento continua exclusivo do caminho Kafka. Durante rollout, API antiga e Worker novo nao devem executar os mesmos HostedServices simultaneamente.
+Operacionalmente, `LedgerService.Api` recebe HTTP e grava Outbox; `LedgerService.Worker` publica a Outbox pelo provider de mensageria configurado, processa estornos e consome solicitacoes de reprocessamento. A publicacao da Outbox aceita Kafka ou Pub/Sub; o consumer de reprocessamento continua exclusivo do caminho Kafka, mas traduz `ConsumeResult` para `ReceivedMessage` antes de chamar o processor neutro. Durante rollout, API antiga e Worker novo nao devem executar os mesmos HostedServices simultaneamente.
 
 Pontos de atencao:
 
