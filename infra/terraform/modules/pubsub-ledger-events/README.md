@@ -14,7 +14,9 @@ This module provisions the Google Cloud Pub/Sub resources required for the
 The module does not enable APIs, create secrets, configure credentials, or create
 environment-specific root modules. Pub/Sub topics and subscriptions are global
 resources. The `region` input is retained as deployment metadata for composition
-with regional workloads.
+with regional workloads. Use `allowed_persistence_regions` to configure an
+explicit `message_storage_policy` on all three topics when an environment has a
+defined data residency requirement.
 
 ## Prerequisites
 
@@ -48,6 +50,8 @@ module "pubsub_ledger_events" {
 
   project_id                        = var.project_id
   region                            = var.region
+  allowed_persistence_regions       = ["southamerica-east1"]
+  enforce_in_transit                = false
   environment                       = "dev"
   app_name                          = "ledger"
   ledger_events_topic_name          = "ledger-entry-created-v1"
@@ -119,6 +123,34 @@ bindings used by the native technical flow are omitted.
 
 The `moved` blocks preserve the former shared DLQ topic and subscription as the
 application DLQ during state migration. The technical DLQ resources are new.
+
+## Message Storage Policy
+
+The module applies the same optional `message_storage_policy` to the main Ledger
+events topic, the application DLQ topic, and the technical DLQ topic. The
+defaults are:
+
+```hcl
+allowed_persistence_regions = []
+enforce_in_transit          = false
+```
+
+An empty `allowed_persistence_regions` list omits the policy block because the
+provider does not accept an explicitly configured empty policy. In that mode,
+the `region` input remains a label and does not restrict where Pub/Sub stores or
+processes message content.
+
+For an environment with an approved residency decision, configure:
+
+```hcl
+allowed_persistence_regions = ["southamerica-east1"]
+enforce_in_transit          = false
+```
+
+A storage policy can add inter-region data transfer costs when messages need to
+leave the publisher or subscriber region. Set `enforce_in_transit=true` only
+after reviewing client locations and endpoints: Pub/Sub can reject publish,
+pull, and streamingPull requests received outside the allowed regions.
 
 ## Validation
 

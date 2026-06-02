@@ -31,6 +31,15 @@ resource "google_pubsub_topic" "ledger_events" {
   project = var.project_id
   name    = var.ledger_events_topic_name
   labels  = local.common_labels
+
+  dynamic "message_storage_policy" {
+    for_each = length(var.allowed_persistence_regions) > 0 ? [1] : []
+
+    content {
+      allowed_persistence_regions = var.allowed_persistence_regions
+      enforce_in_transit          = var.enforce_in_transit
+    }
+  }
 }
 
 moved {
@@ -42,12 +51,30 @@ resource "google_pubsub_topic" "application_dlq" {
   project = var.project_id
   name    = var.application_dlq_topic_name
   labels  = local.common_labels
+
+  dynamic "message_storage_policy" {
+    for_each = length(var.allowed_persistence_regions) > 0 ? [1] : []
+
+    content {
+      allowed_persistence_regions = var.allowed_persistence_regions
+      enforce_in_transit          = var.enforce_in_transit
+    }
+  }
 }
 
 resource "google_pubsub_topic" "technical_dlq" {
   project = var.project_id
   name    = var.technical_dlq_topic_name
   labels  = local.common_labels
+
+  dynamic "message_storage_policy" {
+    for_each = length(var.allowed_persistence_regions) > 0 ? [1] : []
+
+    content {
+      allowed_persistence_regions = var.allowed_persistence_regions
+      enforce_in_transit          = var.enforce_in_transit
+    }
+  }
 }
 
 resource "google_pubsub_subscription" "balance_ledger_events" {

@@ -18,6 +18,18 @@ variable "region" {
   }
 }
 
+variable "allowed_persistence_regions" {
+  type        = list(string)
+  description = "Regioes em que o conteudo das mensagens Pub/Sub pode ser armazenado/processado. Lista vazia nao configura message_storage_policy explicitamente."
+  default     = []
+}
+
+variable "enforce_in_transit" {
+  type        = bool
+  description = "Quando true, rejeita publish/pull/streamingPull recebidos fora das regioes permitidas pela message storage policy."
+  default     = false
+}
+
 variable "environment" {
   description = "Environment identifier used in labels and dedicated service account IDs."
   type        = string

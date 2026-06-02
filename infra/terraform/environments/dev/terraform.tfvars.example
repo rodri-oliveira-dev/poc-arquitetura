@@ -1,5 +1,7 @@
 project_id                                  = "replace-with-your-gcp-project-id"
 region                                      = "us-central1"
+allowed_persistence_regions                 = []
+enforce_in_transit                          = false
 enable_technical_dead_letter                = true
 main_subscription_expiration_ttl            = ""
 application_dlq_subscription_expiration_ttl = "2592000s"

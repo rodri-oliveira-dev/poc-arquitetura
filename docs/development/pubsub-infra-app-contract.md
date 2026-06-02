@@ -73,6 +73,9 @@ ativacao posterior durante rollout incremental.
 - Remover `PUBSUB_EMULATOR_HOST` do ambiente dos workers.
 - Confirmar `enable_message_ordering=true` no producer e na subscription dev.
 - Confirmar `enable_technical_dead_letter` conforme a fase do rollout.
+- Confirmar `allowed_persistence_regions=[]` em dev enquanto nao houver decisao de residencia.
+- Para ambiente real com residencia aprovada em Sao Paulo, configurar `allowed_persistence_regions=["southamerica-east1"]`.
+- Revisar localizacao dos workloads antes de habilitar `enforce_in_transit=true`, pois requests fora das regioes permitidas podem ser rejeitados.
 - Confirmar `message_retention_duration="604800s"` e `retain_acked_messages=false`.
 - Confirmar `main_subscription_expiration_ttl=""` para preservar a subscription principal.
 - Revisar se os TTLs finitos das inspections de DLQ sao maiores que a retencao e adequados ao ambiente.

@@ -18,6 +18,18 @@ variable "region" {
   }
 }
 
+variable "allowed_persistence_regions" {
+  type        = list(string)
+  description = "Regions where Pub/Sub message content may be stored and processed. An empty list omits message_storage_policy."
+  default     = []
+}
+
+variable "enforce_in_transit" {
+  type        = bool
+  description = "Whether Pub/Sub rejects publish, pull, and streamingPull requests received outside the allowed persistence regions."
+  default     = false
+}
+
 variable "enable_technical_dead_letter" {
   description = "Whether the native Pub/Sub dead-letter policy is enabled on the main subscription."
   type        = bool

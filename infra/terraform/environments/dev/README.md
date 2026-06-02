@@ -34,6 +34,31 @@ messages can generate Pub/Sub storage costs. For permanent environments,
 override either DLQ expiration TTL with `""` when the inspection subscription
 must survive long inactivity.
 
+## Message Residency
+
+Dev does not restrict Pub/Sub message residency by default:
+
+```hcl
+allowed_persistence_regions = []
+enforce_in_transit          = false
+```
+
+With an empty list, the reusable module omits `message_storage_policy` from the
+main topic, the application DLQ topic, and the technical DLQ topic. The `region`
+input remains deployment metadata and a label; it does not constrain where
+Pub/Sub stores or processes message content.
+
+When a real environment has an approved residency requirement, configure:
+
+```hcl
+allowed_persistence_regions = ["southamerica-east1"]
+enforce_in_transit          = false
+```
+
+Review transfer costs and workload locations before enabling the policy.
+Use `enforce_in_transit=true` with care because Pub/Sub can reject publish,
+pull, and streamingPull requests received outside the allowed regions.
+
 No remote backend is configured at this stage. Terraform uses local state by
 default. Do not commit `terraform.tfvars`, state files, plans, or credentials.
 

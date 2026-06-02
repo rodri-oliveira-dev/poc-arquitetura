@@ -47,6 +47,14 @@ para nao expirar. Todas mantem a retencao de mensagens nao confirmadas em sete
 dias e nao retem mensagens confirmadas. TTLs de expiracao finitos devem ser
 maiores que a janela de retencao.
 
+Os tres topics Terraform aceitam `message_storage_policy` opcional por ambiente:
+topic principal, DLQ de aplicacao e DLQ tecnica. Em dev,
+`allowed_persistence_regions=[]` omite a policy porque ainda nao existe decisao
+de residencia regional. O valor `region` permanece metadado e label; nao
+restringe sozinho onde mensagens sao armazenadas ou processadas. Ambientes reais
+podem preencher `allowed_persistence_regions`, por exemplo com
+`["southamerica-east1"]`, apos decisao explicita.
+
 ## Provisionamento e desenvolvimento local
 Os recursos reais do Pub/Sub na GCP serao provisionados com Terraform, incluindo topics, subscriptions, dead-letter topics, dead-letter subscriptions e configuracoes necessarias ao provider.
 
@@ -65,6 +73,8 @@ Como primeira entrega operacional, o desenvolvimento local usa o Pub/Sub emulato
 - Configuracoes, metricas, observabilidade e procedimentos operacionais devem distinguir Kafka, Pub/Sub, DLQ tecnica e DLQ de aplicacao.
 - A policy tecnica pode ser desligada em rollouts incrementais e testes de dev, mas mensagens com falha de entrega deixam de ser encaminhadas automaticamente pelo transporte enquanto a flag estiver desabilitada.
 - Backlogs nao processados e DLQs acumuladas durante a janela de retencao podem gerar custo de armazenamento no Pub/Sub.
+- Uma `message_storage_policy` pode gerar transferencia cobrada entre regioes quando o armazenamento ou a entrega atravessar fronteiras regionais.
+- `enforce_in_transit=true` exige revisao cuidadosa das regioes e endpoints dos workloads porque requests de publish, pull e streamingPull fora das regioes permitidas podem ser rejeitados.
 - O emulator local nao reproduz integralmente o comportamento e os limites do servico real na GCP.
 - Ordering keys devem ser habilitadas apenas nos fluxos que realmente exigirem ordenacao por agregado.
 

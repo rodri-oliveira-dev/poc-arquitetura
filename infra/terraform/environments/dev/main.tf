@@ -26,6 +26,8 @@ module "pubsub_ledger_events" {
 
   project_id                        = var.project_id
   region                            = var.region
+  allowed_persistence_regions       = var.allowed_persistence_regions
+  enforce_in_transit                = var.enforce_in_transit
   environment                       = "dev"
   app_name                          = "poc-ledger"
   ledger_events_topic_name          = "ledger.ledgerentry.created.dev"

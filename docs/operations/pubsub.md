@@ -157,6 +157,12 @@ terraform output
 
 O apply habilita `pubsub.googleapis.com` e pode gerar custo no projeto informado. Nao execute `terraform apply` automaticamente e nao use esse fluxo contra o emulator.
 
+O exemplo dev mantem `allowed_persistence_regions=[]` e
+`enforce_in_transit=false`. Assim, os topics nao recebem
+`message_storage_policy` explicita. O valor de `region` continua sendo metadado
+do ambiente e label dos recursos; isoladamente, ele nao restringe onde o
+Pub/Sub armazena ou processa mensagens.
+
 Outputs relevantes para configurar os workers:
 
 - `project_id`;
@@ -198,7 +204,35 @@ publicada pelo worker. O topic e a subscription de inspecao da DLQ tecnica
 permanecem provisionados para simplificar a ativacao posterior, mas a policy
 nativa e os dois bindings IAM exclusivos do Pub/Sub service agent sao omitidos.
 
-## Retencao, expiracao e custo
+## Residencia, seguranca e transferencia entre regioes
+
+O modulo Terraform aplica a mesma `message_storage_policy` opcional ao topic
+principal, ao topic da DLQ de aplicacao e ao topic da DLQ tecnica. Dev nao
+restringe residencia por padrao porque ainda nao existe decisao de ambiente que
+justifique fixar uma regiao.
+
+Quando um ambiente real aprovar residencia em Sao Paulo, configure:
+
+```hcl
+allowed_persistence_regions = ["southamerica-east1"]
+enforce_in_transit          = false
+```
+
+Com a lista preenchida, o Pub/Sub armazena e processa o conteudo das mensagens
+somente nas regioes permitidas. Publishers e subscribers podem continuar fora
+dessas regioes quando `enforce_in_transit=false`, mas esse roteamento pode
+atravessar fronteiras regionais e gerar transferencia cobrada.
+
+Use `enforce_in_transit=true` somente apos revisar localizacao dos workloads,
+endpoints e cenarios operacionais. Nesse modo, Pub/Sub pode rejeitar publish,
+pull e streamingPull recebidos fora das regioes permitidas.
+
+Referencias oficiais:
+
+- [Configure message storage policies](https://cloud.google.com/pubsub/docs/resource-location-restriction)
+- [Pub/Sub pricing](https://cloud.google.com/pubsub/pricing)
+
+## Retencao, expiracao, custo e free tier
 
 As tres subscriptions provisionadas pelo Terraform declaram
 `expiration_policy` explicitamente:
@@ -221,6 +255,12 @@ Todas as subscriptions mantem mensagens nao confirmadas por sete dias
 a retencao. Backlog nao processado e DLQ acumulada durante a janela de retencao
 podem gerar custo de armazenamento no Pub/Sub; acompanhe crescimento e descarte
 ou reprocesse mensagens conforme o procedimento operacional aplicavel.
+
+O free tier mensal de throughput nao deve ser tratado como garantia de custo
+zero. Alem de throughput acima da franquia aplicavel, retencao e transferencias
+entre regioes podem gerar cobranca. Uma `message_storage_policy` pode aumentar o
+custo de transferencia se obrigar a mensagem a sair da regiao do publisher ou
+for entregue a subscribers em outra regiao.
 
 ## Kafka e Pub/Sub
 
