@@ -23,14 +23,44 @@ output "ledger_events_subscription_name" {
   value       = module.pubsub_ledger_events.ledger_events_subscription_name
 }
 
-output "ledger_events_dlq_topic_name" {
-  description = "Pub/Sub topic name for technical and application DLQ messages."
-  value       = module.pubsub_ledger_events.ledger_events_dlq_topic_name
+output "application_dlq_topic_id" {
+  description = "Fully qualified ID of the application DLQ topic."
+  value       = module.pubsub_ledger_events.application_dlq_topic_id
 }
 
-output "ledger_events_dlq_subscription_name" {
-  description = "Pub/Sub subscription name used for DLQ operational inspection."
-  value       = module.pubsub_ledger_events.ledger_events_dlq_subscription_name
+output "application_dlq_topic_name" {
+  description = "Pub/Sub topic name used by the Balance Worker for application-classified DLQ messages."
+  value       = module.pubsub_ledger_events.application_dlq_topic_name
+}
+
+output "technical_dlq_topic_id" {
+  description = "Fully qualified ID of the technical DLQ topic."
+  value       = module.pubsub_ledger_events.technical_dlq_topic_id
+}
+
+output "technical_dlq_topic_name" {
+  description = "Pub/Sub topic name used by the native dead-letter policy for technical delivery failures."
+  value       = module.pubsub_ledger_events.technical_dlq_topic_name
+}
+
+output "application_dlq_subscription_id" {
+  description = "Fully qualified ID of the application DLQ inspection subscription."
+  value       = module.pubsub_ledger_events.application_dlq_subscription_id
+}
+
+output "application_dlq_subscription_name" {
+  description = "Pub/Sub subscription name used for application DLQ operational inspection."
+  value       = module.pubsub_ledger_events.application_dlq_subscription_name
+}
+
+output "technical_dlq_subscription_id" {
+  description = "Fully qualified ID of the technical DLQ inspection subscription."
+  value       = module.pubsub_ledger_events.technical_dlq_subscription_id
+}
+
+output "technical_dlq_subscription_name" {
+  description = "Pub/Sub subscription name used for technical DLQ operational inspection."
+  value       = module.pubsub_ledger_events.technical_dlq_subscription_name
 }
 
 output "ledger_worker_service_account_email" {

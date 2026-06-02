@@ -4,9 +4,9 @@ This module provisions the Google Cloud Pub/Sub resources required for the
 `LedgerService.Worker` to `BalanceService.Worker` event flow:
 
 - main Ledger events topic;
-- technical and application DLQ topic;
+- application DLQ topic and inspection subscription;
+- technical DLQ topic and inspection subscription;
 - Balance Worker pull subscription with retry and dead-letter policies;
-- DLQ pull subscription for message retention and operational inspection;
 - dedicated Ledger Worker and Balance Worker service accounts;
 - resource-level IAM bindings with the minimum permissions required by the flow.
 
@@ -45,14 +45,16 @@ provider "google" {
 module "pubsub_ledger_events" {
   source = "../../modules/pubsub-ledger-events"
 
-  project_id                          = var.project_id
-  region                              = var.region
-  environment                         = "dev"
-  app_name                            = "ledger"
-  ledger_events_topic_name            = "ledger-entry-created-v1"
-  ledger_events_subscription_name     = "balance-ledger-entry-created-v1"
-  ledger_events_dlq_topic_name        = "ledger-entry-created-v1-dlq"
-  ledger_events_dlq_subscription_name = "ledger-entry-created-v1-dlq-inspection"
+  project_id                        = var.project_id
+  region                            = var.region
+  environment                       = "dev"
+  app_name                          = "ledger"
+  ledger_events_topic_name          = "ledger-entry-created-v1"
+  ledger_events_subscription_name   = "balance-ledger-entry-created-v1"
+  application_dlq_topic_name        = "ledger-entry-created-v1-dlq"
+  technical_dlq_topic_name          = "ledger-entry-created-v1-technical-dlq"
+  application_dlq_subscription_name = "ledger-entry-created-v1-dlq-inspection"
+  technical_dlq_subscription_name   = "ledger-entry-created-v1-technical-dlq-inspection"
 
   ack_deadline_seconds         = 30
   message_retention_duration   = "604800s"
@@ -75,14 +77,17 @@ module "pubsub_ledger_events" {
 | --- | --- | --- | --- |
 | Ledger Worker service account | Main Ledger events topic | `roles/pubsub.publisher` | Publish Ledger events |
 | Balance Worker service account | Balance pull subscription | `roles/pubsub.subscriber` | Consume and acknowledge Ledger events |
-| Balance Worker service account | DLQ topic | `roles/pubsub.publisher` | Publish application-classified DLQ messages |
-| Pub/Sub service agent | DLQ topic | `roles/pubsub.publisher` | Forward messages to the technical DLQ |
+| Balance Worker service account | Application DLQ topic | `roles/pubsub.publisher` | Publish application-classified DLQ messages |
+| Pub/Sub service agent | Technical DLQ topic | `roles/pubsub.publisher` | Forward messages to the technical DLQ |
 | Pub/Sub service agent | Balance pull subscription | `roles/pubsub.subscriber` | Acknowledge messages forwarded by the native dead-letter policy |
 
-The DLQ topic is intentionally shared by native technical forwarding and
-application-classified DLQ publishing because this module provisions the single
-DLQ topic requested for the flow. Consumers must preserve and inspect origin
-attributes so the two operational cases remain distinguishable.
+The application DLQ is published directly by the Balance Worker. The technical
+DLQ is used only by the native dead-letter policy on the main subscription.
+Separate inspection subscriptions retain each flow independently for triage,
+alerting, and reprocessing decisions.
+
+The `moved` blocks preserve the former shared DLQ topic and subscription as the
+application DLQ during state migration. The technical DLQ resources are new.
 
 ## Validation
 

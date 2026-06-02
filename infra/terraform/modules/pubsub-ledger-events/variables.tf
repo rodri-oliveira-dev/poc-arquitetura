@@ -48,13 +48,23 @@ variable "ledger_events_subscription_name" {
   type        = string
 }
 
-variable "ledger_events_dlq_topic_name" {
-  description = "Name of the topic used for technical and application DLQ messages."
+variable "application_dlq_topic_name" {
+  description = "Name of the topic used by the Balance Worker for application-classified DLQ messages."
   type        = string
 }
 
-variable "ledger_events_dlq_subscription_name" {
-  description = "Name of the pull subscription that retains DLQ messages for operational inspection."
+variable "technical_dlq_topic_name" {
+  description = "Name of the topic used by the native dead-letter policy for technical delivery failures."
+  type        = string
+}
+
+variable "application_dlq_subscription_name" {
+  description = "Name of the pull subscription that retains application DLQ messages for operational inspection."
+  type        = string
+}
+
+variable "technical_dlq_subscription_name" {
+  description = "Name of the pull subscription that retains technical DLQ messages for operational inspection."
   type        = string
 }
 

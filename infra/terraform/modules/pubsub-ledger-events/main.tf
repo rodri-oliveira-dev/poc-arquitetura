@@ -33,9 +33,20 @@ resource "google_pubsub_topic" "ledger_events" {
   labels  = local.common_labels
 }
 
-resource "google_pubsub_topic" "ledger_events_dlq" {
+moved {
+  from = google_pubsub_topic.ledger_events_dlq
+  to   = google_pubsub_topic.application_dlq
+}
+
+resource "google_pubsub_topic" "application_dlq" {
   project = var.project_id
-  name    = var.ledger_events_dlq_topic_name
+  name    = var.application_dlq_topic_name
+  labels  = local.common_labels
+}
+
+resource "google_pubsub_topic" "technical_dlq" {
+  project = var.project_id
+  name    = var.technical_dlq_topic_name
   labels  = local.common_labels
 }
 
@@ -57,15 +68,30 @@ resource "google_pubsub_subscription" "balance_ledger_events" {
   }
 
   dead_letter_policy {
-    dead_letter_topic     = google_pubsub_topic.ledger_events_dlq.id
+    dead_letter_topic     = google_pubsub_topic.technical_dlq.id
     max_delivery_attempts = var.max_delivery_attempts
   }
 }
 
-resource "google_pubsub_subscription" "ledger_events_dlq" {
+moved {
+  from = google_pubsub_subscription.ledger_events_dlq
+  to   = google_pubsub_subscription.application_dlq
+}
+
+resource "google_pubsub_subscription" "application_dlq" {
   project = var.project_id
-  name    = var.ledger_events_dlq_subscription_name
-  topic   = google_pubsub_topic.ledger_events_dlq.id
+  name    = var.application_dlq_subscription_name
+  topic   = google_pubsub_topic.application_dlq.id
+  labels  = local.common_labels
+
+  message_retention_duration = var.message_retention_duration
+  retain_acked_messages      = var.retain_acked_messages
+}
+
+resource "google_pubsub_subscription" "technical_dlq" {
+  project = var.project_id
+  name    = var.technical_dlq_subscription_name
+  topic   = google_pubsub_topic.technical_dlq.id
   labels  = local.common_labels
 
   message_retention_duration = var.message_retention_duration
@@ -102,14 +128,14 @@ resource "google_pubsub_subscription_iam_member" "balance_worker_consume_ledger_
 
 resource "google_pubsub_topic_iam_member" "balance_worker_publish_application_dlq" {
   project = var.project_id
-  topic   = google_pubsub_topic.ledger_events_dlq.name
+  topic   = google_pubsub_topic.application_dlq.name
   role    = "roles/pubsub.publisher"
   member  = google_service_account.balance_worker.member
 }
 
 resource "google_pubsub_topic_iam_member" "pubsub_service_agent_publish_technical_dlq" {
   project = var.project_id
-  topic   = google_pubsub_topic.ledger_events_dlq.name
+  topic   = google_pubsub_topic.technical_dlq.name
   role    = "roles/pubsub.publisher"
   member  = local.pubsub_service_agent_member
 }

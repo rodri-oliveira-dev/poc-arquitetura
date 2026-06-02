@@ -163,8 +163,10 @@ Outputs relevantes para configurar os workers:
 - `ledger_events_topic_name`;
 - `ledger_events_topic_map`;
 - `ledger_events_subscription_name`;
-- `ledger_events_dlq_topic_name`;
-- `ledger_events_dlq_subscription_name`;
+- `application_dlq_topic_name`;
+- `application_dlq_subscription_name`;
+- `technical_dlq_topic_name`;
+- `technical_dlq_subscription_name`;
 - `enable_message_ordering`;
 - `enable_exactly_once_delivery`;
 - `ack_deadline_seconds`;
@@ -180,7 +182,7 @@ Outputs relevantes para configurar os workers:
 5. Mensagens invalidas, contratos nao suportados ou falhas classificadas como nao recuperaveis sao publicadas pela aplicacao no topic de DLQ.
 6. Falhas tecnicas de entrega podem ser encaminhadas pela dead-letter policy nativa da subscription para a DLQ tecnica do Pub/Sub.
 
-O modulo Terraform atual usa um unico topic de DLQ para encaminhamento tecnico e publicacao classificada pela aplicacao. A origem deve permanecer distinguivel pelos attributes e pelo envelope da mensagem.
+O modulo Terraform usa topics e subscriptions de inspecao separados para a DLQ de aplicacao e a DLQ tecnica. Configure `PubSub:Consumer:DeadLetterTopicId` somente com o output `application_dlq_topic_name`; a DLQ tecnica pertence exclusivamente a dead-letter policy nativa.
 
 ## Kafka e Pub/Sub
 
@@ -202,7 +204,8 @@ Use esta ordem para reduzir diagnosticos ambiguos:
 - **Sem permissao de subscriber:** confirme se o `BalanceService.Worker` usa a service account esperada e se ela possui `roles/pubsub.subscriber` na subscription principal.
 - **Subscription sem mensagens:** confirme topic e subscription configurados, valide se a subscription aponta para o topic principal e verifique se a Outbox saiu de `Pending` para `Processed`.
 - **Emulator nao configurado:** confirme `PUBSUB_EMULATOR_HOST=127.0.0.1:8085` no host ou `pubsub-emulator:8085` nos containers. Inspecione `pubsub-emulator` e `pubsub-init`.
-- **DLQ sem IAM do service agent:** confirme se o service agent `service-{project_number}@gcp-sa-pubsub.iam.gserviceaccount.com` possui `roles/pubsub.publisher` no topic de DLQ e `roles/pubsub.subscriber` na subscription principal.
+- **DLQ tecnica sem IAM do service agent:** confirme se o service agent `service-{project_number}@gcp-sa-pubsub.iam.gserviceaccount.com` possui `roles/pubsub.publisher` no topic da DLQ tecnica e `roles/pubsub.subscriber` na subscription principal.
+- **DLQ de aplicacao sem publish:** confirme se a service account do `BalanceService.Worker` possui `roles/pubsub.publisher` somente no topic da DLQ de aplicacao e se `PubSub:Consumer:DeadLetterTopicId` aponta para `application_dlq_topic_name`.
 - **Mensagem duplicada:** trate como possibilidade esperada do fluxo at-least-once. Confirme a idempotencia do Balance pela identidade do evento antes de tentar republicar ou remover mensagens.
 
 Para detalhes complementares, consulte [Kafka, Outbox e DLQ](../development/kafka-outbox.md), [desenvolvimento local](../development/local-development.md#pubsub-emulator-local), [setup local Terraform e GCP](../development/terraform-gcp-local-setup.md) e [ADR-0077](../adrs/0077-pubsub-provider-mensageria.md).

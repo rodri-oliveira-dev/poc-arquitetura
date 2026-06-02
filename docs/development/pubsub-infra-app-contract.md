@@ -18,7 +18,7 @@ local e usam nomes `*.local`. Contra GCP real, use os outputs Terraform `*.dev`.
 | `enable_message_ordering` | `PubSub:Producer:EnableMessageOrdering` | Deve permanecer alinhado com a subscription. |
 | `project_id` | `PubSub:Consumer:ProjectId` | Projeto GCP do `BalanceService.Worker`. |
 | `ledger_events_subscription_name` | `PubSub:Consumer:SubscriptionId` | Subscription ID simples consumida pelo Balance. |
-| `ledger_events_dlq_topic_name` | `PubSub:Consumer:DeadLetterTopicId` | Topic ID simples usado pela DLQ de aplicacao. |
+| `application_dlq_topic_name` | `PubSub:Consumer:DeadLetterTopicId` | Topic ID simples usado exclusivamente pela DLQ de aplicacao. |
 | `enable_exactly_once_delivery` | `PubSub:Consumer:EnableExactlyOnceDelivery` | Espelha a configuracao da subscription. |
 | `ack_deadline_seconds` | `PubSub:Consumer:AckDeadlineSeconds` | Espelha a configuracao da subscription. |
 
@@ -34,8 +34,8 @@ workers.
 | --- | --- | --- |
 | Ledger Worker | `roles/pubsub.publisher` no topic principal | Publicar eventos da Outbox. |
 | Balance Worker | `roles/pubsub.subscriber` na subscription principal | Consumir e confirmar eventos financeiros. |
-| Balance Worker | `roles/pubsub.publisher` no topic de DLQ | Publicar mensagens classificadas pela aplicacao. |
-| Pub/Sub service agent | `roles/pubsub.publisher` no topic de DLQ | Encaminhar mensagens pela dead-letter policy nativa. |
+| Balance Worker | `roles/pubsub.publisher` no topic da DLQ de aplicacao | Publicar mensagens classificadas pela aplicacao. |
+| Pub/Sub service agent | `roles/pubsub.publisher` no topic da DLQ tecnica | Encaminhar mensagens pela dead-letter policy nativa. |
 | Pub/Sub service agent | `roles/pubsub.subscriber` na subscription principal | Confirmar mensagens encaminhadas pela dead-letter policy nativa. |
 
 O modulo nao concede `Owner`, `Editor` nem `Viewer` no projeto aos workloads.
@@ -47,8 +47,14 @@ O modulo nao concede `Owner`, `Editor` nem `Viewer` no projeto aos workloads.
 | Projeto GCP | valor informado em `project_id` |
 | Topic principal | `ledger.ledgerentry.created.dev` |
 | Subscription do Balance | `balance-service-ledger-events-dev` |
-| Topic de DLQ tecnica e de aplicacao | `ledger.ledgerentry.created.dlq.dev` |
-| Subscription de inspecao da DLQ | `balance-service-ledger-events-dlq-dev` |
+| Topic da DLQ de aplicacao | `ledger.ledgerentry.created.dlq.dev` |
+| Subscription de inspecao da DLQ de aplicacao | `balance-service-ledger-events-dlq-dev` |
+| Topic da DLQ tecnica | `ledger.ledgerentry.created.technical.dlq.dev` |
+| Subscription de inspecao da DLQ tecnica | `balance-service-ledger-events-technical-dlq-dev` |
+
+O topic compartilhado e sua subscription de inspecao existentes sao preservados
+como DLQ de aplicacao por `moved` blocks do Terraform. A DLQ tecnica e criada
+separadamente para os novos encaminhamentos da dead-letter policy nativa.
 
 ## Checklist antes de usar GCP real
 
@@ -60,4 +66,5 @@ O modulo nao concede `Owner`, `Editor` nem `Viewer` no projeto aos workloads.
 - Remover `PUBSUB_EMULATOR_HOST` do ambiente dos workers.
 - Confirmar `enable_message_ordering=true` no producer e na subscription dev.
 - Confirmar o IAM do Pub/Sub service agent para a dead-letter policy.
+- Confirmar que `PubSub:Consumer:DeadLetterTopicId` usa `application_dlq_topic_name`; a DLQ tecnica nao e configurada na aplicacao.
 - Publicar um evento de teste e validar consumo, projecao e inspecao da DLQ.

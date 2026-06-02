@@ -24,14 +24,16 @@ resource "google_project_service" "pubsub" {
 module "pubsub_ledger_events" {
   source = "../../modules/pubsub-ledger-events"
 
-  project_id                          = var.project_id
-  region                              = var.region
-  environment                         = "dev"
-  app_name                            = "poc-ledger"
-  ledger_events_topic_name            = "ledger.ledgerentry.created.dev"
-  ledger_events_subscription_name     = "balance-service-ledger-events-dev"
-  ledger_events_dlq_topic_name        = "ledger.ledgerentry.created.dlq.dev"
-  ledger_events_dlq_subscription_name = "balance-service-ledger-events-dlq-dev"
+  project_id                        = var.project_id
+  region                            = var.region
+  environment                       = "dev"
+  app_name                          = "poc-ledger"
+  ledger_events_topic_name          = "ledger.ledgerentry.created.dev"
+  ledger_events_subscription_name   = "balance-service-ledger-events-dev"
+  application_dlq_topic_name        = "ledger.ledgerentry.created.dlq.dev"
+  technical_dlq_topic_name          = "ledger.ledgerentry.created.technical.dlq.dev"
+  application_dlq_subscription_name = "balance-service-ledger-events-dlq-dev"
+  technical_dlq_subscription_name   = "balance-service-ledger-events-technical-dlq-dev"
 
   enable_message_ordering = true
 

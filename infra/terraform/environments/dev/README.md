@@ -5,6 +5,13 @@ the Ledger events flow. It enables `pubsub.googleapis.com`, calls the reusable
 `pubsub-ledger-events` module, and exposes primitive outputs that feed
 appsettings or environment variables used by the Pub/Sub adapters.
 
+The module provisions separate application and technical DLQ topics with
+dedicated inspection subscriptions. Configure the Balance Worker
+`PubSub:Consumer:DeadLetterTopicId` only with the `application_dlq_topic_name`
+output. The technical DLQ is reserved for the native Pub/Sub dead-letter policy.
+The existing shared DLQ topic and inspection subscription are retained as the
+application DLQ during state migration.
+
 No remote backend is configured at this stage. Terraform uses local state by
 default. Do not commit `terraform.tfvars`, state files, plans, or credentials.
 
