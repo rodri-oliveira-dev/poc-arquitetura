@@ -69,6 +69,8 @@ tflint --recursive
 
 O hook `.githooks/pre-push` executa a mesma validacao quando encontra arquivos `*.tf` versionados. A ausencia de `terraform` ou `tflint` falha com orientacao para instalar a ferramenta. A validacao sintatica basica nao depende de autenticacao GCP, secrets ou projeto real.
 
+O mesmo hook tambem executa Trivy quando a ferramenta esta instalada localmente, cobrindo misconfigurations em Terraform e Dockerfiles, secrets e vulnerabilidades detectaveis no filesystem. A ausencia local do Trivy mostra apenas um aviso e nao bloqueia o push. Consulte [validacao de seguranca com Trivy](trivy-security-scan.md).
+
 ## Guardrails
 
 - Nao execute `terraform apply` automaticamente.
@@ -82,9 +84,11 @@ O Google Cloud CLI esta disponivel para autenticacao e descoberta controlada. Es
 
 ## Validacao no CI
 
-O workflow `.github/workflows/terraform-validation.yml`, chamado `terraform-validation`, roda em pull requests que alteram `infra/terraform/**` ou o proprio workflow. Ele executa:
+O workflow `.github/workflows/terraform-validation.yml`, chamado `terraform-validation`, roda em pull requests e pushes para `main` que alteram Terraform, Dockerfiles, Compose ou o proprio workflow. Ele executa:
 
 ```bash
+trivy config --severity HIGH,CRITICAL .
+trivy fs --scanners vuln,secret,misconfig --severity HIGH,CRITICAL .
 terraform fmt -check -recursive ./infra/terraform
 terraform -chdir=./infra/terraform/environments/dev init -backend=false -input=false
 terraform -chdir=./infra/terraform/environments/dev validate

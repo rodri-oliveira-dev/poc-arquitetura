@@ -1,9 +1,20 @@
 name: terraform-validation
 
 on:
+  push:
+    branches: ["main"]
+    paths:
+      - "infra/terraform/**"
+      - "**/Dockerfile"
+      - "Dockerfile"
+      - "compose*.yaml"
+      - ".github/workflows/terraform-validation.yml"
   pull_request:
     paths:
       - "infra/terraform/**"
+      - "**/Dockerfile"
+      - "Dockerfile"
+      - "compose*.yaml"
       - ".github/workflows/terraform-validation.yml"
   workflow_dispatch:
 
@@ -27,6 +38,26 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Scan Dockerfile and Terraform misconfigurations with Trivy
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        with:
+          scan-type: config
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          hide-progress: true
+
+      - name: Scan repository filesystem with Trivy
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,secret,misconfig
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          hide-progress: true
+          skip-dirs: .git,.terraform,TestResults,artifacts
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
