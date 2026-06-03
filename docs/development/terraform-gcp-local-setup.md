@@ -42,7 +42,7 @@ As tasks ficam em `.vscode/tasks.json`. Execute `Tasks: Run Task` e escolha:
 - `terraform: tflint`;
 - `terraform: validate all`.
 
-As tasks `init` e `validate` apontam para o root module de desenvolvimento em `infra/terraform/environments/dev`. Esse ambiente habilita `pubsub.googleapis.com`, compoe o modulo reutilizavel `infra/terraform/modules/pubsub-ledger-events` e configura backend remoto GCS parcial, com prefixo de state `poc-arquitetura/pubsub/dev`. O bucket real deve ser informado manualmente no `terraform init` operacional, conforme a [ADR-0080](../adrs/0080-backend-remoto-gcs-terraform-dev.md). O passo a passo para configurar variaveis locais, revisar o plano e aplicar manualmente fica em [`infra/terraform/environments/dev/README.md`](../../infra/terraform/environments/dev/README.md).
+As tasks `init` e `validate` apontam para o root module de desenvolvimento em `infra/terraform/environments/dev`. Esse ambiente habilita `pubsub.googleapis.com`, compoe o modulo reutilizavel `infra/terraform/modules/pubsub-ledger-events` e configura backend remoto GCS parcial, com bucket `rodri-terraform-state-bucket` e prefixo de state `poc-arquitetura/pubsub/dev`. O passo a passo para configurar variaveis locais, revisar o plano e aplicar manualmente fica em [`infra/terraform/environments/dev/README.md`](../../infra/terraform/environments/dev/README.md).
 
 ## Validacao local
 
@@ -74,7 +74,7 @@ apply` ou `terraform destroy`. Para operacao real, inicialize o backend remoto:
 
 ```powershell
 Set-Location ./infra/terraform/environments/dev
-terraform init -backend-config="bucket=<terraform-state-bucket>"
+terraform init -backend-config="bucket=rodri-terraform-state-bucket"
 terraform validate
 ```
 

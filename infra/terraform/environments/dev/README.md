@@ -69,10 +69,11 @@ The state object is separated by environment with the prefix:
 poc-arquitetura/pubsub/dev
 ```
 
-The bucket name is intentionally not versioned. Provide it during
-`terraform init` with `-backend-config="bucket=<terraform-state-bucket>"`.
-The bucket must already exist and should be created by manual bootstrap or a
-separate bootstrap root module, not by this same root module. See
+The bucket name is intentionally not hardcoded in `backend.tf`; provide it
+during `terraform init` with
+`-backend-config="bucket=rodri-terraform-state-bucket"`. The current dev bucket
+is `rodri-terraform-state-bucket`; it was created outside this root module and
+must not be recreated by the same state that it stores. See
 [`docs/adrs/0080-backend-remoto-gcs-terraform-dev.md`](../../../../docs/adrs/0080-backend-remoto-gcs-terraform-dev.md).
 
 Grant bucket access only to authorized Terraform operators, bootstrap/audit
@@ -144,7 +145,7 @@ For validation with the configured backend, initialize with the existing state
 bucket first:
 
 ```powershell
-terraform init -backend-config="bucket=<terraform-state-bucket>"
+terraform init -backend-config="bucket=rodri-terraform-state-bucket"
 terraform validate
 ```
 
@@ -158,7 +159,7 @@ Create a local backup before migration:
 
 ```powershell
 Copy-Item terraform.tfstate terraform.tfstate.pre-gcs-migration.backup
-terraform init -migrate-state -backend-config="bucket=<terraform-state-bucket>"
+terraform init -migrate-state -backend-config="bucket=rodri-terraform-state-bucket"
 terraform state list
 terraform plan -var-file="terraform.tfvars"
 ```
@@ -172,7 +173,7 @@ must protect concurrent Terraform operations. Do not commit the backup, state,
 Review the plan before making any remote change:
 
 ```powershell
-terraform init -backend-config="bucket=<terraform-state-bucket>"
+terraform init -backend-config="bucket=rodri-terraform-state-bucket"
 terraform plan -out=tfplan
 terraform apply tfplan
 ```

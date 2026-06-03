@@ -39,7 +39,8 @@ service account.
   `service_account_token_creator_members` somente no `terraform.tfvars` local.
 - Nao versionar `terraform.tfvars`, state, planos binarios ou credenciais.
 - Confirmar que o bucket GCS de state ja existe, possui versionamento habilitado
-  e acesso restrito aos operadores Terraform autorizados.
+  e acesso restrito aos operadores Terraform autorizados. O bucket dev atual e
+  `rodri-terraform-state-bucket`.
 - Confirmar que o state dev usa o prefixo `poc-arquitetura/pubsub/dev`,
   conforme a [ADR-0080](../adrs/0080-backend-remoto-gcs-terraform-dev.md).
 
@@ -92,7 +93,7 @@ Entre no root module dev e execute somente operacoes de validacao e plano:
 
 ```bash
 cd infra/terraform/environments/dev
-terraform init -backend-config="bucket=<terraform-state-bucket>"
+terraform init -backend-config="bucket=rodri-terraform-state-bucket"
 terraform fmt -check
 terraform validate
 terraform plan -var-file="terraform.tfvars"
@@ -102,7 +103,7 @@ Se existir state local anterior, crie backup e migre manualmente:
 
 ```bash
 cp terraform.tfstate terraform.tfstate.pre-gcs-migration.backup
-terraform init -migrate-state -backend-config="bucket=<terraform-state-bucket>"
+terraform init -migrate-state -backend-config="bucket=rodri-terraform-state-bucket"
 terraform state list
 terraform plan -var-file="terraform.tfvars"
 ```
@@ -118,7 +119,7 @@ o mesmo state.
 ## Checklist antes do apply
 
 - [ ] O projeto selecionado e realmente descartavel.
-- [ ] O bucket de state informado no `terraform init` e o bucket aprovado para este ambiente.
+- [ ] O bucket de state informado no `terraform init` e `rodri-terraform-state-bucket`.
 - [ ] O prefixo de state e `poc-arquitetura/pubsub/dev`.
 - [ ] O billing foi habilitado conscientemente e os custos potenciais foram entendidos.
 - [ ] O plano nao inclui recursos fora do escopo Pub/Sub, IAM, API e service accounts.

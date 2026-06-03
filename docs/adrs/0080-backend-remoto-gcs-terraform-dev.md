@@ -23,8 +23,9 @@ Configurar backend remoto GCS no root module
 
 - `backend "gcs"` no root module dev;
 - `prefix = "poc-arquitetura/pubsub/dev"` para separar o state do ambiente dev;
-- nome do bucket fornecido manualmente em `terraform init` por
-  `-backend-config`, sem versionar bucket real, credenciais ou arquivos `.tfvars`;
+- bucket dev atual `rodri-terraform-state-bucket`, fornecido manualmente em
+  `terraform init` por `-backend-config`, sem versionar credenciais ou arquivos
+  `.tfvars`;
 - bucket de state criado fora deste root module, por bootstrap manual ou por um
   root module separado em PR proprio;
 - migracao de state local para remoto somente por comando manual e explicito,
@@ -53,7 +54,8 @@ entre operadores. Validacoes sintaticas sem credenciais podem continuar usando
 
 ## Consequencias
 - O state dev passa a ter configuracao remota clara e separada por ambiente.
-- Inicializacao real exige informar o bucket de state existente.
+- Inicializacao real exige informar o bucket de state existente
+  `rodri-terraform-state-bucket`.
 - A criacao do bucket permanece fora do root module que consome o proprio state.
 - A migracao de state local para remoto continua sendo uma acao manual,
   revisavel e auditable.

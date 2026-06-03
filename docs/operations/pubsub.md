@@ -153,7 +153,7 @@ correspondente nao existir.
 
 ## Aplicar Terraform em dev
 
-O root module `infra/terraform/environments/dev` provisiona recursos reais na GCP: API Pub/Sub, service identity gerenciada, topics, subscriptions, service accounts dedicadas e bindings IAM de menor privilegio. O backend remoto GCS e configurado de forma parcial, com prefixo `poc-arquitetura/pubsub/dev`; informe o bucket existente no `terraform init`. Nao versione `terraform.tfvars`, `tfplan`, state ou credenciais.
+O root module `infra/terraform/environments/dev` provisiona recursos reais na GCP: API Pub/Sub, service identity gerenciada, topics, subscriptions, service accounts dedicadas e bindings IAM de menor privilegio. O backend remoto GCS usa o bucket `rodri-terraform-state-bucket` e o prefixo `poc-arquitetura/pubsub/dev`. Nao versione `terraform.tfvars`, `tfplan`, state ou credenciais.
 
 O bucket de state deve ser dedicado, versionado e acessivel apenas a operadores
 Terraform autorizados, administradores de bootstrap/auditoria e identidade de
@@ -174,7 +174,7 @@ Edite somente o arquivo local `terraform.tfvars`, substitua o placeholder de `pr
 
 ```powershell
 terraform fmt -check
-terraform init -backend-config="bucket=<terraform-state-bucket>"
+terraform init -backend-config="bucket=rodri-terraform-state-bucket"
 terraform validate
 terraform plan -out=tfplan
 terraform apply tfplan
@@ -188,7 +188,7 @@ primeiro plan operacional com backend remoto:
 
 ```powershell
 Copy-Item terraform.tfstate terraform.tfstate.pre-gcs-migration.backup
-terraform init -migrate-state -backend-config="bucket=<terraform-state-bucket>"
+terraform init -migrate-state -backend-config="bucket=rodri-terraform-state-bucket"
 terraform state list
 terraform plan -var-file="terraform.tfvars"
 ```
