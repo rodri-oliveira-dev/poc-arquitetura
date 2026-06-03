@@ -1,5 +1,3 @@
-using System.Reflection;
-
 using LedgerService.Application.Common.Exceptions;
 using LedgerService.Application.Lancamentos.Queries;
 using LedgerService.Domain.Entities;
@@ -83,16 +81,34 @@ public sealed class ObterStatusEstornoLancamentoHandlerTests
 
     private static EstornoLancamento CreateEstorno(EstornoLancamentoStatus status)
     {
+        var now = DateTime.UtcNow;
         var estorno = new EstornoLancamento(
             Guid.NewGuid(),
             "m1",
             "Erro operacional no lancamento original",
             Guid.NewGuid(),
-            DateTime.UtcNow);
+            now);
 
-        typeof(EstornoLancamento)
-            .GetProperty(nameof(EstornoLancamento.Status), BindingFlags.Instance | BindingFlags.Public)!
-            .SetValue(estorno, status);
+        switch (status)
+        {
+            case EstornoLancamentoStatus.Pending:
+                break;
+            case EstornoLancamentoStatus.Processing:
+                estorno.MarkProcessing(now);
+                break;
+            case EstornoLancamentoStatus.Completed:
+                estorno.MarkProcessing(now);
+                estorno.Complete(Guid.NewGuid(), now);
+                break;
+            case EstornoLancamentoStatus.Failed:
+                estorno.Fail("Falha tecnica ao processar estorno.", now);
+                break;
+            case EstornoLancamentoStatus.Rejected:
+                estorno.Reject("Lancamento original nao encontrado.", now);
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(status), status, "Status de estorno nao suportado pelo teste.");
+        }
 
         return estorno;
     }
