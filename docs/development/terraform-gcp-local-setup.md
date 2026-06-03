@@ -90,28 +90,11 @@ O workflow `.github/workflows/terraform-validation.yml`, chamado `terraform-vali
 trivy config --severity HIGH,CRITICAL .
 trivy fs --scanners vuln,secret,misconfig --severity HIGH,CRITICAL .
 terraform fmt -check -recursive ./infra/terraform
-terraform -chdir=./infra/terraform/environments/dev init -backend=false -input=false
-terraform -chdir=./infra/terraform/environments/dev validate
+tflint --chdir=./infra/terraform --recursive
 ```
 
-O job opcional `Plan Terraform Dev` executa `terraform plan` somente em pull requests internos quando as seguintes GitHub Actions repository variables estiverem configuradas:
+Internamente, o workflow usa `scripts/validate-terraform.sh`, portanto tambem executa `terraform init -backend=false -input=false` e `terraform validate` em cada diretorio versionado que contem arquivos `*.tf`, incluindo o root module de desenvolvimento e modulos reutilizaveis.
 
-| Variavel | Finalidade |
-| --- | --- |
-| `GCP_PROJECT_ID` | Projeto GCP de desenvolvimento usado pelo root module. |
-| `GCP_REGION` | Regiao GCP; quando ausente, o workflow usa `us-central1`. |
-| `GCP_WORKLOAD_IDENTITY_PROVIDER` | Identificador completo do provider de Workload Identity Federation. |
-| `GCP_TERRAFORM_SERVICE_ACCOUNT` | E-mail da service account usada apenas para planejar a infraestrutura. |
+O CI instala Terraform e TFLint no runner, entao nao depende das ferramentas instaladas na maquina do desenvolvedor. O Trivy tambem roda por action propria no CI. Esses checks sao bloqueantes para achados `HIGH` e `CRITICAL` do Trivy e para falhas de formatacao, inicializacao sem backend, validacao Terraform ou TFLint.
 
-O fluxo recomendado nao exige GitHub Actions secrets nem chave JSON. A service account deve confiar no repositorio via Workload Identity Federation, com `roles/iam.workloadIdentityUser` concedido somente ao principal federado esperado. Restrinja a federacao ao repositorio e aos refs aceitos pela politica do ambiente dev.
-
-Para um plano real, conceda somente leitura suficiente para atualizar o estado conhecido pelo provider, revisando o menor privilegio no projeto dev. O baseline esperado e:
-
-- `roles/browser`;
-- `roles/serviceusage.serviceUsageViewer`;
-- `roles/pubsub.viewer`;
-- `roles/iam.serviceAccountViewer`.
-
-Essas permissoes sao para `plan`. Qualquer permissao de escrita necessaria para um `apply` manual deve ser tratada separadamente e nao e usada pelo workflow.
-
-Pull requests de forks nao recebem autenticacao GCP e nao executam o plano. O workflow nao executa `terraform apply`, nao gera plano binario e nao publica credenciais.
+Esse fluxo nao exige GitHub Actions secrets, repository variables, chave JSON, autenticacao GCP ou projeto real. O workflow nao executa `terraform plan`, `terraform apply`, `terraform destroy`, nao gera plano binario e nao publica credenciais.

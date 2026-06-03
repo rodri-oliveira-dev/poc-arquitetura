@@ -27,7 +27,7 @@ concurrency:
 
 env:
   TERRAFORM_VERSION: "1.15.5"
-  TERRAFORM_DEV_ROOT: ./infra/terraform/environments/dev
+  TFLINT_VERSION: "v0.62.1"
 
 jobs:
   validate:
@@ -39,6 +39,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
+      # Blocking gate: these scans are local to the checked-out repository,
+      # require no cloud credentials and never build images or run Terraform plans.
       - name: Scan Dockerfile and Terraform misconfigurations with Trivy
         uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
         with:
@@ -64,54 +66,10 @@ jobs:
         with:
           terraform_version: ${{ env.TERRAFORM_VERSION }}
 
-      - name: Check formatting
-        run: terraform fmt -check -recursive ./infra/terraform
-
-      - name: Initialize Terraform without backend
-        run: terraform -chdir="$TERRAFORM_DEV_ROOT" init -backend=false -input=false
-
-      - name: Validate Terraform
-        run: terraform -chdir="$TERRAFORM_DEV_ROOT" validate
-
-  plan:
-    name: Plan Terraform Dev
-    needs: validate
-    if: >-
-      github.event_name == 'pull_request' &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      vars.GCP_PROJECT_ID != '' &&
-      vars.GCP_WORKLOAD_IDENTITY_PROVIDER != '' &&
-      vars.GCP_TERRAFORM_SERVICE_ACCOUNT != ''
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-
-    permissions:
-      contents: read
-      id-token: write
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+      - name: Setup TFLint
+        uses: terraform-linters/setup-tflint@4cb9feea73331a35b422df102992a03a44a3bb33 # v6.2.1
         with:
-          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ vars.GCP_TERRAFORM_SERVICE_ACCOUNT }}
+          tflint_version: ${{ env.TFLINT_VERSION }}
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
-        with:
-          terraform_version: ${{ env.TERRAFORM_VERSION }}
-
-      - name: Initialize Terraform without backend
-        run: terraform -chdir="$TERRAFORM_DEV_ROOT" init -backend=false -input=false
-
-      - name: Plan Terraform dev environment
-        run: >-
-          terraform -chdir="$TERRAFORM_DEV_ROOT" plan
-          -input=false
-          -lock=false
-          -no-color
-          -var="project_id=${{ vars.GCP_PROJECT_ID }}"
-          -var="region=${{ vars.GCP_REGION || 'us-central1' }}"
+      - name: Validate Terraform and run TFLint
+        run: ./scripts/validate-terraform.sh

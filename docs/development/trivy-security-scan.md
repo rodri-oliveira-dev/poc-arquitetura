@@ -87,4 +87,6 @@ O workflow `terraform-validation` roda Trivy em pull requests e em pushes para `
 
 No CI, a validacao executa independentemente da instalacao local do desenvolvedor. Os scans sao bloqueantes para severidades `HIGH` e `CRITICAL`, porque nao dependem de credenciais cloud nem alteram infraestrutura real.
 
-O hook local serve apenas como feedback antecipado antes do PR; o CI continua sendo a linha de defesa obrigatoria.
+O hook local serve apenas como feedback antecipado antes do PR; o CI continua sendo a linha de defesa obrigatoria. Por isso, a ausencia local do Trivy nunca bloqueia o `git push`, mas a mesma classe de achado bloqueia o pull request quando detectada pelo workflow.
+
+O workflow tambem executa Terraform e TFLint por meio de `scripts/validate-terraform.sh`. Essa etapa instala as ferramentas no runner, nao usa credenciais cloud e nao executa `terraform plan`, `terraform apply` ou `terraform destroy`.
