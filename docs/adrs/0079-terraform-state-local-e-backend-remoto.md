@@ -6,6 +6,11 @@ Aceito
 ## Data
 2026-06-03
 
+## Nota de acompanhamento
+A ADR-0080 adotou backend remoto GCS para o root module dev. Esta ADR permanece
+como registro dos riscos do state local, dos gatilhos e da estrategia que
+orientou a migracao.
+
 ## Contexto
 O Terraform versionado esta concentrado no root module
 `infra/terraform/environments/dev` e no modulo reutilizavel

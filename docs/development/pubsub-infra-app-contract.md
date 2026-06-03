@@ -77,7 +77,8 @@ ativacao posterior durante rollout incremental.
 ## Checklist antes de usar GCP real
 
 - Confirmar projeto dev e identidade autenticada antes de `terraform plan`.
-- Executar `terraform fmt -check -recursive`, `terraform init -backend=false` e `terraform validate`.
+- Para validacao sintatica sem credenciais, executar `terraform fmt -check -recursive`, `terraform init -backend=false` e `terraform validate`.
+- Para `terraform plan` real, inicializar antes o backend remoto com `terraform init -backend-config="bucket=<terraform-state-bucket>"` e nao usar `-lock=false`.
 - Revisar e executar `terraform apply` manualmente somente apos autorizacao.
 - Obter `terraform output -json` e preencher as options conforme a tabela.
 - Configurar a service account dedicada de cada worker sem chave JSON versionada.

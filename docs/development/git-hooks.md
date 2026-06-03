@@ -36,7 +36,7 @@ Antes de executar validacoes, o `pre-push` tenta identificar os arquivos alterad
 - em execucoes manuais sem entrada padrao do Git, aplica a mesma estrategia contra `HEAD`;
 - se nenhuma base segura estiver disponivel, executa as validacoes por seguranca.
 
-Quando existem arquivos `*.tf` versionados em `infra/terraform`, o hook executa primeiro `scripts/validate-terraform.sh`. Essa etapa exige Terraform CLI e TFLint, roda apenas `fmt -check`, `init -backend=false`, `validate` e lint recursivo, sem executar `plan`, `apply`, `destroy` ou autenticacao GCP. Consulte [setup local Terraform e GCP](terraform-gcp-local-setup.md).
+Quando existem arquivos `*.tf` versionados em `infra/terraform`, o hook executa primeiro `scripts/validate-terraform.sh`. Essa etapa exige Terraform CLI e TFLint, roda apenas `fmt -check`, `init -backend=false`, `validate` e lint recursivo, sem executar `plan`, `apply`, `destroy` ou autenticacao GCP. O `init` sem backend e uma validacao sintatica e nao exercita locking remoto; para plan real use o backend GCS configurado no ambiente. Consulte [setup local Terraform e GCP](terraform-gcp-local-setup.md).
 
 Na sequencia, o hook tenta executar Trivy para validar Dockerfiles, Terraform, misconfigurations, secrets e vulnerabilidades detectaveis no filesystem. Se o comando `trivy` nao estiver instalado, o hook exibe um aviso e permite o push. Se o Trivy estiver instalado e encontrar achados `HIGH` ou `CRITICAL`, o push e bloqueado. Consulte [validacao de seguranca com Trivy](trivy-security-scan.md).
 

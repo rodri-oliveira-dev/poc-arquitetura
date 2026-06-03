@@ -52,7 +52,7 @@ try {
     foreach ($directory in $terraformDirectories) {
         Push-Location $directory
         try {
-            Write-Host "==> terraform: inicializando sem backend em $directory"
+            Write-Host "==> terraform: inicializando sem backend para validacao sintatica em $directory"
             Invoke-CheckedCommand terraform @('init', '-backend=false', '-input=false')
 
             Write-Host "==> terraform: validando $directory"
