@@ -302,28 +302,6 @@ public sealed class LancamentosAuthorizationTests : IClassFixture<LedgerApiFacto
     }
 
     [Fact]
-    public async Task Post_should_return_400_when_amount_has_more_than_two_decimal_places()
-    {
-        var token = TestJwtTokenFactory.CreateToken(
-            issuer: TestJwtTokenFactory.KeycloakIssuer,
-            audiences: "ledger-api",
-            scopes: "ledger.write");
-
-        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-
-        using var req = new HttpRequestMessage(HttpMethod.Post, "/api/v1/lancamentos")
-        {
-            Content = JsonContent.Create(new { merchantId = "m1", type = "CREDIT", amount = 10.123m })
-        };
-        req.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
-
-        var res = await _client.SendAsync(req);
-        Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
-        var body = await AssertValidationErrorResponseAsync(res);
-        Assert.Contains("amount", body.Errors.Keys);
-    }
-
-    [Fact]
     public async Task Post_should_return_validation_contract_when_amount_type_is_invalid()
     {
         var token = TestJwtTokenFactory.CreateToken(

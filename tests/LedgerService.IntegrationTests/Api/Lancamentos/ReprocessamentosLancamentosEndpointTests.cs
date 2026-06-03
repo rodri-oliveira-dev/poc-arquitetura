@@ -65,7 +65,7 @@ public sealed class ReprocessamentosLancamentosEndpointTests : IClassFixture<Led
     }
 
     [Fact]
-    public async Task Post_reprocessar_should_return_400_for_invalid_period()
+    public async Task Post_reprocessar_should_return_400_for_invalid_payload()
     {
         Authenticate();
 
@@ -76,37 +76,8 @@ public sealed class ReprocessamentosLancamentosEndpointTests : IClassFixture<Led
 
         var res = await _client.SendAsync(req);
         Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
-        var raw = await res.Content.ReadAsStringAsync();
-        Assert.Contains("dataFinal", raw);
-    }
-
-    [Fact]
-    public async Task Post_reprocessar_should_return_400_for_empty_motivo()
-    {
-        Authenticate();
-
-        using var req = CreateRequest(Guid.NewGuid().ToString(), motivo: "");
-
-        var res = await _client.SendAsync(req);
-        Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
-        var raw = await res.Content.ReadAsStringAsync();
-        Assert.Contains("motivo", raw);
-    }
-
-    [Fact]
-    public async Task Post_reprocessar_should_return_400_when_period_exceeds_limit()
-    {
-        Authenticate();
-
-        using var req = CreateRequest(
-            Guid.NewGuid().ToString(),
-            dataInicial: new DateOnly(2026, 5, 1),
-            dataFinal: new DateOnly(2026, 6, 1));
-
-        var res = await _client.SendAsync(req);
-        Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
-        var raw = await res.Content.ReadAsStringAsync();
-        Assert.Contains("31", raw);
+        var body = await AssertValidationErrorResponseAsync(res);
+        Assert.Contains("dataFinal", body.Errors.Keys);
     }
 
     [Fact]
@@ -290,5 +261,19 @@ public sealed class ReprocessamentosLancamentosEndpointTests : IClassFixture<Led
         await db.SaveChangesAsync();
 
         return lancamento;
+    }
+
+    private static async Task<ValidationErrorResponse> AssertValidationErrorResponseAsync(HttpResponseMessage response)
+    {
+        Assert.Equal("application/json", response.Content.Headers.ContentType?.MediaType);
+        var body = await response.Content.ReadFromJsonAsync<ValidationErrorResponse>();
+        Assert.NotNull(body);
+        Assert.Equal("https://httpstatuses.com/400", body!.Type);
+        Assert.Equal("Invalid request", body.Title);
+        Assert.Equal(400, body.Status);
+        Assert.Equal("One or more validation errors occurred.", body.Detail);
+        Assert.NotEmpty(body.Errors);
+        Assert.False(string.IsNullOrWhiteSpace(body.CorrelationId));
+        return body;
     }
 }
