@@ -27,7 +27,6 @@ run_trivy_security_scan() {
   trivy config \
     --severity HIGH,CRITICAL \
     --exit-code 1 \
-    --no-progress \
     --skip-dirs .git \
     --skip-dirs .terraform \
     --skip-dirs TestResults \
@@ -39,7 +38,6 @@ run_trivy_security_scan() {
     --scanners vuln,secret,misconfig \
     --severity HIGH,CRITICAL \
     --exit-code 1 \
-    --no-progress \
     --skip-dirs .git \
     --skip-dirs .terraform \
     --skip-dirs TestResults \
