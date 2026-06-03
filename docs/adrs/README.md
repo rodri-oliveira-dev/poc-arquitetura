@@ -15,6 +15,7 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 
 | ADR                                                                   | Status      | Resumo                                                                                           |
 | --------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------ |
+| [ADR-0079](./0079-terraform-state-local-e-backend-remoto.md) | Aceito | Mantem state local apenas como excecao de POC/dev controlado e define gatilhos para backend remoto GCS. |
 | [ADR-0078](./0078-pubsub-provider-principal-local-emulator.md) | Aceito | Define Pub/Sub como provider principal, emulator como default local e Kafka como opcao legada explicita. |
 | [ADR-0077](./0077-pubsub-provider-mensageria.md) | Substituido | Define a fase incremental de Pub/Sub como provider alternativo, encerrada pela ADR-0078. |
 | [ADR-0076](./0076-formalizar-contrato-ledger-entry-created-v1.md) | Aceito | Formaliza `LedgerEntryCreated.v1` em JSON Schema e mantem `BRL` como limitacao conhecida fora do payload. |

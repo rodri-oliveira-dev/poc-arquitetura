@@ -38,6 +38,8 @@ service account.
 - Para smoke test local com ADC impersonation, preencher
   `service_account_token_creator_members` somente no `terraform.tfvars` local.
 - Nao versionar `terraform.tfvars`, state, planos binarios ou credenciais.
+- Confirmar que o uso de state local continua dentro da excecao de POC/dev
+  controlado definida na [ADR-0079](../adrs/0079-terraform-state-local-e-backend-remoto.md).
 
 O root module habilita explicitamente apenas `pubsub.googleapis.com`. O
 provider precisa acessar Service Usage para administrar essa API e usa IAM para
@@ -97,6 +99,11 @@ terraform plan -var-file="terraform.tfvars"
 O comando `terraform plan` pode consultar o projeto GCP, mas nao deve criar,
 alterar ou remover recursos. Revise integralmente o plano antes de autorizar
 qualquer apply.
+
+Nao use `-lock=false` como padrao para ambientes compartilhados ou persistentes.
+Essa flag so e aceitavel enquanto nao houver backend remoto nem state
+compartilhado. Ao adotar backend remoto com locking, remova a flag e valide o
+locking do backend.
 
 ## Checklist antes do apply
 

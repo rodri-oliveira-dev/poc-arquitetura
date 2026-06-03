@@ -42,7 +42,7 @@ As tasks ficam em `.vscode/tasks.json`. Execute `Tasks: Run Task` e escolha:
 - `terraform: tflint`;
 - `terraform: validate all`.
 
-As tasks `init` e `validate` apontam para o root module de desenvolvimento em `infra/terraform/environments/dev`. Esse ambiente habilita `pubsub.googleapis.com`, compoe o modulo reutilizavel `infra/terraform/modules/pubsub-ledger-events` e nao configura backend remoto. O passo a passo para configurar variaveis locais, revisar o plano e aplicar manualmente fica em [`infra/terraform/environments/dev/README.md`](../../infra/terraform/environments/dev/README.md).
+As tasks `init` e `validate` apontam para o root module de desenvolvimento em `infra/terraform/environments/dev`. Esse ambiente habilita `pubsub.googleapis.com`, compoe o modulo reutilizavel `infra/terraform/modules/pubsub-ledger-events` e nao configura backend remoto. O state local e uma excecao aceita somente para POC/dev controlado; os criterios para migrar para backend remoto ficam na [ADR-0079](../adrs/0079-terraform-state-local-e-backend-remoto.md). O passo a passo para configurar variaveis locais, revisar o plano e aplicar manualmente fica em [`infra/terraform/environments/dev/README.md`](../../infra/terraform/environments/dev/README.md).
 
 ## Validacao local
 
@@ -76,6 +76,7 @@ O mesmo hook tambem executa Trivy quando a ferramenta esta instalada localmente,
 - Nao execute `terraform apply` automaticamente.
 - Nao execute `terraform destroy` automaticamente.
 - Use `terraform plan` somente quando existir ambiente Terraform real e houver autorizacao explicita.
+- Trate `-lock=false` como excecao temporaria sem backend remoto; remova a flag quando houver backend remoto com locking.
 - Nao versione secrets, chaves JSON, arquivos `.tfvars` reais, `*.tfstate`, `.terraform/` ou planos binarios.
 - Prefira impersonation ou Workload Identity Federation em vez de chaves JSON de service account.
 - Nao dependa de projeto, conta ou regiao padrao para operacoes que possam afetar recursos reais.
@@ -97,4 +98,4 @@ Internamente, o workflow usa `scripts/validate-terraform.sh`, portanto tambem ex
 
 O CI instala Terraform e TFLint no runner, entao nao depende das ferramentas instaladas na maquina do desenvolvedor. O Trivy tambem roda por action propria no CI. Esses checks sao bloqueantes para achados `HIGH` e `CRITICAL` do Trivy e para falhas de formatacao, inicializacao sem backend, validacao Terraform ou TFLint.
 
-Esse fluxo nao exige GitHub Actions secrets, repository variables, chave JSON, autenticacao GCP ou projeto real. O workflow nao executa `terraform plan`, `terraform apply`, `terraform destroy`, nao gera plano binario e nao publica credenciais.
+Esse fluxo nao exige GitHub Actions secrets, repository variables, chave JSON, autenticacao GCP ou projeto real. O workflow nao executa `terraform plan`, `terraform apply`, `terraform destroy`, nao gera plano binario e nao publica credenciais. Se um fluxo futuro executar `terraform plan` real no CI, isso aciona os criterios da [ADR-0079](../adrs/0079-terraform-state-local-e-backend-remoto.md) para backend remoto e remocao de qualquer uso de `-lock=false`.

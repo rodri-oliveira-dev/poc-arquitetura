@@ -60,8 +60,20 @@ Review transfer costs and workload locations before enabling the policy.
 Use `enforce_in_transit=true` with care because Pub/Sub can reject publish,
 pull, and streamingPull requests received outside the allowed regions.
 
+## Terraform State
+
 No remote backend is configured at this stage. Terraform uses local state by
-default. Do not commit `terraform.tfvars`, state files, plans, or credentials.
+default. This is an accepted exception only for the current POC/dev context,
+individual execution, or a controlled disposable environment.
+
+This root module can provision real Google Cloud resources. If Terraform usage
+becomes shared, persistent, automated with real plans in CI, or expands to
+staging/production or more critical resources, migrate to a remote backend
+before continuing. The architectural decision and migration criteria are
+recorded in
+[`docs/adrs/0079-terraform-state-local-e-backend-remoto.md`](../../../../docs/adrs/0079-terraform-state-local-e-backend-remoto.md).
+
+Do not commit `terraform.tfvars`, state files, plans, or credentials.
 
 ## Prerequisites
 
@@ -132,6 +144,10 @@ configured project, guarantees the Google-managed Pub/Sub service identity, and
 provisions real Google Cloud resources. In a newly created project, review that
 the first plan includes `google_project_service_identity.pubsub`.
 
+Do not copy `-lock=false` to shared or persistent environments. That flag is
+acceptable only as a temporary exception while there is no remote backend or
+shared state. Remove it when a remote backend with locking is adopted.
+
 Inspect the values available to runtime configuration with:
 
 ```powershell
@@ -140,4 +156,4 @@ terraform output -json
 ```
 
 Use the output-to-appsettings mapping and the preflight checklist in
-[`docs/development/pubsub-infra-app-contract.md`](../../../docs/development/pubsub-infra-app-contract.md).
+[`docs/development/pubsub-infra-app-contract.md`](../../../../docs/development/pubsub-infra-app-contract.md).

@@ -155,6 +155,12 @@ correspondente nao existir.
 
 O root module `infra/terraform/environments/dev` provisiona recursos reais na GCP: API Pub/Sub, service identity gerenciada, topics, subscriptions, service accounts dedicadas e bindings IAM de menor privilegio. O state ainda e local; nao versione `terraform.tfvars`, `tfplan`, state ou credenciais.
 
+O state local e uma excecao de POC/dev controlado. Nao trate esse ambiente como
+compartilhado ou persistente sem antes migrar para backend remoto. A
+[ADR-0079](../adrs/0079-terraform-state-local-e-backend-remoto.md) registra os
+riscos, os gatilhos para backend remoto em GCS e a regra de nao propagar
+`-lock=false` para ambientes com locking.
+
 Antes do apply, confirme a identidade autenticada, o projeto dev alvo e a permissao para habilitar servicos e gerenciar Pub/Sub, service accounts e IAM dos recursos. Prefira ADC com impersonation em vez de chave JSON.
 
 No PowerShell:
