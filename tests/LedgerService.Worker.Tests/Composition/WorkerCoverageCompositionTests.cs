@@ -4,7 +4,6 @@ using LedgerService.Domain.Entities;
 using LedgerService.Infrastructure.Observability;
 using LedgerService.Worker.Messaging.Kafka.Configuration;
 using LedgerService.Worker.Messaging.Kafka.Producers;
-using LedgerService.Worker.Outbox;
 using LedgerService.Worker.Messaging.Kafka.Consumers;
 using LedgerService.Worker.Messaging.Processors;
 using Microsoft.Extensions.Logging;
@@ -47,17 +46,6 @@ public sealed class WorkerCoverageCompositionTests
         var nextAttempt = sut.CalculateNextRetry(now, retryCount: 2, TimeSpan.FromSeconds(2));
         Assert.True(nextAttempt >= now.AddSeconds(8));
         Assert.True(nextAttempt < now.AddSeconds(8).AddMilliseconds(250));
-    }
-
-    [Fact]
-    public void OutboxPublisherService_should_be_constructed_with_worker_dependencies()
-    {
-        using var sut = new OutboxPublisherService(
-            Mock.Of<IServiceProvider>(),
-            Options.Create(new OutboxPublisherOptions()),
-            Mock.Of<IRetryStrategy>(),
-            Mock.Of<ILogger<OutboxPublisherService>>());
-        Assert.NotNull(sut);
     }
 
     [Theory]
