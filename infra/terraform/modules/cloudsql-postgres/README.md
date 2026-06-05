@@ -21,10 +21,11 @@ The expected local access path for dev is Cloud SQL Auth Proxy using the
 not configure `authorized_networks` and must not be used to allow
 `0.0.0.0/0`.
 
-Example local proxy command after a reviewed manual apply:
+Example local proxy command after a reviewed manual apply from the dev root
+module:
 
 ```powershell
-cloud-sql-proxy "$(terraform output -raw cloudsql_instance_connection_name)" --port 5432
+cloud-sql-proxy "$(terraform output -raw database_instance_connection_name)" --port 5432
 ```
 
 Configure the application locally with host `127.0.0.1`, port `5432`, the

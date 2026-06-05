@@ -28,6 +28,15 @@ module does not configure `authorized_networks`, does not allow `0.0.0.0/0`,
 does not create Secret Manager resources, and never exposes the database
 password as an output.
 
+Pub/Sub and Cloud SQL are intentionally composed in the same dev root module in
+this iteration, so they share the same backend, state object, locking, plan, and
+manual apply lifecycle. Keep this coupling in mind when reviewing plans: a
+single dev plan can include both messaging and database drift. A future split
+into separate root modules and state prefixes is a recommended technical debt
+item if the database lifecycle starts requiring independent ownership or change
+windows. Do not migrate the remote state automatically as part of ordinary
+changes.
+
 The tracked example also declares the subscription expiration policies:
 
 | Subscription | Dev expiration TTL | Rationale |
@@ -77,6 +86,11 @@ The state object is separated by environment with the prefix:
 poc-arquitetura/pubsub/dev
 ```
 
+The prefix name is retained for compatibility with the existing remote state,
+but the object now contains both Pub/Sub and Cloud SQL dev resources. Renaming
+or splitting it would require a deliberate state migration with backup,
+operator review, and a separate change.
+
 The bucket name is intentionally not hardcoded in `backend.tf`; provide it
 during `terraform init` with
 `-backend-config="bucket=rodri-terraform-state-bucket"`. The current dev bucket
@@ -110,13 +124,13 @@ replace the placeholder project ID:
 Copy-Item terraform.tfvars.example terraform.tfvars
 ```
 
-Replace `cloudsql_database_password` only in the ignored local
-`terraform.tfvars` file or provide it through `TF_VAR_cloudsql_database_password`.
+Replace `database_password` only in the ignored local `terraform.tfvars` file or
+provide it through `TF_VAR_database_password`.
 Do not commit the real value. After a reviewed manual apply, use
-`cloudsql_instance_connection_name` with Cloud SQL Auth Proxy for local access:
+`database_instance_connection_name` with Cloud SQL Auth Proxy for local access:
 
 ```powershell
-cloud-sql-proxy "$(terraform output -raw cloudsql_instance_connection_name)" --port 5432
+cloud-sql-proxy "$(terraform output -raw database_instance_connection_name)" --port 5432
 ```
 
 Then point local application connection strings at `127.0.0.1:5432` with the
@@ -156,11 +170,14 @@ Run syntax-only local validation without configuring the remote backend:
 terraform fmt -check
 terraform init -backend=false
 terraform validate
+terraform test
 ```
 
 This validation mode is useful for hooks and CI because it does not require GCP
 credentials or bucket access. It does not exercise remote state locking and must
 not be followed by `terraform plan`, `terraform apply`, or `terraform destroy`.
+The `terraform test` suite uses mocked providers and `command = plan`; it does
+not create or update GCP resources.
 
 For validation with the configured backend, initialize with the existing state
 bucket first:

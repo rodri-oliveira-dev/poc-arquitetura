@@ -60,68 +60,80 @@ variable "technical_dlq_subscription_expiration_ttl" {
   default     = "2592000s"
 }
 
-variable "cloudsql_instance_name" {
+variable "database_instance_name" {
   description = "Cloud SQL PostgreSQL instance name for dev."
   type        = string
   default     = "poc-ledger-dev-postgres"
 }
 
-variable "cloudsql_postgres_version" {
-  description = "Cloud SQL PostgreSQL database version for dev."
-  type        = string
-  default     = "POSTGRES_16"
-}
-
-variable "cloudsql_tier" {
-  description = "Cloud SQL machine tier for dev."
-  type        = string
-  default     = "db-f1-micro"
-}
-
-variable "cloudsql_availability_type" {
-  description = "Cloud SQL availability type for dev."
-  type        = string
-  default     = "ZONAL"
-}
-
-variable "cloudsql_database_name" {
+variable "database_name" {
   description = "Application database name for dev."
   type        = string
   default     = "ledger_dev"
 }
 
-variable "cloudsql_database_user" {
+variable "database_user" {
   description = "Application database user for dev."
   type        = string
   default     = "ledger_app"
 }
 
-variable "cloudsql_database_password" {
-  description = "Application database password for dev. Provide only through ignored terraform.tfvars or TF_VAR_cloudsql_database_password."
+variable "database_password" {
+  description = "Application database password for dev. Provide only through ignored terraform.tfvars or TF_VAR_database_password."
   type        = string
   sensitive   = true
 }
 
-variable "cloudsql_deletion_protection" {
+variable "database_version" {
+  description = "Cloud SQL PostgreSQL database version for dev."
+  type        = string
+  default     = "POSTGRES_16"
+}
+
+variable "database_tier" {
+  description = "Cloud SQL machine tier for dev."
+  type        = string
+  default     = "db-f1-micro"
+}
+
+variable "database_availability_type" {
+  description = "Cloud SQL availability type for dev."
+  type        = string
+  default     = "ZONAL"
+}
+
+variable "database_deletion_protection" {
   description = "Whether the dev Cloud SQL instance is protected from deletion."
   type        = bool
   default     = true
 }
 
-variable "cloudsql_backup_configuration" {
-  description = "Cloud SQL backup configuration for dev."
-  type = object({
-    enabled                        = bool
-    start_time                     = string
-    point_in_time_recovery_enabled = bool
-    transaction_log_retention_days = number
-    location                       = optional(string)
-  })
-  default = {
-    enabled                        = true
-    start_time                     = "03:00"
-    point_in_time_recovery_enabled = true
-    transaction_log_retention_days = 7
-    location                       = null
-  }
+variable "database_backup_enabled" {
+  description = "Whether automated Cloud SQL backups are enabled for dev."
+  type        = bool
+  default     = true
+}
+
+variable "database_backup_start_time" {
+  description = "UTC backup start time in HH:MM format."
+  type        = string
+  default     = "03:00"
+}
+
+variable "database_point_in_time_recovery_enabled" {
+  description = "Whether Cloud SQL point-in-time recovery is enabled for dev."
+  type        = bool
+  default     = true
+}
+
+variable "database_transaction_log_retention_days" {
+  description = "Number of days to retain transaction logs for point-in-time recovery."
+  type        = number
+  default     = 7
+}
+
+variable "database_backup_location" {
+  description = "Optional backup location. Use null to let Cloud SQL choose the default."
+  type        = string
+  default     = null
 }

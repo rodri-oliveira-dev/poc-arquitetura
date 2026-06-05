@@ -118,32 +118,27 @@ output "technical_dlq_subscription_expiration_ttl" {
   value       = module.pubsub_ledger_events.technical_dlq_subscription_expiration_ttl
 }
 
-output "cloudsql_instance_name" {
+output "database_instance_name" {
   description = "Cloud SQL PostgreSQL instance name for dev."
   value       = module.cloudsql_postgres.instance_name
 }
 
-output "cloudsql_instance_connection_name" {
+output "database_instance_connection_name" {
   description = "Cloud SQL instance connection name used by Cloud SQL Auth Proxy."
   value       = module.cloudsql_postgres.instance_connection_name
 }
 
-output "cloudsql_database_name" {
+output "database_name" {
   description = "Cloud SQL application database name."
   value       = module.cloudsql_postgres.database_name
 }
 
-output "cloudsql_database_user" {
+output "database_user" {
   description = "Cloud SQL application database user."
   value       = module.cloudsql_postgres.database_user
 }
 
-output "cloudsql_public_ip_address" {
+output "database_public_ip_address" {
   description = "Cloud SQL public IPv4 address, when available."
   value       = module.cloudsql_postgres.public_ip_address
-}
-
-output "cloudsql_connection_metadata" {
-  description = "Non-secret Cloud SQL connection metadata."
-  value       = module.cloudsql_postgres.connection_metadata
 }
