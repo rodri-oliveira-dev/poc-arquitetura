@@ -1,10 +1,11 @@
 # Terraform Dev Environment
 
-This root module composes the Pub/Sub resources for the dev deployment of
-the Ledger events flow. It enables `pubsub.googleapis.com`, guarantees the
-Google-managed Pub/Sub service identity with `google_project_service_identity`,
-calls the reusable `pubsub-ledger-events` module, and exposes primitive outputs
-that feed appsettings or environment variables used by the Pub/Sub adapters.
+This root module composes the Pub/Sub resources and the initial Cloud SQL
+PostgreSQL database for the dev deployment. It enables `pubsub.googleapis.com`
+and `sqladmin.googleapis.com`, guarantees the Google-managed Pub/Sub service
+identity with `google_project_service_identity`, calls the reusable
+`pubsub-ledger-events` and `cloudsql-postgres` modules, and exposes primitive
+outputs that feed appsettings or environment variables used by the adapters.
 
 The module provisions separate application and technical DLQ topics with
 dedicated inspection subscriptions. Configure the Balance Worker
@@ -19,6 +20,13 @@ policy with `enable_technical_dead_letter=true`. Set it to `false` in the local
 forwarding. The technical DLQ topic and inspection subscription remain created,
 but the native policy and its Pub/Sub service agent IAM bindings are omitted.
 The Balance Worker subscription and application DLQ remain available.
+
+Cloud SQL dev uses a cost-conscious ZONAL PostgreSQL instance by default with
+backups and point-in-time recovery enabled. Public IPv4 is enabled only to
+support local access through Cloud SQL Auth Proxy in this first iteration. The
+module does not configure `authorized_networks`, does not allow `0.0.0.0/0`,
+does not create Secret Manager resources, and never exposes the database
+password as an output.
 
 The tracked example also declares the subscription expiration policies:
 
@@ -102,6 +110,19 @@ replace the placeholder project ID:
 Copy-Item terraform.tfvars.example terraform.tfvars
 ```
 
+Replace `cloudsql_database_password` only in the ignored local
+`terraform.tfvars` file or provide it through `TF_VAR_cloudsql_database_password`.
+Do not commit the real value. After a reviewed manual apply, use
+`cloudsql_instance_connection_name` with Cloud SQL Auth Proxy for local access:
+
+```powershell
+cloud-sql-proxy "$(terraform output -raw cloudsql_instance_connection_name)" --port 5432
+```
+
+Then point local application connection strings at `127.0.0.1:5432` with the
+database name and user exposed by the Cloud SQL outputs, and the password from
+the ignored local secret source.
+
 For a local smoke test against real GCP resources with ADC impersonation, set
 `service_account_token_creator_members` only in the ignored local
 `terraform.tfvars`. The module grants `roles/iam.serviceAccountTokenCreator`
@@ -178,10 +199,11 @@ terraform plan -out=tfplan
 terraform apply tfplan
 ```
 
-`terraform apply` is intentionally manual. It enables the Pub/Sub API in the
-configured project, guarantees the Google-managed Pub/Sub service identity, and
-provisions real Google Cloud resources. In a newly created project, review that
-the first plan includes `google_project_service_identity.pubsub`.
+`terraform apply` is intentionally manual. It enables the Pub/Sub and Cloud SQL
+Admin APIs in the configured project, guarantees the Google-managed Pub/Sub
+service identity, and provisions real Google Cloud resources. In a newly created
+project, review that the first plan includes
+`google_project_service_identity.pubsub` and the Cloud SQL instance settings.
 
 Do not use `-lock=false` with the remote backend. Terraform should use the GCS
 backend locking behavior for `plan` and `apply`.

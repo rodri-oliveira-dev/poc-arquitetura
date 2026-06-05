@@ -59,3 +59,69 @@ variable "technical_dlq_subscription_expiration_ttl" {
   type        = string
   default     = "2592000s"
 }
+
+variable "cloudsql_instance_name" {
+  description = "Cloud SQL PostgreSQL instance name for dev."
+  type        = string
+  default     = "poc-ledger-dev-postgres"
+}
+
+variable "cloudsql_postgres_version" {
+  description = "Cloud SQL PostgreSQL database version for dev."
+  type        = string
+  default     = "POSTGRES_16"
+}
+
+variable "cloudsql_tier" {
+  description = "Cloud SQL machine tier for dev."
+  type        = string
+  default     = "db-f1-micro"
+}
+
+variable "cloudsql_availability_type" {
+  description = "Cloud SQL availability type for dev."
+  type        = string
+  default     = "ZONAL"
+}
+
+variable "cloudsql_database_name" {
+  description = "Application database name for dev."
+  type        = string
+  default     = "ledger_dev"
+}
+
+variable "cloudsql_database_user" {
+  description = "Application database user for dev."
+  type        = string
+  default     = "ledger_app"
+}
+
+variable "cloudsql_database_password" {
+  description = "Application database password for dev. Provide only through ignored terraform.tfvars or TF_VAR_cloudsql_database_password."
+  type        = string
+  sensitive   = true
+}
+
+variable "cloudsql_deletion_protection" {
+  description = "Whether the dev Cloud SQL instance is protected from deletion."
+  type        = bool
+  default     = true
+}
+
+variable "cloudsql_backup_configuration" {
+  description = "Cloud SQL backup configuration for dev."
+  type = object({
+    enabled                        = bool
+    start_time                     = string
+    point_in_time_recovery_enabled = bool
+    transaction_log_retention_days = number
+    location                       = optional(string)
+  })
+  default = {
+    enabled                        = true
+    start_time                     = "03:00"
+    point_in_time_recovery_enabled = true
+    transaction_log_retention_days = 7
+    location                       = null
+  }
+}

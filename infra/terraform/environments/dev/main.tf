@@ -30,6 +30,13 @@ resource "google_project_service" "pubsub" {
   disable_on_destroy = false
 }
 
+resource "google_project_service" "sqladmin" {
+  project = var.project_id
+  service = "sqladmin.googleapis.com"
+
+  disable_on_destroy = false
+}
+
 resource "google_project_service_identity" "pubsub" {
   provider = google-beta
 
@@ -66,4 +73,29 @@ module "pubsub_ledger_events" {
   }
 
   depends_on = [google_project_service.pubsub]
+}
+
+module "cloudsql_postgres" {
+  source = "../../modules/cloudsql-postgres"
+
+  project_id        = var.project_id
+  region            = var.region
+  environment       = "dev"
+  app_name          = "poc-ledger"
+  instance_name     = var.cloudsql_instance_name
+  postgres_version  = var.cloudsql_postgres_version
+  tier              = var.cloudsql_tier
+  availability_type = var.cloudsql_availability_type
+  database_name     = var.cloudsql_database_name
+  database_user     = var.cloudsql_database_user
+  database_password = var.cloudsql_database_password
+
+  deletion_protection  = var.cloudsql_deletion_protection
+  backup_configuration = var.cloudsql_backup_configuration
+
+  labels = {
+    managed_by = "terraform"
+  }
+
+  depends_on = [google_project_service.sqladmin]
 }

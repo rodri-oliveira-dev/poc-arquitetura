@@ -42,7 +42,7 @@ As tasks ficam em `.vscode/tasks.json`. Execute `Tasks: Run Task` e escolha:
 - `terraform: tflint`;
 - `terraform: validate all`.
 
-As tasks `init` e `validate` apontam para o root module de desenvolvimento em `infra/terraform/environments/dev`. Esse ambiente habilita `pubsub.googleapis.com`, compoe o modulo reutilizavel `infra/terraform/modules/pubsub-ledger-events` e configura backend remoto GCS parcial, com bucket `rodri-terraform-state-bucket` e prefixo de state `poc-arquitetura/pubsub/dev`. O passo a passo para configurar variaveis locais, revisar o plano e aplicar manualmente fica em [`infra/terraform/environments/dev/README.md`](../../infra/terraform/environments/dev/README.md).
+As tasks `init` e `validate` apontam para o root module de desenvolvimento em `infra/terraform/environments/dev`. Esse ambiente habilita `pubsub.googleapis.com` e `sqladmin.googleapis.com`, compoe os modulos reutilizaveis `infra/terraform/modules/pubsub-ledger-events` e `infra/terraform/modules/cloudsql-postgres`, e configura backend remoto GCS parcial, com bucket `rodri-terraform-state-bucket` e prefixo de state `poc-arquitetura/pubsub/dev`. O passo a passo para configurar variaveis locais, revisar o plano e aplicar manualmente fica em [`infra/terraform/environments/dev/README.md`](../../infra/terraform/environments/dev/README.md).
 
 ## Validacao local
 
