@@ -61,6 +61,18 @@ As variaveis `AUTH_POC_USERNAME`, `AUTH_POC_PASSWORD` e `AUTH_POC_SCOPE` continu
 
 O PostgreSQL local roda em um unico container `postgres-db`, com database `appdb`, schemas `ledger` e `balance`, e usuarios separados por servico/responsabilidade. As connection strings dos servicos runtime no compose usam `postgres-db:5432/appdb`; as variaveis `LEDGER_DB_*` e `BALANCE_DB_*` configuram as senhas locais usadas pelo init do container e pelas connection strings do compose. Em volumes PostgreSQL existentes, alterar `.env` ou `compose.yaml` nao altera automaticamente roles, grants ou senhas ja gravadas no banco; para reaplicar o init, recrie conscientemente o volume local ou execute o SQL manualmente.
 
+Topologia local de banco:
+
+| Responsabilidade | Database/schema | Usuario |
+| --- | --- | --- |
+| Runtime do LedgerService.Api e LedgerService.Worker | `appdb.ledger` | `ledger_app_user` |
+| Migrations do LedgerService | `appdb.ledger` | `ledger_migrator_user` |
+| Runtime de leitura do BalanceService.Api | `appdb.balance` | `balance_read_user` |
+| Runtime de escrita do BalanceService.Worker | `appdb.balance` | `balance_write_user` |
+| Migrations do BalanceService | `appdb.balance` | `balance_migrator_user` |
+
+O `BalanceService.Api` deve permanecer read-only no banco: ele consulta a projecao `balance`, mas nao aplica eventos nem executa INSERT/UPDATE/DELETE. A escrita da projecao pertence ao `BalanceService.Worker` com `balance_write_user`. A reducao para um unico container e apenas local; o isolamento logico entre servicos continua sendo preservado por schemas, migrations separadas e grants por role.
+
 Nao reutilize esses valores fora da maquina local. Em ambientes compartilhados ou produtivos, use um mecanismo proprio de secret/config store e credenciais rotacionaveis.
 
 ## Stack local com compose
@@ -240,7 +252,17 @@ Para limpeza segura sem apagar bancos ou outros volumes:
 ./scripts/docker-clean-safe.sh
 ```
 
-Esses scripts usam `docker compose down --remove-orphans` sem `-v` e oferecem `docker builder prune`/`docker image prune` com confirmacao. Para apagar volumes conscientemente, use comandos explicitos como `docker volume rm poc-arquitetura_postgres-data` ou `docker compose ... down -v` apenas quando os dados locais forem descartaveis.
+Esses scripts usam `docker compose down --remove-orphans` sem `-v` e oferecem `docker builder prune`/`docker image prune` com confirmacao.
+
+Reset destrutivo do PostgreSQL local:
+
+```bash
+docker compose stop ledger-service ledger-worker balance-service balance-worker postgres-db
+docker compose rm -f postgres-db
+docker volume rm poc-arquitetura_postgres-data
+```
+
+Esse reset apaga todos os dados locais do database `appdb`, incluindo os schemas `ledger` e `balance`, roles, grants e historico de migrations gravados no volume. Use apenas quando os dados locais forem descartaveis e suba novamente `postgres-db` ou execute `./scripts/start-local-stack.*` para recriar a topologia pelo bootstrap em `infra/postgres/init`.
 
 ### Keycloak local
 

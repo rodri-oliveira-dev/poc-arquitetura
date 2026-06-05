@@ -540,8 +540,7 @@ Portas expostas no host:
 - Keycloak: `http://localhost:8081/`;
 - LedgerService.Api: `http://localhost:5226/`;
 - BalanceService.Api: `http://localhost:5228/`;
-- PostgreSQL Ledger: `localhost:15432`;
-- PostgreSQL Balance: `localhost:15433`;
+- PostgreSQL local unico: `localhost:15432`, database `appdb`, schemas `ledger` e `balance`;
 - Kafka: `localhost:19092`;
 - Jaeger UI: `http://localhost:16686` com profile `observability`;
 - Jaeger OTLP gRPC/HTTP: `localhost:4317` e `localhost:4318`, expostos para diagnostico direto com profile `observability`;
@@ -553,7 +552,7 @@ Portas expostas no host:
 - Alertmanager: `http://localhost:9093` com profile `observability`;
 - Grafana: `http://localhost:3000` com profile `observability`.
 
-O compose sobrescreve configuracoes por variaveis de ambiente para usar os nomes internos `ledger-db`, `balance-db`, `kafka` e `otel-collector`. `OTEL_ENABLED=true` habilita a exportacao das aplicacoes para o Collector; sem essa variavel e sem `compose.observability.yaml`, o core funcional continua sem backend de observabilidade no caminho de startup. Aplique migrations manualmente antes de usar as APIs em banco vazio.
+O compose sobrescreve configuracoes por variaveis de ambiente para usar os nomes internos `postgres-db`, `kafka` e `otel-collector`. `OTEL_ENABLED=true` habilita a exportacao das aplicacoes para o Collector; sem essa variavel e sem `compose.observability.yaml`, o core funcional continua sem backend de observabilidade no caminho de startup. Aplique migrations manualmente antes de usar as APIs em banco vazio.
 
 ### Validacao local com Jaeger, Prometheus, Loki e Grafana
 
@@ -711,7 +710,7 @@ Pre-requisitos:
 
 - Docker-compatible API disponivel;
 - stack local com migrations aplicadas;
-- portas do compose livres: `8081`, `5226`, `5228`, `15432`, `15433`, `8085` e, com profile `observability`, `16686`, `4317`, `4318`, `9090`, `3100`, `12345`, `9093` e `3000`;
+- portas do compose livres: `8081`, `5226`, `5228`, `15432`, `8085` e, com profile `observability`, `16686`, `4317`, `4318`, `9090`, `3100`, `12345`, `9093` e `3000`;
 - profile `observability` ativo e `OTEL_ENABLED=true` quando a validacao incluir traces no Jaeger.
 
 Suba a stack local completa. O script aplica migrations antes de iniciar Ledger e Balance:
@@ -804,7 +803,7 @@ Os dois scripts usam `scripts/get-token.ps1`, enviam `Authorization`, `Idempoten
 
 Limitacoes conhecidas:
 
-- os scripts assumem o compose local e os nomes de servico `ledger-db`, `balance-db`, `ledger-service`, `ledger-worker`, `balance-service` e `balance-worker`;
+- os scripts assumem o compose local e os nomes de servico `postgres-db`, `ledger-service`, `ledger-worker`, `balance-service` e `balance-worker`;
 - os scripts consultam bancos diretamente para validar estados assincronos e identificadores internos que nao fazem parte do contrato publico de criacao de lancamento;
 - a validacao do Jaeger confirma traces recentes por servico, nao uma busca por `CorrelationId` na UI;
 - a politica local do PowerShell pode exigir `-ExecutionPolicy Bypass` na invocacao do processo;
@@ -837,8 +836,8 @@ Guarde o `id` retornado no body, por exemplo `lan_12345678`, e a data de `occurr
 Consultas SQL uteis pelo compose:
 
 ```bash
-docker compose exec -T ledger-db psql -U appuser -d appdb \
-  -c "SELECT id, event_type, status, retry_count, correlation_id, traceparent, tracestate, baggage, processed_at FROM outbox_messages WHERE correlation_id = '11111111-1111-4111-8111-111111111111' ORDER BY occurred_at DESC LIMIT 5;"
+docker compose exec -T -e PGPASSWORD=local_dev_password postgres-db psql -U ledger_app_user -d appdb \
+  -c "SELECT id, event_type, status, retry_count, correlation_id, traceparent, tracestate, baggage, processed_at FROM ledger.outbox_messages WHERE correlation_id = '11111111-1111-4111-8111-111111111111' ORDER BY occurred_at DESC LIMIT 5;"
 ```
 
 Durante uma janela curta, a mensagem pode aparecer como `Pending` ou `Processing`. Depois do polling do `OutboxPublisherService`, o esperado e `Processed`. Se Kafka estiver indisponivel, acompanhe `retry_count`, `next_retry_at`, `last_error` e eventual `DeadLetter`.
@@ -846,11 +845,11 @@ Durante uma janela curta, a mensagem pode aparecer como `Pending` ou `Processing
 No Balance, confirme o efeito funcional:
 
 ```bash
-docker compose exec -T balance-db psql -U userBalance -d dbBalance \
-  -c "SELECT event_id, merchant_id, processed_at FROM processed_events WHERE event_id = '<ID_RETORNADO_PELO_LEDGER>';"
+docker compose exec -T -e PGPASSWORD=local_dev_password postgres-db psql -U balance_read_user -d appdb \
+  -c "SELECT event_id, merchant_id, processed_at FROM balance.processed_events WHERE event_id = '<ID_RETORNADO_PELO_LEDGER>';"
 
-docker compose exec -T balance-db psql -U userBalance -d dbBalance \
-  -c "SELECT merchant_id, date, currency, total_credits, total_debits, net_balance FROM daily_balances WHERE merchant_id = 'tese' ORDER BY updated_at DESC LIMIT 5;"
+docker compose exec -T -e PGPASSWORD=local_dev_password postgres-db psql -U balance_read_user -d appdb \
+  -c "SELECT merchant_id, date, currency, total_credits, total_debits, net_balance FROM balance.daily_balances WHERE merchant_id = 'tese' ORDER BY updated_at DESC LIMIT 5;"
 ```
 
 Tambem e possivel consultar a API de leitura, usando o mesmo token:

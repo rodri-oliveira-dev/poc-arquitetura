@@ -29,8 +29,7 @@ $requiredPorts = @(
   @{ Name = "Loki"; Port = 3100 },
   @{ Name = "Grafana Alloy"; Port = 12345 },
   @{ Name = "Pub/Sub emulator"; Port = 8085 },
-  @{ Name = "PostgreSQL Ledger"; Port = 15432 },
-  @{ Name = "PostgreSQL Balance"; Port = 15433 },
+  @{ Name = "PostgreSQL"; Port = 15432 },
   @{ Name = "Jaeger OTLP gRPC"; Port = 4317 },
   @{ Name = "Jaeger OTLP HTTP"; Port = 4318 }
 )
