@@ -11,15 +11,14 @@ networks:
     driver: bridge
 
 volumes:
-  ledger-postgres-data:
-  balance-postgres-data:
+  postgres-data:
 
 
 services:
   # --- Databases ---
-  ledger-db:
+  postgres-db:
     image: docker.io/postgres:16
-    container_name: poc-ledger-db
+    container_name: poc-postgres-db
     logging: *default-logging
     environment:
       POSTGRES_DB: appdb
@@ -28,7 +27,7 @@ services:
     ports:
       # Porta exposta para uso local (psql, migrations, etc.)
       # Obs: pode conflitar com um Postgres já rodando no host.
-      - "15432:5432"
+      - "${POSTGRES_HOST_PORT:-15432}:5432"
     deploy:
       resources:
         limits:
@@ -36,39 +35,11 @@ services:
           memory: 512m
           pids: 256
     volumes:
-      - ledger-postgres-data:/var/lib/postgresql/data
+      - postgres-data:/var/lib/postgresql/data
     networks:
       - poc-net
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U appuser -d appdb" ]
-      interval: 5s
-      timeout: 3s
-      retries: 20
-
-  balance-db:
-    image: docker.io/postgres:16
-    container_name: poc-balance-db
-    logging: *default-logging
-    environment:
-      POSTGRES_DB: "${BALANCE_DB_NAME:-dbBalance}"
-      POSTGRES_USER: "${BALANCE_DB_USER:-userBalance}"
-      POSTGRES_PASSWORD: "${BALANCE_DB_PASSWORD:-local_dev_password}"
-    ports:
-      # Mantem a porta 15433 no host por padrao, apenas para conveniencia local.
-      # Obs: pode conflitar com um Postgres já rodando no host.
-      - "${BALANCE_DB_HOST_PORT:-15433}:5432"
-    deploy:
-      resources:
-        limits:
-          cpus: "0.50"
-          memory: 512m
-          pids: 256
-    volumes:
-      - balance-postgres-data:/var/lib/postgresql/data
-    networks:
-      - poc-net
-    healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\"" ]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -243,7 +214,7 @@ services:
     container_name: poc-ledger-service
     logging: *default-logging
     depends_on:
-      ledger-db:
+      postgres-db:
         condition: service_healthy
     environment:
       ASPNETCORE_URLS: "http://+:8080"
@@ -258,7 +229,7 @@ services:
       Jwt__RequireHttpsMetadata: "${JWT_REQUIRE_HTTPS_METADATA:-false}"
 
       # Overrides dos appsettings (no container, 127.0.0.1 aponta para ele mesmo)
-      ConnectionStrings__DefaultConnection: "Host=ledger-db;Port=5432;Database=appdb;Username=appuser;Password=${POSTGRES_PASSWORD:-local_dev_password}"
+      ConnectionStrings__DefaultConnection: "Host=postgres-db;Port=5432;Database=appdb;Username=appuser;Password=${POSTGRES_PASSWORD:-local_dev_password}"
       Observability__OpenTelemetry__Enabled: "${OTEL_ENABLED:-false}"
       Observability__OpenTelemetry__UseConsoleExporter: "false"
       Observability__OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"
@@ -282,7 +253,7 @@ services:
     container_name: poc-ledger-worker
     logging: *default-logging
     depends_on:
-      ledger-db:
+      postgres-db:
         condition: service_healthy
       pubsub-init:
         condition: service_completed_successfully
@@ -290,7 +261,7 @@ services:
       DOTNET_ENVIRONMENT: "Development"
 
       # Overrides dos appsettings (no container, 127.0.0.1 aponta para ele mesmo)
-      ConnectionStrings__DefaultConnection: "Host=ledger-db;Port=5432;Database=appdb;Username=appuser;Password=${POSTGRES_PASSWORD:-local_dev_password}"
+      ConnectionStrings__DefaultConnection: "Host=postgres-db;Port=5432;Database=appdb;Username=appuser;Password=${POSTGRES_PASSWORD:-local_dev_password}"
       Messaging__Provider: "PubSub"
       PubSub__Enabled: "true"
       PUBSUB_EMULATOR_HOST: "pubsub-emulator:8085"
@@ -323,7 +294,7 @@ services:
     container_name: poc-balance-service
     logging: *default-logging
     depends_on:
-      balance-db:
+      postgres-db:
         condition: service_healthy
     environment:
       ASPNETCORE_URLS: "http://+:8080"
@@ -338,7 +309,7 @@ services:
       Jwt__RequireHttpsMetadata: "${JWT_REQUIRE_HTTPS_METADATA:-false}"
 
       # Overrides dos appsettings
-      ConnectionStrings__DefaultConnection: "Host=${BALANCE_DB_HOST:-balance-db};Port=${BALANCE_DB_PORT:-5432};Database=${BALANCE_DB_NAME:-dbBalance};Username=${BALANCE_DB_USER:-userBalance};Password=${BALANCE_DB_PASSWORD:-local_dev_password}"
+      ConnectionStrings__DefaultConnection: "Host=${BALANCE_DB_HOST:-postgres-db};Port=${BALANCE_DB_PORT:-5432};Database=${BALANCE_DB_NAME:-appdb};Username=${BALANCE_DB_USER:-appuser};Password=${BALANCE_DB_PASSWORD:-local_dev_password}"
       Observability__OpenTelemetry__Enabled: "${OTEL_ENABLED:-false}"
       Observability__OpenTelemetry__UseConsoleExporter: "false"
       Observability__OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"
@@ -361,7 +332,7 @@ services:
     container_name: poc-balance-worker
     logging: *default-logging
     depends_on:
-      balance-db:
+      postgres-db:
         condition: service_healthy
       pubsub-init:
         condition: service_completed_successfully
@@ -369,7 +340,7 @@ services:
       DOTNET_ENVIRONMENT: "Development"
 
       # Overrides dos appsettings (no container, 127.0.0.1 aponta para ele mesmo)
-      ConnectionStrings__DefaultConnection: "Host=${BALANCE_DB_HOST:-balance-db};Port=${BALANCE_DB_PORT:-5432};Database=${BALANCE_DB_NAME:-dbBalance};Username=${BALANCE_DB_USER:-userBalance};Password=${BALANCE_DB_PASSWORD:-local_dev_password}"
+      ConnectionStrings__DefaultConnection: "Host=${BALANCE_DB_HOST:-postgres-db};Port=${BALANCE_DB_PORT:-5432};Database=${BALANCE_DB_NAME:-appdb};Username=${BALANCE_DB_USER:-appuser};Password=${BALANCE_DB_PASSWORD:-local_dev_password}"
       Messaging__Provider: "PubSub"
       PubSub__Enabled: "true"
       PUBSUB_EMULATOR_HOST: "pubsub-emulator:8085"
