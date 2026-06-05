@@ -315,7 +315,7 @@ services:
       Jwt__RequireHttpsMetadata: "${JWT_REQUIRE_HTTPS_METADATA:-false}"
 
       # Overrides dos appsettings
-      ConnectionStrings__DefaultConnection: "Host=${BALANCE_DB_HOST:-postgres-db};Port=${BALANCE_DB_PORT:-5432};Database=${BALANCE_DB_NAME:-appdb};Username=balance_read_user;Password=${BALANCE_DB_READ_PASSWORD:-local_dev_password}"
+      ConnectionStrings__DefaultConnection: "Host=postgres-db;Port=5432;Database=appdb;Username=balance_read_user;Password=${BALANCE_DB_READ_PASSWORD:-local_dev_password}"
       Observability__OpenTelemetry__Enabled: "${OTEL_ENABLED:-false}"
       Observability__OpenTelemetry__UseConsoleExporter: "false"
       Observability__OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"
@@ -346,7 +346,7 @@ services:
       DOTNET_ENVIRONMENT: "Development"
 
       # Overrides dos appsettings (no container, 127.0.0.1 aponta para ele mesmo)
-      ConnectionStrings__DefaultConnection: "Host=${BALANCE_DB_HOST:-postgres-db};Port=${BALANCE_DB_PORT:-5432};Database=${BALANCE_DB_NAME:-appdb};Username=balance_write_user;Password=${BALANCE_DB_WRITE_PASSWORD:-local_dev_password}"
+      ConnectionStrings__DefaultConnection: "Host=postgres-db;Port=5432;Database=appdb;Username=balance_write_user;Password=${BALANCE_DB_WRITE_PASSWORD:-local_dev_password}"
       Messaging__Provider: "PubSub"
       PubSub__Enabled: "true"
       PUBSUB_EMULATOR_HOST: "pubsub-emulator:8085"

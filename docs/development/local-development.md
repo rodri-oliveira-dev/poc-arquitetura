@@ -34,9 +34,6 @@ O compose usa defaults ficticios para desenvolvimento local. Para sobrescrever, 
 - `POSTGRES_HOST_PORT=15432`
 - `LEDGER_DB_PASSWORD=local_dev_password`
 - `LEDGER_DB_MIGRATOR_PASSWORD=local_dev_password`
-- `BALANCE_DB_HOST=postgres-db`
-- `BALANCE_DB_PORT=5432`
-- `BALANCE_DB_NAME=appdb`
 - `BALANCE_DB_READ_PASSWORD=local_dev_password`
 - `BALANCE_DB_WRITE_PASSWORD=local_dev_password`
 - `BALANCE_DB_MIGRATOR_PASSWORD=local_dev_password`
@@ -62,7 +59,7 @@ O compose usa defaults ficticios para desenvolvimento local. Para sobrescrever, 
 
 As variaveis `AUTH_POC_USERNAME`, `AUTH_POC_PASSWORD` e `AUTH_POC_SCOPE` continuam aceitas apenas pelo overlay legado `compose.auth-legacy.yaml`.
 
-O PostgreSQL local roda em um unico container `postgres-db`, com database `appdb`, schemas `ledger` e `balance`, e usuarios separados por servico/responsabilidade. As variaveis `LEDGER_DB_*` e `BALANCE_DB_*` configuram as senhas locais usadas pelo init do container e pelas connection strings do compose. Em volumes PostgreSQL existentes, alterar `.env` ou `compose.yaml` nao altera automaticamente roles, grants ou senhas ja gravadas no banco; para reaplicar o init, recrie conscientemente o volume local ou execute o SQL manualmente.
+O PostgreSQL local roda em um unico container `postgres-db`, com database `appdb`, schemas `ledger` e `balance`, e usuarios separados por servico/responsabilidade. As connection strings dos servicos runtime no compose usam `postgres-db:5432/appdb`; as variaveis `LEDGER_DB_*` e `BALANCE_DB_*` configuram as senhas locais usadas pelo init do container e pelas connection strings do compose. Em volumes PostgreSQL existentes, alterar `.env` ou `compose.yaml` nao altera automaticamente roles, grants ou senhas ja gravadas no banco; para reaplicar o init, recrie conscientemente o volume local ou execute o SQL manualmente.
 
 Nao reutilize esses valores fora da maquina local. Em ambientes compartilhados ou produtivos, use um mecanismo proprio de secret/config store e credenciais rotacionaveis.
 
