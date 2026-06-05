@@ -4,10 +4,9 @@ Este guia aponta os caminhos de diagnostico mais comuns sem duplicar os guias op
 
 ## Migrations falham
 
-Confirme se o PostgreSQL do servico esta acessivel e se a connection string usa a porta correta do compose:
+Confirme se o PostgreSQL local esta acessivel e se a connection string usa a porta correta do compose:
 
-- Ledger: `localhost:15432`
-- Balance: `localhost:15433`
+- PostgreSQL: `localhost:15432`
 
 Os comandos oficiais ficam em [migrations via compose](development/local-development.md#migrations-via-compose). Nao altere migrations antigas apenas para organizar.
 
@@ -254,46 +253,46 @@ No compose local, use `docker compose -f compose.yaml logs -f ledger-worker bala
 
 Detalhes ficam em [observabilidade](observability.md#readiness) e [Kafka, Outbox e DLQ](development/kafka-outbox.md).
 
-## password authentication failed for user "userBalance"
+## password authentication failed for user "balance_write_user"
 
-Esse erro indica que o `BalanceService.Api`, `BalanceService.Worker`, migration ou runner k6 tentou acessar o PostgreSQL do Balance com as credenciais locais configuradas, mas o banco recusou a autenticacao.
+Esse erro indica que uma API, worker, migration ou runner k6 tentou acessar o PostgreSQL local com as credenciais configuradas, mas o banco recusou a autenticacao.
 
-A causa mais comum e um volume `balance-postgres-data` inicializado com uma senha antiga. Em containers PostgreSQL, `POSTGRES_USER`, `POSTGRES_PASSWORD` e `POSTGRES_DB` so criam/alteram credenciais quando o diretorio de dados esta vazio. Alterar `.env` ou `compose.yaml` depois que o volume existe nao troca a senha dentro do banco.
+A causa mais comum e um volume `postgres-data` inicializado antes da mudanca de senha, role ou grant. Em containers PostgreSQL, scripts em `/docker-entrypoint-initdb.d` e variaveis `POSTGRES_*` so criam/alteram objetos quando o diretorio de dados esta vazio. Alterar `.env` ou `compose.yaml` depois que o volume existe nao troca a senha dentro do banco.
 
 Confirme nos logs:
 
 ```bash
-docker compose logs balance-db
+docker compose logs postgres-db
 docker compose logs balance-service
 ```
 
 Valide a autenticacao real com as credenciais configuradas. Se voce usa os defaults locais:
 
 ```bash
-docker compose exec -T -e PGPASSWORD=local_dev_password balance-db psql -h balance-db -U userBalance -d dbBalance -c "select 1;"
+docker compose exec -T -e PGPASSWORD=local_dev_password postgres-db psql -h postgres-db -U balance_write_user -d appdb -c "select 1;"
 ```
 
-Se houver `.env`, confira se `BALANCE_DB_NAME`, `BALANCE_DB_USER` e `BALANCE_DB_PASSWORD` batem com a connection string efetiva do compose:
+Se houver `.env`, confira se `LEDGER_DB_PASSWORD`, `BALANCE_DB_READ_PASSWORD`, `BALANCE_DB_WRITE_PASSWORD` e `BALANCE_DB_MIGRATOR_PASSWORD` batem com a connection string efetiva do compose:
 
 ```bash
 docker compose config
 ```
 
-Quando a senha antiga for conhecida, atualize a senha manualmente dentro do PostgreSQL. Exemplo usando o usuario configurado do Balance:
+Quando a senha administrativa local for conhecida, atualize a senha manualmente dentro do PostgreSQL. Exemplo para o usuario de escrita do Balance:
 
 ```bash
-docker compose exec -T -e PGPASSWORD=<senha-antiga> balance-db psql -h balance-db -U userBalance -d dbBalance -c "ALTER USER \"userBalance\" WITH PASSWORD 'local_dev_password';"
+docker compose exec -T -e PGPASSWORD=<postgres-password> postgres-db psql -h postgres-db -U postgres_admin -d appdb -c "ALTER USER balance_write_user WITH PASSWORD 'local_dev_password';"
 ```
 
-Se os dados locais forem descartaveis, recrie conscientemente apenas o volume do Balance. Esta acao apaga dados locais desse banco:
+Se os dados locais forem descartaveis, recrie conscientemente o volume PostgreSQL. Esta acao apaga dados locais dos schemas `ledger` e `balance`:
 
 ```bash
-docker compose stop balance-service balance-worker balance-db
-docker compose rm -f balance-db
+docker compose stop ledger-service ledger-worker balance-service balance-worker postgres-db
+docker compose rm -f postgres-db
 docker volume ls
-docker volume rm poc-arquitetura_balance-postgres-data
-docker compose up -d balance-db
-docker compose exec -T -e PGPASSWORD=local_dev_password balance-db psql -h balance-db -U userBalance -d dbBalance -c "select 1;"
+docker volume rm poc-arquitetura_postgres-data
+docker compose up -d postgres-db
+docker compose exec -T -e PGPASSWORD=local_dev_password postgres-db psql -h postgres-db -U balance_write_user -d appdb -c "select 1;"
 ```
 
 Use o nome real mostrado por `docker volume ls` caso o projeto Compose tenha outro nome. Nao use `docker compose down -v`, porque isso remove volumes de outros servicos. Depois de recriar o banco, aplique as migrations pelo fluxo local documentado e reexecute o smoke de carga:

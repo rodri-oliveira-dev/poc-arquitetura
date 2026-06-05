@@ -22,8 +22,13 @@ services:
     logging: *default-logging
     environment:
       POSTGRES_DB: appdb
-      POSTGRES_USER: appuser
+      POSTGRES_USER: postgres_admin
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-local_dev_password}"
+      LEDGER_DB_PASSWORD: "${LEDGER_DB_PASSWORD:-local_dev_password}"
+      LEDGER_DB_MIGRATOR_PASSWORD: "${LEDGER_DB_MIGRATOR_PASSWORD:-local_dev_password}"
+      BALANCE_DB_READ_PASSWORD: "${BALANCE_DB_READ_PASSWORD:-local_dev_password}"
+      BALANCE_DB_WRITE_PASSWORD: "${BALANCE_DB_WRITE_PASSWORD:-local_dev_password}"
+      BALANCE_DB_MIGRATOR_PASSWORD: "${BALANCE_DB_MIGRATOR_PASSWORD:-local_dev_password}"
     ports:
       # Porta exposta para uso local (psql, migrations, etc.)
       # Obs: pode conflitar com um Postgres já rodando no host.
@@ -36,10 +41,11 @@ services:
           pids: 256
     volumes:
       - postgres-data:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
     networks:
       - poc-net
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U appuser -d appdb" ]
+      test: [ "CMD-SHELL", "pg_isready -U postgres_admin -d appdb" ]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -229,7 +235,7 @@ services:
       Jwt__RequireHttpsMetadata: "${JWT_REQUIRE_HTTPS_METADATA:-false}"
 
       # Overrides dos appsettings (no container, 127.0.0.1 aponta para ele mesmo)
-      ConnectionStrings__DefaultConnection: "Host=postgres-db;Port=5432;Database=appdb;Username=appuser;Password=${POSTGRES_PASSWORD:-local_dev_password}"
+      ConnectionStrings__DefaultConnection: "Host=postgres-db;Port=5432;Database=appdb;Username=ledger_app_user;Password=${LEDGER_DB_PASSWORD:-local_dev_password}"
       Observability__OpenTelemetry__Enabled: "${OTEL_ENABLED:-false}"
       Observability__OpenTelemetry__UseConsoleExporter: "false"
       Observability__OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"
@@ -261,7 +267,7 @@ services:
       DOTNET_ENVIRONMENT: "Development"
 
       # Overrides dos appsettings (no container, 127.0.0.1 aponta para ele mesmo)
-      ConnectionStrings__DefaultConnection: "Host=postgres-db;Port=5432;Database=appdb;Username=appuser;Password=${POSTGRES_PASSWORD:-local_dev_password}"
+      ConnectionStrings__DefaultConnection: "Host=postgres-db;Port=5432;Database=appdb;Username=ledger_app_user;Password=${LEDGER_DB_PASSWORD:-local_dev_password}"
       Messaging__Provider: "PubSub"
       PubSub__Enabled: "true"
       PUBSUB_EMULATOR_HOST: "pubsub-emulator:8085"
@@ -309,7 +315,7 @@ services:
       Jwt__RequireHttpsMetadata: "${JWT_REQUIRE_HTTPS_METADATA:-false}"
 
       # Overrides dos appsettings
-      ConnectionStrings__DefaultConnection: "Host=${BALANCE_DB_HOST:-postgres-db};Port=${BALANCE_DB_PORT:-5432};Database=${BALANCE_DB_NAME:-appdb};Username=${BALANCE_DB_USER:-appuser};Password=${BALANCE_DB_PASSWORD:-local_dev_password}"
+      ConnectionStrings__DefaultConnection: "Host=${BALANCE_DB_HOST:-postgres-db};Port=${BALANCE_DB_PORT:-5432};Database=${BALANCE_DB_NAME:-appdb};Username=balance_read_user;Password=${BALANCE_DB_READ_PASSWORD:-local_dev_password}"
       Observability__OpenTelemetry__Enabled: "${OTEL_ENABLED:-false}"
       Observability__OpenTelemetry__UseConsoleExporter: "false"
       Observability__OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"
@@ -340,7 +346,7 @@ services:
       DOTNET_ENVIRONMENT: "Development"
 
       # Overrides dos appsettings (no container, 127.0.0.1 aponta para ele mesmo)
-      ConnectionStrings__DefaultConnection: "Host=${BALANCE_DB_HOST:-postgres-db};Port=${BALANCE_DB_PORT:-5432};Database=${BALANCE_DB_NAME:-appdb};Username=${BALANCE_DB_USER:-appuser};Password=${BALANCE_DB_PASSWORD:-local_dev_password}"
+      ConnectionStrings__DefaultConnection: "Host=${BALANCE_DB_HOST:-postgres-db};Port=${BALANCE_DB_PORT:-5432};Database=${BALANCE_DB_NAME:-appdb};Username=balance_write_user;Password=${BALANCE_DB_WRITE_PASSWORD:-local_dev_password}"
       Messaging__Provider: "PubSub"
       PubSub__Enabled: "true"
       PUBSUB_EMULATOR_HOST: "pubsub-emulator:8085"

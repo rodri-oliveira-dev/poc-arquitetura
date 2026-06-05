@@ -5,12 +5,12 @@ deployment {
   environment local "Ambiente local" {
     technology "Docker Compose / nerdctl compose"
     summary "Ambiente local da POC definido no compose.yaml."
-    description "Ambiente local executado em Docker Compose, com APIs, workers, bancos, Pub/Sub emulator principal, Kafka legado opcional e stack de observabilidade na rede poc-net."
+    description "Ambiente local executado em Docker Compose, com APIs, workers, PostgreSQL unico com schemas por servico, Pub/Sub emulator principal, Kafka legado opcional e stack de observabilidade na rede poc-net."
 
     composeNetwork pocNet "poc-net" {
       technology "Docker bridge network"
       summary "Rede bridge compartilhada pelos servicos do compose local."
-      description "Rede Docker Compose usada para comunicacao interna entre APIs, workers, bancos, Pub/Sub emulator principal, Kafka legado opcional e observabilidade."
+      description "Rede Docker Compose usada para comunicacao interna entre APIs, workers, PostgreSQL, Pub/Sub emulator principal, Kafka legado opcional e observabilidade."
 
       composeService keycloak "keycloak" {
         technology "Docker container / Keycloak"
@@ -92,23 +92,18 @@ deployment {
         }
       }
 
-      composeService ledgerDb "ledger-db" {
+      composeService postgresDb "postgres-db" {
         technology "PostgreSQL 16"
-        description "Servico Docker Compose que executa o banco PostgreSQL do LedgerService."
+        description "Servico Docker Compose que executa o PostgreSQL local unico com database appdb, schemas ledger e balance, e roles separadas por responsabilidade."
 
-        db = instanceOf ledger.ledgerDb {
-          title "poc-ledger-db"
-          description "Banco local do Ledger exposto na porta 15432 do host e 5432 no container."
+        ledgerSchema = instanceOf ledger.ledgerDb {
+          title "poc-postgres-db / schema ledger"
+          description "Schema local do Ledger no PostgreSQL unico, acessado por ledger_app_user em runtime e ledger_migrator_user para migrations."
         }
-      }
 
-      composeService balanceDb "balance-db" {
-        technology "PostgreSQL 16"
-        description "Servico Docker Compose que executa o banco PostgreSQL do BalanceService."
-
-        db = instanceOf balance.balanceDb {
-          title "poc-balance-db"
-          description "Banco local do Balance exposto na porta 15433 do host e 5432 no container."
+        balanceSchema = instanceOf balance.balanceDb {
+          title "poc-postgres-db / schema balance"
+          description "Schema local do Balance no PostgreSQL unico, acessado por balance_read_user, balance_write_user e balance_migrator_user conforme responsabilidade."
         }
       }
 
