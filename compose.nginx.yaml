@@ -66,6 +66,28 @@ services:
     networks:
       - poc-net
 
+  nginx-certs-init:
+    image: alpine:3.22
+    container_name: poc-nginx-certs-init
+    logging: *default-logging
+    network_mode: none
+    command:
+      - sh
+      - -ec
+      - |
+        cp /source/localhost.crt /target/localhost.crt
+        cp /source/localhost.key /target/localhost.key
+        chmod 0444 /target/localhost.crt /target/localhost.key
+    volumes:
+      - ./infra/nginx/certs:/source:ro
+      - nginx-certs:/target
+    deploy:
+      resources:
+        limits:
+          cpus: "0.10"
+          memory: 32m
+          pids: 32
+
   nginx-edge:
     image: poc-arquitetura-nginx-edge:local
     build:
@@ -74,6 +96,8 @@ services:
     container_name: poc-nginx-edge
     logging: *default-logging
     depends_on:
+      nginx-certs-init:
+        condition: service_completed_successfully
       ledger-service-1:
         condition: service_started
       ledger-service-2:
@@ -81,12 +105,12 @@ services:
       balance-service:
         condition: service_started
     ports:
-      - "7443:443"
+      - "7443:8080"
     volumes:
       - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./infra/nginx/security-headers.conf:/etc/nginx/conf.d/security-headers.conf:ro
       - ./infra/nginx/html:/usr/share/nginx/html:ro
-      - ./infra/nginx/certs:/etc/nginx/certs:ro
+      - nginx-certs:/etc/nginx/certs:ro
     deploy:
       resources:
         limits:
@@ -95,3 +119,6 @@ services:
           pids: 128
     networks:
       - poc-net
+
+volumes:
+  nginx-certs:
