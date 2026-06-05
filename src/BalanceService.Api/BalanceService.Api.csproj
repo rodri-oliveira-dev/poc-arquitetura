@@ -28,6 +28,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>poc-arquitetura-balance-service-api</UserSecretsId>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <!-- Evita ruído de warnings de documentação XML em tipos públicos.
          Mantemos documentação nos contratos HTTP e endpoints relevantes. -->
