@@ -55,7 +55,10 @@ function Get-LocalConfigValue([string]$Name, [string]$DefaultValue) {
 
 $postgresHostPort = Get-LocalConfigValue "POSTGRES_HOST_PORT" "15432"
 $postgresDatabase = "appdb"
+$ledgerRuntimePassword = Get-LocalConfigValue "LEDGER_DB_PASSWORD" "local_dev_password"
 $ledgerMigratorPassword = Get-LocalConfigValue "LEDGER_DB_MIGRATOR_PASSWORD" "local_dev_password"
+$balanceReadPassword = Get-LocalConfigValue "BALANCE_DB_READ_PASSWORD" "local_dev_password"
+$balanceWritePassword = Get-LocalConfigValue "BALANCE_DB_WRITE_PASSWORD" "local_dev_password"
 $balanceMigratorPassword = Get-LocalConfigValue "BALANCE_DB_MIGRATOR_PASSWORD" "local_dev_password"
 
 if ([string]::IsNullOrWhiteSpace($ComposeFile)) {
@@ -199,7 +202,10 @@ try {
   Invoke-DockerCompose $infraArgs
 
   Wait-Database "postgres-db" "postgres_admin" $postgresDatabase
+  Assert-DatabaseAuthentication "ledger_app_user" $ledgerRuntimePassword
   Assert-DatabaseAuthentication "ledger_migrator_user" $ledgerMigratorPassword
+  Assert-DatabaseAuthentication "balance_read_user" $balanceReadPassword
+  Assert-DatabaseAuthentication "balance_write_user" $balanceWritePassword
   Assert-DatabaseAuthentication "balance_migrator_user" $balanceMigratorPassword
 
   Invoke-Migration `

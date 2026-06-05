@@ -104,7 +104,7 @@ LIMIT 1;
 "@
 
 $estornoCreatedRow = Wait-Until "registro em estornos_lancamentos" $PollingTimeoutSeconds $PollingIntervalSeconds {
-  Invoke-PostgresScalar "ledger-db" "appuser" "appdb" $estornoSql
+  Invoke-PostgresScalar $script:PostgresService $script:LedgerDbUser $script:LedgerDbName $estornoSql
 } {
   param($value)
   $value -match [Regex]::Escape($estornoId)
@@ -117,7 +117,7 @@ Write-Host "Outbox solicitacao estorno: $reversalRequestedOutbox"
 
 Write-Host "Aguardando processamento assincrono do estorno..."
 $estornoCompletedRow = Wait-Until "estorno em estado final" $PollingTimeoutSeconds $PollingIntervalSeconds {
-  Invoke-PostgresScalar "ledger-db" "appuser" "appdb" $estornoSql
+  Invoke-PostgresScalar $script:PostgresService $script:LedgerDbUser $script:LedgerDbName $estornoSql
 } {
   param($value)
   $value -match '\|Completed\|'
@@ -140,7 +140,7 @@ FROM ledger_entries
 WHERE id = '$compensatingLedgerEntryId'
 LIMIT 1;
 "@
-$compensatingRow = Invoke-PostgresScalar "ledger-db" "appuser" "appdb" $compensatingSql
+$compensatingRow = Invoke-PostgresScalar $script:PostgresService $script:LedgerDbUser $script:LedgerDbName $compensatingSql
 Write-Host "Lancamento compensatorio: $compensatingRow"
 
 $expectedCompensatingReference = "estorno:$($originalLedgerEntryId.Replace('-', ''))"

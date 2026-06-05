@@ -77,7 +77,7 @@ LIMIT 1;
 "@
 
 $outboxRow = Wait-Until "Outbox Processed" $PollingTimeoutSeconds $PollingIntervalSeconds {
-  Invoke-PostgresScalar "ledger-db" "appuser" "appdb" $outboxSql
+  Invoke-PostgresScalar $script:PostgresService $script:LedgerDbUser $script:LedgerDbName $outboxSql
 } {
   param($value)
   $value -match '\|LedgerEntryCreated\.v1\|Processed\|'
@@ -94,7 +94,7 @@ LIMIT 1;
 "@
 
 $processedRow = Wait-Until "processed_events no Balance" $PollingTimeoutSeconds $PollingIntervalSeconds {
-  Invoke-PostgresScalar "balance-db" $script:BalanceDbUser $script:BalanceDbName $processedSql
+  Invoke-PostgresScalar $script:PostgresService $script:BalanceDbUser $script:BalanceDbName $processedSql
 } {
   param($value)
   $value -match [Regex]::Escape($ledgerEntryId)
@@ -109,7 +109,7 @@ WHERE merchant_id = '$MerchantId' AND date = DATE '$balanceDate'
 LIMIT 1;
 "@
 
-$balanceRow = Invoke-PostgresScalar "balance-db" $script:BalanceDbUser $script:BalanceDbName $balanceSql
+$balanceRow = Invoke-PostgresScalar $script:PostgresService $script:BalanceDbUser $script:BalanceDbName $balanceSql
 Write-Host "Daily balance DB: $balanceRow"
 
 Write-Host "Consultando BalanceService.Api..."

@@ -47,7 +47,10 @@ get_local_config_value() {
 
 POSTGRES_HOST_PORT="$(get_local_config_value POSTGRES_HOST_PORT 15432)"
 POSTGRES_DATABASE="appdb"
+LEDGER_DB_PASSWORD="$(get_local_config_value LEDGER_DB_PASSWORD local_dev_password)"
 LEDGER_DB_MIGRATOR_PASSWORD="$(get_local_config_value LEDGER_DB_MIGRATOR_PASSWORD local_dev_password)"
+BALANCE_DB_READ_PASSWORD="$(get_local_config_value BALANCE_DB_READ_PASSWORD local_dev_password)"
+BALANCE_DB_WRITE_PASSWORD="$(get_local_config_value BALANCE_DB_WRITE_PASSWORD local_dev_password)"
 BALANCE_DB_MIGRATOR_PASSWORD="$(get_local_config_value BALANCE_DB_MIGRATOR_PASSWORD local_dev_password)"
 
 compose_files=(-f "$COMPOSE_FILE")
@@ -144,7 +147,10 @@ if [[ "$OBSERVABILITY" == "true" ]]; then
 fi
 
 wait_database postgres-db postgres_admin "$POSTGRES_DATABASE"
+assert_database_authentication ledger_app_user "$LEDGER_DB_PASSWORD"
 assert_database_authentication ledger_migrator_user "$LEDGER_DB_MIGRATOR_PASSWORD"
+assert_database_authentication balance_read_user "$BALANCE_DB_READ_PASSWORD"
+assert_database_authentication balance_write_user "$BALANCE_DB_WRITE_PASSWORD"
 assert_database_authentication balance_migrator_user "$BALANCE_DB_MIGRATOR_PASSWORD"
 
 run_migration \
