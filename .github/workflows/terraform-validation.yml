@@ -63,7 +63,7 @@ jobs:
           exit-code: "1"
           tf-vars: infra/terraform/environments/dev/validation.tfvars
           hide-progress: true
-          skip-dirs: .git,.terraform,TestResults,artifacts
+          skip-dirs: .git,.terraform,**/bin,**/obj,.vs,.idea,TestResults,**/TestResults,coverage,CodeCoverage,StrykerOutput,.dotnet,.dotnet-home,.nuget,artifacts,infra/nginx/certs
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3

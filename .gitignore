@@ -49,6 +49,15 @@ Desktop.ini
 .env.*
 !.env.example
 
+# Local certificates and private keys
+*.key
+*.pem
+*.pfx
+*.p12
+infra/nginx/certs/*
+!infra/nginx/certs/.gitignore
+!infra/nginx/certs/README.md
+
 # Testes
 **/TestResults/
 

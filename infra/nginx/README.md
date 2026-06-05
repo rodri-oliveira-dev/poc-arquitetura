@@ -11,6 +11,18 @@ O Nginx espera encontrar os arquivos abaixo, montados como volume:
 
 Nao versione certificados, chaves privadas, senhas ou material sensivel. A pasta `certs` ignora todo conteudo gerado localmente.
 
+Opcao recomendada via script do repositorio:
+
+```powershell
+./scripts/generate-local-certs.ps1
+```
+
+No Linux/macOS:
+
+```bash
+./scripts/generate-local-certs.sh
+```
+
 Opcao recomendada com `mkcert`:
 
 ```bash

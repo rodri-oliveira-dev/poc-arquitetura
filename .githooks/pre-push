@@ -31,8 +31,20 @@ run_trivy_security_scan() {
     --tf-vars "$trivy_tf_vars" \
     --skip-dirs .git \
     --skip-dirs .terraform \
+    --skip-dirs "**/bin" \
+    --skip-dirs "**/obj" \
+    --skip-dirs .vs \
+    --skip-dirs .idea \
     --skip-dirs TestResults \
+    --skip-dirs "**/TestResults" \
+    --skip-dirs coverage \
+    --skip-dirs CodeCoverage \
+    --skip-dirs StrykerOutput \
+    --skip-dirs .dotnet \
+    --skip-dirs .dotnet-home \
+    --skip-dirs .nuget \
     --skip-dirs artifacts \
+    --skip-dirs infra/nginx/certs \
     .
 
   echo "==> pre-push: executando Trivy fs (vulnerabilidades, secrets e misconfigurations)"
@@ -43,8 +55,20 @@ run_trivy_security_scan() {
     --tf-vars "$trivy_tf_vars" \
     --skip-dirs .git \
     --skip-dirs .terraform \
+    --skip-dirs "**/bin" \
+    --skip-dirs "**/obj" \
+    --skip-dirs .vs \
+    --skip-dirs .idea \
     --skip-dirs TestResults \
+    --skip-dirs "**/TestResults" \
+    --skip-dirs coverage \
+    --skip-dirs CodeCoverage \
+    --skip-dirs StrykerOutput \
+    --skip-dirs .dotnet \
+    --skip-dirs .dotnet-home \
+    --skip-dirs .nuget \
     --skip-dirs artifacts \
+    --skip-dirs infra/nginx/certs \
     .
 }
 

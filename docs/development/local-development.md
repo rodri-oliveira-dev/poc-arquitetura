@@ -468,6 +468,18 @@ Antes de subir o overlay, gere ou disponibilize um certificado local em:
 
 Esses arquivos nao devem ser versionados. A opcao recomendada para certificado confiavel no host e `mkcert`:
 
+```powershell
+./scripts/generate-local-certs.ps1
+```
+
+No Linux/macOS:
+
+```bash
+./scripts/generate-local-certs.sh
+```
+
+O script usa `mkcert` quando disponivel e faz fallback para OpenSSL. Para executar manualmente com `mkcert`:
+
 ```bash
 mkcert -install
 mkcert -cert-file infra/nginx/certs/localhost.crt -key-file infra/nginx/certs/localhost.key localhost ledger.localhost balance.localhost

@@ -8,7 +8,7 @@ O hook local `.githooks/pre-push` e o workflow `.github/workflows/terraform-vali
 
 ```powershell
 trivy config --severity HIGH,CRITICAL --tf-vars infra/terraform/environments/dev/validation.tfvars .
-trivy fs --scanners vuln,secret,misconfig --severity HIGH,CRITICAL --tf-vars infra/terraform/environments/dev/validation.tfvars .
+trivy fs --scanners vuln,secret,misconfig --severity HIGH,CRITICAL --tf-vars infra/terraform/environments/dev/validation.tfvars --skip-dirs .git --skip-dirs .terraform --skip-dirs "**/bin" --skip-dirs "**/obj" --skip-dirs .vs --skip-dirs .idea --skip-dirs TestResults --skip-dirs "**/TestResults" --skip-dirs coverage --skip-dirs CodeCoverage --skip-dirs StrykerOutput --skip-dirs .dotnet --skip-dirs .dotnet-home --skip-dirs .nuget --skip-dirs artifacts --skip-dirs infra/nginx/certs .
 ```
 
 O scan de configuracao usa tambem
@@ -76,15 +76,17 @@ Na raiz do repositorio:
 
 ```powershell
 trivy config --severity HIGH,CRITICAL --tf-vars infra/terraform/environments/dev/validation.tfvars .
-trivy fs --scanners vuln,secret,misconfig --severity HIGH,CRITICAL --tf-vars infra/terraform/environments/dev/validation.tfvars .
+trivy fs --scanners vuln,secret,misconfig --severity HIGH,CRITICAL --tf-vars infra/terraform/environments/dev/validation.tfvars --skip-dirs .git --skip-dirs .terraform --skip-dirs "**/bin" --skip-dirs "**/obj" --skip-dirs .vs --skip-dirs .idea --skip-dirs TestResults --skip-dirs "**/TestResults" --skip-dirs coverage --skip-dirs CodeCoverage --skip-dirs StrykerOutput --skip-dirs .dotnet --skip-dirs .dotnet-home --skip-dirs .nuget --skip-dirs artifacts --skip-dirs infra/nginx/certs .
 ```
 
 Para reproduzir o comportamento bloqueante usado pelo hook:
 
 ```powershell
 trivy config --severity HIGH,CRITICAL --exit-code 1 --tf-vars infra/terraform/environments/dev/validation.tfvars .
-trivy fs --scanners vuln,secret,misconfig --severity HIGH,CRITICAL --exit-code 1 --tf-vars infra/terraform/environments/dev/validation.tfvars .
+trivy fs --scanners vuln,secret,misconfig --severity HIGH,CRITICAL --exit-code 1 --tf-vars infra/terraform/environments/dev/validation.tfvars --skip-dirs .git --skip-dirs .terraform --skip-dirs "**/bin" --skip-dirs "**/obj" --skip-dirs .vs --skip-dirs .idea --skip-dirs TestResults --skip-dirs "**/TestResults" --skip-dirs coverage --skip-dirs CodeCoverage --skip-dirs StrykerOutput --skip-dirs .dotnet --skip-dirs .dotnet-home --skip-dirs .nuget --skip-dirs artifacts --skip-dirs infra/nginx/certs .
 ```
+
+O scan de filesystem continua analisando arquivos versionados relevantes como `Directory.Packages.props`, `.csproj`, Dockerfiles, Compose, Terraform e configuracoes. Os `skip-dirs` cobrem apenas diretorios gerados, caches locais e certificados locais do Nginx que nao devem ser versionados.
 
 ## CI
 

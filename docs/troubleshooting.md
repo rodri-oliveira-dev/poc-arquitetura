@@ -61,8 +61,8 @@ docker compose -f compose.yaml -f compose.nginx.yaml logs nginx-edge
 
 Erros comuns:
 
-- `cannot load certificate`: gere `infra/nginx/certs/localhost.crt`;
-- `cannot load certificate key`: gere `infra/nginx/certs/localhost.key`;
+- `cannot load certificate`: gere `infra/nginx/certs/localhost.crt` com `./scripts/generate-local-certs.ps1` ou `./scripts/generate-local-certs.sh`;
+- `cannot load certificate key`: gere `infra/nginx/certs/localhost.key` com `./scripts/generate-local-certs.ps1` ou `./scripts/generate-local-certs.sh`;
 - alerta de certificado no navegador: confie o certificado local ou use `mkcert -install`;
 - `connection refused` ao abrir Swagger via Nginx: confirme se `ledger-service-1`, `ledger-service-2` e `balance-service` estao em execucao e saudaveis.
 
