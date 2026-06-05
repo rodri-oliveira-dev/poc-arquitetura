@@ -15,6 +15,7 @@ public sealed class BalanceDbContext : DbContext, IUnitOfWork
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.HasDefaultSchema("balance");
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(BalanceDbContext).Assembly);
         base.OnModelCreating(modelBuilder);
     }

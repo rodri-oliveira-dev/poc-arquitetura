@@ -36,7 +36,9 @@ public sealed class PostgresBalanceFixture : IAsyncLifetime
     public BalanceDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<BalanceDbContext>()
-            .UseNpgsql(ConnectionString)
+            .UseNpgsql(
+                ConnectionString,
+                npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "balance"))
             .Options;
 
         return new BalanceDbContext(options);
@@ -48,7 +50,10 @@ public sealed class PostgresBalanceFixture : IAsyncLifetime
 
         services.AddLogging(builder => builder.AddDebug());
         services.AddSingleton<IClock>(new FixedClock(now));
-        services.AddDbContext<BalanceDbContext>(options => options.UseNpgsql(ConnectionString));
+        services.AddDbContext<BalanceDbContext>(options =>
+            options.UseNpgsql(
+                ConnectionString,
+                npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "balance")));
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<BalanceDbContext>());
         services.AddScoped<IDailyBalanceRepository, DailyBalanceRepository>();
         services.AddScoped<IProcessedEventRepository, ProcessedEventRepository>();
@@ -60,7 +65,7 @@ public sealed class PostgresBalanceFixture : IAsyncLifetime
     public async Task CleanAsync()
     {
         await using var db = CreateDbContext();
-        await db.Database.ExecuteSqlRawAsync("TRUNCATE TABLE processed_events, daily_balances;");
+        await db.Database.ExecuteSqlRawAsync("TRUNCATE TABLE balance.processed_events, balance.daily_balances;");
     }
 
     private sealed class FixedClock : IClock

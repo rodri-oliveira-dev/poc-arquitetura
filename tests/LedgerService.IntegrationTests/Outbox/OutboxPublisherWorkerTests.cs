@@ -265,7 +265,10 @@ public sealed class OutboxPublisherWorkerTests
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddDbContext<AppDbContext>(options => options.UseNpgsql(_fixture.ConnectionString));
+        services.AddDbContext<AppDbContext>(options =>
+            options.UseNpgsql(
+                _fixture.ConnectionString,
+                npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "ledger")));
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<AppDbContext>());
         services.AddScoped<IOutboxMessageRepository, OutboxMessageRepository>();
         services.AddSingleton<OutboxMetrics>();
@@ -307,7 +310,9 @@ public sealed class OutboxPublisherWorkerTests
     private AppDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseNpgsql(_fixture.ConnectionString)
+            .UseNpgsql(
+                _fixture.ConnectionString,
+                npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "ledger"))
             .Options;
         return new AppDbContext(options);
     }

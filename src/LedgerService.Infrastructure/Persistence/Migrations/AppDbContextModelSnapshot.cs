@@ -17,6 +17,7 @@ namespace LedgerService.Infrastructure.Persistence.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
+                .HasDefaultSchema("ledger")
                 .HasAnnotation("ProductVersion", "10.0.8")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
@@ -99,7 +100,7 @@ namespace LedgerService.Infrastructure.Persistence.Migrations
                     b.HasIndex("LancamentoOriginalId", "Status")
                         .HasDatabaseName("idx_estornos_lancamentos_original_status");
 
-                    b.ToTable("estornos_lancamentos", (string)null);
+                    b.ToTable("estornos_lancamentos", "ledger");
                 });
 
             modelBuilder.Entity("LedgerService.Domain.Entities.IdempotencyRecord", b =>
@@ -152,7 +153,7 @@ namespace LedgerService.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ux_idempotency_records_merchant_key");
 
-                    b.ToTable("idempotency_records", (string)null);
+                    b.ToTable("idempotency_records", "ledger");
                 });
 
             modelBuilder.Entity("LedgerService.Domain.Entities.LedgerEntry", b =>
@@ -208,7 +209,7 @@ namespace LedgerService.Infrastructure.Persistence.Migrations
                     b.HasIndex("MerchantId", "OccurredAt")
                         .HasDatabaseName("idx_ledger_entries_merchant_occurred_at");
 
-                    b.ToTable("ledger_entries", null, t =>
+                    b.ToTable("ledger_entries", "ledger", t =>
                         {
                             t.HasCheckConstraint("ck_ledger_entries_amount_credit_debit", "(type = 'Credit' AND amount > 0) OR (type = 'Debit' AND amount < 0)");
                         });
@@ -317,7 +318,7 @@ namespace LedgerService.Infrastructure.Persistence.Migrations
                     b.HasIndex("Status", "NextRetryAt")
                         .HasDatabaseName("idx_outbox_pending");
 
-                    b.ToTable("outbox_messages", (string)null);
+                    b.ToTable("outbox_messages", "ledger");
                 });
 
             modelBuilder.Entity("LedgerService.Domain.Entities.ReprocessamentoLancamentos", b =>
@@ -390,7 +391,7 @@ namespace LedgerService.Infrastructure.Persistence.Migrations
                     b.HasIndex("MerchantId", "DataInicial", "DataFinal")
                         .HasDatabaseName("idx_reprocessamentos_lancamentos_merchant_periodo");
 
-                    b.ToTable("reprocessamentos_lancamentos", (string)null);
+                    b.ToTable("reprocessamentos_lancamentos", "ledger");
                 });
 #pragma warning restore 612, 618
         }

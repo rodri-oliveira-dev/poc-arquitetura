@@ -685,6 +685,13 @@ No modo legado, as portas e variaveis antigas continuam as mesmas: `http://local
 
 O compose nao aplica migrations automaticamente. Na primeira execucao com banco vazio, e sempre que houver mudanca de schema, aplique as migrations pelo host usando as portas expostas.
 
+Os `DbContext` usam schemas dedicados e tabelas de historico separadas:
+`ledger.__EFMigrationsHistory` para o Ledger e `balance.__EFMigrationsHistory`
+para o Balance. Como esta POC ja trata o PostgreSQL local como descartavel e
+os schemas sao criados pelo bootstrap em `infra/postgres/init`, as migrations
+atuais foram consolidadas em baselines iniciais por servico, em vez de uma
+cadeia incremental para mover objetos antigos do schema `public`.
+
 Execute as migrations dos dois servicos sequencialmente. As invocacoes de
 `dotnet-ef` compilam projetos compartilhados da solution; executa-las em
 paralelo pode causar disputa por artefatos em `bin/` e `obj/`.

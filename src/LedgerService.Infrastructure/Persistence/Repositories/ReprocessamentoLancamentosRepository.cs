@@ -35,7 +35,7 @@ public sealed class ReprocessamentoLancamentosRepository : IReprocessamentoLanca
 
         return await _context.ReprocessamentosLancamentos
             .FromSqlInterpolated(
-                $"SELECT * FROM reprocessamentos_lancamentos WHERE id = {reprocessamentoId} FOR UPDATE")
+                $"SELECT * FROM ledger.reprocessamentos_lancamentos WHERE id = {reprocessamentoId} FOR UPDATE")
             .FirstOrDefaultAsync(cancellationToken);
     }
 
