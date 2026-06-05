@@ -7,9 +7,14 @@ O repositorio usa Trivy para feedback antecipado sobre configuracoes de infraest
 O hook local `.githooks/pre-push` e o workflow `.github/workflows/terraform-validation.yml` executam:
 
 ```powershell
-trivy config --severity HIGH,CRITICAL .
-trivy fs --scanners vuln,secret,misconfig --severity HIGH,CRITICAL .
+trivy config --severity HIGH,CRITICAL --tf-vars infra/terraform/environments/dev/validation.tfvars .
+trivy fs --scanners vuln,secret,misconfig --severity HIGH,CRITICAL --tf-vars infra/terraform/environments/dev/validation.tfvars .
 ```
+
+O scan de configuracao usa tambem
+`infra/terraform/environments/dev/validation.tfvars`, que contem apenas valores
+nao sensiveis para analise estatica (`project_id` e `region`). Esse arquivo nao
+substitui `terraform.tfvars` local e nao deve receber segredos.
 
 Na pratica, isso cobre:
 
@@ -70,15 +75,15 @@ Quando o Trivy esta instalado, o `pre-push` bloqueia o push se encontrar achados
 Na raiz do repositorio:
 
 ```powershell
-trivy config --severity HIGH,CRITICAL .
-trivy fs --scanners vuln,secret,misconfig --severity HIGH,CRITICAL .
+trivy config --severity HIGH,CRITICAL --tf-vars infra/terraform/environments/dev/validation.tfvars .
+trivy fs --scanners vuln,secret,misconfig --severity HIGH,CRITICAL --tf-vars infra/terraform/environments/dev/validation.tfvars .
 ```
 
 Para reproduzir o comportamento bloqueante usado pelo hook:
 
 ```powershell
-trivy config --severity HIGH,CRITICAL --exit-code 1 .
-trivy fs --scanners vuln,secret,misconfig --severity HIGH,CRITICAL --exit-code 1 .
+trivy config --severity HIGH,CRITICAL --exit-code 1 --tf-vars infra/terraform/environments/dev/validation.tfvars .
+trivy fs --scanners vuln,secret,misconfig --severity HIGH,CRITICAL --exit-code 1 --tf-vars infra/terraform/environments/dev/validation.tfvars .
 ```
 
 ## CI

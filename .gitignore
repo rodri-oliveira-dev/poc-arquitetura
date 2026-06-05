@@ -111,6 +111,7 @@ infra/terraform/modules/**/.terraform.lock.hcl
 *.tfstate.*
 *.tfvars
 *.tfvars.json
+!infra/terraform/environments/dev/validation.tfvars
 *.tfplan
 tfplan
 

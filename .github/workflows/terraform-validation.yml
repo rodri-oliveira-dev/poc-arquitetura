@@ -50,6 +50,7 @@ jobs:
           scan-ref: .
           severity: HIGH,CRITICAL
           exit-code: "1"
+          tf-vars: infra/terraform/environments/dev/validation.tfvars
           hide-progress: true
 
       - name: Scan repository filesystem with Trivy
@@ -60,6 +61,7 @@ jobs:
           scanners: vuln,secret,misconfig
           severity: HIGH,CRITICAL
           exit-code: "1"
+          tf-vars: infra/terraform/environments/dev/validation.tfvars
           hide-progress: true
           skip-dirs: .git,.terraform,TestResults,artifacts
 

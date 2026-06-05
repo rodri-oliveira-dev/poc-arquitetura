@@ -15,6 +15,7 @@ fi
 cd "$repo_root"
 
 results_dir="$repo_root/TestResults/pre-push"
+trivy_tf_vars="$repo_root/infra/terraform/environments/dev/validation.tfvars"
 
 run_trivy_security_scan() {
   if ! command -v trivy >/dev/null 2>&1; then
@@ -27,6 +28,7 @@ run_trivy_security_scan() {
   trivy config \
     --severity HIGH,CRITICAL \
     --exit-code 1 \
+    --tf-vars "$trivy_tf_vars" \
     --skip-dirs .git \
     --skip-dirs .terraform \
     --skip-dirs TestResults \
@@ -38,6 +40,7 @@ run_trivy_security_scan() {
     --scanners vuln,secret,misconfig \
     --severity HIGH,CRITICAL \
     --exit-code 1 \
+    --tf-vars "$trivy_tf_vars" \
     --skip-dirs .git \
     --skip-dirs .terraform \
     --skip-dirs TestResults \

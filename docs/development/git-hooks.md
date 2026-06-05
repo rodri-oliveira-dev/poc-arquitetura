@@ -139,8 +139,8 @@ Para a validacao completa com cobertura, use `./test.sh`, `./test.ps1` ou `PRE_P
 Para executar apenas a validacao Trivy manualmente:
 
 ```bash
-trivy config --severity HIGH,CRITICAL .
-trivy fs --scanners vuln,secret,misconfig --severity HIGH,CRITICAL .
+trivy config --severity HIGH,CRITICAL --tf-vars infra/terraform/environments/dev/validation.tfvars .
+trivy fs --scanners vuln,secret,misconfig --severity HIGH,CRITICAL --tf-vars infra/terraform/environments/dev/validation.tfvars .
 ```
 
 ## GitHub Actions
