@@ -7,10 +7,16 @@ no host. O caminho esperado e:
 Aplicacao .NET em debug -> 127.0.0.1:5432 -> Cloud SQL Auth Proxy -> Cloud SQL PostgreSQL
 ```
 
-Este fluxo nao substitui o Docker Compose. No Compose local, o PostgreSQL
-continua sendo o container `postgres-db`, publicado no host em `15432` por
-padrao e acessado pelos containers como `postgres-db:5432`. No debug contra
-Cloud SQL, a aplicacao roda fora de container e usa `Host=127.0.0.1;Port=5432`.
+Existem dois fluxos locais:
+
+- Debug no host: a aplicacao .NET roda fora de container e usa
+  `Host=127.0.0.1;Port=5432`.
+- Docker Compose com Cloud SQL: a aplicacao roda em container e usa
+  `Host=cloud-sql-proxy;Port=5432`.
+
+No Compose local padrao, sem o overlay de Cloud SQL, o PostgreSQL continua
+sendo o container `postgres-db`, publicado no host em `15432` por padrao e
+acessado pelos containers como `postgres-db:5432`.
 
 Nao configure `authorized_networks` para liberar a maquina local e nunca use
 `0.0.0.0/0`. O acesso local deve passar pelo Cloud SQL Auth Proxy.
@@ -123,6 +129,82 @@ Mantenha esse terminal aberto enquanto depura a aplicacao. O proxy nao armazena
 a senha do banco; ele autentica a conexao ate a instancia com IAM/ADC. A
 aplicacao ainda usa usuario e senha PostgreSQL, salvo se uma decisao futura
 adotar IAM database authentication.
+
+## Subir o proxy com Docker Compose
+
+Use `compose.cloudsql.yaml` somente para smoke manual/local contra Cloud SQL.
+Ele adiciona o servico `cloud-sql-proxy`, desativa o `postgres-db` local e
+sobrescreve as connection strings das APIs e workers para
+`Host=cloud-sql-proxy;Port=5432`.
+
+O proxy escuta em `0.0.0.0` dentro do container porque outros containers da
+rede Compose precisam alcanca-lo. No host, a porta e publicada apenas em
+`127.0.0.1:${CLOUDSQL_PROXY_HOST_PORT:-5432}`, nunca em `0.0.0.0`.
+
+Configure um `.env` local a partir de `.env.example`:
+
+```dotenv
+CLOUDSQL_INSTANCE_CONNECTION_NAME=project-id:region:instance-name
+GOOGLE_APPLICATION_CREDENTIALS=./secrets/cloudsql/application_default_credentials.json
+CLOUDSQL_PROXY_HOST_PORT=5432
+DATABASE_NAME=appdb
+DATABASE_USER=app_user
+DATABASE_PASSWORD=change_me_local_only
+```
+
+`GOOGLE_APPLICATION_CREDENTIALS` deve apontar para um arquivo local ignorado
+pelo Git. Pode ser o ADC gerado por `gcloud auth application-default login` ou
+uma chave JSON de service account aprovada para desenvolvimento. Nao coloque o
+arquivo real no repositorio e nao versione `.env`.
+
+Exemplo com ADC copiado para uma pasta local ignorada:
+
+```powershell
+New-Item -ItemType Directory -Force .\secrets\cloudsql | Out-Null
+Copy-Item "$env:APPDATA\gcloud\application_default_credentials.json" `
+  .\secrets\cloudsql\application_default_credentials.json
+```
+
+Como alternativa, mantenha a credencial fora do repositorio e aponte a variavel
+para o caminho absoluto local.
+
+Para subir somente o proxy:
+
+```bash
+docker compose -f compose.yaml -f compose.cloudsql.yaml up -d cloud-sql-proxy
+```
+
+Para subir aplicacao e proxy:
+
+```bash
+docker compose -f compose.yaml -f compose.cloudsql.yaml up -d --build
+```
+
+Para validar a composicao sem iniciar containers:
+
+```bash
+docker compose -f compose.yaml -f compose.cloudsql.yaml config
+docker compose -f compose.yaml -f compose.cloudsql.yaml config --services
+```
+
+Para validar a conexao pelo host, use um cliente PostgreSQL local apontando
+para `127.0.0.1`:
+
+```bash
+psql "host=127.0.0.1 port=5432 dbname=<DATABASE_NAME> user=<DATABASE_USER> password=<DATABASE_PASSWORD>" -c "select 1;"
+```
+
+Para validar as APIs no Compose, use os endpoints operacionais expostos no
+host:
+
+```bash
+curl http://localhost:5226/ready
+curl http://localhost:5228/ready
+```
+
+O container oficial padrao do Cloud SQL Auth Proxy e distroless e nao traz
+shell, `curl` ou `pg_isready`. Por isso o overlay nao declara healthcheck de
+Compose para o proxy; use logs, `psql` ou `/ready` das APIs para smoke manual.
 
 ## Connection string para debug local
 
@@ -244,6 +326,9 @@ Nao crie teste apontando diretamente para Cloud SQL real. Se precisar validar
 Cloud SQL, faca smoke manual em ambiente dev, com proxy local e credenciais
 aprovadas.
 
+Os testes de integracao e os runners de carga existentes continuam usando o
+PostgreSQL local/Testcontainers. Nao adapte CI para depender de Cloud SQL real.
+
 ## Troubleshooting
 
 ### Porta 5432 ocupada
@@ -302,20 +387,28 @@ terraform output -raw database_user
 
 ### Docker Compose conectado no banco errado
 
-Compose e debug local sao fluxos diferentes:
+Compose padrao, Compose com Cloud SQL e debug local sao fluxos diferentes:
 
 - Compose: containers usam `postgres-db:5432`; host usa `127.0.0.1:15432`.
+- Compose com Cloud SQL: containers usam `cloud-sql-proxy:5432`; host usa
+  `127.0.0.1:5432` ou `127.0.0.1:${CLOUDSQL_PROXY_HOST_PORT}`.
 - Debug Cloud SQL: processo .NET no host usa `127.0.0.1:5432` com Auth Proxy.
 
-Nao use `postgres-db` para Cloud SQL e nao use `15432` se a intencao for passar
-pelo Auth Proxy na porta recomendada.
+Nao use `localhost` dentro do container da aplicacao para acessar o proxy. Em
+container, `localhost` aponta para o proprio container da aplicacao, nao para o
+servico `cloud-sql-proxy`. Nao use `postgres-db` para Cloud SQL e nao use
+`15432` se a intencao for passar pelo Auth Proxy na porta recomendada.
 
 ## Checklist de seguranca
 
 - Nao versionar `.env` real, `terraform.tfvars`, state, plans, chaves JSON ou
   connection strings com senha.
+- Nao versionar arquivos em `secrets/`; essa pasta e apenas um ponto local
+  ignorado para montar credenciais no proxy.
 - Nao adicionar `authorized_networks` para acesso local.
 - Nao usar `0.0.0.0/0`.
 - Nao exigir Cloud SQL real em testes de CI.
 - Preferir user-secrets para senha local no .NET.
 - Confirmar `Host=127.0.0.1` e `Port=5432` antes de depurar contra Cloud SQL.
+- Confirmar `Host=cloud-sql-proxy` e `Port=5432` quando a aplicacao rodar via
+  Docker Compose com `compose.cloudsql.yaml`.

@@ -21,7 +21,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [Validacao de seguranca com Trivy](development/trivy-security-scan.md): validar Dockerfiles, Terraform, misconfigurations, secrets e filesystem no hook local e no CI.
 - [Git hooks locais](development/git-hooks.md): instalar e entender `commit-msg`, `post-merge` e `pre-push`.
 - [Setup local Terraform e GCP](development/terraform-gcp-local-setup.md): instalar Terraform CLI, Google Cloud CLI e TFLint no Windows e executar validacoes locais seguras.
-- [Cloud SQL PostgreSQL local com Auth Proxy](development/cloudsql-postgres-local-setup.md): conectar aplicacao em debug a Cloud SQL por `127.0.0.1:5432` sem authorized networks.
+- [Cloud SQL PostgreSQL local com Auth Proxy](development/cloudsql-postgres-local-setup.md): conectar aplicacao em debug ou Docker Compose a Cloud SQL sem authorized networks.
 - [Checklist manual para primeiro apply Pub/Sub em GCP dev](development/pubsub-gcp-dev-apply-checklist.md): preparar projeto descartavel, revisar plano, autorizar apply manualmente e limpar recursos apos a validacao.
 - [Contrato Pub/Sub entre infraestrutura e aplicacao](development/pubsub-infra-app-contract.md): mapear outputs Terraform para options dos workers, IAM minimo e checklist para GCP real.
 - [Custo e free tier do Pub/Sub](development/pubsub-cost-and-free-tier.md): estimar throughput, identificar recursos que podem gerar custo e coletar dados para uma estimativa real.
