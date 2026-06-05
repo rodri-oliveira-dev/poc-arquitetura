@@ -49,7 +49,10 @@ public static class DependencyInjection
         var connectionString = configuration.GetConnectionString("DefaultConnection")
             ?? throw new InvalidOperationException("Connection string 'DefaultConnection' nao foi configurada.");
 
-        services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString));
+        services.AddDbContext<AppDbContext>(options =>
+            options.UseNpgsql(
+                connectionString,
+                npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "ledger")));
 
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<AppDbContext>());
 

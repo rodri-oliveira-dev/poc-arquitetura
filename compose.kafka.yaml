@@ -11,7 +11,7 @@ services:
 
   ledger-worker:
     depends_on: !reset
-      ledger-db:
+      postgres-db:
         condition: service_healthy
       kafka-init-topics:
         condition: service_completed_successfully
@@ -20,7 +20,7 @@ services:
 
   balance-worker:
     depends_on: !reset
-      balance-db:
+      postgres-db:
         condition: service_healthy
       kafka-init-topics:
         condition: service_completed_successfully

@@ -153,7 +153,13 @@ correspondente nao existir.
 
 ## Aplicar Terraform em dev
 
-O root module `infra/terraform/environments/dev` provisiona recursos reais na GCP: API Pub/Sub, service identity gerenciada, topics, subscriptions, service accounts dedicadas e bindings IAM de menor privilegio. O state ainda e local; nao versione `terraform.tfvars`, `tfplan`, state ou credenciais.
+O root module `infra/terraform/environments/dev` provisiona recursos reais na GCP: API Pub/Sub, service identity gerenciada, topics, subscriptions, service accounts dedicadas e bindings IAM de menor privilegio. O backend remoto GCS usa o bucket `rodri-terraform-state-bucket` e o prefixo `poc-arquitetura/pubsub/dev`. Nao versione `terraform.tfvars`, `tfplan`, state ou credenciais.
+
+O bucket de state deve ser dedicado, versionado e acessivel apenas a operadores
+Terraform autorizados, administradores de bootstrap/auditoria e identidade de
+CI/CD se um fluxo futuro executar `terraform plan` real. Service accounts dos
+workloads nao devem acessar o bucket de state. A [ADR-0080](../adrs/0080-backend-remoto-gcs-terraform-dev.md)
+registra a decisao de backend remoto GCS para dev.
 
 Antes do apply, confirme a identidade autenticada, o projeto dev alvo e a permissao para habilitar servicos e gerenciar Pub/Sub, service accounts e IAM dos recursos. Prefira ADC com impersonation em vez de chave JSON.
 
@@ -168,14 +174,26 @@ Edite somente o arquivo local `terraform.tfvars`, substitua o placeholder de `pr
 
 ```powershell
 terraform fmt -check
-terraform init
+terraform init -backend-config="bucket=rodri-terraform-state-bucket"
 terraform validate
 terraform plan -out=tfplan
 terraform apply tfplan
 terraform output
 ```
 
-O apply habilita `pubsub.googleapis.com` e pode gerar custo no projeto informado. Nao execute `terraform apply` automaticamente e nao use esse fluxo contra o emulator.
+O apply habilita `pubsub.googleapis.com` e pode gerar custo no projeto informado. Nao execute `terraform apply` automaticamente e nao use esse fluxo contra o emulator. Nao use `-lock=false`; o backend GCS deve proteger concorrencia durante `plan` e `apply`.
+
+Se existir state local anterior, faca backup e migre manualmente antes do
+primeiro plan operacional com backend remoto:
+
+```powershell
+Copy-Item terraform.tfstate terraform.tfstate.pre-gcs-migration.backup
+terraform init -migrate-state -backend-config="bucket=rodri-terraform-state-bucket"
+terraform state list
+terraform plan -var-file="terraform.tfvars"
+```
+
+Nao versionar o backup, arquivos de state, planos binarios ou credenciais.
 
 ### Impersonation local para smoke test
 

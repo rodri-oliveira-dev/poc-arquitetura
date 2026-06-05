@@ -18,6 +18,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [SonarQube local](quality/sonarqube.md): subir SonarQube com Docker Compose e executar analise estatica local.
 - [Mutation testing com Stryker.NET](development/mutation-testing-stryker.md): executar mutation testing local e interpretar relatorios.
 - [OWASP ZAP local](development/owasp-zap.md): executar DAST baseline local contra Ledger e Balance, com Auth.Api legado apenas opcional, salvando relatorios em `zap-reports/`.
+- [Validacao de seguranca com Trivy](development/trivy-security-scan.md): validar Dockerfiles, Terraform, misconfigurations, secrets e filesystem no hook local e no CI.
 - [Git hooks locais](development/git-hooks.md): instalar e entender `commit-msg`, `post-merge` e `pre-push`.
 - [Setup local Terraform e GCP](development/terraform-gcp-local-setup.md): instalar Terraform CLI, Google Cloud CLI e TFLint no Windows e executar validacoes locais seguras.
 - [Checklist manual para primeiro apply Pub/Sub em GCP dev](development/pubsub-gcp-dev-apply-checklist.md): preparar projeto descartavel, revisar plano, autorizar apply manualmente e limpar recursos apos a validacao.
@@ -49,6 +50,8 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [Boundaries arquiteturais](architecture/boundaries.md): responsabilidades de `Api`, `Application`, `Domain` e `Infrastructure`.
 - [Analise arquitetural e decisoes recomendadas](architecture/decisions.md): riscos, simplificacoes e roadmap pragmatico.
 - [ADRs](adrs/README.md): historico de decisoes arquiteturais e pontos de melhoria.
+- [Terraform state local e backend remoto](adrs/0079-terraform-state-local-e-backend-remoto.md): registra os riscos do state local, gatilhos e estrategia que antecederam a adocao do backend remoto GCS.
+- [Backend remoto GCS para Terraform dev](adrs/0080-backend-remoto-gcs-terraform-dev.md): registra a adocao do backend remoto parcial em GCS, separacao por ambiente e migracao manual de state.
 - [Mensageria por ports and adapters](adrs/0075-mensageria-ports-adapters-kafka-provider.md): historico da introducao do boundary quando Kafka ainda era o provider atual.
 - [Pub/Sub como provider principal](adrs/0078-pubsub-provider-principal-local-emulator.md): adota Pub/Sub como caminho principal, emulator como default local e Kafka como opcao legada.
 - [Pub/Sub como provider alternativo](adrs/0077-pubsub-provider-mensageria.md): historico do plano incremental que precedeu a adocao principal.

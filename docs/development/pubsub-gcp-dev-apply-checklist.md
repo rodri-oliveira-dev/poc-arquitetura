@@ -38,6 +38,11 @@ service account.
 - Para smoke test local com ADC impersonation, preencher
   `service_account_token_creator_members` somente no `terraform.tfvars` local.
 - Nao versionar `terraform.tfvars`, state, planos binarios ou credenciais.
+- Confirmar que o bucket GCS de state ja existe, possui versionamento habilitado
+  e acesso restrito aos operadores Terraform autorizados. O bucket dev atual e
+  `rodri-terraform-state-bucket`.
+- Confirmar que o state dev usa o prefixo `poc-arquitetura/pubsub/dev`,
+  conforme a [ADR-0080](../adrs/0080-backend-remoto-gcs-terraform-dev.md).
 
 O root module habilita explicitamente apenas `pubsub.googleapis.com`. O
 provider precisa acessar Service Usage para administrar essa API e usa IAM para
@@ -88,9 +93,18 @@ Entre no root module dev e execute somente operacoes de validacao e plano:
 
 ```bash
 cd infra/terraform/environments/dev
-terraform init
+terraform init -backend-config="bucket=rodri-terraform-state-bucket"
 terraform fmt -check
 terraform validate
+terraform plan -var-file="terraform.tfvars"
+```
+
+Se existir state local anterior, crie backup e migre manualmente:
+
+```bash
+cp terraform.tfstate terraform.tfstate.pre-gcs-migration.backup
+terraform init -migrate-state -backend-config="bucket=rodri-terraform-state-bucket"
+terraform state list
 terraform plan -var-file="terraform.tfvars"
 ```
 
@@ -98,9 +112,15 @@ O comando `terraform plan` pode consultar o projeto GCP, mas nao deve criar,
 alterar ou remover recursos. Revise integralmente o plano antes de autorizar
 qualquer apply.
 
+Nao use `-lock=false` com backend remoto. Essa flag contorna a protecao de
+concorrencia do backend GCS e pode permitir planos ou applies simultaneos sobre
+o mesmo state.
+
 ## Checklist antes do apply
 
 - [ ] O projeto selecionado e realmente descartavel.
+- [ ] O bucket de state informado no `terraform init` e `rodri-terraform-state-bucket`.
+- [ ] O prefixo de state e `poc-arquitetura/pubsub/dev`.
 - [ ] O billing foi habilitado conscientemente e os custos potenciais foram entendidos.
 - [ ] O plano nao inclui recursos fora do escopo Pub/Sub, IAM, API e service accounts.
 - [ ] Nenhuma role ampla como `Owner`, `Editor` ou `Viewer` foi concedida.

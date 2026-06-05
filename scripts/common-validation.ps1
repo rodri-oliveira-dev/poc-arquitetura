@@ -45,8 +45,11 @@ function Get-LocalConfigValue([string]$Name, [string]$DefaultValue) {
   return $value
 }
 
-$script:BalanceDbUser = Get-LocalConfigValue "BALANCE_DB_USER" "userBalance"
-$script:BalanceDbName = Get-LocalConfigValue "BALANCE_DB_NAME" "dbBalance"
+$script:PostgresService = "postgres-db"
+$script:LedgerDbUser = Get-LocalConfigValue "LEDGER_DB_USER" "ledger_app_user"
+$script:LedgerDbName = Get-LocalConfigValue "LEDGER_DB_NAME" "appdb"
+$script:BalanceDbUser = Get-LocalConfigValue "BALANCE_DB_USER" "balance_read_user"
+$script:BalanceDbName = Get-LocalConfigValue "BALANCE_DB_NAME" "appdb"
 
 function Invoke-WithEnv([hashtable]$Values, [scriptblock]$Script) {
   $previous = @{}
@@ -221,7 +224,7 @@ LIMIT 1;
 "@
 
   $row = Wait-Until "ledger_entries por external_reference=$ExternalReference" $PollingTimeoutSeconds $PollingIntervalSeconds {
-    Invoke-PostgresScalar "ledger-db" "appuser" "appdb" $sql
+    Invoke-PostgresScalar $script:PostgresService $script:LedgerDbUser $script:LedgerDbName $sql
   } {
     param($value)
     -not [string]::IsNullOrWhiteSpace($value)
@@ -245,7 +248,7 @@ LIMIT 1;
 "@
 
   Wait-Until "Outbox Processed para $EventType" $PollingTimeoutSeconds $PollingIntervalSeconds {
-    Invoke-PostgresScalar "ledger-db" "appuser" "appdb" $sql
+    Invoke-PostgresScalar $script:PostgresService $script:LedgerDbUser $script:LedgerDbName $sql
   } {
     param($value)
     $value -match "\|$([Regex]::Escape($EventType))\|Processed\|"
@@ -267,7 +270,7 @@ LIMIT 1;
 "@
 
   Wait-Until "Outbox Processed para aggregate_id=$AggregateId event_type=$EventType" $PollingTimeoutSeconds $PollingIntervalSeconds {
-    Invoke-PostgresScalar "ledger-db" "appuser" "appdb" $sql
+    Invoke-PostgresScalar $script:PostgresService $script:LedgerDbUser $script:LedgerDbName $sql
   } {
     param($value)
     $value -match "\|$([Regex]::Escape($AggregateId))\|$([Regex]::Escape($EventType))\|Processed\|"
@@ -288,7 +291,7 @@ WHERE aggregate_id = '$AggregateId' AND event_type = '$EventType' AND status = '
 "@
 
   Wait-Until "Outbox Processed count >= $ExpectedCount para aggregate_id=$AggregateId event_type=$EventType" $PollingTimeoutSeconds $PollingIntervalSeconds {
-    Invoke-PostgresScalar "ledger-db" "appuser" "appdb" $sql
+    Invoke-PostgresScalar $script:PostgresService $script:LedgerDbUser $script:LedgerDbName $sql
   } {
     param($value)
     [int]($value.Trim()) -ge $ExpectedCount
@@ -308,7 +311,7 @@ LIMIT 1;
 "@
 
   Wait-Until "processed_events no Balance para event_id=$EventId" $PollingTimeoutSeconds $PollingIntervalSeconds {
-    Invoke-PostgresScalar "balance-db" $script:BalanceDbUser $script:BalanceDbName $sql
+    Invoke-PostgresScalar $script:PostgresService $script:BalanceDbUser $script:BalanceDbName $sql
   } {
     param($value)
     $value -match [Regex]::Escape($EventId)
@@ -322,7 +325,7 @@ FROM processed_events
 WHERE event_id = '$EventId';
 "@
 
-  $value = Invoke-PostgresScalar "balance-db" $script:BalanceDbUser $script:BalanceDbName $sql
+  $value = Invoke-PostgresScalar $script:PostgresService $script:BalanceDbUser $script:BalanceDbName $sql
   return [int]($value.Trim())
 }
 
@@ -334,7 +337,7 @@ WHERE merchant_id = '$MerchantId' AND date = DATE '$BalanceDate'
 LIMIT 1;
 "@
 
-  Invoke-PostgresScalar "balance-db" $script:BalanceDbUser $script:BalanceDbName $sql
+  Invoke-PostgresScalar $script:PostgresService $script:BalanceDbUser $script:BalanceDbName $sql
 }
 
 function Get-DailyBalanceNet([string]$DailyBalanceRow) {

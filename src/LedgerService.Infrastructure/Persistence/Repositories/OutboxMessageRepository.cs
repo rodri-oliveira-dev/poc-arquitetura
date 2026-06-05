@@ -66,7 +66,7 @@ public sealed class OutboxMessageRepository : IOutboxMessageRepository
         var sql = @"
 WITH cte AS (
     SELECT id
-    FROM outbox_messages
+    FROM ledger.outbox_messages
     WHERE (
             status = @p_pending
             OR (status = @p_processing AND locked_until IS NOT NULL AND locked_until <= @p_now)
@@ -77,7 +77,7 @@ WITH cte AS (
     FOR UPDATE SKIP LOCKED
     LIMIT @p_batch
 )
-UPDATE outbox_messages o
+UPDATE ledger.outbox_messages o
 SET status = @p_processing,
     lock_owner = @p_lock_owner,
     locked_until = @p_locked_until
@@ -144,7 +144,7 @@ RETURNING o.*;
         }
 
         var sql = @"
-UPDATE outbox_messages
+UPDATE ledger.outbox_messages
 SET retry_count = retry_count + 1,
     last_error = @p_last_error,
     lock_owner = NULL,

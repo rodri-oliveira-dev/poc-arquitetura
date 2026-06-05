@@ -45,15 +45,13 @@ get_local_config_value() {
   printf '%s' "$value"
 }
 
-if [[ -z "${POSTGRES_PASSWORD:-}" ]]; then
-  POSTGRES_PASSWORD="$(get_local_env_value POSTGRES_PASSWORD)"
-fi
-POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-local_dev_password}"
-BALANCE_DB_NAME="$(get_local_config_value BALANCE_DB_NAME dbBalance)"
-BALANCE_DB_HOST="$(get_local_config_value BALANCE_DB_HOST balance-db)"
-BALANCE_DB_USER="$(get_local_config_value BALANCE_DB_USER userBalance)"
-BALANCE_DB_PASSWORD="$(get_local_config_value BALANCE_DB_PASSWORD local_dev_password)"
-BALANCE_DB_HOST_PORT="$(get_local_config_value BALANCE_DB_HOST_PORT 15433)"
+POSTGRES_HOST_PORT="$(get_local_config_value POSTGRES_HOST_PORT 15432)"
+POSTGRES_DATABASE="appdb"
+LEDGER_DB_PASSWORD="$(get_local_config_value LEDGER_DB_PASSWORD local_dev_password)"
+LEDGER_DB_MIGRATOR_PASSWORD="$(get_local_config_value LEDGER_DB_MIGRATOR_PASSWORD local_dev_password)"
+BALANCE_DB_READ_PASSWORD="$(get_local_config_value BALANCE_DB_READ_PASSWORD local_dev_password)"
+BALANCE_DB_WRITE_PASSWORD="$(get_local_config_value BALANCE_DB_WRITE_PASSWORD local_dev_password)"
+BALANCE_DB_MIGRATOR_PASSWORD="$(get_local_config_value BALANCE_DB_MIGRATOR_PASSWORD local_dev_password)"
 
 compose_files=(-f "$COMPOSE_FILE")
 if [[ -n "$COMPOSE_OVERLAY_FILE" ]]; then
@@ -80,24 +78,26 @@ wait_database() {
   return 1
 }
 
-assert_balance_database_authentication() {
+assert_database_authentication() {
+  local user="$1"
+  local password="$2"
+
   if ! docker compose "${compose_files[@]}" exec -T \
-    -e "PGPASSWORD=$BALANCE_DB_PASSWORD" \
-    balance-db \
-    psql -h "$BALANCE_DB_HOST" -U "$BALANCE_DB_USER" -d "$BALANCE_DB_NAME" -v "ON_ERROR_STOP=1" -c "select 1;" >/dev/null 2>&1; then
+    -e "PGPASSWORD=$password" \
+    postgres-db \
+    psql -h postgres-db -U "$user" -d "$POSTGRES_DATABASE" -v "ON_ERROR_STOP=1" -c "select 1;" >/dev/null 2>&1; then
     cat >&2 <<EOF
-Falha de autenticacao no banco Balance para o usuario "$BALANCE_DB_USER" e database "$BALANCE_DB_NAME".
+Falha de autenticacao no PostgreSQL local para o usuario "$user" e database "$POSTGRES_DATABASE".
 
 O volume local do PostgreSQL pode ter sido inicializado com uma senha diferente.
 Alterar .env ou compose.yaml nao atualiza credenciais dentro de um volume PostgreSQL existente.
 
 Verifique:
-  docker compose logs balance-db
-  docker compose logs balance-service
-  docker compose exec -T balance-db psql -h "$BALANCE_DB_HOST" -U "$BALANCE_DB_USER" -d "$BALANCE_DB_NAME" -c "select 1;"
+  docker compose logs postgres-db
+  docker compose exec -T postgres-db psql -h postgres-db -U "$user" -d "$POSTGRES_DATABASE" -c "select 1;"
 
 Para corrigir, atualize a senha manualmente dentro do PostgreSQL quando a senha antiga for conhecida,
-ou recrie somente o volume local do Balance se os dados forem descartaveis.
+ou recrie somente o volume local do PostgreSQL se os dados forem descartaveis.
 Nenhuma acao destrutiva foi executada automaticamente.
 EOF
     return 1
@@ -133,8 +133,7 @@ if [[ "$NO_BUILD" != "true" ]]; then
 fi
 
 "${compose_up[@]}" \
-  ledger-db \
-  balance-db \
+  postgres-db \
   keycloak
 
 if [[ "$MESSAGING_PROVIDER" == "PubSub" ]]; then
@@ -147,18 +146,21 @@ if [[ "$OBSERVABILITY" == "true" ]]; then
   "${compose_up[@]}" jaeger otel-collector prometheus alertmanager loki alloy grafana
 fi
 
-wait_database ledger-db appuser appdb
-wait_database balance-db "$BALANCE_DB_USER" "$BALANCE_DB_NAME"
-assert_balance_database_authentication
+wait_database postgres-db postgres_admin "$POSTGRES_DATABASE"
+assert_database_authentication ledger_app_user "$LEDGER_DB_PASSWORD"
+assert_database_authentication ledger_migrator_user "$LEDGER_DB_MIGRATOR_PASSWORD"
+assert_database_authentication balance_read_user "$BALANCE_DB_READ_PASSWORD"
+assert_database_authentication balance_write_user "$BALANCE_DB_WRITE_PASSWORD"
+assert_database_authentication balance_migrator_user "$BALANCE_DB_MIGRATOR_PASSWORD"
 
 run_migration \
-  "Host=127.0.0.1;Port=15432;Database=appdb;Username=appuser;Password=$POSTGRES_PASSWORD" \
+  "Host=127.0.0.1;Port=$POSTGRES_HOST_PORT;Database=$POSTGRES_DATABASE;Username=ledger_migrator_user;Password=$LEDGER_DB_MIGRATOR_PASSWORD" \
   "src/LedgerService.Infrastructure/LedgerService.Infrastructure.csproj" \
   "src/LedgerService.Api/LedgerService.Api.csproj" \
   "AppDbContext"
 
 run_migration \
-  "Host=127.0.0.1;Port=$BALANCE_DB_HOST_PORT;Database=$BALANCE_DB_NAME;Username=$BALANCE_DB_USER;Password=$BALANCE_DB_PASSWORD" \
+  "Host=127.0.0.1;Port=$POSTGRES_HOST_PORT;Database=$POSTGRES_DATABASE;Username=balance_migrator_user;Password=$BALANCE_DB_MIGRATOR_PASSWORD" \
   "src/BalanceService.Infrastructure/BalanceService.Infrastructure.csproj" \
   "src/BalanceService.Api/BalanceService.Api.csproj" \
   "BalanceDbContext"

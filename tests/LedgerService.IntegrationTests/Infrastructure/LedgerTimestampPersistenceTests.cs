@@ -1,7 +1,5 @@
 using LedgerService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LedgerService.IntegrationTests.Infrastructure;
@@ -50,44 +48,33 @@ public sealed class LedgerTimestampPersistenceTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Migration_should_convert_legacy_utc_timestamps_to_timestamptz()
+    public async Task Baseline_schema_should_persist_utc_timestamps_as_timestamptz()
     {
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var migrator = db.Database.GetService<IMigrator>();
         var entryId = Guid.NewGuid();
         var correlationId = Guid.NewGuid();
         var expectedUtc = new DateTime(2026, 6, 1, 12, 30, 0, DateTimeKind.Utc);
 
-        await migrator.MigrateAsync("20260522200438_AddOutboxDeadLetterBackoff");
-        try
-        {
-            await db.Database.ExecuteSqlRawAsync(
-                """
-                INSERT INTO ledger_entries
-                    (id, merchant_id, type, amount, occurred_at, description, external_reference, correlation_id, created_at)
-                VALUES
-                    ({0}, 'm1', 'Credit', 10.00, TIMESTAMP '2026-06-01 12:30:00', 'Venda', {1}, {2}, TIMESTAMP '2026-06-01 12:30:00');
-                """,
-                entryId,
-                $"ext-{Guid.NewGuid():N}",
-                correlationId);
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            INSERT INTO ledger.ledger_entries
+                (id, merchant_id, type, amount, occurred_at, description, external_reference, correlation_id, created_at)
+            VALUES
+                ({0}, 'm1', 'Credit', 10.00, TIMESTAMPTZ '2026-06-01 12:30:00+00', 'Venda', {1}, {2}, TIMESTAMPTZ '2026-06-01 12:30:00+00');
+            """,
+            entryId,
+            $"ext-{Guid.NewGuid():N}",
+            correlationId);
 
-            await migrator.MigrateAsync();
+        var actualColumns = await GetTimestampWithTimeZoneColumnsAsync(db);
+        Assert.True(ExpectedTimestampColumns.SetEquals(actualColumns));
 
-            var actualColumns = await GetTimestampWithTimeZoneColumnsAsync(db);
-            Assert.True(ExpectedTimestampColumns.SetEquals(actualColumns));
-
-            var saved = await db.LedgerEntries.AsNoTracking().SingleAsync(x => x.Id == entryId);
-            Assert.Equal(expectedUtc, saved.OccurredAt);
-            Assert.Equal(DateTimeKind.Utc, saved.OccurredAt.Kind);
-            Assert.Equal(expectedUtc, saved.CreatedAt);
-            Assert.Equal(DateTimeKind.Utc, saved.CreatedAt.Kind);
-        }
-        finally
-        {
-            await migrator.MigrateAsync();
-        }
+        var saved = await db.LedgerEntries.AsNoTracking().SingleAsync(x => x.Id == entryId);
+        Assert.Equal(expectedUtc, saved.OccurredAt);
+        Assert.Equal(DateTimeKind.Utc, saved.OccurredAt.Kind);
+        Assert.Equal(expectedUtc, saved.CreatedAt);
+        Assert.Equal(DateTimeKind.Utc, saved.CreatedAt.Kind);
     }
 
     private static async Task<HashSet<(string Table, string Column)>> GetTimestampWithTimeZoneColumnsAsync(
@@ -101,7 +88,7 @@ public sealed class LedgerTimestampPersistenceTests : IAsyncLifetime
             """
             SELECT table_name, column_name
             FROM information_schema.columns
-            WHERE table_schema = 'public'
+            WHERE table_schema = 'ledger'
               AND data_type = 'timestamp with time zone';
             """;
 

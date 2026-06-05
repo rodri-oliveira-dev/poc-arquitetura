@@ -53,19 +53,13 @@ function Get-LocalConfigValue([string]$Name, [string]$DefaultValue) {
   return $value
 }
 
-$postgresPassword = [System.Environment]::GetEnvironmentVariable("POSTGRES_PASSWORD", "Process")
-if ([string]::IsNullOrWhiteSpace($postgresPassword)) {
-  $postgresPassword = Get-LocalEnvValue "POSTGRES_PASSWORD"
-}
-if ([string]::IsNullOrWhiteSpace($postgresPassword)) {
-  $postgresPassword = "local_dev_password"
-}
-
-$balanceDbName = Get-LocalConfigValue "BALANCE_DB_NAME" "dbBalance"
-$balanceDbHost = Get-LocalConfigValue "BALANCE_DB_HOST" "balance-db"
-$balanceDbUser = Get-LocalConfigValue "BALANCE_DB_USER" "userBalance"
-$balanceDbPassword = Get-LocalConfigValue "BALANCE_DB_PASSWORD" "local_dev_password"
-$balanceDbHostPort = Get-LocalConfigValue "BALANCE_DB_HOST_PORT" "15433"
+$postgresHostPort = Get-LocalConfigValue "POSTGRES_HOST_PORT" "15432"
+$postgresDatabase = "appdb"
+$ledgerRuntimePassword = Get-LocalConfigValue "LEDGER_DB_PASSWORD" "local_dev_password"
+$ledgerMigratorPassword = Get-LocalConfigValue "LEDGER_DB_MIGRATOR_PASSWORD" "local_dev_password"
+$balanceReadPassword = Get-LocalConfigValue "BALANCE_DB_READ_PASSWORD" "local_dev_password"
+$balanceWritePassword = Get-LocalConfigValue "BALANCE_DB_WRITE_PASSWORD" "local_dev_password"
+$balanceMigratorPassword = Get-LocalConfigValue "BALANCE_DB_MIGRATOR_PASSWORD" "local_dev_password"
 
 if ([string]::IsNullOrWhiteSpace($ComposeFile)) {
   $ComposeFile = (Join-Path $root "compose.yaml")
@@ -114,15 +108,15 @@ function Wait-Database([string]$Service, [string]$User, [string]$Database) {
   throw "Banco indisponivel apos timeout: $Service"
 }
 
-function Assert-BalanceDatabaseAuthentication {
+function Assert-DatabaseAuthentication([string]$User, [string]$Password) {
   $composeArguments = @(Get-ComposeArguments)
   $previousErrorActionPreference = $ErrorActionPreference
   try {
     $ErrorActionPreference = "Continue"
     & docker @composeArguments exec -T `
-      -e "PGPASSWORD=$balanceDbPassword" `
-      "balance-db" `
-      psql -h $balanceDbHost -U $balanceDbUser -d $balanceDbName -v "ON_ERROR_STOP=1" -c "select 1;" 1>$null 2>$null
+      -e "PGPASSWORD=$Password" `
+      "postgres-db" `
+      psql -h postgres-db -U $User -d $postgresDatabase -v "ON_ERROR_STOP=1" -c "select 1;" 1>$null 2>$null
     $exitCode = $LASTEXITCODE
   }
   finally {
@@ -131,18 +125,17 @@ function Assert-BalanceDatabaseAuthentication {
 
   if ($exitCode -ne 0) {
     throw @"
-Falha de autenticacao no banco Balance para o usuario "$balanceDbUser" e database "$balanceDbName".
+Falha de autenticacao no PostgreSQL local para o usuario "$User" e database "$postgresDatabase".
 
 O volume local do PostgreSQL pode ter sido inicializado com uma senha diferente.
 Alterar .env ou compose.yaml nao atualiza credenciais dentro de um volume PostgreSQL existente.
 
 Verifique:
-  docker compose logs balance-db
-  docker compose logs balance-service
-  docker compose exec -T balance-db psql -h "$balanceDbHost" -U "$balanceDbUser" -d "$balanceDbName" -c "select 1;"
+  docker compose logs postgres-db
+  docker compose exec -T postgres-db psql -h postgres-db -U "$User" -d "$postgresDatabase" -c "select 1;"
 
 Para corrigir, atualize a senha manualmente dentro do PostgreSQL quando a senha antiga for conhecida,
-ou recrie somente o volume local do Balance se os dados forem descartaveis.
+ou recrie somente o volume local do PostgreSQL se os dados forem descartaveis.
 Nenhuma acao destrutiva foi executada automaticamente.
 "@
   }
@@ -186,8 +179,7 @@ try {
   }
 
   $infraArgs += @(
-    "ledger-db",
-    "balance-db",
+    "postgres-db",
     "keycloak"
   )
   if ($MessagingProvider -eq "PubSub") {
@@ -209,18 +201,21 @@ try {
   }
   Invoke-DockerCompose $infraArgs
 
-  Wait-Database "ledger-db" "appuser" "appdb"
-  Wait-Database "balance-db" $balanceDbUser $balanceDbName
-  Assert-BalanceDatabaseAuthentication
+  Wait-Database "postgres-db" "postgres_admin" $postgresDatabase
+  Assert-DatabaseAuthentication "ledger_app_user" $ledgerRuntimePassword
+  Assert-DatabaseAuthentication "ledger_migrator_user" $ledgerMigratorPassword
+  Assert-DatabaseAuthentication "balance_read_user" $balanceReadPassword
+  Assert-DatabaseAuthentication "balance_write_user" $balanceWritePassword
+  Assert-DatabaseAuthentication "balance_migrator_user" $balanceMigratorPassword
 
   Invoke-Migration `
-    "Host=127.0.0.1;Port=15432;Database=appdb;Username=appuser;Password=$postgresPassword" `
+    "Host=127.0.0.1;Port=$postgresHostPort;Database=$postgresDatabase;Username=ledger_migrator_user;Password=$ledgerMigratorPassword" `
     "src/LedgerService.Infrastructure/LedgerService.Infrastructure.csproj" `
     "src/LedgerService.Api/LedgerService.Api.csproj" `
     "AppDbContext"
 
   Invoke-Migration `
-    "Host=127.0.0.1;Port=$balanceDbHostPort;Database=$balanceDbName;Username=$balanceDbUser;Password=$balanceDbPassword" `
+    "Host=127.0.0.1;Port=$postgresHostPort;Database=$postgresDatabase;Username=balance_migrator_user;Password=$balanceMigratorPassword" `
     "src/BalanceService.Infrastructure/BalanceService.Infrastructure.csproj" `
     "src/BalanceService.Api/BalanceService.Api.csproj" `
     "BalanceDbContext"

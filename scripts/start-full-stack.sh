@@ -134,8 +134,7 @@ assert_no_external_port_conflicts() {
     "Loki:3100"
     "Grafana Alloy:12345"
     "Pub/Sub emulator:8085"
-    "PostgreSQL Ledger:15432"
-    "PostgreSQL Balance:15433"
+    "PostgreSQL:15432"
     "Jaeger OTLP gRPC:4317"
     "Jaeger OTLP HTTP:4318"
   )

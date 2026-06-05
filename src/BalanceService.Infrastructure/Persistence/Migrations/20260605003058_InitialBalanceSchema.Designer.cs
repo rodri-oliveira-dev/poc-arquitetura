@@ -12,15 +12,16 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace BalanceService.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(BalanceDbContext))]
-    [Migration("20260215201336_InitialBalance")]
-    partial class InitialBalance
+    [Migration("20260605003058_InitialBalanceSchema")]
+    partial class InitialBalanceSchema
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.0")
+                .HasDefaultSchema("balance")
+                .HasAnnotation("ProductVersion", "10.0.8")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -74,7 +75,7 @@ namespace BalanceService.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ux_daily_balances_merchant_date_currency");
 
-                    b.ToTable("daily_balances", (string)null);
+                    b.ToTable("daily_balances", "balance");
                 });
 
             modelBuilder.Entity("BalanceService.Domain.Balances.ProcessedEvent", b =>
@@ -107,7 +108,7 @@ namespace BalanceService.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ux_processed_events_event_id");
 
-                    b.ToTable("processed_events", (string)null);
+                    b.ToTable("processed_events", "balance");
                 });
 #pragma warning restore 612, 618
         }

@@ -169,9 +169,9 @@ model {
       }
     }
 
-    ledgerDb = container "PostgreSQL Ledger" {
+    ledgerDb = container "PostgreSQL schema ledger" {
       technology "PostgreSQL"
-      description "Banco do LedgerService: lancamentos, estornos_lancamentos, reprocessamentos_lancamentos, idempotencia e outbox_messages."
+      description "Schema ledger no PostgreSQL local unico ou boundary equivalente por ambiente: lancamentos, estornos_lancamentos, reprocessamentos_lancamentos, idempotencia e outbox_messages."
     }
   }
 
@@ -240,9 +240,9 @@ model {
       }
     }
 
-    balanceDb = container "PostgreSQL Balance" {
+    balanceDb = container "PostgreSQL schema balance" {
       technology "PostgreSQL"
-      description "Banco do BalanceService: daily_balances e processed_events."
+      description "Schema balance no PostgreSQL local unico ou boundary equivalente por ambiente: daily_balances e processed_events."
     }
   }
 

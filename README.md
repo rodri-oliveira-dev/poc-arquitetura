@@ -97,7 +97,7 @@ No Linux/macOS:
 ./scripts/start-local-stack.sh
 ```
 
-Esse script sobe o core funcional local: bancos Ledger/Balance persistentes, Pub/Sub emulator, Keycloak, APIs e workers. Ele aplica migrations pelo host e inicia as APIs depois do schema estar pronto. O passo a passo manual fica em [desenvolvimento local](docs/development/local-development.md).
+Esse script sobe o core funcional local: PostgreSQL persistente unico com schemas `ledger` e `balance`, Pub/Sub emulator, Keycloak, APIs e workers. Ele aplica migrations pelo host e inicia as APIs depois do schema estar pronto. O passo a passo manual fica em [desenvolvimento local](docs/development/local-development.md).
 
 Para incluir observabilidade local completa:
 

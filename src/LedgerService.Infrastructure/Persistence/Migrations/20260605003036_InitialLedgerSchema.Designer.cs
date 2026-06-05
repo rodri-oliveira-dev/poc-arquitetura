@@ -12,15 +12,16 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace LedgerService.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260506225443_AddEstornosLancamentos")]
-    partial class AddEstornosLancamentos
+    [Migration("20260605003036_InitialLedgerSchema")]
+    partial class InitialLedgerSchema
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.0")
+                .HasDefaultSchema("ledger")
+                .HasAnnotation("ProductVersion", "10.0.8")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -31,13 +32,30 @@ namespace LedgerService.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at");
+
                     b.Property<Guid>("CorrelationId")
                         .HasColumnType("uuid")
                         .HasColumnName("correlation_id");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
+
+                    b.Property<DateTime?>("FailedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("failed_at");
+
+                    b.Property<string>("FailureReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("failure_reason");
+
+                    b.Property<Guid?>("LancamentoCompensatorioId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("lancamento_compensatorio_id");
 
                     b.Property<Guid>("LancamentoOriginalId")
                         .HasColumnType("uuid")
@@ -54,6 +72,19 @@ namespace LedgerService.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(500)")
                         .HasColumnName("motivo");
 
+                    b.Property<DateTime?>("ProcessingStartedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("processing_started_at");
+
+                    b.Property<DateTime?>("RejectedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("rejected_at");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("rejection_reason");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasColumnType("text")
@@ -61,13 +92,18 @@ namespace LedgerService.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("LancamentoCompensatorioId")
+                        .HasDatabaseName("idx_estornos_lancamentos_compensatorio");
+
                     b.HasIndex("LancamentoOriginalId")
-                        .HasDatabaseName("idx_estornos_lancamentos_original");
+                        .IsUnique()
+                        .HasDatabaseName("ux_estornos_lancamentos_original_active")
+                        .HasFilter("status IN ('Pending', 'Processing')");
 
                     b.HasIndex("LancamentoOriginalId", "Status")
                         .HasDatabaseName("idx_estornos_lancamentos_original_status");
 
-                    b.ToTable("estornos_lancamentos", (string)null);
+                    b.ToTable("estornos_lancamentos", "ledger");
                 });
 
             modelBuilder.Entity("LedgerService.Domain.Entities.IdempotencyRecord", b =>
@@ -77,11 +113,11 @@ namespace LedgerService.Infrastructure.Persistence.Migrations
                         .HasColumnName("id");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
                     b.Property<DateTime>("ExpiresAt")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("expires_at");
 
                     b.Property<string>("IdempotencyKey")
@@ -120,7 +156,7 @@ namespace LedgerService.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ux_idempotency_records_merchant_key");
 
-                    b.ToTable("idempotency_records", (string)null);
+                    b.ToTable("idempotency_records", "ledger");
                 });
 
             modelBuilder.Entity("LedgerService.Domain.Entities.LedgerEntry", b =>
@@ -139,7 +175,7 @@ namespace LedgerService.Infrastructure.Persistence.Migrations
                         .HasColumnName("correlation_id");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
                     b.Property<string>("Description")
@@ -158,7 +194,7 @@ namespace LedgerService.Infrastructure.Persistence.Migrations
                         .HasColumnName("merchant_id");
 
                     b.Property<DateTime>("OccurredAt")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("occurred_at");
 
                     b.Property<string>("Type")
@@ -168,10 +204,15 @@ namespace LedgerService.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ExternalReference")
+                        .IsUnique()
+                        .HasDatabaseName("ux_ledger_entries_estorno_external_reference")
+                        .HasFilter("external_reference LIKE 'estorno:%'");
+
                     b.HasIndex("MerchantId", "OccurredAt")
                         .HasDatabaseName("idx_ledger_entries_merchant_occurred_at");
 
-                    b.ToTable("ledger_entries", null, t =>
+                    b.ToTable("ledger_entries", "ledger", t =>
                         {
                             t.HasCheckConstraint("ck_ledger_entries_amount_credit_debit", "(type = 'Credit' AND amount > 0) OR (type = 'Debit' AND amount < 0)");
                         });
@@ -192,9 +233,10 @@ namespace LedgerService.Infrastructure.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("aggregate_type");
 
-                    b.Property<int>("Attempts")
-                        .HasColumnType("integer")
-                        .HasColumnName("attempts");
+                    b.Property<string>("Baggage")
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)")
+                        .HasColumnName("baggage");
 
                     b.Property<Guid?>("CorrelationId")
                         .HasColumnType("uuid")
@@ -209,20 +251,34 @@ namespace LedgerService.Infrastructure.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("last_error");
 
+                    b.Property<string>("LastRequeueReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("last_requeue_reason");
+
+                    b.Property<DateTime?>("LastRequeuedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_requeued_at");
+
+                    b.Property<string>("LastRequeuedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("last_requeued_by");
+
                     b.Property<string>("LockOwner")
                         .HasColumnType("text")
                         .HasColumnName("lock_owner");
 
                     b.Property<DateTime?>("LockedUntil")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("locked_until");
 
-                    b.Property<DateTime?>("NextAttemptAt")
-                        .HasColumnType("timestamp without time zone")
-                        .HasColumnName("next_attempt_at");
+                    b.Property<DateTime?>("NextRetryAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("next_retry_at");
 
                     b.Property<DateTime>("OccurredAt")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("occurred_at");
 
                     b.Property<string>("Payload")
@@ -231,8 +287,102 @@ namespace LedgerService.Infrastructure.Persistence.Migrations
                         .HasColumnName("payload");
 
                     b.Property<DateTime?>("ProcessedAt")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("processed_at");
+
+                    b.Property<int>("RequeueCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("requeue_count");
+
+                    b.Property<int>("RetryCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("retry_count");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("status");
+
+                    b.Property<string>("TraceParent")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("traceparent");
+
+                    b.Property<string>("TraceState")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)")
+                        .HasColumnName("tracestate");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LockedUntil")
+                        .HasDatabaseName("idx_outbox_locked_until");
+
+                    b.HasIndex("Status", "NextRetryAt")
+                        .HasDatabaseName("idx_outbox_pending");
+
+                    b.ToTable("outbox_messages", "ledger");
+                });
+
+            modelBuilder.Entity("LedgerService.Domain.Entities.ReprocessamentoLancamentos", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at");
+
+                    b.Property<Guid>("CorrelationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("correlation_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateOnly>("DataFinal")
+                        .HasColumnType("date")
+                        .HasColumnName("data_final");
+
+                    b.Property<DateOnly>("DataInicial")
+                        .HasColumnType("date")
+                        .HasColumnName("data_inicial");
+
+                    b.Property<DateTime?>("FailedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("failed_at");
+
+                    b.Property<string>("FailureReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("failure_reason");
+
+                    b.Property<string>("MerchantId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("merchant_id");
+
+                    b.Property<string>("Motivo")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("motivo");
+
+                    b.Property<DateTime?>("ProcessingStartedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("processing_started_at");
+
+                    b.Property<DateTime?>("RejectedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("rejected_at");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("rejection_reason");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -241,13 +391,10 @@ namespace LedgerService.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("LockedUntil")
-                        .HasDatabaseName("idx_outbox_locked_until");
+                    b.HasIndex("MerchantId", "DataInicial", "DataFinal")
+                        .HasDatabaseName("idx_reprocessamentos_lancamentos_merchant_periodo");
 
-                    b.HasIndex("Status", "NextAttemptAt")
-                        .HasDatabaseName("idx_outbox_pending");
-
-                    b.ToTable("outbox_messages", (string)null);
+                    b.ToTable("reprocessamentos_lancamentos", "ledger");
                 });
 #pragma warning restore 612, 618
         }

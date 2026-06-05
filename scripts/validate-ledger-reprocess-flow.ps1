@@ -109,7 +109,7 @@ LIMIT 1;
 "@
 
 $reprocessCreatedRow = Wait-Until "registro em reprocessamentos_lancamentos" $PollingTimeoutSeconds $PollingIntervalSeconds {
-  Invoke-PostgresScalar "ledger-db" "appuser" "appdb" $reprocessSql
+  Invoke-PostgresScalar $script:PostgresService $script:LedgerDbUser $script:LedgerDbName $reprocessSql
 } {
   param($value)
   $value -match [Regex]::Escape($reprocessamentoId)
@@ -122,7 +122,7 @@ Write-Host "Outbox solicitacao reprocessamento: $reprocessRequestedOutbox"
 
 Write-Host "Aguardando processamento assincrono do reprocessamento..."
 $reprocessCompletedRow = Wait-Until "reprocessamento em estado final" $PollingTimeoutSeconds $PollingIntervalSeconds {
-  Invoke-PostgresScalar "ledger-db" "appuser" "appdb" $reprocessSql
+  Invoke-PostgresScalar $script:PostgresService $script:LedgerDbUser $script:LedgerDbName $reprocessSql
 } {
   param($value)
   $value -match '\|Completed\|' -or $value -match '\|CompletedWithWarnings\|'

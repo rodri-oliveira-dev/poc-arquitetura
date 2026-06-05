@@ -60,8 +60,28 @@ Review transfer costs and workload locations before enabling the policy.
 Use `enforce_in_transit=true` with care because Pub/Sub can reject publish,
 pull, and streamingPull requests received outside the allowed regions.
 
-No remote backend is configured at this stage. Terraform uses local state by
-default. Do not commit `terraform.tfvars`, state files, plans, or credentials.
+## Terraform State
+
+This root module configures a partial remote backend in Google Cloud Storage.
+The state object is separated by environment with the prefix:
+
+```text
+poc-arquitetura/pubsub/dev
+```
+
+The bucket name is intentionally not hardcoded in `backend.tf`; provide it
+during `terraform init` with
+`-backend-config="bucket=rodri-terraform-state-bucket"`. The current dev bucket
+is `rodri-terraform-state-bucket`; it was created outside this root module and
+must not be recreated by the same state that it stores. See
+[`docs/adrs/0080-backend-remoto-gcs-terraform-dev.md`](../../../../docs/adrs/0080-backend-remoto-gcs-terraform-dev.md).
+
+Grant bucket access only to authorized Terraform operators, bootstrap/audit
+administrators, and a CI identity only if a future workflow runs real
+`terraform plan`. Application workload service accounts must not access the
+Terraform state bucket.
+
+Do not commit `terraform.tfvars`, state files, plans, or credentials.
 
 ## Prerequisites
 
@@ -109,7 +129,7 @@ of a human email.
 
 ## Validate
 
-Run local validation without configuring a backend:
+Run syntax-only local validation without configuring the remote backend:
 
 ```powershell
 terraform fmt -check
@@ -117,12 +137,43 @@ terraform init -backend=false
 terraform validate
 ```
 
+This validation mode is useful for hooks and CI because it does not require GCP
+credentials or bucket access. It does not exercise remote state locking and must
+not be followed by `terraform plan`, `terraform apply`, or `terraform destroy`.
+
+For validation with the configured backend, initialize with the existing state
+bucket first:
+
+```powershell
+terraform init -backend-config="bucket=rodri-terraform-state-bucket"
+terraform validate
+```
+
+## Migrate Local State Manually
+
+If a local `terraform.tfstate` already exists, migrate it only after the bucket
+has been created, versioning has been enabled, IAM has been reviewed, and the
+operator has confirmed the target GCP project and bucket.
+
+Create a local backup before migration:
+
+```powershell
+Copy-Item terraform.tfstate terraform.tfstate.pre-gcs-migration.backup
+terraform init -migrate-state -backend-config="bucket=rodri-terraform-state-bucket"
+terraform state list
+terraform plan -var-file="terraform.tfvars"
+```
+
+Review the plan carefully. Do not use `-lock=false`; the GCS backend locking
+must protect concurrent Terraform operations. Do not commit the backup, state,
+`terraform.tfvars`, binary plans, or credentials.
+
 ## Plan And Apply Manually
 
 Review the plan before making any remote change:
 
 ```powershell
-terraform init
+terraform init -backend-config="bucket=rodri-terraform-state-bucket"
 terraform plan -out=tfplan
 terraform apply tfplan
 ```
@@ -132,6 +183,9 @@ configured project, guarantees the Google-managed Pub/Sub service identity, and
 provisions real Google Cloud resources. In a newly created project, review that
 the first plan includes `google_project_service_identity.pubsub`.
 
+Do not use `-lock=false` with the remote backend. Terraform should use the GCS
+backend locking behavior for `plan` and `apply`.
+
 Inspect the values available to runtime configuration with:
 
 ```powershell
@@ -140,4 +194,4 @@ terraform output -json
 ```
 
 Use the output-to-appsettings mapping and the preflight checklist in
-[`docs/development/pubsub-infra-app-contract.md`](../../../docs/development/pubsub-infra-app-contract.md).
+[`docs/development/pubsub-infra-app-contract.md`](../../../../docs/development/pubsub-infra-app-contract.md).

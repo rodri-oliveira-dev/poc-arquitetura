@@ -45,7 +45,8 @@ Alguns testes de integracao usam Testcontainers com PostgreSQL real. Esses teste
 Os testes de integracao permanecem separados por custo e fidelidade:
 
 - factories `LedgerApiFactory` e `BalanceApiFactory` usam EF InMemory para pipeline HTTP leve;
-- collections `PostgreSQL Ledger integration tests` e `PostgreSQL Balance integration tests` usam migrations reais e limpam as tabelas afetadas entre cenarios;
+- collections `PostgreSQL ledger schema integration tests` e `PostgreSQL balance schema integration tests` usam migrations reais em `appdb` com schemas `ledger` e `balance`, e limpam as tabelas afetadas entre cenarios;
+- os testes PostgreSQL do Balance migram como `balance_migrator_user`, exercitam escrita como `balance_write_user` e validam que `balance_read_user` nao executa INSERT/UPDATE/DELETE no schema `balance`;
 - PostgreSQL real cobre transacoes, unique constraints, locks, idempotencia, Outbox e projecoes concorrentes que EF InMemory nao representa corretamente.
 
 Para executar os projetos de integracao:
@@ -74,7 +75,7 @@ Para executar somente os cenarios PostgreSQL criticos:
 
 ```powershell
 dotnet test ./tests/LedgerService.IntegrationTests/LedgerService.IntegrationTests.csproj --configuration Release --filter "FullyQualifiedName~CreateLancamentoPostgresTests|FullyQualifiedName~EstornoLancamentoConcurrencyTests|FullyQualifiedName~OutboxPublisherWorkerTests|FullyQualifiedName~LedgerTimestampPersistenceTests"
-dotnet test ./tests/BalanceService.IntegrationTests/BalanceService.IntegrationTests.csproj --configuration Release --filter "FullyQualifiedName~ApplyLedgerEntryCreatedConcurrencyTests"
+dotnet test ./tests/BalanceService.IntegrationTests/BalanceService.IntegrationTests.csproj --configuration Release --filter "FullyQualifiedName~ApplyLedgerEntryCreatedConcurrencyTests|FullyQualifiedName~BalanceReadOnlyPermissionsTests"
 ```
 
 No Windows com Rancher Desktop/Docker-compatible API, o Docker CLI pode funcionar com `DOCKER_HOST=npipe:////./pipe/docker_engine`, mas o Testcontainers/Docker.DotNet espera o formato `npipe://./pipe/docker_engine`. Quando necessario, normalize a variavel apenas no processo do teste:

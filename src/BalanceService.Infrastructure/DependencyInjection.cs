@@ -43,7 +43,10 @@ public static class DependencyInjection
         var connectionString = configuration.GetConnectionString("DefaultConnection")
             ?? throw new InvalidOperationException("Connection string 'DefaultConnection' nao foi configurada.");
 
-        services.AddDbContext<BalanceDbContext>(options => options.UseNpgsql(connectionString));
+        services.AddDbContext<BalanceDbContext>(options =>
+            options.UseNpgsql(
+                connectionString,
+                npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "balance")));
 
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<BalanceDbContext>());
 

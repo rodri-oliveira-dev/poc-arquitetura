@@ -12,8 +12,7 @@ public sealed class ContainerSecurityPolicyTests
 
     private static readonly string[] ComposeServicesWithLimits =
     [
-        "ledger-db",
-        "balance-db",
+        "postgres-db",
         "kafka",
         "kafka-init-topics",
         "ledger-service",

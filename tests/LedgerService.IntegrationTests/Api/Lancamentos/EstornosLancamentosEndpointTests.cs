@@ -68,8 +68,8 @@ public sealed class EstornosLancamentosEndpointTests : IClassFixture<LedgerApiFa
 
         var res = await _client.SendAsync(req);
         Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
-        var raw = await res.Content.ReadAsStringAsync();
-        Assert.Contains("motivo", raw);
+        var body = await AssertValidationErrorResponseAsync(res);
+        Assert.Contains("motivo", body.Errors.Keys);
     }
 
     [Fact]
@@ -293,5 +293,19 @@ public sealed class EstornosLancamentosEndpointTests : IClassFixture<LedgerApiFa
         await db.SaveChangesAsync();
 
         return estorno;
+    }
+
+    private static async Task<ValidationErrorResponse> AssertValidationErrorResponseAsync(HttpResponseMessage response)
+    {
+        Assert.Equal("application/json", response.Content.Headers.ContentType?.MediaType);
+        var body = await response.Content.ReadFromJsonAsync<ValidationErrorResponse>();
+        Assert.NotNull(body);
+        Assert.Equal("https://httpstatuses.com/400", body!.Type);
+        Assert.Equal("Invalid request", body.Title);
+        Assert.Equal(400, body.Status);
+        Assert.Equal("One or more validation errors occurred.", body.Detail);
+        Assert.NotEmpty(body.Errors);
+        Assert.False(string.IsNullOrWhiteSpace(body.CorrelationId));
+        return body;
     }
 }

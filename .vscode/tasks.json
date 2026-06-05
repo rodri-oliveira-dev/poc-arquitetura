@@ -293,7 +293,7 @@
       "problemMatcher": []
     },
     {
-      "label": "terraform: init backend false",
+      "label": "terraform: init without backend",
       "type": "process",
       "command": "terraform",
       "args": [
@@ -335,7 +335,7 @@
       "dependsOrder": "sequence",
       "dependsOn": [
         "terraform: fmt check",
-        "terraform: init backend false",
+        "terraform: init without backend",
         "terraform: validate",
         "terraform: tflint"
       ],

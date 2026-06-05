@@ -31,12 +31,12 @@ Esta stack e local, descartavel e nao deve ser promovida para ambientes comparti
 O compose usa defaults ficticios para desenvolvimento local. Para sobrescrever, copie `.env.example` para `.env` e ajuste os valores localmente. O arquivo `.env` e ignorado pelo Git e nao deve ser versionado. Os defaults atuais sao intencionalmente obvios e descartaveis:
 
 - `POSTGRES_PASSWORD=local_dev_password`
-- `BALANCE_DB_HOST=balance-db`
-- `BALANCE_DB_PORT=5432`
-- `BALANCE_DB_HOST_PORT=15433`
-- `BALANCE_DB_NAME=dbBalance`
-- `BALANCE_DB_USER=userBalance`
-- `BALANCE_DB_PASSWORD=local_dev_password`
+- `POSTGRES_HOST_PORT=15432`
+- `LEDGER_DB_PASSWORD=local_dev_password`
+- `LEDGER_DB_MIGRATOR_PASSWORD=local_dev_password`
+- `BALANCE_DB_READ_PASSWORD=local_dev_password`
+- `BALANCE_DB_WRITE_PASSWORD=local_dev_password`
+- `BALANCE_DB_MIGRATOR_PASSWORD=local_dev_password`
 - `GRAFANA_ADMIN_PASSWORD=local_dev_password`
 - `TOKEN_PROVIDER=keycloak`
 - `JWT_ISSUER=http://localhost:8081/realms/poc`
@@ -59,7 +59,19 @@ O compose usa defaults ficticios para desenvolvimento local. Para sobrescrever, 
 
 As variaveis `AUTH_POC_USERNAME`, `AUTH_POC_PASSWORD` e `AUTH_POC_SCOPE` continuam aceitas apenas pelo overlay legado `compose.auth-legacy.yaml`.
 
-As variaveis `BALANCE_DB_*` sao a origem local para o PostgreSQL do Balance no compose, para a connection string de `BalanceService.Api` e `BalanceService.Worker` dentro da rede Docker, e para os scripts que aplicam migrations ou executam load tests. Em volumes PostgreSQL existentes, alterar `.env` ou `compose.yaml` nao altera automaticamente a senha ja gravada no banco. Se houver divergencia, veja [troubleshooting](../troubleshooting.md#password-authentication-failed-for-user-userbalance).
+O PostgreSQL local roda em um unico container `postgres-db`, com database `appdb`, schemas `ledger` e `balance`, e usuarios separados por servico/responsabilidade. As connection strings dos servicos runtime no compose usam `postgres-db:5432/appdb`; as variaveis `LEDGER_DB_*` e `BALANCE_DB_*` configuram as senhas locais usadas pelo init do container e pelas connection strings do compose. Em volumes PostgreSQL existentes, alterar `.env` ou `compose.yaml` nao altera automaticamente roles, grants ou senhas ja gravadas no banco; para reaplicar o init, recrie conscientemente o volume local ou execute o SQL manualmente.
+
+Topologia local de banco:
+
+| Responsabilidade | Database/schema | Usuario |
+| --- | --- | --- |
+| Runtime do LedgerService.Api e LedgerService.Worker | `appdb.ledger` | `ledger_app_user` |
+| Migrations do LedgerService | `appdb.ledger` | `ledger_migrator_user` |
+| Runtime de leitura do BalanceService.Api | `appdb.balance` | `balance_read_user` |
+| Runtime de escrita do BalanceService.Worker | `appdb.balance` | `balance_write_user` |
+| Migrations do BalanceService | `appdb.balance` | `balance_migrator_user` |
+
+O `BalanceService.Api` deve permanecer read-only no banco: ele consulta a projecao `balance`, mas nao aplica eventos nem executa INSERT/UPDATE/DELETE. A escrita da projecao pertence ao `BalanceService.Worker` com `balance_write_user`. A reducao para um unico container e apenas local; o isolamento logico entre servicos continua sendo preservado por schemas, migrations separadas e grants por role.
 
 Nao reutilize esses valores fora da maquina local. Em ambientes compartilhados ou produtivos, use um mecanismo proprio de secret/config store e credenciais rotacionaveis.
 
@@ -72,8 +84,7 @@ Os scripts `start-local-stack.*` sobem por padrao o core funcional de desenvolvi
 - `LedgerService.Worker`;
 - `BalanceService.Api`;
 - `BalanceService.Worker`;
-- PostgreSQL Ledger;
-- PostgreSQL Balance;
+- PostgreSQL unico (`postgres-db`) com schemas `ledger` e `balance`;
 - Pub/Sub emulator;
 - job idempotente de inicializacao do topic principal, DLQ de aplicacao, subscription do Balance e subscription de inspecao da DLQ de aplicacao.
 
@@ -209,7 +220,7 @@ O socket Docker, mesmo montado como somente leitura, e uma superficie sensivel. 
 
 ### Persistencia, tmpfs e logs Docker
 
-Os bancos PostgreSQL do Ledger e do Balance continuam persistentes por padrao nos volumes `ledger-postgres-data` e `balance-postgres-data`. Eles nao usam `tmpfs` nem quota rigida em volume Docker nomeado, porque isso prejudicaria diagnostico local e nao e portatil entre runtimes Docker.
+O PostgreSQL local continua persistente por padrao no volume `postgres-data`. Ele nao usa `tmpfs` nem quota rigida em volume Docker nomeado, porque isso prejudicaria diagnostico local e nao e portatil entre runtimes Docker.
 
 Dados descartaveis de observabilidade usam `tmpfs` quando seguro:
 
@@ -241,7 +252,17 @@ Para limpeza segura sem apagar bancos ou outros volumes:
 ./scripts/docker-clean-safe.sh
 ```
 
-Esses scripts usam `docker compose down --remove-orphans` sem `-v` e oferecem `docker builder prune`/`docker image prune` com confirmacao. Para apagar volumes conscientemente, use comandos explicitos como `docker volume rm poc-arquitetura_ledger-postgres-data` ou `docker compose ... down -v` apenas quando os dados locais forem descartaveis.
+Esses scripts usam `docker compose down --remove-orphans` sem `-v` e oferecem `docker builder prune`/`docker image prune` com confirmacao.
+
+Reset destrutivo do PostgreSQL local:
+
+```bash
+docker compose stop ledger-service ledger-worker balance-service balance-worker postgres-db
+docker compose rm -f postgres-db
+docker volume rm poc-arquitetura_postgres-data
+```
+
+Esse reset apaga todos os dados locais do database `appdb`, incluindo os schemas `ledger` e `balance`, roles, grants e historico de migrations gravados no volume. Use apenas quando os dados locais forem descartaveis e suba novamente `postgres-db` ou execute `./scripts/start-local-stack.*` para recriar a topologia pelo bootstrap em `infra/postgres/init`.
 
 ### Keycloak local
 
@@ -446,6 +467,18 @@ Antes de subir o overlay, gere ou disponibilize um certificado local em:
 - `infra/nginx/certs/localhost.key`
 
 Esses arquivos nao devem ser versionados. A opcao recomendada para certificado confiavel no host e `mkcert`:
+
+```powershell
+./scripts/generate-local-certs.ps1
+```
+
+No Linux/macOS:
+
+```bash
+./scripts/generate-local-certs.sh
+```
+
+O script usa `mkcert` quando disponivel e faz fallback para OpenSSL. Para executar manualmente com `mkcert`:
 
 ```bash
 mkcert -install
@@ -652,8 +685,7 @@ Portas expostas no host:
 | Keycloak | `http://localhost:8081/` |
 | LedgerService.Api | `http://localhost:5226/` |
 | BalanceService.Api | `http://localhost:5228/` |
-| PostgreSQL Ledger | `localhost:15432` |
-| PostgreSQL Balance | `localhost:15433` |
+| PostgreSQL | `localhost:15432` |
 | Pub/Sub emulator | `localhost:8085` com `compose.yaml` |
 | Kafka legado | `localhost:19092` com `compose.kafka.yaml` e profile `legacy-kafka` |
 | Jaeger UI | `http://localhost:16686/` com profile `observability` |
@@ -669,7 +701,7 @@ Portas expostas no host:
 | LedgerService.Api via Nginx | `https://ledger.localhost:7443/` com `compose.nginx.yaml` |
 | BalanceService.Api via Nginx | `https://balance.localhost:7443/` com `compose.nginx.yaml` |
 
-O compose sobrescreve configuracoes por variaveis de ambiente para usar hosts internos como `ledger-db`, `balance-db`, `pubsub-emulator` e `otel-collector`. Quando `compose.observability.yaml` e usado com `OTEL_ENABLED=true` e o profile `observability` ativo, as APIs e workers enviam OTLP somente para o Collector. O Collector encaminha traces para o Jaeger e expoe metricas em formato Prometheus para scrape interno. Prometheus coleta o Collector; Alloy coleta logs dos containers e envia para Loki. Grafana consulta Prometheus, Loki e Jaeger. O Grafana carrega automaticamente a pasta `Observability` com os dashboards `APIs - Visao Geral` e `Runtime .NET - Visao Geral`, versionados em `observability/grafana/dashboards/`. O datasource Loki possui derived field para abrir traces no datasource interno Jaeger a partir de logs com `TraceId=<valor>`. O ambiente local do compose roda como `Development`.
+O compose sobrescreve configuracoes por variaveis de ambiente para usar hosts internos como `postgres-db`, `pubsub-emulator` e `otel-collector`. Quando `compose.observability.yaml` e usado com `OTEL_ENABLED=true` e o profile `observability` ativo, as APIs e workers enviam OTLP somente para o Collector. O Collector encaminha traces para o Jaeger e expoe metricas em formato Prometheus para scrape interno. Prometheus coleta o Collector; Alloy coleta logs dos containers e envia para Loki. Grafana consulta Prometheus, Loki e Jaeger. O Grafana carrega automaticamente a pasta `Observability` com os dashboards `APIs - Visao Geral` e `Runtime .NET - Visao Geral`, versionados em `observability/grafana/dashboards/`. O datasource Loki possui derived field para abrir traces no datasource interno Jaeger a partir de logs com `TraceId=<valor>`. O ambiente local do compose roda como `Development`.
 
 Prometheus tambem carrega regras locais em `observability/prometheus/rules/` e envia alertas para o Alertmanager local. A UI do Alertmanager fica em `http://localhost:9093/` e nao possui integracao externa configurada.
 
@@ -687,6 +719,13 @@ No modo legado, as portas e variaveis antigas continuam as mesmas: `http://local
 
 O compose nao aplica migrations automaticamente. Na primeira execucao com banco vazio, e sempre que houver mudanca de schema, aplique as migrations pelo host usando as portas expostas.
 
+Os `DbContext` usam schemas dedicados e tabelas de historico separadas:
+`ledger.__EFMigrationsHistory` para o Ledger e `balance.__EFMigrationsHistory`
+para o Balance. Como esta POC ja trata o PostgreSQL local como descartavel e
+os schemas sao criados pelo bootstrap em `infra/postgres/init`, as migrations
+atuais foram consolidadas em baselines iniciais por servico, em vez de uma
+cadeia incremental para mover objetos antigos do schema `public`.
+
 Execute as migrations dos dois servicos sequencialmente. As invocacoes de
 `dotnet-ef` compilam projetos compartilhados da solution; executa-las em
 paralelo pode causar disputa por artefatos em `bin/` e `obj/`.
@@ -694,7 +733,7 @@ paralelo pode causar disputa por artefatos em `bin/` e `obj/`.
 LedgerService:
 
 ```powershell
-$env:ConnectionStrings__DefaultConnection = "Host=127.0.0.1;Port=15432;Database=appdb;Username=appuser;Password=local_dev_password"
+$env:ConnectionStrings__DefaultConnection = "Host=127.0.0.1;Port=15432;Database=appdb;Username=ledger_migrator_user;Password=local_dev_password"
 dotnet tool restore
 dotnet tool run dotnet-ef -- database update `
   -p src\LedgerService.Infrastructure\LedgerService.Infrastructure.csproj `
@@ -705,7 +744,7 @@ dotnet tool run dotnet-ef -- database update `
 BalanceService:
 
 ```powershell
-$env:ConnectionStrings__DefaultConnection = "Host=127.0.0.1;Port=15433;Database=dbBalance;Username=userBalance;Password=local_dev_password"
+$env:ConnectionStrings__DefaultConnection = "Host=127.0.0.1;Port=15432;Database=appdb;Username=balance_migrator_user;Password=local_dev_password"
 dotnet tool restore
 dotnet tool run dotnet-ef -- database update `
   -p src\BalanceService.Infrastructure\BalanceService.Infrastructure.csproj `
@@ -739,17 +778,14 @@ As portas padrao sao:
 
 `LedgerService.Worker` e `BalanceService.Worker` nao expoem porta HTTP; acompanhe pelo console ou logs dos containers.
 
-Quando as APIs rodam no host contra os bancos iniciados pelo compose, use as
-portas publicadas no host: Ledger em `15432` e Balance em `15433`. O perfil
-`Development` da `LedgerService.Api` ja sobrescreve a porta do Ledger para
-`15432`.
+Quando APIs ou workers rodam no host contra o PostgreSQL iniciado pelo compose, use a porta publicada no host: `15432`.
 
 ## Configuracao
 
 Configuracoes versionadas ficam nos `appsettings*.json` dos projetos de API e do Worker. Para sobrescrever valores localmente, use variaveis de ambiente com `__` como separador de secoes:
 
 ```powershell
-$env:ConnectionStrings__DefaultConnection = "Host=127.0.0.1;Port=15432;Database=appdb;Username=appuser;Password=__REDACTED__"
+$env:ConnectionStrings__DefaultConnection = "Host=127.0.0.1;Port=15432;Database=appdb;Username=ledger_app_user;Password=__REDACTED__"
 $env:PUBSUB_EMULATOR_HOST = "127.0.0.1:8085"
 $env:PubSub__Producer__ProjectId = "poc-local"
 ```
@@ -925,7 +961,7 @@ Linux/macOS:
 
 Arquivos gerados em `artifacts/k6` e `.env.k6.auto` nao sao versionados.
 
-Os runners aplicam `compose.k6.yaml` e recriam os containers HTTP alvo antes do k6 para manter os testes apontando para as APIs e garantir que overrides de ambiente entrem em vigor. Os workers continuam sem endpoint HTTP nos cenarios de carga. Antes de obter token e executar o k6, os runners exigem `pubsub-emulator`, `ledger-worker` e `balance-worker` ativos, confirmam `Messaging__Provider=PubSub` e `PUBSUB_EMULATOR_HOST=pubsub-emulator:8085`, e validam uma conexao real no PostgreSQL do Balance usando `BALANCE_DB_USER`, `BALANCE_DB_NAME` e `BALANCE_DB_PASSWORD`; se a senha do volume local divergir da configuracao, o fluxo falha cedo com diagnostico e nenhuma acao destrutiva. No modo `smoke`, o runner tambem aguarda incremento de Outbox processada e de `processed_events` para confirmar publish/consume via emulator.
+Os runners aplicam `compose.k6.yaml` e recriam os containers HTTP alvo antes do k6 para manter os testes apontando para as APIs e garantir que overrides de ambiente entrem em vigor. Os workers continuam sem endpoint HTTP nos cenarios de carga. Antes de obter token e executar o k6, os runners exigem `pubsub-emulator`, `ledger-worker` e `balance-worker` ativos, confirmam `Messaging__Provider=PubSub` e `PUBSUB_EMULATOR_HOST=pubsub-emulator:8085`, e validam uma conexao real no PostgreSQL usando o usuario runtime de escrita do Balance (`balance_write_user`) e `BALANCE_DB_WRITE_PASSWORD`; se a senha do volume local divergir da configuracao, o fluxo falha cedo com diagnostico e nenhuma acao destrutiva. No modo `smoke`, o runner tambem aguarda incremento de Outbox processada e de `processed_events` para confirmar publish/consume via emulator.
 
 O token usado nos cenarios k6 e obtido pelos runners com `scripts/get-token.*`. O fluxo oficial local e `TOKEN_PROVIDER=keycloak`, usando `KEYCLOAK_CLIENT_ID`, `KEYCLOAK_CLIENT_SECRET`, `KEYCLOAK_REALM` e `KEYCLOAK_BASE_URL`/`KEYCLOAK_HOST_PORT`. Para usar temporariamente o fallback `Auth.Api`, suba `compose.auth-legacy.yaml` e configure tambem as APIs de negocio com `JWT_ISSUER=https://auth-api`, `JWT_JWKS_URL=http://auth-api:8080/.well-known/jwks.json` e `TOKEN_PROVIDER=auth-api`, conforme [autenticacao e autorizacao](authentication.md).
 

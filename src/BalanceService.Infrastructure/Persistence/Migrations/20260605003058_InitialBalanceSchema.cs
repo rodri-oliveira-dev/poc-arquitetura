@@ -6,13 +6,17 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace BalanceService.Infrastructure.Persistence.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialBalance : Migration
+    public partial class InitialBalanceSchema : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.EnsureSchema(
+                name: "balance");
+
             migrationBuilder.CreateTable(
                 name: "daily_balances",
+                schema: "balance",
                 columns: table => new
                 {
                     id = table.Column<Guid>(type: "uuid", nullable: false),
@@ -32,6 +36,7 @@ namespace BalanceService.Infrastructure.Persistence.Migrations
 
             migrationBuilder.CreateTable(
                 name: "processed_events",
+                schema: "balance",
                 columns: table => new
                 {
                     id = table.Column<Guid>(type: "uuid", nullable: false),
@@ -47,12 +52,14 @@ namespace BalanceService.Infrastructure.Persistence.Migrations
 
             migrationBuilder.CreateIndex(
                 name: "ux_daily_balances_merchant_date_currency",
+                schema: "balance",
                 table: "daily_balances",
                 columns: new[] { "merchant_id", "date", "currency" },
                 unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "ux_processed_events_event_id",
+                schema: "balance",
                 table: "processed_events",
                 column: "event_id",
                 unique: true);
@@ -62,10 +69,12 @@ namespace BalanceService.Infrastructure.Persistence.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
-                name: "daily_balances");
+                name: "daily_balances",
+                schema: "balance");
 
             migrationBuilder.DropTable(
-                name: "processed_events");
+                name: "processed_events",
+                schema: "balance");
         }
     }
 }

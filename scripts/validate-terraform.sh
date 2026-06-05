@@ -45,7 +45,7 @@ while IFS= read -r terraform_directory
 do
   [ -n "$terraform_directory" ] || continue
 
-  echo "==> terraform: inicializando sem backend em $terraform_directory"
+  echo "==> terraform: inicializando sem backend para validacao sintatica em $terraform_directory"
   terraform -chdir="$terraform_directory" init -backend=false -input=false
 
   echo "==> terraform: validando $terraform_directory"

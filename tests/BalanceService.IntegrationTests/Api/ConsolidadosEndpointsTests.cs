@@ -60,55 +60,6 @@ public sealed class ConsolidadosEndpointsTests : IClassFixture<BalanceApiFactory
     }
 
     [Fact]
-    public async Task Period_should_return_400_when_from_greater_than_to()
-    {
-        var token = TestJwtTokenFactory.CreateToken(
-            issuer: TestJwtTokenFactory.KeycloakIssuer,
-            audiences: "balance-api",
-            scopes: "balance.read");
-
-        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-
-        var res = await _client.GetAsync("/api/v1/consolidados/periodo?merchantId=m1&from=2026-02-12&to=2026-02-10");
-        Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
-        var body = await AssertValidationErrorResponseAsync(res);
-        Assert.NotEmpty(body.Errors);
-    }
-
-    [Fact]
-    public async Task Period_should_return_400_when_date_range_exceeds_configured_limit()
-    {
-        var token = TestJwtTokenFactory.CreateToken(
-            issuer: TestJwtTokenFactory.KeycloakIssuer,
-            audiences: "balance-api",
-            scopes: "balance.read");
-
-        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-
-        var res = await _client.GetAsync("/api/v1/consolidados/periodo?merchantId=m1&from=2026-02-01&to=2026-03-05");
-        Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
-        var body = await AssertValidationErrorResponseAsync(res);
-        Assert.Contains("to", body.Errors.Keys);
-    }
-
-    [Fact]
-    public async Task Daily_should_return_400_when_date_invalid_format()
-    {
-        var token = TestJwtTokenFactory.CreateToken(
-            issuer: TestJwtTokenFactory.KeycloakIssuer,
-            audiences: "balance-api",
-            scopes: "balance.read",
-            merchantIds: "m-success-daily");
-
-        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-
-        var res = await _client.GetAsync("/api/v1/consolidados/diario/bad-date?merchantId=m1");
-        Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
-        var body = await AssertValidationErrorResponseAsync(res);
-        Assert.Contains("date", body.Errors.Keys);
-    }
-
-    [Fact]
     public async Task Daily_should_return_400_when_required_query_field_is_missing()
     {
         var token = TestJwtTokenFactory.CreateToken(

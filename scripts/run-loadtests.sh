@@ -54,7 +54,7 @@ print_balance_database_auth_failure() {
   local database="$2"
   local host_name
 
-  host_name="$(get_local_config_value BALANCE_DB_HOST balance-db)"
+  host_name="$(get_local_config_value BALANCE_DB_HOST postgres-db)"
 
   cat >&2 <<EOF
 Falha de autenticacao no banco Balance para o usuario "$user" e database "$database".
@@ -63,12 +63,12 @@ O volume local do PostgreSQL pode ter sido inicializado com uma senha diferente.
 Alterar .env ou compose.yaml nao atualiza credenciais dentro de um volume PostgreSQL existente.
 
 Verifique:
-  docker compose logs balance-db
+  docker compose logs postgres-db
   docker compose logs balance-service
-  docker compose exec -T balance-db psql -h "$host_name" -U "$user" -d "$database" -c "select 1;"
+  docker compose exec -T postgres-db psql -h "$host_name" -U "$user" -d "$database" -c "select 1;"
 
 Para corrigir, atualize a senha manualmente dentro do PostgreSQL quando a senha antiga for conhecida,
-ou recrie somente o volume local do Balance se os dados forem descartaveis.
+ou recrie manualmente o volume local do PostgreSQL se os dados forem descartaveis.
 Nenhuma acao destrutiva foi executada automaticamente.
 EOF
 }
@@ -79,14 +79,14 @@ assert_balance_database_authentication() {
   local password
   local host_name
 
-  host_name="$(get_local_config_value BALANCE_DB_HOST balance-db)"
-  user="$(get_local_config_value BALANCE_DB_USER userBalance)"
-  database="$(get_local_config_value BALANCE_DB_NAME dbBalance)"
-  password="$(get_local_config_value BALANCE_DB_PASSWORD local_dev_password)"
+  host_name="$(get_local_config_value BALANCE_DB_HOST postgres-db)"
+  user="$(get_local_config_value BALANCE_DB_WRITE_USER "$(get_local_config_value BALANCE_DB_USER balance_write_user)")"
+  database="$(get_local_config_value BALANCE_DB_NAME appdb)"
+  password="$(get_local_config_value BALANCE_DB_WRITE_PASSWORD "$(get_local_config_value BALANCE_DB_PASSWORD local_dev_password)")"
 
   if ! docker compose -f "$COMPOSE_FILE" exec -T \
     -e "PGPASSWORD=$password" \
-    balance-db \
+    postgres-db \
     psql -h "$host_name" -U "$user" -d "$database" -v "ON_ERROR_STOP=1" -c "select 1;" >/dev/null 2>&1; then
     print_balance_database_auth_failure "$user" "$database"
     exit 1
@@ -154,20 +154,31 @@ postgres_count() {
   local user="$2"
   local database="$3"
   local sql="$4"
-  docker compose -f "$COMPOSE_FILE" exec -T "$service" \
-    psql -U "$user" -d "$database" -t -A -c "$sql" |
+  local password="$5"
+  docker compose -f "$COMPOSE_FILE" exec -T \
+    -e "PGPASSWORD=$password" \
+    "$service" \
+    psql -h "$service" -U "$user" -d "$database" -t -A -c "$sql" |
     tr -d '[:space:]'
 }
 
 async_flow_counts() {
+  local ledger_user
+  local ledger_database
+  local ledger_password
   local balance_user
   local balance_database
+  local balance_password
   local outbox_processed
   local balance_processed
-  balance_user="$(get_local_config_value BALANCE_DB_USER userBalance)"
-  balance_database="$(get_local_config_value BALANCE_DB_NAME dbBalance)"
-  outbox_processed="$(postgres_count ledger-db appuser appdb "SELECT COUNT(*) FROM outbox_messages WHERE event_type = 'LedgerEntryCreated.v1' AND status = 'Processed';")"
-  balance_processed="$(postgres_count balance-db "$balance_user" "$balance_database" "SELECT COUNT(*) FROM processed_events;")"
+  ledger_user="$(get_local_config_value LEDGER_DB_USER ledger_app_user)"
+  ledger_database="$(get_local_config_value LEDGER_DB_NAME appdb)"
+  ledger_password="$(get_local_config_value LEDGER_DB_PASSWORD local_dev_password)"
+  balance_user="$(get_local_config_value BALANCE_DB_READ_USER "$(get_local_config_value BALANCE_DB_USER balance_read_user)")"
+  balance_database="$(get_local_config_value BALANCE_DB_NAME appdb)"
+  balance_password="$(get_local_config_value BALANCE_DB_READ_PASSWORD "$(get_local_config_value BALANCE_DB_PASSWORD local_dev_password)")"
+  outbox_processed="$(postgres_count postgres-db "$ledger_user" "$ledger_database" "SELECT COUNT(*) FROM outbox_messages WHERE event_type = 'LedgerEntryCreated.v1' AND status = 'Processed';" "$ledger_password")"
+  balance_processed="$(postgres_count postgres-db "$balance_user" "$balance_database" "SELECT COUNT(*) FROM processed_events;" "$balance_password")"
   printf '%s %s\n' "$outbox_processed" "$balance_processed"
 }
 

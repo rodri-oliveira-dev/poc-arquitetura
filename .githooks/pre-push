@@ -15,11 +15,69 @@ fi
 cd "$repo_root"
 
 results_dir="$repo_root/TestResults/pre-push"
+trivy_tf_vars="$repo_root/infra/terraform/environments/dev/validation.tfvars"
+
+run_trivy_security_scan() {
+  if ! command -v trivy >/dev/null 2>&1; then
+    echo "==> pre-push: Trivy nao encontrado; validacao local de Dockerfile, Terraform, secrets e filesystem ignorada"
+    echo "==> pre-push: instale o Trivy para feedback antecipado. Consulte docs/development/trivy-security-scan.md"
+    return 0
+  fi
+
+  echo "==> pre-push: executando Trivy config (Dockerfile, Terraform e misconfigurations)"
+  trivy config \
+    --severity HIGH,CRITICAL \
+    --exit-code 1 \
+    --tf-vars "$trivy_tf_vars" \
+    --skip-dirs .git \
+    --skip-dirs .terraform \
+    --skip-dirs "**/bin" \
+    --skip-dirs "**/obj" \
+    --skip-dirs .vs \
+    --skip-dirs .idea \
+    --skip-dirs TestResults \
+    --skip-dirs "**/TestResults" \
+    --skip-dirs coverage \
+    --skip-dirs CodeCoverage \
+    --skip-dirs StrykerOutput \
+    --skip-dirs .dotnet \
+    --skip-dirs .dotnet-home \
+    --skip-dirs .nuget \
+    --skip-dirs artifacts \
+    --skip-dirs infra/nginx/certs \
+    .
+
+  echo "==> pre-push: executando Trivy fs (vulnerabilidades, secrets e misconfigurations)"
+  trivy fs \
+    --scanners vuln,secret,misconfig \
+    --severity HIGH,CRITICAL \
+    --exit-code 1 \
+    --tf-vars "$trivy_tf_vars" \
+    --skip-dirs .git \
+    --skip-dirs .terraform \
+    --skip-dirs "**/bin" \
+    --skip-dirs "**/obj" \
+    --skip-dirs .vs \
+    --skip-dirs .idea \
+    --skip-dirs TestResults \
+    --skip-dirs "**/TestResults" \
+    --skip-dirs coverage \
+    --skip-dirs CodeCoverage \
+    --skip-dirs StrykerOutput \
+    --skip-dirs .dotnet \
+    --skip-dirs .dotnet-home \
+    --skip-dirs .nuget \
+    --skip-dirs artifacts \
+    --skip-dirs infra/nginx/certs \
+    .
+}
 
 if find "$repo_root/infra/terraform" -type f -name '*.tf' -print -quit 2>/dev/null | grep -q .; then
   echo "==> pre-push: validando Terraform versionado"
   sh "$repo_root/scripts/validate-terraform.sh"
 fi
+
+run_trivy_security_scan
 
 if command -v mktemp >/dev/null 2>&1; then
   changed_files="$(mktemp "${TMPDIR:-/tmp}/pre-push-changed.XXXXXX")"

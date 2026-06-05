@@ -54,7 +54,10 @@ public sealed class PostgresLedgerApiFactory : WebApplicationFactory<Program>
             if (dbDescriptor is not null)
                 services.Remove(dbDescriptor);
 
-            services.AddDbContext<AppDbContext>(options => options.UseNpgsql(_connectionString));
+            services.AddDbContext<AppDbContext>(options =>
+                options.UseNpgsql(
+                    _connectionString,
+                    npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "ledger")));
 
             var hostedServices = services.Where(d => d.ServiceType == typeof(IHostedService)).ToList();
             foreach (var d in hostedServices)
@@ -85,6 +88,6 @@ public sealed class PostgresLedgerApiFactory : WebApplicationFactory<Program>
         using var scope = Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await db.Database.ExecuteSqlRawAsync(
-            "TRUNCATE TABLE outbox_messages, idempotency_records, estornos_lancamentos, ledger_entries RESTART IDENTITY;");
+            "TRUNCATE TABLE ledger.outbox_messages, ledger.idempotency_records, ledger.estornos_lancamentos, ledger.ledger_entries RESTART IDENTITY;");
     }
 }

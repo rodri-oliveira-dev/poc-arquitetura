@@ -36,7 +36,7 @@ public sealed class EstornoLancamentoRepository : IEstornoLancamentoRepository
         {
             return await _context.EstornosLancamentos
                 .FromSqlInterpolated(
-                    $"SELECT * FROM estornos_lancamentos WHERE id = {estornoId} FOR UPDATE")
+                    $"SELECT * FROM ledger.estornos_lancamentos WHERE id = {estornoId} FOR UPDATE")
                 .FirstOrDefaultAsync(cancellationToken);
         }
 
@@ -53,13 +53,13 @@ public sealed class EstornoLancamentoRepository : IEstornoLancamentoRepository
             var sql = @"
 WITH cte AS (
     SELECT id
-    FROM estornos_lancamentos
+    FROM ledger.estornos_lancamentos
     WHERE status = @p_pending
     ORDER BY created_at
     FOR UPDATE SKIP LOCKED
     LIMIT @p_batch
 )
-UPDATE estornos_lancamentos e
+UPDATE ledger.estornos_lancamentos e
 SET status = @p_processing,
     processing_started_at = COALESCE(e.processing_started_at, @p_now),
     failure_reason = NULL,

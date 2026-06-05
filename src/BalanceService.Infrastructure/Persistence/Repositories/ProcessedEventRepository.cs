@@ -23,7 +23,7 @@ public sealed class ProcessedEventRepository : IProcessedEventRepository
         // sem "quebrar" a transaction do PostgreSQL com unique violation (que exigiria rollback).
         // Retorna 1 quando inseriu, 0 quando já existia.
         var rows = await _context.Database.ExecuteSqlInterpolatedAsync($@"
-INSERT INTO processed_events (id, event_id, merchant_id, occurred_at, processed_at)
+INSERT INTO balance.processed_events (id, event_id, merchant_id, occurred_at, processed_at)
 VALUES ({processedEvent.Id}, {processedEvent.EventId}, {processedEvent.MerchantId}, {processedEvent.OccurredAt}, {processedEvent.ProcessedAt})
 ON CONFLICT (event_id) DO NOTHING;", cancellationToken);
 

@@ -60,7 +60,7 @@ function Get-LocalConfigValue([string]$Name, [string]$DefaultValue) {
 }
 
 function Write-BalanceDatabaseAuthFailure([string]$User, [string]$Database) {
-  $hostName = Get-LocalConfigValue "BALANCE_DB_HOST" "balance-db"
+  $hostName = Get-LocalConfigValue "BALANCE_DB_HOST" "postgres-db"
   [Console]::Error.WriteLine(@"
 Falha de autenticacao no banco Balance para o usuario "$User" e database "$Database".
 
@@ -68,28 +68,28 @@ O volume local do PostgreSQL pode ter sido inicializado com uma senha diferente.
 Alterar .env ou compose.yaml nao atualiza credenciais dentro de um volume PostgreSQL existente.
 
 Verifique:
-  docker compose logs balance-db
+  docker compose logs postgres-db
   docker compose logs balance-service
-  docker compose exec -T balance-db psql -h "$hostName" -U "$User" -d "$Database" -c "select 1;"
+  docker compose exec -T postgres-db psql -h "$hostName" -U "$User" -d "$Database" -c "select 1;"
 
 Para corrigir, atualize a senha manualmente dentro do PostgreSQL quando a senha antiga for conhecida,
-ou recrie somente o volume local do Balance se os dados forem descartaveis.
+ou recrie manualmente o volume local do PostgreSQL se os dados forem descartaveis.
 Nenhuma acao destrutiva foi executada automaticamente.
 "@)
 }
 
 function Assert-BalanceDatabaseAuthentication {
-  $hostName = Get-LocalConfigValue "BALANCE_DB_HOST" "balance-db"
-  $user = Get-LocalConfigValue "BALANCE_DB_USER" "userBalance"
-  $database = Get-LocalConfigValue "BALANCE_DB_NAME" "dbBalance"
-  $password = Get-LocalConfigValue "BALANCE_DB_PASSWORD" "local_dev_password"
+  $hostName = Get-LocalConfigValue "BALANCE_DB_HOST" "postgres-db"
+  $user = Get-LocalConfigValue "BALANCE_DB_WRITE_USER" (Get-LocalConfigValue "BALANCE_DB_USER" "balance_write_user")
+  $database = Get-LocalConfigValue "BALANCE_DB_NAME" "appdb"
+  $password = Get-LocalConfigValue "BALANCE_DB_WRITE_PASSWORD" (Get-LocalConfigValue "BALANCE_DB_PASSWORD" "local_dev_password")
 
   $previousErrorActionPreference = $ErrorActionPreference
   try {
     $ErrorActionPreference = "Continue"
     & docker compose -f $ComposeFile exec -T `
       -e "PGPASSWORD=$password" `
-      "balance-db" `
+      "postgres-db" `
       psql -h $hostName -U $user -d $database -v "ON_ERROR_STOP=1" -c "select 1;" 1>$null 2>$null
     $exitCode = $LASTEXITCODE
   }
@@ -157,18 +157,25 @@ function Assert-LocalPubSubStack {
   }
 }
 
-function Get-PostgresCount([string]$Service, [string]$User, [string]$Database, [string]$Sql) {
-  $value = & docker compose -f $ComposeFile exec -T $Service psql -U $User -d $Database -t -A -c $Sql
+function Get-PostgresCount([string]$Service, [string]$User, [string]$Database, [string]$Sql, [string]$Password) {
+  $value = & docker compose -f $ComposeFile exec -T `
+    -e "PGPASSWORD=$Password" `
+    $Service `
+    psql -h $Service -U $User -d $Database -t -A -c $Sql
   if ($LASTEXITCODE -ne 0) { throw "Falha ao consultar $Service durante validacao do smoke Pub/Sub." }
   return [int](($value | Out-String).Trim())
 }
 
 function Get-AsyncFlowCounts {
-  $balanceUser = Get-LocalConfigValue "BALANCE_DB_USER" "userBalance"
-  $balanceDatabase = Get-LocalConfigValue "BALANCE_DB_NAME" "dbBalance"
+  $ledgerUser = Get-LocalConfigValue "LEDGER_DB_USER" "ledger_app_user"
+  $ledgerDatabase = Get-LocalConfigValue "LEDGER_DB_NAME" "appdb"
+  $ledgerPassword = Get-LocalConfigValue "LEDGER_DB_PASSWORD" "local_dev_password"
+  $balanceUser = Get-LocalConfigValue "BALANCE_DB_READ_USER" (Get-LocalConfigValue "BALANCE_DB_USER" "balance_read_user")
+  $balanceDatabase = Get-LocalConfigValue "BALANCE_DB_NAME" "appdb"
+  $balancePassword = Get-LocalConfigValue "BALANCE_DB_READ_PASSWORD" (Get-LocalConfigValue "BALANCE_DB_PASSWORD" "local_dev_password")
   return @{
-    OutboxProcessed = (Get-PostgresCount "ledger-db" "appuser" "appdb" "SELECT COUNT(*) FROM outbox_messages WHERE event_type = 'LedgerEntryCreated.v1' AND status = 'Processed';")
-    BalanceProcessed = (Get-PostgresCount "balance-db" $balanceUser $balanceDatabase "SELECT COUNT(*) FROM processed_events;")
+    OutboxProcessed = (Get-PostgresCount "postgres-db" $ledgerUser $ledgerDatabase "SELECT COUNT(*) FROM outbox_messages WHERE event_type = 'LedgerEntryCreated.v1' AND status = 'Processed';" $ledgerPassword)
+    BalanceProcessed = (Get-PostgresCount "postgres-db" $balanceUser $balanceDatabase "SELECT COUNT(*) FROM processed_events;" $balancePassword)
   }
 }
 

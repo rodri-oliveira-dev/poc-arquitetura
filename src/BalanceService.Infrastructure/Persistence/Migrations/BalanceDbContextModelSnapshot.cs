@@ -17,7 +17,8 @@ namespace BalanceService.Infrastructure.Persistence.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.0")
+                .HasDefaultSchema("balance")
+                .HasAnnotation("ProductVersion", "10.0.8")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -71,7 +72,7 @@ namespace BalanceService.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ux_daily_balances_merchant_date_currency");
 
-                    b.ToTable("daily_balances", (string)null);
+                    b.ToTable("daily_balances", "balance");
                 });
 
             modelBuilder.Entity("BalanceService.Domain.Balances.ProcessedEvent", b =>
@@ -104,7 +105,7 @@ namespace BalanceService.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ux_processed_events_event_id");
 
-                    b.ToTable("processed_events", (string)null);
+                    b.ToTable("processed_events", "balance");
                 });
 #pragma warning restore 612, 618
         }
