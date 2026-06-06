@@ -22,7 +22,9 @@ Ferramentas opcionais:
 
 - `curl`, para exemplos HTTP;
 - VS Code, para workspace, tasks e REST Client;
-- Node.js 20+, para gerar a documentacao LikeC4 localmente.
+- Node.js LTS, para gerar a documentacao LikeC4 localmente.
+
+Detalhes sobre Node.js, npm, npx, tools .NET locais e validacoes OpenAPI/LikeC4 ficam em [ferramentas auxiliares](tooling.md).
 
 ## Escopo local e credenciais
 

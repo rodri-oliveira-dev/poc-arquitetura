@@ -185,6 +185,7 @@ Os scripts executam testes com cobertura e aplicam gate minimo de 85% de cobertu
 - [Indice geral da documentacao](docs/README.md)
 - [Maturidade tecnica da POC](docs/maturity.md)
 - [Desenvolvimento local](docs/development/local-development.md)
+- [Ferramentas auxiliares](docs/development/tooling.md)
 - [Dev Container opcional](docs/development/devcontainer.md)
 - [LedgerService API](docs/development/ledger-api.md)
 - [BalanceService API](docs/development/balance-api.md)
