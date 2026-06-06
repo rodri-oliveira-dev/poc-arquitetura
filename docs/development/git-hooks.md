@@ -40,6 +40,8 @@ Quando existem arquivos `*.tf` versionados em `infra/terraform`, o hook executa 
 
 Na sequencia, o hook tenta executar Trivy para validar Dockerfiles, Terraform, misconfigurations, secrets e vulnerabilidades detectaveis no filesystem. Se o comando `trivy` nao estiver instalado, o hook exibe um aviso e permite o push. Se o Trivy estiver instalado e encontrar achados `HIGH` ou `CRITICAL`, o push e bloqueado. Consulte [validacao de seguranca com Trivy](trivy-security-scan.md).
 
+Os scans do Trivy ignoram diretorios gerados, dependencias locais e caches como `node_modules`, `dist`, `bin`, `obj`, `TestResults`, `coverage` e `.terraform` para evitar falsos positivos fora dos arquivos versionados do projeto.
+
 O hook executa restore, build e testes rapidos sem cobertura quando encontra qualquer arquivo impactante, incluindo:
 
 - codigo, projetos e solution: `*.cs`, `*.csproj`, `*.sln`, `*.slnx`;
@@ -139,8 +141,55 @@ Para a validacao completa com cobertura, use `./test.sh`, `./test.ps1` ou `PRE_P
 Para executar apenas a validacao Trivy manualmente:
 
 ```bash
-trivy config --severity HIGH,CRITICAL --tf-vars infra/terraform/environments/dev/validation.tfvars .
-trivy fs --scanners vuln,secret,misconfig --severity HIGH,CRITICAL --tf-vars infra/terraform/environments/dev/validation.tfvars .
+trivy config \
+  --severity HIGH,CRITICAL \
+  --tf-vars infra/terraform/environments/dev/validation.tfvars \
+  --skip-dirs node_modules \
+  --skip-dirs .git \
+  --skip-dirs dist \
+  --skip-dirs .terraform \
+  --skip-dirs bin \
+  --skip-dirs "**/bin" \
+  --skip-dirs obj \
+  --skip-dirs "**/obj" \
+  --skip-dirs .vs \
+  --skip-dirs .idea \
+  --skip-dirs TestResults \
+  --skip-dirs "**/TestResults" \
+  --skip-dirs coverage \
+  --skip-dirs CodeCoverage \
+  --skip-dirs StrykerOutput \
+  --skip-dirs .dotnet \
+  --skip-dirs .dotnet-home \
+  --skip-dirs .nuget \
+  --skip-dirs artifacts \
+  --skip-dirs infra/nginx/certs \
+  .
+trivy fs \
+  --scanners vuln,secret,misconfig \
+  --severity HIGH,CRITICAL \
+  --tf-vars infra/terraform/environments/dev/validation.tfvars \
+  --skip-dirs node_modules \
+  --skip-dirs .git \
+  --skip-dirs dist \
+  --skip-dirs .terraform \
+  --skip-dirs bin \
+  --skip-dirs "**/bin" \
+  --skip-dirs obj \
+  --skip-dirs "**/obj" \
+  --skip-dirs .vs \
+  --skip-dirs .idea \
+  --skip-dirs TestResults \
+  --skip-dirs "**/TestResults" \
+  --skip-dirs coverage \
+  --skip-dirs CodeCoverage \
+  --skip-dirs StrykerOutput \
+  --skip-dirs .dotnet \
+  --skip-dirs .dotnet-home \
+  --skip-dirs .nuget \
+  --skip-dirs artifacts \
+  --skip-dirs infra/nginx/certs \
+  .
 ```
 
 ## GitHub Actions
