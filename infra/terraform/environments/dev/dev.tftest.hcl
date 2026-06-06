@@ -27,26 +27,26 @@ run "dev_composes_cloudsql_postgres" {
 
   assert {
     condition     = google_project_service.sqladmin.service == "sqladmin.googleapis.com"
-    error_message = "The dev root module must enable the Cloud SQL Admin API."
+    error_message = "O root module dev deve habilitar a Cloud SQL Admin API."
   }
 
   assert {
     condition     = module.cloudsql_postgres.database_name == var.database_name
-    error_message = "The dev root module must pass the configured database name to the Cloud SQL module."
+    error_message = "O root module dev deve passar o nome de database configurado para o modulo Cloud SQL."
   }
 
   assert {
     condition     = module.cloudsql_postgres.database_user == var.database_user
-    error_message = "The dev root module must pass the configured database user to the Cloud SQL module."
+    error_message = "O root module dev deve passar o usuario de database configurado para o modulo Cloud SQL."
   }
 
   assert {
     condition     = output.database_name == var.database_name
-    error_message = "The dev root module must expose the non-secret Cloud SQL database name."
+    error_message = "O root module dev deve expor o nome nao secreto do database Cloud SQL."
   }
 
   assert {
     condition     = output.database_user == var.database_user
-    error_message = "The dev root module must expose the non-secret Cloud SQL database user."
+    error_message = "O root module dev deve expor o usuario nao secreto do database Cloud SQL."
   }
 }

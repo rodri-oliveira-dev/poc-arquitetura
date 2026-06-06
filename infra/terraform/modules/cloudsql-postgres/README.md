@@ -1,49 +1,51 @@
-# Cloud SQL PostgreSQL Terraform Module
+# Modulo Terraform Cloud SQL PostgreSQL
 
-This module provisions a Google Cloud SQL for PostgreSQL database for a single
-application environment:
+Este modulo provisiona um database Google Cloud SQL for PostgreSQL para um
+unico ambiente de aplicacao:
 
-- one Cloud SQL PostgreSQL instance;
-- one application database;
-- one application database user;
-- standardized labels merged with environment metadata;
-- configurable initial disk size and disk autoresize behavior;
-- public IPv4 enabled for Cloud SQL Auth Proxy access in this first dev
-  iteration.
+- uma instancia Cloud SQL PostgreSQL;
+- um database de aplicacao;
+- um usuario de database de aplicacao;
+- labels padronizadas combinadas com metadados de ambiente;
+- tamanho inicial de disco e comportamento de disk autoresize configuraveis;
+- Public IPv4 habilitado para acesso via Cloud SQL Auth Proxy nesta primeira
+  iteracao dev.
 
-The module does not enable APIs, create Secret Manager entries, configure VPC
-private connectivity, create IAM bindings, or manage application connection
-strings. Keep passwords and connection strings outside versioned files.
+O modulo nao habilita APIs, nao cria entradas no Secret Manager, nao configura
+conectividade privada VPC, nao cria bindings IAM e nao gerencia connection
+strings da aplicacao. Mantenha senhas e connection strings fora de arquivos
+versionados.
 
-## Connectivity
+## Conectividade
 
-The expected local access path for dev is Cloud SQL Auth Proxy using the
-`instance_connection_name` output. Public IPv4 is enabled, but the module does
-not configure `authorized_networks` and must not be used to allow
+O caminho esperado de acesso local para dev e Cloud SQL Auth Proxy usando o
+output `instance_connection_name`. Public IPv4 fica habilitado, mas o modulo
+nao configura `authorized_networks` e nao deve ser usado para permitir
 `0.0.0.0/0`.
 
-Example local proxy command after a reviewed manual apply from the dev root
-module:
+Exemplo de comando local do proxy depois de um apply manual e revisado a partir
+do root module dev:
 
 ```powershell
 cloud-sql-proxy "$(terraform output -raw database_instance_connection_name)" --port 5432
 ```
 
-Configure the application locally with host `127.0.0.1`, port `5432`, the
-database name, the database user, and the password from the ignored local secret
-source used to run Terraform. The password is never exposed as a module output.
+Configure a aplicacao localmente com host `127.0.0.1`, porta `5432`, nome do
+database, usuario do database e senha vinda da fonte local de segredo ignorada
+pelo Git usada para executar Terraform. A senha nunca e exposta como output do
+modulo.
 
-## Prerequisites
+## Pre-requisitos
 
-- The Cloud SQL Admin API (`sqladmin.googleapis.com`) must already be enabled in
-  the target project.
-- The identity executing Terraform must be allowed to manage Cloud SQL
-  instances, databases, and users.
-- The caller must provide `database_password` through an ignored
-  `terraform.tfvars` file or a secure environment variable such as
+- A Cloud SQL Admin API (`sqladmin.googleapis.com`) ja deve estar habilitada no
+  projeto alvo.
+- A identidade que executa Terraform deve poder gerenciar instancias Cloud SQL,
+  databases e usuarios.
+- O caller deve fornecer `database_password` por um arquivo `terraform.tfvars`
+  ignorado ou por uma variavel de ambiente segura, como
   `TF_VAR_database_password`.
 
-## Usage
+## Uso
 
 ```hcl
 module "cloudsql_postgres" {
@@ -81,22 +83,23 @@ module "cloudsql_postgres" {
 }
 ```
 
-## Backup Defaults
+## Defaults De Backup
 
-The default backup configuration keeps backups and point-in-time recovery
-disabled for disposable dev POC runs. This reduces recurring cost, but all data
-can be lost during instance deletion or failure. Enable backups only after an
-explicit review of cost and recovery requirements.
+A configuracao default de backup mantem backups e point-in-time recovery
+desabilitados para execucoes descartaveis da POC dev. Isso reduz custo
+recorrente, mas todos os dados podem ser perdidos em exclusao ou falha da
+instancia. Habilite backups somente depois de revisao explicita de custo e
+requisitos de recuperacao.
 
-## Outputs
+## Saidas
 
-The module exposes the instance name, instance connection name, database name,
-database user, public IP address when assigned, and a non-secret metadata object.
-It does not output the database password.
+O modulo expoe nome da instancia, nome de conexao da instancia, nome do
+database, usuario do database, endereco IP publico quando atribuido e um objeto
+de metadados nao secretos. Ele nao expoe a senha do database.
 
-## Validation
+## Validacao
 
-Run local, non-destructive validation from this directory:
+Execute validacao local e nao destrutiva neste diretorio:
 
 ```bash
 terraform fmt -check
@@ -104,4 +107,4 @@ terraform init -backend=false
 terraform validate
 ```
 
-Do not run `terraform apply` without an explicit deployment review.
+Nao execute `terraform apply` sem revisao explicita de deployment.

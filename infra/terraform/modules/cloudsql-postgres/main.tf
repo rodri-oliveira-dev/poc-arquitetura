@@ -41,10 +41,10 @@ resource "google_sql_database_instance" "postgres" {
       location                       = var.backup_configuration.location
     }
 
-    # Public IPv4 is intentionally enabled for the first dev iteration because
-    # local access is expected to go through Cloud SQL Auth Proxy.
+    # Public IPv4 fica habilitado intencionalmente na primeira iteracao dev
+    # porque o acesso local deve passar pelo Cloud SQL Auth Proxy.
     ip_configuration {
-      #trivy:ignore:GCP-0017 Public IPv4 is required for this dev Auth Proxy iteration; no authorized_networks are configured.
+      #trivy:ignore:GCP-0017 Public IPv4 e necessario nesta iteracao dev com Auth Proxy; authorized_networks nao e configurado.
       ipv4_enabled = true
       ssl_mode     = "ENCRYPTED_ONLY"
     }

@@ -1,153 +1,153 @@
 variable "project_id" {
-  description = "Google Cloud project ID where the Cloud SQL resources are created."
+  description = "ID do projeto Google Cloud onde os recursos Cloud SQL sao criados."
   type        = string
 
   validation {
     condition     = length(trimspace(var.project_id)) > 0
-    error_message = "project_id must not be empty."
+    error_message = "project_id nao deve ficar vazio."
   }
 }
 
 variable "region" {
-  description = "Google Cloud region where the Cloud SQL instance is created."
+  description = "Regiao Google Cloud onde a instancia Cloud SQL e criada."
   type        = string
 
   validation {
     condition     = can(regex("^[a-z]+-[a-z0-9]+[0-9]$", var.region))
-    error_message = "region must be a valid Google Cloud region name, such as us-central1."
+    error_message = "region deve ser um nome valido de regiao Google Cloud, como us-central1."
   }
 }
 
 variable "environment" {
-  description = "Environment identifier used in labels."
+  description = "Identificador do ambiente usado em labels."
   type        = string
 
   validation {
     condition     = can(regex("^[a-z][a-z0-9-]*$", var.environment)) && length(var.environment) <= 63
-    error_message = "environment must start with a lowercase letter, contain only lowercase letters, digits, or hyphens, and have at most 63 characters."
+    error_message = "environment deve iniciar com letra minuscula, conter apenas letras minusculas, digitos ou hifens e ter no maximo 63 caracteres."
   }
 }
 
 variable "app_name" {
-  description = "Application identifier used in labels."
+  description = "Identificador da aplicacao usado em labels."
   type        = string
 
   validation {
     condition     = can(regex("^[a-z][a-z0-9-]*$", var.app_name)) && length(var.app_name) <= 63
-    error_message = "app_name must start with a lowercase letter, contain only lowercase letters, digits, or hyphens, and have at most 63 characters."
+    error_message = "app_name deve iniciar com letra minuscula, conter apenas letras minusculas, digitos ou hifens e ter no maximo 63 caracteres."
   }
 }
 
 variable "instance_name" {
-  description = "Cloud SQL instance name."
+  description = "Nome da instancia Cloud SQL."
   type        = string
 
   validation {
     condition     = can(regex("^[a-z][a-z0-9-]{0,61}[a-z0-9]$", var.instance_name))
-    error_message = "instance_name must start with a lowercase letter, contain only lowercase letters, digits, or hyphens, end with a lowercase letter or digit, and have at most 63 characters."
+    error_message = "instance_name deve iniciar com letra minuscula, conter apenas letras minusculas, digitos ou hifens, terminar com letra minuscula ou digito e ter no maximo 63 caracteres."
   }
 }
 
 variable "postgres_version" {
-  description = "Cloud SQL PostgreSQL database version."
+  description = "Versao do database Cloud SQL PostgreSQL."
   type        = string
   default     = "POSTGRES_16"
 
   validation {
     condition     = can(regex("^POSTGRES_[0-9]+$", var.postgres_version))
-    error_message = "postgres_version must use the Cloud SQL PostgreSQL format, such as POSTGRES_16."
+    error_message = "postgres_version deve usar o formato Cloud SQL PostgreSQL, como POSTGRES_16."
   }
 }
 
 variable "tier" {
-  description = "Cloud SQL machine tier."
+  description = "Tier da maquina Cloud SQL."
   type        = string
   default     = "db-f1-micro"
 
   validation {
     condition     = length(trimspace(var.tier)) > 0
-    error_message = "tier must not be empty."
+    error_message = "tier nao deve ficar vazio."
   }
 }
 
 variable "edition" {
-  description = "Cloud SQL edition. ENTERPRISE is required for cost-conscious shared-core tiers such as db-f1-micro."
+  description = "Edicao do Cloud SQL. ENTERPRISE e exigida para tiers shared-core de baixo custo, como db-f1-micro."
   type        = string
   default     = "ENTERPRISE"
 
   validation {
     condition     = contains(["ENTERPRISE", "ENTERPRISE_PLUS"], var.edition)
-    error_message = "edition must be either ENTERPRISE or ENTERPRISE_PLUS."
+    error_message = "edition deve ser ENTERPRISE ou ENTERPRISE_PLUS."
   }
 }
 
 variable "availability_type" {
-  description = "Cloud SQL availability type. Use ZONAL for cost-conscious dev and REGIONAL only when HA is explicitly required."
+  description = "Tipo de disponibilidade do Cloud SQL. Use ZONAL para dev de baixo custo e REGIONAL somente quando HA for explicitamente exigido."
   type        = string
   default     = "ZONAL"
 
   validation {
     condition     = contains(["ZONAL", "REGIONAL"], var.availability_type)
-    error_message = "availability_type must be either ZONAL or REGIONAL."
+    error_message = "availability_type deve ser ZONAL ou REGIONAL."
   }
 }
 
 variable "disk_size" {
-  description = "Initial Cloud SQL data disk size in GB."
+  description = "Tamanho inicial do disco de dados Cloud SQL em GB."
   type        = number
   default     = 10
 
   validation {
     condition     = floor(var.disk_size) == var.disk_size && var.disk_size >= 10
-    error_message = "disk_size must be an integer greater than or equal to the Cloud SQL minimum of 10 GB."
+    error_message = "disk_size deve ser um inteiro maior ou igual ao minimo de 10 GB do Cloud SQL."
   }
 }
 
 variable "disk_autoresize" {
-  description = "Whether Cloud SQL can automatically increase disk size."
+  description = "Define se o Cloud SQL pode aumentar automaticamente o tamanho do disco."
   type        = bool
   default     = false
 }
 
 variable "database_name" {
-  description = "Application database name created inside the Cloud SQL instance."
+  description = "Nome do database da aplicacao criado dentro da instancia Cloud SQL."
   type        = string
 
   validation {
     condition     = can(regex("^[a-z][a-z0-9_]{0,62}$", var.database_name))
-    error_message = "database_name must start with a lowercase letter, contain only lowercase letters, digits, or underscores, and have at most 63 characters."
+    error_message = "database_name deve iniciar com letra minuscula, conter apenas letras minusculas, digitos ou underscores e ter no maximo 63 caracteres."
   }
 }
 
 variable "database_user" {
-  description = "Application database user created inside the Cloud SQL instance."
+  description = "Usuario do database da aplicacao criado dentro da instancia Cloud SQL."
   type        = string
 
   validation {
     condition     = can(regex("^[a-z][a-z0-9_]{0,62}$", var.database_user))
-    error_message = "database_user must start with a lowercase letter, contain only lowercase letters, digits, or underscores, and have at most 63 characters."
+    error_message = "database_user deve iniciar com letra minuscula, conter apenas letras minusculas, digitos ou underscores e ter no maximo 63 caracteres."
   }
 }
 
 variable "database_password" {
-  description = "Application database user password. Provide it through an ignored terraform.tfvars file or TF_VAR_database_password."
+  description = "Senha do usuario do database da aplicacao. Forneca por um arquivo terraform.tfvars ignorado ou por TF_VAR_database_password."
   type        = string
   sensitive   = true
 
   validation {
     condition     = length(var.database_password) >= 16
-    error_message = "database_password must have at least 16 characters."
+    error_message = "database_password deve ter pelo menos 16 caracteres."
   }
 }
 
 variable "deletion_protection" {
-  description = "Whether Terraform and the Cloud SQL API protect the instance from deletion."
+  description = "Define se o Terraform e a Cloud SQL API protegem a instancia contra exclusao."
   type        = bool
   default     = false
 }
 
 variable "backup_configuration" {
-  description = "Cloud SQL backup configuration. Defaults favor a disposable, low-cost dev baseline with backups and point-in-time recovery disabled."
+  description = "Configuracao de backup do Cloud SQL. Os defaults favorecem uma baseline dev descartavel e de baixo custo, com backups e point-in-time recovery desabilitados."
   type = object({
     enabled                        = bool
     start_time                     = string
@@ -165,17 +165,17 @@ variable "backup_configuration" {
 
   validation {
     condition     = can(regex("^([01][0-9]|2[0-3]):[0-5][0-9]$", var.backup_configuration.start_time))
-    error_message = "backup_configuration.start_time must use HH:MM format."
+    error_message = "backup_configuration.start_time deve usar o formato HH:MM."
   }
 
   validation {
     condition     = var.backup_configuration.transaction_log_retention_days >= 1 && var.backup_configuration.transaction_log_retention_days <= 7
-    error_message = "backup_configuration.transaction_log_retention_days must be between 1 and 7."
+    error_message = "backup_configuration.transaction_log_retention_days deve ficar entre 1 e 7."
   }
 }
 
 variable "labels" {
-  description = "Additional labels merged with app, environment, and region labels."
+  description = "Labels adicionais combinadas com as labels app, environment e region."
   type        = map(string)
   default     = {}
 
@@ -185,6 +185,6 @@ variable "labels" {
       can(regex("^[a-z][a-z0-9_-]{0,62}$", key)) &&
       can(regex("^[a-z0-9_-]{0,63}$", value))
     ])
-    error_message = "labels keys must start with a lowercase letter and labels keys/values may contain only lowercase letters, digits, underscores, or hyphens."
+    error_message = "As chaves de labels devem iniciar com letra minuscula, e chaves/valores podem conter apenas letras minusculas, digitos, underscores ou hifens."
   }
 }

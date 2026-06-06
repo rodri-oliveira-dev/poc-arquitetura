@@ -105,6 +105,6 @@ habilitados, como subscriptions de exportacao, import topics ou SMTs.
 
 ## Referencias oficiais
 
-- [Pub/Sub pricing](https://cloud.google.com/pubsub/pricing)
-- [Pub/Sub Single Message Transforms overview](https://cloud.google.com/pubsub/docs/smts/smts-overview)
+- [Precos do Pub/Sub](https://cloud.google.com/pubsub/pricing)
+- [Visao geral de Pub/Sub Single Message Transforms](https://cloud.google.com/pubsub/docs/smts/smts-overview)
 - [Anuncio de Single Message Transforms](https://cloud.google.com/blog/products/data-analytics/pub-sub-single-message-transforms)

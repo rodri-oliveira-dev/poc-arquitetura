@@ -108,7 +108,7 @@ resource "google_pubsub_subscription" "balance_ledger_events" {
         tonumber(trimsuffix(var.main_subscription_expiration_ttl, "s")) > tonumber(trimsuffix(var.message_retention_duration, "s")),
         false
       )
-      error_message = "main_subscription_expiration_ttl must be empty to never expire or greater than message_retention_duration."
+      error_message = "main_subscription_expiration_ttl deve ser vazio para nunca expirar ou maior que message_retention_duration."
     }
   }
 }
@@ -137,7 +137,7 @@ resource "google_pubsub_subscription" "application_dlq" {
         tonumber(trimsuffix(var.application_dlq_subscription_expiration_ttl, "s")) > tonumber(trimsuffix(var.message_retention_duration, "s")),
         false
       )
-      error_message = "application_dlq_subscription_expiration_ttl must be empty to never expire or greater than message_retention_duration."
+      error_message = "application_dlq_subscription_expiration_ttl deve ser vazio para nunca expirar ou maior que message_retention_duration."
     }
   }
 }
@@ -161,7 +161,7 @@ resource "google_pubsub_subscription" "technical_dlq" {
         tonumber(trimsuffix(var.technical_dlq_subscription_expiration_ttl, "s")) > tonumber(trimsuffix(var.message_retention_duration, "s")),
         false
       )
-      error_message = "technical_dlq_subscription_expiration_ttl must be empty to never expire or greater than message_retention_duration."
+      error_message = "technical_dlq_subscription_expiration_ttl deve ser vazio para nunca expirar ou maior que message_retention_duration."
     }
   }
 }
@@ -170,14 +170,14 @@ resource "google_service_account" "ledger_worker" {
   project      = var.project_id
   account_id   = local.ledger_worker_service_account_id
   display_name = "${var.app_name} ${var.environment} Ledger Worker"
-  description  = "Publishes Ledger events to Pub/Sub."
+  description  = "Publica eventos Ledger no Pub/Sub."
 }
 
 resource "google_service_account" "balance_worker" {
   project      = var.project_id
   account_id   = local.balance_worker_service_account_id
   display_name = "${var.app_name} ${var.environment} Balance Worker"
-  description  = "Consumes Ledger events and publishes application DLQ messages."
+  description  = "Consome eventos Ledger e publica mensagens na DLQ de aplicacao."
 }
 
 resource "google_service_account_iam_member" "ledger_worker_token_creator" {

@@ -1,6 +1,6 @@
-# Non-sensitive values used only by local/CI static validation tools.
-# database_password is an intentionally fake placeholder required by static
-# Terraform validation; never replace it with a real secret in this file.
+# Valores nao sensiveis usados apenas por ferramentas de validacao estatica local/CI.
+# database_password e um placeholder falso intencional exigido pela validacao
+# estatica do Terraform; nunca substitua por um segredo real neste arquivo.
 project_id                              = "estudos-gcp-498211"
 region                                  = "us-central1"
 database_password                       = "validation-only-fake-password"
