@@ -5,6 +5,12 @@
     "description": "API em Clean Architecture com foco em DDD",
     "version": "1.0"
   },
+  "servers": [
+    {
+      "url": "http://localhost:5228",
+      "description": "Ambiente local direto do BalanceService.Api"
+    }
+  ],
   "paths": {
     "/health": {
       "get": {

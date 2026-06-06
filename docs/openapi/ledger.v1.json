@@ -5,6 +5,12 @@
     "description": "API em Clean Architecture com foco em DDD",
     "version": "1.0"
   },
+  "servers": [
+    {
+      "url": "http://localhost:5226",
+      "description": "Ambiente local direto do LedgerService.Api"
+    }
+  ],
   "paths": {
     "/api/v1/lancamentos": {
       "post": {
