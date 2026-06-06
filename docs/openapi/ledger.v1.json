@@ -1,0 +1,1429 @@
+{
+  "openapi": "3.0.4",
+  "info": {
+    "title": "Poc Arquitetura Ledger API",
+    "description": "API em Clean Architecture com foco em DDD",
+    "version": "1.0"
+  },
+  "paths": {
+    "/api/v1/lancamentos": {
+      "post": {
+        "tags": [
+          "Lancamentos"
+        ],
+        "summary": "Cria um lançamento no ledger.",
+        "description": "Registra um lançamento CREDIT ou DEBIT. O endpoint exige `Idempotency-Key`, aceita `X-Correlation-Id` opcional, aplica limite de body configurável por `ApiLimits:MaxRequestBodySizeBytes` e retorna `409` quando a mesma chave de idempotência é reutilizada com payload diferente.\n\n<b>Autorização</b>: requer scope(s): <c>ledger.write</c>. (claim <c>scope</c> do JWT)",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Chave de idempotência em formato UUID. Deve ser única por operação lógica.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Correlation-Id",
+            "in": "header",
+            "description": "Correlation id opcional em formato UUID. Se ausente, a API gera e devolve um valor no response header.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateLancamentoRequest"
+              },
+              "example": {
+                "merchantId": "tese",
+                "type": "CREDIT",
+                "amount": 150,
+                "description": "Venda do pedido 12345",
+                "externalReference": "order-12345"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateLancamentoRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateLancamentoRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Lançamento criado com sucesso. Retorna Location com a URI canônica do recurso.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/LancamentoDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LancamentoDto"
+                },
+                "example": {
+                  "id": "lan_9f3a1b2c",
+                  "merchantId": "tese",
+                  "type": "CREDIT",
+                  "amount": "150.00",
+                  "occurredAt": "2026-02-14T21:56:03.8825245-03:00",
+                  "description": "Venda do pedido 12345",
+                  "externalReference": "order-12345",
+                  "createdAt": "2026-02-14T21:56:04.1023456-03:00"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LancamentoDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request inválido.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                },
+                "example": {
+                  "type": "https://httpstatuses.com/400",
+                  "title": "Invalid request",
+                  "status": 400,
+                  "detail": "One or more validation errors occurred.",
+                  "errors": {
+                    "amount": [
+                      "Amount must have at most 18 digits and 2 decimal places."
+                    ]
+                  },
+                  "correlationId": "5b7f7b2d-5bb5-49d2-918d-c5d87ff54e3d"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflito de idempotência.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body acima do limite configurado.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Violação de regra de domínio.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Limite de requisições excedido."
+          },
+          "401": {
+            "description": "Token ausente ou inválido."
+          },
+          "403": {
+            "description": "Scope insuficiente ou token sem autorizacao para o merchant informado."
+          },
+          "500": {
+            "description": "Erro interno.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          { }
+        ]
+      }
+    },
+    "/api/v1/lancamentos/{lancamentoId}/estornos": {
+      "post": {
+        "tags": [
+          "Lancamentos"
+        ],
+        "summary": "Solicita estorno de um lancamento.",
+        "description": "Registra uma solicitacao de estorno com status Pending e grava a intencao no Outbox para processamento assincrono posterior. O endpoint nao processa o estorno financeiro no request HTTP.\n\n<b>Autorização</b>: requer scope(s): <c>ledger.write</c>. (claim <c>scope</c> do JWT)",
+        "parameters": [
+          {
+            "name": "lancamentoId",
+            "in": "path",
+            "description": "Identificador interno do lancamento original.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Chave de idempotencia em formato UUID. Deve ser unica por operacao logica.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Correlation-Id",
+            "in": "header",
+            "description": "Correlation id opcional em formato UUID. Se ausente, a API gera e devolve um valor no response header.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitarEstornoLancamentoRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitarEstornoLancamentoRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitarEstornoLancamentoRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Solicitacao aceita para processamento assincrono. Retorna Location com a URI futura de status.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/SolicitarEstornoLancamentoResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SolicitarEstornoLancamentoResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SolicitarEstornoLancamentoResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request invalido.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Lancamento original nao encontrado.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflito de idempotencia ou solicitacao ativa duplicada.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body acima do limite configurado.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Limite de requisicoes excedido."
+          },
+          "401": {
+            "description": "Token ausente ou invalido."
+          },
+          "403": {
+            "description": "Scope insuficiente ou token sem autorizacao para o merchant do lancamento original."
+          },
+          "500": {
+            "description": "Erro interno.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          { }
+        ]
+      }
+    },
+    "/api/v1/lancamentos/reprocessar": {
+      "post": {
+        "tags": [
+          "Lancamentos"
+        ],
+        "summary": "Solicita reprocessamento de lancamentos.",
+        "description": "Registra uma solicitacao de reprocessamento por merchant e periodo, com status Pending, e grava a intencao no Outbox para processamento assincrono posterior. O endpoint nao executa o reprocessamento no request HTTP.\n\n<b>Autorização</b>: requer scope(s): <c>ledger.write</c>. (claim <c>scope</c> do JWT)",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Chave de idempotencia em formato UUID. Deve ser unica por operacao logica.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Correlation-Id",
+            "in": "header",
+            "description": "Correlation id opcional em formato UUID. Se ausente, a API gera e devolve um valor no response header.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitarReprocessamentoLancamentosRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitarReprocessamentoLancamentosRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitarReprocessamentoLancamentosRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Solicitacao aceita para processamento assincrono. Retorna Location com a URI de status.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/SolicitarReprocessamentoLancamentosResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SolicitarReprocessamentoLancamentosResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SolicitarReprocessamentoLancamentosResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request invalido.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflito de idempotencia.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body acima do limite configurado.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Limite de requisicoes excedido."
+          },
+          "401": {
+            "description": "Token ausente ou invalido."
+          },
+          "403": {
+            "description": "Scope insuficiente ou token sem autorizacao para o merchant informado."
+          },
+          "500": {
+            "description": "Erro interno.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          { }
+        ]
+      }
+    },
+    "/api/v1/lancamentos/estornos/{estornoId}": {
+      "get": {
+        "tags": [
+          "Lancamentos"
+        ],
+        "summary": "Consulta status de uma solicitacao de estorno.",
+        "description": "Retorna o estado atual de uma solicitacao de estorno registrada previamente. O processamento do estorno e assincrono e pode evoluir apos a resposta do endpoint de criacao.\n\n<b>Autorização</b>: requer scope(s): <c>ledger.read</c>. (claim <c>scope</c> do JWT)",
+        "parameters": [
+          {
+            "name": "estornoId",
+            "in": "path",
+            "description": "Identificador da solicitacao de estorno.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Status da solicitacao de estorno.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObterStatusEstornoLancamentoResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObterStatusEstornoLancamentoResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObterStatusEstornoLancamentoResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente ou invalido."
+          },
+          "403": {
+            "description": "Scope insuficiente ou token sem autorizacao para o merchant do estorno."
+          },
+          "404": {
+            "description": "Solicitacao de estorno inexistente.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Limite de requisicoes excedido."
+          },
+          "500": {
+            "description": "Erro interno.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          { }
+        ]
+      }
+    },
+    "/api/v1/lancamentos/reprocessamentos/{reprocessamentoId}": {
+      "get": {
+        "tags": [
+          "Lancamentos"
+        ],
+        "summary": "Consulta status de uma solicitacao de reprocessamento.",
+        "description": "Retorna o estado atual de uma solicitacao de reprocessamento registrada previamente. O processamento efetivo e assincrono e sera executado por fluxo de worker/background.\n\n<b>Autorização</b>: requer scope(s): <c>ledger.read</c>. (claim <c>scope</c> do JWT)",
+        "parameters": [
+          {
+            "name": "reprocessamentoId",
+            "in": "path",
+            "description": "Identificador da solicitacao de reprocessamento.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Status da solicitacao de reprocessamento.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObterStatusReprocessamentoLancamentosResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObterStatusReprocessamentoLancamentosResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObterStatusReprocessamentoLancamentosResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente ou invalido."
+          },
+          "403": {
+            "description": "Scope insuficiente ou token sem autorizacao para o merchant do reprocessamento."
+          },
+          "404": {
+            "description": "Solicitacao de reprocessamento inexistente.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Limite de requisicoes excedido."
+          },
+          "500": {
+            "description": "Erro interno.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          { }
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "LedgerService.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
+        ],
+        "summary": "Health check simples",
+        "description": "Retorna 200 com body 'ok'. Endpoint público para liveness simples.",
+        "operationId": "Health",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/ready": {
+      "get": {
+        "tags": [
+          "LedgerService.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
+        ],
+        "summary": "Readiness check",
+        "description": "Valida dependências necessárias para aceitar tráfego HTTP: banco.",
+        "operationId": "Ready",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "503": {
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/outbox/dead-letters": {
+      "get": {
+        "tags": [
+          "OutboxAdmin"
+        ],
+        "summary": "Lista mensagens Outbox em Dead Letter.",
+        "description": "Fluxo administrativo protegido para inspeção paginada de mensagens Outbox que excederam o limite de retries.\n\n<b>Autorização</b>: requer scope(s): <c>outbox.admin</c>. (claim <c>scope</c> do JWT)",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Mensagens DeadLetter retornadas.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetDeadLettersResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetDeadLettersResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetDeadLettersResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente ou invalido."
+          },
+          "403": {
+            "description": "Scope insuficiente para administrar Outbox."
+          },
+          "429": {
+            "description": "Limite de requisicoes excedido."
+          },
+          "500": {
+            "description": "Erro interno.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          { }
+        ]
+      }
+    },
+    "/api/v1/outbox/dead-letters/{id}/requeue": {
+      "post": {
+        "tags": [
+          "OutboxAdmin"
+        ],
+        "summary": "Recoloca uma mensagem Outbox DeadLetter na fila de publicacao.",
+        "description": "Fluxo administrativo protegido para recuperar uma mensagem Outbox envenenada. Apenas mensagens DeadLetter sao alteradas.\n\n<b>Autorização</b>: requer scope(s): <c>outbox.admin</c>. (claim <c>scope</c> do JWT)",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequeueDeadLetterRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequeueDeadLetterRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequeueDeadLetterRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Mensagem recolocada como Pending ou ignorada por nao estar em DeadLetter.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequeueDeadLetterResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequeueDeadLetterResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequeueDeadLetterResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request invalido.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente ou invalido."
+          },
+          "403": {
+            "description": "Scope insuficiente para administrar Outbox."
+          },
+          "429": {
+            "description": "Limite de requisicoes excedido."
+          },
+          "500": {
+            "description": "Erro interno.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          { }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CreateLancamentoRequest": {
+        "type": "object",
+        "properties": {
+          "merchantId": {
+            "type": "string",
+            "description": "Identificador do merchant/lojista ao qual o lançamento pertence.",
+            "nullable": true
+          },
+          "type": {
+            "type": "string",
+            "description": "Tipo do lançamento. Valores aceitos: `CREDIT` ou `DEBIT`.",
+            "nullable": true
+          },
+          "amount": {
+            "type": "number",
+            "description": "Valor monetário decimal do lançamento, com no máximo 2 casas decimais. Para `CREDIT`, deve ser maior que zero; para `DEBIT`, menor que zero; nunca pode ser zero.",
+            "format": "double"
+          },
+          "description": {
+            "type": "string",
+            "description": "Descrição opcional do lançamento.",
+            "nullable": true
+          },
+          "externalReference": {
+            "type": "string",
+            "description": "Referência externa opcional do sistema de origem.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Payload para criação de um lançamento no ledger."
+      },
+      "DeadLetterOutboxMessageResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "aggregateType": {
+            "type": "string",
+            "nullable": true
+          },
+          "aggregateId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "eventType": {
+            "type": "string",
+            "nullable": true
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "retryCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "lastError": {
+            "type": "string",
+            "nullable": true
+          },
+          "correlationId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "traceParent": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "GetDeadLettersResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeadLetterOutboxMessageResponse"
+            },
+            "nullable": true
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totalCount": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "LancamentoDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "merchantId": {
+            "type": "string",
+            "nullable": true
+          },
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "amount": {
+            "type": "string",
+            "nullable": true
+          },
+          "occurredAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "externalReference": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ObterStatusEstornoLancamentoResponse": {
+        "type": "object",
+        "properties": {
+          "estornoId": {
+            "type": "string",
+            "description": "Identificador da solicitacao de estorno.",
+            "format": "uuid"
+          },
+          "lancamentoOriginalId": {
+            "type": "string",
+            "description": "Identificador do lancamento original.",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "description": "Estado atual da solicitacao de estorno.",
+            "nullable": true
+          },
+          "motivo": {
+            "type": "string",
+            "description": "Motivo informado na solicitacao de estorno.",
+            "nullable": true
+          },
+          "solicitadoEm": {
+            "type": "string",
+            "description": "Data e hora em que a solicitacao foi registrada.",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Resposta da consulta de status de uma solicitacao de estorno."
+      },
+      "ObterStatusReprocessamentoLancamentosResponse": {
+        "type": "object",
+        "properties": {
+          "reprocessamentoId": {
+            "type": "string",
+            "description": "Identificador da solicitacao de reprocessamento.",
+            "format": "uuid"
+          },
+          "merchantId": {
+            "type": "string",
+            "description": "Merchant informado na solicitacao.",
+            "nullable": true
+          },
+          "dataInicial": {
+            "type": "string",
+            "description": "Data inicial inclusiva do periodo solicitado.",
+            "format": "date"
+          },
+          "dataFinal": {
+            "type": "string",
+            "description": "Data final inclusiva do periodo solicitado.",
+            "format": "date"
+          },
+          "status": {
+            "type": "string",
+            "description": "Estado atual da solicitacao.",
+            "nullable": true
+          },
+          "motivo": {
+            "type": "string",
+            "description": "Motivo informado na solicitacao.",
+            "nullable": true
+          },
+          "solicitadoEm": {
+            "type": "string",
+            "description": "Data e hora em que a solicitacao foi registrada.",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Status de uma solicitacao de reprocessamento de lancamentos."
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "detail": {
+            "type": "string",
+            "nullable": true
+          },
+          "instance": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": { }
+      },
+      "RequeueDeadLetterRequest": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "RequeueDeadLetterResponse": {
+        "type": "object",
+        "properties": {
+          "requeued": {
+            "type": "boolean"
+          },
+          "outboxMessageId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SolicitarEstornoLancamentoRequest": {
+        "type": "object",
+        "properties": {
+          "motivo": {
+            "type": "string",
+            "description": "Motivo operacional ou de negocio para solicitar o estorno.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Payload para solicitar estorno assincrono de um lancamento."
+      },
+      "SolicitarEstornoLancamentoResponse": {
+        "type": "object",
+        "properties": {
+          "estornoId": {
+            "type": "string",
+            "description": "Identificador da solicitacao de estorno.",
+            "format": "uuid"
+          },
+          "lancamentoOriginalId": {
+            "type": "string",
+            "description": "Identificador do lancamento original.",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "description": "Status inicial da solicitacao. Valor esperado na criacao: Pending.",
+            "nullable": true
+          },
+          "statusUrl": {
+            "type": "string",
+            "description": "URI para consulta futura do status da solicitacao.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Resposta da solicitacao de estorno aceita para processamento assincrono."
+      },
+      "SolicitarReprocessamentoLancamentosRequest": {
+        "type": "object",
+        "properties": {
+          "merchantId": {
+            "type": "string",
+            "description": "Merchant autorizado para o qual o periodo sera reprocessado.",
+            "nullable": true
+          },
+          "dataInicial": {
+            "type": "string",
+            "description": "Data inicial inclusiva do periodo a reprocessar.",
+            "format": "date"
+          },
+          "dataFinal": {
+            "type": "string",
+            "description": "Data final inclusiva do periodo a reprocessar.",
+            "format": "date"
+          },
+          "motivo": {
+            "type": "string",
+            "description": "Motivo operacional ou de negocio para solicitar o reprocessamento.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Payload para solicitar reprocessamento assincrono de lancamentos."
+      },
+      "SolicitarReprocessamentoLancamentosResponse": {
+        "type": "object",
+        "properties": {
+          "reprocessamentoId": {
+            "type": "string",
+            "description": "Identificador da solicitacao de reprocessamento.",
+            "format": "uuid"
+          },
+          "merchantId": {
+            "type": "string",
+            "description": "Merchant informado na solicitacao.",
+            "nullable": true
+          },
+          "dataInicial": {
+            "type": "string",
+            "description": "Data inicial inclusiva do periodo solicitado.",
+            "format": "date"
+          },
+          "dataFinal": {
+            "type": "string",
+            "description": "Data final inclusiva do periodo solicitado.",
+            "format": "date"
+          },
+          "status": {
+            "type": "string",
+            "description": "Status inicial da solicitacao. Valor esperado na criacao: Pending.",
+            "nullable": true
+          },
+          "statusUrl": {
+            "type": "string",
+            "description": "URI para consulta do status da solicitacao.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Resposta da solicitacao de reprocessamento aceita para fluxo assincrono."
+      },
+      "ValidationErrorResponse": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Identificador do tipo de erro (link para documentação/HTTP status).",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "description": "Título curto do erro.",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "description": "Código HTTP retornado.",
+            "format": "int32"
+          },
+          "detail": {
+            "type": "string",
+            "description": "Mensagem de detalhe.",
+            "nullable": true
+          },
+          "errors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "description": "Dicionário de erros por campo, onde a chave é o nome do campo em camelCase.",
+            "nullable": true
+          },
+          "correlationId": {
+            "type": "string",
+            "description": "CorrelationId associado à requisição (mesmo valor retornado no header `X-Correlation-Id`).",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Formato de erro retornado quando há falhas de validação de request (HTTP 400)."
+      }
+    },
+    "securitySchemes": {
+      "X-Correlation-Id": {
+        "type": "apiKey",
+        "description": "Identificador de correlacao (UUID). Se nao for enviado, a API gera um novo e o retorna no header de response.",
+        "name": "X-Correlation-Id",
+        "in": "header"
+      },
+      "Idempotency-Key": {
+        "type": "apiKey",
+        "description": "Chave de idempotencia (UUID). Requisicoes com a mesma chave e mesmo payload podem ser reprocessadas com replay da resposta. Se a mesma chave for usada com payload diferente, a API retorna 409.",
+        "name": "Idempotency-Key",
+        "in": "header"
+      },
+      "Bearer": {
+        "type": "http",
+        "description": "Autenticacao via JWT Bearer. Obtenha um token no Keycloak local e informe: Bearer {token}.\n\nScopes relevantes nesta API: ledger.write (escrita) / ledger.read (leitura) / outbox.admin (administracao da DLQ do Outbox).",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Lancamentos"
+    },
+    {
+      "name": "LedgerService.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
+    },
+    {
+      "name": "OutboxAdmin"
+    }
+  ]
+}

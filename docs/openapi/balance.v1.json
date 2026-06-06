@@ -1,0 +1,580 @@
+{
+  "openapi": "3.0.4",
+  "info": {
+    "title": "Poc Arquitetura Balance API",
+    "description": "API em Clean Architecture com foco em DDD",
+    "version": "1.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "BalanceService.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
+        ],
+        "summary": "Health check simples",
+        "description": "Retorna 200 com body 'ok'. Endpoint público para liveness simples.",
+        "operationId": "Health",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/ready": {
+      "get": {
+        "tags": [
+          "BalanceService.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
+        ],
+        "summary": "Readiness check",
+        "description": "Valida dependências necessárias para aceitar tráfego HTTP: banco.",
+        "operationId": "Ready",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "503": {
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/consolidados/diario/{date}": {
+      "get": {
+        "tags": [
+          "Consolidados"
+        ],
+        "summary": "Consulta o consolidado diário.",
+        "description": "Retorna o consolidado diário derivado de `daily_balances` para um `merchantId` e uma data. Quando não há dados, a API responde `200` com totais zerados.\n\n<b>Autorização</b>: requer scope(s): <c>balance.read</c>. (claim <c>scope</c> do JWT)",
+        "parameters": [
+          {
+            "name": "date",
+            "in": "path",
+            "description": "Data no path no formato `YYYY-MM-DD`.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "merchantId",
+            "in": "query",
+            "description": "Identificador do merchant/lojista.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Correlation-Id",
+            "in": "header",
+            "description": "Correlation id opcional em formato UUID. Se ausente, a API gera e devolve um valor no response header.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Consolidado diário encontrado.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/DailyBalanceResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DailyBalanceResponse"
+                },
+                "example": {
+                  "merchantId": "tese",
+                  "date": "2026-02-14",
+                  "currency": "BRL",
+                  "totalCredits": "150.00",
+                  "totalDebits": "0.00",
+                  "netBalance": "150.00",
+                  "asOf": "2026-02-14T21:56:03.8825245-03:00",
+                  "calculatedAt": "2026-02-15T10:00:00-03:00"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DailyBalanceResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parâmetros inválidos.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                },
+                "example": {
+                  "type": "https://httpstatuses.com/400",
+                  "title": "Invalid request",
+                  "status": 400,
+                  "detail": "One or more validation errors occurred.",
+                  "errors": {
+                    "date": [
+                      "date must be in format YYYY-MM-DD."
+                    ]
+                  },
+                  "correlationId": "5b7f7b2d-5bb5-49d2-918d-c5d87ff54e3d"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente ou inválido."
+          },
+          "403": {
+            "description": "Scope insuficiente ou token sem autorizacao para o merchant informado."
+          },
+          "500": {
+            "description": "Erro interno.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          { }
+        ]
+      }
+    },
+    "/api/v1/consolidados/periodo": {
+      "get": {
+        "tags": [
+          "Consolidados"
+        ],
+        "summary": "Consulta o consolidado por período.",
+        "description": "Retorna o agregado do período e os itens diários derivados de `daily_balances`. O intervalo máximo padrão é 31 dias, configurável por `ApiLimits:MaxBalancePeriodDays`. Quando não há dados, a API responde `200` com totais zerados e lista vazia.\n\n<b>Autorização</b>: requer scope(s): <c>balance.read</c>. (claim <c>scope</c> do JWT)",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "description": "Data inicial no formato `YYYY-MM-DD`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "Data final no formato `YYYY-MM-DD`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "merchantId",
+            "in": "query",
+            "description": "Identificador do merchant/lojista.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Correlation-Id",
+            "in": "header",
+            "description": "Correlation id opcional em formato UUID. Se ausente, a API gera e devolve um valor no response header.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Consolidado por período encontrado.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/PeriodBalanceResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PeriodBalanceResponse"
+                },
+                "example": {
+                  "merchantId": "tese",
+                  "from": "2026-02-10",
+                  "to": "2026-02-14",
+                  "currency": "BRL",
+                  "totalCredits": "150.00",
+                  "totalDebits": "20.00",
+                  "netBalance": "130.00",
+                  "items": [
+                    {
+                      "date": "2026-02-10",
+                      "totalCredits": "0.00",
+                      "totalDebits": "20.00",
+                      "netBalance": "-20.00",
+                      "asOf": "2026-02-10T20:00:00-03:00"
+                    },
+                    {
+                      "date": "2026-02-14",
+                      "totalCredits": "150.00",
+                      "totalDebits": "0.00",
+                      "netBalance": "150.00",
+                      "asOf": "2026-02-14T21:56:03.8825245-03:00"
+                    }
+                  ],
+                  "calculatedAt": "2026-02-15T10:00:00-03:00"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PeriodBalanceResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parâmetros inválidos.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                },
+                "example": {
+                  "type": "https://httpstatuses.com/400",
+                  "title": "Invalid request",
+                  "status": 400,
+                  "detail": "One or more validation errors occurred.",
+                  "errors": {
+                    "from": [
+                      "from must be in format YYYY-MM-DD."
+                    ]
+                  },
+                  "correlationId": "5b7f7b2d-5bb5-49d2-918d-c5d87ff54e3d"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente ou inválido."
+          },
+          "403": {
+            "description": "Scope insuficiente ou token sem autorizacao para o merchant informado."
+          },
+          "500": {
+            "description": "Erro interno.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          { }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "DailyBalanceResponse": {
+        "required": [
+          "calculatedAt",
+          "currency",
+          "date",
+          "merchantId",
+          "netBalance",
+          "totalCredits",
+          "totalDebits"
+        ],
+        "type": "object",
+        "properties": {
+          "merchantId": {
+            "type": "string",
+            "description": "Identificador do merchant/lojista.",
+            "nullable": true
+          },
+          "date": {
+            "type": "string",
+            "description": "Data do consolidado no formato ISO-8601 (`YYYY-MM-DD`).",
+            "nullable": true
+          },
+          "currency": {
+            "type": "string",
+            "description": "Moeda (código de 3 letras, ex.: `BRL`).",
+            "nullable": true
+          },
+          "totalCredits": {
+            "type": "string",
+            "description": "Soma dos créditos do dia (string decimal com 2 casas, InvariantCulture).",
+            "nullable": true
+          },
+          "totalDebits": {
+            "type": "string",
+            "description": "Soma dos débitos do dia (string decimal com 2 casas, InvariantCulture).",
+            "nullable": true
+          },
+          "netBalance": {
+            "type": "string",
+            "description": "Saldo líquido do dia (`TotalCredits - TotalDebits`) (string decimal com 2 casas, InvariantCulture).",
+            "nullable": true
+          },
+          "asOf": {
+            "type": "string",
+            "description": "Timestamp mais recente considerado no consolidado (ISO-8601).\r\nQuando não há dados para o dia, este campo pode ser `null`.",
+            "nullable": true
+          },
+          "calculatedAt": {
+            "type": "string",
+            "description": "Timestamp em que a consulta foi calculada/gerada (ISO-8601).",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Resposta do consolidado diário para um merchant em uma data específica,\r\nderivada da tabela `daily_balances`."
+      },
+      "PeriodBalanceItemResponse": {
+        "required": [
+          "date",
+          "netBalance",
+          "totalCredits",
+          "totalDebits"
+        ],
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "description": "Data do item no formato ISO-8601 (`YYYY-MM-DD`).",
+            "nullable": true
+          },
+          "totalCredits": {
+            "type": "string",
+            "description": "Soma dos créditos do dia (string decimal com 2 casas, InvariantCulture).",
+            "nullable": true
+          },
+          "totalDebits": {
+            "type": "string",
+            "description": "Soma dos débitos do dia (string decimal com 2 casas, InvariantCulture).",
+            "nullable": true
+          },
+          "netBalance": {
+            "type": "string",
+            "description": "Saldo líquido do dia (`TotalCredits - TotalDebits`) (string decimal com 2 casas, InvariantCulture).",
+            "nullable": true
+          },
+          "asOf": {
+            "type": "string",
+            "description": "Timestamp mais recente considerado no consolidado daquele dia (ISO-8601).\r\nQuando não há dados para o dia, este campo pode ser `null`.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Item diário retornado dentro do consolidado por período."
+      },
+      "PeriodBalanceResponse": {
+        "required": [
+          "calculatedAt",
+          "currency",
+          "from",
+          "items",
+          "merchantId",
+          "netBalance",
+          "to",
+          "totalCredits",
+          "totalDebits"
+        ],
+        "type": "object",
+        "properties": {
+          "merchantId": {
+            "type": "string",
+            "description": "Identificador do merchant/lojista.",
+            "nullable": true
+          },
+          "from": {
+            "type": "string",
+            "description": "Data inicial do período no formato ISO-8601 (`YYYY-MM-DD`).",
+            "nullable": true
+          },
+          "to": {
+            "type": "string",
+            "description": "Data final do período no formato ISO-8601 (`YYYY-MM-DD`).",
+            "nullable": true
+          },
+          "currency": {
+            "type": "string",
+            "description": "Moeda (código de 3 letras, ex.: `BRL`).",
+            "nullable": true
+          },
+          "totalCredits": {
+            "type": "string",
+            "description": "Soma de créditos no período (string decimal com 2 casas, InvariantCulture).",
+            "nullable": true
+          },
+          "totalDebits": {
+            "type": "string",
+            "description": "Soma de débitos no período (string decimal com 2 casas, InvariantCulture).",
+            "nullable": true
+          },
+          "netBalance": {
+            "type": "string",
+            "description": "Saldo líquido no período (`TotalCredits - TotalDebits`) (string decimal com 2 casas, InvariantCulture).",
+            "nullable": true
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PeriodBalanceItemResponse"
+            },
+            "description": "Lista de itens diários encontrados no intervalo.",
+            "nullable": true
+          },
+          "calculatedAt": {
+            "type": "string",
+            "description": "Timestamp em que a consulta foi calculada/gerada (ISO-8601).",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Resposta do consolidado por período (agregado + itens diários), derivada de `daily_balances`."
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "detail": {
+            "type": "string",
+            "nullable": true
+          },
+          "instance": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": { }
+      },
+      "ValidationErrorResponse": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Identificador do tipo de erro (link para documentação/HTTP status).",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "description": "Título curto do erro.",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "description": "Código HTTP retornado.",
+            "format": "int32"
+          },
+          "detail": {
+            "type": "string",
+            "description": "Mensagem de detalhe.",
+            "nullable": true
+          },
+          "errors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "description": "Dicionário de erros por campo, onde a chave é o nome do campo em camelCase.",
+            "nullable": true
+          },
+          "correlationId": {
+            "type": "string",
+            "description": "CorrelationId associado à requisição (mesmo valor retornado no header `X-Correlation-Id`).",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Formato de erro retornado quando há falhas de validação de request (HTTP 400)."
+      }
+    },
+    "securitySchemes": {
+      "X-Correlation-Id": {
+        "type": "apiKey",
+        "description": "Identificador de correlacao (UUID). Se nao for enviado, a API gera um novo e o retorna no header de response.",
+        "name": "X-Correlation-Id",
+        "in": "header"
+      },
+      "Bearer": {
+        "type": "http",
+        "description": "Autenticacao via JWT Bearer. Obtenha um token no Keycloak local e informe: Bearer {token}.\n\nScopes relevantes nesta API: balance.read (leitura) / balance.write (escrita - TODO se/when existirem endpoints de escrita).",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "BalanceService.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
+    },
+    {
+      "name": "Consolidados"
+    }
+  ]
+}
