@@ -1,0 +1,108 @@
+name: openapi-contracts
+
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "src/**"
+      - "Directory.Packages.props"
+      - "LedgerService.slnx"
+      - ".config/dotnet-tools.json"
+      - "package.json"
+      - "package-lock.json"
+      - "redocly.yaml"
+      - "scripts/generate-openapi.*"
+      - "docs/openapi/**"
+      - ".github/workflows/openapi-contracts.yml"
+  push:
+    branches: ["main"]
+    paths:
+      - "src/**"
+      - "Directory.Packages.props"
+      - "LedgerService.slnx"
+      - ".config/dotnet-tools.json"
+      - "package.json"
+      - "package-lock.json"
+      - "redocly.yaml"
+      - "scripts/generate-openapi.*"
+      - "docs/openapi/**"
+      - ".github/workflows/openapi-contracts.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: true
+  DOTNET_NOLOGO: true
+  BUILD_CONFIGURATION: Release
+  SOLUTION_PATH: ./LedgerService.slnx
+  NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+
+jobs:
+  validate:
+    name: Validate OpenAPI contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7 # v5
+        with:
+          global-json-file: global.json
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Cache NuGet packages
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', 'Directory.Packages.props', 'Directory.Build.props', 'global.json', 'dotnet-tools.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore .NET tools
+        run: dotnet tool restore
+
+      - name: Restore dependencies
+        run: dotnet restore $SOLUTION_PATH
+
+      - name: Build
+        run: dotnet build $SOLUTION_PATH --configuration $BUILD_CONFIGURATION --no-restore
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Generate OpenAPI contracts
+        run: ./scripts/generate-openapi.sh
+
+      - name: Lint OpenAPI contracts
+        run: npm run openapi:lint
+
+      - name: Validate generated contract drift
+        shell: bash
+        run: |
+          if ! git diff --exit-code -- docs/openapi; then
+            echo "::error::OpenAPI contracts are out of date. Run ./scripts/generate-openapi.sh and commit the updated files in docs/openapi."
+            exit 1
+          fi
+
+      - name: Upload OpenAPI contracts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: openapi-contracts
+          path: docs/openapi/**
+          if-no-files-found: warn
+          retention-days: 7
