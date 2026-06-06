@@ -55,6 +55,7 @@ module "cloudsql_postgres" {
   instance_name     = "poc-ledger-dev-postgres"
   postgres_version  = "POSTGRES_16"
   tier              = "db-f1-micro"
+  edition           = "ENTERPRISE"
   database_name     = "ledger_dev"
   database_user     = "ledger_app"
   database_password = var.database_password

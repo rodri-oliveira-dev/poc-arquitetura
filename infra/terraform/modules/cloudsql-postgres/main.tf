@@ -27,6 +27,7 @@ resource "google_sql_database_instance" "postgres" {
 
   settings {
     tier              = var.tier
+    edition           = var.edition
     availability_type = var.availability_type
     disk_autoresize   = true
     user_labels       = local.common_labels

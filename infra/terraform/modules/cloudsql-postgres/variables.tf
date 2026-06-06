@@ -70,6 +70,17 @@ variable "tier" {
   }
 }
 
+variable "edition" {
+  description = "Cloud SQL edition. ENTERPRISE is required for cost-conscious shared-core tiers such as db-f1-micro."
+  type        = string
+  default     = "ENTERPRISE"
+
+  validation {
+    condition     = contains(["ENTERPRISE", "ENTERPRISE_PLUS"], var.edition)
+    error_message = "edition must be either ENTERPRISE or ENTERPRISE_PLUS."
+  }
+}
+
 variable "availability_type" {
   description = "Cloud SQL availability type. Use ZONAL for cost-conscious dev and REGIONAL only when HA is explicitly required."
   type        = string

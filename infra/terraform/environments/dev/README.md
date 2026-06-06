@@ -22,11 +22,11 @@ but the native policy and its Pub/Sub service agent IAM bindings are omitted.
 The Balance Worker subscription and application DLQ remain available.
 
 Cloud SQL dev uses a cost-conscious ZONAL PostgreSQL instance by default with
-backups and point-in-time recovery enabled. Public IPv4 is enabled only to
-support local access through Cloud SQL Auth Proxy in this first iteration. The
-module does not configure `authorized_networks`, does not allow `0.0.0.0/0`,
-does not create Secret Manager resources, and never exposes the database
-password as an output.
+the `ENTERPRISE` edition, `db-f1-micro` tier, backups, and point-in-time
+recovery enabled. Public IPv4 is enabled only to support local access through
+Cloud SQL Auth Proxy in this first iteration. The module does not configure
+`authorized_networks`, does not allow `0.0.0.0/0`, does not create Secret
+Manager resources, and never exposes the database password as an output.
 
 Pub/Sub and Cloud SQL are intentionally composed in the same dev root module in
 this iteration, so they share the same backend, state object, locking, plan, and
