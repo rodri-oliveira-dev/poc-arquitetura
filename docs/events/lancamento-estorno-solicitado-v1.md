@@ -10,8 +10,12 @@
 | Produtor | `LedgerService` |
 | Consumidores | Nenhum consumer de mensageria encontrado |
 | Natureza | Operacional do Ledger |
+| JSON Schema versionado | [`../../contracts/events/lancamento-estorno-solicitado.v1.schema.json`](../../contracts/events/lancamento-estorno-solicitado.v1.schema.json) |
+| Exemplos versionados | [`valido`](../../contracts/events/examples/lancamento-estorno-solicitado.v1.valid.json), [`invalido`](../../contracts/events/examples/lancamento-estorno-solicitado.v1.invalid.json) |
 
 Este documento descreve o contrato logico atual. O payload logico deve ser o mesmo caso o evento seja publicado por Pub/Sub ou Kafka. As diferencas de transporte pertencem aos adapters.
+
+O JSON Schema versionado valida somente o payload logico do evento. Metadados tecnicos como `event_id`, `event_type`, headers, attributes, key, offset e DLQ ficam fora do schema.
 
 ## Proposito
 

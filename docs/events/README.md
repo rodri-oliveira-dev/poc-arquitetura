@@ -12,6 +12,16 @@ O contrato logico do evento deve ser o mesmo quando publicado por Pub/Sub ou Kaf
 | [LancamentoEstornoSolicitado.v1](lancamento-estorno-solicitado-v1.md) | Operacional do Ledger | `LedgerService` | Nenhum consumer de mensageria encontrado |
 | [ReprocessamentoLancamentosSolicitado.v1](reprocessamento-lancamentos-solicitado-v1.md) | Operacional do Ledger | `LedgerService` | `LedgerService.Worker` no modo Kafka |
 
+## JSON Schemas
+
+Os JSON Schemas versionados ficam em [`../../contracts/events`](../../contracts/events) e representam somente o payload logico compartilhado pelos providers.
+
+| Evento | Schema |
+| --- | --- |
+| `LedgerEntryCreated.v1` | [`ledger-entry-created.v1.schema.json`](../../contracts/events/ledger-entry-created.v1.schema.json) |
+| `LancamentoEstornoSolicitado.v1` | [`lancamento-estorno-solicitado.v1.schema.json`](../../contracts/events/lancamento-estorno-solicitado.v1.schema.json) |
+| `ReprocessamentoLancamentosSolicitado.v1` | [`reprocessamento-lancamentos-solicitado.v1.schema.json`](../../contracts/events/reprocessamento-lancamentos-solicitado.v1.schema.json) |
+
 ## Regra de separacao
 
 - Payload logico: representa o fato ou a solicitacao de negocio e deve permanecer independente do provider.
@@ -23,4 +33,5 @@ O contrato logico do evento deve ser o mesmo quando publicado por Pub/Sub ou Kaf
 
 - [Diagnostico de contratos de eventos](../reports/event-contracts-diagnostics.md)
 - [Contrato LedgerEntryCreated.v1 com schema existente](../contracts/events/LedgerEntryCreated.v1.md)
+- [JSON Schemas versionados](../../contracts/events/README.md)
 - [Mensageria, Outbox e DLQ](../development/kafka-outbox.md)

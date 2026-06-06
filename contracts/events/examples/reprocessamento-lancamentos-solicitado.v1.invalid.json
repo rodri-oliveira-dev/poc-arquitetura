@@ -1,0 +1,10 @@
+{
+  "reprocessamentoId": "8cbf5b69-8d08-4a4b-bf1a-c0612b6a0a41",
+  "merchantId": "merchant-001",
+  "dataInicial": "2026-06-01",
+  "dataFinal": "2026-06-06",
+  "motivo": "Reconciliacao operacional",
+  "status": "Completed",
+  "requestedAt": "2026-06-06T12:45:00.0000000Z",
+  "correlationId": "2cbdd495-586f-4565-a807-c5dc6710d237"
+}

@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://poc-arquitetura.local/contracts/events/lancamento-estorno-solicitado.v1.schema.json",
+  "title": "LancamentoEstornoSolicitado.v1",
+  "description": "Payload logico da solicitacao operacional de estorno de lancamento.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "estornoId",
+    "lancamentoOriginalId",
+    "merchantId",
+    "motivo",
+    "status",
+    "requestedAt",
+    "correlationId"
+  ],
+  "properties": {
+    "estornoId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Identificador da solicitacao de estorno."
+    },
+    "lancamentoOriginalId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Identificador do lancamento original."
+    },
+    "merchantId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Merchant do lancamento original."
+    },
+    "motivo": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Motivo informado na solicitacao."
+    },
+    "status": {
+      "type": "string",
+      "const": "Pending",
+      "description": "Status inicial persistido na criacao da solicitacao."
+    },
+    "requestedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Instante de criacao da solicitacao."
+    },
+    "correlationId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Correlacao logica da requisicao."
+    }
+  }
+}

@@ -11,8 +11,12 @@
 | Consumidores | `BalanceService.Worker` por Pub/Sub ou Kafka |
 | Natureza | Integracao entre servicos |
 | Documento de schema existente | [`../contracts/events/LedgerEntryCreated.v1.md`](../contracts/events/LedgerEntryCreated.v1.md) |
+| JSON Schema versionado | [`../../contracts/events/ledger-entry-created.v1.schema.json`](../../contracts/events/ledger-entry-created.v1.schema.json) |
+| Exemplos versionados | [`valido`](../../contracts/events/examples/ledger-entry-created.v1.valid.json), [`invalido`](../../contracts/events/examples/ledger-entry-created.v1.invalid.json) |
 
 Este documento descreve o contrato logico atual. O payload logico deve ser o mesmo em Pub/Sub e Kafka. As diferencas de topic, subscription, attributes, headers, key, ack, nack, commit e DLQ pertencem aos adapters de transporte.
+
+O JSON Schema versionado valida somente o payload logico do evento. Metadados tecnicos como `event_id`, `event_type`, headers, attributes, key, offset e DLQ ficam fora do schema.
 
 ## Proposito
 
