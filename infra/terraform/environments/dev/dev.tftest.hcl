@@ -12,10 +12,12 @@ variables {
   database_version                        = "POSTGRES_16"
   database_tier                           = "db-f1-micro"
   database_availability_type              = "ZONAL"
-  database_deletion_protection            = true
-  database_backup_enabled                 = true
+  database_disk_size                      = 10
+  database_disk_autoresize                = false
+  database_deletion_protection            = false
+  database_backup_enabled                 = false
   database_backup_start_time              = "03:00"
-  database_point_in_time_recovery_enabled = true
+  database_point_in_time_recovery_enabled = false
   database_transaction_log_retention_days = 7
   database_backup_location                = null
 }

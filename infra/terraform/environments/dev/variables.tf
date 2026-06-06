@@ -94,24 +94,34 @@ variable "database_tier" {
   description = "Cloud SQL machine tier for dev."
   type        = string
   default     = "db-f1-micro"
+
+  validation {
+    condition     = contains(["db-f1-micro", "db-g1-small"], var.database_tier)
+    error_message = "database_tier must remain a low-cost shared-core tier for the disposable dev POC."
+  }
 }
 
 variable "database_availability_type" {
   description = "Cloud SQL availability type for dev."
   type        = string
   default     = "ZONAL"
+
+  validation {
+    condition     = var.database_availability_type == "ZONAL"
+    error_message = "database_availability_type must remain ZONAL for the disposable dev POC."
+  }
 }
 
 variable "database_deletion_protection" {
   description = "Whether the dev Cloud SQL instance is protected from deletion."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "database_backup_enabled" {
   description = "Whether automated Cloud SQL backups are enabled for dev."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "database_backup_start_time" {
@@ -123,7 +133,7 @@ variable "database_backup_start_time" {
 variable "database_point_in_time_recovery_enabled" {
   description = "Whether Cloud SQL point-in-time recovery is enabled for dev."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "database_transaction_log_retention_days" {
@@ -136,4 +146,26 @@ variable "database_backup_location" {
   description = "Optional backup location. Use null to let Cloud SQL choose the default."
   type        = string
   default     = null
+}
+
+variable "database_disk_size" {
+  description = "Initial Cloud SQL disk size in GB for dev."
+  type        = number
+  default     = 10
+
+  validation {
+    condition     = var.database_disk_size == 10
+    error_message = "database_disk_size must remain 10 GB for the disposable dev POC."
+  }
+}
+
+variable "database_disk_autoresize" {
+  description = "Whether Cloud SQL can automatically increase disk size in dev."
+  type        = bool
+  default     = false
+
+  validation {
+    condition     = !var.database_disk_autoresize
+    error_message = "database_disk_autoresize must remain false for the disposable dev POC."
+  }
 }

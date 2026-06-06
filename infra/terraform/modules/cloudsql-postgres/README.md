@@ -7,6 +7,7 @@ application environment:
 - one application database;
 - one application database user;
 - standardized labels merged with environment metadata;
+- configurable initial disk size and disk autoresize behavior;
 - public IPv4 enabled for Cloud SQL Auth Proxy access in this first dev
   iteration.
 
@@ -56,22 +57,26 @@ module "cloudsql_postgres" {
   postgres_version  = "POSTGRES_16"
   tier              = "db-f1-micro"
   edition           = "ENTERPRISE"
+  disk_size         = 10
+  disk_autoresize   = false
   database_name     = "ledger_dev"
   database_user     = "ledger_app"
   database_password = var.database_password
 
-  deletion_protection = true
+  deletion_protection = false
 
   backup_configuration = {
-    enabled                        = true
+    enabled                        = false
     start_time                     = "03:00"
-    point_in_time_recovery_enabled = true
+    point_in_time_recovery_enabled = false
     transaction_log_retention_days = 7
     location                       = null
   }
 
   labels = {
     managed_by = "terraform"
+    purpose    = "poc"
+    owner      = "rodrigo"
   }
 }
 ```
@@ -79,9 +84,9 @@ module "cloudsql_postgres" {
 ## Backup Defaults
 
 The default backup configuration keeps backups and point-in-time recovery
-enabled in dev. This is safer for migration testing and accidental data loss,
-but it can generate cost. Disposable experiments can override the backup object
-only after an explicit review of the risk.
+disabled for disposable dev POC runs. This reduces recurring cost, but all data
+can be lost during instance deletion or failure. Enable backups only after an
+explicit review of cost and recovery requirements.
 
 ## Outputs
 

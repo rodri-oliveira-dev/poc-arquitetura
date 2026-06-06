@@ -86,6 +86,8 @@ module "cloudsql_postgres" {
   postgres_version  = var.database_version
   tier              = var.database_tier
   availability_type = var.database_availability_type
+  disk_size         = var.database_disk_size
+  disk_autoresize   = var.database_disk_autoresize
   database_name     = var.database_name
   database_user     = var.database_user
   database_password = var.database_password
@@ -101,6 +103,8 @@ module "cloudsql_postgres" {
 
   labels = {
     managed_by = "terraform"
+    purpose    = "poc"
+    owner      = "rodrigo"
   }
 
   depends_on = [google_project_service.sqladmin]

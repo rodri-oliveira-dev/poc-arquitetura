@@ -92,6 +92,23 @@ variable "availability_type" {
   }
 }
 
+variable "disk_size" {
+  description = "Initial Cloud SQL data disk size in GB."
+  type        = number
+  default     = 10
+
+  validation {
+    condition     = floor(var.disk_size) == var.disk_size && var.disk_size >= 10
+    error_message = "disk_size must be an integer greater than or equal to the Cloud SQL minimum of 10 GB."
+  }
+}
+
+variable "disk_autoresize" {
+  description = "Whether Cloud SQL can automatically increase disk size."
+  type        = bool
+  default     = false
+}
+
 variable "database_name" {
   description = "Application database name created inside the Cloud SQL instance."
   type        = string
@@ -126,11 +143,11 @@ variable "database_password" {
 variable "deletion_protection" {
   description = "Whether Terraform and the Cloud SQL API protect the instance from deletion."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "backup_configuration" {
-  description = "Cloud SQL backup configuration. Defaults favor a safe dev baseline with backups and point-in-time recovery enabled."
+  description = "Cloud SQL backup configuration. Defaults favor a disposable, low-cost dev baseline with backups and point-in-time recovery disabled."
   type = object({
     enabled                        = bool
     start_time                     = string
@@ -139,9 +156,9 @@ variable "backup_configuration" {
     location                       = optional(string)
   })
   default = {
-    enabled                        = true
+    enabled                        = false
     start_time                     = "03:00"
-    point_in_time_recovery_enabled = true
+    point_in_time_recovery_enabled = false
     transaction_log_retention_days = 7
     location                       = null
   }
