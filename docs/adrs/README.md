@@ -15,6 +15,7 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 
 | ADR                                                                   | Status      | Resumo                                                                                           |
 | --------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------ |
+| [ADR-0082](./0082-cloud-sql-postgresql-desenvolvimento-local-auth-proxy.md) | Aceito | Registra Cloud SQL PostgreSQL no Terraform dev com acesso local via Auth Proxy e suporte por Compose. |
 | [ADR-0081](./0081-postgres-local-unico-com-schemas-por-servico.md) | Aceito | Usa um PostgreSQL local unico com schemas e usuarios separados por servico e responsabilidade. |
 | [ADR-0080](./0080-backend-remoto-gcs-terraform-dev.md) | Aceito | Configura backend remoto GCS parcial para o Terraform dev, com state separado por ambiente e migracao manual. |
 | [ADR-0079](./0079-terraform-state-local-e-backend-remoto.md) | Aceito | Registra riscos do state local, gatilhos e estrategia que orientaram a adocao posterior do backend remoto GCS. |
