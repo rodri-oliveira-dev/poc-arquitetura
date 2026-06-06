@@ -1,20 +1,20 @@
 variable "project_id" {
-  description = "Google Cloud project ID where Pub/Sub and service account resources are created."
+  description = "ID do projeto Google Cloud onde recursos Pub/Sub e service accounts sao criados."
   type        = string
 
   validation {
     condition     = length(trimspace(var.project_id)) > 0
-    error_message = "project_id must not be empty."
+    error_message = "project_id nao deve ficar vazio."
   }
 }
 
 variable "pubsub_service_agent_member" {
-  description = "IAM member returned by google_project_service_identity for pubsub.googleapis.com."
+  description = "IAM member retornado por google_project_service_identity para pubsub.googleapis.com."
   type        = string
 
   validation {
     condition     = startswith(var.pubsub_service_agent_member, "serviceAccount:")
-    error_message = "pubsub_service_agent_member must use the serviceAccount:<email> IAM member format."
+    error_message = "pubsub_service_agent_member deve usar o formato IAM member serviceAccount:<email>."
   }
 }
 
@@ -25,12 +25,12 @@ variable "service_account_token_creator_members" {
 }
 
 variable "region" {
-  description = "Deployment region used as resource metadata. Pub/Sub topics and subscriptions are global resources."
+  description = "Regiao de deployment usada como metadado de recurso. Topics e subscriptions Pub/Sub sao recursos globais."
   type        = string
 
   validation {
     condition     = can(regex("^[a-z]+-[a-z0-9]+[0-9]$", var.region))
-    error_message = "region must be a valid Google Cloud region name, such as us-central1."
+    error_message = "region deve ser um nome valido de regiao Google Cloud, como us-central1."
   }
 }
 
@@ -47,68 +47,68 @@ variable "enforce_in_transit" {
 }
 
 variable "environment" {
-  description = "Environment identifier used in labels and dedicated service account IDs."
+  description = "Identificador do ambiente usado em labels e IDs das service accounts dedicadas."
   type        = string
 
   validation {
     condition     = can(regex("^[a-z][a-z0-9-]*$", var.environment)) && length(var.environment) <= 63
-    error_message = "environment must start with a lowercase letter, contain only lowercase letters, digits, or hyphens, and have at most 63 characters."
+    error_message = "environment deve iniciar com letra minuscula, conter apenas letras minusculas, digitos ou hifens e ter no maximo 63 caracteres."
   }
 }
 
 variable "app_name" {
-  description = "Application identifier used in labels and dedicated service account IDs."
+  description = "Identificador da aplicacao usado em labels e IDs das service accounts dedicadas."
   type        = string
 
   validation {
     condition     = can(regex("^[a-z][a-z0-9-]*$", var.app_name)) && length(var.app_name) <= 63
-    error_message = "app_name must start with a lowercase letter, contain only lowercase letters, digits, or hyphens, and have at most 63 characters."
+    error_message = "app_name deve iniciar com letra minuscula, conter apenas letras minusculas, digitos ou hifens e ter no maximo 63 caracteres."
   }
 }
 
 variable "ledger_events_topic_name" {
-  description = "Name of the main Ledger events topic."
+  description = "Nome do topic principal de eventos Ledger."
   type        = string
 }
 
 variable "ledger_events_subscription_name" {
-  description = "Name of the pull subscription consumed by the Balance Worker."
+  description = "Nome da pull subscription consumida pelo Balance Worker."
   type        = string
 }
 
 variable "application_dlq_topic_name" {
-  description = "Name of the topic used by the Balance Worker for application-classified DLQ messages."
+  description = "Nome do topic usado pelo Balance Worker para mensagens classificadas como DLQ de aplicacao."
   type        = string
 }
 
 variable "technical_dlq_topic_name" {
-  description = "Name of the topic used by the native dead-letter policy for technical delivery failures."
+  description = "Nome do topic usado pela dead-letter policy nativa para falhas tecnicas de entrega."
   type        = string
 }
 
 variable "application_dlq_subscription_name" {
-  description = "Name of the pull subscription that retains application DLQ messages for operational inspection."
+  description = "Nome da pull subscription que retem mensagens da DLQ de aplicacao para inspecao operacional."
   type        = string
 }
 
 variable "technical_dlq_subscription_name" {
-  description = "Name of the pull subscription that retains technical DLQ messages for operational inspection."
+  description = "Nome da pull subscription que retem mensagens da DLQ tecnica para inspecao operacional."
   type        = string
 }
 
 variable "ack_deadline_seconds" {
-  description = "Acknowledgement deadline in seconds for the Balance Worker pull subscription."
+  description = "Acknowledgement deadline em segundos da pull subscription do Balance Worker."
   type        = number
   default     = 30
 
   validation {
     condition     = floor(var.ack_deadline_seconds) == var.ack_deadline_seconds && var.ack_deadline_seconds >= 10 && var.ack_deadline_seconds <= 600
-    error_message = "ack_deadline_seconds must be an integer between 10 and 600."
+    error_message = "ack_deadline_seconds deve ser um inteiro entre 10 e 600."
   }
 }
 
 variable "message_retention_duration" {
-  description = "Subscription message retention duration using the Google duration format, such as 604800s."
+  description = "Duracao de retencao de mensagens da subscription usando o formato de duracao Google, como 604800s."
   type        = string
   default     = "604800s"
 
@@ -118,23 +118,23 @@ variable "message_retention_duration" {
       tonumber(trimsuffix(var.message_retention_duration, "s")) <= 2678400,
       false
     )
-    error_message = "message_retention_duration must be between 600s and 2678400s using the Google duration format."
+    error_message = "message_retention_duration deve ficar entre 600s e 2678400s usando o formato de duracao Google."
   }
 }
 
 variable "retain_acked_messages" {
-  description = "Whether subscriptions retain acknowledged messages during the retention window."
+  description = "Define se as subscriptions retem mensagens confirmadas durante a janela de retencao."
   type        = bool
   default     = false
 
   validation {
     condition     = !var.retain_acked_messages
-    error_message = "retain_acked_messages must remain false unless a documented operational requirement justifies retaining acknowledged messages."
+    error_message = "retain_acked_messages deve permanecer false salvo requisito operacional documentado que justifique reter mensagens confirmadas."
   }
 }
 
 variable "main_subscription_expiration_ttl" {
-  description = "Inactivity TTL for the Balance Worker subscription using the Google duration format. Set to an empty string to never expire."
+  description = "TTL de inatividade da subscription do Balance Worker usando o formato de duracao Google. Use string vazia para nunca expirar."
   type        = string
   default     = ""
 
@@ -143,12 +143,12 @@ variable "main_subscription_expiration_ttl" {
       can(regex("^[0-9]+(\\.[0-9]{1,9})?s$", var.main_subscription_expiration_ttl)) &&
       try(tonumber(trimsuffix(var.main_subscription_expiration_ttl, "s")) >= 86400, false)
     )
-    error_message = "main_subscription_expiration_ttl must be empty to never expire or at least 86400s using the Google duration format."
+    error_message = "main_subscription_expiration_ttl deve ser vazio para nunca expirar ou ter pelo menos 86400s usando o formato de duracao Google."
   }
 }
 
 variable "application_dlq_subscription_expiration_ttl" {
-  description = "Inactivity TTL for the application DLQ inspection subscription using the Google duration format. Set to an empty string to never expire."
+  description = "TTL de inatividade da subscription de inspecao da DLQ de aplicacao usando o formato de duracao Google. Use string vazia para nunca expirar."
   type        = string
   default     = "2592000s"
 
@@ -157,12 +157,12 @@ variable "application_dlq_subscription_expiration_ttl" {
       can(regex("^[0-9]+(\\.[0-9]{1,9})?s$", var.application_dlq_subscription_expiration_ttl)) &&
       try(tonumber(trimsuffix(var.application_dlq_subscription_expiration_ttl, "s")) >= 86400, false)
     )
-    error_message = "application_dlq_subscription_expiration_ttl must be empty to never expire or at least 86400s using the Google duration format."
+    error_message = "application_dlq_subscription_expiration_ttl deve ser vazio para nunca expirar ou ter pelo menos 86400s usando o formato de duracao Google."
   }
 }
 
 variable "technical_dlq_subscription_expiration_ttl" {
-  description = "Inactivity TTL for the technical DLQ inspection subscription using the Google duration format. Set to an empty string to never expire."
+  description = "TTL de inatividade da subscription de inspecao da DLQ tecnica usando o formato de duracao Google. Use string vazia para nunca expirar."
   type        = string
   default     = "2592000s"
 
@@ -171,53 +171,53 @@ variable "technical_dlq_subscription_expiration_ttl" {
       can(regex("^[0-9]+(\\.[0-9]{1,9})?s$", var.technical_dlq_subscription_expiration_ttl)) &&
       try(tonumber(trimsuffix(var.technical_dlq_subscription_expiration_ttl, "s")) >= 86400, false)
     )
-    error_message = "technical_dlq_subscription_expiration_ttl must be empty to never expire or at least 86400s using the Google duration format."
+    error_message = "technical_dlq_subscription_expiration_ttl deve ser vazio para nunca expirar ou ter pelo menos 86400s usando o formato de duracao Google."
   }
 }
 
 variable "enable_message_ordering" {
-  description = "Whether the Balance Worker subscription enables ordered delivery for messages with the same ordering key."
+  description = "Define se a subscription do Balance Worker habilita entrega ordenada para mensagens com a mesma ordering key."
   type        = bool
   default     = false
 }
 
 variable "enable_exactly_once_delivery" {
-  description = "Whether the Balance Worker subscription enables Pub/Sub exactly-once delivery."
+  description = "Define se a subscription do Balance Worker habilita Pub/Sub exactly-once delivery."
   type        = bool
   default     = false
 }
 
 variable "min_retry_backoff" {
-  description = "Minimum retry backoff using the Google duration format, such as 10s."
+  description = "Retry backoff minimo usando o formato de duracao Google, como 10s."
   type        = string
   default     = "10s"
 }
 
 variable "max_retry_backoff" {
-  description = "Maximum retry backoff using the Google duration format, such as 600s."
+  description = "Retry backoff maximo usando o formato de duracao Google, como 600s."
   type        = string
   default     = "600s"
 }
 
 variable "enable_technical_dead_letter" {
   type        = bool
-  description = "Habilita dead-letter policy técnica do Pub/Sub na subscription principal."
+  description = "Habilita dead-letter policy tecnica do Pub/Sub na subscription principal."
   default     = true
 }
 
 variable "max_delivery_attempts" {
-  description = "Approximate number of delivery attempts before Pub/Sub forwards a message to the technical DLQ."
+  description = "Numero aproximado de tentativas de entrega antes de o Pub/Sub encaminhar uma mensagem para a DLQ tecnica."
   type        = number
   default     = 5
 
   validation {
     condition     = floor(var.max_delivery_attempts) == var.max_delivery_attempts && var.max_delivery_attempts >= 5 && var.max_delivery_attempts <= 100
-    error_message = "max_delivery_attempts must be an integer between 5 and 100."
+    error_message = "max_delivery_attempts deve ser um inteiro entre 5 e 100."
   }
 }
 
 variable "labels" {
-  description = "Additional labels merged with app, environment, and region labels."
+  description = "Labels adicionais combinadas com as labels app, environment e region."
   type        = map(string)
   default     = {}
 }

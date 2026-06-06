@@ -54,6 +54,7 @@ Desktop.ini
 *.pem
 *.pfx
 *.p12
+secrets/
 infra/nginx/certs/*
 !infra/nginx/certs/.gitignore
 !infra/nginx/certs/README.md

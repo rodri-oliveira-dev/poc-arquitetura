@@ -1,31 +1,13 @@
-terraform {
-  required_version = ">= 1.5.0, < 2.0.0"
-
-  required_providers {
-    google = {
-      source  = "hashicorp/google"
-      version = ">= 7.0.0, < 8.0.0"
-    }
-    google-beta = {
-      source  = "hashicorp/google-beta"
-      version = ">= 7.0.0, < 8.0.0"
-    }
-  }
-}
-
-provider "google" {
-  project = var.project_id
-  region  = var.region
-}
-
-provider "google-beta" {
-  project = var.project_id
-  region  = var.region
-}
-
 resource "google_project_service" "pubsub" {
   project = var.project_id
   service = "pubsub.googleapis.com"
+
+  disable_on_destroy = false
+}
+
+resource "google_project_service" "sqladmin" {
+  project = var.project_id
+  service = "sqladmin.googleapis.com"
 
   disable_on_destroy = false
 }
@@ -66,4 +48,39 @@ module "pubsub_ledger_events" {
   }
 
   depends_on = [google_project_service.pubsub]
+}
+
+module "cloudsql_postgres" {
+  source = "../../modules/cloudsql-postgres"
+
+  project_id        = var.project_id
+  region            = var.region
+  environment       = "dev"
+  app_name          = "poc-ledger"
+  instance_name     = var.database_instance_name
+  postgres_version  = var.database_version
+  tier              = var.database_tier
+  availability_type = var.database_availability_type
+  disk_size         = var.database_disk_size
+  disk_autoresize   = var.database_disk_autoresize
+  database_name     = var.database_name
+  database_user     = var.database_user
+  database_password = var.database_password
+
+  deletion_protection = var.database_deletion_protection
+  backup_configuration = {
+    enabled                        = var.database_backup_enabled
+    start_time                     = var.database_backup_start_time
+    point_in_time_recovery_enabled = var.database_point_in_time_recovery_enabled
+    transaction_log_retention_days = var.database_transaction_log_retention_days
+    location                       = var.database_backup_location
+  }
+
+  labels = {
+    managed_by = "terraform"
+    purpose    = "poc"
+    owner      = "rodrigo"
+  }
+
+  depends_on = [google_project_service.sqladmin]
 }

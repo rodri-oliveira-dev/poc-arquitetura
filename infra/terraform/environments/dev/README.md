@@ -1,161 +1,199 @@
-# Terraform Dev Environment
+# Ambiente Terraform Dev
 
-This root module composes the Pub/Sub resources for the dev deployment of
-the Ledger events flow. It enables `pubsub.googleapis.com`, guarantees the
-Google-managed Pub/Sub service identity with `google_project_service_identity`,
-calls the reusable `pubsub-ledger-events` module, and exposes primitive outputs
-that feed appsettings or environment variables used by the Pub/Sub adapters.
+Este root module compoe os recursos Pub/Sub e o database Cloud SQL PostgreSQL
+inicial para o deployment dev. Ele habilita `pubsub.googleapis.com` e
+`sqladmin.googleapis.com`, garante a identidade Pub/Sub gerenciada pelo Google
+com `google_project_service_identity`, chama os modulos reutilizaveis
+`pubsub-ledger-events` e `cloudsql-postgres`, e expoe outputs primitivos usados
+em appsettings ou variaveis de ambiente dos adapters.
 
-The module provisions separate application and technical DLQ topics with
-dedicated inspection subscriptions. Configure the Balance Worker
-`PubSub:Consumer:DeadLetterTopicId` only with the `application_dlq_topic_name`
-output. The technical DLQ is reserved for the native Pub/Sub dead-letter policy.
-The existing shared DLQ topic and inspection subscription are retained as the
-application DLQ during state migration.
+O modulo provisiona topics separados para DLQ de aplicacao e DLQ tecnica, com
+subscriptions dedicadas de inspecao. Configure `PubSub:Consumer:DeadLetterTopicId`
+do Balance Worker somente com o output `application_dlq_topic_name`. A DLQ
+tecnica e reservada para a dead-letter policy nativa do Pub/Sub. O topic de DLQ
+compartilhado existente e sua subscription de inspecao sao preservados como DLQ
+de aplicacao durante a migracao de state.
 
-The tracked `terraform.tfvars.example` explicitly enables the native technical
-policy with `enable_technical_dead_letter=true`. Set it to `false` in the local
-`terraform.tfvars` for incremental rollout or dev tests that do not need native
-forwarding. The technical DLQ topic and inspection subscription remain created,
-but the native policy and its Pub/Sub service agent IAM bindings are omitted.
-The Balance Worker subscription and application DLQ remain available.
+O `terraform.tfvars.example` versionado habilita explicitamente a policy tecnica
+nativa com `enable_technical_dead_letter=true`. Defina `false` no
+`terraform.tfvars` local para rollout incremental ou testes dev que nao precisam
+de encaminhamento nativo. O topic da DLQ tecnica e sua subscription de inspecao
+permanecem criados, mas a policy nativa e seus bindings IAM do Pub/Sub service
+agent sao omitidos. A subscription do Balance Worker e a DLQ de aplicacao
+permanecem disponiveis.
 
-The tracked example also declares the subscription expiration policies:
+O Cloud SQL dev usa por default uma instancia PostgreSQL ZONAL descartavel e de
+baixo custo com edicao `ENTERPRISE`, tier `db-f1-micro`, disco de 10 GB,
+`disk_autoresize=false`, `deletion_protection=false`, backups desabilitados e
+point-in-time recovery desabilitado. Public IPv4 fica habilitado somente para
+suportar acesso local via Cloud SQL Auth Proxy nesta primeira iteracao. O modulo
+nao configura `authorized_networks`, nao permite `0.0.0.0/0`, nao cria recursos
+Secret Manager e nunca expoe a senha do database como output.
 
-| Subscription | Dev expiration TTL | Rationale |
+Pub/Sub e Cloud SQL sao compostos intencionalmente no mesmo root module dev
+nesta iteracao, portanto compartilham o mesmo backend, objeto de state, locking,
+plan e ciclo de vida de apply manual. Considere esse acoplamento ao revisar
+plans: um unico plan dev pode incluir drift de mensageria e database. Uma
+separacao futura em root modules e prefixos de state distintos e uma divida
+tecnica recomendada se o ciclo de vida do database passar a exigir ownership ou
+janelas de mudanca independentes. Nao migre o state remoto automaticamente como
+parte de mudancas comuns.
+
+O exemplo versionado tambem declara as policies de expiracao de subscriptions:
+
+| Subscription | TTL de expiracao dev | Racional |
 | --- | --- | --- |
-| Balance Worker main subscription | `""` (never expire) | Preserve the production-like consumer backlog independently of inactivity. |
-| Application DLQ inspection | `"2592000s"` (30 days) | Remove an inactive inspection subscription in disposable dev environments. |
-| Technical DLQ inspection | `"2592000s"` (30 days) | Remove an inactive inspection subscription in disposable dev environments. |
+| Subscription principal do Balance Worker | `""` (nunca expira) | Preservar backlog de consumidor semelhante a producao, independente de inatividade. |
+| Inspecao da DLQ de aplicacao | `"2592000s"` (30 dias) | Remover subscription de inspecao inativa em ambientes dev descartaveis. |
+| Inspecao da DLQ tecnica | `"2592000s"` (30 dias) | Remover subscription de inspecao inativa em ambientes dev descartaveis. |
 
-All subscriptions keep the module default of seven days for unacknowledged
-message retention and use `retain_acked_messages=false`. Finite expiration TTLs
-must remain greater than message retention. Backlogs and accumulated DLQ
-messages can generate Pub/Sub storage costs. For permanent environments,
-override either DLQ expiration TTL with `""` when the inspection subscription
-must survive long inactivity.
+Todas as subscriptions mantem o default do modulo de sete dias para retencao de
+mensagens nao confirmadas e usam `retain_acked_messages=false`. TTLs finitos de
+expiracao devem permanecer maiores que a retencao de mensagens. Backlogs e
+mensagens acumuladas em DLQ podem gerar custos de armazenamento Pub/Sub. Para
+ambientes permanentes, sobrescreva o TTL de qualquer DLQ com `""` quando a
+subscription de inspecao precisar sobreviver a longos periodos de inatividade.
 
-## Message Residency
+## Residencia De Mensagens
 
-Dev does not restrict Pub/Sub message residency by default:
+Dev nao restringe residencia de mensagens Pub/Sub por default:
 
 ```hcl
 allowed_persistence_regions = []
 enforce_in_transit          = false
 ```
 
-With an empty list, the reusable module omits `message_storage_policy` from the
-main topic, the application DLQ topic, and the technical DLQ topic. The `region`
-input remains deployment metadata and a label; it does not constrain where
-Pub/Sub stores or processes message content.
+Com lista vazia, o modulo reutilizavel omite `message_storage_policy` do topic
+principal, do topic da DLQ de aplicacao e do topic da DLQ tecnica. O input
+`region` permanece como metadado de deployment e label; ele nao restringe onde
+o Pub/Sub armazena ou processa conteudo de mensagens.
 
-When a real environment has an approved residency requirement, configure:
+Quando um ambiente real tiver requisito de residencia aprovado, configure:
 
 ```hcl
 allowed_persistence_regions = ["southamerica-east1"]
 enforce_in_transit          = false
 ```
 
-Review transfer costs and workload locations before enabling the policy.
-Use `enforce_in_transit=true` with care because Pub/Sub can reject publish,
-pull, and streamingPull requests received outside the allowed regions.
+Revise custos de transferencia e localizacao de workloads antes de habilitar a
+policy. Use `enforce_in_transit=true` com cuidado, pois o Pub/Sub pode rejeitar
+requests publish, pull e streamingPull recebidos fora das regioes permitidas.
 
 ## Terraform State
 
-This root module configures a partial remote backend in Google Cloud Storage.
-The state object is separated by environment with the prefix:
+Este root module configura um backend remoto parcial no Google Cloud Storage. O
+objeto de state e separado por ambiente com o prefixo:
 
 ```text
 poc-arquitetura/pubsub/dev
 ```
 
-The bucket name is intentionally not hardcoded in `backend.tf`; provide it
-during `terraform init` with
-`-backend-config="bucket=rodri-terraform-state-bucket"`. The current dev bucket
-is `rodri-terraform-state-bucket`; it was created outside this root module and
-must not be recreated by the same state that it stores. See
+O nome do prefixo foi mantido para compatibilidade com o state remoto existente,
+mas o objeto agora contem recursos dev de Pub/Sub e Cloud SQL. Renomear ou
+separar esse prefixo exigiria migracao deliberada de state com backup, revisao
+do operador e uma mudanca separada.
+
+O nome do bucket nao fica hardcoded em `backend.tf`; forneca durante
+`terraform init` com `-backend-config="bucket=rodri-terraform-state-bucket"`.
+O bucket dev atual e `rodri-terraform-state-bucket`; ele foi criado fora deste
+root module e nao deve ser recriado pelo mesmo state que armazena. Consulte
 [`docs/adrs/0080-backend-remoto-gcs-terraform-dev.md`](../../../../docs/adrs/0080-backend-remoto-gcs-terraform-dev.md).
 
-Grant bucket access only to authorized Terraform operators, bootstrap/audit
-administrators, and a CI identity only if a future workflow runs real
-`terraform plan`. Application workload service accounts must not access the
-Terraform state bucket.
+Conceda acesso ao bucket somente a operadores Terraform autorizados,
+administradores de bootstrap/auditoria e uma identidade de CI apenas se um
+workflow futuro executar `terraform plan` real. Service accounts de workloads da
+aplicacao nao devem acessar o bucket de Terraform state.
 
-Do not commit `terraform.tfvars`, state files, plans, or credentials.
+Nao commite `terraform.tfvars`, arquivos de state, plans ou credenciais.
 
-## Prerequisites
+## Pre-requisitos
 
-- Terraform CLI installed.
-- Google Cloud Application Default Credentials or impersonation configured
-  outside the repository.
-- Permission to enable services and manage the Pub/Sub, service account, and
-  resource-level IAM resources declared by the module.
-- Permission to generate the Pub/Sub service identity through the Service Usage
+- Terraform CLI instalado.
+- Google Cloud Application Default Credentials ou impersonation configurado
+  fora do repositorio.
+- Permissao para habilitar services e gerenciar recursos Pub/Sub, service
+  accounts e IAM no nivel de recurso declarados pelo modulo.
+- Permissao para gerar a identidade de servico do Pub/Sub pela Service Usage
   API.
 
-## Configure
+## Configurar
 
-From this directory, create a local variables file from the tracked example and
-replace the placeholder project ID:
+A partir deste diretorio, crie um arquivo local de variaveis com base no exemplo
+versionado e substitua o placeholder de project ID:
 
 ```powershell
 Copy-Item terraform.tfvars.example terraform.tfvars
 ```
 
-For a local smoke test against real GCP resources with ADC impersonation, set
-`service_account_token_creator_members` only in the ignored local
-`terraform.tfvars`. The module grants `roles/iam.serviceAccountTokenCreator`
-directly on the two dedicated worker service accounts, never at project level.
-After the smoke test, clear the list and reapply Terraform manually to remove
-the temporary permission.
+Substitua `database_password` somente no arquivo local `terraform.tfvars`
+ignorado ou forneca por `TF_VAR_database_password`. Nao commite o valor real.
+Depois de um apply manual e revisado, use `database_instance_connection_name`
+com Cloud SQL Auth Proxy para acesso local:
 
-For GitHub Actions, the same input can be passed without committing a human
-email:
+```powershell
+cloud-sql-proxy "$(terraform output -raw database_instance_connection_name)" --port 5432
+```
+
+Depois aponte as connection strings locais da aplicacao para `127.0.0.1:5432`
+com o nome do database e o usuario expostos pelos outputs Cloud SQL, e a senha
+vinda da fonte local de segredo ignorada pelo Git.
+
+Para smoke test local contra recursos GCP reais com ADC impersonation, defina
+`service_account_token_creator_members` somente no `terraform.tfvars` local
+ignorado. O modulo concede `roles/iam.serviceAccountTokenCreator` diretamente
+nas duas service accounts dedicadas aos workers, nunca no nivel do projeto.
+Depois do smoke test, limpe a lista e reaplique Terraform manualmente para
+remover a permissao temporaria.
+
+Para GitHub Actions, o mesmo input pode ser passado sem commitar e-mail humano:
 
 ```yaml
 env:
   TF_VAR_service_account_token_creator_members: '["user:${{ vars.GCP_IMPERSONATION_USER_EMAIL }}"]'
 ```
 
-or, when the value is stored as a secret:
+ou, quando o valor estiver armazenado como secret:
 
 ```yaml
 env:
   TF_VAR_service_account_token_creator_members: '["user:${{ secrets.GCP_IMPERSONATION_USER_EMAIL }}"]'
 ```
 
-For a mature CI/CD setup, prefer Workload Identity Federation with OIDC instead
-of a human email.
+Para uma configuracao CI/CD mais madura, prefira Workload Identity Federation
+com OIDC em vez de e-mail humano.
 
-## Validate
+## Validar
 
-Run syntax-only local validation without configuring the remote backend:
+Execute validacao local somente sintatica sem configurar o backend remoto:
 
 ```powershell
 terraform fmt -check
 terraform init -backend=false
 terraform validate
+terraform test
 ```
 
-This validation mode is useful for hooks and CI because it does not require GCP
-credentials or bucket access. It does not exercise remote state locking and must
-not be followed by `terraform plan`, `terraform apply`, or `terraform destroy`.
+Esse modo de validacao e util para hooks e CI porque nao exige credenciais GCP
+nem acesso ao bucket. Ele nao exercita locking de state remoto e nao deve ser
+seguido por `terraform plan`, `terraform apply` ou `terraform destroy`. A suite
+`terraform test` usa providers mockados e `command = plan`; ela nao cria nem
+atualiza recursos GCP.
 
-For validation with the configured backend, initialize with the existing state
-bucket first:
+Para validacao com o backend configurado, inicialize primeiro com o bucket de
+state existente:
 
 ```powershell
 terraform init -backend-config="bucket=rodri-terraform-state-bucket"
 terraform validate
 ```
 
-## Migrate Local State Manually
+## Migrar State Local Manualmente
 
-If a local `terraform.tfstate` already exists, migrate it only after the bucket
-has been created, versioning has been enabled, IAM has been reviewed, and the
-operator has confirmed the target GCP project and bucket.
+Se um `terraform.tfstate` local ja existir, migre somente depois de o bucket ter
+sido criado, versioning habilitado, IAM revisado e o operador ter confirmado o
+projeto GCP e bucket alvo.
 
-Create a local backup before migration:
+Crie um backup local antes da migracao:
 
 ```powershell
 Copy-Item terraform.tfstate terraform.tfstate.pre-gcs-migration.backup
@@ -164,13 +202,13 @@ terraform state list
 terraform plan -var-file="terraform.tfvars"
 ```
 
-Review the plan carefully. Do not use `-lock=false`; the GCS backend locking
-must protect concurrent Terraform operations. Do not commit the backup, state,
-`terraform.tfvars`, binary plans, or credentials.
+Revise o plan com cuidado. Nao use `-lock=false`; o locking do backend GCS deve
+proteger operacoes Terraform concorrentes. Nao commite backup, state,
+`terraform.tfvars`, plans binarios ou credenciais.
 
-## Plan And Apply Manually
+## Plan E Apply Manuais
 
-Review the plan before making any remote change:
+Revise o plan antes de qualquer mudanca remota:
 
 ```powershell
 terraform init -backend-config="bucket=rodri-terraform-state-bucket"
@@ -178,20 +216,21 @@ terraform plan -out=tfplan
 terraform apply tfplan
 ```
 
-`terraform apply` is intentionally manual. It enables the Pub/Sub API in the
-configured project, guarantees the Google-managed Pub/Sub service identity, and
-provisions real Google Cloud resources. In a newly created project, review that
-the first plan includes `google_project_service_identity.pubsub`.
+`terraform apply` e intencionalmente manual. Ele habilita as APIs Pub/Sub e
+Cloud SQL Admin no projeto configurado, garante a identidade Pub/Sub gerenciada
+pelo Google e provisiona recursos reais Google Cloud. Em um projeto novo,
+revise se o primeiro plan inclui `google_project_service_identity.pubsub` e as
+configuracoes da instancia Cloud SQL.
 
-Do not use `-lock=false` with the remote backend. Terraform should use the GCS
-backend locking behavior for `plan` and `apply`.
+Nao use `-lock=false` com o backend remoto. O Terraform deve usar o locking do
+backend GCS para `plan` e `apply`.
 
-Inspect the values available to runtime configuration with:
+Inspecione os valores disponiveis para configuracao runtime com:
 
 ```powershell
 terraform output
 terraform output -json
 ```
 
-Use the output-to-appsettings mapping and the preflight checklist in
+Use o mapeamento de outputs para appsettings e o checklist preflight em
 [`docs/development/pubsub-infra-app-contract.md`](../../../../docs/development/pubsub-infra-app-contract.md).

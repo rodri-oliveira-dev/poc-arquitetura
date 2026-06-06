@@ -99,6 +99,7 @@ Componentes opcionais ficam em arquivos Compose separados:
 - `compose.auth-legacy.yaml` com profile `legacy-auth`: `Auth.Api` legado.
 - `compose.yaml`: stack principal com Pub/Sub emulator, init idempotente dos recursos e workers configurados com `Messaging:Provider=PubSub`.
 - `compose.kafka.yaml` com profile `legacy-kafka`: overrides dos workers para `Messaging:Provider=Kafka`; use apenas para validar o caminho legado.
+- `compose.cloudsql.yaml`: overlay de smoke manual/local com Cloud SQL Auth Proxy, trocando `postgres-db:5432` por `cloud-sql-proxy:5432` dentro dos containers.
 
 Tambem existe um overlay opcional `compose.nginx.yaml` para adicionar uma borda local com Nginx e HTTPS em desenvolvimento. Ele nao faz parte do core funcional e nao altera as APIs, que continuam rodando internamente em HTTP com `ASPNETCORE_URLS=http://+:8080`. Quando o overlay e usado, o Nginx cria um upstream local `ledger_api` com duas instancias da `LedgerService.Api` e algoritmo `least_conn`. O `Auth.Api` foi removido do core funcional e permanece apenas no overlay legado `compose.auth-legacy.yaml`.
 
@@ -153,6 +154,21 @@ OTEL_ENABLED=true docker compose -f compose.yaml -f compose.observability.yaml -
 ```
 
 `OTEL_ENABLED=true` habilita as aplicacoes a exportarem traces e metricas para `otel-collector:4317`. Sem essa variavel, os backends de observabilidade podem subir, mas as aplicacoes permanecem com OpenTelemetry desabilitado para manter o core funcional leve.
+
+Para smoke manual contra Cloud SQL via Auth Proxy, use o overlay dedicado:
+
+```bash
+docker compose -f compose.yaml -f compose.cloudsql.yaml up -d cloud-sql-proxy
+docker compose -f compose.yaml -f compose.cloudsql.yaml up -d --build
+```
+
+Nesse modo, os containers das APIs e workers usam
+`Host=cloud-sql-proxy;Port=5432`. O host, quando precisar acessar o mesmo
+proxy com `psql` ou outra ferramenta, usa `127.0.0.1:${CLOUDSQL_PROXY_HOST_PORT:-5432}`.
+Nao use `localhost` dentro dos containers para acessar o proxy.
+
+Detalhes de credenciais, variaveis e validacao ficam em
+[Cloud SQL PostgreSQL local com Auth Proxy](cloudsql-postgres-local-setup.md).
 
 ### Pub/Sub emulator local
 
@@ -686,6 +702,7 @@ Portas expostas no host:
 | LedgerService.Api | `http://localhost:5226/` |
 | BalanceService.Api | `http://localhost:5228/` |
 | PostgreSQL | `localhost:15432` |
+| Cloud SQL Auth Proxy | `127.0.0.1:5432` somente com `compose.cloudsql.yaml` |
 | Pub/Sub emulator | `localhost:8085` com `compose.yaml` |
 | Kafka legado | `localhost:19092` com `compose.kafka.yaml` e profile `legacy-kafka` |
 | Jaeger UI | `http://localhost:16686/` com profile `observability` |

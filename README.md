@@ -60,6 +60,7 @@ Leitura complementar:
 - [Operacao do Pub/Sub e emulator local](docs/operations/pubsub.md)
 - [Contrato Pub/Sub entre Terraform e aplicacao](docs/development/pubsub-infra-app-contract.md)
 - [Modulo Terraform Pub/Sub Ledger Events](infra/terraform/modules/pubsub-ledger-events/README.md)
+- [Modulo Terraform Cloud SQL PostgreSQL](infra/terraform/modules/cloudsql-postgres/README.md)
 - [Custo e free tier do Pub/Sub](docs/development/pubsub-cost-and-free-tier.md)
 - [Execucao local com Pub/Sub emulator](docs/development/local-development.md#pubsub-emulator-local)
 

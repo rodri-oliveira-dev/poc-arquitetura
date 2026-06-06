@@ -1,40 +1,41 @@
-# Pub/Sub Ledger Events Terraform Module
+# Modulo Terraform Pub/Sub Ledger Events
 
-This module provisions the Google Cloud Pub/Sub resources required for the
-`LedgerService.Worker` to `BalanceService.Worker` event flow:
+Este modulo provisiona os recursos Google Cloud Pub/Sub necessarios para o
+fluxo de eventos de `LedgerService.Worker` para `BalanceService.Worker`:
 
-- main Ledger events topic;
-- application DLQ topic and inspection subscription;
-- technical DLQ topic and inspection subscription;
-- Balance Worker pull subscription with retry policy and optional native
-  dead-letter policy;
-- dedicated Ledger Worker and Balance Worker service accounts;
-- resource-level IAM bindings with the minimum permissions required by the flow.
+- topic principal de eventos Ledger;
+- topic de DLQ de aplicacao e subscription de inspecao;
+- topic de DLQ tecnica e subscription de inspecao;
+- pull subscription do Balance Worker com retry policy e dead-letter policy
+  nativa opcional;
+- service accounts dedicadas para Ledger Worker e Balance Worker;
+- bindings IAM no nivel dos recursos com as permissoes minimas exigidas pelo
+  fluxo.
 
-The module does not enable APIs, create secrets, configure credentials, or create
-environment-specific root modules. Pub/Sub topics and subscriptions are global
-resources. The `region` input is retained as deployment metadata for composition
-with regional workloads. Use `allowed_persistence_regions` to configure an
-explicit `message_storage_policy` on all three topics when an environment has a
-defined data residency requirement.
+O modulo nao habilita APIs, nao cria secrets, nao configura credenciais e nao
+cria root modules especificos de ambiente. Topics e subscriptions Pub/Sub sao
+recursos globais. O input `region` e mantido como metadado de deployment para
+composicao com workloads regionais. Use `allowed_persistence_regions` para
+configurar uma `message_storage_policy` explicita nos tres topics quando um
+ambiente tiver requisito definido de residencia de dados.
 
-Review the [Pub/Sub cost and free tier
-guide](../../../../docs/development/pubsub-cost-and-free-tier.md) before
-provisioning a real environment. It records the standard free tier assumptions,
-storage risks for backlog and DLQs, and the data required for a realistic
-estimate.
+Revise o [guia de custo e free tier do Pub/Sub](../../../../docs/development/pubsub-cost-and-free-tier.md)
+antes de provisionar um ambiente real. Ele registra as premissas do free tier
+standard, riscos de armazenamento para backlog e DLQs, e os dados necessarios
+para uma estimativa realista.
 
-## Prerequisites
+## Pre-requisitos
 
-- The Pub/Sub API (`pubsub.googleapis.com`) must already be enabled in the target
-  project.
-- The identity executing Terraform must be allowed to manage Pub/Sub resources,
-  service accounts, and the resource-level IAM bindings declared by this module.
-- The root module must guarantee the Google-managed Pub/Sub service agent with
-  `google_project_service_identity` and pass its `member` attribute to this
-  module.
+- A Pub/Sub API (`pubsub.googleapis.com`) ja deve estar habilitada no projeto
+  alvo.
+- A identidade que executa Terraform deve poder gerenciar recursos Pub/Sub,
+  service accounts e os bindings IAM no nivel de recurso declarados por este
+  modulo.
+- O root module deve garantir o Pub/Sub service agent gerenciado pelo Google
+  com `google_project_service_identity` e passar o atributo `member` para este
+  modulo.
 
-## Usage
+## Uso
 
 ```hcl
 terraform {
@@ -77,33 +78,33 @@ resource "google_project_service_identity" "pubsub" {
 module "pubsub_ledger_events" {
   source = "../../modules/pubsub-ledger-events"
 
-  project_id                        = var.project_id
-  pubsub_service_agent_member       = google_project_service_identity.pubsub.member
-  region                            = var.region
-  allowed_persistence_regions       = ["southamerica-east1"]
-  enforce_in_transit                = false
+  project_id                            = var.project_id
+  pubsub_service_agent_member           = google_project_service_identity.pubsub.member
+  region                                = var.region
+  allowed_persistence_regions           = ["southamerica-east1"]
+  enforce_in_transit                    = false
   service_account_token_creator_members = []
-  environment                       = "dev"
-  app_name                          = "ledger"
-  ledger_events_topic_name          = "ledger-entry-created-v1"
-  ledger_events_subscription_name   = "balance-ledger-entry-created-v1"
-  application_dlq_topic_name        = "ledger-entry-created-v1-dlq"
-  technical_dlq_topic_name          = "ledger-entry-created-v1-technical-dlq"
-  application_dlq_subscription_name = "ledger-entry-created-v1-dlq-inspection"
-  technical_dlq_subscription_name   = "ledger-entry-created-v1-technical-dlq-inspection"
+  environment                           = "dev"
+  app_name                              = "ledger"
+  ledger_events_topic_name              = "ledger-entry-created-v1"
+  ledger_events_subscription_name       = "balance-ledger-entry-created-v1"
+  application_dlq_topic_name            = "ledger-entry-created-v1-dlq"
+  technical_dlq_topic_name              = "ledger-entry-created-v1-technical-dlq"
+  application_dlq_subscription_name     = "ledger-entry-created-v1-dlq-inspection"
+  technical_dlq_subscription_name       = "ledger-entry-created-v1-technical-dlq-inspection"
 
-  ack_deadline_seconds         = 30
-  message_retention_duration   = "604800s"
-  retain_acked_messages        = false
-  main_subscription_expiration_ttl            = ""
+  ack_deadline_seconds                       = 30
+  message_retention_duration                 = "604800s"
+  retain_acked_messages                      = false
+  main_subscription_expiration_ttl           = ""
   application_dlq_subscription_expiration_ttl = "2592000s"
   technical_dlq_subscription_expiration_ttl   = "2592000s"
-  enable_message_ordering      = true
-  enable_exactly_once_delivery = false
-  enable_technical_dead_letter = true
-  min_retry_backoff            = "10s"
-  max_retry_backoff            = "600s"
-  max_delivery_attempts        = 5
+  enable_message_ordering                    = true
+  enable_exactly_once_delivery               = false
+  enable_technical_dead_letter               = true
+  min_retry_backoff                          = "10s"
+  max_retry_backoff                          = "600s"
+  max_delivery_attempts                      = 5
 
   labels = {
     managed_by = "terraform"
@@ -113,86 +114,89 @@ module "pubsub_ledger_events" {
 }
 ```
 
-## IAM Model
+## Modelo IAM
 
-| Principal | Resource | Role | Purpose |
+| Principal | Recurso | Papel | Proposito |
 | --- | --- | --- | --- |
-| Ledger Worker service account | Main Ledger events topic | `roles/pubsub.publisher` | Publish Ledger events |
-| Balance Worker service account | Balance pull subscription | `roles/pubsub.subscriber` | Consume and acknowledge Ledger events |
-| Balance Worker service account | Application DLQ topic | `roles/pubsub.publisher` | Publish application-classified DLQ messages |
-| Pub/Sub service agent | Technical DLQ topic | `roles/pubsub.publisher` | Forward messages to the technical DLQ when `enable_technical_dead_letter=true` |
-| Pub/Sub service agent | Balance pull subscription | `roles/pubsub.subscriber` | Acknowledge messages forwarded by the native dead-letter policy when `enable_technical_dead_letter=true` |
-| Configured local smoke-test members | Ledger Worker and Balance Worker service accounts | `roles/iam.serviceAccountTokenCreator` | Impersonate dedicated worker identities only when explicitly configured in a controlled environment |
+| Ledger Worker service account | Topic principal de eventos Ledger | `roles/pubsub.publisher` | Publicar eventos Ledger |
+| Balance Worker service account | Pull subscription do Balance | `roles/pubsub.subscriber` | Consumir e confirmar eventos Ledger |
+| Balance Worker service account | Topic da DLQ de aplicacao | `roles/pubsub.publisher` | Publicar mensagens classificadas como DLQ de aplicacao |
+| Pub/Sub service agent | Topic da DLQ tecnica | `roles/pubsub.publisher` | Encaminhar mensagens para a DLQ tecnica quando `enable_technical_dead_letter=true` |
+| Pub/Sub service agent | Pull subscription do Balance | `roles/pubsub.subscriber` | Confirmar mensagens encaminhadas pela dead-letter policy nativa quando `enable_technical_dead_letter=true` |
+| Membros configurados para smoke test local | Service accounts do Ledger Worker e Balance Worker | `roles/iam.serviceAccountTokenCreator` | Impersonar identidades dedicadas dos workers somente quando configurado explicitamente em ambiente controlado |
 
-The application DLQ is published directly by the Balance Worker. The technical
-DLQ is used only by the native dead-letter policy on the main subscription.
-Separate inspection subscriptions retain each flow independently for triage,
-alerting, and reprocessing decisions.
+A DLQ de aplicacao e publicada diretamente pelo Balance Worker. A DLQ tecnica e
+usada apenas pela dead-letter policy nativa na subscription principal.
+Subscriptions de inspecao separadas retêm cada fluxo de forma independente para
+triagem, alertas e decisoes de reprocessamento.
 
-`service_account_token_creator_members` defaults to an empty list. Use it only
-for controlled local smoke tests that need ADC impersonation, and keep real
-member values outside versioned files.
+`service_account_token_creator_members` usa lista vazia por default. Use apenas
+para smoke tests locais controlados que precisam de ADC impersonation, mantendo
+valores reais de membros fora de arquivos versionados.
 
-## Retention And Expiration
+## Retencao E Expiracao
 
-All subscriptions retain unacknowledged messages for seven days by default
-(`message_retention_duration = "604800s"`) and do not retain acknowledged
-messages (`retain_acked_messages = false`). Backlogs that are not processed and
-DLQ messages that accumulate during that window can generate Pub/Sub storage
-costs.
+Todas as subscriptions retêm mensagens nao confirmadas por sete dias por
+default (`message_retention_duration = "604800s"`) e nao retêm mensagens
+confirmadas (`retain_acked_messages = false`). Backlogs nao processados e
+mensagens acumuladas em DLQ nessa janela podem gerar custos de armazenamento
+Pub/Sub.
 
-Each subscription declares an explicit `expiration_policy`. Set its TTL input to
-an empty string (`""`) to keep the subscription regardless of inactivity. Use a
-Google duration such as `"2592000s"` to remove an inactive subscription after a
-finite period. Any finite expiration TTL must be greater than
-`message_retention_duration`.
+Cada subscription declara uma `expiration_policy` explicita. Defina o input TTL
+como string vazia (`""`) para manter a subscription independentemente da
+inatividade. Use uma duracao Google como `"2592000s"` para remover uma
+subscription inativa depois de um periodo finito. Qualquer TTL finito de
+expiracao deve ser maior que `message_retention_duration`.
 
-The reusable module defaults keep the main Balance Worker subscription
-persistent and expire inactive application and technical DLQ inspection
-subscriptions after 30 days. Permanent environments can override either DLQ TTL
-with `""` when preserving inspection subscriptions across long inactive periods
-is operationally required.
+Os defaults do modulo reutilizavel mantem a subscription principal do Balance
+Worker persistente e expiram subscriptions de inspecao das DLQs de aplicacao e
+tecnica depois de 30 dias de inatividade. Ambientes permanentes podem
+sobrescrever o TTL de qualquer DLQ com `""` quando preservar subscriptions de
+inspecao por longos periodos inativos for operacionalmente necessario.
 
-Set `enable_technical_dead_letter=false` to omit the native dead-letter policy
-from the main subscription during incremental rollout or cost-conscious dev
-tests. The main subscription, application DLQ, technical DLQ topic, and technical
-DLQ inspection subscription remain provisioned. Only the service agent IAM
-bindings used by the native technical flow are omitted.
+Defina `enable_technical_dead_letter=false` para omitir a dead-letter policy
+nativa da subscription principal durante rollout incremental ou testes dev com
+controle de custo. A subscription principal, DLQ de aplicacao, topic da DLQ
+tecnica e subscription de inspecao da DLQ tecnica continuam provisionados.
+Somente os bindings IAM do service agent usados pelo fluxo tecnico nativo sao
+omitidos.
 
-The `moved` blocks preserve the former shared DLQ topic and subscription as the
-application DLQ during state migration. The technical DLQ resources are new.
+Os blocos `moved` preservam o antigo topic e a subscription compartilhados de
+DLQ como DLQ de aplicacao durante a migracao de state. Os recursos da DLQ
+tecnica sao novos.
 
-## Message Storage Policy
+## Policy De Armazenamento De Mensagens
 
-The module applies the same optional `message_storage_policy` to the main Ledger
-events topic, the application DLQ topic, and the technical DLQ topic. The
-defaults are:
+O modulo aplica a mesma `message_storage_policy` opcional ao topic principal de
+eventos Ledger, ao topic da DLQ de aplicacao e ao topic da DLQ tecnica. Os
+defaults sao:
 
 ```hcl
 allowed_persistence_regions = []
 enforce_in_transit          = false
 ```
 
-An empty `allowed_persistence_regions` list omits the policy block because the
-provider does not accept an explicitly configured empty policy. In that mode,
-the `region` input remains a label and does not restrict where Pub/Sub stores or
-processes message content.
+Uma lista vazia em `allowed_persistence_regions` omite o bloco de policy porque
+o provider nao aceita uma policy vazia configurada explicitamente. Nesse modo,
+o input `region` permanece como label e nao restringe onde o Pub/Sub armazena
+ou processa conteudo das mensagens.
 
-For an environment with an approved residency decision, configure:
+Para um ambiente com decisao aprovada de residencia, configure:
 
 ```hcl
 allowed_persistence_regions = ["southamerica-east1"]
 enforce_in_transit          = false
 ```
 
-A storage policy can add inter-region data transfer costs when messages need to
-leave the publisher or subscriber region. Set `enforce_in_transit=true` only
-after reviewing client locations and endpoints: Pub/Sub can reject publish,
-pull, and streamingPull requests received outside the allowed regions.
+Uma storage policy pode adicionar custos de transferencia de dados entre
+regioes quando mensagens precisam sair da regiao do publisher ou subscriber.
+Defina `enforce_in_transit=true` somente depois de revisar localizacoes de
+clients e endpoints: o Pub/Sub pode rejeitar requests publish, pull e
+streamingPull recebidos fora das regioes permitidas.
 
-## Validation
+## Validacao
 
-Run local, non-destructive validation from this directory:
+Execute validacao local e nao destrutiva neste diretorio:
 
 ```bash
 terraform fmt -check
@@ -200,4 +204,4 @@ terraform init -backend=false
 terraform validate
 ```
 
-Do not run `terraform apply` without an explicit deployment review.
+Nao execute `terraform apply` sem revisao explicita de deployment.

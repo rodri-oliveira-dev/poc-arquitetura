@@ -1,0 +1,73 @@
+name: poc-arquitetura
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "${DOCKER_LOG_MAX_SIZE:-10m}"
+    max-file: "${DOCKER_LOG_MAX_FILE:-3}"
+
+networks:
+  poc-net:
+    driver: bridge
+
+services:
+  postgres-db:
+    profiles:
+      - local-postgres-disabled-in-cloudsql-mode
+
+  cloud-sql-proxy:
+    image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.22.0
+    container_name: poc-cloud-sql-proxy
+    logging: *default-logging
+    command:
+      - "--address=0.0.0.0"
+      - "--port=5432"
+      - "--credentials-file=/secrets/cloudsql/credentials.json"
+      - "${CLOUDSQL_INSTANCE_CONNECTION_NAME:?Defina CLOUDSQL_INSTANCE_CONNECTION_NAME no ambiente ou .env local}"
+    ports:
+      - "127.0.0.1:${CLOUDSQL_PROXY_HOST_PORT:-5432}:5432"
+    volumes:
+      - type: bind
+        source: "${GOOGLE_APPLICATION_CREDENTIALS:-./secrets/cloudsql/application_default_credentials.json}"
+        target: /secrets/cloudsql/credentials.json
+        read_only: true
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256m
+          pids: 128
+    networks:
+      - poc-net
+
+  ledger-service:
+    depends_on: !reset
+      cloud-sql-proxy:
+        condition: service_started
+    environment:
+      ConnectionStrings__DefaultConnection: "Host=cloud-sql-proxy;Port=5432;Database=${DATABASE_NAME:-appdb};Username=${DATABASE_USER:-app_user};Password=${DATABASE_PASSWORD:-change_me_local_only}"
+
+  ledger-worker:
+    depends_on: !reset
+      cloud-sql-proxy:
+        condition: service_started
+      pubsub-init:
+        condition: service_completed_successfully
+    environment:
+      ConnectionStrings__DefaultConnection: "Host=cloud-sql-proxy;Port=5432;Database=${DATABASE_NAME:-appdb};Username=${DATABASE_USER:-app_user};Password=${DATABASE_PASSWORD:-change_me_local_only}"
+
+  balance-service:
+    depends_on: !reset
+      cloud-sql-proxy:
+        condition: service_started
+    environment:
+      ConnectionStrings__DefaultConnection: "Host=cloud-sql-proxy;Port=5432;Database=${DATABASE_NAME:-appdb};Username=${DATABASE_USER:-app_user};Password=${DATABASE_PASSWORD:-change_me_local_only}"
+
+  balance-worker:
+    depends_on: !reset
+      cloud-sql-proxy:
+        condition: service_started
+      pubsub-init:
+        condition: service_completed_successfully
+    environment:
+      ConnectionStrings__DefaultConnection: "Host=cloud-sql-proxy;Port=5432;Database=${DATABASE_NAME:-appdb};Username=${DATABASE_USER:-app_user};Password=${DATABASE_PASSWORD:-change_me_local_only}"
