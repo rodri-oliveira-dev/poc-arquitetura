@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "scripts": {
     "openapi:lint": "redocly lint",
+    "openapi:diff": "bash ./scripts/check-openapi-breaking-changes.sh",
     "architecture:build": "likec4 build docs/architecture -o dist/architecture --base ./"
   },
   "devDependencies": {

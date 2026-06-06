@@ -12,6 +12,7 @@ on:
       - "package-lock.json"
       - "redocly.yaml"
       - "scripts/generate-openapi.*"
+      - "scripts/check-openapi-breaking-changes.sh"
       - "docs/openapi/**"
       - ".github/workflows/openapi-contracts.yml"
   push:
@@ -25,6 +26,7 @@ on:
       - "package-lock.json"
       - "redocly.yaml"
       - "scripts/generate-openapi.*"
+      - "scripts/check-openapi-breaking-changes.sh"
       - "docs/openapi/**"
       - ".github/workflows/openapi-contracts.yml"
   workflow_dispatch:
@@ -42,6 +44,8 @@ env:
   BUILD_CONFIGURATION: Release
   SOLUTION_PATH: ./LedgerService.slnx
   NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+  OASDIFF_VERSION: "1.18.4"
+  OASDIFF_LINUX_AMD64_SHA256: "ad148d8781e06276c3003b00b86bc87f4d57e6e9f912b05ac982b9731565b309"
 
 jobs:
   validate:
@@ -89,6 +93,41 @@ jobs:
 
       - name: Lint OpenAPI contracts
         run: npm run openapi:lint
+
+      - name: Fetch main OpenAPI contracts
+        if: ${{ github.event_name == 'pull_request' }}
+        shell: bash
+        run: |
+          git fetch --depth=1 origin "${{ github.base_ref }}"
+          mkdir -p .openapi-main
+          git show "origin/${{ github.base_ref }}:docs/openapi/ledger.v1.json" > .openapi-main/ledger.v1.json
+          git show "origin/${{ github.base_ref }}:docs/openapi/balance.v1.json" > .openapi-main/balance.v1.json
+
+      - name: Install oasdiff
+        if: ${{ github.event_name == 'pull_request' }}
+        shell: bash
+        run: |
+          archive="oasdiff_${OASDIFF_VERSION}_linux_amd64.tar.gz"
+          curl -fsSLO "https://github.com/oasdiff/oasdiff/releases/download/v${OASDIFF_VERSION}/${archive}"
+          echo "${OASDIFF_LINUX_AMD64_SHA256}  ${archive}" | sha256sum --check -
+          tar -xzf "$archive" oasdiff
+          sudo install -m 0755 oasdiff /usr/local/bin/oasdiff
+          oasdiff version
+
+      - name: Detect breaking OpenAPI changes
+        if: ${{ github.event_name == 'pull_request' }}
+        run: npm run openapi:diff
+
+      - name: Record skipped OpenAPI diff
+        if: ${{ github.event_name != 'pull_request' }}
+        shell: bash
+        run: |
+          {
+            echo "## OpenAPI breaking change diff"
+            echo
+            echo "Comparacao contra a main ignorada para \`${{ github.event_name }}\`."
+            echo "Este workflow gera, linta e valida drift dos contratos neste evento."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Validate generated contract drift
         shell: bash
