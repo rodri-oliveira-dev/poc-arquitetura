@@ -1,0 +1,13 @@
+{
+  "name": "poc-arquitetura",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "openapi:lint": "redocly lint",
+    "architecture:build": "likec4 build docs/architecture -o dist/architecture --base ./"
+  },
+  "devDependencies": {
+    "@redocly/cli": "2.31.6",
+    "likec4": "1.58.0"
+  }
+}

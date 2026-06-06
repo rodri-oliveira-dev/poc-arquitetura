@@ -51,7 +51,7 @@ Mutation testing nao deve ser usado para perseguir score de forma cega. O objeti
 
 ## Como preparar o ambiente
 
-O Stryker.NET e executado como ferramenta local do .NET versionada em `dotnet-tools.json`.
+O Stryker.NET e executado como ferramenta local do .NET versionada em `.config/dotnet-tools.json`.
 
 Confira os runtimes instalados:
 

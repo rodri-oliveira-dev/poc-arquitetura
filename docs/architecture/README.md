@@ -22,7 +22,8 @@ O site LikeC4 e publicado no GitHub Pages pelo workflow `pages-architecture`:
 Para gerar localmente:
 
 ```bash
-npx --yes likec4@latest build docs/architecture -o dist/architecture --base ./
+npm ci
+npm run architecture:build
 ```
 
 Detalhes operacionais: [`docs/development/github-pages.md`](../development/github-pages.md).

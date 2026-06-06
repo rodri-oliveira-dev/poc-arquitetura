@@ -24,6 +24,8 @@ bld/
 [Ll]og/
 [Ll]ogs/
 
+# Node tooling
+node_modules/
 
 
 # Visual Studio / VS Code

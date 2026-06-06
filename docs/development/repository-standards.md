@@ -12,7 +12,7 @@ Este documento resume convencoes de build, estilo, ferramentas e manutencao do r
 | `Directory.Build.props` | Centraliza configuracoes MSBuild comuns. |
 | `global.json` | Fixa o SDK .NET esperado. |
 | `coverlet.runsettings` | Define coleta e exclusoes de cobertura. |
-| `dotnet-tools.json` | Versiona ferramentas locais do .NET. |
+| `.config/dotnet-tools.json` | Versiona ferramentas locais do .NET. |
 | `LedgerService.slnx` | Solution principal do repositorio. |
 
 ## Central Package Management

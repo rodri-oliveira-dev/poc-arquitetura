@@ -25,7 +25,7 @@ dotnet tool restore
 dotnet restore ./LedgerService.slnx
 ```
 
-Isso reinstala ferramentas versionadas em `dotnet-tools.json` quando necessario e atualiza o restore NuGet da solution apos receber mudancas de branch ou remoto.
+Isso reinstala ferramentas versionadas em `.config/dotnet-tools.json` quando necessario e atualiza o restore NuGet da solution apos receber mudancas de branch ou remoto.
 
 ## Politica do pre-push
 
@@ -43,7 +43,7 @@ Na sequencia, o hook tenta executar Trivy para validar Dockerfiles, Terraform, m
 O hook executa restore, build e testes rapidos sem cobertura quando encontra qualquer arquivo impactante, incluindo:
 
 - codigo, projetos e solution: `*.cs`, `*.csproj`, `*.sln`, `*.slnx`;
-- configuracao de build/teste: `*.props`, `*.targets`, `*.runsettings`, `.editorconfig`, `global.json`, `NuGet.config`, `Directory.Build.*`, `Directory.Packages.props`, `dotnet-tools.json`, `coverlet.runsettings`;
+- configuracao de build/teste: `*.props`, `*.targets`, `*.runsettings`, `.editorconfig`, `global.json`, `NuGet.config`, `Directory.Build.*`, `Directory.Packages.props`, `.config/dotnet-tools.json`, `coverlet.runsettings`;
 - configuracoes conservadoras: `*.json`, `*.yml`, `*.yaml`, `*.ruleset`;
 - Docker e compose: `Dockerfile`, `*/Dockerfile`, `compose.yaml`, `compose.*.yaml`;
 - caminhos operacionais: `src/`, `tests/`, `.github/workflows/`, `.githooks/`, `scripts/`, `tools/`, `loadtests/k6/lib/`, `loadtests/k6/scenarios/`;

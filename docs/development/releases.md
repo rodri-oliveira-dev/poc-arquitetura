@@ -10,7 +10,7 @@ O repositorio usa SemVer no formato:
 MAJOR.MINOR.PATCH
 ```
 
-A versao e calculada a partir do historico Git pelo `GitVersion.Tool`, configurado em `GitVersion.yml` e versionado como ferramenta local em `dotnet-tools.json`.
+A versao e calculada a partir do historico Git pelo `GitVersion.Tool`, configurado em `GitVersion.yml` e versionado como ferramenta local em `.config/dotnet-tools.json`.
 
 O fluxo considerado e GitHub Flow:
 
