@@ -24,6 +24,7 @@
     <Project Path="tests/LedgerService.UnitTests/LedgerService.UnitTests.csproj" />
     <Project Path="tests/LedgerService.IntegrationTests/LedgerService.IntegrationTests.csproj" />
     <Project Path="tests/LedgerService.Worker.Tests/LedgerService.Worker.Tests.csproj" />
+    <Project Path="tests/BalanceService.Application.Tests/BalanceService.Application.Tests.csproj" />
     <Project Path="tests/BalanceService.UnitTests/BalanceService.UnitTests.csproj" />
     <Project Path="tests/BalanceService.IntegrationTests/BalanceService.IntegrationTests.csproj" />
     <Project Path="tests/BalanceService.Worker.Tests/BalanceService.Worker.Tests.csproj" />

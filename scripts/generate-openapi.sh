@@ -81,6 +81,8 @@ EOF
   ApiLimits__RateLimitWindowSeconds="${ApiLimits__RateLimitWindowSeconds:-60}" \
   ApiLimits__RateLimitQueueLimit="${ApiLimits__RateLimitQueueLimit:-10}" \
     dotnet tool run swagger -- tofile --output "$output_path" "$assembly_path" "$SWAGGER_DOCUMENT"
+
+  perl -0pi -e 's/\\r\\n/\\n/g' "$output_path"
 }
 
 mkdir -p "$OUTPUT_DIR"

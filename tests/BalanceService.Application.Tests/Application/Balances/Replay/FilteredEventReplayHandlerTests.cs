@@ -10,7 +10,7 @@ using Microsoft.Extensions.Logging;
 
 using Moq;
 
-namespace BalanceService.UnitTests.Application.Balances.Replay;
+namespace BalanceService.Application.Tests.Application.Balances.Replay;
 
 public sealed class FilteredEventReplayHandlerTests
 {

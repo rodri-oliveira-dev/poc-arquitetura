@@ -373,7 +373,7 @@
           },
           "asOf": {
             "type": "string",
-            "description": "Timestamp mais recente considerado no consolidado (ISO-8601).\r\nQuando não há dados para o dia, este campo pode ser `null`.",
+            "description": "Timestamp mais recente considerado no consolidado (ISO-8601).\nQuando não há dados para o dia, este campo pode ser `null`.",
             "nullable": true
           },
           "calculatedAt": {
@@ -383,7 +383,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "Resposta do consolidado diário para um merchant em uma data específica,\r\nderivada da tabela `daily_balances`."
+        "description": "Resposta do consolidado diário para um merchant em uma data específica,\nderivada da tabela `daily_balances`."
       },
       "PeriodBalanceItemResponse": {
         "required": [
@@ -416,7 +416,7 @@
           },
           "asOf": {
             "type": "string",
-            "description": "Timestamp mais recente considerado no consolidado daquele dia (ISO-8601).\r\nQuando não há dados para o dia, este campo pode ser `null`.",
+            "description": "Timestamp mais recente considerado no consolidado daquele dia (ISO-8601).\nQuando não há dados para o dia, este campo pode ser `null`.",
             "nullable": true
           }
         },
