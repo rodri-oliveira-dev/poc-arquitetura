@@ -24,11 +24,12 @@ Status documental atualizado em 2026-06-07. A tabela resume o estado atual do pr
 | Replay, DLQ e rebuild com casos de uso internos | Atendido | `src/BalanceService.Application/Balances/Replay/`, `src/LedgerService.Application/Outbox/Commands/`, testes de replay/rebuild | Existem handlers para replay manual, replay filtrado, rebuild parcial e relatorio de divergencia. Esta revisao avaliou presenca estatica, nao executou testes. |
 | Abstracao de tempo no LedgerService | Atendido | `src/LedgerService.Application/Abstractions/Time/IClock.cs`, `SystemClock.cs`, `src/LedgerService.Application/DependencyInjection.cs` | `IClock` e `SystemClock` existem e sao registrados; handlers e repositorios principais ja aceitam clock injetado ou fallback para `SystemClock`. |
 | Limitacoes conhecidas documentadas | Parcialmente atendido | `docs/reports/aspire-and-owasp-assessment.md`, `docs/architecture/decisions.md`, ADRs propostas | Limitacoes principais seguem registradas, incluindo Auth.Api legado, baseline produtivo, DAST sem gate e thresholds k6 ainda nao formalizados. |
+| Baseline de evolucao produtiva documentado | Parcialmente atendido | `docs/architecture/production-readiness.md` | Baseline recomendado criado como referencia arquitetural. Ele nao declara prontidao produtiva e nao implementa secrets, TLS, Workload Identity, WAF, scan de imagem ou infraestrutura produtiva. |
 | Decisoes arquiteturais registradas | Atendido | `docs/adrs/README.md`, `docs/adrs/*.md` | ADRs cobrem arquitetura, seguranca, CI, observabilidade, workers, Nginx e fluxos assincronos. |
 
 ## Pendencias principais
 
 - Executar e registrar DAST/OWASP ZAP ou pentest quando houver necessidade de avaliar exposicao dinamica alem do script local versionado.
-- Definir baseline produtivo fora do ambiente local para secrets, TLS interno, identidade de workload Pub/Sub, bancos, scans de imagem, WAF e rate limits por identidade.
+- Evoluir a partir do baseline recomendado em `docs/architecture/production-readiness.md`, ainda pendente de implementacao para secrets produtivos, TLS interno, identidade de workload, Pub/Sub real produtivo, bancos, scans de imagem, WAF e rate limits por identidade.
 - Remover definitivamente o `Auth.Api` legado quando nao houver mais necessidade de compatibilidade; o caminho operacional local ja usa Keycloak, incluindo `ledger.read`.
 - Formalizar thresholds de latencia p95/p99 para k6 somente depois de obter linha de base local reprodutivel.

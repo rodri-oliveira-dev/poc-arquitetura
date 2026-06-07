@@ -94,7 +94,7 @@ Simplificacoes recomendadas:
 - Acoplamento operacional no `Program.cs` pode virar composicao dificil de testar.
 - Auth.Api legado pode ser confundido com caminho operacional se voltar a aparecer na stack principal.
 - Outbox/DLQ exigem operacao cuidadosa de reprocessamento; ja existem runbooks e casos de uso internos, mas ainda nao ha automacao operacional completa para todos os cenarios produtivos.
-- Baseline produtivo GCP/seguranca ainda precisa ser consolidado antes de tratar o projeto como referencia operacional fora do laboratorio local.
+- Baseline produtivo GCP/seguranca foi consolidado como referencia arquitetural em [production-readiness.md](production-readiness.md), mas ainda precisa virar decisoes e automacoes especificas antes de tratar o projeto como referencia operacional fora do laboratorio local.
 - DAST/ZAP segue sem workflow ou gate automatizado.
 - Testes k6 ainda nao possuem thresholds p95/p99 formalizados.
 
@@ -116,7 +116,7 @@ O roadmap consolidado por areas de maturidade fica em [docs/roadmap.md](../roadm
 - Isolar montagem de evento/outbox se `CreateLancamentoService` crescer.
 - Evoluir a politica de eventos versionados ja baseada em JSON Schema, avaliando schema registry apenas se o projeto sair do laboratorio local para baseline operacional mais amplo.
 - Extrair readiness checks para componentes pequenos se os checks das APIs passarem de banco e dependencias diretas do trafego HTTP.
-- Consolidar baseline produtivo para secrets, TLS interno, workload identity, WAF, rate limits e scans de imagem.
+- Evoluir as decisoes especificas a partir do baseline recomendado para secrets, TLS interno, workload identity, WAF, rate limits e scans de imagem.
 - Automatizar DAST/ZAP em workflow somente quando houver decisao e ambiente adequado para esse gate.
 - Formalizar thresholds k6 p95/p99 depois de obter linha de base local reprodutivel.
 

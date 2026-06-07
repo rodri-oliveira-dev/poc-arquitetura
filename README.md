@@ -198,6 +198,7 @@ Os scripts executam testes com cobertura e aplicam gate minimo de 85% de cobertu
 - [Politica de versionamento de contratos de eventos](docs/development/event-contract-versioning.md)
 - [Arquitetura](docs/architecture/README.md)
 - [Boundaries arquiteturais](docs/architecture/boundaries.md)
+- [Baseline de evolucao produtiva](docs/architecture/production-readiness.md)
 - [ADRs](docs/adrs/README.md)
 - [Autenticacao e autorizacao](docs/development/authentication.md)
 - [Kafka, Outbox e DLQ](docs/development/kafka-outbox.md)

@@ -113,17 +113,17 @@ Um item deve sair de "Proximos passos" ou "Em andamento ou parcialmente atendido
 
 - DAST/OWASP ZAP ainda nao possui workflow automatizado nem gate.
 - A maturidade de seguranca estatica depende de execucao recente dos scanners.
-- Baseline produtivo GCP/seguranca ainda nao foi consolidado.
+- Baseline produtivo GCP/seguranca foi consolidado como referencia arquitetural em [baseline de evolucao produtiva](architecture/production-readiness.md), mas ainda nao foi implementado.
 
 ### Proximos passos
 
-- Definir baseline produtivo para secrets, TLS interno, identidade de workload, Pub/Sub real, bancos, scans de imagem, WAF e rate limits por identidade.
+- Evoluir implementacoes futuras a partir do baseline recomendado para secrets, TLS interno, identidade de workload, Pub/Sub real, bancos, scans de imagem, WAF e rate limits por identidade.
 - Criar workflow OWASP ZAP/DAST automatizado somente quando houver ambiente e criterio de gate adequados.
 - Registrar resultados de DAST ou pentest quando a avaliacao dinamica for necessaria.
 
 ### Fora de escopo por enquanto
 
-- Criar baseline produtivo nesta etapa.
+- Implementar infraestrutura produtiva nesta etapa.
 - Automatizar OWASP ZAP sem decisao de ambiente alvo, credenciais, risco de falso positivo e politica de bloqueio.
 - Recolocar `Auth.Api` como emissor principal.
 
@@ -196,11 +196,11 @@ Um item deve sair de "Proximos passos" ou "Em andamento ou parcialmente atendido
 
 - O ambiente GCP continua orientado a validacao manual e estudos controlados.
 - O checklist de primeiro apply Pub/Sub e manual e voltado a projeto descartavel.
-- Ainda nao existe baseline produtivo para seguranca, rede, identidade, secrets, imagens, observabilidade e operacao.
+- Existe baseline recomendado para seguranca, rede, identidade, secrets, imagens, observabilidade e operacao, mas ele ainda nao foi automatizado nem aplicado a um ambiente produtivo.
 
 ### Proximos passos
 
-- Consolidar baseline produtivo GCP/seguranca antes de tratar a infraestrutura como referencia operacional.
+- Transformar o baseline recomendado em decisoes e automacoes especificas antes de tratar a infraestrutura como referencia operacional.
 - Definir estrategia completa para Cloud Run, Cloud SQL, Pub/Sub, Secret Manager, Artifact Registry, IAM minimo, budgets e logs.
 - Expandir validacoes somente com guardrails claros para nao aplicar ou destruir recursos por acidente.
 
@@ -273,6 +273,7 @@ Um item deve sair de "Proximos passos" ou "Em andamento ou parcialmente atendido
 - Maturidade tecnica consolidada em [docs/maturity.md](maturity.md).
 - ADRs historicas mantidas em [docs/adrs](adrs/README.md).
 - Documentacao de arquitetura, contratos, operacao, qualidade, Terraform, observabilidade e troubleshooting versionada.
+- Baseline de evolucao produtiva documentado como referencia arquitetural, sem declarar prontidao produtiva.
 - Instrucoes de agentes e skills locais documentam como trabalhar no repositorio.
 
 ### Em andamento ou parcialmente atendido
