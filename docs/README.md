@@ -9,6 +9,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [Dev Container opcional](development/devcontainer.md): ambiente VS Code conteinerizado sem substituir o fluxo local do host.
 - [Ferramentas auxiliares](development/tooling.md): Node.js LTS, npm, npx, tools .NET, Redocly CLI, LikeC4, Swashbuckle CLI e fluxo local de OpenAPI.
 - [Validacao dos contratos OpenAPI](development/openapi-contract-validation.md): geracao, lint, drift e diff de breaking changes contra a main.
+- [Politica de versionamento de contratos de eventos](development/event-contract-versioning.md): evoluir eventos versionados entre Ledger e Balance preservando compatibilidade em Pub/Sub e Kafka.
 - [FAQ](faq.md): respostas curtas para as duvidas mais provaveis de leitura tecnica.
 - [Maturidade tecnica da POC](maturity.md): criterios atuais de documentacao, seguranca, testes, CI, observabilidade e pendencias.
 
@@ -39,6 +40,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [BalanceService API](development/balance-api.md): contratos HTTP de leitura de consolidados diarios e por periodo.
 - [Contratos logicos de eventos](events/README.md): payloads logicos atuais, produtores, consumidores e mapeamentos Pub/Sub/Kafka dos eventos.
 - [JSON Schemas versionados de eventos](../contracts/events/README.md): schemas e exemplos para validar payloads logicos de eventos.
+- [Versionamento de contratos de eventos](development/event-contract-versioning.md): politica de compatibilidade, transporte, schemas, testes e depreciacao.
 - [Contrato LedgerEntryCreated.v1](events/ledger-entry-created-v1.md): contrato legado sem `currency`, aceito para mensagens antigas.
 - [Contrato LedgerEntryCreated.v2](events/ledger-entry-created-v2.md): contrato atual com `currency` obrigatoria.
 - [Observabilidade e operacao minima](observability.md): health, readiness, logs, traces, metricas, dashboards, alertas e validacoes operacionais.

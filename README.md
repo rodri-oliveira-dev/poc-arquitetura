@@ -190,6 +190,7 @@ Os scripts executam testes com cobertura e aplicam gate minimo de 85% de cobertu
 - [LedgerService API](docs/development/ledger-api.md)
 - [BalanceService API](docs/development/balance-api.md)
 - [Contratos logicos de eventos](docs/events/README.md)
+- [Politica de versionamento de contratos de eventos](docs/development/event-contract-versioning.md)
 - [Arquitetura](docs/architecture/README.md)
 - [Boundaries arquiteturais](docs/architecture/boundaries.md)
 - [ADRs](docs/adrs/README.md)

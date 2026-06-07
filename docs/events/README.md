@@ -33,6 +33,7 @@ Os JSON Schemas versionados ficam em [`../../contracts/events`](../../contracts/
 
 ## Documentos relacionados
 
+- [Politica de versionamento de contratos de eventos](../development/event-contract-versioning.md)
 - [Diagnostico de contratos de eventos](../reports/event-contracts-diagnostics.md)
 - [Contrato LedgerEntryCreated.v1 com schema existente](../contracts/events/LedgerEntryCreated.v1.md)
 - [Contrato LedgerEntryCreated.v2](ledger-entry-created-v2.md)
