@@ -55,6 +55,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [Validacao final do backend](reports/final-backend-validation.md): build, testes, migrations, Compose, fluxo ponta a ponta, k6 e ressalvas operacionais apos as etapas de melhoria.
 - [Baseline dos contratos OpenAPI](reports/openapi-contract-baseline.md): contratos gerados, contagem de endpoints, warnings e determinismo da geracao.
 - [Diagnostico de contratos de eventos](reports/event-contracts-diagnostics.md): fluxo atual de eventos entre Ledger e Balance, Pub/Sub, Kafka, Outbox, DLQ, idempotencia e riscos de contrato.
+- [Diagnostico de replay, DLQ e projecao](reports/replay-dlq-projection-diagnostics.md): estado atual de Outbox, retry, replay, redrive, idempotencia e reconstrucao de projecao.
 
 ## Explicacao
 
