@@ -25,6 +25,15 @@ public sealed class KafkaOutboxMessagePublisher : IOutboxMessagePublisher, IDisp
         IOptions<KafkaProducerOptions> options,
         ILogger<KafkaOutboxMessagePublisher> logger,
         OutboxMetrics metrics)
+        : this(options, logger, metrics, producer: null)
+    {
+    }
+
+    internal KafkaOutboxMessagePublisher(
+        IOptions<KafkaProducerOptions> options,
+        ILogger<KafkaOutboxMessagePublisher> logger,
+        OutboxMetrics metrics,
+        IProducer<string, string>? producer)
     {
         _options = options.Value;
         _logger = logger;
@@ -40,7 +49,7 @@ public sealed class KafkaOutboxMessagePublisher : IOutboxMessagePublisher, IDisp
         };
         config.ApplySecurity(_options);
 
-        _producer = new ProducerBuilder<string, string>(config)
+        _producer = producer ?? new ProducerBuilder<string, string>(config)
             .SetErrorHandler((_, e) =>
             {
                 _logger.LogWarning("Kafka producer error: {Reason} (IsFatal={IsFatal})", e.Reason, e.IsFatal);
