@@ -95,16 +95,42 @@ jobs:
         run: npm run openapi:lint
 
       - name: Fetch main OpenAPI contracts
+        id: main_openapi_contracts
         if: ${{ github.event_name == 'pull_request' }}
         shell: bash
         run: |
           git fetch --depth=1 origin "${{ github.base_ref }}"
           mkdir -p .openapi-main
-          git show "origin/${{ github.base_ref }}:docs/openapi/ledger.v1.json" > .openapi-main/ledger.v1.json
-          git show "origin/${{ github.base_ref }}:docs/openapi/balance.v1.json" > .openapi-main/balance.v1.json
+
+          missing_contracts=()
+          for contract in ledger.v1.json balance.v1.json; do
+            source_ref="origin/${{ github.base_ref }}:docs/openapi/${contract}"
+            if git cat-file -e "$source_ref"; then
+              git show "$source_ref" > ".openapi-main/${contract}"
+            else
+              missing_contracts+=("$contract")
+              echo "::notice::OpenAPI baseline docs/openapi/${contract} does not exist on ${{ github.base_ref }}. Breaking-change diff will be skipped for this initial baseline."
+            fi
+          done
+
+          if [ "${#missing_contracts[@]}" -eq 0 ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "## OpenAPI breaking change diff"
+              echo
+              echo "Comparacao contra a \`${{ github.base_ref }}\` ignorada porque a branch base ainda nao possui todos os contratos OpenAPI versionados."
+              echo
+              echo "Contratos ausentes na base:"
+              printf -- "- \`docs/openapi/%s\`\n" "${missing_contracts[@]}"
+              echo
+              echo "Este PR passa a ser tratado como baseline inicial; o workflow ainda gera, linta e valida drift dos contratos deste PR."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Install oasdiff
-        if: ${{ github.event_name == 'pull_request' }}
+        if: ${{ github.event_name == 'pull_request' && steps.main_openapi_contracts.outputs.available == 'true' }}
         shell: bash
         run: |
           archive="oasdiff_${OASDIFF_VERSION}_linux_amd64.tar.gz"
@@ -115,7 +141,7 @@ jobs:
           oasdiff version
 
       - name: Detect breaking OpenAPI changes
-        if: ${{ github.event_name == 'pull_request' }}
+        if: ${{ github.event_name == 'pull_request' && steps.main_openapi_contracts.outputs.available == 'true' }}
         run: npm run openapi:diff
 
       - name: Record skipped OpenAPI diff
