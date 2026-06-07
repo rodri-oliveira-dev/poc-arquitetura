@@ -96,3 +96,7 @@ do `OutboxPublisherService`, o inicio do `LedgerEventsConsumer` e `CorrelationId
 
 O smoke k6 criou `.env.k6.auto` e artefatos em `artifacts/k6/`. Ambos permanecem
 ignorados pelo Git.
+
+## Atualizacao posterior
+
+Em 2026-06-07, os cenarios k6 receberam thresholds iniciais de latencia p95/p99 para baseline local controlado, e `loadtests/k6/lib/config.js` passou a resolver `.env.k6.auto` sem usar `open()` relativo direto. Esta atualizacao nao altera o resultado historico da validacao de 2026-06-01 nem declara SLO produtivo.

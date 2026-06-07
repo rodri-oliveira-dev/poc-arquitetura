@@ -1,6 +1,7 @@
 import { check, sleep } from 'k6';
 import { loadConfig } from '../lib/config.js';
 import { defaultHeaders, httpGet } from '../lib/http.js';
+import { localLatencyThresholds } from '../lib/thresholds.js';
 
 export const options = {
     scenarios: {
@@ -15,6 +16,8 @@ export const options = {
     },
     thresholds: {
         http_req_failed: ['rate<=0.05'],
+        http_req_duration: localLatencyThresholds('BALANCE', { p95: 1000, p99: 2500 }),
+        checks: ['rate==1'],
         dropped_iterations: ['count==0'],
     },
 };

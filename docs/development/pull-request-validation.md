@@ -60,6 +60,7 @@ O workflow `main-dotnet-ci` permanece como validacao completa de `push` na `main
 | `infra-security-and-terraform-validation` | `.github/workflows/terraform-validation.yml` | `pull_request` e `push` para `main` quando ha mudancas em `infra/terraform/**`, Dockerfiles, Compose ou no proprio workflow; `workflow_dispatch` | Executa Trivy para Dockerfile, Terraform, misconfigurations, secrets e filesystem; depois executa `fmt -check`, `init -backend=false`, `validate` e TFLint. Nao executa `plan`, `apply` nem `destroy`; o `init` sem backend e apenas validacao sintatica sem credenciais. Plan real no CI deve inicializar o backend remoto GCS e nao usar `-lock=false`. | Bloqueante se exigido por branch protection/ruleset |
 | `mutation-tests` | `.github/workflows/mutation-tests.yml` | `push` na `main`, `workflow_dispatch` | Diagnostico de qualidade por Stryker.NET com relatorios HTML publicados como artifacts. Nao roda em PR e nao deve virar gate obrigatorio sem decisao explicita. | Informativo |
 | `smoke-load-tests` | `.github/workflows/loadtests-smoke.yml` | `workflow_dispatch` | Executa testes k6 smoke contra a stack local inicializada no runner. | Operacional/manual |
+| `owasp-zap-baseline` | `.github/workflows/owasp-zap.yml` | `workflow_dispatch` | Executa OWASP ZAP baseline contra LedgerService.Api e BalanceService.Api em stack HTTP controlada no runner e publica relatorios como artifacts. Nao roda em PR. | Operacional/manual |
 | `architecture-pages` | `.github/workflows/pages-architecture.yml` | `push` na `main`, `pull_request` para `main`, `workflow_dispatch` quando ha mudancas em `docs/architecture/**` ou `.github/workflows/pages-architecture.yml` | Build LikeC4 em PRs afetados e publicacao da documentacao arquitetural no GitHub Pages apos merge/manual. | Operacional |
 | `release-on-merge` | `.github/workflows/release.yml` | `pull_request` fechado para `main` quando o PR foi mergeado | Cria tag e GitHub Release a partir do merge do PR. Nao repete build/testes. | Operacional |
 
@@ -84,6 +85,8 @@ Antes de renomear qualquer um destes itens, revise a configuracao externa do Git
 Se o job `Build and test` for renomeado, a branch protection ou ruleset que exige esse status precisa ser atualizada no GitHub antes do merge da alteracao. Se `main-dotnet-ci`, `architecture-pages` ou seus arquivos forem renomeados, revise tambem os badges do README que apontam para `dotnet.yml` e `pages-architecture.yml`.
 
 Nao promova `mutation-tests` para gate obrigatorio apenas por renomeacao ou ajuste operacional. Essa mudanca exige decisao explicita, porque aumenta tempo de feedback e pode bloquear merges por uma validacao originalmente informativa.
+
+Nao promova `owasp-zap-baseline` para gate obrigatorio apenas por existir workflow manual. DAST exige ambiente alvo estavel, criterio de triagem, politica para falsos positivos e severidades bloqueantes antes de entrar em branch protection ou ruleset.
 
 ## Pinagem de GitHub Actions
 

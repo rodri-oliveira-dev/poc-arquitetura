@@ -59,6 +59,20 @@ function Get-LocalConfigValue([string]$Name, [string]$DefaultValue) {
   return $value
 }
 
+function Get-ThresholdValue([string]$Prefix, [string]$Percentile, [string]$DefaultValue) {
+  $specificName = "${Prefix}_HTTP_REQ_DURATION_${Percentile}_MS"
+  $globalName = "K6_HTTP_REQ_DURATION_${Percentile}_MS"
+  $value = Get-LocalConfigValue $specificName ""
+  if ([string]::IsNullOrWhiteSpace($value)) {
+    $value = Get-LocalConfigValue $globalName ""
+  }
+  if ([string]::IsNullOrWhiteSpace($value)) {
+    return $DefaultValue
+  }
+
+  return $value
+}
+
 function Write-BalanceDatabaseAuthFailure([string]$User, [string]$Database) {
   $hostName = Get-LocalConfigValue "BALANCE_DB_HOST" "postgres-db"
   [Console]::Error.WriteLine(@"
@@ -333,15 +347,15 @@ function Run-K6([string]$scenarioName, [string]$scriptPath, [hashtable]$envVars)
 switch ($Mode) {
   "smoke" {
     $asyncFlowBefore = Get-AsyncFlowCounts
-    Run-K6 "ledger_resilience" "scenarios/ledger_resilience.js" @{ TOKEN = $token; VUS = "1"; DURATION = "10s" }
+    Run-K6 "ledger_resilience" "scenarios/ledger_resilience.js" @{ TOKEN = $token; VUS = "1"; DURATION = "10s"; LEDGER_HTTP_REQ_DURATION_P95_MS = (Get-ThresholdValue "LEDGER" "P95" "3000"); LEDGER_HTTP_REQ_DURATION_P99_MS = (Get-ThresholdValue "LEDGER" "P99" "6000") }
     Wait-AsyncFlowProgress $asyncFlowBefore
-    Run-K6 "balance_daily_50rps" "scenarios/balance_daily_50rps.js" @{ TOKEN = $token; RATE = "1"; DURATION = "10s"; PREALLOCATED_VUS = "5"; MAX_VUS = "10" }
+    Run-K6 "balance_daily_50rps" "scenarios/balance_daily_50rps.js" @{ TOKEN = $token; RATE = "1"; DURATION = "10s"; PREALLOCATED_VUS = "5"; MAX_VUS = "10"; BALANCE_HTTP_REQ_DURATION_P95_MS = (Get-ThresholdValue "BALANCE" "P95" "3000"); BALANCE_HTTP_REQ_DURATION_P99_MS = (Get-ThresholdValue "BALANCE" "P99" "6000") }
   }
   "balance50" {
-    Run-K6 "balance_daily_50rps" "scenarios/balance_daily_50rps.js" @{ TOKEN = $token; RATE = "50"; DURATION = "1m" }
+    Run-K6 "balance_daily_50rps" "scenarios/balance_daily_50rps.js" @{ TOKEN = $token; RATE = "50"; DURATION = "1m"; BALANCE_HTTP_REQ_DURATION_P95_MS = (Get-ThresholdValue "BALANCE" "P95" "1000"); BALANCE_HTTP_REQ_DURATION_P99_MS = (Get-ThresholdValue "BALANCE" "P99" "2500") }
   }
   "resilience" {
-    Run-K6 "ledger_resilience" "scenarios/ledger_resilience.js" @{ TOKEN = $token; VUS = "5"; DURATION = "1m" }
+    Run-K6 "ledger_resilience" "scenarios/ledger_resilience.js" @{ TOKEN = $token; VUS = "5"; DURATION = "1m"; LEDGER_HTTP_REQ_DURATION_P95_MS = (Get-ThresholdValue "LEDGER" "P95" "2000"); LEDGER_HTTP_REQ_DURATION_P99_MS = (Get-ThresholdValue "LEDGER" "P99" "5000") }
   }
 }
 

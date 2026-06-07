@@ -4,6 +4,8 @@ Este guia documenta a execucao local versionada do OWASP ZAP contra as APIs HTTP
 
 Os scripts usam por padrao a imagem oficial `ghcr.io/zaproxy/zaproxy:stable`, conforme a documentacao Docker do ZAP: <https://www.zaproxy.org/docs/docker/>. O scan usa `zap-api-scan.py` importando OpenAPI/Swagger em `/swagger/v1/swagger.json`, conforme a documentacao de API Scan do ZAP: <https://www.zaproxy.org/docs/docker/api-scan/>.
 
+Tambem existe o workflow manual `.github/workflows/owasp-zap.yml` para executar o mesmo baseline em GitHub Actions sob demanda. Ele nao roda em `pull_request` e nao e gate obrigatorio nesta etapa.
+
 ## Pre-requisitos
 
 - Docker-compatible API acessivel.
@@ -189,6 +191,35 @@ Quando `Auth.Api` legado for incluido, os arquivos `auth-api.html`, `auth-api.js
 O `summary.md` registra data/hora, imagem ZAP, URLs analisadas, alvo visto pelo container, arquivos gerados e status final por API. A pasta `zap-reports/` e ignorada pelo Git; relatorios gerados nao devem ser versionados.
 
 Quando o modo autenticado estiver ativo, o summary registra apenas que `Authorization: Bearer` foi injetado via ZAP Replacer. O token nao e gravado no summary.
+
+## GitHub Actions
+
+O workflow `owasp-zap-baseline` e executado manualmente em `Actions > owasp-zap-baseline > Run workflow`.
+
+Ele sobe no runner uma stack HTTP controlada com:
+
+- `postgres-db`;
+- `keycloak`;
+- `ledger-service`;
+- `balance-service`.
+
+O workflow aplica migrations dos bancos antes de iniciar as APIs e aguarda `/health` em:
+
+- `http://localhost:5226/health`;
+- `http://localhost:5228/health`.
+
+Workers, Pub/Sub emulator, Kafka legado, Nginx local e `Auth.Api` legado ficam fora do escopo padrao porque o baseline atual analisa a superficie HTTP descrita por `/swagger/v1/swagger.json` das APIs principais. Se uma evolucao futura passar a validar endpoints autenticados, fluxos assincronos ponta a ponta, Nginx ou o emissor legado, o workflow deve ser ajustado junto com o criterio de falha e a documentacao.
+
+Depois do scan, o workflow publica o artifact `owasp-zap-baseline-reports` com retencao de 7 dias. O artifact inclui, quando gerados pelo ZAP:
+
+- relatorios HTML;
+- relatorios JSON;
+- relatorios Markdown;
+- summaries de texto ou Markdown.
+
+Por padrao, alertas do ZAP nao falham o job. O job falha para problemas operacionais, como erro ao subir a stack, migrations com falha, APIs indisponiveis, falha operacional do container ZAP ou erro do runner. Ao disparar manualmente, o input `fail_on_alerts=true` pode ser usado para propagar alertas como falha, mas isso continua sendo uma decisao manual e nao altera os checks obrigatorios de PR.
+
+Esse criterio existe porque o baseline ainda pode gerar falsos positivos ou achados dependentes do ambiente local da POC. Ele deve evoluir para gate apenas quando houver ambiente alvo estavel, politica de triagem, allowlist ou baseline aceito, severidades bloqueantes definidas e baixo ruido operacional.
 
 ## Tipo de scan
 

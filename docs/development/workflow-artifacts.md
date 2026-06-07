@@ -51,6 +51,32 @@ Risco residual:
 - o `mutation-report.html` pode conter paths, nomes de tipos, nomes de testes e trechos de codigo mutado;
 - por isso, a retencao e curta e o workflow continua restrito a `push` na `main` e execucao manual, sem rodar em todo pull request.
 
+## owasp-zap-baseline
+
+Workflow: `.github/workflows/owasp-zap.yml`
+
+Artifact: `owasp-zap-baseline-reports`
+
+Retencao: 7 dias
+
+Conteudo publicado:
+
+- relatorios HTML gerados pelo ZAP, quando disponiveis;
+- relatorios JSON gerados pelo ZAP, quando disponiveis;
+- relatorios Markdown ou texto gerados pelo runner;
+- `summary.md` com alvos, arquivos e exit code por API.
+
+Motivo:
+
+- o workflow e manual e apoia triagem DAST sem virar gate obrigatorio de PR nesta etapa;
+- os relatorios sao a saida primaria do OWASP ZAP para analise de achados;
+- a retencao curta reduz exposicao de paths, endpoints, headers e detalhes do ambiente local do runner.
+
+Risco residual:
+
+- os relatorios podem conter inventario de endpoints, paths internos e detalhes de configuracao observados dinamicamente;
+- por isso, o workflow nao roda em `pull_request` e os artifacts expiram em 7 dias.
+
 ## Regras de manutencao
 
 - Todo uso de `actions/upload-artifact` deve declarar `retention-days`.
