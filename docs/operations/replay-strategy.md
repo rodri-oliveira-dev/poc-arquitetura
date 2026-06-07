@@ -302,6 +302,114 @@ Payload invalido em DLQ deve permanecer como evidencia ou ser descartado de
 forma auditada. Nao corrija o payload manualmente e republique como se fosse o
 mesmo evento.
 
+## Implementacao disponivel
+
+O BalanceService possui replay manual de mensagem unica como caso de uso
+interno de Application:
+
+- `ManualEventReplayCommand`;
+- `ManualEventReplayHandler`;
+- `ManualEventReplayResult`;
+- `ManualEventReplayStatus`.
+
+Nao ha endpoint administrativo publico para replay. A execucao deve ocorrer por
+uma superficie operacional interna que resolva `ISender` no mesmo composition
+root do `BalanceService.Worker` e envie `ManualEventReplayCommand`.
+
+Entrada obrigatoria:
+
+- `payload`: JSON logico original do evento;
+- `eventName`: por enquanto apenas `LedgerEntryCreated`;
+- `eventVersion`: `v1` ou `v2`;
+- `provider`: `PubSub`, `Kafka` ou outro identificador operacional conhecido;
+- `metadata`: attributes Pub/Sub, headers Kafka ou coordenadas de DLQ;
+- `reason`: motivo operacional do replay.
+
+Resultado explicito:
+
+- `Replayed`;
+- `SkippedAlreadyProcessed`;
+- `RejectedInvalidContract`;
+- `RejectedUnsupportedVersion`;
+- `FailedProcessing`.
+
+Exemplo de chamada interna:
+
+```csharp
+ManualEventReplayResult result = await sender.Send(
+    new ManualEventReplayCommand(
+        payload,
+        "LedgerEntryCreated",
+        "v2",
+        "PubSub",
+        metadata,
+        "replay manual apos investigacao da DLQ"),
+    cancellationToken);
+```
+
+O handler registra log estruturado com `eventId`, `eventName`,
+`eventVersion`, `replayId`, `reason`, `result`, `provider` e `metadata`.
+
+### Protecoes aplicadas
+
+Antes de reprocessar, o handler:
+
+1. valida `eventName`, `eventVersion` e `payload` com o catalogo de JSON
+   Schemas versionados usado pelos testes de contrato;
+2. rejeita versao desconhecida como `RejectedUnsupportedVersion`;
+3. rejeita payload sem JSON valido, schema invalido, evento nao suportado ou
+   payload nao desserializavel como `RejectedInvalidContract`;
+4. extrai `payload.id` como id funcional do evento;
+5. consulta `processed_events` para identificar evento ja aplicado;
+6. chama `ApplyLedgerEntryCreatedCommand`, que tambem tenta inserir
+   `processed_events` com `ON CONFLICT DO NOTHING` antes de alterar saldo.
+
+Essa dupla verificacao protege a execucao manual contra duplicidade observada
+antes do replay e contra corrida com consumo normal. Se a corrida acontecer, o
+handler de aplicacao retorna duplicidade e o replay termina como
+`SkippedAlreadyProcessed`.
+
+### Pub/Sub para replay manual
+
+Para uma mensagem unica vinda do Pub/Sub:
+
+1. leia a mensagem na subscription de inspecao da DLQ de aplicacao ou na
+   subscription da DLQ tecnica nativa, quando existir;
+2. se a mensagem estiver no envelope `DeadLetterMessage`, extraia o payload
+   original preservado no envelope;
+3. derive `eventName` e `eventVersion` de `event_type`, ou use os campos
+   equivalentes preservados no envelope;
+4. passe attributes originais, `dlq_reason`, `original_source`,
+   `original_provider`, `original_metadata_*`, ordering key e message id em
+   `metadata`;
+5. execute o caso de uso interno;
+6. confirme a mensagem de origem somente depois de registrar o resultado
+   operacional.
+
+O replay manual nao republica automaticamente no topic principal. Ele chama o
+mesmo caso de uso idempotente de aplicacao do Balance. Se for necessario
+redrive por republicacao no Pub/Sub, isso continua sendo uma decisao
+operacional separada.
+
+### Kafka para replay manual
+
+Para uma mensagem unica vinda do topico de DLQ Kafka:
+
+1. leia a mensagem por topic, partition e offset da DLQ;
+2. se o value estiver no envelope `DeadLetterMessage`, extraia o payload
+   original preservado no envelope;
+3. derive `eventName` e `eventVersion` de `event_type`;
+4. passe headers originais, `dlq_reason`, `original_topic`,
+   `original_partition`, `original_offset`, `original_source`,
+   `original_provider`, message key e coordenadas Kafka em `metadata`;
+5. execute o caso de uso interno;
+6. commite ou marque a mensagem da DLQ como resolvida somente depois de
+   registrar o resultado operacional.
+
+O replay manual nao remove Kafka nem altera o consumer legado. Kafka continua
+podendo fornecer a mensagem candidata e seus headers, mas a protecao de
+contrato e idempotencia permanece no caso de uso de Application.
+
 ## Replay de Outbox
 
 Outbox trata publicacao antes da entrega ao broker. Requeue de uma mensagem

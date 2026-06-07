@@ -15,6 +15,16 @@ public sealed class ProcessedEventRepository : IProcessedEventRepository
         _context = context;
     }
 
+    public async Task<bool> ExistsAsync(string eventId, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(eventId))
+            return false;
+
+        return await _context.ProcessedEvents
+            .AsNoTracking()
+            .AnyAsync(x => x.EventId == eventId, cancellationToken);
+    }
+
     public async Task<bool> TryInsertAsync(ProcessedEvent processedEvent, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(processedEvent);

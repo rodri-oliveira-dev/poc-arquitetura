@@ -310,6 +310,9 @@ public sealed class LedgerEntryCreatedConsumerContractTests
 
         public int InsertedCount { get; private set; }
 
+        public Task<bool> ExistsAsync(string eventId, CancellationToken cancellationToken = default)
+            => Task.FromResult(_eventIds.Contains(eventId));
+
         public Task<bool> TryInsertAsync(ProcessedEvent processedEvent, CancellationToken cancellationToken = default)
         {
             if (!_eventIds.Add(processedEvent.EventId))

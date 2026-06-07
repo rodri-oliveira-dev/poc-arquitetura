@@ -4,6 +4,8 @@ namespace BalanceService.Application.Abstractions.Persistence;
 
 public interface IProcessedEventRepository
 {
+    Task<bool> ExistsAsync(string eventId, CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Tenta inserir o registro de evento processado.
     /// Deve ser idempotente: se o EventId já existir, retorna false sem lançar erro.
