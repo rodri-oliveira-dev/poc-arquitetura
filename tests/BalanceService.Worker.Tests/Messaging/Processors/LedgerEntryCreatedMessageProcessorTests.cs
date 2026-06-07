@@ -39,8 +39,8 @@ public sealed class LedgerEntryCreatedMessageProcessorTests
         Assert.Equal("key", dlq.Messages[0].TransportMetadata["key"]);
         Assert.Equal("Deserialization failed.", dlq.Messages[0].Reason);
         Assert.Equal(nameof(JsonException), dlq.Messages[0].ExceptionType);
-        Assert.Equal(LedgerEntryCreatedV1Contract.EventType, dlq.Messages[0].EventType);
-        Assert.Equal(LedgerEntryCreatedV1Contract.EventType, dlq.Messages[0].Attributes[MessageAttributeNames.EventType]);
+        Assert.Equal(LedgerEntryCreatedV2Contract.EventType, dlq.Messages[0].EventType);
+        Assert.Equal(LedgerEntryCreatedV2Contract.EventType, dlq.Messages[0].Attributes[MessageAttributeNames.EventType]);
         Assert.Equal("evt-1", dlq.Messages[0].Attributes[MessageAttributeNames.EventId]);
         Assert.False(string.IsNullOrWhiteSpace(dlq.Messages[0].Attributes[MessageAttributeNames.TraceParent]));
         Assert.Equal("tenant=poc", dlq.Messages[0].Attributes[MessageAttributeNames.Baggage]);
@@ -70,7 +70,9 @@ public sealed class LedgerEntryCreatedMessageProcessorTests
             "contracts",
             "events",
             "LedgerEntryCreated.v1.example.json"));
-        var message = CreateMessage(payload, AttributesWith(EventId: "evt-example"));
+        var message = CreateMessage(
+            payload,
+            AttributesWith(EventId: "evt-example", EventType: LedgerEntryCreatedV1Contract.EventType));
 
         var shouldCommit = await sut.ProcessAsync(message, CancellationToken.None);
 
@@ -83,15 +85,17 @@ public sealed class LedgerEntryCreatedMessageProcessorTests
     {
         var dlq = new CapturingDeadLetterProducer();
         var sut = CreateSut(dlq);
-        var payload = ValidPayload().Replace("\"externalReference\":null", "\"externalReference\":null,\"currency\":\"BRL\"");
-        var message = CreateMessage(payload, AttributesWith(EventId: "evt-currency"));
+        var payload = ValidPayload();
+        var message = CreateMessage(
+            payload,
+            AttributesWith(EventId: "evt-currency", EventType: LedgerEntryCreatedV1Contract.EventType));
 
         var shouldCommit = await sut.ProcessAsync(message, CancellationToken.None);
 
         Assert.True(shouldCommit);
         Assert.Single(dlq.Messages);
-        Assert.Equal("Deserialization failed.", dlq.Messages[0].Reason);
-        Assert.Equal(nameof(JsonException), dlq.Messages[0].ExceptionType);
+        Assert.Equal("Message payload currency is not supported in LedgerEntryCreated.v1.", dlq.Messages[0].Reason);
+        Assert.Equal("MessageValidationException", dlq.Messages[0].ExceptionType);
     }
 
     [Fact]
@@ -189,6 +193,8 @@ public sealed class LedgerEntryCreatedMessageProcessorTests
         Assert.Empty(dlq.Messages);
         Assert.NotNull(command);
         Assert.Equal("lan_12345678", command!.Event.Id);
+        Assert.Equal("BRL", command.Event.Currency);
+        Assert.Equal(LedgerEntryCreatedV2Contract.EventType, command.EventType);
     }
 
     [Fact]
@@ -326,11 +332,12 @@ public sealed class LedgerEntryCreatedMessageProcessorTests
         string? EventId,
         string? TraceParent = null,
         string? TraceState = null,
-        string? Baggage = null)
+        string? Baggage = null,
+        string EventType = LedgerEntryCreatedV2Contract.EventType)
     {
         var attributes = new Dictionary<string, string>
         {
-            [MessageAttributeNames.EventType] = LedgerEntryCreatedV1Contract.EventType
+            [MessageAttributeNames.EventType] = EventType
         };
 
         if (EventId is not null)
@@ -354,6 +361,7 @@ public sealed class LedgerEntryCreatedMessageProcessorTests
             id = "lan_12345678",
             type = "CREDIT",
             amount,
+            currency = "BRL",
             createdAt = "2026-02-16T00:00:00.0000000Z",
             merchantId = "m1",
             occurredAt = "2026-02-16T00:00:00.0000000Z",

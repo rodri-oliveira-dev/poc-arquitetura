@@ -127,6 +127,7 @@ public sealed class ApplyLedgerEntryCreatedConcurrencyTests
             id,
             type,
             amount,
+            "BRL",
             occurredAt,
             merchantId,
             occurredAt,

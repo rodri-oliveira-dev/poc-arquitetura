@@ -20,14 +20,14 @@ public sealed class LedgerEntryCreatedProducerContractTests
     private static readonly Lazy<JsonSchema> Schema = new(LoadSchemaCore);
 
     [Fact]
-    public async Task CreateLancamento_should_persist_outbox_payload_that_matches_ledger_entry_created_v1_schema()
+    public async Task CreateLancamento_should_persist_outbox_payload_that_matches_ledger_entry_created_v2_schema()
     {
         var outbox = await ProduceLedgerEntryCreatedOutboxAsync("CREDIT", "10.00");
 
         Assert.Equal("LedgerEntry", outbox.AggregateType);
-        Assert.Equal(LedgerEntryCreatedV1.EventType, outbox.EventType);
+        Assert.Equal(LedgerEntryCreatedV2.EventType, outbox.EventType);
         Assert.Equal("LedgerEntryCreated", GetEventName(outbox.EventType));
-        Assert.Equal("v1", GetEventVersion(outbox.EventType));
+        Assert.Equal("v2", GetEventVersion(outbox.EventType));
         Assert.NotEqual(Guid.Empty, outbox.Id);
         Assert.NotEqual(Guid.Empty, outbox.AggregateId);
         Assert.Equal(Guid.Parse(ExpectedCorrelationId), outbox.CorrelationId);
@@ -36,11 +36,12 @@ public sealed class LedgerEntryCreatedProducerContractTests
         JsonElement payload = ParsePayload(outbox.Payload);
         Assert.Equal(ExpectedMerchantId, payload.GetProperty("merchantId").GetString());
         Assert.Equal(ExpectedCorrelationId, payload.GetProperty("correlationId").GetString());
+        Assert.Equal("BRL", payload.GetProperty("currency").GetString());
         AssertPayloadMatchesSchema(payload);
     }
 
     [Fact]
-    public async Task CreateLancamento_should_persist_debit_outbox_payload_that_matches_ledger_entry_created_v1_schema()
+    public async Task CreateLancamento_should_persist_debit_outbox_payload_that_matches_ledger_entry_created_v2_schema()
     {
         var outbox = await ProduceLedgerEntryCreatedOutboxAsync("DEBIT", "-15.50");
 
@@ -69,12 +70,27 @@ public sealed class LedgerEntryCreatedProducerContractTests
         => new()
         {
             {
+                "required currency is missing",
+                """
+                {
+                  "id": "lan_12345678",
+                  "type": "CREDIT",
+                  "amount": "10.00",
+                  "createdAt": "2026-02-16T12:00:00.0000000Z",
+                  "merchantId": "merchant-1",
+                  "occurredAt": "2026-02-16T12:00:00.0000000Z",
+                  "correlationId": "11111111-1111-1111-1111-111111111111"
+                }
+                """
+            },
+            {
                 "required merchantId is missing",
                 """
                 {
                   "id": "lan_12345678",
                   "type": "CREDIT",
                   "amount": "10.00",
+                  "currency": "BRL",
                   "createdAt": "2026-02-16T12:00:00.0000000Z",
                   "occurredAt": "2026-02-16T12:00:00.0000000Z",
                   "correlationId": "11111111-1111-1111-1111-111111111111"
@@ -88,6 +104,7 @@ public sealed class LedgerEntryCreatedProducerContractTests
                   "id": "lan_12345678",
                   "type": "CREDIT",
                   "amount": 10.00,
+                  "currency": "BRL",
                   "createdAt": "2026-02-16T12:00:00.0000000Z",
                   "merchantId": "merchant-1",
                   "occurredAt": "2026-02-16T12:00:00.0000000Z",
@@ -102,6 +119,7 @@ public sealed class LedgerEntryCreatedProducerContractTests
                   "id": "lan_12345678",
                   "type": "CREDIT",
                   "amount": "10.00",
+                  "currency": "BRL",
                   "createdAt": "2026-02-16T12:00:00.0000000Z",
                   "merchantId": "merchant-1",
                   "occurredAt": "2026-02-16T12:00:00.0000000Z",
@@ -117,6 +135,7 @@ public sealed class LedgerEntryCreatedProducerContractTests
                   "id": "lan_12345678",
                   "type": "CREDIT",
                   "amount": "10.00",
+                  "currency": "BRL",
                   "createdAt": "2026-02-16T12:00:00.0000000Z",
                   "merchantId": "merchant-1",
                   "occurredAt": "2026-02-16T12:00:00.0000000Z",
@@ -201,7 +220,7 @@ public sealed class LedgerEntryCreatedProducerContractTests
             FindRepositoryRoot(),
             "contracts",
             "events",
-            "ledger-entry-created.v1.schema.json");
+            "ledger-entry-created.v2.schema.json");
 
         return JsonSchema.FromText(File.ReadAllText(schemaPath));
     }

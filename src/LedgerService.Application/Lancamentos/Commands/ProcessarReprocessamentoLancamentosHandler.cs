@@ -6,6 +6,7 @@ using LedgerService.Application.Abstractions.Time;
 using LedgerService.Application.Common.Exceptions;
 using LedgerService.Application.Common.Observability;
 using LedgerService.Application.Lancamentos.Events;
+using LedgerService.Application.Lancamentos.Services;
 using LedgerService.Domain.Entities;
 using LedgerService.Domain.Exceptions;
 using LedgerService.Domain.Repositories;
@@ -121,7 +122,7 @@ public sealed class ProcessarReprocessamentoLancamentosHandler
             var outboxMessage = new OutboxMessage(
                 "LedgerEntryReprocessamento",
                 entry.Id,
-                LedgerEntryCreatedV1.EventType,
+                LedgerEntryCreatedV2.EventType,
                 outboxPayload,
                 now,
                 reprocessamento.CorrelationId,
@@ -198,11 +199,12 @@ public sealed class ProcessarReprocessamentoLancamentosHandler
         _metrics?.RecordReprocessRequestProcessed("failed");
     }
 
-    private static LedgerEntryCreatedV1 ToLedgerEntryCreated(LedgerEntry entry)
+    private static LedgerEntryCreatedV2 ToLedgerEntryCreated(LedgerEntry entry)
         => new(
             $"lan_{entry.Id.ToString("N")[..8]}",
             entry.Type == LedgerEntryType.Credit ? "CREDIT" : "DEBIT",
             entry.Amount.ToString("0.00", CultureInfo.InvariantCulture),
+            LedgerEntryCreatedEventFactory.SupportedCurrency,
             entry.CreatedAt.ToString("o", CultureInfo.InvariantCulture),
             entry.MerchantId,
             entry.OccurredAt.ToString("o", CultureInfo.InvariantCulture),

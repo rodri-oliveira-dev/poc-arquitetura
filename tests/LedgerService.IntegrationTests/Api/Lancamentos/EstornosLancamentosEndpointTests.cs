@@ -150,7 +150,7 @@ public sealed class EstornosLancamentosEndpointTests : IClassFixture<LedgerApiFa
         Assert.Equal($"estorno:{lancamento.Id:N}", compensating.ExternalReference);
         Assert.Single(db.LedgerEntries.Where(x => x.ExternalReference == $"estorno:{lancamento.Id:N}"));
 
-        Assert.Single(db.OutboxMessages.Where(x => x.AggregateId == compensating.Id && x.EventType == LedgerEntryCreatedV1.EventType));
+        Assert.Single(db.OutboxMessages.Where(x => x.AggregateId == compensating.Id && x.EventType == LedgerEntryCreatedV2.EventType));
     }
 
     [Fact]

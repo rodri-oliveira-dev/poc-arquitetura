@@ -15,6 +15,7 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 
 | ADR                                                                   | Status      | Resumo                                                                                           |
 | --------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------ |
+| [ADR-0084](./0084-ledger-entry-created-v2-currency-explicita.md) | Aceito | Cria `LedgerEntryCreated.v2` com `currency` obrigatoria e mantem leitura de v1 como legado. |
 | [ADR-0083](./0083-conexao-futura-cloud-run-job-cloud-sql-postgresql.md) | Proposto | Registra a direcao futura para Cloud Run Job acessar Cloud SQL PostgreSQL com service account, secrets e rede definidos na etapa de implementacao. |
 | [ADR-0082](./0082-cloud-sql-postgresql-desenvolvimento-local-auth-proxy.md) | Aceito | Registra Cloud SQL PostgreSQL no Terraform dev com acesso local via Auth Proxy e suporte por Compose. |
 | [ADR-0081](./0081-postgres-local-unico-com-schemas-por-servico.md) | Aceito | Usa um PostgreSQL local unico com schemas e usuarios separados por servico e responsabilidade. |

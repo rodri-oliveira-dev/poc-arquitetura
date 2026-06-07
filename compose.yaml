@@ -276,6 +276,7 @@ services:
       PubSub__Producer__DefaultTopicId: "${PUBSUB_LEDGER_EVENTS_TOPIC_ID:-ledger.ledgerentry.created.local}"
       PubSub__Producer__EnableMessageOrdering: "false"
       PubSub__Producer__TopicMap__LedgerEntryCreated.v1: "${PUBSUB_LEDGER_EVENTS_TOPIC_ID:-ledger.ledgerentry.created.local}"
+      PubSub__Producer__TopicMap__LedgerEntryCreated.v2: "${PUBSUB_LEDGER_EVENTS_TOPIC_ID:-ledger.ledgerentry.created.local}"
       Kafka__Producer__BootstrapServers: "kafka:9092"
       Kafka__Producer__SecurityProtocol: "Plaintext"
       Reprocessamentos__Consumer__BootstrapServers: "kafka:9092"

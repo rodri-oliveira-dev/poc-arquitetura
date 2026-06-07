@@ -12,6 +12,7 @@ public sealed record LedgerEntryCreatedEvent(
     [property: JsonPropertyName("id")] string Id,
     [property: JsonPropertyName("type")] string Type,
     [property: JsonPropertyName("amount")] string Amount,
+    [property: JsonPropertyName("currency")] string? Currency,
     [property: JsonPropertyName("createdAt")] DateTimeOffset CreatedAt,
     [property: JsonPropertyName("merchantId")] string MerchantId,
     [property: JsonPropertyName("occurredAt")] DateTimeOffset OccurredAt,

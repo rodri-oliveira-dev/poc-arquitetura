@@ -39,6 +39,7 @@ public sealed class DailyBalanceReadRepositoryTests
             Id: Guid.NewGuid().ToString(),
             Type: "CREDIT",
             Amount: "10.00",
+            Currency: "BRL",
             CreatedAt: DateTimeOffset.Parse("2026-02-10T09:59:00Z", CultureInfo.InvariantCulture),
             MerchantId: "m1",
             OccurredAt: DateTimeOffset.Parse("2026-02-10T10:00:00Z", CultureInfo.InvariantCulture),

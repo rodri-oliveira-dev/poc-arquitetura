@@ -16,7 +16,7 @@ local e usam nomes `*.local`. Contra GCP real, use os outputs Terraform `*.dev`.
 | Nao se aplica | `PubSub:Enabled` | Feature switch runtime dos dois workers, com default `true`. Nao representa recurso provisionado. |
 | `project_id` | `PubSub:Producer:ProjectId` | Projeto GCP do `LedgerService.Worker`. |
 | `ledger_events_topic_name` | `PubSub:Producer:DefaultTopicId` | Topic ID simples: `ledger.ledgerentry.created.dev`. |
-| `ledger_events_topic_map` | `PubSub:Producer:TopicMap` | Mapeia `LedgerEntryCreated.v1` para o topic principal. |
+| `ledger_events_topic_map` | `PubSub:Producer:TopicMap` | Mapeia `LedgerEntryCreated.v1` e `LedgerEntryCreated.v2` para o topic principal. |
 | `enable_message_ordering` | `PubSub:Producer:EnableMessageOrdering` | Deve permanecer alinhado com a subscription. |
 | `project_id` | `PubSub:Consumer:ProjectId` | Projeto GCP do `BalanceService.Worker`. |
 | `ledger_events_subscription_name` | `PubSub:Consumer:SubscriptionId` | Subscription ID simples consumida pelo Balance. |

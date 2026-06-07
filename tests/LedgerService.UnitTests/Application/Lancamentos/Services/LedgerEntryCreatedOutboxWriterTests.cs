@@ -42,12 +42,13 @@ public sealed class LedgerEntryCreatedOutboxWriterTests
         Assert.NotNull(persisted);
         Assert.Equal("LedgerEntry", persisted!.AggregateType);
         Assert.Equal(ledgerEntry.Id, persisted.AggregateId);
-        Assert.Equal(LedgerEntryCreatedV1.EventType, persisted.EventType);
+        Assert.Equal(LedgerEntryCreatedV2.EventType, persisted.EventType);
         Assert.Equal(correlationId, persisted.CorrelationId);
         Assert.Equal(occurredAt, persisted.OccurredAt);
-        var payload = JsonSerializer.Deserialize<LedgerEntryCreatedV1>(persisted.Payload, JsonOptions);
+        var payload = JsonSerializer.Deserialize<LedgerEntryCreatedV2>(persisted.Payload, JsonOptions);
         Assert.NotNull(payload);
         Assert.Equal(response.Id, payload!.Id);
+        Assert.Equal(LedgerEntryCreatedEventFactory.SupportedCurrency, payload.Currency);
         Assert.Equal(correlationId.ToString(), payload.CorrelationId);
         repository.VerifyAll();
     }

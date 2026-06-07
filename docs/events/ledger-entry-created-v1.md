@@ -18,9 +18,15 @@ Este documento descreve o contrato logico atual. O payload logico deve ser o mes
 
 O JSON Schema versionado valida somente o payload logico do evento. Metadados tecnicos como `event_id`, `event_type`, headers, attributes, key, offset e DLQ ficam fora do schema.
 
+## Status de compatibilidade
+
+`LedgerEntryCreated.v1` e contrato legado. Ele permanece aceito pelo `BalanceService.Worker` para mensagens antigas e para o Kafka legado, mas nao e mais o contrato produzido pelos fluxos novos do Ledger.
+
+Nao foi adicionado `currency` em v1 porque isso mudaria a semantica do contrato e quebraria consumidores que rejeitam propriedades desconhecidas. O contrato atual produzido e [`LedgerEntryCreated.v2`](ledger-entry-created-v2.md), com `currency` explicito e obrigatorio.
+
 ## Proposito
 
-Representar um fato financeiro final persistido pelo Ledger para que o Balance atualize a projecao de saldos diarios por merchant.
+Representar um fato financeiro final persistido pelo Ledger para que o Balance atualize a projecao de saldos diarios por merchant no contrato legado.
 
 O mesmo contrato e usado para:
 
@@ -107,7 +113,7 @@ O evento e gravado no Outbox do Ledger na mesma transacao da mudanca de dominio 
 }
 ```
 
-Motivo: `currency` nao faz parte de `LedgerEntryCreated.v1`. O consumer atual rejeita propriedades desconhecidas.
+Motivo: `currency` nao faz parte de `LedgerEntryCreated.v1`. O consumer rejeita `currency` em v1 e aceita esse campo somente em `LedgerEntryCreated.v2`.
 
 ## Idempotencia
 
@@ -213,7 +219,7 @@ DLQ:
 
 ## Riscos conhecidos
 
-1. `currency` nao existe no payload. O Balance assume `BRL`.
+1. `currency` nao existe no payload. O Balance aplica fallback documentado para `BRL` somente ao consumir v1 legado.
 2. `event_id` de transporte e diferente da chave real de idempotencia do Balance.
 3. `event_type` e obrigatorio no transporte, mas nao existe no payload logico.
 4. `correlationId` aparece no payload e tambem pode aparecer no transporte como `correlation_id`.
@@ -223,5 +229,5 @@ DLQ:
 
 - Formalizar envelope logico ou convencao comum para nome, versao, id logico, id tecnico e correlacao.
 - Decidir se `event_id` deve representar id tecnico, id logico ou ambos com nomes distintos.
-- Planejar `LedgerEntryCreated.v2` somente quando houver suporte real a `currency` no HTTP, persistencia do Ledger, evento e consultas do Balance.
+- Usar `LedgerEntryCreated.v2` para o caminho novo com `currency` explicito e obrigatorio.
 - Criar validacao automatizada que compare schema, producer e consumer antes de mudancas de contrato.

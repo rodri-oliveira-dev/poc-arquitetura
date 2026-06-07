@@ -8,7 +8,8 @@ O contrato logico do evento deve ser o mesmo quando publicado por Pub/Sub ou Kaf
 
 | Evento | Natureza | Produtor | Consumidores atuais |
 | --- | --- | --- | --- |
-| [LedgerEntryCreated.v1](ledger-entry-created-v1.md) | Integracao Ledger para Balance | `LedgerService` | `BalanceService.Worker` por Pub/Sub ou Kafka |
+| [LedgerEntryCreated.v1](ledger-entry-created-v1.md) | Integracao Ledger para Balance, legado | `LedgerService` historico | `BalanceService.Worker` por Pub/Sub ou Kafka |
+| [LedgerEntryCreated.v2](ledger-entry-created-v2.md) | Integracao Ledger para Balance | `LedgerService` | `BalanceService.Worker` por Pub/Sub ou Kafka |
 | [LancamentoEstornoSolicitado.v1](lancamento-estorno-solicitado-v1.md) | Operacional do Ledger | `LedgerService` | Nenhum consumer de mensageria encontrado |
 | [ReprocessamentoLancamentosSolicitado.v1](reprocessamento-lancamentos-solicitado-v1.md) | Operacional do Ledger | `LedgerService` | `LedgerService.Worker` no modo Kafka |
 
@@ -19,6 +20,7 @@ Os JSON Schemas versionados ficam em [`../../contracts/events`](../../contracts/
 | Evento | Schema |
 | --- | --- |
 | `LedgerEntryCreated.v1` | [`ledger-entry-created.v1.schema.json`](../../contracts/events/ledger-entry-created.v1.schema.json) |
+| `LedgerEntryCreated.v2` | [`ledger-entry-created.v2.schema.json`](../../contracts/events/ledger-entry-created.v2.schema.json) |
 | `LancamentoEstornoSolicitado.v1` | [`lancamento-estorno-solicitado.v1.schema.json`](../../contracts/events/lancamento-estorno-solicitado.v1.schema.json) |
 | `ReprocessamentoLancamentosSolicitado.v1` | [`reprocessamento-lancamentos-solicitado.v1.schema.json`](../../contracts/events/reprocessamento-lancamentos-solicitado.v1.schema.json) |
 
@@ -33,5 +35,6 @@ Os JSON Schemas versionados ficam em [`../../contracts/events`](../../contracts/
 
 - [Diagnostico de contratos de eventos](../reports/event-contracts-diagnostics.md)
 - [Contrato LedgerEntryCreated.v1 com schema existente](../contracts/events/LedgerEntryCreated.v1.md)
+- [Contrato LedgerEntryCreated.v2](ledger-entry-created-v2.md)
 - [JSON Schemas versionados](../../contracts/events/README.md)
 - [Mensageria, Outbox e DLQ](../development/kafka-outbox.md)

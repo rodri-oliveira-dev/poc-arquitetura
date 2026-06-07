@@ -77,7 +77,7 @@ Nao deve conter:
 
 Observacoes reais:
 
-- LedgerService.Application hoje serializa o payload `LedgerEntryCreatedV1` e cria `OutboxMessage`. Isso e pragmatico para uma POC, mas mistura caso de uso com formato de integracao. Se o contrato Kafka crescer, vale mover a montagem serializada para uma porta/outbox mapper.
+- LedgerService.Application hoje serializa o payload `LedgerEntryCreatedV2` e cria `OutboxMessage`. Isso e pragmatico para uma POC, mas mistura caso de uso com formato de integracao. Se o contrato Kafka crescer, vale mover a montagem serializada para uma porta/outbox mapper.
 - BalanceService.Application usa `ILogger` e `ActivitySource`, o que e aceitavel para observabilidade leve, mas deve evitar que tags tecnicas de transporte contaminem regras de dominio.
 
 ### Domain
@@ -132,15 +132,15 @@ Operacionalmente, `LedgerService.Api` recebe HTTP e grava Outbox; `LedgerService
 
 Pontos de atencao:
 
-- `CreateLancamentoService` orquestra o caso de uso e preserva a transacao unica. Hash, verificacao e replay idempotente ficam em `CreateLancamentoIdempotencyService`; a criacao de `LedgerEntryCreatedV1` fica em `LedgerEntryCreatedEventFactory`; a montagem e escrita da mensagem ficam em `LedgerEntryCreatedOutboxWriter`.
-- Evento `LedgerEntryCreatedV1` fica em Application, enquanto o consumidor tem outro contrato no `BalanceService.Worker`. Isso evita referencia cruzada entre servicos, mas exige documentacao e testes de contrato.
+- `CreateLancamentoService` orquestra o caso de uso e preserva a transacao unica. Hash, verificacao e replay idempotente ficam em `CreateLancamentoIdempotencyService`; a criacao de `LedgerEntryCreatedV2` fica em `LedgerEntryCreatedEventFactory`; a montagem e escrita da mensagem ficam em `LedgerEntryCreatedOutboxWriter`.
+- Evento `LedgerEntryCreatedV2` fica em Application, enquanto o consumidor tem outro contrato no `BalanceService.Worker`. Isso evita referencia cruzada entre servicos, mas exige documentacao e testes de contrato.
 - Uso de `DateTime.Now` aparece em dominio/aplicacao/outbox. Para regras temporais e testes mais fortes, um clock explicito seria melhor, como ja existe no BalanceService.
 
 ### BalanceService
 
 Camadas tambem fazem sentido, porque o servico possui leitura HTTP, consumidor Kafka, idempotencia por evento, projecao e DLQ.
 
-Operacionalmente, `BalanceService.Api` atende consultas HTTP sobre a projecao; `BalanceService.Worker` consome `LedgerEntryCreated.v1` pelo provider de mensageria configurado, aplica idempotencia, atualiza `daily_balances`/`processed_events` e envia mensagens invalidas para DLQ. Pub/Sub e o provider principal; Kafka permanece como adapter legado opcional.
+Operacionalmente, `BalanceService.Api` atende consultas HTTP sobre a projecao; `BalanceService.Worker` consome `LedgerEntryCreated.v2` pelo provider de mensageria configurado, mantem leitura de `LedgerEntryCreated.v1` como legado, aplica idempotencia, atualiza `daily_balances`/`processed_events` e envia mensagens invalidas para DLQ. Pub/Sub e o provider principal; Kafka permanece como adapter legado opcional.
 
 Pontos de atencao:
 

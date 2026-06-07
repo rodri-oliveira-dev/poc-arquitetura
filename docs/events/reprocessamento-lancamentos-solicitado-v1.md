@@ -21,7 +21,7 @@ O JSON Schema versionado valida somente o payload logico do evento. Metadados te
 
 Registrar a intencao operacional de reprocessar lancamentos de um merchant em um periodo controlado. Este evento nao representa conclusao de reprocessamento nem alteracao direta de saldo.
 
-O Balance continua consumindo apenas `LedgerEntryCreated.v1`. Durante o reprocessamento, o Ledger republica `LedgerEntryCreated.v1` para os lancamentos elegiveis.
+O Balance consome `LedgerEntryCreated.v2` e mantem leitura de `LedgerEntryCreated.v1` como legado. Durante o reprocessamento, o Ledger republica `LedgerEntryCreated.v2` para os lancamentos elegiveis.
 
 ## Quando e emitido
 
@@ -105,8 +105,8 @@ Motivo: `dataInicial` posterior a `dataFinal` invalida o intervalo logico de rep
 
 - A idempotencia da solicitacao ocorre no fluxo HTTP e no estado persistido do Ledger.
 - O consumer Kafka do Ledger valida a fonte logica e processa a solicitacao persistida.
-- Os eventos financeiros republicados usam `LedgerEntryCreated.v1` com o mesmo `payload.id` logico do lancamento.
-- A deduplicacao no Balance ocorre somente nos `LedgerEntryCreated.v1` republicados.
+- Os eventos financeiros republicados usam `LedgerEntryCreated.v2` com o mesmo `payload.id` logico do lancamento.
+- A deduplicacao no Balance ocorre somente nos `LedgerEntryCreated.v2` republicados.
 
 ## Ordenacao
 
@@ -210,5 +210,5 @@ DLQ:
 
 - Decidir se reprocessamento deve ser suportado no provider principal Pub/Sub ou permanecer Kafka only.
 - Documentar explicitamente o modo operacional quando `Messaging:Provider=PubSub`.
-- Manter a deduplicacao financeira no `LedgerEntryCreated.v1` republicado.
+- Manter a deduplicacao financeira no `LedgerEntryCreated.v2` republicado.
 - Avaliar DLQ de aplicacao especifica para o consumer de reprocessamento se o fluxo continuar por mensageria.

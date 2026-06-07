@@ -16,10 +16,6 @@ public sealed class ApplyLedgerEntryCreatedHandler : IRequestHandler<ApplyLedger
 {
     private static readonly ActivitySource _activitySource = new("BalanceService.Application");
 
-    // LedgerEntryCreated.v1 nao carrega currency. BRL e a limitacao documentada da POC.
-    private const string DefaultCurrency = "BRL";
-    private const string LedgerEntryCreatedEventType = "LedgerEntryCreated.v1";
-
     private readonly IDailyBalanceRepository _dailyBalanceRepository;
     private readonly IProcessedEventRepository _processedEventRepository;
     private readonly IUnitOfWork _unitOfWork;
@@ -64,7 +60,7 @@ public sealed class ApplyLedgerEntryCreatedHandler : IRequestHandler<ApplyLedger
             // Importante: a consolidacao diaria deve usar o "dia" derivado do occurredAt no fuso recebido.
             // Por isso, calculamos a DateOnly ANTES de normalizar timestamps para UTC.
             var date = DateOnly.FromDateTime(evt.OccurredAt.Date);
-            var currency = DefaultCurrency;
+            var currency = evt.Currency ?? throw new InvalidOperationException("LedgerEntryCreated event currency is required.");
             var now = _clock.UtcNow;
 
             // Npgsql + timestamptz: DateTimeOffset precisa estar em UTC (Offset=0)
@@ -74,7 +70,8 @@ public sealed class ApplyLedgerEntryCreatedHandler : IRequestHandler<ApplyLedger
             var normalizedEvent = evt with
             {
                 OccurredAt = occurredAtUtc,
-                CreatedAt = createdAtUtc
+                CreatedAt = createdAtUtc,
+                Currency = currency
             };
 
             using var logScope = _logger.BeginScope(new Dictionary<string, object?>
@@ -105,7 +102,7 @@ public sealed class ApplyLedgerEntryCreatedHandler : IRequestHandler<ApplyLedger
             {
                 _logger.LogDebug("Evento ja processado (idempotencia). Nenhuma alteracao aplicada.");
                 await transaction.CommitAsync(cancellationToken);
-                RecordApplyMetrics(startedAt, "duplicate", projectionUpdated: false, currency);
+            RecordApplyMetrics(startedAt, command.EventType, "duplicate", projectionUpdated: false, currency);
                 return ApplyLedgerEntryCreatedResult.IgnoredDuplicate;
             }
 
@@ -132,7 +129,7 @@ public sealed class ApplyLedgerEntryCreatedHandler : IRequestHandler<ApplyLedger
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
 
-            RecordApplyMetrics(startedAt, "success", projectionUpdated: true, currency);
+            RecordApplyMetrics(startedAt, command.EventType, "success", projectionUpdated: true, currency);
 
             _logger.LogDebug(
                 "Saldo diario consolidado atualizado (credits={TotalCredits}, debits={TotalDebits}, net={Net})",
@@ -144,21 +141,21 @@ public sealed class ApplyLedgerEntryCreatedHandler : IRequestHandler<ApplyLedger
         }
         catch (Exception) when (!cancellationToken.IsCancellationRequested)
         {
-            RecordApplyMetrics(startedAt, "failed", projectionUpdated: false, DefaultCurrency);
+            RecordApplyMetrics(startedAt, command.EventType, "failed", projectionUpdated: false, command.Event.Currency ?? "unknown");
             throw;
         }
     }
 
-    private void RecordApplyMetrics(long startedAt, string result, bool projectionUpdated, string currency)
+    private void RecordApplyMetrics(long startedAt, string eventType, string result, bool projectionUpdated, string currency)
     {
-        _metrics?.RecordEventApplied(LedgerEntryCreatedEventType, result);
+        _metrics?.RecordEventApplied(eventType, result);
         _metrics?.RecordApplyDuration(
             Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds,
-            LedgerEntryCreatedEventType,
+            eventType,
             result);
 
         if (result == "duplicate")
-            _metrics?.RecordEventDuplicate(LedgerEntryCreatedEventType);
+            _metrics?.RecordEventDuplicate(eventType);
 
         if (projectionUpdated)
             _metrics?.RecordProjectionUpdated(currency);

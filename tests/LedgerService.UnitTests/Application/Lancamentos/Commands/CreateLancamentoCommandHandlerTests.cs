@@ -81,15 +81,16 @@ public sealed class CreateLancamentoCommandHandlerTests
         Assert.NotNull(createdOutbox);
         Assert.Equal("LedgerEntry", createdOutbox!.AggregateType);
         Assert.Equal(createdEntry!.Id, createdOutbox!.AggregateId);
-        Assert.Equal(LedgerEntryCreatedV1.EventType, createdOutbox!.EventType);
+        Assert.Equal(LedgerEntryCreatedV2.EventType, createdOutbox!.EventType);
         Assert.Contains("\"merchantId\"", createdOutbox!.Payload);
         Assert.Equal(Guid.Parse(input.CorrelationId), createdOutbox!.CorrelationId);
         Assert.Equal(clock.UtcNow.UtcDateTime, createdOutbox.OccurredAt);
-        var outboxEvent = System.Text.Json.JsonSerializer.Deserialize<LedgerEntryCreatedV1>(createdOutbox.Payload, JsonOptions);
+        var outboxEvent = System.Text.Json.JsonSerializer.Deserialize<LedgerEntryCreatedV2>(createdOutbox.Payload, JsonOptions);
         Assert.NotNull(outboxEvent);
         Assert.Equal(result.Id, outboxEvent!.Id);
         Assert.Equal("CREDIT", outboxEvent.Type);
         Assert.Equal("10.00", outboxEvent.Amount);
+        Assert.Equal("BRL", outboxEvent.Currency);
         Assert.Equal(input.MerchantId, outboxEvent.MerchantId);
         Assert.Equal(input.Description, outboxEvent.Description);
         Assert.Equal(input.ExternalReference, outboxEvent.ExternalReference);
@@ -197,10 +198,11 @@ public sealed class CreateLancamentoCommandHandlerTests
         Assert.Equal(LedgerEntryType.Debit, createdEntry!.Type);
         Assert.Equal(-15.50m, createdEntry.Amount);
         Assert.NotNull(createdOutbox);
-        var outboxEvent = System.Text.Json.JsonSerializer.Deserialize<LedgerEntryCreatedV1>(createdOutbox!.Payload, JsonOptions);
+        var outboxEvent = System.Text.Json.JsonSerializer.Deserialize<LedgerEntryCreatedV2>(createdOutbox!.Payload, JsonOptions);
         Assert.NotNull(outboxEvent);
         Assert.Equal("DEBIT", outboxEvent!.Type);
         Assert.Equal("-15.50", outboxEvent.Amount);
+        Assert.Equal("BRL", outboxEvent.Currency);
         ledgerRepo.VerifyAll();
         idemRepo.VerifyAll();
         outboxRepo.VerifyAll();
@@ -463,7 +465,7 @@ public sealed class CreateLancamentoCommandHandlerTests
     private static void AssertPayloadMatchesFormalSchemaShape(string payload)
     {
         using var schema = System.Text.Json.JsonDocument.Parse(
-            File.ReadAllText(Path.Combine(FindRepositoryRoot(), "docs", "contracts", "events", "LedgerEntryCreated.v1.schema.json")));
+            File.ReadAllText(Path.Combine(FindRepositoryRoot(), "contracts", "events", "ledger-entry-created.v2.schema.json")));
         using var publishedPayload = System.Text.Json.JsonDocument.Parse(payload);
 
         var schemaProperties = schema.RootElement
@@ -485,7 +487,7 @@ public sealed class CreateLancamentoCommandHandlerTests
 
         Assert.Equal(schemaProperties, payloadProperties);
         Assert.All(requiredProperties, required => Assert.True(publishedPayload.RootElement.TryGetProperty(required, out _)));
-        Assert.DoesNotContain("currency", payloadProperties);
+        Assert.Contains("currency", payloadProperties);
     }
 
     private static string FindRepositoryRoot()

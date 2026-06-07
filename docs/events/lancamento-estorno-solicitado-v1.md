@@ -21,7 +21,7 @@ O JSON Schema versionado valida somente o payload logico do evento. Metadados te
 
 Registrar a intencao operacional de estornar um lancamento. Este evento nao representa um fato financeiro final e nao deve atualizar saldos no Balance.
 
-O saldo so muda quando o processamento do estorno cria um lancamento compensatorio e publica `LedgerEntryCreated.v1`.
+O saldo so muda quando o processamento do estorno cria um lancamento compensatorio e publica `LedgerEntryCreated.v2`.
 
 ## Quando e emitido
 
@@ -100,7 +100,7 @@ Motivo: `lancamentoOriginalId` ausente, impossibilitando identificar o lancament
 
 - A idempotencia da solicitacao ocorre no fluxo HTTP e na persistencia do Ledger, nao por consumer de mensageria.
 - Como nao ha consumer de mensageria atual, nao existe chave de deduplicacao downstream para este evento.
-- O eventual lancamento compensatorio usa `LedgerEntryCreated.v1` e segue a idempotencia propria desse contrato no Balance.
+- O eventual lancamento compensatorio usa `LedgerEntryCreated.v2` e segue a idempotencia propria desse contrato no Balance.
 
 ## Ordenacao
 
@@ -199,4 +199,4 @@ DLQ:
 
 - Decidir se este evento deve continuar sendo publicado externamente ou permanecer apenas como registro operacional persistido.
 - Documentar ou implementar um consumer se a intencao futura for processar estorno por mensageria.
-- Manter explicito que o fato financeiro final do estorno e `LedgerEntryCreated.v1`.
+- Manter explicito que o fato financeiro final do estorno e `LedgerEntryCreated.v2`.

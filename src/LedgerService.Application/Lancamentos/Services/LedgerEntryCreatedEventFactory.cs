@@ -5,14 +5,17 @@ namespace LedgerService.Application.Lancamentos.Services;
 
 public static class LedgerEntryCreatedEventFactory
 {
-    public static LedgerEntryCreatedV1 Create(LancamentoDto response, string correlationId)
+    public const string SupportedCurrency = "BRL";
+
+    public static LedgerEntryCreatedV2 Create(LancamentoDto response, string correlationId)
     {
         ArgumentNullException.ThrowIfNull(response);
 
-        return new LedgerEntryCreatedV1(
+        return new LedgerEntryCreatedV2(
             response.Id,
             response.Type,
             response.Amount,
+            SupportedCurrency,
             response.CreatedAt,
             response.MerchantId,
             response.OccurredAt,

@@ -33,13 +33,13 @@ public sealed class LedgerEntryCreatedConsumerContractTests
     public async Task PubSub_contract_fixture_should_map_metadata_deserialize_project_and_preserve_idempotency()
     {
         using var harness = new ContractHarness();
-        var payload = ReadContractExample("ledger-entry-created.v1.valid.json");
+        var payload = ReadContractExample("ledger-entry-created.v2.valid.json");
         var pubSubMessage = CreatePubSubMessage(payload);
 
         var receivedMessage = PubSubReceivedMessageMapper.Map(pubSubMessage, PubSubSubscriptionId);
 
         Assert.Equal(payload, receivedMessage.Payload);
-        Assert.Equal(LedgerEntryCreatedV1Contract.EventType, receivedMessage.EventType);
+        Assert.Equal(LedgerEntryCreatedV2Contract.EventType, receivedMessage.EventType);
         Assert.Equal("evt-contract-pubsub", receivedMessage.EventId);
         Assert.Equal("2cbdd495-586f-4565-a807-c5dc6710d237", receivedMessage.CorrelationId);
         Assert.Equal("merchant-001", receivedMessage.OrderingKey);
@@ -71,13 +71,13 @@ public sealed class LedgerEntryCreatedConsumerContractTests
     public async Task Kafka_contract_fixture_should_map_headers_deserialize_and_project_balance()
     {
         using var harness = new ContractHarness();
-        var payload = ReadContractExample("ledger-entry-created.v1.valid.json");
+        var payload = ReadContractExample("ledger-entry-created.v2.valid.json");
         var consumeResult = CreateKafkaResult(payload);
 
         var receivedMessage = KafkaReceivedMessageMapper.Map(consumeResult);
 
         Assert.Equal(payload, receivedMessage.Payload);
-        Assert.Equal(LedgerEntryCreatedV1Contract.EventType, receivedMessage.EventType);
+        Assert.Equal(LedgerEntryCreatedV2Contract.EventType, receivedMessage.EventType);
         Assert.Equal("evt-contract-kafka", receivedMessage.EventId);
         Assert.Equal("2cbdd495-586f-4565-a807-c5dc6710d237", receivedMessage.CorrelationId);
         Assert.Equal("merchant-001", receivedMessage.OrderingKey);
@@ -100,10 +100,29 @@ public sealed class LedgerEntryCreatedConsumerContractTests
     }
 
     [Fact]
-    public async Task Invalid_contract_fixture_should_be_rejected_safely_without_projection_update()
+    public async Task Legacy_v1_contract_fixture_should_project_with_documented_currency_fallback()
     {
         using var harness = new ContractHarness();
-        var payload = ReadContractExample("ledger-entry-created.v1.invalid.json");
+        var payload = ReadContractExample("ledger-entry-created.v1.valid.json");
+        var receivedMessage = PubSubReceivedMessageMapper.Map(
+            CreatePubSubMessage(payload, LedgerEntryCreatedV1Contract.EventType),
+            PubSubSubscriptionId);
+
+        var shouldAck = await harness.Processor.ProcessAsync(receivedMessage, CancellationToken.None);
+
+        Assert.True(shouldAck);
+        Assert.Empty(harness.DeadLetters.Messages);
+
+        var balance = Assert.Single(harness.DailyBalances.Items);
+        Assert.Equal("BRL", balance.Currency);
+        Assert.Equal(150.00m, balance.TotalCredits);
+    }
+
+    [Fact]
+    public async Task Invalid_v2_contract_fixture_should_be_rejected_safely_without_projection_update()
+    {
+        using var harness = new ContractHarness();
+        var payload = ReadContractExample("ledger-entry-created.v2.invalid.json");
         var receivedMessage = PubSubReceivedMessageMapper.Map(CreatePubSubMessage(payload), PubSubSubscriptionId);
 
         var shouldAck = await harness.Processor.ProcessAsync(receivedMessage, CancellationToken.None);
@@ -114,14 +133,16 @@ public sealed class LedgerEntryCreatedConsumerContractTests
 
         var deadLetter = Assert.Single(harness.DeadLetters.Messages);
         Assert.Equal(payload, deadLetter.OriginalPayload);
-        Assert.Equal("Deserialization failed.", deadLetter.Reason);
-        Assert.Equal(nameof(System.Text.Json.JsonException), deadLetter.ExceptionType);
-        Assert.Equal(LedgerEntryCreatedV1Contract.EventType, deadLetter.EventType);
+        Assert.Equal("Message payload currency is required.", deadLetter.Reason);
+        Assert.Equal("MessageValidationException", deadLetter.ExceptionType);
+        Assert.Equal(LedgerEntryCreatedV2Contract.EventType, deadLetter.EventType);
         Assert.Equal("pubsub", deadLetter.Provider);
         Assert.Equal(PubSubSubscriptionId, deadLetter.Source);
     }
 
-    private static PubsubMessage CreatePubSubMessage(string payload)
+    private static PubsubMessage CreatePubSubMessage(
+        string payload,
+        string eventType = LedgerEntryCreatedV2Contract.EventType)
     {
         var message = new PubsubMessage
         {
@@ -131,7 +152,7 @@ public sealed class LedgerEntryCreatedConsumerContractTests
             PublishTime = ProtobufTimestamp.FromDateTimeOffset(ParseDateTimeOffset("2026-06-06T12:35:00.0000000Z"))
         };
 
-        message.Attributes.Add(PubSubAttributeNames.EventType, LedgerEntryCreatedV1Contract.EventType);
+        message.Attributes.Add(PubSubAttributeNames.EventType, eventType);
         message.Attributes.Add(PubSubAttributeNames.EventId, "evt-contract-pubsub");
         message.Attributes.Add(PubSubAttributeNames.CorrelationId, "2cbdd495-586f-4565-a807-c5dc6710d237");
         message.Attributes.Add(PubSubAttributeNames.TraceParent, "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01");
@@ -142,7 +163,9 @@ public sealed class LedgerEntryCreatedConsumerContractTests
         return message;
     }
 
-    private static ConsumeResult<string, string> CreateKafkaResult(string payload)
+    private static ConsumeResult<string, string> CreateKafkaResult(
+        string payload,
+        string eventType = LedgerEntryCreatedV2Contract.EventType)
         => new()
         {
             Topic = KafkaTopic,
@@ -154,7 +177,7 @@ public sealed class LedgerEntryCreatedConsumerContractTests
                 Value = payload,
                 Headers = new Headers
                 {
-                    { MessageAttributeNames.EventType, TextEncoding.UTF8.GetBytes(LedgerEntryCreatedV1Contract.EventType) },
+                    { MessageAttributeNames.EventType, TextEncoding.UTF8.GetBytes(eventType) },
                     { MessageAttributeNames.EventId, TextEncoding.UTF8.GetBytes("evt-contract-kafka") },
                     { MessageAttributeNames.CorrelationId, TextEncoding.UTF8.GetBytes("2cbdd495-586f-4565-a807-c5dc6710d237") },
                     { MessageAttributeNames.TraceParent, TextEncoding.UTF8.GetBytes("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01") },

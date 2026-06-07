@@ -118,7 +118,7 @@ public sealed class EstornoLancamentoConcurrencyTests : IAsyncLifetime
             .CountAsync();
         Assert.Equal(1, compensatingEntries);
         var finalOutboxCount = await db.OutboxMessages
-            .Where(x => x.AggregateId == persisted.LancamentoCompensatorioId && x.EventType == LedgerEntryCreatedV1.EventType)
+            .Where(x => x.AggregateId == persisted.LancamentoCompensatorioId && x.EventType == LedgerEntryCreatedV2.EventType)
             .CountAsync();
         Assert.Equal(1, finalOutboxCount);
     }

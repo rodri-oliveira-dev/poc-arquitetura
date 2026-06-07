@@ -32,12 +32,13 @@ public sealed class ProcessarEstornoLancamentoHandlerTests
         Assert.Equal($"estorno:{original.Id:N}", compensating.ExternalReference);
         Assert.Single(state.OutboxMessages);
         var outbox = state.OutboxMessages.Single();
-        Assert.Equal(LedgerEntryCreatedV1.EventType, outbox.EventType);
+        Assert.Equal(LedgerEntryCreatedV2.EventType, outbox.EventType);
         Assert.Equal(compensating.Id, outbox.AggregateId);
-        var evt = JsonSerializer.Deserialize<LedgerEntryCreatedV1>(outbox.Payload, JsonOptions);
+        var evt = JsonSerializer.Deserialize<LedgerEntryCreatedV2>(outbox.Payload, JsonOptions);
         Assert.NotNull(evt);
         Assert.Equal("DEBIT", evt!.Type);
         Assert.Equal("-100.00", evt.Amount);
+        Assert.Equal("BRL", evt.Currency);
         Assert.Equal(original.MerchantId, evt.MerchantId);
     }
 
