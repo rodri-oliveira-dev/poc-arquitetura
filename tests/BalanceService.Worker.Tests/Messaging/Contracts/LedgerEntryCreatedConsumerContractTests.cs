@@ -302,6 +302,22 @@ public sealed class LedgerEntryCreatedConsumerContractTests
             _balances[(dailyBalance.MerchantId, dailyBalance.Date, dailyBalance.Currency)] = dailyBalance;
             return Task.CompletedTask;
         }
+
+        public Task<int> DeleteByMerchantAndDateRangeAsync(
+            string merchantId,
+            DateOnly from,
+            DateOnly until,
+            CancellationToken cancellationToken = default)
+        {
+            var keys = _balances.Keys
+                .Where(x => x.MerchantId == merchantId && x.Date >= from && x.Date <= until)
+                .ToArray();
+
+            foreach (var key in keys)
+                _balances.Remove(key);
+
+            return Task.FromResult(keys.Length);
+        }
     }
 
     private sealed class InMemoryProcessedEventRepository : IProcessedEventRepository
@@ -320,6 +336,14 @@ public sealed class LedgerEntryCreatedConsumerContractTests
 
             InsertedCount++;
             return Task.FromResult(true);
+        }
+
+        public Task<int> DeleteByEventIdsAsync(
+            IReadOnlyCollection<string> eventIds,
+            CancellationToken cancellationToken = default)
+        {
+            var deleted = eventIds.Count(_eventIds.Remove);
+            return Task.FromResult(deleted);
         }
     }
 

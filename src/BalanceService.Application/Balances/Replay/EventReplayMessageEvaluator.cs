@@ -36,7 +36,8 @@ public sealed class EventReplayMessageEvaluator
         string eventName,
         string eventVersion,
         IReadOnlyDictionary<string, string>? metadata,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool checkAlreadyProcessed = true)
     {
         var contractResult = ValidateContract(payload, eventName, eventVersion, metadata);
         if (!contractResult.IsValid)
@@ -62,8 +63,11 @@ public sealed class EventReplayMessageEvaluator
 
         evt = NormalizeEvent(evt, eventVersion);
 
-        if (await _processedEventRepository.ExistsAsync(evt.Id, cancellationToken))
+        if (checkAlreadyProcessed &&
+            await _processedEventRepository.ExistsAsync(evt.Id, cancellationToken))
+        {
             return EventReplayEvaluation.AlreadyProcessed(evt.Id, evt);
+        }
 
         return EventReplayEvaluation.Eligible(evt.Id, evt);
     }

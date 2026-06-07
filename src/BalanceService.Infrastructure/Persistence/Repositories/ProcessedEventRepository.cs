@@ -39,4 +39,18 @@ ON CONFLICT (event_id) DO NOTHING;", cancellationToken);
 
         return rows == 1;
     }
+
+    public async Task<int> DeleteByEventIdsAsync(
+        IReadOnlyCollection<string> eventIds,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(eventIds);
+
+        if (eventIds.Count == 0)
+            return 0;
+
+        return await _context.ProcessedEvents
+            .Where(x => eventIds.Contains(x.EventId))
+            .ExecuteDeleteAsync(cancellationToken);
+    }
 }

@@ -62,6 +62,19 @@ public sealed class DailyBalanceRepository : IDailyBalanceRepository
         return _context.DailyBalances.AddAsync(dailyBalance, cancellationToken).AsTask();
     }
 
+    public async Task<int> DeleteByMerchantAndDateRangeAsync(
+        string merchantId,
+        DateOnly from,
+        DateOnly until,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(merchantId);
+
+        return await _context.DailyBalances
+            .Where(x => x.MerchantId == merchantId && x.Date >= from && x.Date <= until)
+            .ExecuteDeleteAsync(cancellationToken);
+    }
+
     private bool IsNpgsql()
         => string.Equals(
             _context.Database.ProviderName,

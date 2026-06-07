@@ -557,6 +557,91 @@ duplicidades, mensagens invalidas e evidencia parcial. Rebuild de projecao deve
 ter janela, checkpoint, isolamento, comparacao de resultado e criterio de
 rollback operacional.
 
+### Rebuild parcial disponivel no Balance
+
+O BalanceService possui um caso de uso interno para reconstrucao parcial da
+projecao de saldo:
+
+- `PartialProjectionRebuildCommand`;
+- `PartialProjectionRebuildHandler`;
+- `PartialProjectionRebuildFilter`;
+- `PartialProjectionRebuildResult`.
+
+Nao ha endpoint administrativo publico para esse fluxo. A execucao deve ocorrer
+por uma superficie operacional interna que resolva `ISender` no mesmo
+composition root do `BalanceService.Worker` ou de uma ferramenta operacional
+controlada.
+
+Fonte escolhida para esta primeira versao: `ledger.outbox_messages`, lida pela
+porta `IFilteredEventReplaySource` e pela implementacao
+`OutboxFilteredEventReplaySource`. Essa fonte preserva payload logico,
+`event_type`, `occurred_at`, status, correlacao e tracing. Ela e uma fonte
+historica adequada para reconstruir a projecao a partir dos fatos financeiros
+publicados pelo Ledger, sem depender de uma leitura direta do provider de
+mensageria.
+
+Filtro seguro implementado:
+
+- `merchantId` obrigatorio;
+- periodo fechado por `occurredFrom` e `occurredUntil` obrigatorio;
+- `eventVersion` obrigatoria, com `v2` como padrao;
+- `eventName` fixo em `LedgerEntryCreated`;
+- status da Outbox fixo em `Processed`.
+
+`accountId` ainda nao foi implementado para rebuild, porque o contrato atual
+`LedgerEntryCreated.v1` e `LedgerEntryCreated.v2` nao possui `accountId`, e a
+projecao `daily_balances` e agregada por `merchantId`, data e moeda. Usar
+`accountId` hoje nao seria um filtro seguro, pois nao ha coluna ou campo de
+contrato que permita garantir que apenas aquela conta sera recalculada.
+
+Dry-run e o comportamento padrao. Quando `Execute=false`, o handler:
+
+1. busca candidatas na fonte configurada;
+2. valida contrato logico pelo catalogo de JSON Schemas versionados;
+3. desserializa somente `LedgerEntryCreated` suportado;
+4. valida que o payload pertence ao mesmo `merchantId` e ao periodo solicitado;
+5. deduplica por `payload.id`;
+6. retorna contadores e itens sem alterar `daily_balances` ou
+   `processed_events`.
+
+Na execucao efetiva, `Execute=true`, o handler so altera dados se todo o lote
+candidato for valido. Se houver payload invalido, versao desconhecida ou evento
+fora do filtro, o resultado e rejeitado e nenhuma linha da projecao e alterada.
+
+Quando o lote e valido, a reconstrucao:
+
+1. ordena eventos por `occurredAt` em UTC e depois por `payload.id`;
+2. abre uma transacao;
+3. aplica locks por `merchantId`, data e moeda dos eventos validos;
+4. remove apenas `daily_balances` do `merchantId` nos dias representados pelos
+   eventos validos;
+5. remove apenas registros de `processed_events` dos `payload.id` validados no
+   lote;
+6. reinsere cada `ProcessedEvent` pelo mesmo caminho idempotente;
+7. reaplica cada `LedgerEntryCreated` na entidade `DailyBalance`;
+8. salva e registra resultado estruturado com `rebuildId`, filtro, dry-run,
+   mutacao, totais de itens validos, invalidos, duplicados, reconstruidos e
+   linhas removidas.
+
+A reconstrucao nao apaga a projecao inteira e nao implementa troca paralela de
+tabela. Tambem nao tenta reconstruir dias sem eventos retornados pela fonte,
+pois uma resposta vazia da fonte pode indicar problema operacional e nao deve
+zerar saldo por acidente nesta primeira versao.
+
+Idempotencia permanece preservada porque o rebuild nao cria novo identificador
+e nao altera `payload.id`. Antes de reaplicar, ele remove somente os
+`processed_events` dos eventos validados no proprio lote. Em seguida, cada
+evento passa novamente por `TryInsertAsync`, que mantem a semantica de
+deduplicacao por `event_id`. Duplicatas dentro do lote sao marcadas como
+`DuplicateInBatch` e nao entram no calculo.
+
+Pub/Sub e Kafka continuam sendo fontes de entrega, nao regras de reconstrucao.
+O rebuild usa o contrato logico `LedgerEntryCreated` e os metadados preservados
+pela fonte historica. Attributes Pub/Sub, headers Kafka, offsets, message ids,
+ordering keys e commits nao participam do calculo do saldo. Se no futuro uma
+fonte operacional ler DLQ ou broker diretamente, ela deve traduzir a mensagem
+para o mesmo contrato de aplicacao antes de chamar o caso de uso.
+
 ## Auditoria
 
 Todo replay deve gerar registro auditavel com:

@@ -11,4 +11,8 @@ public interface IProcessedEventRepository
     /// Deve ser idempotente: se o EventId já existir, retorna false sem lançar erro.
     /// </summary>
     Task<bool> TryInsertAsync(ProcessedEvent processedEvent, CancellationToken cancellationToken = default);
+
+    Task<int> DeleteByEventIdsAsync(
+        IReadOnlyCollection<string> eventIds,
+        CancellationToken cancellationToken = default);
 }

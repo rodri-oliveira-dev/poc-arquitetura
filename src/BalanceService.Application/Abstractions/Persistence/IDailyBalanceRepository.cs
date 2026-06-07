@@ -17,4 +17,10 @@ public interface IDailyBalanceRepository
         CancellationToken cancellationToken = default);
 
     Task AddAsync(DailyBalance dailyBalance, CancellationToken cancellationToken = default);
+
+    Task<int> DeleteByMerchantAndDateRangeAsync(
+        string merchantId,
+        DateOnly from,
+        DateOnly until,
+        CancellationToken cancellationToken = default);
 }
