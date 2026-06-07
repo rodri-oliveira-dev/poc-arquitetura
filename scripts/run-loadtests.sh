@@ -49,6 +49,25 @@ get_local_config_value() {
   printf '%s' "$value"
 }
 
+threshold_value() {
+  local prefix="$1"
+  local percentile="$2"
+  local default_value="$3"
+  local specific_name="${prefix}_HTTP_REQ_DURATION_${percentile}_MS"
+  local global_name="K6_HTTP_REQ_DURATION_${percentile}_MS"
+  local value
+
+  value="$(get_local_config_value "$specific_name" "")"
+  if [[ -z "$value" ]]; then
+    value="$(get_local_config_value "$global_name" "")"
+  fi
+  if [[ -z "$value" ]]; then
+    value="$default_value"
+  fi
+
+  printf '%s' "$value"
+}
+
 print_balance_database_auth_failure() {
   local user="$1"
   local database="$2"
@@ -301,15 +320,15 @@ PY
 case "$MODE" in
   smoke)
     read -r before_outbox before_balance < <(async_flow_counts)
-    run_k6 ledger_resilience scenarios/ledger_resilience.js -e VUS=1 -e DURATION=10s
+    run_k6 ledger_resilience scenarios/ledger_resilience.js -e VUS=1 -e DURATION=10s -e LEDGER_HTTP_REQ_DURATION_P95_MS="$(threshold_value LEDGER P95 3000)" -e LEDGER_HTTP_REQ_DURATION_P99_MS="$(threshold_value LEDGER P99 6000)"
     wait_async_flow_progress "$before_outbox" "$before_balance"
-    run_k6 balance_daily_50rps scenarios/balance_daily_50rps.js -e RATE=1 -e DURATION=10s -e PREALLOCATED_VUS=5 -e MAX_VUS=10
+    run_k6 balance_daily_50rps scenarios/balance_daily_50rps.js -e RATE=1 -e DURATION=10s -e PREALLOCATED_VUS=5 -e MAX_VUS=10 -e BALANCE_HTTP_REQ_DURATION_P95_MS="$(threshold_value BALANCE P95 3000)" -e BALANCE_HTTP_REQ_DURATION_P99_MS="$(threshold_value BALANCE P99 6000)"
     ;;
   balance50)
-    run_k6 balance_daily_50rps scenarios/balance_daily_50rps.js -e RATE=50 -e DURATION=1m
+    run_k6 balance_daily_50rps scenarios/balance_daily_50rps.js -e RATE=50 -e DURATION=1m -e BALANCE_HTTP_REQ_DURATION_P95_MS="$(threshold_value BALANCE P95 1000)" -e BALANCE_HTTP_REQ_DURATION_P99_MS="$(threshold_value BALANCE P99 2500)"
     ;;
   resilience)
-    run_k6 ledger_resilience scenarios/ledger_resilience.js -e VUS=5 -e DURATION=1m
+    run_k6 ledger_resilience scenarios/ledger_resilience.js -e VUS=5 -e DURATION=1m -e LEDGER_HTTP_REQ_DURATION_P95_MS="$(threshold_value LEDGER P95 2000)" -e LEDGER_HTTP_REQ_DURATION_P99_MS="$(threshold_value LEDGER P99 5000)"
     ;;
   *)
     echo "Modo inválido: $MODE (use smoke|balance50|resilience)" 1>&2

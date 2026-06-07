@@ -18,15 +18,51 @@ Os runners `./scripts/run-loadtests.ps1` e `./scripts/run-loadtests.sh` expoem t
 
 | Modo | Cenario k6 | Objetivo | Carga padrao | Duracao padrao | Criterios de aceite atuais |
 | --- | --- | --- | --- | --- | --- |
-| `smoke` | `ledger_resilience` e `balance_daily_50rps` | Validar que Ledger e Balance respondem no ambiente local e que ao menos um evento percorre Outbox -> Pub/Sub emulator -> Balance antes de cenarios maiores. | Ledger: 1 VU constante. Balance: 1 req/s, 5 VUs pre-alocados e maximo 10 VUs. | 10s por cenario. | Sem checks falhos, `http_req_failed <= 0.05`, `dropped_iterations == 0` e incremento de Outbox processada e `processed_events` no Balance. |
-| `balance50` | `balance_daily_50rps` | Exercitar consulta de consolidado diario no BalanceService.Api com taxa constante controlada. | 50 req/s, 50 VUs pre-alocados e maximo 200 VUs. | 1m. | Sem checks falhos, `http_req_failed <= 0.05` e `dropped_iterations == 0`. O script tambem declara thresholds k6 para `http_req_failed` e `dropped_iterations`. |
-| `resilience` | `ledger_resilience` | Exercitar criacao de lancamentos no LedgerService.Api com idempotency key e correlation id por iteracao. | 5 VUs constantes. | 1m. | Sem checks falhos, `http_req_failed <= 0.05` e `dropped_iterations == 0` no summary validado pelo runner. O script declara threshold k6 para `http_req_failed`. |
+| `smoke` | `ledger_resilience` e `balance_daily_50rps` | Validar que Ledger e Balance respondem no ambiente local e que ao menos um evento percorre Outbox -> Pub/Sub emulator -> Balance antes de cenarios maiores. | Ledger: 1 VU constante. Balance: 1 req/s, 5 VUs pre-alocados e maximo 10 VUs. | 10s por cenario. | Sem checks falhos, `checks == 100%`, `http_req_failed <= 0.05`, `dropped_iterations == 0`, `http_req_duration p95 < 3000ms`, `http_req_duration p99 < 6000ms` e incremento de Outbox processada e `processed_events` no Balance. |
+| `balance50` | `balance_daily_50rps` | Exercitar consulta de consolidado diario no BalanceService.Api com taxa constante controlada. | 50 req/s, 50 VUs pre-alocados e maximo 200 VUs. | 1m. | Sem checks falhos, `checks == 100%`, `http_req_failed <= 0.05`, `dropped_iterations == 0`, `http_req_duration p95 < 1000ms` e `http_req_duration p99 < 2500ms`. |
+| `resilience` | `ledger_resilience` | Exercitar criacao de lancamentos no LedgerService.Api com idempotency key e correlation id por iteracao. | 5 VUs constantes. | 1m. | Sem checks falhos, `checks == 100%`, `http_req_failed <= 0.05`, `dropped_iterations == 0`, `http_req_duration p95 < 2000ms` e `http_req_duration p99 < 5000ms`. |
 
 `smoke` e uma validacao curta de sanidade local. `balance50` e um cenario de throughput de leitura controlado para o Balance. `resilience` e um cenario de escrita concorrente no Ledger, com foco em aceitar chamadas validas sob carga moderada local.
 
-Os runners falham quando ha qualquer check k6 falho, taxa de erro HTTP acima de 5% ou `dropped_iterations` maior que zero. Para `balance_daily_50rps.js`, o threshold de `dropped_iterations` tambem esta declarado no script. Para `ledger_resilience.js`, o runner valida `dropped_iterations` pelo summary exportado.
+Os scripts k6 declaram thresholds para `checks`, `http_req_failed`, `http_req_duration` p95/p99 e `dropped_iterations`. Os runners tambem conferem o summary JSON para manter diagnostico explicito de checks falhos, taxa de erro HTTP e iteracoes descartadas.
 
-Os scripts atuais nao possuem threshold formal para latencia p95 ou p99. A recomendacao futura e definir limites por cenario apenas depois de registrar uma linha de base local reprodutivel, separando latencia de API, banco, mensageria, workers e runtime Docker.
+`iteration_duration` continua observacional nesta etapa. Ela aparece no summary do k6, mas mistura tempo de API, `sleep()` do script e comportamento do executor, entao ainda nao e um bom gate para esta POC.
+
+## Thresholds iniciais de latencia
+
+Os limites sao guardrails iniciais para ambiente local controlado, nao SLO produtivo. Eles foram escolhidos com folga para variacao de maquina, Docker, PostgreSQL, Keycloak, Pub/Sub emulator e runners locais.
+
+| Modo | Prefixo de override | p95 padrao | p99 padrao | Observacao |
+| --- | --- | --- | --- | --- |
+| `smoke` Ledger | `LEDGER` | 3000ms | 6000ms | Sanidade curta com 1 VU e validacao do fluxo assincrono apos o k6. |
+| `smoke` Balance | `BALANCE` | 3000ms | 6000ms | Sanidade curta de leitura com 1 req/s. |
+| `balance50` | `BALANCE` | 1000ms | 2500ms | Leitura HTTP do consolidado diario a 50 req/s em stack local aquecida. |
+| `resilience` | `LEDGER` | 2000ms | 5000ms | Escrita HTTP moderada com persistencia, idempotency key, correlation id e Outbox. |
+
+Para sobrescrever os limites sem alterar codigo, informe variaveis no processo que executa o k6:
+
+```powershell
+$env:BALANCE_HTTP_REQ_DURATION_P95_MS='1500'
+$env:BALANCE_HTTP_REQ_DURATION_P99_MS='3500'
+./scripts/run-loadtests.ps1 -Mode balance50
+```
+
+```bash
+BALANCE_HTTP_REQ_DURATION_P95_MS=1500 BALANCE_HTTP_REQ_DURATION_P99_MS=3500 ./scripts/run-loadtests.sh balance50
+```
+
+Tambem existe override global para os dois cenarios quando o prefixo especifico nao for informado: `K6_HTTP_REQ_DURATION_P95_MS` e `K6_HTTP_REQ_DURATION_P99_MS`.
+
+Uma falha de threshold deve ser lida como sinal de regressao local ou de ambiente instavel. Antes de endurecer ou afrouxar os valores, confirme:
+
+- stack subida pelo fluxo documentado;
+- containers recriados pelo runner k6;
+- banco local sem backlog incomum;
+- maquina sem carga concorrente pesada;
+- primeira execucao descartada quando houver cold start relevante;
+- summaries JSON preservados em `artifacts/k6`.
+
+Para coletar uma nova linha de base local, rode cada modo ao menos tres vezes em uma stack recem-subida e aquecida, compare `http_req_duration`, `http_req_failed`, `checks`, `dropped_iterations` e `iteration_duration` nos summaries, e registre a justificativa quando ajustar os thresholds. Ajustes devem continuar separando baseline local de objetivo produtivo.
 
 Estes testes validam comportamento local/controlado da POC. Eles nao comprovam capacidade produtiva, dimensionamento, autoscaling, limites de infraestrutura, comportamento multi-tenant real, seguranca de borda ou resiliencia sob falhas de dependencias gerenciadas.
 

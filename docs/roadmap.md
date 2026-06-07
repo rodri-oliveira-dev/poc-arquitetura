@@ -245,17 +245,18 @@ Um item deve sair de "Proximos passos" ou "Em andamento ou parcialmente atendido
 - Testes k6 versionados para smoke, leitura do Balance a 50 rps e escrita concorrente moderada no Ledger.
 - Runners exportam summaries JSON em `artifacts/k6`.
 - Criterios atuais cobrem checks falhos, `http_req_failed` e `dropped_iterations`.
+- Thresholds iniciais de latencia p95/p99 foram formalizados por cenario para baseline local controlado, sem declarar SLO produtivo.
 - Workflow `loadtests-smoke` existe para smoke controlado.
 
 ### Em andamento ou parcialmente atendido
 
-- Ainda nao existem thresholds formais de latencia p95/p99.
 - Os testes atuais validam comportamento local/controlado, nao capacidade produtiva.
 - O smoke confirma fluxo ponta a ponta via Pub/Sub emulator, sem inspecionar internals de `ack`, `nack`, DLQ ou commit Kafka legado.
+- Os thresholds de latencia ainda dependem de calibracao com novas linhas de base locais quando a stack, hardware ou carga mudarem.
 
 ### Proximos passos
 
-- Registrar uma linha de base local reprodutivel antes de definir thresholds p95/p99 por cenario.
+- Recoletar linha de base local reprodutivel antes de endurecer ou afrouxar thresholds p95/p99 por cenario.
 - Separar objetivos de latencia de API, banco, mensageria, workers e runtime Docker.
 - Criar cenario dedicado ao Nginx somente se a borda local virar alvo de carga.
 - Evoluir cenarios de backlog, drenagem de Outbox, duplicidade, idempotencia, retry e DLQ quando a frente assincrona pedir.

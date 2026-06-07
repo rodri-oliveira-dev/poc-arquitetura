@@ -980,6 +980,8 @@ Linux/macOS:
 
 Arquivos gerados em `artifacts/k6` e `.env.k6.auto` nao sao versionados.
 
+Os cenarios k6 possuem thresholds locais iniciais para `checks`, `http_req_failed`, `dropped_iterations` e `http_req_duration` p95/p99. Eles sao guardrails de baseline local, nao SLO produtivo. Os valores e overrides por ambiente estao documentados em `loadtests/k6/README.md`.
+
 Os runners aplicam `compose.k6.yaml` e recriam os containers HTTP alvo antes do k6 para manter os testes apontando para as APIs e garantir que overrides de ambiente entrem em vigor. Os workers continuam sem endpoint HTTP nos cenarios de carga. Antes de obter token e executar o k6, os runners exigem `pubsub-emulator`, `ledger-worker` e `balance-worker` ativos, confirmam `Messaging__Provider=PubSub` e `PUBSUB_EMULATOR_HOST=pubsub-emulator:8085`, e validam uma conexao real no PostgreSQL usando o usuario runtime de escrita do Balance (`balance_write_user`) e `BALANCE_DB_WRITE_PASSWORD`; se a senha do volume local divergir da configuracao, o fluxo falha cedo com diagnostico e nenhuma acao destrutiva. No modo `smoke`, o runner tambem aguarda incremento de Outbox processada e de `processed_events` para confirmar publish/consume via emulator.
 
 O token usado nos cenarios k6 e obtido pelos runners com `scripts/get-token.*`. O fluxo oficial local e `TOKEN_PROVIDER=keycloak`, usando `KEYCLOAK_CLIENT_ID`, `KEYCLOAK_CLIENT_SECRET`, `KEYCLOAK_REALM` e `KEYCLOAK_BASE_URL`/`KEYCLOAK_HOST_PORT`. Para usar temporariamente o fallback `Auth.Api`, suba `compose.auth-legacy.yaml` e configure tambem as APIs de negocio com `JWT_ISSUER=https://auth-api`, `JWT_JWKS_URL=http://auth-api:8080/.well-known/jwks.json` e `TOKEN_PROVIDER=auth-api`, conforme [autenticacao e autorizacao](authentication.md).

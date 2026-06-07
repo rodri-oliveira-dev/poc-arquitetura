@@ -1,6 +1,7 @@
 import { check, sleep } from 'k6';
 import { loadConfig } from '../lib/config.js';
 import { defaultHeaders, httpPost } from '../lib/http.js';
+import { localLatencyThresholds } from '../lib/thresholds.js';
 
 function uuidv4() {
     // UUID v4 simples (suficiente para idempotência/correlação em testes)
@@ -22,6 +23,9 @@ export const options = {
     },
     thresholds: {
         http_req_failed: ['rate<=0.05'],
+        http_req_duration: localLatencyThresholds('LEDGER', { p95: 2000, p99: 5000 }),
+        checks: ['rate==1'],
+        dropped_iterations: ['count==0'],
     },
 };
 

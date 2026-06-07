@@ -1,6 +1,6 @@
 function tryOpen(path) {
     try {
-        // k6 expõe open() como função global
+        // k6 expoe open() como funcao global.
         return open(path);
     } catch (_) {
         return null;
@@ -28,11 +28,11 @@ function parseEnvFileContent(content) {
 function loadAutoEnvFile() {
     // Ordem de tentativa:
     // 1) __ENV.ENV_FILE_PATH (se informado)
-    // 2) .env.k6.auto (working_dir)
+    // 2) .env.k6.auto resolvido a partir deste modulo
     // 3) /.env.k6.auto (quando montado no container)
     const candidates = [];
     if (__ENV.ENV_FILE_PATH) candidates.push(__ENV.ENV_FILE_PATH);
-    candidates.push('.env.k6.auto');
+    candidates.push(import.meta.resolve('../../../.env.k6.auto'));
     candidates.push('/.env.k6.auto');
 
     for (const path of candidates) {
