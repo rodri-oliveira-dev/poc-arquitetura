@@ -100,6 +100,31 @@ public sealed class LedgerEntryCreatedConsumerContractTests
     }
 
     [Fact]
+    public async Task Kafka_contract_fixture_should_ignore_duplicate_payload_without_projection_update()
+    {
+        using var harness = new ContractHarness();
+        var payload = ReadContractExample("ledger-entry-created.v2.valid.json");
+        var receivedMessage = KafkaReceivedMessageMapper.Map(CreateKafkaResult(payload));
+
+        var firstCommit = await harness.Processor.ProcessAsync(receivedMessage, CancellationToken.None);
+        var secondCommit = await harness.Processor.ProcessAsync(receivedMessage, CancellationToken.None);
+
+        Assert.True(firstCommit);
+        Assert.True(secondCommit);
+        Assert.Empty(harness.DeadLetters.Messages);
+        Assert.Equal(1, harness.ProcessedEvents.InsertedCount);
+        Assert.Equal(1, harness.UnitOfWork.SaveChangesCalls);
+
+        var balance = Assert.Single(harness.DailyBalances.Items);
+        Assert.Equal("merchant-001", balance.MerchantId);
+        Assert.Equal(new DateOnly(2026, 6, 6), balance.Date);
+        Assert.Equal("BRL", balance.Currency);
+        Assert.Equal(150.00m, balance.TotalCredits);
+        Assert.Equal(0m, balance.TotalDebits);
+        Assert.Equal(150.00m, balance.NetBalance);
+    }
+
+    [Fact]
     public async Task Legacy_v1_contract_fixture_should_project_with_documented_currency_fallback()
     {
         using var harness = new ContractHarness();

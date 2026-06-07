@@ -198,6 +198,29 @@ public sealed class LedgerEntryCreatedMessageProcessorTests
     }
 
     [Fact]
+    public async Task Transport_event_id_should_not_override_payload_id_sent_to_handler()
+    {
+        var dlq = new CapturingDeadLetterProducer();
+        ApplyLedgerEntryCreatedCommand? command = null;
+        var sender = new Mock<ISender>();
+        sender
+            .Setup(x => x.Send(It.IsAny<ApplyLedgerEntryCreatedCommand>(), It.IsAny<CancellationToken>()))
+            .Callback<IRequest<ApplyLedgerEntryCreatedResult>, CancellationToken>((request, _) => command = request as ApplyLedgerEntryCreatedCommand)
+            .ReturnsAsync(ApplyLedgerEntryCreatedResult.Processed);
+
+        var sut = CreateSut(dlq, sender.Object);
+        var message = CreateMessage(ValidPayload(), AttributesWith(EventId: "evt-header-1"));
+
+        var shouldCommit = await sut.ProcessAsync(message, CancellationToken.None);
+
+        Assert.True(shouldCommit);
+        Assert.Empty(dlq.Messages);
+        Assert.Equal("evt-header-1", message.EventId);
+        Assert.NotNull(command);
+        Assert.Equal("lan_12345678", command!.Event.Id);
+    }
+
+    [Fact]
     public async Task Valid_message_should_restore_trace_context_and_baggage()
     {
         Activity? stoppedActivity = null;
