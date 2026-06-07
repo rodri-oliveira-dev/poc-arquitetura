@@ -350,6 +350,126 @@ ManualEventReplayResult result = await sender.Send(
 O handler registra log estruturado com `eventId`, `eventName`,
 `eventVersion`, `replayId`, `reason`, `result`, `provider` e `metadata`.
 
+### Replay por filtro simples
+
+O BalanceService tambem possui um caso de uso interno para replay por filtro
+simples:
+
+- `FilteredEventReplayCommand`;
+- `FilteredEventReplayHandler`;
+- `FilteredEventReplayFilter`;
+- `FilteredEventReplayResult`;
+- `IFilteredEventReplaySource`.
+
+Nao ha endpoint administrativo publico para esse fluxo. A execucao deve ocorrer
+por uma superficie operacional interna que resolva `ISender`.
+
+Fonte mais segura para o primeiro filtro:
+
+1. Outbox do Ledger, quando o objetivo for reprocessar eventos financeiros ja
+   publicados ou publicados com risco de duplicidade. A Outbox preserva
+   payload logico, `event_type`, `occurred_at`, status, correlacao e tracing.
+2. DLQ de aplicacao Pub/Sub ou Kafka, quando o objetivo for redrive ou replay
+   de mensagem rejeitada pelo Balance. A DLQ deve expor o payload original
+   extraido do envelope `DeadLetterMessage` e os metadados originais.
+3. `processed_events` nao e fonte de replay. Ela serve somente para
+   idempotencia, pois guarda `event_id`, `merchant_id`, `occurred_at` e
+   `processed_at`, mas nao guarda payload, contrato ou headers.
+
+A implementacao concreta atual e `OutboxFilteredEventReplaySource`, registrada
+na infraestrutura do Balance. Ela consulta `ledger.outbox_messages` em modo
+somente leitura, extrai `merchantId` e `accountId` do JSON quando existirem,
+deriva `eventName` e `eventVersion` de `event_type`, preserva metadados de
+correlacao e tracing, e limita o lote entre 1 e 1000 itens. Essa fonte nao
+altera status da Outbox, nao requeue mensagens e nao confirma nenhuma entrega
+de broker.
+
+Filtros iniciais suportados pelo contrato de aplicacao:
+
+- `eventName`;
+- `eventVersion`;
+- periodo por `occurredAt`;
+- `merchantId`;
+- `accountId`, quando a fonte possuir esse campo;
+- `status`, quando a fonte possuir esse campo.
+
+O handler aplica os filtros novamente sobre as candidatas retornadas pela
+fonte. Isso protege uma implementacao de fonte mais permissiva, mas nao
+substitui indice, limite e paginacao na fonte operacional real.
+
+Dry-run e o comportamento padrao. `FilteredEventReplayCommand.Execute` nasce
+como `false`; nesse modo o handler:
+
+1. lista candidatas pela fonte configurada;
+2. valida contrato com o mesmo catalogo de JSON Schemas usado pelo replay
+   manual;
+3. desserializa somente eventos suportados;
+4. consulta `processed_events` para idempotencia;
+5. identifica duplicatas dentro do proprio lote;
+6. retorna contadores sem chamar o replay manual efetivo.
+
+O resultado informa:
+
+- `TotalFound`;
+- `TotalValid`;
+- `TotalInvalid`;
+- `TotalAlreadyProcessed`;
+- `TotalEligible`;
+- `TotalRejected`;
+- `TotalReplayed`;
+- itens individuais com `SourceId`, `EventId`, `eventName`, `eventVersion`,
+  status e erro.
+
+Replay efetivo so ocorre quando `Execute=true`. Nesse caso, somente itens
+elegiveis chamam `ManualEventReplayCommand`. A validacao e a consulta previa
+de idempotencia reduzem risco operacional, e o replay manual continua chamando
+`ApplyLedgerEntryCreatedCommand`, que tenta inserir em `processed_events` antes
+de alterar saldo. Essa segunda verificacao protege contra corrida com o
+consumer normal.
+
+Exemplo interno em modo dry-run:
+
+```csharp
+FilteredEventReplayResult dryRun = await sender.Send(
+    new FilteredEventReplayCommand(
+        new FilteredEventReplayFilter(
+            EventName: "LedgerEntryCreated",
+            EventVersion: "v2",
+            OccurredFrom: DateTimeOffset.Parse("2026-06-06T00:00:00Z"),
+            OccurredUntil: DateTimeOffset.Parse("2026-06-07T00:00:00Z"),
+            MerchantId: "merchant-001",
+            AccountId: null,
+            Status: "Processed"),
+        "dry-run operacional apos investigacao"),
+    cancellationToken);
+```
+
+Exemplo interno com replay efetivo:
+
+```csharp
+FilteredEventReplayResult executed = await sender.Send(
+    new FilteredEventReplayCommand(
+        filter,
+        "replay aprovado apos dry-run registrado",
+        Execute: true),
+    cancellationToken);
+```
+
+### Limitacoes do filtro simples
+
+- Nao reconstrui projecao completa.
+- Nao apaga dados.
+- Nao corrige payload invalido.
+- Nao remove nem altera Pub/Sub ou Kafka.
+- Nao faz ack, nack, commit ou descarte de mensagens de DLQ por conta propria.
+- Nao cria auditoria persistente dedicada. O operador ainda deve registrar
+  solicitante, motivo, filtros e resultado em evidencias operacionais.
+- Nao implementa leitura direta de broker ou DLQ. A fonte concreta atual le a
+  Outbox persistida para filtros historicos. DLQ Pub/Sub ou Kafka ainda exige
+  adapter operacional proprio que extraia o payload original do envelope.
+- `accountId` e filtro reservado para fontes que carreguem esse metadado. O
+  contrato atual de `LedgerEntryCreated` nao possui `accountId` no payload.
+
 ### Protecoes aplicadas
 
 Antes de reprocessar, o handler:

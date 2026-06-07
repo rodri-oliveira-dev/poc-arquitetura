@@ -1,10 +1,4 @@
-using System.Text.Json;
-using System.Text.Json.Serialization;
-
-using BalanceService.Application.Abstractions.Persistence;
 using BalanceService.Application.Balances.Commands;
-using BalanceService.Application.Contracts.Events;
-using BalanceService.Domain.Balances;
 
 using MediatR;
 
@@ -14,32 +8,20 @@ namespace BalanceService.Application.Balances.Replay;
 
 public sealed partial class ManualEventReplayHandler : IRequestHandler<ManualEventReplayCommand, ManualEventReplayResult>
 {
-    private const string SupportedEventName = "LedgerEntryCreated";
-    private const string LegacyV1CurrencyFallback = "BRL";
-
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
-    {
-        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow
-    };
-
-    private readonly IEventContractValidator _contractValidator;
-    private readonly IProcessedEventRepository _processedEventRepository;
+    private readonly EventReplayMessageEvaluator _evaluator;
     private readonly ISender _sender;
     private readonly ILogger<ManualEventReplayHandler> _logger;
 
     public ManualEventReplayHandler(
-        IEventContractValidator contractValidator,
-        IProcessedEventRepository processedEventRepository,
+        EventReplayMessageEvaluator evaluator,
         ISender sender,
         ILogger<ManualEventReplayHandler> logger)
     {
-        ArgumentNullException.ThrowIfNull(contractValidator);
-        ArgumentNullException.ThrowIfNull(processedEventRepository);
+        ArgumentNullException.ThrowIfNull(evaluator);
         ArgumentNullException.ThrowIfNull(sender);
         ArgumentNullException.ThrowIfNull(logger);
 
-        _contractValidator = contractValidator;
-        _processedEventRepository = processedEventRepository;
+        _evaluator = evaluator;
         _sender = sender;
         _logger = logger;
     }
@@ -56,54 +38,49 @@ public sealed partial class ManualEventReplayHandler : IRequestHandler<ManualEve
         ManualEventReplayResult result;
         try
         {
-            var contractResult = ValidateContract(command);
-            if (!contractResult.IsValid)
-            {
-                result = ToRejectedResult(replayId, null, contractResult);
-                LogResult(command, replayId, null, result);
-                return result;
-            }
+            var evaluation = await _evaluator.EvaluateAsync(
+                command.Payload,
+                command.EventName,
+                command.EventVersion,
+                command.Metadata,
+                cancellationToken);
+            eventId = evaluation.EventId;
 
-            if (!string.Equals(command.EventName, SupportedEventName, StringComparison.Ordinal))
+            if (evaluation.Status == EventReplayEvaluationStatus.InvalidContract)
             {
                 result = ManualEventReplayResult.RejectedInvalidContract(
                     replayId,
-                    null,
-                    $"Manual replay supports only '{SupportedEventName}'.");
-                LogResult(command, replayId, null, result);
-                return result;
-            }
-
-            LedgerEntryCreatedEvent evt;
-            try
-            {
-                evt = JsonSerializer.Deserialize<LedgerEntryCreatedEvent>(command.Payload, JsonOptions)
-                    ?? throw new JsonException("Payload deserialized to null.");
-            }
-            catch (JsonException ex)
-            {
-                result = ManualEventReplayResult.RejectedInvalidContract(replayId, null, ex.Message);
-                LogResult(command, replayId, null, result);
-                return result;
-            }
-
-            evt = NormalizeEvent(evt, command.EventVersion);
-            eventId = evt.Id;
-
-            if (await _processedEventRepository.ExistsAsync(eventId, cancellationToken))
-            {
-                result = ManualEventReplayResult.SkippedAlreadyProcessed(replayId, eventId);
+                    eventId,
+                    evaluation.ErrorMessage ?? "Event contract validation failed.");
                 LogResult(command, replayId, eventId, result);
                 return result;
             }
 
+            if (evaluation.Status == EventReplayEvaluationStatus.UnsupportedVersion)
+            {
+                result = ManualEventReplayResult.RejectedUnsupportedVersion(
+                    replayId,
+                    eventId,
+                    evaluation.ErrorMessage ?? "Event contract validation failed.");
+                LogResult(command, replayId, eventId, result);
+                return result;
+            }
+
+            if (evaluation.Status == EventReplayEvaluationStatus.AlreadyProcessed)
+            {
+                result = ManualEventReplayResult.SkippedAlreadyProcessed(replayId, eventId!);
+                LogResult(command, replayId, eventId, result);
+                return result;
+            }
+
+            var evt = evaluation.Event ?? throw new InvalidOperationException("Replay evaluation returned no event.");
             var applyResult = await _sender.Send(
                 new ApplyLedgerEntryCreatedCommand(evt, ToEventType(command)),
                 cancellationToken);
 
             result = applyResult.Duplicate
-                ? ManualEventReplayResult.SkippedAlreadyProcessed(replayId, eventId)
-                : ManualEventReplayResult.Replayed(replayId, eventId);
+                ? ManualEventReplayResult.SkippedAlreadyProcessed(replayId, eventId!)
+                : ManualEventReplayResult.Replayed(replayId, eventId!);
             LogResult(command, replayId, eventId, result);
             return result;
         }
@@ -116,36 +93,6 @@ public sealed partial class ManualEventReplayHandler : IRequestHandler<ManualEve
             LogResult(command, replayId, eventId, result, ex);
             return result;
         }
-    }
-
-    private EventContractValidationResult ValidateContract(ManualEventReplayCommand command)
-    {
-        var candidate = new EventContractValidationCandidate(
-            command.EventName,
-            command.EventVersion,
-            command.Payload,
-            command.Metadata);
-
-        return _contractValidator.Validate(candidate);
-    }
-
-    private static ManualEventReplayResult ToRejectedResult(
-        string replayId,
-        string? eventId,
-        EventContractValidationResult contractResult)
-    {
-        var errorMessage = contractResult.ErrorMessage ?? "Event contract validation failed.";
-        return contractResult.ErrorCode == EventContractValidationErrorCode.UnsupportedVersion
-            ? ManualEventReplayResult.RejectedUnsupportedVersion(replayId, eventId, errorMessage)
-            : ManualEventReplayResult.RejectedInvalidContract(replayId, eventId, errorMessage);
-    }
-
-    private static LedgerEntryCreatedEvent NormalizeEvent(LedgerEntryCreatedEvent evt, string eventVersion)
-    {
-        if (string.Equals(eventVersion, "v1", StringComparison.Ordinal))
-            return evt with { Currency = LegacyV1CurrencyFallback };
-
-        return evt;
     }
 
     private static string ToEventType(ManualEventReplayCommand command)

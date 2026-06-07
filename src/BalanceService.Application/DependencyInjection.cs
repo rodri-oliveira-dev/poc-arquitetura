@@ -2,6 +2,7 @@ using FluentValidation;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using BalanceService.Application.Abstractions.Time;
+using BalanceService.Application.Balances.Replay;
 using BalanceService.Application.Common.Behaviors;
 using BalanceService.Application.Common.Observability;
 using BalanceService.Application.Contracts.Events;
@@ -24,6 +25,7 @@ public static class DependencyInjection
         services.AddSingleton<BalanceDomainMetrics>();
         services.AddSingleton<IEventContractSchemaCatalog, EmbeddedEventContractSchemaCatalog>();
         services.AddSingleton<IEventContractValidator, JsonSchemaEventContractValidator>();
+        services.AddScoped<EventReplayMessageEvaluator>();
 
         return services;
     }

@@ -36,9 +36,9 @@ public sealed class ManualEventReplayHandlerTests
     public ManualEventReplayHandlerTests()
     {
         var validator = new JsonSchemaEventContractValidator(new EmbeddedEventContractSchemaCatalog());
+        var evaluator = new EventReplayMessageEvaluator(validator, _processedEvents.Object);
         _sut = new ManualEventReplayHandler(
-            validator,
-            _processedEvents.Object,
+            evaluator,
             _sender.Object,
             _logger.Object);
     }
