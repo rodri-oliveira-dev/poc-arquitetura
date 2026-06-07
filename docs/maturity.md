@@ -1,29 +1,34 @@
-# Maturidade tecnica da POC
+# Maturidade tecnica do projeto
 
-Status documental atualizado em 2026-06-02. A tabela resume o estado atual da POC com base nos arquivos versionados e em leitura estatica do codigo. Esta pagina nao substitui build, testes, k6, DAST, pentest ou scanners recentes.
+Status documental atualizado em 2026-06-07. A tabela resume o estado atual do projeto com base nos arquivos versionados e em leitura estatica do codigo. Esta pagina nao substitui build, testes, k6, DAST, pentest ou scanners recentes, e nao afirma resultado recente de validacoes que nao foram executadas nesta revisao.
 
 | Criterio | Status | Evidencia | Observacao |
 | --- | --- | --- | --- |
-| Objetivo e escopo da POC documentados | Atendido | `README.md`, `docs/README.md`, ADRs iniciais | Escopo local e limites de POC estao descritos. |
+| Objetivo e escopo do projeto documentados | Atendido | `README.md`, `docs/README.md`, ADRs iniciais | O historico de POC foi preservado, mas o posicionamento principal agora descreve um projeto continuo de estudos arquiteturais. |
 | Contratos HTTP documentados | Atendido | `docs/development/ledger-api.md`, `docs/development/balance-api.md`, `docs/development/authentication.md` | Inclui lancamentos, estornos, reprocessamentos, consolidados, scopes e merchant authorization. |
-| Swagger/OpenAPI alinhado ao codigo | Parcialmente atendido | Controllers com annotations Swagger e filtros de autorizacao | Alinhamento e feito por codigo, mas nao houve geracao ou validacao automatica de OpenAPI nesta revisao. |
+| Swagger/OpenAPI alinhado ao codigo | Atendido | `docs/openapi/`, `.github/workflows/openapi-contracts.yml`, `scripts/generate-openapi.*`, `redocly.yaml`, `scripts/check-openapi-breaking-changes.sh` | Ha geracao automatizada, lint, validacao de drift e diff de breaking changes contra a branch base quando o baseline esta disponivel. Esta revisao nao executou o workflow. |
+| Contratos de eventos versionados | Atendido | `contracts/events/`, `docs/events/`, `docs/development/event-contract-versioning.md`, `.github/workflows/event-contracts.yml`, `scripts/validate-event-contracts.mjs` | JSON Schemas e exemplos versionados sao validados pelo workflow `event-contract-validation`; `LedgerEntryCreated.v2` inclui `currency` obrigatoria e v1 permanece como legado. |
 | LikeC4 representando implementacao real | Atendido | `docs/architecture/model.c4`, `deployment.c4`, `views.c4` | Modelo distingue Pub/Sub emulator local, Pub/Sub real na GCP, Kafka legado opcional, APIs, workers, bancos, observabilidade e Nginx local. |
 | Testes automatizados documentados | Atendido | `docs/development/test-coverage.md`, `README.md` | Testes unitarios e de integracao estao documentados com fluxo local. |
 | Cobertura minima documentada | Atendido | `coverlet.runsettings`, `docs/development/test-coverage.md`, badges do README | Gate documentado de 85% global e workers. |
 | CI com build/test/cobertura | Atendido | `.github/workflows/dotnet.yml`, `docs/development/pull-request-validation.md` | PR usa gate minimo; workflow pos-merge/manual documenta cobertura e relatorios. |
 | Seguranca estatica documentada | Parcialmente atendido | `.github/workflows/codeql.yml`, `docs/development/pull-request-validation.md`, relatorio OWASP | CodeQL esta documentado, mas esta pagina nao afirma resultado recente de SAST. |
 | Dependency review / vulnerabilidades NuGet | Parcialmente atendido | `.github/workflows/dependency-review.yml`, `Directory.Packages.props`, ADR de pruning NuGet | Dependency review existe; ausencia de CVEs exige execucao atual de scanner. |
+| Trivy para infraestrutura, filesystem e secrets | Atendido | `.github/workflows/terraform-validation.yml`, `.githooks/pre-push`, `docs/development/trivy-security-scan.md` | Validacao local e em workflow cobre Dockerfiles, Terraform, misconfigurations, secrets e filesystem, com exclusao de `node_modules`, caches e diretorios gerados. Esta revisao nao executou o scanner. |
 | OWASP/ZAP ou DAST | Parcialmente atendido | `scripts/run-owasp-zap.ps1`, `scripts/run-owasp-zap.sh`, `docs/development/owasp-zap.md`, `docs/reports/aspire-and-owasp-assessment.md` | Ha execucao local versionada e documentada contra Ledger e Balance por padrao, com Auth.Api apenas como legado opcional, mas ainda nao ha gate automatizado em workflow nem resultado recente registrado nesta pagina. |
 | Testes de carga documentados | Atendido | `loadtests/k6/README.md`, `docs/development/local-development.md` | Cenarios smoke, balance50 e resilience estao documentados como validacao local/controlada. |
 | Observabilidade documentada | Atendido | `docs/observability.md`, LikeC4, dashboards versionados | Stack local cobre OTLP, Jaeger, Prometheus, Loki, Alloy, Alertmanager e Grafana. |
 | Execucao local documentada | Atendido | `docs/development/local-development.md`, `README.md` | Inclui compose principal com Pub/Sub emulator, Kafka legado opcional, migrations, portas, Nginx opcional, Testcontainers e k6. |
 | Troubleshooting documentado | Atendido | `docs/troubleshooting.md`, secoes em `local-development.md` | Cobre erros recorrentes de banco, Docker-compatible API, Swagger, Pub/Sub, Kafka legado, Outbox e observabilidade local. |
-| Limitacoes conhecidas documentadas | Parcialmente atendido | `docs/reports/aspire-and-owasp-assessment.md`, `docs/architecture/decisions.md`, ADRs propostas | Limitacoes principais estao registradas, mas devem ser revisitadas quando a POC mudar de escopo. |
+| Replay, DLQ e rebuild documentados | Atendido | `docs/operations/event-recovery-runbook.md`, `docs/operations/event-replay-and-dlq.md`, `docs/operations/replay-strategy.md`, `docs/operations/dlq-strategy.md`, `docs/operations/projection-rebuild.md` | Runbooks cobrem investigacao de DLQ, replay manual, replay filtrado, descarte, redrive, rebuild parcial de projecao e relatorio de divergencia. |
+| Replay, DLQ e rebuild com casos de uso internos | Atendido | `src/BalanceService.Application/Balances/Replay/`, `src/LedgerService.Application/Outbox/Commands/`, testes de replay/rebuild | Existem handlers para replay manual, replay filtrado, rebuild parcial e relatorio de divergencia. Esta revisao avaliou presenca estatica, nao executou testes. |
+| Abstracao de tempo no LedgerService | Atendido | `src/LedgerService.Application/Abstractions/Time/IClock.cs`, `SystemClock.cs`, `src/LedgerService.Application/DependencyInjection.cs` | `IClock` e `SystemClock` existem e sao registrados; handlers e repositorios principais ja aceitam clock injetado ou fallback para `SystemClock`. |
+| Limitacoes conhecidas documentadas | Parcialmente atendido | `docs/reports/aspire-and-owasp-assessment.md`, `docs/architecture/decisions.md`, ADRs propostas | Limitacoes principais seguem registradas, incluindo Auth.Api legado, baseline produtivo, DAST sem gate e thresholds k6 ainda nao formalizados. |
 | Decisoes arquiteturais registradas | Atendido | `docs/adrs/README.md`, `docs/adrs/*.md` | ADRs cobrem arquitetura, seguranca, CI, observabilidade, workers, Nginx e fluxos assincronos. |
 
 ## Pendencias principais
 
 - Executar e registrar DAST/OWASP ZAP ou pentest quando houver necessidade de avaliar exposicao dinamica alem do script local versionado.
-- Definir baseline produtivo fora da POC local para secrets, TLS interno, identidade de workload Pub/Sub, bancos, scans de imagem, WAF e rate limits por identidade.
+- Definir baseline produtivo fora do ambiente local para secrets, TLS interno, identidade de workload Pub/Sub, bancos, scans de imagem, WAF e rate limits por identidade.
 - Remover definitivamente o `Auth.Api` legado quando nao houver mais necessidade de compatibilidade; o caminho operacional local ja usa Keycloak, incluindo `ledger.read`.
 - Formalizar thresholds de latencia p95/p99 para k6 somente depois de obter linha de base local reprodutivel.

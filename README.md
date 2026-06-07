@@ -5,7 +5,7 @@
 [![Coverage](https://img.shields.io/badge/coverage-%3E%3D85%25-brightgreen)](docs/development/test-coverage.md)
 [![Architecture Docs](https://img.shields.io/github/actions/workflow/status/rodri-oliveira-dev/poc-arquitetura/pages-architecture.yml?branch=main&label=architecture%20docs)](https://rodri-oliveira-dev.github.io/poc-arquitetura/)
 
-POC de microservicos em .NET para validar Clean Architecture, DDD, PostgreSQL, Outbox, mensageria por ports and adapters com Kafka e Pub/Sub, autenticacao JWT/OIDC com Keycloak e JWKS, observabilidade e testes automatizados.
+Projeto de estudos arquiteturais em .NET para evoluir Clean Architecture, DDD, PostgreSQL, Outbox, mensageria por ports and adapters com Pub/Sub principal e Kafka legado opcional, autenticacao JWT/OIDC com Keycloak e JWKS, observabilidade, contratos e testes automatizados. Nasceu como POC de microservicos e evoluiu para um laboratorio continuo de arquitetura, contratos, seguranca, observabilidade, testes e operacao.
 
 ## Problema
 
@@ -13,7 +13,7 @@ O projeto modela um cenario comum em sistemas financeiros: registrar lancamentos
 
 ## Solucao
 
-A POC separa escrita e leitura em servicos distintos e separa APIs HTTP de workers. O `LedgerService.Api` recebe comandos de lancamento, estorno e reprocessamento, persiste os dados e grava eventos em Outbox na mesma transacao. O `LedgerService.Worker` publica a Outbox pelo provider de mensageria selecionado e executa processamentos assincronos do Ledger. O `BalanceService.Worker` consome os eventos financeiros pelo provider selecionado e atualiza saldos consolidados; o `BalanceService.Api` atende consultas HTTP. Pub/Sub e o provider principal e usa emulator por padrao no fluxo local. Kafka permanece disponivel como opcao legada explicita via `Messaging:Provider=Kafka`. O Keycloak local emite tokens JWT RS256 e publica JWKS para validacao offline pelas APIs de negocio. O `Auth.Api` foi depreciado como emissor legado de POC e nao faz parte da stack principal.
+A arquitetura separa escrita e leitura em servicos distintos e separa APIs HTTP de workers. O `LedgerService.Api` recebe comandos de lancamento, estorno e reprocessamento, persiste os dados e grava eventos em Outbox na mesma transacao. O `LedgerService.Worker` publica a Outbox pelo provider de mensageria selecionado e executa processamentos assincronos do Ledger. O `BalanceService.Worker` consome os eventos financeiros pelo provider selecionado e atualiza saldos consolidados; o `BalanceService.Api` atende consultas HTTP. Pub/Sub e o provider principal e usa emulator por padrao no fluxo local. Kafka permanece disponivel como opcao legada explicita via `Messaging:Provider=Kafka`. O Keycloak local emite tokens JWT RS256 e publica JWKS para validacao offline pelas APIs de negocio. O `Auth.Api` foi depreciado como emissor legado de POC e nao faz parte da stack principal.
 
 Principais servicos:
 
@@ -187,7 +187,7 @@ Os scripts executam testes com cobertura e aplicam gate minimo de 85% de cobertu
 ## Documentacao
 
 - [Indice geral da documentacao](docs/README.md)
-- [Maturidade tecnica da POC](docs/maturity.md)
+- [Maturidade tecnica do projeto](docs/maturity.md)
 - [Desenvolvimento local](docs/development/local-development.md)
 - [Ferramentas auxiliares](docs/development/tooling.md)
 - [Dev Container opcional](docs/development/devcontainer.md)
