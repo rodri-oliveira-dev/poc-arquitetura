@@ -58,6 +58,7 @@ Leitura complementar:
 
 - [ADR-0078: Pub/Sub como provider principal](docs/adrs/0078-pubsub-provider-principal-local-emulator.md)
 - [Operacao do Pub/Sub e emulator local](docs/operations/pubsub.md)
+- [Replay e DLQ orientados por contrato](docs/operations/event-replay-and-dlq.md)
 - [Contrato Pub/Sub entre Terraform e aplicacao](docs/development/pubsub-infra-app-contract.md)
 - [Modulo Terraform Pub/Sub Ledger Events](infra/terraform/modules/pubsub-ledger-events/README.md)
 - [Modulo Terraform Cloud SQL PostgreSQL](infra/terraform/modules/cloudsql-postgres/README.md)
@@ -197,6 +198,7 @@ Os scripts executam testes com cobertura e aplicam gate minimo de 85% de cobertu
 - [Autenticacao e autorizacao](docs/development/authentication.md)
 - [Kafka, Outbox e DLQ](docs/development/kafka-outbox.md)
 - [Pub/Sub: operacao e emulator local](docs/operations/pubsub.md)
+- [Replay e DLQ orientados por contrato](docs/operations/event-replay-and-dlq.md)
 - [Pub/Sub: contrato entre Terraform e aplicacao](docs/development/pubsub-infra-app-contract.md)
 - [Pub/Sub: custo e free tier](docs/development/pubsub-cost-and-free-tier.md)
 - [Observabilidade e operacao minima](docs/observability.md)
