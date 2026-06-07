@@ -22,6 +22,8 @@ public sealed partial class LedgerEntryCreatedMessageProcessor
 {
     public const string ActivitySourceName = "BalanceService.MessageProcessor";
 
+    private const string LegacyV1CurrencyFallback = "BRL";
+
     private static readonly ActivitySource ActivitySource = new(ActivitySourceName);
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
@@ -52,11 +54,10 @@ public sealed partial class LedgerEntryCreatedMessageProcessor
 
         try
         {
-            ValidateEventType(message);
+            var contractVersion = ValidateEventType(message);
 
             var deserialized = JsonSerializer.Deserialize<LedgerEntryCreatedEvent>(message.Payload, JsonOptions);
-            ValidateEvent(deserialized);
-            var evt = deserialized!;
+            var evt = NormalizeAndValidateEvent(deserialized, contractVersion);
 
             using var logScope = _logger.BeginScope(new Dictionary<string, object?>
             {
@@ -70,7 +71,7 @@ public sealed partial class LedgerEntryCreatedMessageProcessor
             });
 
             using var activity = StartConsumerActivity(message, evt);
-            var processingResult = await ProcessMessageAsync(evt, cancellationToken);
+            var processingResult = await ProcessMessageAsync(message.EventType, evt, cancellationToken);
             var metricResult = processingResult.Duplicate ? "duplicate" : "success";
             _metrics.RecordConsumerMessageConsumed(message.Transport.Source, eventType, metricResult);
             _metrics.RecordConsumerProcessingDuration(Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds, message.Transport.Source, eventType, metricResult);
@@ -112,12 +113,15 @@ public sealed partial class LedgerEntryCreatedMessageProcessor
         }
     }
 
-    private async Task<ApplyLedgerEntryCreatedResult> ProcessMessageAsync(LedgerEntryCreatedEvent evt, CancellationToken ct)
+    private async Task<ApplyLedgerEntryCreatedResult> ProcessMessageAsync(
+        string eventType,
+        LedgerEntryCreatedEvent evt,
+        CancellationToken ct)
     {
         using var scope = _serviceProvider.CreateScope();
         var sender = scope.ServiceProvider.GetRequiredService<ISender>();
 
-        return await sender.Send(new ApplyLedgerEntryCreatedCommand(evt), ct);
+        return await sender.Send(new ApplyLedgerEntryCreatedCommand(evt, eventType), ct);
     }
 
     private async Task PublishToDeadLetterAsync(
@@ -203,16 +207,22 @@ public sealed partial class LedgerEntryCreatedMessageProcessor
         return activity;
     }
 
-    private static void ValidateEventType(ReceivedMessage message)
+    private static LedgerEntryCreatedContractVersion ValidateEventType(ReceivedMessage message)
     {
         if (string.IsNullOrWhiteSpace(message.EventType))
             throw new MessageValidationException("Missing required message attribute event_type.");
 
-        if (!string.Equals(message.EventType, LedgerEntryCreatedV1Contract.EventType, StringComparison.Ordinal))
-            throw new MessageValidationException($"Unsupported message event_type '{message.EventType}'.");
+        return message.EventType switch
+        {
+            LedgerEntryCreatedV1Contract.EventType => LedgerEntryCreatedContractVersion.V1,
+            LedgerEntryCreatedV2Contract.EventType => LedgerEntryCreatedContractVersion.V2,
+            _ => throw new MessageValidationException($"Unsupported message event_type '{message.EventType}'.")
+        };
     }
 
-    private static void ValidateEvent(LedgerEntryCreatedEvent? evt)
+    private static LedgerEntryCreatedEvent NormalizeAndValidateEvent(
+        LedgerEntryCreatedEvent? evt,
+        LedgerEntryCreatedContractVersion contractVersion)
     {
         if (evt is null)
             throw new MessageValidationException("Message payload is empty or invalid.");
@@ -253,6 +263,29 @@ public sealed partial class LedgerEntryCreatedMessageProcessor
 
         if (!Guid.TryParse(evt.CorrelationId, out _))
             throw new MessageValidationException("Message payload correlationId must be a UUID.");
+
+        string? currency;
+        if (contractVersion == LedgerEntryCreatedContractVersion.V1)
+        {
+            if (evt.Currency is not null)
+                throw new MessageValidationException("Message payload currency is not supported in LedgerEntryCreated.v1.");
+
+            currency = LegacyV1CurrencyFallback;
+        }
+        else
+        {
+            currency = evt.Currency;
+        }
+
+        if (string.IsNullOrWhiteSpace(currency))
+            throw new MessageValidationException("Message payload currency is required.");
+
+        currency = currency.Trim().ToUpperInvariant();
+
+        if (!CurrencyPattern().IsMatch(currency))
+            throw new MessageValidationException("Message payload currency is invalid.");
+
+        return evt with { Currency = currency };
     }
 
     private static string ResolveEventId(ReceivedMessage message, string payloadEventId)
@@ -273,6 +306,15 @@ public sealed partial class LedgerEntryCreatedMessageProcessor
 
     [GeneratedRegex("^-?[0-9]+\\.[0-9]{2}$", RegexOptions.CultureInvariant)]
     private static partial Regex AmountPattern();
+
+    [GeneratedRegex("^[A-Z]{3}$", RegexOptions.CultureInvariant)]
+    private static partial Regex CurrencyPattern();
+
+    private enum LedgerEntryCreatedContractVersion
+    {
+        V1,
+        V2
+    }
 
     private sealed class MessageValidationException : Exception
     {

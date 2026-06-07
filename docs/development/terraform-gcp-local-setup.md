@@ -82,6 +82,8 @@ O hook `.githooks/pre-push` executa a mesma validacao quando encontra arquivos `
 
 O mesmo hook tambem executa Trivy quando a ferramenta esta instalada localmente, cobrindo misconfigurations em Terraform e Dockerfiles, secrets e vulnerabilidades detectaveis no filesystem. A ausencia local do Trivy mostra apenas um aviso e nao bloqueia o push. Consulte [validacao de seguranca com Trivy](trivy-security-scan.md).
 
+Para evitar falsos positivos fora do codigo versionado, os scans do Trivy ignoram diretorios gerados, dependencias locais e caches como `node_modules`, `dist`, `bin`, `obj`, `TestResults`, `coverage` e `.terraform`.
+
 ## Guardrails
 
 - Nao execute `terraform apply` automaticamente.
@@ -96,11 +98,58 @@ O Google Cloud CLI esta disponivel para autenticacao e descoberta controlada. Es
 
 ## Validacao no CI
 
-O workflow `.github/workflows/terraform-validation.yml`, chamado `terraform-validation`, roda em pull requests e pushes para `main` que alteram Terraform, Dockerfiles, Compose ou o proprio workflow. Ele executa:
+O workflow `.github/workflows/terraform-validation.yml`, chamado `infra-security-and-terraform-validation`, roda em pull requests e pushes para `main` que alteram Terraform, Dockerfiles, Compose ou o proprio workflow. Ele executa:
 
 ```bash
-trivy config --severity HIGH,CRITICAL --tf-vars infra/terraform/environments/dev/validation.tfvars .
-trivy fs --scanners vuln,secret,misconfig --severity HIGH,CRITICAL --tf-vars infra/terraform/environments/dev/validation.tfvars .
+trivy config \
+  --severity HIGH,CRITICAL \
+  --tf-vars infra/terraform/environments/dev/validation.tfvars \
+  --skip-dirs node_modules \
+  --skip-dirs .git \
+  --skip-dirs dist \
+  --skip-dirs .terraform \
+  --skip-dirs bin \
+  --skip-dirs "**/bin" \
+  --skip-dirs obj \
+  --skip-dirs "**/obj" \
+  --skip-dirs .vs \
+  --skip-dirs .idea \
+  --skip-dirs TestResults \
+  --skip-dirs "**/TestResults" \
+  --skip-dirs coverage \
+  --skip-dirs CodeCoverage \
+  --skip-dirs StrykerOutput \
+  --skip-dirs .dotnet \
+  --skip-dirs .dotnet-home \
+  --skip-dirs .nuget \
+  --skip-dirs artifacts \
+  --skip-dirs infra/nginx/certs \
+  .
+trivy fs \
+  --scanners vuln,secret,misconfig \
+  --severity HIGH,CRITICAL \
+  --tf-vars infra/terraform/environments/dev/validation.tfvars \
+  --skip-dirs node_modules \
+  --skip-dirs .git \
+  --skip-dirs dist \
+  --skip-dirs .terraform \
+  --skip-dirs bin \
+  --skip-dirs "**/bin" \
+  --skip-dirs obj \
+  --skip-dirs "**/obj" \
+  --skip-dirs .vs \
+  --skip-dirs .idea \
+  --skip-dirs TestResults \
+  --skip-dirs "**/TestResults" \
+  --skip-dirs coverage \
+  --skip-dirs CodeCoverage \
+  --skip-dirs StrykerOutput \
+  --skip-dirs .dotnet \
+  --skip-dirs .dotnet-home \
+  --skip-dirs .nuget \
+  --skip-dirs artifacts \
+  --skip-dirs infra/nginx/certs \
+  .
 terraform fmt -check -recursive ./infra/terraform
 tflint --chdir=./infra/terraform --recursive
 ```

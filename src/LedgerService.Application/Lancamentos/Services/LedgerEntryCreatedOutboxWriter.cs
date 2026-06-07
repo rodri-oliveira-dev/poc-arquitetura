@@ -38,7 +38,7 @@ public sealed class LedgerEntryCreatedOutboxWriter
         var outboxMessage = new OutboxMessage(
             "LedgerEntry",
             ledgerEntry.Id,
-            LedgerEntryCreatedV1.EventType,
+            LedgerEntryCreatedV2.EventType,
             outboxPayload,
             occurredAt,
             ledgerEntry.CorrelationId,

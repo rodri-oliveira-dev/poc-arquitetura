@@ -1,0 +1,9 @@
+{
+  "estornoId": "6f1c08d2-0616-4b35-b0f2-2d32f11fbc11",
+  "lancamentoOriginalId": "f6ab2e42-1b91-4af1-b232-7c7fdc43b17a",
+  "merchantId": "merchant-001",
+  "motivo": "Solicitacao do cliente",
+  "status": "Pending",
+  "requestedAt": "2026-06-06T12:40:00.0000000Z",
+  "correlationId": "2cbdd495-586f-4565-a807-c5dc6710d237"
+}

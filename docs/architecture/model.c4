@@ -165,7 +165,7 @@ model {
       }
 
       ledgerReprocessamentoMessageProcessor = component "ReprocessamentoLancamentosMessageProcessor" {
-        description "Processor neutro que recebe ReceivedMessage, valida fonte logica, event_type e payload, envia ProcessarReprocessamentoLancamentosCommand e registra replay idempotente de LedgerEntryCreated.v1."
+        description "Processor neutro que recebe ReceivedMessage, valida fonte logica, event_type e payload, envia ProcessarReprocessamentoLancamentosCommand e registra replay idempotente de LedgerEntryCreated.v2."
       }
     }
 
@@ -216,7 +216,7 @@ model {
       }
 
       balanceConsumer = component "Kafka ledger events consumer" {
-        description "Adapter Kafka legado que consome LedgerEntryCreated.v1, controla commit e delega o conteudo para o mapper e processor neutro."
+        description "Adapter Kafka legado que consome LedgerEntryCreated.v2 e v1 legado, controla commit e delega o conteudo para o mapper e processor neutro."
       }
 
       balanceReceivedMessageMapper = component "KafkaReceivedMessageMapper" {
@@ -224,7 +224,7 @@ model {
       }
 
       balancePubSubConsumer = component "LedgerEventsPubSubConsumer" {
-        description "Adapter Pub/Sub principal que consome LedgerEntryCreated.v1, responde ack/nack e delega o conteudo para o mapper e processor neutro."
+        description "Adapter Pub/Sub principal que consome LedgerEntryCreated.v2 e v1 legado, responde ack/nack e delega o conteudo para o mapper e processor neutro."
       }
 
       balancePubSubReceivedMessageMapper = component "PubSubReceivedMessageMapper" {
@@ -251,7 +251,7 @@ model {
 
     ledgerTopic = container "ledger.ledgerentry.created" {
       technology "Kafka topic"
-      description "Topico principal do evento financeiro LedgerEntryCreated.v1, incluindo lancamentos compensatorios de estorno."
+      description "Topico principal do evento financeiro LedgerEntryCreated.v2, incluindo lancamentos compensatorios de estorno, com suporte legado a v1."
     }
 
     ledgerEstornoTopic = container "ledger.lancamento.estorno.solicitado" {
@@ -275,7 +275,7 @@ model {
 
     ledgerTopic = container "ledger.ledgerentry.created.local" {
       technology "Pub/Sub topic"
-      description "Topic principal local do evento financeiro LedgerEntryCreated.v1."
+      description "Topic principal local do evento financeiro LedgerEntryCreated.v2, com suporte legado a v1."
     }
 
     balanceSubscription = container "balance-service-ledger-events-local" {
@@ -299,7 +299,7 @@ model {
 
     ledgerTopic = container "ledger.ledgerentry.created.dev" {
       technology "Pub/Sub topic"
-      description "Topic principal real do evento financeiro LedgerEntryCreated.v1 provisionado pelo Terraform dev."
+      description "Topic principal real do evento financeiro LedgerEntryCreated.v2 provisionado pelo Terraform dev, com suporte legado a v1."
     }
 
     balanceSubscription = container "balance-service-ledger-events-dev" {
@@ -350,10 +350,10 @@ model {
   ledger.ledgerWorker.ledgerOutbox -> ledger.ledgerDb "Le e atualiza outbox_messages" "EF Core / SQL"
   ledger.ledgerWorker.ledgerOutbox -> ledger.ledgerWorker.ledgerOutboxPublisherPort "Publica mensagens pendentes" "porta"
   ledger.ledgerWorker.ledgerOutboxPublisherPort -> ledger.ledgerWorker.ledgerPubSubOutboxPublisher "Adapter principal" "DI"
-  ledger.ledgerWorker.ledgerPubSubOutboxPublisher -> pubsubLocal.ledgerTopic "Publica LedgerEntryCreated.v1 no desenvolvimento local" "Pub/Sub emulator"
-  ledger.ledgerWorker.ledgerPubSubOutboxPublisher -> pubsubGcp.ledgerTopic "Publica LedgerEntryCreated.v1 quando configurado para GCP" "Pub/Sub"
+  ledger.ledgerWorker.ledgerPubSubOutboxPublisher -> pubsubLocal.ledgerTopic "Publica LedgerEntryCreated.v2 no desenvolvimento local" "Pub/Sub emulator"
+  ledger.ledgerWorker.ledgerPubSubOutboxPublisher -> pubsubGcp.ledgerTopic "Publica LedgerEntryCreated.v2 quando configurado para GCP" "Pub/Sub"
   ledger.ledgerWorker.ledgerOutboxPublisherPort -> ledger.ledgerWorker.ledgerKafkaOutboxPublisher "Adapter legado" "DI"
-  ledger.ledgerWorker.ledgerKafkaOutboxPublisher -> kafka.ledgerTopic "Publica LedgerEntryCreated.v1" "Kafka"
+  ledger.ledgerWorker.ledgerKafkaOutboxPublisher -> kafka.ledgerTopic "Publica LedgerEntryCreated.v2" "Kafka"
   ledger.ledgerWorker.ledgerKafkaOutboxPublisher -> kafka.ledgerEstornoTopic "Publica LancamentoEstornoSolicitado.v1" "Kafka"
   ledger.ledgerWorker.ledgerKafkaOutboxPublisher -> kafka.ledgerReprocessamentoTopic "Publica ReprocessamentoLancamentosSolicitado.v1" "Kafka"
   ledger.ledgerWorker.ledgerReprocessamentoConsumer -> kafka.ledgerReprocessamentoTopic "Consome ReprocessamentoLancamentosSolicitado.v1" "Kafka"
@@ -365,14 +365,14 @@ model {
   balance.balanceWorker.balanceWorkerComposition -> balance.balanceWorker.balanceWorkerApplication "Registra casos de uso e handlers" "DI / MediatR"
   balance.balanceWorker.balanceWorkerComposition -> balance.balanceWorker.balanceWorkerInfrastructure "Registra adapters e HostedServices" "DI"
   balance.balanceWorker.balanceWorkerInfrastructure -> balance.balanceDb "Usa persistence e repositories" "EF Core"
-  balance.balanceWorker.balancePubSubConsumer -> pubsubLocal.balanceSubscription "Consome LedgerEntryCreated.v1 no desenvolvimento local" "Pub/Sub emulator"
+  balance.balanceWorker.balancePubSubConsumer -> pubsubLocal.balanceSubscription "Consome LedgerEntryCreated.v2 e v1 legado no desenvolvimento local" "Pub/Sub emulator"
   pubsubLocal.ledgerTopic -> pubsubLocal.balanceSubscription "Entrega eventos financeiros locais" "Pub/Sub emulator"
-  balance.balanceWorker.balancePubSubConsumer -> pubsubGcp.balanceSubscription "Consome LedgerEntryCreated.v1 quando configurado para GCP" "Pub/Sub"
+  balance.balanceWorker.balancePubSubConsumer -> pubsubGcp.balanceSubscription "Consome LedgerEntryCreated.v2 e v1 legado quando configurado para GCP" "Pub/Sub"
   pubsubGcp.ledgerTopic -> pubsubGcp.balanceSubscription "Entrega eventos financeiros reais" "Pub/Sub"
   pubsubGcp.balanceSubscription -> pubsubGcp.technicalDlqTopic "Encaminha falhas tecnicas quando a dead-letter policy nativa esta habilitada" "Pub/Sub"
   balance.balanceWorker.balancePubSubConsumer -> balance.balanceWorker.balancePubSubReceivedMessageMapper "Mapeia transporte Pub/Sub para ReceivedMessage" "mapper"
   balance.balanceWorker.balancePubSubReceivedMessageMapper -> balance.balanceWorker.balanceMessageProcessor "Entrega modelo neutro" "ReceivedMessage"
-  balance.balanceWorker.balanceConsumer -> kafka.ledgerTopic "Consome LedgerEntryCreated.v1, inclusive compensatorios e replays de reprocessamento" "Kafka"
+  balance.balanceWorker.balanceConsumer -> kafka.ledgerTopic "Consome LedgerEntryCreated.v2 e v1 legado, inclusive compensatorios e replays de reprocessamento" "Kafka"
   balance.balanceWorker.balanceConsumer -> balance.balanceWorker.balanceReceivedMessageMapper "Mapeia transporte Kafka para ReceivedMessage" "mapper"
   balance.balanceWorker.balanceReceivedMessageMapper -> balance.balanceWorker.balanceMessageProcessor "Entrega modelo neutro" "ReceivedMessage"
   balance.balanceWorker.balanceMessageProcessor -> balance.balanceWorker.balanceWorkerApplication "Envia comando de aplicacao de evento" "MediatR"

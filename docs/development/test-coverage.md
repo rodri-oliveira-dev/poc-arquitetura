@@ -135,7 +135,7 @@ Quando o gate falhar:
 3. Priorize testes que validem comportamento de dominio, aplicacao, infraestrutura critica ou contratos HTTP.
 4. Use exclusao somente quando houver justificativa tecnica clara e localizada.
 
-O workflow `pull-request-validation` e um gate rapido de PR e executa testes sem cobertura. O workflow `dotnet-ci` continua sendo a validacao completa pos-merge/manual com cobertura, threshold e artifact `test-results-and-coverage` por 7 dias quando executado no GitHub Actions.
+O workflow `pr-build-and-test` e um gate rapido de PR e executa testes sem cobertura. O workflow `main-dotnet-ci` continua sendo a validacao completa pos-merge/manual com cobertura, threshold e artifact `test-results-and-coverage` por 7 dias quando executado no GitHub Actions.
 
 O artifact contem arquivos `.trx`, `coverage.cobertura.xml`, `coverage-report/Summary.json` e `coverage-report/Summary.txt`. O HTML completo do ReportGenerator nao e publicado como artifact porque o XML e os summaries atendem ao diagnostico principal com menor exposicao de paths e trechos renderizados.
 

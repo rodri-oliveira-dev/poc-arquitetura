@@ -40,6 +40,7 @@ public sealed class KafkaReceivedMessageMapperTests
         Assert.Equal(LedgerEntryCreatedV1Contract.EventType, message.EventType);
         Assert.Equal("evt-1", message.EventId);
         Assert.Equal("corr-1", message.CorrelationId);
+        Assert.Equal("evt-1", message.Attributes[MessageAttributeNames.EventId]);
         Assert.Equal("traceparent", message.TraceParent);
         Assert.Equal("tracestate", message.TraceState);
         Assert.Equal("tenant=poc", message.Baggage);

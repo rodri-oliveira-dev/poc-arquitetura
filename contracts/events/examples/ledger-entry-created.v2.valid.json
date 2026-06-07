@@ -1,0 +1,12 @@
+{
+  "id": "lan_1a2b3c4d",
+  "type": "CREDIT",
+  "amount": "150.00",
+  "currency": "BRL",
+  "createdAt": "2026-06-06T12:34:56.0000000Z",
+  "merchantId": "merchant-001",
+  "occurredAt": "2026-06-06T12:34:56.0000000Z",
+  "description": "Venda aprovada",
+  "correlationId": "2cbdd495-586f-4565-a807-c5dc6710d237",
+  "externalReference": "order-123"
+}

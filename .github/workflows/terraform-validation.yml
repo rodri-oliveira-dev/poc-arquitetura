@@ -1,4 +1,4 @@
-name: terraform-validation
+name: infra-security-and-terraform-validation
 
 on:
   push:
@@ -31,7 +31,7 @@ env:
 
 jobs:
   validate:
-    name: Validate Terraform
+    name: Scan infrastructure and validate Terraform
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -52,6 +52,7 @@ jobs:
           exit-code: "1"
           tf-vars: infra/terraform/environments/dev/validation.tfvars
           hide-progress: true
+          skip-dirs: node_modules,.git,dist,.terraform,bin,**/bin,obj,**/obj,.vs,.idea,TestResults,**/TestResults,coverage,CodeCoverage,StrykerOutput,.dotnet,.dotnet-home,.nuget,artifacts,infra/nginx/certs
 
       - name: Scan repository filesystem with Trivy
         uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
@@ -63,7 +64,7 @@ jobs:
           exit-code: "1"
           tf-vars: infra/terraform/environments/dev/validation.tfvars
           hide-progress: true
-          skip-dirs: .git,.terraform,**/bin,**/obj,.vs,.idea,TestResults,**/TestResults,coverage,CodeCoverage,StrykerOutput,.dotnet,.dotnet-home,.nuget,artifacts,infra/nginx/certs
+          skip-dirs: node_modules,.git,dist,.terraform,bin,**/bin,obj,**/obj,.vs,.idea,TestResults,**/TestResults,coverage,CodeCoverage,StrykerOutput,.dotnet,.dotnet-home,.nuget,artifacts,infra/nginx/certs
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3

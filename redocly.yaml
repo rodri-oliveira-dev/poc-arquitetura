@@ -1,0 +1,14 @@
+extends:
+  - recommended
+
+apis:
+  ledger@v1:
+    root: docs/openapi/ledger.v1.json
+  balance@v1:
+    root: docs/openapi/balance.v1.json
+
+rules:
+  operation-operationId: warn
+  operation-summary: warn
+  no-unused-components: warn
+  security-defined: warn

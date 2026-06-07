@@ -36,6 +36,13 @@
         "dotnet-sonarscanner"
       ],
       "rollForward": false
+    },
+    "swashbuckle.aspnetcore.cli": {
+      "version": "10.2.1",
+      "commands": [
+        "swagger"
+      ],
+      "rollForward": false
     }
   }
 }

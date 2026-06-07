@@ -95,6 +95,8 @@ Roteamento atual:
 
 - `dotnet-service-change`: mudancas funcionais nos servicos .NET.
 - `dotnet-refactoring-engineer`: refatoracoes, code review tecnico, melhoria de design, reducao de acoplamento, melhoria de coesao, extracao de responsabilidades, revisao de DI, revisao de endpoints, EF Core, legibilidade, testabilidade, performance e aplicacao cuidadosa de boas praticas de engenharia de software.
+- `ddd-implementation-vernon`: implementacao, revisao ou refatoracao orientada a DDD em codigo .NET/C#, incluindo bounded contexts, linguagem ubiqua, aggregates, entidades, value objects, repositories, domain events, application services, anticorruption layer e integracao entre contextos.
+- `ddd-modeling-vernon`: sessoes de modelagem DDD, discovery, Event Storming, bounded contexts, context map, aggregate design, domain events, glossary, workflows, tipos de dominio e validacao de cenarios.
 - `integration-tests-dotnet`: testes de integracao .NET ou estrategia especifica de integracao.
 - `ci-release-governance`: GitHub Actions, GitVersion, releases, coverage, hooks e automacoes.
 - `repository-governance-sdd`: `AGENTS.md`, skills, ADRs, prompts, documentacao de processo e governanca.
@@ -121,7 +123,13 @@ Use `dotnet-refactoring-engineer` quando a tarefa pedir melhorar codigo existent
 - revisar se uma abstracao, interface, pattern ou camada faz sentido;
 - preparar codigo para uma mudanca funcional futura.
 
+Use `ddd-implementation-vernon` quando a tarefa envolver codigo de dominio ou aplicacao com regras de negocio, invariantes, aggregates, entidades, value objects, repositories, domain events, integration events, Outbox, fronteiras entre contextos ou decisao sobre o que pertence a `Domain`, `Application` ou `Infrastructure`.
+
+Use `ddd-modeling-vernon` quando a tarefa ainda precisar descobrir ou validar o modelo antes de codificar, especialmente quando houver linguagem ambigua, novo fluxo de negocio, desenho de aggregate, Event Storming, context map, glossary, workflows ou necessidade de criar artefatos em `docs/domain/`.
+
 Quando uma mudanca funcional tambem exigir refatoracao, combine `dotnet-service-change` com `dotnet-refactoring-engineer`, mas mantenha a refatoracao pequena, justificada e proporcional ao objetivo da tarefa.
+
+Quando a mudanca envolver regra de negocio relevante ou modelo de dominio, combine `dotnet-service-change` ou `dotnet-refactoring-engineer` com `ddd-implementation-vernon`. Se o modelo ainda estiver incerto, use `ddd-modeling-vernon` antes de alterar codigo.
 
 Quando a refatoracao impactar testes, combine `dotnet-refactoring-engineer` com `integration-tests-dotnet`.
 
@@ -138,7 +146,7 @@ dotnet tool restore
 dotnet restore ./LedgerService.slnx
 dotnet build ./LedgerService.slnx --configuration Release --no-restore
 dotnet test ./LedgerService.slnx --configuration Release --no-build --settings ./coverlet.runsettings
-````
+```
 
 Para cobertura com gate:
 

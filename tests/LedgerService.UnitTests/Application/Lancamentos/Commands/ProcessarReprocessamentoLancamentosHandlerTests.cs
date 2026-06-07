@@ -30,11 +30,12 @@ public sealed class ProcessarReprocessamentoLancamentosHandlerTests
         var outbox = state.OutboxMessages.Single();
         Assert.Equal("LedgerEntryReprocessamento", outbox.AggregateType);
         Assert.Equal(inPeriod.Id, outbox.AggregateId);
-        Assert.Equal(LedgerEntryCreatedV1.EventType, outbox.EventType);
-        var evt = JsonSerializer.Deserialize<LedgerEntryCreatedV1>(outbox.Payload, JsonOptions);
+        Assert.Equal(LedgerEntryCreatedV2.EventType, outbox.EventType);
+        var evt = JsonSerializer.Deserialize<LedgerEntryCreatedV2>(outbox.Payload, JsonOptions);
         Assert.NotNull(evt);
         Assert.Equal($"lan_{inPeriod.Id.ToString("N")[..8]}", evt!.Id);
         Assert.Equal("100.00", evt.Amount);
+        Assert.Equal("BRL", evt.Currency);
         Assert.Equal("m1", evt.MerchantId);
     }
 

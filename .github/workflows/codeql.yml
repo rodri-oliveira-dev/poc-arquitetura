@@ -1,4 +1,4 @@
-name: codeql
+name: codeql-security-analysis
 
 on:
   push:
@@ -33,6 +33,7 @@ permissions:
 
 jobs:
   analyze:
+    name: Analyze C# with CodeQL
     runs-on: ubuntu-latest
     timeout-minutes: 30
 

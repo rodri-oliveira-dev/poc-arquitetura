@@ -42,9 +42,9 @@ Execute cada worker em um terminal separado. Os arquivos `src/LedgerService.Work
 2. A mesma transacao grava a mensagem em `outbox_messages`.
 3. `LedgerService.Worker` hospeda `OutboxPublisherService`, que le mensagens pendentes e publica pela porta de mensageria configurada: Kafka ou Pub/Sub.
 4. `LedgerService.Worker` hospeda `EstornoLancamentoProcessorService`, que processa solicitacoes `Pending` e cria lancamentos compensatorios.
-5. O estorno concluido grava `LedgerEntryCreated.v1` do lancamento compensatorio no Outbox.
+5. O estorno concluido grava `LedgerEntryCreated.v2` do lancamento compensatorio no Outbox.
 6. `LedgerService.Worker` hospeda `ReprocessamentoLancamentosConsumerService`, que consome `ledger.lancamentos.reprocessamento.solicitado`, chama o caso de uso de reprocessamento e registra eventos financeiros finais no Outbox quando houver lancamentos elegiveis.
-7. `BalanceService.Worker` consome apenas `LedgerEntryCreated.v1` e atualiza a projecao `daily_balances`.
+7. `BalanceService.Worker` consome `LedgerEntryCreated.v2` e mantem leitura de `LedgerEntryCreated.v1` como legado para atualizar a projecao `daily_balances`.
 8. Mensagens invalidas ou nao recuperaveis do fluxo consumido pelo Balance sao publicadas pela porta neutra de DLQ; o adapter concreto segue o provider selecionado no worker.
 
 No consumo Kafka do Balance, o fluxo interno esperado e:
@@ -85,22 +85,22 @@ O mapper concentra headers e coordenadas Kafka. O processor valida a fonte logic
 
 | Item | Valor |
 | --- | --- |
-| Evento de lancamento | `LedgerEntryCreated.v1` |
+| Evento de lancamento | `LedgerEntryCreated.v2` |
 | Topico de lancamento | `ledger.ledgerentry.created` |
 | Evento de solicitacao de estorno | `LancamentoEstornoSolicitado.v1` |
 | Topico de solicitacao de estorno | `ledger.lancamento.estorno.solicitado` |
 | Evento de solicitacao de reprocessamento | `ReprocessamentoLancamentosSolicitado.v1` |
 | Topico de solicitacao de reprocessamento | `ledger.lancamentos.reprocessamento.solicitado` |
 | DLQ | `ledger.ledgerentry.created.dlq` |
-| Mapeamentos | `LedgerEntryCreated.v1` -> `ledger.ledgerentry.created`; `LancamentoEstornoSolicitado.v1` -> `ledger.lancamento.estorno.solicitado`; `ReprocessamentoLancamentosSolicitado.v1` -> `ledger.lancamentos.reprocessamento.solicitado` |
+| Mapeamentos | `LedgerEntryCreated.v1` -> `ledger.ledgerentry.created`; `LedgerEntryCreated.v2` -> `ledger.ledgerentry.created`; `LancamentoEstornoSolicitado.v1` -> `ledger.lancamento.estorno.solicitado`; `ReprocessamentoLancamentosSolicitado.v1` -> `ledger.lancamentos.reprocessamento.solicitado` |
 
-`LancamentoEstornoSolicitado.v1` e gravado pelo Ledger no Outbox e publicado pelo mesmo worker. Ele representa a intencao operacional de estorno, nao um fato financeiro final. O processamento financeiro nao depende do `BalanceService`: o proprio Ledger processa a solicitacao persistida e, ao concluir, registra um `LedgerEntryCreated.v1` para o lancamento compensatorio.
+`LancamentoEstornoSolicitado.v1` e gravado pelo Ledger no Outbox e publicado pelo mesmo worker. Ele representa a intencao operacional de estorno, nao um fato financeiro final. O processamento financeiro nao depende do `BalanceService`: o proprio Ledger processa a solicitacao persistida e, ao concluir, registra um `LedgerEntryCreated.v2` para o lancamento compensatorio.
 
-O `BalanceService.Worker` deve ignorar/rejeitar `LancamentoEstornoSolicitado.v1` como evento financeiro. Saldos so mudam com `LedgerEntryCreated.v1`, inclusive quando esse evento representa o lancamento compensatorio de um estorno.
+O `BalanceService.Worker` deve ignorar/rejeitar `LancamentoEstornoSolicitado.v1` como evento financeiro. Saldos so mudam com `LedgerEntryCreated.v2` ou com `LedgerEntryCreated.v1` legado, inclusive quando esse evento representa o lancamento compensatorio de um estorno.
 
-O contrato formal, o exemplo valido e a politica de compatibilidade de `LedgerEntryCreated.v1` ficam em [docs/contracts/events/LedgerEntryCreated.v1.md](../contracts/events/LedgerEntryCreated.v1.md). `currency` nao faz parte do payload atual: o Ledger nao recebe nem persiste moeda e o Balance usa `BRL` como limitacao conhecida da POC.
+O contrato atual, o exemplo valido e a politica de compatibilidade de `LedgerEntryCreated.v2` ficam em [docs/events/ledger-entry-created-v2.md](../events/ledger-entry-created-v2.md). `LedgerEntryCreated.v1` permanece em [docs/events/ledger-entry-created-v1.md](../events/ledger-entry-created-v1.md) como contrato legado sem `currency`.
 
-`ReprocessamentoLancamentosSolicitado.v1` tambem e evento operacional/intencao interna. Ele nao representa conclusao nem alteracao direta de saldo. O `LedgerService` e o dono do processamento: o consumer de reprocessamento le esse topico, localiza a solicitacao persistida, muda o status e republica `LedgerEntryCreated.v1` para os lancamentos elegiveis como evento financeiro final. O `BalanceService` nao consome a solicitacao operacional.
+`ReprocessamentoLancamentosSolicitado.v1` tambem e evento operacional/intencao interna. Ele nao representa conclusao nem alteracao direta de saldo. O `LedgerService` e o dono do processamento: o consumer de reprocessamento le esse topico, localiza a solicitacao persistida, muda o status e republica `LedgerEntryCreated.v2` para os lancamentos elegiveis como evento financeiro final. O `BalanceService` nao consome a solicitacao operacional.
 
 O modo Kafka legado cria os topicos no startup local. O consumer Kafka do Balance usa `AllowAutoCreateTopics=false`.
 
@@ -117,7 +117,7 @@ Headers publicados pelo producer:
 
 No producer Pub/Sub do Ledger, os mesmos metadados logicos sao publicados como attributes.
 
-O `BalanceService.Worker` exige `event_type=LedgerEntryCreated.v1`, usa `event_id` para rastreabilidade e idempotencia quando presente, restaura `traceparent`/`tracestate` como parent do span `kafka.consume`, reidrata `baggage` quando possivel e preserva headers relevantes ao enviar mensagens para a DLQ. Mensagens antigas sem headers W3C continuam validas; nesse caso, o consumo segue pelo fallback funcional e pode criar um span raiz quando OpenTelemetry estiver habilitado.
+O `BalanceService.Worker` aceita `event_type=LedgerEntryCreated.v2` e `event_type=LedgerEntryCreated.v1`, usa `event_id` para rastreabilidade e idempotencia quando presente, restaura `traceparent`/`tracestate` como parent do span `kafka.consume`, reidrata `baggage` quando possivel e preserva headers relevantes ao enviar mensagens para a DLQ. Mensagens antigas v1 sem headers W3C continuam validas; nesse caso, o consumo segue pelo fallback funcional de moeda e pode criar um span raiz quando OpenTelemetry estiver habilitado.
 
 ## Outbox
 
@@ -189,7 +189,7 @@ Procedimento recomendado:
 Limitacoes e riscos:
 
 - O requeue nao altera payload nem contrato de evento.
-- Requeue de `LedgerEntryCreated.v1` pode gerar reentrega Kafka, esperada no modelo at-least-once; o Balance deve permanecer idempotente.
+- Requeue de `LedgerEntryCreated.v1` ou `LedgerEntryCreated.v2` pode gerar reentrega Kafka, esperada no modelo at-least-once; o Balance deve permanecer idempotente.
 - Se a mensagem voltar para `DeadLetter`, nao repita indefinidamente: investigue contrato, topico, ACL, serializacao e disponibilidade do broker.
 - A auditoria persistente guarda o ultimo requeue e o contador; logs da API/publisher complementam a linha do tempo operacional.
 
@@ -328,7 +328,7 @@ O handler:
 2. ignora solicitacoes ja finais para suportar retry e reentrega Kafka;
 3. marca a solicitacao como `Processing`;
 4. busca `LedgerEntry` do mesmo `merchantId` no periodo inclusivo informado;
-5. registra no Outbox um `LedgerEntryCreated.v1` para cada lancamento elegivel;
+5. registra no Outbox um `LedgerEntryCreated.v2` para cada lancamento elegivel;
 6. marca como `Completed` quando houver lancamentos ou `CompletedWithWarnings` quando nenhum lancamento for encontrado;
 7. marca como `Rejected` em erro de regra conhecido e `Failed` em erro tecnico inesperado.
 

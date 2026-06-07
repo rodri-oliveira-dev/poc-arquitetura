@@ -1,0 +1,56 @@
+name: event-contract-validation
+
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "contracts/events/**"
+      - "docs/events/**"
+      - "docs/development/event-contract-versioning.md"
+      - "package.json"
+      - "package-lock.json"
+      - "scripts/validate-event-contracts.mjs"
+      - ".github/workflows/event-contracts.yml"
+  push:
+    branches: ["main"]
+    paths:
+      - "contracts/events/**"
+      - "docs/events/**"
+      - "docs/development/event-contract-versioning.md"
+      - "package.json"
+      - "package-lock.json"
+      - "scripts/validate-event-contracts.mjs"
+      - ".github/workflows/event-contracts.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: true
+
+jobs:
+  validate:
+    name: Validate event contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Validate event schemas and examples
+        run: npm run events:validate

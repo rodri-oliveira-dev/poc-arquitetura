@@ -29,9 +29,13 @@ run_trivy_security_scan() {
     --severity HIGH,CRITICAL \
     --exit-code 1 \
     --tf-vars "$trivy_tf_vars" \
+    --skip-dirs node_modules \
     --skip-dirs .git \
+    --skip-dirs dist \
     --skip-dirs .terraform \
+    --skip-dirs bin \
     --skip-dirs "**/bin" \
+    --skip-dirs obj \
     --skip-dirs "**/obj" \
     --skip-dirs .vs \
     --skip-dirs .idea \
@@ -53,9 +57,13 @@ run_trivy_security_scan() {
     --severity HIGH,CRITICAL \
     --exit-code 1 \
     --tf-vars "$trivy_tf_vars" \
+    --skip-dirs node_modules \
     --skip-dirs .git \
+    --skip-dirs dist \
     --skip-dirs .terraform \
+    --skip-dirs bin \
     --skip-dirs "**/bin" \
+    --skip-dirs obj \
     --skip-dirs "**/obj" \
     --skip-dirs .vs \
     --skip-dirs .idea \

@@ -1,4 +1,5 @@
 using BalanceService.Application.Abstractions.Persistence;
+using BalanceService.Application.Balances.Replay;
 using BalanceService.Infrastructure.Persistence;
 using BalanceService.Infrastructure.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
@@ -58,6 +59,7 @@ public static class DependencyInjection
         services.AddScoped<IDailyBalanceRepository, DailyBalanceRepository>();
         services.AddScoped<IDailyBalanceReadRepository, DailyBalanceReadRepository>();
         services.AddScoped<IProcessedEventRepository, ProcessedEventRepository>();
+        services.AddScoped<IFilteredEventReplaySource, OutboxFilteredEventReplaySource>();
 
         return services;
     }

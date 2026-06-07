@@ -8,6 +8,20 @@
   "files.associations": {
     "*.slnx": "xml"
   },
+  "terminal.integrated.env.windows": {
+    "Path": "C:\\Program Files\\nodejs;C:\\Users\\rodrigooliveira\\AppData\\Roaming\\npm;C:\\Python314;C:\\Python314\\Scripts;${env:Path}"
+  },
+  "terminal.integrated.profiles.windows": {
+    "PowerShell": {
+      "source": "PowerShell",
+      "args": [
+        "-NoLogo",
+        "-ExecutionPolicy",
+        "Bypass"
+      ]
+    }
+  },
+  "python.defaultInterpreterPath": "C:\\Python314\\python.exe",
   "files.exclude": {
     "**/bin": true,
     "**/obj": true,

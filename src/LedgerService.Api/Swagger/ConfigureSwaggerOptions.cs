@@ -21,6 +21,12 @@ public sealed class ConfigureSwaggerOptions : IConfigureOptions<SwaggerGenOption
 
     public void Configure(SwaggerGenOptions options)
     {
+        options.AddServer(new OpenApiServer
+        {
+            Url = "http://localhost:5226",
+            Description = "Ambiente local direto do LedgerService.Api"
+        });
+
         foreach (var description in _provider.ApiVersionDescriptions)
         {
             options.SwaggerDoc(description.GroupName, new OpenApiInfo

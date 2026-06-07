@@ -39,6 +39,7 @@ public sealed class PubSubReceivedMessageMapperTests
         Assert.Equal("LedgerEntryCreated.v1", message.EventType);
         Assert.Equal("evt-1", message.EventId);
         Assert.Equal("corr-1", message.CorrelationId);
+        Assert.Equal("evt-1", message.Attributes[PubSubAttributeNames.EventId]);
     }
 
     [Fact]

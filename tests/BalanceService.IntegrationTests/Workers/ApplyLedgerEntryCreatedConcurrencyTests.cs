@@ -104,6 +104,97 @@ public sealed class ApplyLedgerEntryCreatedConcurrencyTests
         Assert.Equal(1, await db.ProcessedEvents.CountAsync(x => x.EventId == evt.Id));
     }
 
+    [Fact]
+    public async Task Should_ignore_sequential_duplicate_without_changing_projection_state()
+    {
+        await _fixture.CleanAsync();
+
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var firstNow = DateTimeOffset.Parse("2026-02-16T15:00:00Z", CultureInfo.InvariantCulture);
+        var duplicateNow = DateTimeOffset.Parse("2026-02-16T16:00:00Z", CultureInfo.InvariantCulture);
+        var merchantId = $"merchant-{Guid.NewGuid():N}";
+        var evt = CreateEvent(
+            id: $"evt-{Guid.NewGuid():N}",
+            merchantId: merchantId,
+            type: "CREDIT",
+            amount: "100.00",
+            occurredAt: DateTimeOffset.Parse("2026-02-16T10:00:00-03:00", CultureInfo.InvariantCulture));
+
+        using (var serviceProvider = _fixture.CreateServiceProvider(firstNow))
+        {
+            var firstResult = await ApplyAsync(serviceProvider, evt, Task.CompletedTask);
+            Assert.Equal(ApplyLedgerEntryCreatedResult.Processed, firstResult);
+        }
+
+        await using var firstDb = _fixture.CreateDbContext();
+        var firstBalance = await firstDb.DailyBalances.SingleAsync(x => x.MerchantId == merchantId, cancellationToken);
+        var firstUpdatedAt = firstBalance.UpdatedAt;
+        var firstAsOf = firstBalance.AsOf;
+        var processedAt = await firstDb.ProcessedEvents
+            .Where(x => x.EventId == evt.Id)
+            .Select(x => x.ProcessedAt)
+            .SingleAsync(cancellationToken);
+
+        using (var serviceProvider = _fixture.CreateServiceProvider(duplicateNow))
+        {
+            var duplicateResult = await ApplyAsync(serviceProvider, evt, Task.CompletedTask);
+            Assert.Equal(ApplyLedgerEntryCreatedResult.IgnoredDuplicate, duplicateResult);
+        }
+
+        await using var db = _fixture.CreateDbContext();
+        var balance = await db.DailyBalances.SingleAsync(x => x.MerchantId == merchantId, cancellationToken);
+
+        Assert.Equal(100m, balance.TotalCredits);
+        Assert.Equal(0m, balance.TotalDebits);
+        Assert.Equal(100m, balance.NetBalance);
+        Assert.Equal(firstUpdatedAt, balance.UpdatedAt);
+        Assert.Equal(firstAsOf, balance.AsOf);
+        Assert.Equal(1, await db.ProcessedEvents.CountAsync(x => x.EventId == evt.Id, cancellationToken));
+        Assert.Equal(firstNow, processedAt);
+    }
+
+    [Fact]
+    public async Task Should_apply_same_content_again_when_event_id_is_different()
+    {
+        await _fixture.CleanAsync();
+
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var firstNow = DateTimeOffset.Parse("2026-02-16T15:00:00Z", CultureInfo.InvariantCulture);
+        var secondNow = DateTimeOffset.Parse("2026-02-16T16:00:00Z", CultureInfo.InvariantCulture);
+        var merchantId = $"merchant-{Guid.NewGuid():N}";
+        var first = CreateEvent(
+            id: $"evt-{Guid.NewGuid():N}",
+            merchantId: merchantId,
+            type: "CREDIT",
+            amount: "100.00",
+            occurredAt: DateTimeOffset.Parse("2026-02-16T10:00:00-03:00", CultureInfo.InvariantCulture));
+        var second = first with { Id = $"evt-{Guid.NewGuid():N}" };
+
+        using (var serviceProvider = _fixture.CreateServiceProvider(firstNow))
+        {
+            var firstResult = await ApplyAsync(serviceProvider, first, Task.CompletedTask);
+            Assert.Equal(ApplyLedgerEntryCreatedResult.Processed, firstResult);
+        }
+
+        using (var serviceProvider = _fixture.CreateServiceProvider(secondNow))
+        {
+            var secondResult = await ApplyAsync(serviceProvider, second, Task.CompletedTask);
+            Assert.Equal(ApplyLedgerEntryCreatedResult.Processed, secondResult);
+        }
+
+        await using var db = _fixture.CreateDbContext();
+        var balance = await db.DailyBalances.SingleAsync(x => x.MerchantId == merchantId, cancellationToken);
+
+        Assert.Equal(200m, balance.TotalCredits);
+        Assert.Equal(0m, balance.TotalDebits);
+        Assert.Equal(200m, balance.NetBalance);
+        Assert.Equal(first.OccurredAt.ToUniversalTime(), balance.AsOf);
+        Assert.Equal(secondNow, balance.UpdatedAt);
+        Assert.Equal(2, await db.ProcessedEvents.CountAsync(x => x.MerchantId == merchantId, cancellationToken));
+        Assert.True(await db.ProcessedEvents.AnyAsync(x => x.EventId == first.Id, cancellationToken));
+        Assert.True(await db.ProcessedEvents.AnyAsync(x => x.EventId == second.Id, cancellationToken));
+    }
+
     private static async Task<ApplyLedgerEntryCreatedResult> ApplyAsync(
         IServiceProvider serviceProvider,
         LedgerEntryCreatedEvent evt,
@@ -114,7 +205,7 @@ public sealed class ApplyLedgerEntryCreatedConcurrencyTests
         await using var scope = serviceProvider.CreateAsyncScope();
         var handler = scope.ServiceProvider.GetRequiredService<ApplyLedgerEntryCreatedHandler>();
 
-        return await handler.Handle(new ApplyLedgerEntryCreatedCommand(evt), CancellationToken.None);
+        return await handler.Handle(new ApplyLedgerEntryCreatedCommand(evt), TestContext.Current.CancellationToken);
     }
 
     private static LedgerEntryCreatedEvent CreateEvent(
@@ -127,6 +218,7 @@ public sealed class ApplyLedgerEntryCreatedConcurrencyTests
             id,
             type,
             amount,
+            "BRL",
             occurredAt,
             merchantId,
             occurredAt,

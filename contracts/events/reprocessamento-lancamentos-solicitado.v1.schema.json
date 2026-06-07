@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://poc-arquitetura.local/contracts/events/reprocessamento-lancamentos-solicitado.v1.schema.json",
+  "title": "ReprocessamentoLancamentosSolicitado.v1",
+  "description": "Payload logico da solicitacao operacional de reprocessamento de lancamentos.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "reprocessamentoId",
+    "merchantId",
+    "dataInicial",
+    "dataFinal",
+    "motivo",
+    "status",
+    "requestedAt",
+    "correlationId"
+  ],
+  "properties": {
+    "reprocessamentoId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Identificador da solicitacao de reprocessamento."
+    },
+    "merchantId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Merchant a reprocessar."
+    },
+    "dataInicial": {
+      "type": "string",
+      "format": "date",
+      "description": "Inicio do periodo de reprocessamento."
+    },
+    "dataFinal": {
+      "type": "string",
+      "format": "date",
+      "description": "Fim do periodo de reprocessamento."
+    },
+    "motivo": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Motivo informado na solicitacao."
+    },
+    "status": {
+      "type": "string",
+      "const": "Pending",
+      "description": "Status inicial persistido na criacao da solicitacao."
+    },
+    "requestedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Instante de criacao da solicitacao."
+    },
+    "correlationId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Correlacao logica da requisicao."
+    }
+  }
+}

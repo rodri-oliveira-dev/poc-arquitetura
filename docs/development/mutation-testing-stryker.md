@@ -51,7 +51,7 @@ Mutation testing nao deve ser usado para perseguir score de forma cega. O objeti
 
 ## Como preparar o ambiente
 
-O Stryker.NET e executado como ferramenta local do .NET versionada em `dotnet-tools.json`.
+O Stryker.NET e executado como ferramenta local do .NET versionada em `.config/dotnet-tools.json`.
 
 Confira os runtimes instalados:
 
@@ -120,7 +120,7 @@ Esses comandos apenas restauram as ferramentas locais e executam `dotnet stryker
 
 ## Execucao informativa no GitHub Actions
 
-O workflow `Mutation Tests` fica em `.github/workflows/mutation-tests.yml`.
+O workflow `mutation-tests` fica em `.github/workflows/mutation-tests.yml`.
 
 Ele roda em:
 
@@ -156,7 +156,7 @@ O HTML pode conter paths, nomes de tipos/testes e trechos de codigo mutado. Ele 
 ### Como acessar o relatorio no GitHub
 
 1. Abra a aba **Actions** no GitHub.
-2. Selecione o workflow **Mutation Tests**.
+2. Selecione o workflow **mutation-tests**.
 3. Abra a execucao desejada.
 4. Baixe os artifacts `stryker-ledger-service-application` e/ou `stryker-balance-service-application`.
 5. Extraia o artifact localmente.
@@ -329,7 +329,7 @@ Para `BalanceService.Application`, priorize sobreviventes em:
 
 ## Proximos passos
 
-1. Avaliar duracao media do workflow `Mutation Tests`.
+1. Avaliar duracao media do workflow `mutation-tests`.
 2. Avaliar separar Ledger e Balance em jobs paralelos ou matrix.
 3. Avaliar publicar score no GitHub Step Summary.
 4. Avaliar rodar semanalmente com `schedule`.

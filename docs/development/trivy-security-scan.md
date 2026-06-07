@@ -7,8 +7,55 @@ O repositorio usa Trivy para feedback antecipado sobre configuracoes de infraest
 O hook local `.githooks/pre-push` e o workflow `.github/workflows/terraform-validation.yml` executam:
 
 ```powershell
-trivy config --severity HIGH,CRITICAL --tf-vars infra/terraform/environments/dev/validation.tfvars .
-trivy fs --scanners vuln,secret,misconfig --severity HIGH,CRITICAL --tf-vars infra/terraform/environments/dev/validation.tfvars --skip-dirs .git --skip-dirs .terraform --skip-dirs "**/bin" --skip-dirs "**/obj" --skip-dirs .vs --skip-dirs .idea --skip-dirs TestResults --skip-dirs "**/TestResults" --skip-dirs coverage --skip-dirs CodeCoverage --skip-dirs StrykerOutput --skip-dirs .dotnet --skip-dirs .dotnet-home --skip-dirs .nuget --skip-dirs artifacts --skip-dirs infra/nginx/certs .
+trivy config `
+  --severity HIGH,CRITICAL `
+  --tf-vars infra/terraform/environments/dev/validation.tfvars `
+  --skip-dirs node_modules `
+  --skip-dirs .git `
+  --skip-dirs dist `
+  --skip-dirs .terraform `
+  --skip-dirs bin `
+  --skip-dirs "**/bin" `
+  --skip-dirs obj `
+  --skip-dirs "**/obj" `
+  --skip-dirs .vs `
+  --skip-dirs .idea `
+  --skip-dirs TestResults `
+  --skip-dirs "**/TestResults" `
+  --skip-dirs coverage `
+  --skip-dirs CodeCoverage `
+  --skip-dirs StrykerOutput `
+  --skip-dirs .dotnet `
+  --skip-dirs .dotnet-home `
+  --skip-dirs .nuget `
+  --skip-dirs artifacts `
+  --skip-dirs infra/nginx/certs `
+  .
+trivy fs `
+  --scanners vuln,secret,misconfig `
+  --severity HIGH,CRITICAL `
+  --tf-vars infra/terraform/environments/dev/validation.tfvars `
+  --skip-dirs node_modules `
+  --skip-dirs .git `
+  --skip-dirs dist `
+  --skip-dirs .terraform `
+  --skip-dirs bin `
+  --skip-dirs "**/bin" `
+  --skip-dirs obj `
+  --skip-dirs "**/obj" `
+  --skip-dirs .vs `
+  --skip-dirs .idea `
+  --skip-dirs TestResults `
+  --skip-dirs "**/TestResults" `
+  --skip-dirs coverage `
+  --skip-dirs CodeCoverage `
+  --skip-dirs StrykerOutput `
+  --skip-dirs .dotnet `
+  --skip-dirs .dotnet-home `
+  --skip-dirs .nuget `
+  --skip-dirs artifacts `
+  --skip-dirs infra/nginx/certs `
+  .
 ```
 
 O scan de configuracao usa tambem
@@ -75,22 +122,118 @@ Quando o Trivy esta instalado, o `pre-push` bloqueia o push se encontrar achados
 Na raiz do repositorio:
 
 ```powershell
-trivy config --severity HIGH,CRITICAL --tf-vars infra/terraform/environments/dev/validation.tfvars .
-trivy fs --scanners vuln,secret,misconfig --severity HIGH,CRITICAL --tf-vars infra/terraform/environments/dev/validation.tfvars --skip-dirs .git --skip-dirs .terraform --skip-dirs "**/bin" --skip-dirs "**/obj" --skip-dirs .vs --skip-dirs .idea --skip-dirs TestResults --skip-dirs "**/TestResults" --skip-dirs coverage --skip-dirs CodeCoverage --skip-dirs StrykerOutput --skip-dirs .dotnet --skip-dirs .dotnet-home --skip-dirs .nuget --skip-dirs artifacts --skip-dirs infra/nginx/certs .
+trivy config `
+  --severity HIGH,CRITICAL `
+  --tf-vars infra/terraform/environments/dev/validation.tfvars `
+  --skip-dirs node_modules `
+  --skip-dirs .git `
+  --skip-dirs dist `
+  --skip-dirs .terraform `
+  --skip-dirs bin `
+  --skip-dirs "**/bin" `
+  --skip-dirs obj `
+  --skip-dirs "**/obj" `
+  --skip-dirs .vs `
+  --skip-dirs .idea `
+  --skip-dirs TestResults `
+  --skip-dirs "**/TestResults" `
+  --skip-dirs coverage `
+  --skip-dirs CodeCoverage `
+  --skip-dirs StrykerOutput `
+  --skip-dirs .dotnet `
+  --skip-dirs .dotnet-home `
+  --skip-dirs .nuget `
+  --skip-dirs artifacts `
+  --skip-dirs infra/nginx/certs `
+  .
+trivy fs `
+  --scanners vuln,secret,misconfig `
+  --severity HIGH,CRITICAL `
+  --tf-vars infra/terraform/environments/dev/validation.tfvars `
+  --skip-dirs node_modules `
+  --skip-dirs .git `
+  --skip-dirs dist `
+  --skip-dirs .terraform `
+  --skip-dirs bin `
+  --skip-dirs "**/bin" `
+  --skip-dirs obj `
+  --skip-dirs "**/obj" `
+  --skip-dirs .vs `
+  --skip-dirs .idea `
+  --skip-dirs TestResults `
+  --skip-dirs "**/TestResults" `
+  --skip-dirs coverage `
+  --skip-dirs CodeCoverage `
+  --skip-dirs StrykerOutput `
+  --skip-dirs .dotnet `
+  --skip-dirs .dotnet-home `
+  --skip-dirs .nuget `
+  --skip-dirs artifacts `
+  --skip-dirs infra/nginx/certs `
+  .
 ```
 
 Para reproduzir o comportamento bloqueante usado pelo hook:
 
 ```powershell
-trivy config --severity HIGH,CRITICAL --exit-code 1 --tf-vars infra/terraform/environments/dev/validation.tfvars .
-trivy fs --scanners vuln,secret,misconfig --severity HIGH,CRITICAL --exit-code 1 --tf-vars infra/terraform/environments/dev/validation.tfvars --skip-dirs .git --skip-dirs .terraform --skip-dirs "**/bin" --skip-dirs "**/obj" --skip-dirs .vs --skip-dirs .idea --skip-dirs TestResults --skip-dirs "**/TestResults" --skip-dirs coverage --skip-dirs CodeCoverage --skip-dirs StrykerOutput --skip-dirs .dotnet --skip-dirs .dotnet-home --skip-dirs .nuget --skip-dirs artifacts --skip-dirs infra/nginx/certs .
+trivy config `
+  --severity HIGH,CRITICAL `
+  --exit-code 1 `
+  --tf-vars infra/terraform/environments/dev/validation.tfvars `
+  --skip-dirs node_modules `
+  --skip-dirs .git `
+  --skip-dirs dist `
+  --skip-dirs .terraform `
+  --skip-dirs bin `
+  --skip-dirs "**/bin" `
+  --skip-dirs obj `
+  --skip-dirs "**/obj" `
+  --skip-dirs .vs `
+  --skip-dirs .idea `
+  --skip-dirs TestResults `
+  --skip-dirs "**/TestResults" `
+  --skip-dirs coverage `
+  --skip-dirs CodeCoverage `
+  --skip-dirs StrykerOutput `
+  --skip-dirs .dotnet `
+  --skip-dirs .dotnet-home `
+  --skip-dirs .nuget `
+  --skip-dirs artifacts `
+  --skip-dirs infra/nginx/certs `
+  .
+trivy fs `
+  --scanners vuln,secret,misconfig `
+  --severity HIGH,CRITICAL `
+  --exit-code 1 `
+  --tf-vars infra/terraform/environments/dev/validation.tfvars `
+  --skip-dirs node_modules `
+  --skip-dirs .git `
+  --skip-dirs dist `
+  --skip-dirs .terraform `
+  --skip-dirs bin `
+  --skip-dirs "**/bin" `
+  --skip-dirs obj `
+  --skip-dirs "**/obj" `
+  --skip-dirs .vs `
+  --skip-dirs .idea `
+  --skip-dirs TestResults `
+  --skip-dirs "**/TestResults" `
+  --skip-dirs coverage `
+  --skip-dirs CodeCoverage `
+  --skip-dirs StrykerOutput `
+  --skip-dirs .dotnet `
+  --skip-dirs .dotnet-home `
+  --skip-dirs .nuget `
+  --skip-dirs artifacts `
+  --skip-dirs infra/nginx/certs `
+  .
 ```
 
-O scan de filesystem continua analisando arquivos versionados relevantes como `Directory.Packages.props`, `.csproj`, Dockerfiles, Compose, Terraform e configuracoes. Os `skip-dirs` cobrem apenas diretorios gerados, caches locais e certificados locais do Nginx que nao devem ser versionados.
+Os scans continuam analisando arquivos versionados relevantes como `Directory.Packages.props`, `.csproj`, Dockerfiles, Compose, Terraform e configuracoes. Os `skip-dirs` cobrem apenas diretorios gerados, dependencias locais, caches locais e certificados locais do Nginx que nao devem ser versionados, evitando falsos positivos fora do codigo do projeto.
 
 ## CI
 
-O workflow `terraform-validation` roda Trivy em pull requests e em pushes para `main` quando ha mudancas em Terraform, Dockerfiles, Compose ou no proprio workflow.
+O workflow `infra-security-and-terraform-validation` roda Trivy em pull requests e em pushes para `main` quando ha mudancas em Terraform, Dockerfiles, Compose ou no proprio workflow.
 
 No CI, a validacao executa independentemente da instalacao local do desenvolvedor. Os scans sao bloqueantes para severidades `HIGH` e `CRITICAL`, porque nao dependem de credenciais cloud nem alteram infraestrutura real.
 

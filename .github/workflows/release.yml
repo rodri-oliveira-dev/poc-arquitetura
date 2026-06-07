@@ -1,4 +1,4 @@
-name: release
+name: release-on-merge
 
 on:
   pull_request:
@@ -15,6 +15,7 @@ concurrency:
 
 jobs:
   create-release:
+    name: Create release after merge
     if: ${{ github.event.pull_request.merged == true }}
     runs-on: ubuntu-latest
     timeout-minutes: 10

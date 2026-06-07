@@ -1,6 +1,6 @@
 # GitHub Pages e documentacao LikeC4
 
-Este repositorio publica a documentacao arquitetural LikeC4 no GitHub Pages pelo workflow `pages-architecture`.
+Este repositorio publica a documentacao arquitetural LikeC4 no GitHub Pages pelo workflow `architecture-pages`.
 
 ## Fonte
 
@@ -33,12 +33,13 @@ Permissoes usadas:
 Requisitos:
 
 - Node.js 20+;
-- `npm`/`npx`.
+- `npm`.
 
 Comando para gerar o site estatico:
 
 ```bash
-npx --yes likec4@latest build docs/architecture -o dist/architecture --base ./
+npm ci
+npm run architecture:build
 ```
 
 O diretorio `dist/` e ignorado pelo git e nao deve ser versionado.
@@ -46,16 +47,16 @@ O diretorio `dist/` e ignorado pelo git e nao deve ser versionado.
 Para visualizar durante a edicao:
 
 ```bash
-npx --yes likec4@latest start docs/architecture
+npx likec4 start docs/architecture
 ```
 
 ## Validacao antes do push
 
 Antes de enviar alteracoes de arquitetura:
 
-1. Gere o site localmente com `npx --yes likec4@latest build docs/architecture -o dist/architecture --base ./`.
+1. Gere o site localmente com `npm ci` e `npm run architecture:build`.
 2. Confirme que os arquivos `*.c4` continuam parseando sem erro.
-3. Abra um pull request para que o workflow `pages-architecture` valide o build.
+3. Abra um pull request para que o workflow `architecture-pages` valide o build.
 
 ## GitHub Pages
 

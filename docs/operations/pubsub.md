@@ -117,7 +117,8 @@ Para configurar sem perfil `appsettings.PubSub.json`, use os outputs do Terrafor
 | Ledger | `Messaging__Provider=PubSub` | Seleciona o adapter Pub/Sub. |
 | Ledger | `PubSub__Producer__ProjectId` | Projeto GCP. |
 | Ledger | `PubSub__Producer__DefaultTopicId` | Topic principal para eventos financeiros. |
-| Ledger | `PubSub__Producer__TopicMap__LedgerEntryCreated.v1` | Mapeia explicitamente o contrato atual para o topic principal. |
+| Ledger | `PubSub__Producer__TopicMap__LedgerEntryCreated.v1` | Mapeia explicitamente o contrato legado para o topic principal. |
+| Ledger | `PubSub__Producer__TopicMap__LedgerEntryCreated.v2` | Mapeia explicitamente o contrato atual para o topic principal. |
 | Ledger | `PubSub__Producer__EnableMessageOrdering` | Habilita ordering key quando o fluxo exigir ordenacao por agregado. |
 | Balance | `Messaging__Provider=PubSub` | Seleciona o adapter Pub/Sub. |
 | Balance | `PubSub__Consumer__ProjectId` | Projeto GCP. |

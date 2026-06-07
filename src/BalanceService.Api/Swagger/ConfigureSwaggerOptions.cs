@@ -19,6 +19,12 @@ public sealed class ConfigureSwaggerOptions : IConfigureOptions<SwaggerGenOption
 
     public void Configure(SwaggerGenOptions options)
     {
+        options.AddServer(new OpenApiServer
+        {
+            Url = "http://localhost:5228",
+            Description = "Ambiente local direto do BalanceService.Api"
+        });
+
         foreach (var description in _provider.ApiVersionDescriptions)
         {
             options.SwaggerDoc(description.GroupName, new OpenApiInfo

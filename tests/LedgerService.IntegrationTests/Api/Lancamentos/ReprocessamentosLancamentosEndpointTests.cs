@@ -203,7 +203,7 @@ public sealed class ReprocessamentosLancamentosEndpointTests : IClassFixture<Led
         Assert.NotNull(reprocessamento.CompletedAt);
         var outboxMessage = Assert.Single(db.OutboxMessages.Where(x =>
             x.AggregateType == "LedgerEntryReprocessamento" &&
-            x.EventType == "LedgerEntryCreated.v1"));
+            x.EventType == "LedgerEntryCreated.v2"));
         Assert.Equal(eligible.Id, outboxMessage.AggregateId);
     }
 

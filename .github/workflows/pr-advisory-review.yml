@@ -1,4 +1,4 @@
-name: pr-advisory-review
+name: pr-advisory-checks
 
 on:
   pull_request:
@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -23,7 +23,7 @@ env:
 
 jobs:
   ensure-pr-owner:
-    name: Ensure PR owner
+    name: Assign PR owner (advisory)
     if: ${{ github.event_name == 'pull_request_target' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -49,8 +49,13 @@ jobs:
             local pr_author="$2"
 
             if [ -z "$pr_number" ] || [ -z "$pr_author" ]; then
-              echo "PR number or author not available."
-              return 1
+              {
+                echo "### PR owner assignment"
+                echo
+                echo "PR number or author not available. Owner assignment was skipped."
+              } >> "$GITHUB_STEP_SUMMARY"
+              echo "::warning::PR number or author not available. Owner assignment was skipped."
+              return 0
             fi
 
             echo "Checking PR #$pr_number owner: $pr_author"
@@ -60,13 +65,22 @@ jobs:
               return 0
             fi
 
-            gh api \
+            if gh api \
               --method POST \
               "repos/$REPOSITORY/issues/$pr_number/assignees" \
               -f "assignees[]=$pr_author" \
-              >/dev/null
+              >/dev/null; then
+              echo "Assigned $pr_author as owner of PR #$pr_number."
+              return 0
+            fi
 
-            echo "Assigned $pr_author as owner of PR #$pr_number."
+            {
+              echo "### PR owner assignment"
+              echo
+              echo "Could not assign \`$pr_author\` as owner of PR #$pr_number. This advisory automation was skipped without blocking the pull request."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::warning::Could not assign $pr_author as owner of PR #$pr_number. This advisory automation was skipped."
+            return 0
           }
 
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
@@ -79,7 +93,7 @@ jobs:
           fi
 
   analyzer-recommendations:
-    name: Analyzer recommendations
+    name: Run analyzer recommendations
     if: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
