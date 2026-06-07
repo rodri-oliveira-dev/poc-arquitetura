@@ -11,7 +11,7 @@ using Microsoft.Extensions.Logging;
 
 using Moq;
 
-namespace BalanceService.UnitTests.Application.Balances.Replay;
+namespace BalanceService.Application.Tests.Application.Balances.Replay;
 
 public sealed class ProjectionRebuildDivergenceReportHandlerTests
 {
@@ -264,7 +264,7 @@ public sealed class ProjectionRebuildDivergenceReportHandlerTests
                 Instant($"{date}T12:00:00Z")));
         }
 
-        public IReadOnlyList<DailyBalanceReadModel> Snapshot()
+        public DailyBalanceReadModel[] Snapshot()
             => _items.ToArray();
     }
 

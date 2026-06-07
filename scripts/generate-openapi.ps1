@@ -64,6 +64,20 @@ Execute antes:
   if ($LASTEXITCODE -ne 0) {
     throw "Falha ao gerar contrato OpenAPI para $ServiceName."
   }
+
+  Normalize-OpenApiContract $outputPath
+}
+
+function Normalize-OpenApiContract {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$Path
+  )
+
+  $content = [System.IO.File]::ReadAllText($Path)
+  $normalized = $content.Replace('\r\n', '\n')
+  $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+  [System.IO.File]::WriteAllText($Path, $normalized, $utf8NoBom)
 }
 
 New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
