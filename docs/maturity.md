@@ -15,7 +15,7 @@ Status documental atualizado em 2026-06-07. A tabela resume o estado atual do pr
 | Seguranca estatica documentada | Parcialmente atendido | `.github/workflows/codeql.yml`, `docs/development/pull-request-validation.md`, relatorio OWASP | CodeQL esta documentado, mas esta pagina nao afirma resultado recente de SAST. |
 | Dependency review / vulnerabilidades NuGet | Parcialmente atendido | `.github/workflows/dependency-review.yml`, `Directory.Packages.props`, ADR de pruning NuGet | Dependency review existe; ausencia de CVEs exige execucao atual de scanner. |
 | Trivy para infraestrutura, filesystem e secrets | Atendido | `.github/workflows/terraform-validation.yml`, `.githooks/pre-push`, `docs/development/trivy-security-scan.md` | Validacao local e em workflow cobre Dockerfiles, Terraform, misconfigurations, secrets e filesystem, com exclusao de `node_modules`, caches e diretorios gerados. Esta revisao nao executou o scanner. |
-| OWASP/ZAP ou DAST | Parcialmente atendido | `scripts/run-owasp-zap.ps1`, `scripts/run-owasp-zap.sh`, `docs/development/owasp-zap.md`, `docs/reports/aspire-and-owasp-assessment.md` | Ha execucao local versionada e documentada contra Ledger e Balance por padrao, com Auth.Api apenas como legado opcional, mas ainda nao ha gate automatizado em workflow nem resultado recente registrado nesta pagina. |
+| OWASP/ZAP ou DAST | Parcialmente atendido | `scripts/run-owasp-zap.ps1`, `scripts/run-owasp-zap.sh`, `.github/workflows/owasp-zap.yml`, `docs/development/owasp-zap.md`, `docs/reports/aspire-and-owasp-assessment.md` | Ha execucao local versionada e workflow manual contra Ledger e Balance por padrao, com Auth.Api fora do escopo padrao. Ainda nao e gate obrigatorio de PR e esta pagina nao registra resultado recente do scan. |
 | Testes de carga documentados | Atendido | `loadtests/k6/README.md`, `docs/development/local-development.md` | Cenarios smoke, balance50 e resilience estao documentados como validacao local/controlada. |
 | Observabilidade documentada | Atendido | `docs/observability.md`, LikeC4, dashboards versionados | Stack local cobre OTLP, Jaeger, Prometheus, Loki, Alloy, Alertmanager e Grafana. |
 | Execucao local documentada | Atendido | `docs/development/local-development.md`, `README.md` | Inclui compose principal com Pub/Sub emulator, Kafka legado opcional, migrations, portas, Nginx opcional, Testcontainers e k6. |
@@ -29,7 +29,7 @@ Status documental atualizado em 2026-06-07. A tabela resume o estado atual do pr
 
 ## Pendencias principais
 
-- Executar e registrar DAST/OWASP ZAP ou pentest quando houver necessidade de avaliar exposicao dinamica alem do script local versionado.
+- Executar e registrar DAST/OWASP ZAP ou pentest quando houver necessidade de avaliar exposicao dinamica alem do script local versionado e do workflow manual.
 - Evoluir a partir do baseline recomendado em `docs/architecture/production-readiness.md`, ainda pendente de implementacao para secrets produtivos, TLS interno, identidade de workload, Pub/Sub real produtivo, bancos, scans de imagem, WAF e rate limits por identidade.
 - Remover definitivamente o `Auth.Api` legado quando nao houver mais necessidade de compatibilidade; o caminho operacional local ja usa Keycloak, incluindo `ledger.read`.
 - Formalizar thresholds de latencia p95/p99 para k6 somente depois de obter linha de base local reprodutivel.

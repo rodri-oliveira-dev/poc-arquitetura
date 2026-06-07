@@ -1,0 +1,171 @@
+name: owasp-zap-baseline
+
+on:
+  workflow_dispatch:
+    inputs:
+      fail_on_alerts:
+        description: "Falhar o job quando o ZAP retornar alertas"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: true
+  DOTNET_NOLOGO: true
+  SOLUTION_PATH: ./LedgerService.slnx
+  NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+  ZAP_ARTIFACTS_DIR: ./artifacts/zap
+
+jobs:
+  zap-baseline:
+    name: Manual OWASP ZAP baseline
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7 # v5
+        with:
+          global-json-file: global.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', 'Directory.Packages.props', 'Directory.Build.props', 'global.json', 'dotnet-tools.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore .NET tools
+        run: dotnet tool restore
+
+      - name: Restore dependencies
+        run: dotnet restore "$SOLUTION_PATH"
+
+      - name: Start controlled HTTP stack dependencies
+        run: docker compose -f compose.yaml up -d --build postgres-db keycloak
+
+      - name: Wait for PostgreSQL
+        shell: bash
+        run: |
+          for _ in {1..60}; do
+            if docker compose -f compose.yaml exec -T postgres-db pg_isready -U postgres_admin -d appdb >/dev/null 2>&1; then
+              exit 0
+            fi
+
+            sleep 2
+          done
+
+          echo "PostgreSQL indisponivel apos timeout." >&2
+          docker compose -f compose.yaml logs postgres-db
+          exit 1
+
+      - name: Apply database migrations
+        shell: bash
+        env:
+          LEDGER_DB_MIGRATOR_PASSWORD: local_dev_password
+          BALANCE_DB_MIGRATOR_PASSWORD: local_dev_password
+        run: |
+          ConnectionStrings__DefaultConnection="Host=127.0.0.1;Port=15432;Database=appdb;Username=ledger_migrator_user;Password=$LEDGER_DB_MIGRATOR_PASSWORD" \
+            dotnet tool run dotnet-ef -- database update \
+            -p src/LedgerService.Infrastructure/LedgerService.Infrastructure.csproj \
+            -s src/LedgerService.Api/LedgerService.Api.csproj \
+            -c AppDbContext \
+            -- --environment Development
+
+          ConnectionStrings__DefaultConnection="Host=127.0.0.1;Port=15432;Database=appdb;Username=balance_migrator_user;Password=$BALANCE_DB_MIGRATOR_PASSWORD" \
+            dotnet tool run dotnet-ef -- database update \
+            -p src/BalanceService.Infrastructure/BalanceService.Infrastructure.csproj \
+            -s src/BalanceService.Api/BalanceService.Api.csproj \
+            -c BalanceDbContext \
+            -- --environment Development
+
+      - name: Start APIs
+        run: docker compose -f compose.yaml up -d --build ledger-service balance-service
+
+      - name: Wait for APIs
+        shell: bash
+        run: |
+          for url in \
+            http://localhost:5226/health \
+            http://localhost:5228/health
+          do
+            for i in {1..60}; do
+              if curl -fsS "$url" >/dev/null; then
+                break
+              fi
+
+              if [ "$i" -eq 60 ]; then
+                echo "API indisponivel: $url" >&2
+                docker compose -f compose.yaml logs ledger-service balance-service
+                exit 1
+              fi
+
+              sleep 2
+            done
+          done
+
+      - name: Run OWASP ZAP baseline
+        shell: bash
+        run: |
+          mkdir -p "$ZAP_ARTIFACTS_DIR"
+
+          args=(
+            --output-root "$ZAP_ARTIFACTS_DIR"
+            --health-timeout 180
+            --health-interval 5
+          )
+
+          if [ "${{ inputs.fail_on_alerts }}" = "true" ]; then
+            args+=(--fail-on-alerts)
+          fi
+
+          bash ./scripts/run-owasp-zap.sh "${args[@]}"
+
+      - name: Write ZAP summary
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          {
+            echo "## OWASP ZAP baseline manual"
+            echo
+            echo "- Workflow manual via workflow_dispatch; nao e gate obrigatorio de PR."
+            echo "- Alvos padrao: LedgerService.Api e BalanceService.Api."
+            echo "- Auth.Api legado fica fora do escopo padrao."
+            echo "- Alerts do ZAP so falham o job quando fail_on_alerts=true."
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          latest_summary="$(find "$ZAP_ARTIFACTS_DIR" -type f -name summary.md -print 2>/dev/null | sort | tail -n 1 || true)"
+          if [ -n "$latest_summary" ]; then
+            cat "$latest_summary" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Resumo ZAP nao encontrado. Verifique logs e artifacts." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload ZAP reports
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: owasp-zap-baseline-reports
+          path: |
+            ${{ env.ZAP_ARTIFACTS_DIR }}/**/*.html
+            ${{ env.ZAP_ARTIFACTS_DIR }}/**/*.json
+            ${{ env.ZAP_ARTIFACTS_DIR }}/**/*.md
+            ${{ env.ZAP_ARTIFACTS_DIR }}/**/*.txt
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Stop controlled HTTP stack
+        if: ${{ always() }}
+        run: docker compose -f compose.yaml down --volumes --remove-orphans

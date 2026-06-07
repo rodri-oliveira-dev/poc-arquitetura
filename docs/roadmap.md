@@ -108,23 +108,24 @@ Um item deve sair de "Proximos passos" ou "Em andamento ou parcialmente atendido
 - CodeQL, Dependency Review e Trivy versionados em workflows ou hooks.
 - Trivy cobre Dockerfiles, Terraform, misconfigurations, secrets e filesystem, conforme [trivy-security-scan](development/trivy-security-scan.md).
 - OWASP ZAP local documentado e executavel por scripts.
+- OWASP ZAP baseline disponivel em workflow manual, com relatorios publicados como artifacts e sem gate obrigatorio de PR.
 
 ### Em andamento ou parcialmente atendido
 
-- DAST/OWASP ZAP ainda nao possui workflow automatizado nem gate.
+- DAST/OWASP ZAP possui workflow manual, mas ainda nao possui gate obrigatorio nem baseline de severidades bloqueantes.
 - A maturidade de seguranca estatica depende de execucao recente dos scanners.
 - Baseline produtivo GCP/seguranca foi consolidado como referencia arquitetural em [baseline de evolucao produtiva](architecture/production-readiness.md), mas ainda nao foi implementado.
 
 ### Proximos passos
 
 - Evoluir implementacoes futuras a partir do baseline recomendado para secrets, TLS interno, identidade de workload, Pub/Sub real, bancos, scans de imagem, WAF e rate limits por identidade.
-- Criar workflow OWASP ZAP/DAST automatizado somente quando houver ambiente e criterio de gate adequados.
+- Evoluir OWASP ZAP/DAST para gate somente quando houver ambiente e criterio de gate adequados.
 - Registrar resultados de DAST ou pentest quando a avaliacao dinamica for necessaria.
 
 ### Fora de escopo por enquanto
 
 - Implementar infraestrutura produtiva nesta etapa.
-- Automatizar OWASP ZAP sem decisao de ambiente alvo, credenciais, risco de falso positivo e politica de bloqueio.
+- Tornar OWASP ZAP obrigatorio em PR sem decisao de ambiente alvo, credenciais, risco de falso positivo e politica de bloqueio.
 - Recolocar `Auth.Api` como emissor principal.
 
 ## Observabilidade
