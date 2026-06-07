@@ -321,6 +321,7 @@ de DLQ de aplicacao, investigacao de DLQ tecnica Pub/Sub ou replay de dominio.
 ## Referencias
 
 - [Replay e DLQ orientados por contrato](event-replay-and-dlq.md)
+- [Estrategia operacional de replay seguro](replay-strategy.md)
 - [Operacao do Pub/Sub](pubsub.md)
 - [Mensageria, Outbox e DLQ](../development/kafka-outbox.md)
 - [Contratos logicos de eventos](../events/README.md)
