@@ -229,6 +229,27 @@ Regras:
 - atualizar testes de produtor e consumidor quando o schema mudar;
 - nao alterar schema de versao antiga para aceitar semantica nova.
 
+## Validacao automatizada
+
+Os JSON Schemas e exemplos versionados em [`../../contracts/events`](../../contracts/events) sao validados por ferramenta Node versionada no projeto. O script usa Ajv com suporte aos formatos `date`, `date-time` e `uuid`.
+
+Execute localmente:
+
+```bash
+npm ci
+npm run events:validate
+```
+
+A validacao confere:
+
+- todos os arquivos `.schema.json` sao JSON validos e compilam como JSON Schema;
+- cada schema possui exemplo `<evento>.valid.json` correspondente em `contracts/events/examples`;
+- exemplos `*.valid.json` passam no schema correspondente;
+- exemplos `*.invalid.json` falham no schema correspondente, quando existirem;
+- exemplos sem schema correspondente falham com mensagem explicita.
+
+O workflow `event-contracts` roda esta validacao em `pull_request` para `main`, `push` em `main` e `workflow_dispatch`, restrito aos caminhos relacionados a contratos de eventos, exemplos, documentacao e tooling Node.
+
 ## Testes
 
 Mudancas em contrato devem ter testes proporcionais no produtor e no consumidor.

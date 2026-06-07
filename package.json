@@ -5,10 +5,13 @@
   "scripts": {
     "openapi:lint": "redocly lint",
     "openapi:diff": "bash ./scripts/check-openapi-breaking-changes.sh",
+    "events:validate": "node ./scripts/validate-event-contracts.mjs",
     "architecture:build": "likec4 build docs/architecture -o dist/architecture --base ./"
   },
   "devDependencies": {
     "@redocly/cli": "2.31.6",
+    "ajv": "npm:@redocly/ajv@8.18.1",
+    "ajv-formats": "3.0.1",
     "likec4": "1.58.0",
     "yaml": "2.9.0"
   }
