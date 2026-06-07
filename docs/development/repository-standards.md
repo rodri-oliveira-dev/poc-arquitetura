@@ -60,13 +60,17 @@ Resumo:
 
 Workflows principais:
 
-- `pull-request-validation`: restore, build e testes para PRs;
-- `dotnet-ci`: validacao completa pos-merge/manual, cobertura e artifacts;
-- `dependency-review`: revisao de dependencias em PRs;
-- `codeql`: analise estatica de seguranca;
-- `Mutation Tests`: mutation testing informativo;
-- `pages-architecture`: build e publicacao LikeC4;
-- `release`: tags e GitHub Releases apos merge na `main`.
+- `pr-build-and-test`: restore, build e testes para PRs;
+- `main-dotnet-ci`: validacao completa pos-merge/manual, cobertura e artifacts;
+- `dependency-security-review`: revisao de dependencias em PRs;
+- `codeql-security-analysis`: analise estatica de seguranca;
+- `event-contract-validation`: validacao de schemas e exemplos de eventos;
+- `openapi-contract-validation`: geracao, lint, diff e drift de contratos OpenAPI;
+- `infra-security-and-terraform-validation`: Trivy, Terraform validate e TFLint;
+- `mutation-tests`: mutation testing informativo;
+- `smoke-load-tests`: smoke load tests manuais com k6;
+- `architecture-pages`: build e publicacao LikeC4;
+- `release-on-merge`: tags e GitHub Releases apos merge na `main`.
 
 Detalhes ficam em [validacao de pull requests](pull-request-validation.md), [artifacts dos workflows](workflow-artifacts.md) e [releases](releases.md).
 

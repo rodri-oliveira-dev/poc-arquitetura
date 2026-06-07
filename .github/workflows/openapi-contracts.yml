@@ -1,4 +1,4 @@
-name: openapi-contracts
+name: openapi-contract-validation
 
 on:
   pull_request:

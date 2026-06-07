@@ -38,7 +38,7 @@ Com isso:
 - push direto na `main` nao cria release;
 - reexecucao do workflow nao cria uma segunda release para o mesmo commit de merge.
 
-O workflow nao executa build/testes novamente. A protecao da branch `main` deve exigir o check `Build and test`, do workflow `pull-request-validation`, antes do merge.
+O workflow nao executa build/testes novamente. A protecao da branch `main` deve exigir o check `Build and test`, do workflow `pr-build-and-test`, antes do merge.
 
 Se o GitVersion calcular uma versao cuja tag ja existe em outro commit, o workflow nao cria uma nova tag nem uma nova release. Esse e o comportamento esperado para PRs que nao geram incremento SemVer.
 

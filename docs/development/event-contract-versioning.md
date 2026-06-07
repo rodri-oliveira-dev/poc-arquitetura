@@ -248,7 +248,7 @@ A validacao confere:
 - exemplos `*.invalid.json` falham no schema correspondente, quando existirem;
 - exemplos sem schema correspondente falham com mensagem explicita.
 
-O workflow `event-contracts` roda esta validacao em `pull_request` para `main`, `push` em `main` e `workflow_dispatch`, restrito aos caminhos relacionados a contratos de eventos, exemplos, documentacao e tooling Node.
+O workflow `event-contract-validation` roda esta validacao em `pull_request` para `main`, `push` em `main` e `workflow_dispatch`, restrito aos caminhos relacionados a contratos de eventos, exemplos, documentacao e tooling Node.
 
 ## Testes
 

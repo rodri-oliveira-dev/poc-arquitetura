@@ -134,7 +134,7 @@ Consolidar a maturidade documental da POC, alinhando autenticacao/autorizacao, s
 - Regra de autorizacao por `merchant_id` para endpoints que recebem `merchantId` e para endpoints que inferem o merchant a partir de recurso persistido.
 - Status atual dos achados OWASP, preservando o relatorio historico e separando achados mitigados, parcialmente mitigados, ainda validos e historicos.
 - Documentacao dos modos k6 `smoke`, `balance50` e `resilience`, com criterios de aceite locais e limites da interpretacao dos resultados.
-- Comportamento real do workflow `pull-request-validation`, incluindo skip interno de restore/build/test em PRs apenas documentais.
+- Comportamento real do workflow `pr-build-and-test`, incluindo skip interno de restore/build/test em PRs apenas documentais.
 - Pagina `docs/maturity.md` com criterios objetivos, evidencias e pendencias.
 - Links de navegacao no README principal e no indice de documentacao.
 

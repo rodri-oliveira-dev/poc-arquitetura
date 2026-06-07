@@ -15,7 +15,7 @@ Classificacao atual: arquitetura hibrida, com predominancia de Clean Architectur
 
 ## Visualizacao
 
-O site LikeC4 e publicado no GitHub Pages pelo workflow `pages-architecture`:
+O site LikeC4 e publicado no GitHub Pages pelo workflow `architecture-pages`:
 
 <https://rodri-oliveira-dev.github.io/poc-arquitetura/>
 

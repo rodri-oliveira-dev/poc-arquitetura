@@ -98,7 +98,7 @@ O Google Cloud CLI esta disponivel para autenticacao e descoberta controlada. Es
 
 ## Validacao no CI
 
-O workflow `.github/workflows/terraform-validation.yml`, chamado `terraform-validation`, roda em pull requests e pushes para `main` que alteram Terraform, Dockerfiles, Compose ou o proprio workflow. Ele executa:
+O workflow `.github/workflows/terraform-validation.yml`, chamado `infra-security-and-terraform-validation`, roda em pull requests e pushes para `main` que alteram Terraform, Dockerfiles, Compose ou o proprio workflow. Ele executa:
 
 ```bash
 trivy config \

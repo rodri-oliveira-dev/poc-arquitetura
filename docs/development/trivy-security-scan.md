@@ -233,7 +233,7 @@ Os scans continuam analisando arquivos versionados relevantes como `Directory.Pa
 
 ## CI
 
-O workflow `terraform-validation` roda Trivy em pull requests e em pushes para `main` quando ha mudancas em Terraform, Dockerfiles, Compose ou no proprio workflow.
+O workflow `infra-security-and-terraform-validation` roda Trivy em pull requests e em pushes para `main` quando ha mudancas em Terraform, Dockerfiles, Compose ou no proprio workflow.
 
 No CI, a validacao executa independentemente da instalacao local do desenvolvedor. Os scans sao bloqueantes para severidades `HIGH` e `CRITICAL`, porque nao dependem de credenciais cloud nem alteram infraestrutura real.
 

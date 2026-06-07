@@ -1,4 +1,4 @@
-name: pr-advisory-review
+name: pr-advisory-checks
 
 on:
   pull_request:
@@ -23,7 +23,7 @@ env:
 
 jobs:
   ensure-pr-owner:
-    name: Ensure PR owner
+    name: Assign PR owner (advisory)
     if: ${{ github.event_name == 'pull_request_target' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -93,7 +93,7 @@ jobs:
           fi
 
   analyzer-recommendations:
-    name: Analyzer recommendations
+    name: Run analyzer recommendations
     if: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20

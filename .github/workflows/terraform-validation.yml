@@ -1,4 +1,4 @@
-name: terraform-validation
+name: infra-security-and-terraform-validation
 
 on:
   push:
@@ -31,7 +31,7 @@ env:
 
 jobs:
   validate:
-    name: Validate Terraform
+    name: Scan infrastructure and validate Terraform
     runs-on: ubuntu-latest
     timeout-minutes: 10
 

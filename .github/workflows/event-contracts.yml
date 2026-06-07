@@ -1,4 +1,4 @@
-name: event-contracts
+name: event-contract-validation
 
 on:
   pull_request:

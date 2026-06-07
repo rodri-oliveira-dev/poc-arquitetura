@@ -1,4 +1,4 @@
-name: loadtests-smoke
+name: smoke-load-tests
 
 on:
   workflow_dispatch:
@@ -19,6 +19,7 @@ env:
 
 jobs:
   smoke:
+    name: Run smoke load tests
     runs-on: ubuntu-latest
     timeout-minutes: 20
 

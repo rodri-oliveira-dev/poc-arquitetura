@@ -39,7 +39,7 @@ As APIs lintadas sao declaradas em `redocly.yaml`. Algumas regras continuam como
 
 ## Diff contra a main
 
-Em pull requests para `main`, o workflow `openapi-contracts` executa estes passos:
+Em pull requests para `main`, o workflow `openapi-contract-validation` executa estes passos:
 
 1. Faz checkout da branch do PR.
 2. Restaura ferramentas .NET e dependencias Node.

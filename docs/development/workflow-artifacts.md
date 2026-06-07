@@ -4,7 +4,7 @@ Este documento registra quais artifacts os workflows publicam no GitHub Actions,
 
 Artifacts podem expor nomes de testes, paths internos do repositorio, stack traces e trechos de codigo. Por isso, a politica atual e publicar apenas o necessario para diagnostico, com retencao explicita e curta.
 
-## dotnet-ci
+## main-dotnet-ci
 
 Workflow: `.github/workflows/dotnet.yml`
 
@@ -25,7 +25,7 @@ Motivo:
 - o XML Cobertura e os summaries permitem validar a cobertura consolidada, a cobertura dos assemblies Worker e investigar os gates minimos de 85%;
 - o relatorio HTML completo do ReportGenerator nao e publicado como artifact, porque os summaries e o XML ja atendem ao diagnostico principal com menor exposicao de paths e trechos renderizados.
 
-## Mutation Tests
+## mutation-tests
 
 Workflow: `.github/workflows/mutation-tests.yml`
 
