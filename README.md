@@ -188,6 +188,7 @@ Os scripts executam testes com cobertura e aplicam gate minimo de 85% de cobertu
 
 - [Indice geral da documentacao](docs/README.md)
 - [Maturidade tecnica do projeto](docs/maturity.md)
+- [Roadmap arquitetural consolidado](docs/roadmap.md)
 - [Desenvolvimento local](docs/development/local-development.md)
 - [Ferramentas auxiliares](docs/development/tooling.md)
 - [Dev Container opcional](docs/development/devcontainer.md)

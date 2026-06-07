@@ -100,6 +100,8 @@ Simplificacoes recomendadas:
 
 ## Roadmap recomendado
 
+O roadmap consolidado por areas de maturidade fica em [docs/roadmap.md](../roadmap.md). Esta secao preserva a leitura pragmatica original desta analise.
+
 ### Quick wins
 
 - Manter estes diagramas LikeC4 atualizados junto com ADRs relevantes.
