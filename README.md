@@ -58,6 +58,7 @@ Leitura complementar:
 
 - [ADR-0078: Pub/Sub como provider principal](docs/adrs/0078-pubsub-provider-principal-local-emulator.md)
 - [Operacao do Pub/Sub e emulator local](docs/operations/pubsub.md)
+- [Runbook de recuperacao de eventos](docs/operations/event-recovery-runbook.md)
 - [Replay e DLQ orientados por contrato](docs/operations/event-replay-and-dlq.md)
 - [Estrategia operacional de DLQ](docs/operations/dlq-strategy.md)
 - [Estrategia operacional de replay seguro](docs/operations/replay-strategy.md)
@@ -200,6 +201,7 @@ Os scripts executam testes com cobertura e aplicam gate minimo de 85% de cobertu
 - [Autenticacao e autorizacao](docs/development/authentication.md)
 - [Kafka, Outbox e DLQ](docs/development/kafka-outbox.md)
 - [Pub/Sub: operacao e emulator local](docs/operations/pubsub.md)
+- [Runbook de recuperacao de eventos](docs/operations/event-recovery-runbook.md)
 - [Replay e DLQ orientados por contrato](docs/operations/event-replay-and-dlq.md)
 - [Estrategia operacional de DLQ](docs/operations/dlq-strategy.md)
 - [Estrategia operacional de replay seguro](docs/operations/replay-strategy.md)
