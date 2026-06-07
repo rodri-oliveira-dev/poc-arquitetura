@@ -32,6 +32,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [Replay e DLQ orientados por contrato](operations/event-replay-and-dlq.md): inspecionar DLQ, validar schema por versao, decidir discard, ack, nack ou redrive e preservar idempotencia.
 - [Estrategia operacional de DLQ](operations/dlq-strategy.md): classificar falhas, decidir discard, retry ou replay/redrive em Pub/Sub e Kafka, preservar idempotencia e orientar observabilidade.
 - [Estrategia operacional de replay seguro](operations/replay-strategy.md): diferenciar retry e replay, definir dry-run, filtros, idempotencia, auditoria e cuidados para Pub/Sub, Kafka, DLQ e Outbox.
+- [Rebuild de projecao do Balance](operations/projection-rebuild.md): calcular saldo reconstruido em paralelo logico, comparar com a projecao atual e gerar relatorio de divergencia sem alterar dados.
 - [Validacao de pull requests](development/pull-request-validation.md): entender checks obrigatorios, workflows e branch protection.
 - [GitHub Pages e LikeC4](development/github-pages.md): gerar e publicar a documentacao arquitetural.
 - [Releases e versionamento](development/releases.md): SemVer com GitVersion, commits semanticos, tags e GitHub Releases.
@@ -47,6 +48,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [Replay e DLQ orientados por contrato](operations/event-replay-and-dlq.md): runbook operacional para Pub/Sub, Kafka legado, replay, redrive e validacao antes de reprocessar.
 - [Estrategia operacional de DLQ](operations/dlq-strategy.md): criterios operacionais para DLQ de aplicacao, DLQ tecnica, idempotencia, contratos e troubleshooting.
 - [Estrategia operacional de replay seguro](operations/replay-strategy.md): pre-condicoes, filtros, dry-run, auditoria e decisoes de replay seguro em Pub/Sub e Kafka.
+- [Rebuild de projecao do Balance](operations/projection-rebuild.md): relatorio de divergencia para rebuild paralelo logico antes de qualquer correcao ou troca de projecao.
 - [Contrato LedgerEntryCreated.v1](events/ledger-entry-created-v1.md): contrato legado sem `currency`, aceito para mensagens antigas.
 - [Contrato LedgerEntryCreated.v2](events/ledger-entry-created-v2.md): contrato atual com `currency` obrigatoria.
 - [Observabilidade e operacao minima](observability.md): health, readiness, logs, traces, metricas, dashboards, alertas e validacoes operacionais.
