@@ -1,155 +1,100 @@
 ---
 name: test-anti-patterns
-description: >
-  Detection-focused review of .NET test code for anti-patterns that
-  undermine reliability and diagnostic value.
-  USE FOR: audit test quality, review test code, find test anti-patterns,
-  tests pass but don't verify anything, flaky tests, ordering dependency,
-  duplicate tests, magic values, missing/no assertions, swallowed
-  exceptions, always-true assertions, over-mocking, test coupling, coverage
-  touching, coverage inflation.
-  DO NOT USE FOR: writing new tests (use writing-mstest-tests), direct
-  MSTest API rewrites or implementation-only fixes such as swapped
-  Assert.AreEqual argument order, running tests (use run-tests), migrating
-  between frameworks (use migration skills), deep formal audit based on
-  academic test smell taxonomy (use test-smell-detection).
+description: Use esta skill para auditar qualidade de testes .NET neste repositorio, encontrando anti-patterns como asserts fracos, ausencia de asserts, flakiness, over-mocking, acoplamento a implementacao, dependencia de ordem, sleeps, dados magicos e cobertura artificial. Nao use para escrever testes novos do zero ou migrar framework.
 license: MIT
 ---
 
-# Test Anti-Pattern Detection
+# Objetivo
 
-Quick, pragmatic analysis of .NET test code for anti-patterns and quality issues that undermine test reliability, maintainability, and diagnostic value.
+Orientar uma revisao pragmatica de testes automatizados para aumentar confianca, diagnostico e manutenibilidade.
 
-## When to Use
+Esta skill nao busca apenas mais testes ou mais cobertura. Ela busca testes que realmente verifiquem comportamento relevante e falhem pelos motivos certos.
 
-- User asks to review test quality or find test smells
-- User wants to know why tests are flaky or unreliable
-- User asks "are my tests good?" or "what's wrong with my tests?"
-- User requests a test audit or test code review
-- User wants to improve existing test code
+# Quando usar
 
-## When Not to Use
+- O usuario pedir auditoria, revisao ou melhoria de qualidade dos testes.
+- Testes estiverem passando, mas dando pouca confianca.
+- Houver flakiness, dependencia de ordem, sleeps ou instabilidade.
+- Houver suspeita de over-mocking, asserts fracos ou testes acoplados a detalhes internos.
+- Um PR alterar testes de forma ampla.
+- Cobertura parecer artificial ou inflada.
 
-- User wants to write new tests from scratch (use `writing-mstest-tests`)
-- User wants direct implementation fixes in MSTest code rather than a diagnostic review (use `writing-mstest-tests`)
-- User asks to fix swapped `Assert.AreEqual` argument order (use `writing-mstest-tests`)
-- User asks to convert `DynamicData` from `IEnumerable<object[]>` to `ValueTuple` (use `writing-mstest-tests`)
-- User wants to run or execute tests (use `run-tests`)
-- User wants to migrate between test frameworks or versions (use migration skills)
-- User wants to measure code coverage (out of scope)
-- User wants a deep formal test smell audit with academic taxonomy and extended catalog (use `test-smell-detection`)
+# Quando nao usar
 
-## Inputs
+- Escrever testes novos do zero sem foco em auditoria.
+- Rodar testes apenas para validar build.
+- Medir cobertura pura sem avaliar qualidade.
+- Migrar framework de testes.
+- Corrigir codigo de producao sem relacao com os testes.
 
-| Input | Required | Description |
-|-------|----------|-------------|
-| Test code | Yes | One or more test files or classes to analyze |
-| Production code | No | The code under test, for context on what tests should verify |
-| Specific concern | No | A focused area like "flakiness" or "naming" to narrow the review |
+# Regras obrigatorias
 
-## Workflow
+- Nao altere testes apenas para faze-los passar.
+- Nao aceite teste sem assert significativo como valido.
+- Nao torne metodo de producao publico apenas para facilitar teste.
+- Nao remova asserts, cenarios ou verificacoes para reduzir flakiness sem corrigir a causa.
+- Nao introduza sleeps arbitrarios; prefira sincronizacao deterministica.
+- Nao crie dependencia de ordem entre testes.
+- Nao use banco, fila, rede, Compose ou Testcontainers quando um teste unitario ou integracao mais simples cobrir o risco real.
+- Preserve padroes existentes do projeto e combine com `integration-tests-dotnet` quando o problema for estrategia de integracao.
 
-### Step 1: Gather the test code
+# Anti-patterns criticos
 
-Read the test files the user wants reviewed. If the user points to a directory or project, scan for all test files using the framework-specific markers in the `dotnet-test-frameworks` skill (e.g., `[TestClass]`, `[Fact]`, `[Test]`).
+## Sem assert significativo
 
-If production code is available, read it too -- this is critical for detecting tests that are coupled to implementation details rather than behavior.
+Teste executa codigo, mas nao verifica resultado, estado, excecao, publicacao de evento, persistencia ou efeito observavel.
 
-### Step 2: Scan for anti-patterns
+## Assert tautologico
 
-Check each test file against the anti-pattern catalog below. Report findings grouped by severity.
+O teste compara uma variavel com ela mesma, replica a implementacao ou valida apenas o mock configurado pelo proprio teste.
 
-#### Critical -- Tests that give false confidence
+## Coverage touching
 
-| Anti-Pattern | What to Look For |
-|---|---|
-| **No assertions** | Test methods that execute code but never assert anything. A passing test without assertions proves nothing. |
-| **Coverage touching** | Test class that methodically calls every public method on a type — often in alphabetical or declaration order — without asserting meaningful outcomes. Each test typically does `var result = sut.MethodName(...)` with no assertion, or only a trivial `Assert.IsNotNull(result)`. The intent is to inflate code-coverage metrics rather than verify behavior. Distinct from a single assertion-free test: the pattern is *systematic* coverage of the surface area with no real verification. |
-| **Self-referential assertion** | Asserts that the output of an operation equals its input when the operation is expected to be an identity or no-op, e.g. `Assert.AreEqual(input, Parse(input.ToString()))` or `Assert.AreEqual(x, Identity(x))`. The test is tautological — it can only fail if the round-trip is broken, but it never verifies that a *transformation* actually happened. Also catches `Assert.AreEqual(dto.Name, dto.Name)` (asserting a field against itself). |
-| **Swallowed exceptions** | `try { ... } catch { }` or `catch (Exception)` without rethrowing or asserting. Failures are silently hidden. |
-| **Assert in catch block only** | `try { Act(); } catch (Exception ex) { Assert.Fail(ex.Message); }` -- use `Assert.ThrowsException` or equivalent instead. The test passes when no exception is thrown even if the result is wrong. |
-| **Always-true assertions** | `Assert.IsTrue(true)`, `Assert.AreEqual(x, x)`, or conditions that can never fail. |
-| **Commented-out assertions** | Assertions that were disabled but the test still runs, giving the illusion of coverage. |
+O teste chama metodos apenas para executar linhas e aumentar cobertura, sem verificar comportamento relevante.
 
-#### High -- Tests likely to cause pain
+## Assert fraco demais
 
-| Anti-Pattern | What to Look For |
-|---|---|
-| **Flakiness indicators** | `Thread.Sleep(...)`, `Task.Delay(...)` for synchronization, `DateTime.Now`/`DateTime.UtcNow` without abstraction, `Random` without a seed, environment-dependent paths. |
-| **Test ordering dependency** | Static mutable fields modified across tests, `[TestInitialize]` that doesn't fully reset state, tests that fail when run individually but pass in suite (or vice versa). |
-| **Over-mocking** | More mock setup lines than actual test logic. Verifying exact call sequences on mocks rather than outcomes. Mocking types the test owns. For a deep mock audit, use `exp-mock-usage-analysis`. |
-| **Implementation coupling** | Testing private methods via reflection, asserting on internal state, verifying exact method call counts on collaborators instead of observable behavior. |
-| **Broad exception assertions** | `Assert.ThrowsException<Exception>(...)` instead of the specific exception type. Also: `[ExpectedException(typeof(Exception))]`. |
+Exemplos: apenas `NotNull` em objeto complexo, apenas status code sem verificar contrato importante, ou apenas contagem sem validar conteudo quando o conteudo e o comportamento real.
 
-#### Medium -- Maintainability and clarity issues
+## Swallowed exception
 
-| Anti-Pattern | What to Look For |
-|---|---|
-| **Poor naming** | Test names like `Test1`, `TestMethod`, names that don't describe the scenario or expected outcome. Good: `Add_NegativeNumber_ThrowsArgumentException`. |
-| **Magic values** | Unexplained numbers or strings in arrange/assert: `Assert.AreEqual(42, result)` -- what does 42 mean? |
-| **Duplicate tests** | Three or more test methods with near-identical bodies that differ only in a single input value. Should be data-driven (`[DataRow]`, `[Theory]`, `[TestCase]`). For a detailed duplication analysis, use `exp-test-maintainability`. Note: Two tests covering distinct boundary conditions (e.g., zero vs. negative) are NOT duplicates -- separate tests for different edge cases provide clearer failure diagnostics and are a valid practice. |
-| **Giant tests** | Test methods exceeding ~30 lines or testing multiple behaviors at once. Hard to diagnose when they fail. |
-| **Assertion messages that repeat the assertion** | `Assert.AreEqual(expected, actual, "Expected and actual are not equal")` adds no information. Messages should describe the business meaning. |
-| **Missing AAA separation** | Arrange, Act, Assert phases are interleaved or indistinguishable. |
+`try/catch` esconde falhas ou so chama `Assert.Fail` no `catch`, fazendo o teste passar quando nada relevante foi validado.
 
-#### Low -- Style and hygiene
+## Over-mocking
 
-| Anti-Pattern | What to Look For |
-|---|---|
-| **Unused test infrastructure** | `[TestInitialize]`/`[SetUp]` that does nothing, test helper methods that are never called. |
-| **IDisposable not disposed** | Test creates `HttpClient`, `Stream`, or other disposable objects without `using` or cleanup. |
-| **Console.WriteLine debugging** | Leftover `Console.WriteLine` or `Debug.WriteLine` statements used during test development. |
-| **Inconsistent naming convention** | Mix of naming styles in the same test class (e.g., some use `Method_Scenario_Expected`, others use `ShouldDoSomething`). |
+O teste mocka quase tudo e passa a validar a propria configuracao dos mocks, nao o comportamento do sistema.
 
-### Step 3: Calibrate severity honestly
+## Acoplamento a implementacao
 
-Before reporting, re-check each finding against these severity rules:
+Teste quebra por renomeacao interna, ordem de chamadas irrelevante, estrutura privada ou detalhes que nao fazem parte do contrato observavel.
 
-- **Critical/High**: Only for issues that cause tests to give false confidence or be unreliable. A test that always passes regardless of correctness is Critical. Flaky shared state is High.
-- **Medium**: Only for issues that actively harm maintainability -- 5+ nearly-identical tests, truly meaningless names like `Test1`.
-- **Low**: Cosmetic naming mismatches, minor style preferences, assertion messages that could be better. When in doubt, rate Low.
-- **Not an issue**: Separate tests for distinct boundary conditions (zero vs. negative vs. null). Explicit per-test setup instead of `[TestInitialize]` (this *improves* isolation). Tests that are short and clear but could theoretically be consolidated.
+## Flakiness por tempo ou ambiente
 
-IMPORTANT: If the tests are well-written, say so clearly up front. Do not inflate severity to justify the review. A review that finds zero Critical/High issues and only minor Low suggestions is a valid and valuable outcome. Lead with what the tests do well.
+Teste depende de `Task.Delay`, horario real, ordem de execucao, porta fixa, rede externa, banco compartilhado, data atual ou estado global.
 
-### Step 4: Report findings
+## Dados magicos
 
-Present findings in this structure:
+Valores importantes aparecem sem nome, sem intencao e sem conexao clara com a regra testada.
 
-1. **Summary** -- Total issues found, broken down by severity (Critical / High / Medium / Low). If tests are well-written, lead with that assessment.
-2. **Critical and High findings** -- List each with:
-   - The anti-pattern name
-   - The specific location (file, method name, line)
-   - A brief explanation of why it's a problem
-   - A concrete fix (show before/after code when helpful)
-3. **Medium and Low findings** -- Summarize in a table unless the user wants full detail
-4. **Positive observations** -- Call out things the tests do well (sealed class, specific exception types, data-driven tests, clear AAA structure, proper use of fakes, good naming). Don't only report negatives.
+# Processo
 
-### Step 5: Prioritize recommendations
+1. Identifique o projeto de teste e o comportamento que deveria ser protegido.
+2. Leia o codigo de producao relacionado quando necessario para entender o contrato observavel.
+3. Classifique problemas por severidade: critica, alta, media ou baixa.
+4. Separe problema de teste ruim de problema de design no codigo de producao.
+5. Sugira menor ajuste seguro para cada achado.
+6. Quando a correcao exigir teste de integracao, consulte `integration-tests-dotnet`.
+7. Quando houver relacao com cobertura, consulte `coverage-analysis`.
+8. Valide com o projeto de teste afetado quando houver mudanca.
 
-If there are many findings, recommend which to fix first:
+# Saida esperada
 
-1. **Critical** -- Fix immediately, these tests may be giving false confidence
-2. **High** -- Fix soon, these cause flakiness or maintenance burden
-3. **Medium/Low** -- Fix opportunistically during related edits
+- Achados agrupados por severidade.
+- Explicacao do risco de falso positivo ou falso negativo.
+- Sugestao objetiva de correcao.
+- Separacao entre melhoria necessaria e melhoria opcional.
+- Validacoes executadas ou motivo para nao executar.
 
-## Validation
+# Criterio de qualidade
 
-- [ ] Every finding includes a specific location (not just a general warning)
-- [ ] Every Critical/High finding includes a concrete fix
-- [ ] Report covers all categories (assertions, isolation, naming, structure)
-- [ ] Positive observations are included alongside problems
-- [ ] Recommendations are prioritized by severity
-
-## Common Pitfalls
-
-| Pitfall | Solution |
-|---------|----------|
-| Reporting style issues as critical | Naming and formatting are Medium/Low, never Critical |
-| Suggesting rewrites instead of targeted fixes | Show minimal diffs -- change the assertion, not the whole test |
-| Flagging intentional design choices | If `Thread.Sleep` is in an integration test testing actual timing, that's not an anti-pattern. Consider context. |
-| Inventing false positives on clean code | If tests follow best practices, say so. A review finding "0 Critical, 0 High, 1 Low" is perfectly valid. Don't inflate findings to justify the review. |
-| Flagging separate boundary tests as duplicates | Two tests for zero and negative inputs test different edge cases. Only flag as duplicates when 3+ tests have truly identical bodies differing by a single value. |
-| Rating cosmetic issues as Medium | Naming mismatches (e.g., method name says `ArgumentException` but asserts `ArgumentOutOfRangeException`) are Low, not Medium -- the test still works correctly. |
-| Ignoring the test framework | xUnit uses `[Fact]`/`[Theory]`, NUnit uses `[Test]`/`[TestCase]`, MSTest uses `[TestMethod]`/`[DataRow]` -- use correct terminology |
-| Missing the forest for the trees | If 80% of tests have no assertions, lead with that systemic issue rather than listing every instance |
+Um teste bom deve deixar claro qual comportamento protege, preparar dados intencionais, executar uma acao observavel e verificar resultado ou efeito com asserts relevantes.

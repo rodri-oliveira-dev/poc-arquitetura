@@ -1,289 +1,69 @@
 ---
 name: configuring-opentelemetry-dotnet
-description: Configure OpenTelemetry distributed tracing, metrics, and logging in ASP.NET Core using the .NET OpenTelemetry SDK. Use when adding observability, setting up OTLP exporters, creating custom metrics/spans, or troubleshooting distributed trace correlation.
+description: Use esta skill para revisar, configurar ou evoluir OpenTelemetry em APIs e workers .NET deste repositorio, incluindo traces, metricas, logs, OTLP, correlacao, spans customizados e troubleshooting de observabilidade. Nao use para logging simples sem tracing/metricas ou para instalar pacotes sem necessidade concreta.
 license: MIT
 ---
 
-# Configuring OpenTelemetry in .NET
+# Objetivo
 
-## When to Use
+Orientar mudancas de OpenTelemetry neste repositorio sem contrariar Central Package Management, arquitetura existente ou configuracoes ja implementadas.
 
-- Adding distributed tracing to an ASP.NET Core application
-- Setting up OpenTelemetry exporters (OTLP is the primary protocol; Jaeger accepts OTLP natively; Prometheus OTLP ingestion requires explicit opt-in)
-- Creating custom metrics or trace spans for business operations
-- Troubleshooting distributed trace context propagation across services
+Esta skill deve ser usada como complemento ao `AGENTS.md`. Em caso de conflito, prevalecem `AGENTS.md`, ADRs, `Directory.Packages.props`, `Directory.Build.props`, `.editorconfig` e os padroes locais do projeto.
 
-## When Not to Use
+# Quando usar
 
-- The user wants application-level logging only (use ILogger, Serilog)
-- The user is using Application Insights SDK directly (different API)
-- The user needs APM with a commercial vendor's proprietary SDK
+- Adicionar, revisar ou diagnosticar tracing distribuido.
+- Adicionar, revisar ou diagnosticar metricas customizadas.
+- Configurar ou revisar exportacao OTLP.
+- Corrigir correlacao entre APIs, workers, Pub/Sub, Kafka, Outbox ou chamadas HTTP.
+- Revisar `ActivitySource`, `Meter`, tags, baggage, traceparent ou propagation.
+- Avaliar impacto de observabilidade em performance, custo, cardinalidade ou seguranca.
 
-## Inputs
+# Quando nao usar
 
-| Input | Required | Description |
-|-------|----------|-------------|
-| ASP.NET Core project | Yes | The application to instrument |
-| Observability backend | No | Where to export: OTLP collector, Aspire dashboard, Jaeger (accepts OTLP natively) |
+- Logging simples com `ILogger`, sem tracing ou metricas.
+- Mudancas puramente funcionais sem impacto em observabilidade.
+- Instalacao casual de pacotes OpenTelemetry sem lacuna comprovada.
+- Troca de APM/vendor sem decisao explicita.
 
-## Workflow
+# Regras obrigatorias
 
-### Step 1: Install the correct packages
+- Nao adicione `Version=` em `PackageReference`; o repositorio usa Central Package Management.
+- Antes de adicionar pacote, verifique `Directory.Packages.props` e os `.csproj` existentes.
+- Nao instale pacotes apenas porque exemplos externos recomendam.
+- Nao adicione Console Exporter em producao por padrao; use apenas quando o projeto ja permitir ou quando for explicitamente uma configuracao local/dev.
+- Nao registre segredos, tokens, payloads completos, dados sensiveis ou informacoes pessoais em tags, logs ou baggage.
+- Evite alta cardinalidade em metricas e tags, como IDs unicos, e-mails, tokens, payloads, correlation ids como label de metrica ou mensagens de erro completas.
+- Para workers, nao introduza endpoint HTTP de health/readiness apenas para observabilidade. Prefira metricas, logs, traces, exit code, retry policy e alertas, salvo exigencia operacional clara.
+- Para readiness ou metricas observaveis, evite consultas pesadas a banco, fila, DLQ ou views de grande volume em tempo real.
 
-**There are many OpenTelemetry NuGet packages. Install exactly these:**
+# Processo
 
-```bash
-# Core SDK + ASP.NET Core instrumentation + logging integration
-dotnet add package OpenTelemetry.Extensions.Hosting
-dotnet add package OpenTelemetry.Instrumentation.AspNetCore
-dotnet add package OpenTelemetry.Instrumentation.Http
+1. Leia `AGENTS.md`, `docs/observability.md`, `docs/adrs/`, `Directory.Packages.props` e os arquivos de composicao do servico afetado.
+2. Identifique se a mudanca envolve API, worker, producer, consumer, Outbox, DLQ ou integracao externa.
+3. Verifique a instrumentacao existente antes de propor pacotes ou extensoes novas.
+4. Defina o objetivo da observabilidade: diagnostico de latencia, correlacao, erro, throughput, backlog, DLQ, processamento ou dependencia externa.
+5. Escolha entre log, trace, metrica ou combinacao dos tres. Nao use tracing para tudo.
+6. Mantenha nomes de `ActivitySource`, `Meter` e metricas estaveis.
+7. Use tags de baixa cardinalidade e nomes coerentes com o dominio tecnico do projeto.
+8. Se alterar contratos de observabilidade relevantes, atualize documentacao ou ADR quando adequado.
+9. Valide build/testes proporcionais ao impacto.
 
-# Exporter
-dotnet add package OpenTelemetry.Exporter.OpenTelemetryProtocol  # OTLP exporter for traces, metrics, AND logs
+# Pacotes
 
-# Optional — dev/local debugging only (do NOT include in production deployments)
-# dotnet add package OpenTelemetry.Exporter.Console
-```
+Antes de adicionar pacote, confira se ele ja existe no projeto ou no gerenciamento central. Pacotes comuns neste repositorio incluem, conforme necessidade real:
 
-**Do NOT install `OpenTelemetry` alone** — you need `OpenTelemetry.Extensions.Hosting` for proper DI integration.
+- `OpenTelemetry`
+- `OpenTelemetry.Extensions.Hosting`
+- `OpenTelemetry.Exporter.Console`
+- `OpenTelemetry.Exporter.OpenTelemetryProtocol`
+- `OpenTelemetry.Instrumentation.Runtime`
 
-#### Optional: additional auto-instrumentation packages
+Adicione instrumentacoes automaticas adicionais somente quando houver biblioteca correspondente em uso e beneficio claro, por exemplo ASP.NET Core, HttpClient, Npgsql ou runtime.
 
-Install only the packages that match the libraries your application uses:
+# Saida esperada
 
-```bash
-dotnet add package OpenTelemetry.Instrumentation.SqlClient           # SQL Server queries
-dotnet add package OpenTelemetry.Instrumentation.EntityFrameworkCore  # EF Core
-dotnet add package OpenTelemetry.Instrumentation.GrpcNetClient       # gRPC calls
-dotnet add package OpenTelemetry.Instrumentation.Runtime             # GC, thread pool metrics
-```
-
-### Step 2: Configure all signals in Program.cs
-
-```csharp
-using OpenTelemetry.Resources;
-using OpenTelemetry.Trace;
-using OpenTelemetry.Metrics;
-using OpenTelemetry.Logs;
-
-var builder = WebApplication.CreateBuilder(args);
-
-builder.Services.AddOpenTelemetry()
-    .ConfigureResource(resource => resource
-        .AddService(serviceName: builder.Environment.ApplicationName))
-    .WithTracing(tracing => tracing
-        .AddAspNetCoreInstrumentation(options =>
-        {
-            // Filter out health check endpoints from traces
-            options.Filter = httpContext =>
-                !httpContext.Request.Path.StartsWithSegments("/healthz");
-        })
-        .AddHttpClientInstrumentation(options =>
-        {
-            options.RecordException = true;
-        })
-        // Optional: add SQL instrumentation if using SqlClient directly
-        // .AddSqlClientInstrumentation(options =>
-        // {
-        //     options.SetDbStatementForText = true;
-        //     options.RecordException = true;
-        // })
-        // Custom activity sources (must match ActivitySource names in your code)
-        .AddSource("MyApp.Orders")
-        .AddSource("MyApp.Payments")
-        .AddSource("MyApp.Messaging"))
-    .WithMetrics(metrics => metrics
-        .AddAspNetCoreInstrumentation()
-        .AddHttpClientInstrumentation()
-        // Optional: .AddRuntimeInstrumentation() for GC and thread pool metrics
-        //   (requires OpenTelemetry.Instrumentation.Runtime package)
-        // Custom meters (must match Meter names in your code)
-        .AddMeter("MyApp.Metrics"))
-    .WithLogging(logging =>
-    {
-        logging.IncludeScopes = true;
-        // logging.IncludeFormattedMessage = true;  // Enable if you need the formatted message string in log exports
-    })
-    // Single OTLP exporter for all signals — reads OTEL_EXPORTER_OTLP_ENDPOINT
-    // env var (defaults to http://localhost:4317). Override via environment variable
-    // or appsettings.json configuration.
-    .UseOtlpExporter();
-```
-
-### Step 3: Understanding log–trace correlation
-
-The `.WithLogging()` call in Step 2 integrates ILogger with OpenTelemetry:
-
-- Each log entry automatically includes TraceId and SpanId for correlation with traces
-- The service resource from `.ConfigureResource()` propagates to logs automatically
-- `UseOtlpExporter()` applies to logs alongside traces and metrics
-- No additional packages or separate `SetResourceBuilder` call needed
-
-### Step 4: Create custom spans (Activities) for business operations
-
-```csharp
-using System.Diagnostics;
-using Microsoft.Extensions.Logging;
-
-public class OrderService
-{
-    // Create an ActivitySource matching what you registered in Step 2
-    private static readonly ActivitySource ActivitySource = new("MyApp.Orders");
-    private readonly ILogger<OrderService> _logger;
-
-    public OrderService(ILogger<OrderService> logger) => _logger = logger;
-
-    public async Task<Order> ProcessOrderAsync(CreateOrderRequest request)
-    {
-        // Start a new span
-        using var activity = ActivitySource.StartActivity("ProcessOrder");
-
-        // Add attributes (tags) to the span
-        activity?.SetTag("order.customer_id", request.CustomerId);
-        activity?.SetTag("order.item_count", request.Items.Count);
-
-        try
-        {
-            // Child span for validation
-            using (var validationActivity = ActivitySource.StartActivity("ValidateOrder"))
-            {
-                await ValidateOrderAsync(request);
-                validationActivity?.SetTag("validation.result", "passed");
-            }
-
-            // Child span for payment
-            using (var paymentActivity = ActivitySource.StartActivity("ProcessPayment",
-                ActivityKind.Client))  // Client = outgoing call
-            {
-                paymentActivity?.SetTag("payment.method", request.PaymentMethod);
-                await ProcessPaymentAsync(request);
-            }
-
-            var order = new Order { Id = Guid.NewGuid(), CustomerId = request.CustomerId, Status = "Completed" };
-
-            activity?.SetTag("order.status", "completed");
-            activity?.SetStatus(ActivityStatusCode.Ok);
-
-            return order;
-        }
-        catch (Exception ex)
-        {
-            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-            // Log via ILogger — OpenTelemetry captures this with trace correlation.
-            // Prefer logging over activity.RecordException() as OTel is deprecating
-            // span events for exception recording in favor of log-based exceptions.
-            _logger.LogError(ex, "Order processing failed for customer {CustomerId}", request.CustomerId);
-            throw;
-        }
-    }
-}
-```
-
-**Critical: `ActivitySource` name must match `AddSource("...")` in configuration.** Unmatched sources are silently ignored — this is the #1 debugging issue.
-
-### Step 5: Create custom metrics
-
-Use `IMeterFactory` (injected via DI) to create meters — this ensures proper lifetime management and testability.
-
-```csharp
-using System.Diagnostics;
-using System.Diagnostics.Metrics;
-
-public class OrderMetrics
-{
-    private readonly Counter<long> _ordersProcessed;
-    private readonly Histogram<double> _orderProcessingDuration;
-    private readonly UpDownCounter<int> _activeOrders;
-
-    public OrderMetrics(IMeterFactory meterFactory)
-    {
-        // Meter name must match AddMeter("...") in configuration
-        var meter = meterFactory.Create("MyApp.Metrics");
-
-        // Counter — use for things that only go up
-        _ordersProcessed = meter.CreateCounter<long>(
-            "orders.processed", "orders", "Total orders successfully processed");
-
-        // Histogram — use for measuring distributions (latency, sizes)
-        _orderProcessingDuration = meter.CreateHistogram<double>(
-            "orders.processing_duration", "ms", "Time to process an order");
-
-        // UpDownCounter — use for things that go up AND down
-        _activeOrders = meter.CreateUpDownCounter<int>(
-            "orders.active", "orders", "Currently processing orders");
-    }
-
-    public void RecordOrderProcessed(string region, double durationMs)
-    {
-        // Tags enable dimensional filtering (by region, status, etc.)
-        var tags = new TagList
-        {
-            { "region", region },
-            { "order.type", "standard" }
-        };
-
-        _ordersProcessed.Add(1, tags);
-        _orderProcessingDuration.Record(durationMs, tags);
-    }
-}
-```
-
-Register `OrderMetrics` in DI:
-
-```csharp
-builder.Services.AddSingleton<OrderMetrics>();
-```
-
-### Step 6: Configure context propagation for distributed scenarios
-
-Trace context propagation is automatic for HTTP calls when using `AddHttpClientInstrumentation()`. For non-HTTP scenarios:
-
-```csharp
-using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using OpenTelemetry.Context.Propagation;
-
-// ActivitySource should be static — register via .AddSource("MyApp.Messaging") in Step 2
-private static readonly ActivitySource MessageSource = new("MyApp.Messaging");
-
-// Manual context propagation (e.g., across message queues)
-// On the SENDING side:
-var propagator = Propagators.DefaultTextMapPropagator;
-var activityContext = Activity.Current?.Context ?? default;
-var context = new PropagationContext(activityContext, Baggage.Current);
-var carrier = new Dictionary<string, string>();
-
-propagator.Inject(context, carrier, (dict, key, value) => dict[key] = value);
-// Send carrier dictionary as message headers
-
-// On the RECEIVING side:
-var parentContext = propagator.Extract(default, carrier,
-    (dict, key) => dict.TryGetValue(key, out var value) ? new[] { value } : Array.Empty<string>());
-
-Baggage.Current = parentContext.Baggage;
-using var activity = MessageSource.StartActivity("ProcessMessage",
-    ActivityKind.Consumer,
-    parentContext.ActivityContext);  // Links to parent trace!
-```
-
-## Validation
-
-- [ ] Traces appear in the observability backend (Jaeger, Aspire dashboard, etc.)
-- [ ] HTTP requests automatically create spans with correct verb, URL, status code
-- [ ] Custom `ActivitySource` names match `AddSource()` registrations
-- [ ] Custom `Meter` names match `AddMeter()` registrations
-- [ ] Logs include TraceId and SpanId for correlation
-- [ ] Health check endpoints are filtered from traces
-- [ ] Exception details appear on error spans
-
-## Common Pitfalls
-
-| Pitfall | Solution |
-|---------|----------|
-| `ActivitySource.StartActivity` returns null | Source name doesn't match any `AddSource()` — names must match exactly |
-| Traces not appearing in exporter | Check OTLP endpoint: gRPC uses port 4317, HTTP uses 4318 |
-| Missing HTTP client spans | Ensure `AddHttpClientInstrumentation()` is registered; it works for both `IHttpClientFactory`/DI and `new HttpClient()` (use `IHttpClientFactory` for lifetime management) |
-| High cardinality tags | Don't use user IDs, request IDs, or UUIDs as metric tags — explodes storage |
-| OTLP gRPC vs HTTP mismatch | Default is gRPC (port 4317); if collector only accepts HTTP, set `OtlpExportProtocol.HttpProtobuf` |
-| `Meter` / `ActivitySource` lifecycle | `ActivitySource` should be static; create `Meter` via `IMeterFactory` from DI (not `new Meter()`) for proper lifetime management and testability |
+- Mudanca minima e coerente com a observabilidade existente.
+- Explicacao do que passou a ser observado e por qual motivo.
+- Riscos de cardinalidade, custo, ruido ou dados sensiveis avaliados.
+- Validacoes executadas ou motivo para nao executar.
