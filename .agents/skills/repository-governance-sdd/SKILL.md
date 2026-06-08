@@ -39,23 +39,6 @@ Ela deve ser usada para evoluir orientacoes de agentes, skills, ADRs e convencoe
 - `AGENTS.md` ajustado apenas para regras globais, sem duplicar fluxos longos.
 - Relatorio em portugues com diagnostico, decisoes, validacoes, riscos e commit.
 
-# Criterio de decisao
-
-Antes de criar ou alterar orientacoes de agente, classifique a mudanca como:
-
-1. regra global do repositorio;
-2. workflow especializado que pertence a uma skill;
-3. documentacao de processo;
-4. ADR ou decisao arquitetural;
-5. exemplo ou referencia auxiliar;
-6. conteudo que nao deve ser criado agora.
-
-Nao transforme preferencias, boas praticas genericas ou possibilidades raras em regra global. Regras globais devem ser poucas, estaveis e aplicaveis a muitas tarefas.
-
-Quando uma recomendacao nao fizer sentido para o contexto da POC, registre a decisao tecnica em vez de criar implementacao artificial.
-
-Exemplo: workers nao precisam necessariamente expor `/health` ou `/ready` se nao recebem trafego HTTP e se a saude operacional ja e coberta por validacao de configuracao no startup, falha do processo, logs, metricas e alertas. Caso a plataforma exija probes HTTP, elas devem ser leves e baseadas em estado interno, sem consultas pesadas a banco, fila, DLQ ou views grandes.
-
 # Passos
 
 1. Especifique a intencao da mudanca em uma frase objetiva.
