@@ -58,6 +58,24 @@ Componentes principais:
 - Nao misture refatoracao estrutural com mudanca funcional sem explicar claramente o motivo.
 - Antes de finalizar alteracoes, verifique se a tarefa deixou arquivos vazios ou contendo apenas whitespace. Remova arquivos vazios sem funcao clara, especialmente classes, testes, documentacao ou configuracoes abandonadas por refatoracao. Preserve apenas placeholders intencionais, como `.gitkeep`, ou arquivos vazios exigidos por ferramenta e com proposito evidente. Nao crie arquivos vazios apenas para reservar estrutura.
 
+## Criterio de implementacao
+
+Nao implemente recomendacoes apenas porque sao boas praticas genericas.
+
+Antes de alterar codigo, infraestrutura, testes ou documentacao, avalie se a mudanca faz sentido para o tipo de componente, ambiente de execucao, custo operacional, complexidade adicionada, beneficio observavel e risco de criar uma solucao sem uso real.
+
+Classifique a recomendacao como:
+
+1. necessaria para corrigir bug, risco ou requisito explicito;
+2. util, mas opcional;
+3. valida apenas para producao;
+4. desnecessaria no contexto atual;
+5. potencialmente prejudicial.
+
+Somente implemente quando houver justificativa tecnica clara. Quando a recomendacao nao fizer sentido, registre a decisao tecnica em vez de criar implementacao artificial.
+
+Exemplo: workers nao precisam necessariamente expor `/health` ou `/ready` se nao recebem trafego HTTP e se a saude operacional ja e coberta por validacao de configuracao no startup, falha do processo, logs, metricas e alertas. Caso a plataforma de execucao exija probes HTTP, elas devem ser leves e baseadas em estado interno, evitando consultas pesadas a banco, fila, DLQ ou views de grande volume.
+
 ## Arquitetura
 
 - `Api`: entrada/saida HTTP, autenticacao, autorizacao, Swagger, health/readiness, middlewares e DI.
