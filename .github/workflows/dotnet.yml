@@ -12,10 +12,23 @@ on:
       - "**/*.gif"
       - "**/*.svg"
       - "**/*.webp"
+  pull_request:
+    branches: ["main"]
+    types: [opened, synchronize, reopened]
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "**/*.png"
+      - "**/*.jpg"
+      - "**/*.jpeg"
+      - "**/*.gif"
+      - "**/*.svg"
+      - "**/*.webp"
   workflow_dispatch:
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -39,6 +52,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
 
       - name: Setup .NET
         uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7 # v5
@@ -107,6 +122,18 @@ jobs:
           print("No Moderate/High/Critical NuGet vulnerabilities found.")
           PY
 
+      - name: SonarQube Cloud begin
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: >
+          dotnet tool run dotnet-sonarscanner begin
+          /k:"rodri-oliveira-dev_poc-arquitetura"
+          /o:"rodri-oliveira-dev"
+          /d:sonar.token="$SONAR_TOKEN"
+          /d:sonar.host.url="https://sonarcloud.io"
+          /d:sonar.cs.opencover.reportsPaths="${{ env.TEST_RESULTS_DIR }}/**/coverage.opencover.xml"
+          /d:sonar.qualitygate.wait=true
+
       - name: Build
         run: dotnet build $SOLUTION_PATH --configuration $BUILD_CONFIGURATION --no-restore
 
@@ -126,6 +153,21 @@ jobs:
         run: |
           echo "Testes finalizaram com sucesso, mas nenhum arquivo coverage.cobertura.xml foi gerado." >&2
           exit 1
+
+      - name: Validate SonarQube coverage files
+        if: ${{ success() && hashFiles('artifacts/test-results/**/coverage.opencover.xml') == '' }}
+        shell: bash
+        run: |
+          echo "Testes finalizaram com sucesso, mas nenhum arquivo coverage.opencover.xml foi gerado para o SonarQube Cloud." >&2
+          exit 1
+
+      - name: SonarQube Cloud end
+        if: ${{ success() }}
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: >
+          dotnet tool run dotnet-sonarscanner end
+          /d:sonar.token="$SONAR_TOKEN"
 
       - name: Generate coverage report
         if: ${{ success() && hashFiles('artifacts/test-results/**/coverage.cobertura.xml') != '' }}
@@ -218,6 +260,7 @@ jobs:
           path: |
             ${{ env.TEST_RESULTS_DIR }}/**/*.trx
             ${{ env.TEST_RESULTS_DIR }}/**/coverage.cobertura.xml
+            ${{ env.TEST_RESULTS_DIR }}/**/coverage.opencover.xml
             ${{ env.TEST_RESULTS_DIR }}/coverage-report/Summary.json
             ${{ env.TEST_RESULTS_DIR }}/coverage-report/Summary.txt
           if-no-files-found: warn
