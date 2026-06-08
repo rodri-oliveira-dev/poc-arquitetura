@@ -2,7 +2,6 @@ using ApiDefaults.Extensions;
 
 using BalanceService.Api.Extensions;
 using BalanceService.Infrastructure.Persistence;
-
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 
