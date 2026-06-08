@@ -39,19 +39,37 @@ Ela deve ser usada para evoluir orientacoes de agentes, skills, ADRs e convencoe
 - `AGENTS.md` ajustado apenas para regras globais, sem duplicar fluxos longos.
 - Relatorio em portugues com diagnostico, decisoes, validacoes, riscos e commit.
 
+# Criterio de decisao
+
+Antes de criar ou alterar orientacoes de agente, classifique a mudanca como:
+
+1. regra global do repositorio;
+2. workflow especializado que pertence a uma skill;
+3. documentacao de processo;
+4. ADR ou decisao arquitetural;
+5. exemplo ou referencia auxiliar;
+6. conteudo que nao deve ser criado agora.
+
+Nao transforme preferencias, boas praticas genericas ou possibilidades raras em regra global. Regras globais devem ser poucas, estaveis e aplicaveis a muitas tarefas.
+
+Quando uma recomendacao nao fizer sentido para o contexto da POC, registre a decisao tecnica em vez de criar implementacao artificial.
+
+Exemplo: workers nao precisam necessariamente expor `/health` ou `/ready` se nao recebem trafego HTTP e se a saude operacional ja e coberta por validacao de configuracao no startup, falha do processo, logs, metricas e alertas. Caso a plataforma exija probes HTTP, elas devem ser leves e baseadas em estado interno, sem consultas pesadas a banco, fila, DLQ ou views grandes.
+
 # Passos
 
 1. Especifique a intencao da mudanca em uma frase objetiva.
 2. Descubra o estado atual lendo primeiro `AGENTS.md` e `.agents/`; depois consulte arquivos do repo necessarios ao diagnostico.
 3. Identifique tarefas recorrentes, riscos de contexto, pontos de sobreposicao e regras que pertencem ao nivel global.
-4. Classifique candidatas como criar agora, nao criar agora, fundir, colocar no `AGENTS.md` ou manter apenas como referencia.
+4. Classifique candidatas como criar agora, nao criar agora, fundir, colocar no `AGENTS.md`, colocar em skill ou manter apenas como referencia.
 5. Decida antes de editar e comunique a decisao.
 6. Crie poucas skills, cada uma com um unico proposito claro.
 7. Use `references/` somente para material auxiliar realmente util e `scripts/` somente para automacao deterministica e segura.
 8. Ajuste `AGENTS.md` apenas quando houver lacuna global ou conflito com skills.
-9. Valide estrutura, frontmatter, nomes, descricoes, escopo, idioma e ausencia de referencias proibidas.
-10. Revise diff, execute validacoes proporcionais e faca commit semantico quando solicitado.
-11. Para comandos Git que alteram indice ou historico (`git add`, `git commit`, `git restore --staged` etc.), use execucao fora do sandbox quando o sandbox nao conseguir criar `.git/index.lock`.
+9. Evite duplicar no `AGENTS.md` fluxos longos que pertencem ao `description` ou ao corpo de uma skill.
+10. Valide estrutura, frontmatter, nomes, descricoes, escopo, idioma e ausencia de referencias proibidas.
+11. Revise diff, execute validacoes proporcionais e faca commit semantico quando solicitado.
+12. Para comandos Git que alteram indice ou historico (`git add`, `git commit`, `git restore --staged` etc.), use execucao fora do sandbox quando o sandbox nao conseguir criar `.git/index.lock`.
 
 # Validacao
 
@@ -60,7 +78,7 @@ Ela deve ser usada para evoluir orientacoes de agentes, skills, ADRs e convencoe
 - Confirme nomes em kebab-case e descricoes curtas, especificas e com limites.
 - Procure sobreposicao excessiva entre skills.
 - Confirme que o conteudo esta em portugues e sem segredos.
-- Confirme ausencia de referencias a arquivos de orientacao externos ao Codex.
+- Confirme ausencia de referencias a skills inexistentes ou arquivos de orientacao externos ao Codex.
 - Execute `git status` e revise o diff antes de commitar.
 
 # Restricoes
@@ -70,4 +88,4 @@ Ela deve ser usada para evoluir orientacoes de agentes, skills, ADRs e convencoe
 - Nao duplicar em `AGENTS.md` conteudo detalhado que pertence a skills.
 - Nao alterar codigo de producao nem testes de aplicacao.
 - Nao alterar pipeline salvo necessidade explicita e justificada.
-- Nao fazer push nem criar branch.
+- Nao fazer push nem criar branch sem necessidade do fluxo em execucao.
