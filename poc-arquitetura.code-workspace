@@ -1,10 +1,153 @@
 {
-  "folders": [
-    {
-      "path": "."
+    "folders": [
+        {
+            "path": "."
+        }
+    ],
+    "settings": {
+        "dotnet.defaultSolution": "LedgerService.slnx",
+        "dotnet.server.useOmnisharp": false,
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit"
+        },
+        "files.associations": {
+            "*.slnx": "xml"
+        },
+        "terminal.integrated.env.windows": {
+            "Path": "C:\\Program Files\\nodejs;C:\\Users\\rodrigooliveira\\AppData\\Roaming\\npm;C:\\Python314;C:\\Python314\\Scripts;${env:Path}"
+        },
+        "terminal.integrated.profiles.windows": {
+            "PowerShell": {
+                "source": "PowerShell",
+                "args": [
+                    "-NoLogo",
+                    "-ExecutionPolicy",
+                    "Bypass"
+                ]
+            }
+        },
+        "python.defaultInterpreterPath": "C:\\Python314\\python.exe",
+        "files.exclude": {
+            "**/bin": true,
+            "**/obj": true,
+            "**/.vs": true,
+            "**/.git": true,
+            "**/.dotnet": true,
+            "**/.dotnet-home": true,
+            "**/.nuget": true,
+            "**/TestResults": true,
+            "**/artifacts/test-results": true,
+            "**/artifacts/k6": true,
+            "**/coverage": true,
+            "**/coverage-report": true,
+            "**/StrykerOutput": true
+        },
+        "search.exclude": {
+            "**/bin": true,
+            "**/obj": true,
+            "**/.vs": true,
+            "**/.git": true,
+            "**/.dotnet": true,
+            "**/.dotnet-home": true,
+            "**/.terraform": true,
+            "**/.nuget": true,
+            "**/TestResults": true,
+            "**/artifacts/test-results": true,
+            "**/artifacts/k6": true,
+            "**/coverage": true,
+            "**/coverage-report": true,
+            "**/StrykerOutput": true
+        },
+        "files.watcherExclude": {
+            "**/bin/**": true,
+            "**/obj/**": true,
+            "**/.vs/**": true,
+            "**/.dotnet/**": true,
+            "**/.dotnet-home/**": true,
+            "**/.nuget/**": true,
+            "**/TestResults/**": true,
+            "**/artifacts/test-results/**": true,
+            "**/artifacts/k6/**": true,
+            "**/coverage/**": true,
+            "**/coverage-report/**": true,
+            "**/.terraform/**": true,
+            "**/StrykerOutput/**": true
+        },
+        "search.useIgnoreFiles": true,
+        "search.useGlobalIgnoreFiles": true,
+        "markdown.preview.mermaid": true,
+        "markdown.preview.experimental.useMermaid": true,
+        "sonarlint.connectedMode.project": {
+            "connectionId": "sonarcloud-rodri-oliveira-dev",
+            "projectKey": "rodri-oliveira-dev_poc-arquitetura"
+        },
+        "sonarlint.testFilePattern": "**/*Tests*/**,**/*.Tests/**,**/*Test.cs,**/*Tests.cs",
+        "sonarlint.analysisExcludesStandalone": "**/bin/**,**/obj/**,**/.vs/**,**/.dotnet/**,**/.dotnet-home/**,**/.nuget/**,**/TestResults/**,**/artifacts/test-results/**,**/artifacts/k6/**,**/coverage/**,**/coverage-report/**,**/StrykerOutput/**",
+        "sonarlint.output.showVerboseLogs": false,
+        "sonarlint.trace.server": "off",
+        "sonarlint.disableTelemetry": true,
+        "[terraform]": {
+            "editor.defaultFormatter": "hashicorp.terraform",
+            "editor.formatOnSave": true,
+            "editor.formatOnSaveMode": "file"
+        },
+        "[terraform-vars]": {
+            "editor.defaultFormatter": "hashicorp.terraform",
+            "editor.formatOnSave": true,
+            "editor.formatOnSaveMode": "file"
+        },
+        "terraform.validation.enableEnhancedValidation": true,
+        "terraform.experimentalFeatures.validateOnSave": true,
+        "terraform.experimentalFeatures.prefillRequiredFields": true,
+        "trivy.binaryPath": "trivy",
+        "trivy.debug": false,
+        "trivy.vulnScanning": true,
+        "trivy.misconfigScanning": true,
+        "trivy.secretScanning": true,
+        "trivy.packageJsonScanning": true,
+        "trivy.gradleScanning": false,
+        "trivy.dotnetProjScanning": true,
+        "trivy.offlineScan": false,
+        "trivy.fixedOnly": false,
+        "trivy.minimumReportedSeverity": "MEDIUM",
+        "trivy.ignoreFilesInGitIgnore": true,
+        "trivy.useIgnoreFile": false,
+        "trivy.ignoreFilePath": "",
+        "trivy.useConfigFile": false,
+        "trivy.onlyUseConfigFile": false,
+        "trivy.configFilePath": "",
+        "trivy.orderResultsByType": true,
+        "trivy.skipDirList": [
+            ".build",
+            ".dart_tool",
+            ".egg-info",
+            ".egg",
+            ".git",
+            ".hg",
+            ".svn",
+            ".venv",
+            ".whl",
+            ".vs",
+            ".terraform",
+            ".dotnet",
+            ".dotnet-home",
+            ".nuget",
+            "bin",
+            "build",
+            "deps",
+            "node_modules",
+            "obj",
+            "pods",
+            "target",
+            "vendor",
+            "venv",
+            "TestResults",
+            "artifacts",
+            "coverage",
+            "coverage-report",
+            "StrykerOutput"
+        ],
+        "trivy.useAquaPlatform": false
     }
-  ],
-  "settings": {
-    "dotnet.defaultSolution": "LedgerService.slnx"
-  }
 }
