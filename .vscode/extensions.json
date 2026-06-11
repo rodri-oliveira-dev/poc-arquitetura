@@ -17,6 +17,8 @@
     "ryanluker.vscode-coverage-gutters",
     "hashicorp.terraform",
     "hashicorp.hcl",
-    "googlecloudtools.cloudcode"
+    "googlecloudtools.cloudcode",
+    "sonarsource.sonarlint-vscode",
+    "aquasecurityofficial.trivy-vulnerability-scanner"
   ]
 }
