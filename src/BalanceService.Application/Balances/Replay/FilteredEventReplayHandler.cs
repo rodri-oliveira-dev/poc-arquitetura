@@ -36,9 +36,11 @@ public sealed partial class FilteredEventReplayHandler
         ArgumentNullException.ThrowIfNull(command);
         ArgumentNullException.ThrowIfNull(command.Filter);
 
-        var replayId = Guid.NewGuid().ToString("N");
         var limit = Math.Clamp(command.Limit, 1, 1000);
-        var dryRun = !command.Execute;
+        var execution = new ReplayExecutionContext(
+            Guid.NewGuid().ToString("N"),
+            DryRun: !command.Execute,
+            command.Reason);
 
         var sourceCandidates = await _source.FindAsync(command.Filter, limit, cancellationToken);
         var candidates = sourceCandidates
@@ -94,7 +96,7 @@ public sealed partial class FilteredEventReplayHandler
 
             totalEligible++;
 
-            if (dryRun)
+            if (execution.DryRun)
             {
                 items.Add(ToItem(candidate, evaluation, FilteredEventReplayItemStatus.Eligible));
                 continue;
@@ -140,29 +142,22 @@ public sealed partial class FilteredEventReplayHandler
         }
 
         var result = new FilteredEventReplayResult(
-            replayId,
-            dryRun,
-            candidates.Count,
-            totalValid,
-            totalInvalid,
-            totalAlreadyProcessed,
-            totalEligible,
-            totalRejected,
-            totalReplayed,
+            execution.OperationId,
+            execution.DryRun,
+            new FilteredEventReplaySummary(
+                candidates.Count,
+                totalValid,
+                totalInvalid,
+                totalAlreadyProcessed,
+                totalEligible,
+                totalRejected,
+                totalReplayed),
             items);
 
         LogFilteredReplayCompleted(
             _logger,
-            replayId,
-            dryRun,
-            result.TotalFound,
-            result.TotalValid,
-            result.TotalInvalid,
-            result.TotalAlreadyProcessed,
-            result.TotalEligible,
-            result.TotalRejected,
-            result.TotalReplayed,
-            command.Reason);
+            execution,
+            result.Summary);
 
         return result;
     }
@@ -224,17 +219,9 @@ public sealed partial class FilteredEventReplayHandler
     [LoggerMessage(
         EventId = 2302,
         Level = LogLevel.Information,
-        Message = "Filtered replay completed. replayId={ReplayId} dryRun={DryRun} totalFound={TotalFound} totalValid={TotalValid} totalInvalid={TotalInvalid} totalAlreadyProcessed={TotalAlreadyProcessed} totalEligible={TotalEligible} totalRejected={TotalRejected} totalReplayed={TotalReplayed} reason={Reason}")]
+        Message = "Filtered replay completed. execution={Execution} summary={Summary}")]
     private static partial void LogFilteredReplayCompleted(
         ILogger logger,
-        string replayId,
-        bool dryRun,
-        int totalFound,
-        int totalValid,
-        int totalInvalid,
-        int totalAlreadyProcessed,
-        int totalEligible,
-        int totalRejected,
-        int totalReplayed,
-        string reason);
+        ReplayExecutionContext execution,
+        FilteredEventReplaySummary summary);
 }

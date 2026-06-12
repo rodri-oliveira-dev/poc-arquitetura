@@ -71,16 +71,10 @@ public sealed class OutboxFilteredEventReplaySource : IFilteredEventReplaySource
 
     private static EventReplaySourceCandidate ToCandidate(OutboxReplayRow row)
         => new(
-            row.SourceId,
-            row.Payload,
-            row.EventName,
-            row.EventVersion,
-            "Outbox",
-            row.OccurredAt,
-            row.MerchantId,
-            row.AccountId,
-            row.Status,
-            ToMetadata(row));
+            new EventReplaySourcePosition(row.SourceId, row.OccurredAt, row.Status),
+            new EventReplayPayload(row.Payload, ToMetadata(row)),
+            new EventReplayContract(row.EventName, row.EventVersion, "Outbox"),
+            new EventReplaySubject(row.MerchantId, row.AccountId));
 
     private static Dictionary<string, string> ToMetadata(OutboxReplayRow row)
     {

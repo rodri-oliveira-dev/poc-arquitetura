@@ -205,20 +205,16 @@ public sealed class PartialProjectionRebuildHandlerTests
     {
         var instant = Instant(occurredAt);
         return new EventReplaySourceCandidate(
-            sourceId,
-            Payload(eventId, merchantId, type, amount, instant),
-            "LedgerEntryCreated",
-            "v2",
-            "Outbox",
-            instant,
-            merchantId,
-            null,
-            "Processed",
-            new Dictionary<string, string>
-            {
-                ["source"] = "ledger.outbox_messages",
-                ["event_type"] = "LedgerEntryCreated.v2"
-            });
+            new EventReplaySourcePosition(sourceId, instant, "Processed"),
+            new EventReplayPayload(
+                Payload(eventId, merchantId, type, amount, instant),
+                new Dictionary<string, string>
+                {
+                    ["source"] = "ledger.outbox_messages",
+                    ["event_type"] = "LedgerEntryCreated.v2"
+                }),
+            new EventReplayContract("LedgerEntryCreated", "v2", "Outbox"),
+            new EventReplaySubject(merchantId, null));
     }
 
     private static string Payload(

@@ -1,3 +1,5 @@
+using System.Globalization;
+
 using BalanceService.Application.Balances.Commands;
 
 using MediatR;
@@ -32,7 +34,10 @@ public sealed partial class ManualEventReplayHandler : IRequestHandler<ManualEve
     {
         ArgumentNullException.ThrowIfNull(command);
 
-        var replayId = Guid.NewGuid().ToString("N");
+        var execution = new ReplayExecutionContext(
+            Guid.NewGuid().ToString("N"),
+            DryRun: false,
+            command.Reason);
         string? eventId = null;
 
         ManualEventReplayResult result;
@@ -49,27 +54,27 @@ public sealed partial class ManualEventReplayHandler : IRequestHandler<ManualEve
             if (evaluation.Status == EventReplayEvaluationStatus.InvalidContract)
             {
                 result = ManualEventReplayResult.RejectedInvalidContract(
-                    replayId,
+                    execution.OperationId,
                     eventId,
                     evaluation.ErrorMessage ?? "Event contract validation failed.");
-                LogResult(command, replayId, eventId, result);
+                LogResult(command, execution, eventId, result);
                 return result;
             }
 
             if (evaluation.Status == EventReplayEvaluationStatus.UnsupportedVersion)
             {
                 result = ManualEventReplayResult.RejectedUnsupportedVersion(
-                    replayId,
+                    execution.OperationId,
                     eventId,
                     evaluation.ErrorMessage ?? "Event contract validation failed.");
-                LogResult(command, replayId, eventId, result);
+                LogResult(command, execution, eventId, result);
                 return result;
             }
 
             if (evaluation.Status == EventReplayEvaluationStatus.AlreadyProcessed)
             {
-                result = ManualEventReplayResult.SkippedAlreadyProcessed(replayId, eventId!);
-                LogResult(command, replayId, eventId, result);
+                result = ManualEventReplayResult.SkippedAlreadyProcessed(execution.OperationId, eventId!);
+                LogResult(command, execution, eventId, result);
                 return result;
             }
 
@@ -79,18 +84,18 @@ public sealed partial class ManualEventReplayHandler : IRequestHandler<ManualEve
                 cancellationToken);
 
             result = applyResult.Duplicate
-                ? ManualEventReplayResult.SkippedAlreadyProcessed(replayId, eventId!)
-                : ManualEventReplayResult.Replayed(replayId, eventId!);
-            LogResult(command, replayId, eventId, result);
+                ? ManualEventReplayResult.SkippedAlreadyProcessed(execution.OperationId, eventId!)
+                : ManualEventReplayResult.Replayed(execution.OperationId, eventId!);
+            LogResult(command, execution, eventId, result);
             return result;
         }
         catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
             result = eventId is null
-                ? ManualEventReplayResult.RejectedInvalidContract(replayId, null, ex.Message)
-                : ManualEventReplayResult.FailedProcessing(replayId, eventId, ex.Message);
+                ? ManualEventReplayResult.RejectedInvalidContract(execution.OperationId, null, ex.Message)
+                : ManualEventReplayResult.FailedProcessing(execution.OperationId, eventId, ex.Message);
 
-            LogResult(command, replayId, eventId, result, ex);
+            LogResult(command, execution, eventId, result, ex);
             return result;
         }
     }
@@ -100,41 +105,44 @@ public sealed partial class ManualEventReplayHandler : IRequestHandler<ManualEve
 
     private void LogResult(
         ManualEventReplayCommand command,
-        string replayId,
+        ReplayExecutionContext execution,
         string? eventId,
         ManualEventReplayResult result,
         Exception? exception = null)
     {
+        if (!_logger.IsEnabled(LogLevel.Information))
+            return;
+
         var metadata = command.Metadata is null
             ? null
             : string.Join(",", command.Metadata.Select(x => $"{x.Key}={x.Value}"));
+
+        var eventType = $"{command.EventName}.{command.EventVersion}";
+        var resultDetails = string.Create(
+            CultureInfo.InvariantCulture,
+            $"result={result.Result};provider={command.Provider};metadata={metadata}");
 
         LogManualReplayCompleted(
             _logger,
             exception,
             eventId,
-            command.EventName,
-            command.EventVersion,
-            replayId,
-            command.Reason,
-            result.Result,
-            command.Provider,
-            metadata);
+            eventType,
+            execution.OperationId,
+            execution.Reason,
+            resultDetails);
     }
 
     [LoggerMessage(
         EventId = 2301,
         Level = LogLevel.Information,
-        Message = "Manual replay completed. eventId={EventId} eventName={EventName} eventVersion={EventVersion} replayId={ReplayId} reason={Reason} result={Result} provider={Provider} metadata={Metadata}")]
+        Message = "Manual replay completed. eventId={EventId} eventType={EventType} replayId={ReplayId} reason={Reason} {ResultDetails}",
+        SkipEnabledCheck = true)]
     private static partial void LogManualReplayCompleted(
         ILogger logger,
         Exception? exception,
         string? eventId,
-        string eventName,
-        string eventVersion,
+        string eventType,
         string replayId,
         string reason,
-        ManualEventReplayStatus result,
-        string? provider,
-        string? metadata);
+        string resultDetails);
 }

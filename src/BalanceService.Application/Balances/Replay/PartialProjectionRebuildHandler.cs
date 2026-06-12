@@ -58,9 +58,11 @@ public sealed partial class PartialProjectionRebuildHandler
         ArgumentNullException.ThrowIfNull(command.Filter);
         ValidateFilter(command.Filter);
 
-        var rebuildId = Guid.NewGuid().ToString("N");
         var limit = Math.Clamp(command.Limit, 1, 1000);
-        var dryRun = !command.Execute;
+        var execution = new ReplayExecutionContext(
+            Guid.NewGuid().ToString("N"),
+            DryRun: !command.Execute,
+            command.Reason);
         var filterDescription = Describe(command.Filter);
         var replayFilter = new FilteredEventReplayFilter(
             SupportedEventName,
@@ -99,7 +101,7 @@ public sealed partial class PartialProjectionRebuildHandler
         var totalProcessedEventsDeleted = 0;
         var mutated = false;
 
-        if (!dryRun && totalRejected == 0 && totalEligible > 0)
+        if (!execution.DryRun && totalRejected == 0 && totalEligible > 0)
         {
             var rebuildResult = await RebuildAsync(uniqueEligible, cancellationToken);
             totalRebuilt = rebuildResult.TotalRebuilt;
@@ -117,37 +119,30 @@ public sealed partial class PartialProjectionRebuildHandler
         }
 
         var result = new PartialProjectionRebuildResult(
-            rebuildId,
-            dryRun,
+            execution.OperationId,
+            execution.DryRun,
             mutated,
             filterDescription,
-            candidates.Count,
-            totalValid,
-            totalInvalid,
-            totalDuplicates,
-            totalEligible,
-            totalRejected,
-            totalRebuilt,
-            totalDailyBalancesDeleted,
-            totalProcessedEventsDeleted,
+            new ProjectionRebuildEvaluationSummary(
+                candidates.Count,
+                totalValid,
+                totalInvalid,
+                totalDuplicates,
+                totalEligible,
+                totalRejected),
+            new ProjectionRebuildMutationSummary(
+                totalRebuilt,
+                totalDailyBalancesDeleted,
+                totalProcessedEventsDeleted),
             items);
 
         LogPartialProjectionRebuildCompleted(
             _logger,
-            rebuildId,
-            dryRun,
+            execution,
             mutated,
             filterDescription,
-            result.TotalFound,
-            result.TotalValid,
-            result.TotalInvalid,
-            result.TotalDuplicates,
-            result.TotalEligible,
-            result.TotalRejected,
-            result.TotalRebuilt,
-            result.TotalDailyBalancesDeleted,
-            result.TotalProcessedEventsDeleted,
-            command.Reason);
+            result.EvaluationSummary,
+            result.MutationSummary);
 
         return result;
     }
@@ -372,21 +367,12 @@ public sealed partial class PartialProjectionRebuildHandler
     [LoggerMessage(
         EventId = 2303,
         Level = LogLevel.Information,
-        Message = "Partial projection rebuild completed. rebuildId={RebuildId} dryRun={DryRun} mutated={Mutated} filter={FilterDescription} totalFound={TotalFound} totalValid={TotalValid} totalInvalid={TotalInvalid} totalDuplicates={TotalDuplicates} totalEligible={TotalEligible} totalRejected={TotalRejected} totalRebuilt={TotalRebuilt} totalDailyBalancesDeleted={TotalDailyBalancesDeleted} totalProcessedEventsDeleted={TotalProcessedEventsDeleted} reason={Reason}")]
+        Message = "Partial projection rebuild completed. execution={Execution} mutated={Mutated} filter={FilterDescription} evaluation={EvaluationSummary} mutation={MutationSummary}")]
     private static partial void LogPartialProjectionRebuildCompleted(
         ILogger logger,
-        string rebuildId,
-        bool dryRun,
+        ReplayExecutionContext execution,
         bool mutated,
         string filterDescription,
-        int totalFound,
-        int totalValid,
-        int totalInvalid,
-        int totalDuplicates,
-        int totalEligible,
-        int totalRejected,
-        int totalRebuilt,
-        int totalDailyBalancesDeleted,
-        int totalProcessedEventsDeleted,
-        string reason);
+        ProjectionRebuildEvaluationSummary evaluationSummary,
+        ProjectionRebuildMutationSummary mutationSummary);
 }
