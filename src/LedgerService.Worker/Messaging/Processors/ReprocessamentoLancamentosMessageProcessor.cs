@@ -34,39 +34,12 @@ public sealed class ReprocessamentoLancamentosMessageProcessor
     {
         try
         {
-            ValidateSource(receivedMessage.Transport.Source);
-            ValidateEventType(receivedMessage.EventType);
+            var message = DeserializeAndValidate(receivedMessage);
 
-            var message = JsonSerializer.Deserialize<ReprocessamentoLancamentosSolicitadoV1>(
-                receivedMessage.Payload,
-                JsonOptions);
-            ValidateMessage(message);
+            using var logScope = BeginProcessingLogScope(receivedMessage, message);
+            await SendCommandAsync(message, cancellationToken);
 
-            using var logScope = _logger.BeginScope(new Dictionary<string, object?>
-            {
-                ["CorrelationId"] = message!.CorrelationId,
-                ["ReprocessamentoId"] = message.ReprocessamentoId,
-                ["MerchantId"] = message.MerchantId,
-                ["TransportProvider"] = receivedMessage.Transport.Provider,
-                ["TransportSource"] = receivedMessage.Transport.Source,
-                ["TransportPartition"] = receivedMessage.Transport.Partition,
-                ["TransportOffset"] = receivedMessage.Transport.Offset,
-                ["EventType"] = receivedMessage.EventType
-            });
-
-            using var scope = _serviceProvider.CreateScope();
-            var sender = scope.ServiceProvider.GetRequiredService<ISender>();
-            await sender.Send(
-                new ProcessarReprocessamentoLancamentosCommand(message.ReprocessamentoId),
-                cancellationToken);
-
-            _logger.LogInformation(
-                "Mensagem de reprocessamento processada. reprocessamentoId={ReprocessamentoId} provider={TransportProvider} source={TransportSource} partition={TransportPartition} offset={TransportOffset}",
-                message.ReprocessamentoId,
-                receivedMessage.Transport.Provider,
-                receivedMessage.Transport.Source,
-                receivedMessage.Transport.Partition,
-                receivedMessage.Transport.Offset);
+            LogProcessedMessage(receivedMessage, message);
 
             return true;
         }
@@ -82,34 +55,56 @@ public sealed class ReprocessamentoLancamentosMessageProcessor
         }
     }
 
-    private static void ValidateSource(string source)
+    private static ReprocessamentoLancamentosSolicitadoV1 DeserializeAndValidate(ReceivedMessage receivedMessage)
     {
-        if (!string.Equals(source, SourceName, StringComparison.Ordinal))
-            throw new MessageValidationException($"Fonte de transporte inesperada '{source}'.");
+        ReprocessamentoLancamentosMessageValidator.ValidateEnvelope(receivedMessage);
+
+        var message = JsonSerializer.Deserialize<ReprocessamentoLancamentosSolicitadoV1>(
+            receivedMessage.Payload,
+            JsonOptions);
+
+        ReprocessamentoLancamentosMessageValidator.ValidatePayload(message);
+
+        return message!;
     }
 
-    private static void ValidateEventType(string eventType)
-    {
-        if (string.IsNullOrWhiteSpace(eventType))
-            throw new MessageValidationException("Atributo event_type e obrigatorio.");
+    private IDisposable? BeginProcessingLogScope(
+        ReceivedMessage receivedMessage,
+        ReprocessamentoLancamentosSolicitadoV1 message)
+        => _logger.BeginScope(new Dictionary<string, object?>
+        {
+            ["CorrelationId"] = message.CorrelationId,
+            ["ReprocessamentoId"] = message.ReprocessamentoId,
+            ["MerchantId"] = message.MerchantId,
+            ["TransportProvider"] = receivedMessage.Transport.Provider,
+            ["TransportSource"] = receivedMessage.Transport.Source,
+            ["TransportPartition"] = receivedMessage.Transport.Partition,
+            ["TransportOffset"] = receivedMessage.Transport.Offset,
+            ["EventType"] = receivedMessage.EventType
+        });
 
-        if (!string.Equals(eventType, ReprocessamentoLancamentosSolicitadoV1.EventType, StringComparison.Ordinal))
-            throw new MessageValidationException($"Event_type nao suportado '{eventType}'.");
+    private async Task SendCommandAsync(
+        ReprocessamentoLancamentosSolicitadoV1 message,
+        CancellationToken cancellationToken)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var sender = scope.ServiceProvider.GetRequiredService<ISender>();
+        await sender.Send(
+            new ProcessarReprocessamentoLancamentosCommand(message.ReprocessamentoId),
+            cancellationToken);
     }
 
-    private static void ValidateMessage(ReprocessamentoLancamentosSolicitadoV1? message)
+    private void LogProcessedMessage(
+        ReceivedMessage receivedMessage,
+        ReprocessamentoLancamentosSolicitadoV1 message)
     {
-        if (message is null)
-            throw new MessageValidationException("Payload vazio ou invalido.");
-
-        if (message.ReprocessamentoId == Guid.Empty)
-            throw new MessageValidationException("Payload reprocessamentoId e obrigatorio.");
-
-        if (string.IsNullOrWhiteSpace(message.MerchantId))
-            throw new MessageValidationException("Payload merchantId e obrigatorio.");
-
-        if (string.IsNullOrWhiteSpace(message.CorrelationId) || !Guid.TryParse(message.CorrelationId, out _))
-            throw new MessageValidationException("Payload correlationId deve ser UUID valido.");
+        _logger.LogInformation(
+            "Mensagem de reprocessamento processada. reprocessamentoId={ReprocessamentoId} provider={TransportProvider} source={TransportSource} partition={TransportPartition} offset={TransportOffset}",
+            message.ReprocessamentoId,
+            receivedMessage.Transport.Provider,
+            receivedMessage.Transport.Source,
+            receivedMessage.Transport.Partition,
+            receivedMessage.Transport.Offset);
     }
 
     private void LogInvalidMessage(
@@ -125,6 +120,45 @@ public sealed class ReprocessamentoLancamentosMessageProcessor
             receivedMessage.Transport.Partition,
             receivedMessage.Transport.Offset,
             reason);
+    }
+
+    private static class ReprocessamentoLancamentosMessageValidator
+    {
+        public static void ValidateEnvelope(ReceivedMessage receivedMessage)
+        {
+            ValidateSource(receivedMessage.Transport.Source);
+            ValidateEventType(receivedMessage.EventType);
+        }
+
+        public static void ValidatePayload(ReprocessamentoLancamentosSolicitadoV1? message)
+        {
+            if (message is null)
+                throw new MessageValidationException("Payload vazio ou invalido.");
+
+            if (message.ReprocessamentoId == Guid.Empty)
+                throw new MessageValidationException("Payload reprocessamentoId e obrigatorio.");
+
+            if (string.IsNullOrWhiteSpace(message.MerchantId))
+                throw new MessageValidationException("Payload merchantId e obrigatorio.");
+
+            if (string.IsNullOrWhiteSpace(message.CorrelationId) || !Guid.TryParse(message.CorrelationId, out _))
+                throw new MessageValidationException("Payload correlationId deve ser UUID valido.");
+        }
+
+        private static void ValidateSource(string source)
+        {
+            if (!string.Equals(source, SourceName, StringComparison.Ordinal))
+                throw new MessageValidationException($"Fonte de transporte inesperada '{source}'.");
+        }
+
+        private static void ValidateEventType(string eventType)
+        {
+            if (string.IsNullOrWhiteSpace(eventType))
+                throw new MessageValidationException("Atributo event_type e obrigatorio.");
+
+            if (!string.Equals(eventType, ReprocessamentoLancamentosSolicitadoV1.EventType, StringComparison.Ordinal))
+                throw new MessageValidationException($"Event_type nao suportado '{eventType}'.");
+        }
     }
 
     private sealed class MessageValidationException : Exception

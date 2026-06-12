@@ -54,64 +54,85 @@ public sealed partial class LedgerEntryCreatedMessageProcessor
 
         try
         {
-            var contractVersion = ValidateEventType(message);
+            var evt = DeserializeAndValidate(message);
 
-            var deserialized = JsonSerializer.Deserialize<LedgerEntryCreatedEvent>(message.Payload, JsonOptions);
-            var evt = NormalizeAndValidateEvent(deserialized, contractVersion);
-
-            using var logScope = _logger.BeginScope(new Dictionary<string, object?>
-            {
-                ["CorrelationId"] = evt.CorrelationId,
-                ["EventId"] = ResolveEventId(message, evt.Id),
-                ["MerchantId"] = evt.MerchantId,
-                ["OccurredAt"] = evt.OccurredAt,
-                ["TransportProvider"] = message.Transport.Provider,
-                ["TransportSource"] = message.Transport.Source,
-                ["EventType"] = message.EventType
-            });
-
+            using var logScope = BeginProcessingLogScope(message, evt);
             using var activity = StartConsumerActivity(message, evt);
             var processingResult = await ProcessMessageAsync(message.EventType, evt, cancellationToken);
-            var metricResult = processingResult.Duplicate ? "duplicate" : "success";
-            _metrics.RecordConsumerMessageConsumed(message.Transport.Source, eventType, metricResult);
-            _metrics.RecordConsumerProcessingDuration(Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds, message.Transport.Source, eventType, metricResult);
-
-            if (processingResult.Duplicate)
-                _metrics.RecordConsumerDuplicate(message.Transport.Source, eventType);
+            RecordSuccessfulConsumerResult(message.Transport.Source, eventType, startedAt, processingResult);
 
             return true;
         }
         catch (JsonException ex)
         {
-            await PublishToDeadLetterAsync(message, "Deserialization failed.", ex, cancellationToken);
-            RecordDlqConsumerResult(message.Transport.Source, eventType, startedAt);
-            return true;
+            return await PublishToDeadLetterAndAllowCommitAsync(
+                message,
+                "Deserialization failed.",
+                ex,
+                eventType,
+                startedAt,
+                cancellationToken);
         }
         catch (MessageValidationException ex)
         {
-            await PublishToDeadLetterAsync(message, ex.Message, ex, cancellationToken);
-            RecordDlqConsumerResult(message.Transport.Source, eventType, startedAt);
-            return true;
+            return await PublishToDeadLetterAndAllowCommitAsync(
+                message,
+                ex.Message,
+                ex,
+                eventType,
+                startedAt,
+                cancellationToken);
         }
         catch (DomainException ex)
         {
-            await PublishToDeadLetterAsync(message, "Non-recoverable processing failure.", ex, cancellationToken);
-            RecordDlqConsumerResult(message.Transport.Source, eventType, startedAt);
-            return true;
+            return await PublishToDeadLetterAndAllowCommitAsync(
+                message,
+                "Non-recoverable processing failure.",
+                ex,
+                eventType,
+                startedAt,
+                cancellationToken);
         }
         catch (ArgumentException ex)
         {
-            await PublishToDeadLetterAsync(message, "Non-recoverable processing failure.", ex, cancellationToken);
-            RecordDlqConsumerResult(message.Transport.Source, eventType, startedAt);
-            return true;
+            return await PublishToDeadLetterAndAllowCommitAsync(
+                message,
+                "Non-recoverable processing failure.",
+                ex,
+                eventType,
+                startedAt,
+                cancellationToken);
         }
         catch (InvalidOperationException ex) when (IsNonRecoverableProcessingFailure(ex))
         {
-            await PublishToDeadLetterAsync(message, "Non-recoverable processing failure.", ex, cancellationToken);
-            RecordDlqConsumerResult(message.Transport.Source, eventType, startedAt);
-            return true;
+            return await PublishToDeadLetterAndAllowCommitAsync(
+                message,
+                "Non-recoverable processing failure.",
+                ex,
+                eventType,
+                startedAt,
+                cancellationToken);
         }
     }
+
+    private static LedgerEntryCreatedEvent DeserializeAndValidate(ReceivedMessage message)
+    {
+        var contractVersion = LedgerEntryCreatedEventValidator.ValidateEventType(message);
+        var deserialized = JsonSerializer.Deserialize<LedgerEntryCreatedEvent>(message.Payload, JsonOptions);
+        return LedgerEntryCreatedEventValidator.Validate(deserialized, contractVersion);
+    }
+
+    private IDisposable? BeginProcessingLogScope(ReceivedMessage message, LedgerEntryCreatedEvent evt)
+        => _logger.BeginScope(new Dictionary<string, object?>
+        {
+            ["CorrelationId"] = evt.CorrelationId,
+            ["EventId"] = ResolveEventId(message, evt.Id),
+            ["MerchantId"] = evt.MerchantId,
+            ["OccurredAt"] = evt.OccurredAt,
+            ["TransportProvider"] = message.Transport.Provider,
+            ["TransportSource"] = message.Transport.Source,
+            ["EventType"] = message.EventType
+        });
 
     private async Task<ApplyLedgerEntryCreatedResult> ProcessMessageAsync(
         string eventType,
@@ -151,6 +172,37 @@ public sealed partial class LedgerEntryCreatedMessageProcessor
             receivedMessage.Transport.Partition,
             receivedMessage.Transport.Offset,
             reason);
+    }
+
+    private async Task<bool> PublishToDeadLetterAndAllowCommitAsync(
+        ReceivedMessage message,
+        string reason,
+        Exception exception,
+        string eventType,
+        long startedAt,
+        CancellationToken cancellationToken)
+    {
+        await PublishToDeadLetterAsync(message, reason, exception, cancellationToken);
+        RecordDlqConsumerResult(message.Transport.Source, eventType, startedAt);
+        return true;
+    }
+
+    private void RecordSuccessfulConsumerResult(
+        string source,
+        string eventType,
+        long startedAt,
+        ApplyLedgerEntryCreatedResult processingResult)
+    {
+        var metricResult = processingResult.Duplicate ? "duplicate" : "success";
+        _metrics.RecordConsumerMessageConsumed(source, eventType, metricResult);
+        _metrics.RecordConsumerProcessingDuration(
+            Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds,
+            source,
+            eventType,
+            metricResult);
+
+        if (processingResult.Duplicate)
+            _metrics.RecordConsumerDuplicate(source, eventType);
     }
 
     private void RecordDlqConsumerResult(string source, string eventType, long startedAt)
@@ -207,87 +259,6 @@ public sealed partial class LedgerEntryCreatedMessageProcessor
         return activity;
     }
 
-    private static LedgerEntryCreatedContractVersion ValidateEventType(ReceivedMessage message)
-    {
-        if (string.IsNullOrWhiteSpace(message.EventType))
-            throw new MessageValidationException("Missing required message attribute event_type.");
-
-        return message.EventType switch
-        {
-            LedgerEntryCreatedV1Contract.EventType => LedgerEntryCreatedContractVersion.V1,
-            LedgerEntryCreatedV2Contract.EventType => LedgerEntryCreatedContractVersion.V2,
-            _ => throw new MessageValidationException($"Unsupported message event_type '{message.EventType}'.")
-        };
-    }
-
-    private static LedgerEntryCreatedEvent NormalizeAndValidateEvent(
-        LedgerEntryCreatedEvent? evt,
-        LedgerEntryCreatedContractVersion contractVersion)
-    {
-        if (evt is null)
-            throw new MessageValidationException("Message payload is empty or invalid.");
-
-        if (string.IsNullOrWhiteSpace(evt.Id))
-            throw new MessageValidationException("Message payload id is required.");
-
-        if (!EventIdPattern().IsMatch(evt.Id))
-            throw new MessageValidationException("Message payload id is invalid.");
-
-        if (string.IsNullOrWhiteSpace(evt.Type))
-            throw new MessageValidationException("Message payload type is required.");
-
-        if (string.IsNullOrWhiteSpace(evt.Amount))
-            throw new MessageValidationException("Message payload amount is required.");
-
-        if (!AmountPattern().IsMatch(evt.Amount) ||
-            !decimal.TryParse(evt.Amount, NumberStyles.Number, CultureInfo.InvariantCulture, out var amount) ||
-            amount == 0 ||
-            evt.Type is not ("CREDIT" or "DEBIT") ||
-            evt.Type == "CREDIT" && amount < 0 ||
-            evt.Type == "DEBIT" && amount > 0)
-        {
-            throw new MessageValidationException("Message payload type and amount are invalid.");
-        }
-
-        if (evt.CreatedAt == default)
-            throw new MessageValidationException("Message payload createdAt is required.");
-
-        if (string.IsNullOrWhiteSpace(evt.MerchantId))
-            throw new MessageValidationException("Message payload merchantId is required.");
-
-        if (evt.OccurredAt == default)
-            throw new MessageValidationException("Message payload occurredAt is required.");
-
-        if (string.IsNullOrWhiteSpace(evt.CorrelationId))
-            throw new MessageValidationException("Message payload correlationId is required.");
-
-        if (!Guid.TryParse(evt.CorrelationId, out _))
-            throw new MessageValidationException("Message payload correlationId must be a UUID.");
-
-        string? currency;
-        if (contractVersion == LedgerEntryCreatedContractVersion.V1)
-        {
-            if (evt.Currency is not null)
-                throw new MessageValidationException("Message payload currency is not supported in LedgerEntryCreated.v1.");
-
-            currency = LegacyV1CurrencyFallback;
-        }
-        else
-        {
-            currency = evt.Currency;
-        }
-
-        if (string.IsNullOrWhiteSpace(currency))
-            throw new MessageValidationException("Message payload currency is required.");
-
-        currency = currency.Trim().ToUpperInvariant();
-
-        if (!CurrencyPattern().IsMatch(currency))
-            throw new MessageValidationException("Message payload currency is invalid.");
-
-        return evt with { Currency = currency };
-    }
-
     private static string ResolveEventId(ReceivedMessage message, string payloadEventId)
         => !string.IsNullOrWhiteSpace(message.EventId)
             ? message.EventId
@@ -300,6 +271,17 @@ public sealed partial class LedgerEntryCreatedMessageProcessor
 
     private static bool IsNonRecoverableProcessingFailure(InvalidOperationException ex)
         => ex.Source?.Contains("EntityFramework", StringComparison.OrdinalIgnoreCase) != true;
+
+    private static bool IsValidAmountForType(LedgerEntryCreatedEvent evt, out decimal amount)
+    {
+        amount = default;
+        return AmountPattern().IsMatch(evt.Amount) &&
+            decimal.TryParse(evt.Amount, NumberStyles.Number, CultureInfo.InvariantCulture, out amount) &&
+            amount != 0 &&
+            evt.Type is "CREDIT" or "DEBIT" &&
+            (evt.Type != "CREDIT" || amount >= 0) &&
+            (evt.Type != "DEBIT" || amount <= 0);
+    }
 
     [GeneratedRegex("^lan_[0-9a-f]{8}$", RegexOptions.CultureInvariant)]
     private static partial Regex EventIdPattern();
@@ -314,6 +296,107 @@ public sealed partial class LedgerEntryCreatedMessageProcessor
     {
         V1,
         V2
+    }
+
+    private static class LedgerEntryCreatedEventValidator
+    {
+        public static LedgerEntryCreatedContractVersion ValidateEventType(ReceivedMessage message)
+        {
+            if (string.IsNullOrWhiteSpace(message.EventType))
+                throw new MessageValidationException("Missing required message attribute event_type.");
+
+            return message.EventType switch
+            {
+                LedgerEntryCreatedV1Contract.EventType => LedgerEntryCreatedContractVersion.V1,
+                LedgerEntryCreatedV2Contract.EventType => LedgerEntryCreatedContractVersion.V2,
+                _ => throw new MessageValidationException($"Unsupported message event_type '{message.EventType}'.")
+            };
+        }
+
+        public static LedgerEntryCreatedEvent Validate(
+            LedgerEntryCreatedEvent? evt,
+            LedgerEntryCreatedContractVersion contractVersion)
+        {
+            if (evt is null)
+                throw new MessageValidationException("Message payload is empty or invalid.");
+
+            ValidateRequiredFields(evt);
+            ValidateBusinessShape(evt);
+            var currency = LedgerEntryCreatedEventNormalizer.NormalizeCurrency(evt, contractVersion);
+
+            return evt with { Currency = currency };
+        }
+
+        private static void ValidateRequiredFields(LedgerEntryCreatedEvent evt)
+        {
+            if (string.IsNullOrWhiteSpace(evt.Id))
+                throw new MessageValidationException("Message payload id is required.");
+
+            if (string.IsNullOrWhiteSpace(evt.Type))
+                throw new MessageValidationException("Message payload type is required.");
+
+            if (string.IsNullOrWhiteSpace(evt.Amount))
+                throw new MessageValidationException("Message payload amount is required.");
+
+            if (evt.CreatedAt == default)
+                throw new MessageValidationException("Message payload createdAt is required.");
+
+            if (string.IsNullOrWhiteSpace(evt.MerchantId))
+                throw new MessageValidationException("Message payload merchantId is required.");
+
+            if (evt.OccurredAt == default)
+                throw new MessageValidationException("Message payload occurredAt is required.");
+
+            if (string.IsNullOrWhiteSpace(evt.CorrelationId))
+                throw new MessageValidationException("Message payload correlationId is required.");
+        }
+
+        private static void ValidateBusinessShape(LedgerEntryCreatedEvent evt)
+        {
+            if (!EventIdPattern().IsMatch(evt.Id))
+                throw new MessageValidationException("Message payload id is invalid.");
+
+            if (!IsValidAmountForType(evt, out _))
+                throw new MessageValidationException("Message payload type and amount are invalid.");
+
+            if (!Guid.TryParse(evt.CorrelationId, out _))
+                throw new MessageValidationException("Message payload correlationId must be a UUID.");
+        }
+    }
+
+    private static class LedgerEntryCreatedEventNormalizer
+    {
+        public static string NormalizeCurrency(
+            LedgerEntryCreatedEvent evt,
+            LedgerEntryCreatedContractVersion contractVersion)
+        {
+            var currency = ResolveCurrency(evt, contractVersion);
+
+            if (string.IsNullOrWhiteSpace(currency))
+                throw new MessageValidationException("Message payload currency is required.");
+
+            currency = currency.Trim().ToUpperInvariant();
+
+            if (!CurrencyPattern().IsMatch(currency))
+                throw new MessageValidationException("Message payload currency is invalid.");
+
+            return currency;
+        }
+
+        private static string? ResolveCurrency(
+            LedgerEntryCreatedEvent evt,
+            LedgerEntryCreatedContractVersion contractVersion)
+        {
+            if (contractVersion == LedgerEntryCreatedContractVersion.V1)
+            {
+                if (evt.Currency is not null)
+                    throw new MessageValidationException("Message payload currency is not supported in LedgerEntryCreated.v1.");
+
+                return LegacyV1CurrencyFallback;
+            }
+
+            return evt.Currency;
+        }
     }
 
     private sealed class MessageValidationException : Exception
