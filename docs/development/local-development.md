@@ -775,6 +775,8 @@ dotnet tool run dotnet-ef -- database update `
 
 Use este modo quando PostgreSQL e Pub/Sub emulator ja estiverem disponiveis e voce quiser rodar ou depurar os processos no host. Os profiles de debug dos workers configuram `PUBSUB_EMULATOR_HOST=127.0.0.1:8085`. Para depurar Kafka legado, sobrescreva `Messaging__Provider=Kafka` e os bootstrap servers.
 
+Os arquivos `appsettings.PubSub.json` dos workers nao versionam connection string. Ao rodar `LedgerService.Worker` ou `BalanceService.Worker` diretamente no host com esse profile, defina `ConnectionStrings__DefaultConnection` no processo com o usuario e senha locais apropriados para o banco alvo.
+
 Restaure as ferramentas:
 
 ```bash
