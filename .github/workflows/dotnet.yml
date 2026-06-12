@@ -130,6 +130,7 @@ jobs:
           /d:sonar.token="$SONAR_TOKEN"
           /d:sonar.host.url="https://sonarcloud.io"
           /d:sonar.cs.opencover.reportsPaths="${{ env.TEST_RESULTS_DIR }}/**/coverage.opencover.xml"
+          /d:sonar.coverage.exclusions=".github/**,docs/**,infra/**,loadtests/**,scripts/**"
           /d:sonar.qualitygate.wait=true
 
       - name: Build
@@ -193,8 +194,26 @@ jobs:
 
           project_key = "rodri-oliveira-dev_poc-arquitetura"
           organization_key = "rodri-oliveira-dev"
-          dashboard_url = f"https://sonarcloud.io/project/overview?id={urllib.parse.quote(project_key)}"
           sonar_token = os.environ.get("SONAR_TOKEN", "")
+          github_event_name = os.environ.get("GITHUB_EVENT_NAME", "")
+          github_event_path = os.environ.get("GITHUB_EVENT_PATH", "")
+
+          def get_pull_request_number():
+              if github_event_name != "pull_request" or not github_event_path:
+                  return None
+
+              try:
+                  with open(github_event_path, encoding="utf-8") as event_file:
+                      event = json.load(event_file)
+                  number = event.get("pull_request", {}).get("number") or event.get("number")
+                  return str(number) if number else None
+              except Exception:
+                  return None
+
+          pull_request_number = get_pull_request_number()
+          sonar_context_query = {"pullRequest": pull_request_number} if pull_request_number else {}
+          dashboard_query = {"id": project_key, **sonar_context_query}
+          dashboard_url = "https://sonarcloud.io/project/overview?" + urllib.parse.urlencode(dashboard_query)
 
           metric_keys = [
               "coverage",
@@ -207,12 +226,16 @@ jobs:
               "new_code_smells",
               "security_hotspots",
               "new_security_hotspots",
+              "new_security_hotspots_reviewed",
               "duplicated_lines_density",
               "new_duplicated_lines_density",
               "ncloc",
               "reliability_rating",
+              "new_reliability_rating",
               "security_rating",
+              "new_security_rating",
               "sqale_rating",
+              "new_maintainability_rating",
           ]
 
           def write_json(path, payload):
@@ -249,6 +272,7 @@ jobs:
                   "",
                   f"- Projeto: `{project_key}`",
                   f"- Organizacao: `{organization_key}`",
+                  f"- Contexto: `pullRequest={pull_request_number}`" if pull_request_number else "- Contexto: `project`",
                   f"- Dashboard: [{project_key}]({dashboard_url})",
                   "",
               ]
@@ -279,7 +303,7 @@ jobs:
               )
 
               measures_by_key = {
-                  item.get("metric"): item.get("value", "")
+                  item.get("metric"): item.get("value", next((period.get("value", "") for period in item.get("periods", [])), ""))
                   for item in (measures or {}).get("component", {}).get("measures", [])
               }
               lines.extend(markdown_table(["Metrica", "Valor"], [[key, measures_by_key.get(key, "")] for key in metric_keys]))
@@ -356,12 +380,16 @@ jobs:
                   print(message)
                   sys.exit(0)
 
-              quality_gate = request_json("qualitygates/project_status", {"projectKey": project_key})
+              quality_gate = request_json(
+                  "qualitygates/project_status",
+                  {"projectKey": project_key, **sonar_context_query},
+              )
               measures = request_json(
                   "measures/component",
                   {
                       "component": project_key,
                       "metricKeys": ",".join(metric_keys),
+                      **sonar_context_query,
                   },
               )
               issues = request_json(
@@ -371,6 +399,7 @@ jobs:
                       "resolved": "false",
                       "facets": "severities,types",
                       "ps": "100",
+                      **sonar_context_query,
                   },
               )
 

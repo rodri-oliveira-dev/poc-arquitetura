@@ -34,7 +34,13 @@ export function operationParams(cfg, { headers = {}, service, operation }) {
 }
 
 export function buildUrl(baseUrl, path, { segments = [], query = {} } = {}) {
-    const cleanBaseUrl = String(baseUrl || '').replace(/\/+$/, '');
+    const cleanBaseUrl = String(baseUrl || '');
+    let baseUrlEnd = cleanBaseUrl.length;
+    while (baseUrlEnd > 0 && cleanBaseUrl[baseUrlEnd - 1] === '/') {
+        baseUrlEnd -= 1;
+    }
+
+    const normalizedBaseUrl = cleanBaseUrl.slice(0, baseUrlEnd);
     const pathText = String(path || '');
     const cleanPath = pathText.startsWith('/') ? pathText : `/${pathText}`;
     const encodedSegments = segments
@@ -46,7 +52,8 @@ export function buildUrl(baseUrl, path, { segments = [], query = {} } = {}) {
         .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
         .join('&');
 
-    const url = `${cleanBaseUrl}${cleanPath}${encodedSegments.length ? `/${encodedSegments.join('/')}` : ''}`;
+    const segmentPath = encodedSegments.length ? `/${encodedSegments.join('/')}` : '';
+    const url = `${normalizedBaseUrl}${cleanPath}${segmentPath}`;
     return queryString ? `${url}?${queryString}` : url;
 }
 

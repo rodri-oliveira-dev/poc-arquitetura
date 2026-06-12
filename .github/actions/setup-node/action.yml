@@ -23,4 +23,4 @@ runs:
     - name: Install Node dependencies
       if: ${{ inputs.install-dependencies == 'true' }}
       shell: bash
-      run: npm ci
+      run: npm ci --ignore-scripts

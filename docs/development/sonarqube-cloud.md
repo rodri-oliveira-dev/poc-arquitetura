@@ -69,6 +69,10 @@ sonar.cs.opencover.reportsPaths="./artifacts/test-results/**/coverage.opencover.
 
 Nao use cobertura generica do Sonar para este caso. Para C#/.NET, a importacao deve usar `sonar.cs.opencover.reportsPaths` apontando para os arquivos OpenCover gerados pelo Coverlet.
 
+O scanner exclui da metrica de cobertura do SonarQube Cloud os diretorios `.github/`, `docs/`, `infra/`, `loadtests/` e `scripts/`. Esses arquivos continuam analisados por regras de qualidade e seguranca quando suportado pelo Sonar, mas nao entram no denominador de cobertura porque a cobertura oficial do repositorio vem dos testes .NET via OpenCover.
+
+Nao use essa exclusao para esconder codigo produtivo .NET sem testes. Se um arquivo C# de `src/` precisar sair da cobertura, registre uma justificativa localizada e revise se o `coverlet.runsettings` tambem precisa ser ajustado.
+
 ## Quality Gate
 
 O SonarQube Cloud aplica seu proprio quality gate com base nas regras configuradas no projeto e na organizacao.
@@ -106,6 +110,8 @@ O mesmo conteudo de `sonarqube-cloud-report.md` e adicionado ao GitHub Step Summ
 3. veja a aba ou secao `Summary` da execucao.
 
 Se `SONAR_TOKEN` estiver ausente ou se a API do SonarQube Cloud nao responder, o step registra uma mensagem clara, gera arquivos de erro em `artifacts/sonarqube` e nao quebra o restante do job. O quality gate remoto continua sendo aplicado pelo scanner quando `SonarQube Cloud end` executa com sucesso.
+
+Em eventos de pull request, o relatorio consulta a API com `pullRequest=<numero>`. Isso evita confundir o status do projeto principal com o Quality Gate especifico do PR.
 
 ## Artifact do GitHub Actions
 

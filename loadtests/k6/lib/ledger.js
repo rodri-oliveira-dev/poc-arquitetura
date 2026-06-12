@@ -11,7 +11,7 @@ export function createLedgerEntry(cfg, overrides = {}) {
     const payload = {
         type: 'CREDIT',
         merchantId,
-        amount: 10.0,
+        amount: 10,
         description: 'k6 resilience test',
         externalReference: `k6-${entryIdempotencyKey}`,
         ...overrides.payload,
