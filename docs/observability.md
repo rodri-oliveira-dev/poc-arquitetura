@@ -690,7 +690,7 @@ curl -G "http://localhost:3100/loki/api/v1/query_range" \
 
 No Alloy, acesse `http://localhost:12345` para diagnostico local do agente quando o profile `observability` estiver ativo. O container precisa ter acesso somente leitura a `/var/run/docker.sock`; sem esse socket, a coleta de logs falha, mas as APIs continuam funcionando. Esse socket continua sendo uma superficie sensivel mesmo em modo somente leitura, por isso o Alloy fica isolado por profile e deve ser usado apenas em maquina local confiavel.
 
-No Grafana, acesse `http://localhost:3000` com usuario `admin` e senha local definida por `GRAFANA_ADMIN_PASSWORD` ou pelo default ficticio `local_dev_password`. Em `Connections` ou `Data sources`, confirme os datasources `Prometheus` apontando para `http://prometheus:9090`, `Loki` apontando para `http://loki:3100` e `Jaeger` apontando para `http://jaeger:16686`. Em `Dashboards`, abra a pasta `Observability` e confirme que os dashboards `APIs - Visao Geral` e `Runtime .NET - Visao Geral` foram carregados automaticamente. Para validar metricas, use Explore com uma das metricas tecnicas listadas acima. Para validar logs, use Explore com o datasource `Loki` e queries por processo, por exemplo `{service="ledger-service"}` para HTTP e `{service="ledger-worker"}` para Outbox e publicacao pelo provider selecionado. Para validar o link log -> trace, abra uma linha com `TraceId=<valor>` e clique em `Abrir trace no Jaeger`.
+No Grafana, acesse `http://localhost:3000` com usuario `admin` e senha local definida por `GRAFANA_ADMIN_PASSWORD`. Em `Connections` ou `Data sources`, confirme os datasources `Prometheus` apontando para `http://prometheus:9090`, `Loki` apontando para `http://loki:3100` e `Jaeger` apontando para `http://jaeger:16686`. Em `Dashboards`, abra a pasta `Observability` e confirme que os dashboards `APIs - Visao Geral` e `Runtime .NET - Visao Geral` foram carregados automaticamente. Para validar metricas, use Explore com uma das metricas tecnicas listadas acima. Para validar logs, use Explore com o datasource `Loki` e queries por processo, por exemplo `{service="ledger-service"}` para HTTP e `{service="ledger-worker"}` para Outbox e publicacao pelo provider selecionado. Para validar o link log -> trace, abra uma linha com `TraceId=<valor>` e clique em `Abrir trace no Jaeger`.
 
 ### Validacao Keycloak -> Ledger -> Outbox -> Pub/Sub emulator -> Balance
 
@@ -836,7 +836,7 @@ Guarde o `id` retornado no body, por exemplo `lan_12345678`, e a data de `occurr
 Consultas SQL uteis pelo compose:
 
 ```bash
-docker compose exec -T -e PGPASSWORD=local_dev_password postgres-db psql -U ledger_app_user -d appdb \
+docker compose --env-file .env.local exec -T -e PGPASSWORD=<LEDGER_DB_PASSWORD> postgres-db psql -U ledger_app_user -d appdb \
   -c "SELECT id, event_type, status, retry_count, correlation_id, traceparent, tracestate, baggage, processed_at FROM ledger.outbox_messages WHERE correlation_id = '11111111-1111-4111-8111-111111111111' ORDER BY occurred_at DESC LIMIT 5;"
 ```
 
@@ -845,10 +845,10 @@ Durante uma janela curta, a mensagem pode aparecer como `Pending` ou `Processing
 No Balance, confirme o efeito funcional:
 
 ```bash
-docker compose exec -T -e PGPASSWORD=local_dev_password postgres-db psql -U balance_read_user -d appdb \
+docker compose --env-file .env.local exec -T -e PGPASSWORD=<BALANCE_DB_READ_PASSWORD> postgres-db psql -U balance_read_user -d appdb \
   -c "SELECT event_id, merchant_id, processed_at FROM balance.processed_events WHERE event_id = '<ID_RETORNADO_PELO_LEDGER>';"
 
-docker compose exec -T -e PGPASSWORD=local_dev_password postgres-db psql -U balance_read_user -d appdb \
+docker compose --env-file .env.local exec -T -e PGPASSWORD=<BALANCE_DB_READ_PASSWORD> postgres-db psql -U balance_read_user -d appdb \
   -c "SELECT merchant_id, date, currency, total_credits, total_debits, net_balance FROM balance.daily_balances WHERE merchant_id = 'tese' ORDER BY updated_at DESC LIMIT 5;"
 ```
 
@@ -970,7 +970,7 @@ Se o Collector ou o Jaeger ficar temporariamente indisponivel depois que a aplic
 Para execucao fora de container no fluxo principal, configure PostgreSQL e Pub/Sub emulator locais e use as configuracoes dos `appsettings.json` como baseline. Use variaveis de ambiente para sobrescrever valores por ambiente:
 
 ```powershell
-$env:ConnectionStrings__DefaultConnection = "Host=127.0.0.1;Port=15432;Database=appdb;Username=appuser;Password=local_dev_password"
+$env:ConnectionStrings__DefaultConnection = "Host=127.0.0.1;Port=15432;Database=appdb;Username=ledger_app_user;Password=<LEDGER_DB_PASSWORD>"
 $env:PUBSUB_EMULATOR_HOST = "127.0.0.1:8085"
 $env:PubSub__Producer__ProjectId = "poc-local"
 $env:Observability__OpenTelemetry__Enabled = "true"

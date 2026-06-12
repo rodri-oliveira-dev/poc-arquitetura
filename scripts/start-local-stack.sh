@@ -18,15 +18,30 @@ OBSERVABILITY="${OBSERVABILITY:-false}"
 
 get_local_env_value() {
   local name="$1"
-  local env_file="$ROOT_DIR/.env"
 
-  if [[ ! -f "$env_file" ]]; then
-    return 0
-  fi
+  for env_file in "$ROOT_DIR/.env.local" "$ROOT_DIR/.env"; do
+    if [[ ! -f "$env_file" ]]; then
+      continue
+    fi
 
-  sed -nE "s/^[[:space:]]*$name[[:space:]]*=[[:space:]]*(.*)[[:space:]]*$/\1/p" "$env_file" |
-    tail -n 1 |
-    sed -E "s/^['\"]//; s/['\"]$//"
+    local value
+    value="$(sed -nE "s/^[[:space:]]*$name[[:space:]]*=[[:space:]]*(.*)[[:space:]]*$/\1/p" "$env_file" |
+      tail -n 1 |
+      sed -E "s/^['\"]//; s/['\"]$//")"
+    if [[ -n "$value" ]]; then
+      printf '%s' "$value"
+      return 0
+    fi
+  done
+}
+
+get_compose_env_file() {
+  for env_file in "$ROOT_DIR/.env.local" "$ROOT_DIR/.env"; do
+    if [[ -f "$env_file" ]]; then
+      printf '%s' "$env_file"
+      return 0
+    fi
+  done
 }
 
 get_local_config_value() {
@@ -45,15 +60,33 @@ get_local_config_value() {
   printf '%s' "$value"
 }
 
+get_required_local_config_value() {
+  local name="$1"
+  local value
+  value="$(get_local_config_value "$name" "")"
+
+  if [[ -z "$value" ]]; then
+    echo "Defina $name no ambiente, em .env.local ou em .env." >&2
+    return 1
+  fi
+
+  printf '%s' "$value"
+}
+
+COMPOSE_ENV_FILE="$(get_compose_env_file)"
 POSTGRES_HOST_PORT="$(get_local_config_value POSTGRES_HOST_PORT 15432)"
 POSTGRES_DATABASE="appdb"
-LEDGER_DB_PASSWORD="$(get_local_config_value LEDGER_DB_PASSWORD local_dev_password)"
-LEDGER_DB_MIGRATOR_PASSWORD="$(get_local_config_value LEDGER_DB_MIGRATOR_PASSWORD local_dev_password)"
-BALANCE_DB_READ_PASSWORD="$(get_local_config_value BALANCE_DB_READ_PASSWORD local_dev_password)"
-BALANCE_DB_WRITE_PASSWORD="$(get_local_config_value BALANCE_DB_WRITE_PASSWORD local_dev_password)"
-BALANCE_DB_MIGRATOR_PASSWORD="$(get_local_config_value BALANCE_DB_MIGRATOR_PASSWORD local_dev_password)"
+LEDGER_DB_PASSWORD="$(get_required_local_config_value LEDGER_DB_PASSWORD)"
+LEDGER_DB_MIGRATOR_PASSWORD="$(get_required_local_config_value LEDGER_DB_MIGRATOR_PASSWORD)"
+BALANCE_DB_READ_PASSWORD="$(get_required_local_config_value BALANCE_DB_READ_PASSWORD)"
+BALANCE_DB_WRITE_PASSWORD="$(get_required_local_config_value BALANCE_DB_WRITE_PASSWORD)"
+BALANCE_DB_MIGRATOR_PASSWORD="$(get_required_local_config_value BALANCE_DB_MIGRATOR_PASSWORD)"
 
-compose_files=(-f "$COMPOSE_FILE")
+compose_files=()
+if [[ -n "$COMPOSE_ENV_FILE" ]]; then
+  compose_files+=(--env-file "$COMPOSE_ENV_FILE")
+fi
+compose_files+=(-f "$COMPOSE_FILE")
 if [[ -n "$COMPOSE_OVERLAY_FILE" ]]; then
   compose_files+=(-f "$COMPOSE_OVERLAY_FILE")
 fi

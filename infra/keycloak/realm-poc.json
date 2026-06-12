@@ -41,7 +41,7 @@
       "enabled": true,
       "protocol": "openid-connect",
       "publicClient": false,
-      "secret": "local_dev_client_secret",
+      "secret": "${KEYCLOAK_CLIENT_SECRET}",
       "clientAuthenticatorType": "client-secret",
       "standardFlowEnabled": false,
       "implicitFlowEnabled": false,
@@ -246,7 +246,7 @@
       "credentials": [
         {
           "type": "password",
-          "value": "local_ledger_password",
+          "value": "${KEYCLOAK_LOCAL_LEDGER_USER_PASSWORD}",
           "temporary": false
         }
       ]
@@ -276,7 +276,7 @@
       "credentials": [
         {
           "type": "password",
-          "value": "local_balance_password",
+          "value": "${KEYCLOAK_LOCAL_BALANCE_USER_PASSWORD}",
           "temporary": false
         }
       ]
@@ -306,7 +306,7 @@
       "credentials": [
         {
           "type": "password",
-          "value": "local_admin_password",
+          "value": "${KEYCLOAK_LOCAL_ADMIN_USER_PASSWORD}",
           "temporary": false
         }
       ]

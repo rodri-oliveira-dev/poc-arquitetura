@@ -36,10 +36,10 @@ public sealed class IdempotencyRecordRepositoryTests
             expiresAt: expiresAt);
 
         await db.IdempotencyRecords.AddRangeAsync(expected, otherMerchantSameKey);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         db.ChangeTracker.Clear();
 
-        var result = await repo.GetByMerchantAndKeyAsync("merchant-1", "idem-1");
+        var result = await repo.GetByMerchantAndKeyAsync("merchant-1", "idem-1", TestContext.Current.CancellationToken);
 
         Assert.NotNull(result);
         Assert.Equal(expected.Id, result.Id);
@@ -71,10 +71,10 @@ public sealed class IdempotencyRecordRepositoryTests
             createdAt: expiresAt.AddDays(-1),
             expiresAt: expiresAt);
 
-        await repo.AddAsync(record);
-        await db.SaveChangesAsync();
+        await repo.AddAsync(record, TestContext.Current.CancellationToken);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var saved = await db.IdempotencyRecords.SingleAsync();
+        var saved = await db.IdempotencyRecords.SingleAsync(TestContext.Current.CancellationToken);
         Assert.Equal(record.Id, saved.Id);
         Assert.Equal("merchant-1", saved.MerchantId);
         Assert.Equal("idem-2", saved.IdempotencyKey);
@@ -100,11 +100,12 @@ public sealed class IdempotencyRecordRepositoryTests
             responseStatusCode: 201,
             responseBody: null,
             createdAt: new DateTime(2026, 2, 16, 0, 0, 0, DateTimeKind.Utc),
-            expiresAt: new DateTime(2026, 2, 17, 0, 0, 0, DateTimeKind.Utc)));
-        await db.SaveChangesAsync();
+            expiresAt: new DateTime(2026, 2, 17, 0, 0, 0, DateTimeKind.Utc)),
+            TestContext.Current.CancellationToken);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         db.ChangeTracker.Clear();
 
-        var result = await repo.GetByMerchantAndKeyAsync("merchant-2", "idem-1");
+        var result = await repo.GetByMerchantAndKeyAsync("merchant-2", "idem-1", TestContext.Current.CancellationToken);
 
         Assert.Null(result);
         Assert.Empty(db.ChangeTracker.Entries<IdempotencyRecord>());

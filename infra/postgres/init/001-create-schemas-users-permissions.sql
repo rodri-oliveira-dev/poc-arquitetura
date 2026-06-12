@@ -1,10 +1,10 @@
 \set ON_ERROR_STOP on
 
-\set ledger_db_password `printf '%s' "${LEDGER_DB_PASSWORD:-local_dev_password}"`
-\set ledger_db_migrator_password `printf '%s' "${LEDGER_DB_MIGRATOR_PASSWORD:-local_dev_password}"`
-\set balance_db_read_password `printf '%s' "${BALANCE_DB_READ_PASSWORD:-local_dev_password}"`
-\set balance_db_write_password `printf '%s' "${BALANCE_DB_WRITE_PASSWORD:-local_dev_password}"`
-\set balance_db_migrator_password `printf '%s' "${BALANCE_DB_MIGRATOR_PASSWORD:-local_dev_password}"`
+\set ledger_db_password `printf '%s' "${LEDGER_DB_PASSWORD:?Defina LEDGER_DB_PASSWORD}"`
+\set ledger_db_migrator_password `printf '%s' "${LEDGER_DB_MIGRATOR_PASSWORD:?Defina LEDGER_DB_MIGRATOR_PASSWORD}"`
+\set balance_db_read_password `printf '%s' "${BALANCE_DB_READ_PASSWORD:?Defina BALANCE_DB_READ_PASSWORD}"`
+\set balance_db_write_password `printf '%s' "${BALANCE_DB_WRITE_PASSWORD:?Defina BALANCE_DB_WRITE_PASSWORD}"`
+\set balance_db_migrator_password `printf '%s' "${BALANCE_DB_MIGRATOR_PASSWORD:?Defina BALANCE_DB_MIGRATOR_PASSWORD}"`
 
 -- Idempotent local bootstrap for the shared PostgreSQL container.
 -- Runtime roles receive only DML privileges in their own service schema.

@@ -22,15 +22,15 @@ public sealed class AuthEndpointsTests : IClassFixture<AuthApiFactory>
     [Fact]
     public async Task Health_should_return_ok()
     {
-        var res = await _client.GetAsync("/health");
+        var res = await _client.GetAsync("/health", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
-        Assert.Equal("ok", (await res.Content.ReadAsStringAsync()));
+        Assert.Equal("ok", (await res.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)));
     }
 
     [Fact]
     public async Task Health_should_return_security_headers()
     {
-        var res = await _client.GetAsync("/health");
+        var res = await _client.GetAsync("/health", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
         Assert.Contains("nosniff", res.Headers.GetValues("X-Content-Type-Options"));
         Assert.Contains("DENY", res.Headers.GetValues("X-Frame-Options"));
@@ -45,10 +45,10 @@ public sealed class AuthEndpointsTests : IClassFixture<AuthApiFactory>
     [Fact]
     public async Task Unknown_route_should_return_problem_details()
     {
-        var res = await _client.GetAsync("/rota-inexistente");
+        var res = await _client.GetAsync("/rota-inexistente", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.NotFound, res.StatusCode);
         Assert.Equal("application/problem+json", res.Content.Headers.ContentType?.MediaType);
-        using var doc = JsonDocument.Parse(await res.Content.ReadAsStringAsync());
+        using var doc = JsonDocument.Parse(await res.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Equal(404, doc.RootElement.GetProperty("status").GetInt32());
         Assert.False(string.IsNullOrWhiteSpace(doc.RootElement.GetProperty("title").GetString()));
     }
@@ -56,7 +56,7 @@ public sealed class AuthEndpointsTests : IClassFixture<AuthApiFactory>
     [Fact]
     public async Task Swagger_should_be_disabled_by_default_in_test()
     {
-        var res = await _client.GetAsync("/swagger/v1/swagger.json");
+        var res = await _client.GetAsync("/swagger/v1/swagger.json", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.NotFound, res.StatusCode);
     }
 
@@ -73,16 +73,16 @@ public sealed class AuthEndpointsTests : IClassFixture<AuthApiFactory>
             AllowAutoRedirect = false
         });
 
-        var res = await client.GetAsync("/swagger/v1/swagger.json");
+        var res = await client.GetAsync("/swagger/v1/swagger.json", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
     }
 
     [Fact]
     public async Task Jwks_should_return_key_with_kid()
     {
-        var res = await _client.GetAsync("/.well-known/jwks.json");
+        var res = await _client.GetAsync("/.well-known/jwks.json", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
-        using var doc = JsonDocument.Parse(await res.Content.ReadAsStringAsync());
+        using var doc = JsonDocument.Parse(await res.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Equal(1, doc.RootElement.GetProperty("keys").GetArrayLength());
         Assert.False(string.IsNullOrWhiteSpace(doc.RootElement.GetProperty("keys")[0].GetProperty("kid").GetString()));
         Assert.False(string.IsNullOrWhiteSpace(doc.RootElement.GetProperty("keys")[0].GetProperty("n").GetString()));
@@ -97,9 +97,9 @@ public sealed class AuthEndpointsTests : IClassFixture<AuthApiFactory>
             Username = "poc-usuario",
             Password = "Poc#123",
             Scope = "ledger.write"
-        });
+        }, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
-        var body = await res.Content.ReadFromJsonAsync<LoginResponse>();
+        var body = await res.Content.ReadFromJsonAsync<LoginResponse>(TestContext.Current.CancellationToken);
         Assert.NotNull(body);
         Assert.False(string.IsNullOrWhiteSpace(body!.AccessToken));
         Assert.Equal("Bearer", body.TokenType);
@@ -115,9 +115,9 @@ public sealed class AuthEndpointsTests : IClassFixture<AuthApiFactory>
             Username = "poc-usuario",
             Password = "Poc#123",
             Scope = string.Empty
-        });
+        }, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
-        var body = await res.Content.ReadFromJsonAsync<ErrorResponse>();
+        var body = await res.Content.ReadFromJsonAsync<ErrorResponse>(TestContext.Current.CancellationToken);
         Assert.NotNull(body);
         Assert.Equal("invalid_scope", body!.Error);
     }
@@ -130,7 +130,7 @@ public sealed class AuthEndpointsTests : IClassFixture<AuthApiFactory>
             Username = "wrong",
             Password = "wrong",
             Scope = "ledger.write"
-        });
+        }, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Unauthorized, res.StatusCode);
     }
 
@@ -142,7 +142,7 @@ public sealed class AuthEndpointsTests : IClassFixture<AuthApiFactory>
             Username = "poc-usuario",
             Password = "Poc#123",
             Scope = "invalid.scope"
-        });
+        }, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
     }
 
@@ -166,9 +166,9 @@ public sealed class AuthEndpointsTests : IClassFixture<AuthApiFactory>
             Password = "Poc#123",
             Scope = "ledger.write"
         };
-        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync("/auth/login", request)).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync("/auth/login", request)).StatusCode);
-        var rejected = await client.PostAsJsonAsync("/auth/login", request);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync("/auth/login", request, TestContext.Current.CancellationToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync("/auth/login", request, TestContext.Current.CancellationToken)).StatusCode);
+        var rejected = await client.PostAsJsonAsync("/auth/login", request, TestContext.Current.CancellationToken);
         Assert.Equal((HttpStatusCode)429, rejected.StatusCode);
         Assert.Equal("application/problem+json", rejected.Content.Headers.ContentType?.MediaType);
     }

@@ -23,12 +23,12 @@ services:
     environment:
       POSTGRES_DB: appdb
       POSTGRES_USER: postgres_admin
-      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-local_dev_password}"
-      LEDGER_DB_PASSWORD: "${LEDGER_DB_PASSWORD:-local_dev_password}"
-      LEDGER_DB_MIGRATOR_PASSWORD: "${LEDGER_DB_MIGRATOR_PASSWORD:-local_dev_password}"
-      BALANCE_DB_READ_PASSWORD: "${BALANCE_DB_READ_PASSWORD:-local_dev_password}"
-      BALANCE_DB_WRITE_PASSWORD: "${BALANCE_DB_WRITE_PASSWORD:-local_dev_password}"
-      BALANCE_DB_MIGRATOR_PASSWORD: "${BALANCE_DB_MIGRATOR_PASSWORD:-local_dev_password}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD no ambiente ou em .env.local}"
+      LEDGER_DB_PASSWORD: "${LEDGER_DB_PASSWORD:?Defina LEDGER_DB_PASSWORD no ambiente ou em .env.local}"
+      LEDGER_DB_MIGRATOR_PASSWORD: "${LEDGER_DB_MIGRATOR_PASSWORD:?Defina LEDGER_DB_MIGRATOR_PASSWORD no ambiente ou em .env.local}"
+      BALANCE_DB_READ_PASSWORD: "${BALANCE_DB_READ_PASSWORD:?Defina BALANCE_DB_READ_PASSWORD no ambiente ou em .env.local}"
+      BALANCE_DB_WRITE_PASSWORD: "${BALANCE_DB_WRITE_PASSWORD:?Defina BALANCE_DB_WRITE_PASSWORD no ambiente ou em .env.local}"
+      BALANCE_DB_MIGRATOR_PASSWORD: "${BALANCE_DB_MIGRATOR_PASSWORD:?Defina BALANCE_DB_MIGRATOR_PASSWORD no ambiente ou em .env.local}"
     ports:
       # Porta exposta para uso local (psql, migrations, etc.)
       # Obs: pode conflitar com um Postgres já rodando no host.
@@ -224,18 +224,18 @@ services:
         condition: service_healthy
     environment:
       ASPNETCORE_URLS: "http://+:8080"
-      ASPNETCORE_ENVIRONMENT: "Development"
+      ASPNETCORE_ENVIRONMENT: "Local"
 
       # Auth (JWT Bearer via JWKS)
       # Por padrao, valida tokens Keycloak com issuer publico do realm e JWKS interno.
       # Para usar o Auth.Api legado, sobrescreva JWT_ISSUER e JWT_JWKS_URL no .env.
-      # HTTP/JWKS é aceito somente porque o compose local roda em Development.
+      # HTTP/JWKS é aceito somente porque o compose local roda em Local.
       Jwt__Issuer: "${JWT_ISSUER:-http://localhost:8081/realms/poc}"
       Jwt__JwksUrl: "${JWT_JWKS_URL:-http://keycloak:8080/realms/poc/protocol/openid-connect/certs}"
       Jwt__RequireHttpsMetadata: "${JWT_REQUIRE_HTTPS_METADATA:-false}"
 
       # Overrides dos appsettings (no container, 127.0.0.1 aponta para ele mesmo)
-      ConnectionStrings__DefaultConnection: "Host=postgres-db;Port=5432;Database=appdb;Username=ledger_app_user;Password=${LEDGER_DB_PASSWORD:-local_dev_password}"
+      ConnectionStrings__DefaultConnection: "Host=postgres-db;Port=5432;Database=appdb;Username=ledger_app_user;Password=${LEDGER_DB_PASSWORD:?Defina LEDGER_DB_PASSWORD no ambiente ou em .env.local}"
       Observability__OpenTelemetry__Enabled: "${OTEL_ENABLED:-false}"
       Observability__OpenTelemetry__UseConsoleExporter: "false"
       Observability__OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"
@@ -264,10 +264,10 @@ services:
       pubsub-init:
         condition: service_completed_successfully
     environment:
-      DOTNET_ENVIRONMENT: "Development"
+      DOTNET_ENVIRONMENT: "Local"
 
       # Overrides dos appsettings (no container, 127.0.0.1 aponta para ele mesmo)
-      ConnectionStrings__DefaultConnection: "Host=postgres-db;Port=5432;Database=appdb;Username=ledger_app_user;Password=${LEDGER_DB_PASSWORD:-local_dev_password}"
+      ConnectionStrings__DefaultConnection: "Host=postgres-db;Port=5432;Database=appdb;Username=ledger_app_user;Password=${LEDGER_DB_PASSWORD:?Defina LEDGER_DB_PASSWORD no ambiente ou em .env.local}"
       Messaging__Provider: "PubSub"
       PubSub__Enabled: "true"
       PUBSUB_EMULATOR_HOST: "pubsub-emulator:8085"
@@ -305,18 +305,18 @@ services:
         condition: service_healthy
     environment:
       ASPNETCORE_URLS: "http://+:8080"
-      ASPNETCORE_ENVIRONMENT: "Development"
+      ASPNETCORE_ENVIRONMENT: "Local"
 
       # Auth (JWT Bearer via JWKS)
       # Por padrao, valida tokens Keycloak com issuer publico do realm e JWKS interno.
       # Para usar o Auth.Api legado, sobrescreva JWT_ISSUER e JWT_JWKS_URL no .env.
-      # HTTP/JWKS é aceito somente porque o compose local roda em Development.
+      # HTTP/JWKS é aceito somente porque o compose local roda em Local.
       Jwt__Issuer: "${JWT_ISSUER:-http://localhost:8081/realms/poc}"
       Jwt__JwksUrl: "${JWT_JWKS_URL:-http://keycloak:8080/realms/poc/protocol/openid-connect/certs}"
       Jwt__RequireHttpsMetadata: "${JWT_REQUIRE_HTTPS_METADATA:-false}"
 
       # Overrides dos appsettings
-      ConnectionStrings__DefaultConnection: "Host=postgres-db;Port=5432;Database=appdb;Username=balance_read_user;Password=${BALANCE_DB_READ_PASSWORD:-local_dev_password}"
+      ConnectionStrings__DefaultConnection: "Host=postgres-db;Port=5432;Database=appdb;Username=balance_read_user;Password=${BALANCE_DB_READ_PASSWORD:?Defina BALANCE_DB_READ_PASSWORD no ambiente ou em .env.local}"
       Observability__OpenTelemetry__Enabled: "${OTEL_ENABLED:-false}"
       Observability__OpenTelemetry__UseConsoleExporter: "false"
       Observability__OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"
@@ -344,10 +344,10 @@ services:
       pubsub-init:
         condition: service_completed_successfully
     environment:
-      DOTNET_ENVIRONMENT: "Development"
+      DOTNET_ENVIRONMENT: "Local"
 
       # Overrides dos appsettings (no container, 127.0.0.1 aponta para ele mesmo)
-      ConnectionStrings__DefaultConnection: "Host=postgres-db;Port=5432;Database=appdb;Username=balance_write_user;Password=${BALANCE_DB_WRITE_PASSWORD:-local_dev_password}"
+      ConnectionStrings__DefaultConnection: "Host=postgres-db;Port=5432;Database=appdb;Username=balance_write_user;Password=${BALANCE_DB_WRITE_PASSWORD:?Defina BALANCE_DB_WRITE_PASSWORD no ambiente ou em .env.local}"
       Messaging__Provider: "PubSub"
       PubSub__Enabled: "true"
       PUBSUB_EMULATOR_HOST: "pubsub-emulator:8085"
@@ -380,9 +380,13 @@ services:
     command: [ "start-dev", "--import-realm" ]
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: "${KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME:-local_admin}"
-      KC_BOOTSTRAP_ADMIN_PASSWORD: "${KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD:-local_admin_password}"
+      KC_BOOTSTRAP_ADMIN_PASSWORD: "${KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD:?Defina KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD no ambiente ou em .env.local}"
       KC_HOSTNAME: "http://localhost:${KEYCLOAK_HOST_PORT:-8081}"
       KC_HEALTH_ENABLED: "true"
+      KEYCLOAK_CLIENT_SECRET: "${KEYCLOAK_CLIENT_SECRET:?Defina KEYCLOAK_CLIENT_SECRET no ambiente ou em .env.local}"
+      KEYCLOAK_LOCAL_LEDGER_USER_PASSWORD: "${KEYCLOAK_LOCAL_LEDGER_USER_PASSWORD:?Defina KEYCLOAK_LOCAL_LEDGER_USER_PASSWORD no ambiente ou em .env.local}"
+      KEYCLOAK_LOCAL_BALANCE_USER_PASSWORD: "${KEYCLOAK_LOCAL_BALANCE_USER_PASSWORD:?Defina KEYCLOAK_LOCAL_BALANCE_USER_PASSWORD no ambiente ou em .env.local}"
+      KEYCLOAK_LOCAL_ADMIN_USER_PASSWORD: "${KEYCLOAK_LOCAL_ADMIN_USER_PASSWORD:?Defina KEYCLOAK_LOCAL_ADMIN_USER_PASSWORD no ambiente ou em .env.local}"
     ports:
       - "${KEYCLOAK_HOST_PORT:-8081}:8080"
     deploy:

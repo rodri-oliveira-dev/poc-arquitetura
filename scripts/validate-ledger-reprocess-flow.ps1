@@ -5,7 +5,7 @@ param(
   [string]$BalanceBaseUrl = "http://localhost:5228",
   [string]$JaegerBaseUrl = "http://localhost:16686",
   [string]$Username = "local_user",
-  [string]$Password = "local_password",
+  [string]$Password = "",
   [string]$Scope = "ledger.write balance.read",
   [string]$MerchantId = "tese",
   [ValidateSet("CREDIT", "DEBIT")]

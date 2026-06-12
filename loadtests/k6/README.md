@@ -82,6 +82,8 @@ Execute a stack local antes dos testes. Os runners precisam do Keycloak local pa
 
 Os runners exigem `pubsub-emulator`, `LedgerService.Worker` e `BalanceService.Worker` em execucao e confirmam que os workers usam `Messaging__Provider=PubSub` com `PUBSUB_EMULATOR_HOST=pubsub-emulator:8085`. Isso impede que o fluxo local publique contra Pub/Sub real por acidente. Os workers nao sao tratados como APIs HTTP.
 
+Antes do modo `balance50`, os runners aguardam a Outbox local de `LedgerEntryCreated.v1`/`LedgerEntryCreated.v2` estar processada e refletida em `processed_events`. Essa espera evita medir a leitura do Balance enquanto o worker ainda drena eventos gerados por cenarios de escrita anteriores, sem reduzir a taxa, a duracao ou os thresholds do teste.
+
 ## Mensageria, Outbox e cenarios futuros
 
 Os cenarios k6 atuais exercitam as APIs HTTP e podem gerar backlog na Outbox. O modo `smoke` aguarda ao menos uma publicacao e projecao via Pub/Sub emulator; ele nao valida diretamente `ack`/`nack`, commit Kafka legado, DLQ ou idempotencia do consumer.

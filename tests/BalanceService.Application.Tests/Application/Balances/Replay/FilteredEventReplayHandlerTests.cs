@@ -203,20 +203,19 @@ public sealed class FilteredEventReplayHandlerTests
         DateTimeOffset? occurredAt = null,
         string? payload = null)
         => new(
-            sourceId,
-            payload ?? ValidPayload(eventId, occurredAt ?? Instant("2026-06-06T12:34:56Z")),
-            eventName,
-            eventVersion,
-            "Outbox",
-            occurredAt ?? Instant("2026-06-06T12:34:56Z"),
-            "merchant-001",
-            null,
-            "Processed",
-            new Dictionary<string, string>
-            {
-                ["event_type"] = $"{eventName}.{eventVersion}",
-                ["source"] = sourceId
-            });
+            new EventReplaySourcePosition(
+                sourceId,
+                occurredAt ?? Instant("2026-06-06T12:34:56Z"),
+                "Processed"),
+            new EventReplayPayload(
+                payload ?? ValidPayload(eventId, occurredAt ?? Instant("2026-06-06T12:34:56Z")),
+                new Dictionary<string, string>
+                {
+                    ["event_type"] = $"{eventName}.{eventVersion}",
+                    ["source"] = sourceId
+                }),
+            new EventReplayContract(eventName, eventVersion, "Outbox"),
+            new EventReplaySubject("merchant-001", null));
 
     private static string ValidPayload(string eventId, DateTimeOffset occurredAt)
         => $$"""

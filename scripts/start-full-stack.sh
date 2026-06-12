@@ -14,6 +14,16 @@ PROJECT_NETWORK_NAME="poc-arquitetura_poc-net"
 PROJECT_CONTAINER_PREFIX="poc-"
 OVERLAY_CONTAINER_NAMES=(poc-nginx-edge poc-ledger-service-1 poc-ledger-service-2)
 
+get_compose_env_args() {
+  for env_file in "$ROOT_DIR/.env.local" "$ROOT_DIR/.env"; do
+    if [[ -f "$env_file" ]]; then
+      printf '%s\n' "--env-file"
+      printf '%s\n' "$env_file"
+      return 0
+    fi
+  done
+}
+
 usage() {
   cat >&2 <<'EOF'
 Uso: ./scripts/start-full-stack.sh [--no-build] [--skip-health-checks] [--cleanup]
@@ -275,14 +285,16 @@ else
   "$ROOT_DIR/scripts/start-local-stack.sh"
 fi
 
-nginx_up=(docker compose -f "$COMPOSE_FILE" -f "$COMPOSE_OBSERVABILITY_FILE" -f "$COMPOSE_NGINX_FILE" --profile observability up -d)
+mapfile -t compose_env_args < <(get_compose_env_args)
+
+nginx_up=(docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_OBSERVABILITY_FILE" -f "$COMPOSE_NGINX_FILE" --profile observability up -d)
 if [[ "$NO_BUILD" != "true" ]]; then
   nginx_up+=(--build)
 fi
 nginx_up+=(ledger-service-1 ledger-service-2 nginx-edge)
 "${nginx_up[@]}"
 
-docker compose -f "$COMPOSE_FILE" -f "$COMPOSE_OBSERVABILITY_FILE" -f "$COMPOSE_NGINX_FILE" --profile observability ps
+docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_OBSERVABILITY_FILE" -f "$COMPOSE_NGINX_FILE" --profile observability ps
 
 if [[ "$SKIP_HEALTH_CHECKS" != "true" ]]; then
   http_check "LedgerService.Api direta" "http://localhost:5226/health"

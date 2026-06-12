@@ -54,11 +54,11 @@ public sealed class ApplyLedgerEntryCreatedConcurrencyTests
         await using var db = _fixture.CreateDbContext();
         var balances = await db.DailyBalances
             .Where(x => x.MerchantId == merchantId)
-            .ToListAsync();
+            .ToListAsync(TestContext.Current.CancellationToken);
 
         var processedEvents = await db.ProcessedEvents
             .Where(x => x.MerchantId == merchantId)
-            .ToListAsync();
+            .ToListAsync(TestContext.Current.CancellationToken);
         Assert.Single(balances);
         Assert.Equal(2, processedEvents.Count);
         Assert.Equivalent(new[] { credit.Id, debit.Id }, processedEvents.Select(x => x.EventId));
@@ -97,11 +97,11 @@ public sealed class ApplyLedgerEntryCreatedConcurrencyTests
         Assert.Single(results, x => x == ApplyLedgerEntryCreatedResult.IgnoredDuplicate);
 
         await using var db = _fixture.CreateDbContext();
-        var balance = await db.DailyBalances.SingleAsync(x => x.MerchantId == merchantId);
+        var balance = await db.DailyBalances.SingleAsync(x => x.MerchantId == merchantId, TestContext.Current.CancellationToken);
         Assert.Equal(100m, balance.TotalCredits);
         Assert.Equal(0m, balance.TotalDebits);
         Assert.Equal(100m, balance.NetBalance);
-        Assert.Equal(1, await db.ProcessedEvents.CountAsync(x => x.EventId == evt.Id));
+        Assert.Equal(1, await db.ProcessedEvents.CountAsync(x => x.EventId == evt.Id, TestContext.Current.CancellationToken));
     }
 
     [Fact]

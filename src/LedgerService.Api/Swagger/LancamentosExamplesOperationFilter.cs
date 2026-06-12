@@ -19,7 +19,7 @@ public sealed class LancamentosExamplesOperationFilter : IOperationFilter
 
         if (operation.RequestBody?.Content.TryGetValue("application/json", out var requestMediaType) == true)
         {
-            ((OpenApiMediaType)requestMediaType).Example = new JsonObject
+            requestMediaType!.Example = new JsonObject
             {
                 ["merchantId"] = "tese",
                 ["type"] = "CREDIT",

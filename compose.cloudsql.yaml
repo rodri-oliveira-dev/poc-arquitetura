@@ -45,7 +45,7 @@ services:
       cloud-sql-proxy:
         condition: service_started
     environment:
-      ConnectionStrings__DefaultConnection: "Host=cloud-sql-proxy;Port=5432;Database=${DATABASE_NAME:-appdb};Username=${DATABASE_USER:-app_user};Password=${DATABASE_PASSWORD:-change_me_local_only}"
+      ConnectionStrings__DefaultConnection: "Host=cloud-sql-proxy;Port=5432;Database=${DATABASE_NAME:-appdb};Username=${DATABASE_USER:-app_user};Password=${DATABASE_PASSWORD:?Defina DATABASE_PASSWORD no ambiente ou em .env.local}"
 
   ledger-worker:
     depends_on: !reset
@@ -54,14 +54,14 @@ services:
       pubsub-init:
         condition: service_completed_successfully
     environment:
-      ConnectionStrings__DefaultConnection: "Host=cloud-sql-proxy;Port=5432;Database=${DATABASE_NAME:-appdb};Username=${DATABASE_USER:-app_user};Password=${DATABASE_PASSWORD:-change_me_local_only}"
+      ConnectionStrings__DefaultConnection: "Host=cloud-sql-proxy;Port=5432;Database=${DATABASE_NAME:-appdb};Username=${DATABASE_USER:-app_user};Password=${DATABASE_PASSWORD:?Defina DATABASE_PASSWORD no ambiente ou em .env.local}"
 
   balance-service:
     depends_on: !reset
       cloud-sql-proxy:
         condition: service_started
     environment:
-      ConnectionStrings__DefaultConnection: "Host=cloud-sql-proxy;Port=5432;Database=${DATABASE_NAME:-appdb};Username=${DATABASE_USER:-app_user};Password=${DATABASE_PASSWORD:-change_me_local_only}"
+      ConnectionStrings__DefaultConnection: "Host=cloud-sql-proxy;Port=5432;Database=${DATABASE_NAME:-appdb};Username=${DATABASE_USER:-app_user};Password=${DATABASE_PASSWORD:?Defina DATABASE_PASSWORD no ambiente ou em .env.local}"
 
   balance-worker:
     depends_on: !reset
@@ -70,4 +70,4 @@ services:
       pubsub-init:
         condition: service_completed_successfully
     environment:
-      ConnectionStrings__DefaultConnection: "Host=cloud-sql-proxy;Port=5432;Database=${DATABASE_NAME:-appdb};Username=${DATABASE_USER:-app_user};Password=${DATABASE_PASSWORD:-change_me_local_only}"
+      ConnectionStrings__DefaultConnection: "Host=cloud-sql-proxy;Port=5432;Database=${DATABASE_NAME:-appdb};Username=${DATABASE_USER:-app_user};Password=${DATABASE_PASSWORD:?Defina DATABASE_PASSWORD no ambiente ou em .env.local}"

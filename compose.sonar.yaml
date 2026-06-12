@@ -25,7 +25,7 @@ services:
     environment:
       POSTGRES_DB: "${SONAR_DB_NAME:-sonarqube}"
       POSTGRES_USER: "${SONAR_DB_USER:-sonar}"
-      POSTGRES_PASSWORD: "${SONAR_DB_PASSWORD:-local_dev_password}"
+      POSTGRES_PASSWORD: "${SONAR_DB_PASSWORD:?Defina SONAR_DB_PASSWORD no ambiente ou em .env.local}"
     deploy:
       resources:
         limits:
@@ -54,7 +54,7 @@ services:
     environment:
       SONAR_JDBC_URL: "jdbc:postgresql://sonar-db:5432/${SONAR_DB_NAME:-sonarqube}"
       SONAR_JDBC_USERNAME: "${SONAR_DB_USER:-sonar}"
-      SONAR_JDBC_PASSWORD: "${SONAR_DB_PASSWORD:-local_dev_password}"
+      SONAR_JDBC_PASSWORD: "${SONAR_DB_PASSWORD:?Defina SONAR_DB_PASSWORD no ambiente ou em .env.local}"
     ports:
       - "${SONAR_HOST_PORT:-9000}:9000"
     deploy:

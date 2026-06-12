@@ -36,9 +36,9 @@ public sealed class ReprocessamentosLancamentosEndpointTests : IClassFixture<Led
 
         using var req = CreateRequest(idempotencyKey);
 
-        var res = await _client.SendAsync(req);
+        var res = await _client.SendAsync(req, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Accepted, res.StatusCode);
-        var body = await res.Content.ReadFromJsonAsync<SolicitarReprocessamentoLancamentosResponse>();
+        var body = await res.Content.ReadFromJsonAsync<SolicitarReprocessamentoLancamentosResponse>(TestContext.Current.CancellationToken);
         Assert.NotNull(body);
         Assert.NotEqual(Guid.Empty, body!.ReprocessamentoId);
         Assert.Equal("m1", body.MerchantId);
@@ -57,9 +57,9 @@ public sealed class ReprocessamentosLancamentosEndpointTests : IClassFixture<Led
             db.OutboxMessages.Single(x => x.AggregateId == body.ReprocessamentoId).EventType);
 
         using var replayReq = CreateRequest(idempotencyKey);
-        var replayRes = await _client.SendAsync(replayReq);
+        var replayRes = await _client.SendAsync(replayReq, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Accepted, replayRes.StatusCode);
-        var replayBody = await replayRes.Content.ReadFromJsonAsync<SolicitarReprocessamentoLancamentosResponse>();
+        var replayBody = await replayRes.Content.ReadFromJsonAsync<SolicitarReprocessamentoLancamentosResponse>(TestContext.Current.CancellationToken);
         Assert.Equivalent(body, replayBody);
         Assert.Equal(body.StatusUrl, replayRes.Headers.Location?.ToString());
     }
@@ -74,7 +74,7 @@ public sealed class ReprocessamentosLancamentosEndpointTests : IClassFixture<Led
             dataInicial: new DateOnly(2026, 5, 6),
             dataFinal: new DateOnly(2026, 5, 1));
 
-        var res = await _client.SendAsync(req);
+        var res = await _client.SendAsync(req, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
         var body = await AssertValidationErrorResponseAsync(res);
         Assert.Contains("dataFinal", body.Errors.Keys);
@@ -87,7 +87,7 @@ public sealed class ReprocessamentosLancamentosEndpointTests : IClassFixture<Led
 
         using var req = CreateRequest(Guid.NewGuid().ToString());
 
-        var res = await _client.SendAsync(req);
+        var res = await _client.SendAsync(req, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
     }
 
@@ -98,7 +98,7 @@ public sealed class ReprocessamentosLancamentosEndpointTests : IClassFixture<Led
 
         using var req = CreateRequest(Guid.NewGuid().ToString());
 
-        var res = await _client.SendAsync(req);
+        var res = await _client.SendAsync(req, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
     }
 
@@ -109,7 +109,7 @@ public sealed class ReprocessamentosLancamentosEndpointTests : IClassFixture<Led
 
         using var req = CreateRequest(Guid.NewGuid().ToString());
 
-        var res = await _client.SendAsync(req);
+        var res = await _client.SendAsync(req, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Unauthorized, res.StatusCode);
     }
 
@@ -119,15 +119,15 @@ public sealed class ReprocessamentosLancamentosEndpointTests : IClassFixture<Led
         Authenticate(scopes: "ledger.write");
 
         using var createReq = CreateRequest(Guid.NewGuid().ToString());
-        var createRes = await _client.SendAsync(createReq);
+        var createRes = await _client.SendAsync(createReq, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Accepted, createRes.StatusCode);
-        var created = await createRes.Content.ReadFromJsonAsync<SolicitarReprocessamentoLancamentosResponse>();
+        var created = await createRes.Content.ReadFromJsonAsync<SolicitarReprocessamentoLancamentosResponse>(TestContext.Current.CancellationToken);
         Assert.NotNull(created);
         Authenticate(scopes: "ledger.read");
 
-        var res = await _client.GetAsync($"/api/v1/lancamentos/reprocessamentos/{created!.ReprocessamentoId}");
+        var res = await _client.GetAsync($"/api/v1/lancamentos/reprocessamentos/{created!.ReprocessamentoId}", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
-        var body = await res.Content.ReadFromJsonAsync<ObterStatusReprocessamentoLancamentosResponse>();
+        var body = await res.Content.ReadFromJsonAsync<ObterStatusReprocessamentoLancamentosResponse>(TestContext.Current.CancellationToken);
         Assert.NotNull(body);
         Assert.Equal(created.ReprocessamentoId, body!.ReprocessamentoId);
         Assert.Equal("Pending", body.Status);
@@ -139,7 +139,7 @@ public sealed class ReprocessamentosLancamentosEndpointTests : IClassFixture<Led
     {
         Authenticate(scopes: "ledger.read");
 
-        var res = await _client.GetAsync($"/api/v1/lancamentos/reprocessamentos/{Guid.NewGuid()}");
+        var res = await _client.GetAsync($"/api/v1/lancamentos/reprocessamentos/{Guid.NewGuid()}", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.NotFound, res.StatusCode);
     }
 
@@ -149,13 +149,13 @@ public sealed class ReprocessamentosLancamentosEndpointTests : IClassFixture<Led
         Authenticate(scopes: "ledger.write", merchantIds: "m1");
 
         using var createReq = CreateRequest(Guid.NewGuid().ToString());
-        var createRes = await _client.SendAsync(createReq);
+        var createRes = await _client.SendAsync(createReq, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Accepted, createRes.StatusCode);
-        var created = await createRes.Content.ReadFromJsonAsync<SolicitarReprocessamentoLancamentosResponse>();
+        var created = await createRes.Content.ReadFromJsonAsync<SolicitarReprocessamentoLancamentosResponse>(TestContext.Current.CancellationToken);
         Assert.NotNull(created);
         Authenticate(scopes: "ledger.read", merchantIds: "m2");
 
-        var res = await _client.GetAsync($"/api/v1/lancamentos/reprocessamentos/{created!.ReprocessamentoId}");
+        var res = await _client.GetAsync($"/api/v1/lancamentos/reprocessamentos/{created!.ReprocessamentoId}", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
     }
 
@@ -165,13 +165,13 @@ public sealed class ReprocessamentosLancamentosEndpointTests : IClassFixture<Led
         Authenticate(scopes: "ledger.write", merchantIds: "m1");
 
         using var createReq = CreateRequest(Guid.NewGuid().ToString());
-        var createRes = await _client.SendAsync(createReq);
+        var createRes = await _client.SendAsync(createReq, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Accepted, createRes.StatusCode);
-        var created = await createRes.Content.ReadFromJsonAsync<SolicitarReprocessamentoLancamentosResponse>();
+        var created = await createRes.Content.ReadFromJsonAsync<SolicitarReprocessamentoLancamentosResponse>(TestContext.Current.CancellationToken);
         Assert.NotNull(created);
         Authenticate(scopes: "ledger.read", merchantIds: null);
 
-        var res = await _client.GetAsync($"/api/v1/lancamentos/reprocessamentos/{created!.ReprocessamentoId}");
+        var res = await _client.GetAsync($"/api/v1/lancamentos/reprocessamentos/{created!.ReprocessamentoId}", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
     }
 
@@ -184,15 +184,15 @@ public sealed class ReprocessamentosLancamentosEndpointTests : IClassFixture<Led
         await SeedLancamentoAsync("m2", new DateTime(2026, 5, 2, 10, 0, 0), LedgerEntryType.Credit, 30m);
 
         using var createReq = CreateRequest(Guid.NewGuid().ToString());
-        var createRes = await _client.SendAsync(createReq);
+        var createRes = await _client.SendAsync(createReq, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Accepted, createRes.StatusCode);
-        var created = await createRes.Content.ReadFromJsonAsync<SolicitarReprocessamentoLancamentosResponse>();
+        var created = await createRes.Content.ReadFromJsonAsync<SolicitarReprocessamentoLancamentosResponse>(TestContext.Current.CancellationToken);
         Assert.NotNull(created);
         using (var scope = _factory.Services.CreateScope())
         {
             var sender = scope.ServiceProvider.GetRequiredService<ISender>();
-            await sender.Send(new ProcessarReprocessamentoLancamentosCommand(created!.ReprocessamentoId));
-            await sender.Send(new ProcessarReprocessamentoLancamentosCommand(created.ReprocessamentoId));
+            await sender.Send(new ProcessarReprocessamentoLancamentosCommand(created!.ReprocessamentoId), TestContext.Current.CancellationToken);
+            await sender.Send(new ProcessarReprocessamentoLancamentosCommand(created.ReprocessamentoId), TestContext.Current.CancellationToken);
         }
 
         using var assertScope = _factory.Services.CreateScope();
@@ -257,8 +257,8 @@ public sealed class ReprocessamentosLancamentosEndpointTests : IClassFixture<Led
             Guid.NewGuid(),
             DateTime.UtcNow);
 
-        await db.LedgerEntries.AddAsync(lancamento);
-        await db.SaveChangesAsync();
+        await db.LedgerEntries.AddAsync(lancamento, TestContext.Current.CancellationToken);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         return lancamento;
     }
@@ -266,7 +266,7 @@ public sealed class ReprocessamentosLancamentosEndpointTests : IClassFixture<Led
     private static async Task<ValidationErrorResponse> AssertValidationErrorResponseAsync(HttpResponseMessage response)
     {
         Assert.Equal("application/json", response.Content.Headers.ContentType?.MediaType);
-        var body = await response.Content.ReadFromJsonAsync<ValidationErrorResponse>();
+        var body = await response.Content.ReadFromJsonAsync<ValidationErrorResponse>(TestContext.Current.CancellationToken);
         Assert.NotNull(body);
         Assert.Equal("https://httpstatuses.com/400", body!.Type);
         Assert.Equal("Invalid request", body.Title);

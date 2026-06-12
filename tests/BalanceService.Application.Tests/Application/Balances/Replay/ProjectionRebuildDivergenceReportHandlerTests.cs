@@ -142,50 +142,42 @@ public sealed class ProjectionRebuildDivergenceReportHandlerTests
     {
         var instant = Instant("2026-06-06T12:00:00Z");
         return new EventReplaySourceCandidate(
-            sourceId,
-            Payload(eventId, merchantId, type, amount, instant),
-            "LedgerEntryCreated",
-            "v2",
-            "Outbox",
-            instant,
-            merchantId,
-            null,
-            "Processed",
-            new Dictionary<string, string>
-            {
-                ["source"] = "ledger.outbox_messages",
-                ["event_type"] = "LedgerEntryCreated.v2"
-            });
+            new EventReplaySourcePosition(sourceId, instant, "Processed"),
+            new EventReplayPayload(
+                Payload(eventId, merchantId, type, amount, instant),
+                new Dictionary<string, string>
+                {
+                    ["source"] = "ledger.outbox_messages",
+                    ["event_type"] = "LedgerEntryCreated.v2"
+                }),
+            new EventReplayContract("LedgerEntryCreated", "v2", "Outbox"),
+            new EventReplaySubject(merchantId, null));
     }
 
     private static EventReplaySourceCandidate InvalidCandidate(string sourceId, string merchantId)
     {
         var instant = Instant("2026-06-06T12:00:00Z");
         return new EventReplaySourceCandidate(
-            sourceId,
-            $$"""
-              {
-                "id": "lan_invalid",
-                "amount": "10.00",
-                "currency": "BRL",
-                "createdAt": "{{instant:O}}",
-                "merchantId": "{{merchantId}}",
-                "occurredAt": "{{instant:O}}",
-                "correlationId": "2cbdd495-586f-4565-a807-c5dc6710d237"
-              }
-              """,
-            "LedgerEntryCreated",
-            "v2",
-            "Outbox",
-            instant,
-            merchantId,
-            null,
-            "Processed",
-            new Dictionary<string, string>
-            {
-                ["source"] = "ledger.outbox_messages",
-                ["event_type"] = "LedgerEntryCreated.v2"
-            });
+            new EventReplaySourcePosition(sourceId, instant, "Processed"),
+            new EventReplayPayload(
+                $$"""
+                  {
+                    "id": "lan_invalid",
+                    "amount": "10.00",
+                    "currency": "BRL",
+                    "createdAt": "{{instant:O}}",
+                    "merchantId": "{{merchantId}}",
+                    "occurredAt": "{{instant:O}}",
+                    "correlationId": "2cbdd495-586f-4565-a807-c5dc6710d237"
+                  }
+                  """,
+                new Dictionary<string, string>
+                {
+                    ["source"] = "ledger.outbox_messages",
+                    ["event_type"] = "LedgerEntryCreated.v2"
+                }),
+            new EventReplayContract("LedgerEntryCreated", "v2", "Outbox"),
+            new EventReplaySubject(merchantId, null));
     }
 
     private static string Payload(

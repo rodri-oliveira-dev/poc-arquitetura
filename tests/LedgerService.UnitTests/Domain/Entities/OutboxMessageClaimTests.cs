@@ -25,14 +25,15 @@ public sealed class OutboxMessageClaimTests
         alreadySent.MarkProcessed(now.AddMinutes(-1));
 
         await db.OutboxMessages.AddRangeAsync(newer, scheduledForFuture, older, alreadySent);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var claimed = await repo.ClaimPendingAsync(
             batchSize: 2,
             now: now,
             lockOwner: "publisher-1",
-            lockDuration: TimeSpan.FromMinutes(2));
-        await db.SaveChangesAsync();
+            lockDuration: TimeSpan.FromMinutes(2),
+            cancellationToken: TestContext.Current.CancellationToken);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         Assert.Collection(
             claimed,
@@ -45,11 +46,11 @@ public sealed class OutboxMessageClaimTests
             Assert.Equal(now.AddMinutes(2), message.LockedUntil);
         });
 
-        var unchangedFuture = await db.OutboxMessages.SingleAsync(x => x.Id == scheduledForFuture.Id);
+        var unchangedFuture = await db.OutboxMessages.SingleAsync(x => x.Id == scheduledForFuture.Id, TestContext.Current.CancellationToken);
         Assert.Equal(OutboxStatus.Pending, unchangedFuture.Status);
         Assert.Equal(now.AddMinutes(5), unchangedFuture.NextRetryAt);
 
-        var unchangedSent = await db.OutboxMessages.SingleAsync(x => x.Id == alreadySent.Id);
+        var unchangedSent = await db.OutboxMessages.SingleAsync(x => x.Id == alreadySent.Id, TestContext.Current.CancellationToken);
         Assert.Equal(OutboxStatus.Processed, unchangedSent.Status);
         Assert.Null(unchangedSent.LockOwner);
         Assert.Null(unchangedSent.LockedUntil);

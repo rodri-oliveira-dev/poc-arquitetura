@@ -155,11 +155,13 @@ Se houver containers antigos ou rede local presa do proprio projeto, o script pe
 | Build Release | `dotnet build ./LedgerService.slnx --configuration Release --no-restore` |
 | Testes sem rebuild | `dotnet test ./LedgerService.slnx --configuration Release --no-build --settings ./coverlet.runsettings` |
 | Testes com cobertura e gate | `./test.ps1` ou `./test.sh` |
-| SonarQube local | `docker compose -f compose.sonar.yaml --profile quality up -d` |
+| Criar `.env.local` de onboarding | `./scripts/init-env-local.ps1` ou `./scripts/init-env-local.sh` |
+| SonarQube local | `docker compose --env-file .env.local -f compose.sonar.yaml --profile quality up -d` |
 | Analise SonarQube local | `bash scripts/sonar-analyze.sh` |
 | Stack local minima | `./scripts/start-local-stack.ps1` ou `./scripts/start-local-stack.sh` |
 | Stack com observabilidade | `./scripts/start-local-stack.ps1 -Observability` ou `OBSERVABILITY=true ./scripts/start-local-stack.sh` |
 | Stack local com Pub/Sub emulator | `./scripts/start-local-stack-pubsub.ps1` ou `./scripts/start-local-stack-pubsub.sh` |
+| Dependencias locais para debug | `docker compose --env-file .env.local -f compose.debug.yml up -d postgres-db pubsub-emulator pubsub-init` |
 | Stack local com Kafka legado | `./scripts/start-local-stack-kafka.ps1` ou `./scripts/start-local-stack-kafka.sh` |
 | Stack completa com Nginx | `./scripts/start-full-stack.ps1` ou `./scripts/start-full-stack.sh` |
 | Parar stack completa | `./scripts/stop-full-stack.ps1` ou `./scripts/stop-full-stack.sh` |

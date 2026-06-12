@@ -22,25 +22,31 @@ if ([string]::IsNullOrWhiteSpace($ArtifactsDir)) { $ArtifactsDir = (Join-Path $r
 if ([string]::IsNullOrWhiteSpace($EnvFile)) { $EnvFile = (Join-Path $root ".env.k6.auto") }
 
 function Get-LocalEnvValue([string]$Name) {
-  $envPath = Join-Path $root ".env"
-  if (-not (Test-Path $envPath)) {
-    return ""
-  }
+  $envPaths = @(
+    (Join-Path $root ".env.local"),
+    (Join-Path $root ".env")
+  )
 
-  foreach ($line in Get-Content -Path $envPath) {
-    $trimmed = $line.Trim()
-    if ([string]::IsNullOrWhiteSpace($trimmed) -or $trimmed.StartsWith("#")) {
+  foreach ($envPath in $envPaths) {
+    if (-not (Test-Path $envPath)) {
       continue
     }
 
-    $separatorIndex = $trimmed.IndexOf("=")
-    if ($separatorIndex -le 0) {
-      continue
-    }
+    foreach ($line in Get-Content -Path $envPath) {
+      $trimmed = $line.Trim()
+      if ([string]::IsNullOrWhiteSpace($trimmed) -or $trimmed.StartsWith("#")) {
+        continue
+      }
 
-    $key = $trimmed.Substring(0, $separatorIndex).Trim()
-    if ($key -eq $Name) {
-      return $trimmed.Substring($separatorIndex + 1).Trim().Trim('"').Trim("'")
+      $separatorIndex = $trimmed.IndexOf("=")
+      if ($separatorIndex -le 0) {
+        continue
+      }
+
+      $key = $trimmed.Substring(0, $separatorIndex).Trim()
+      if ($key -eq $Name) {
+        return $trimmed.Substring($separatorIndex + 1).Trim().Trim('"').Trim("'")
+      }
     }
   }
 
@@ -57,6 +63,34 @@ function Get-LocalConfigValue([string]$Name, [string]$DefaultValue) {
   }
 
   return $value
+}
+
+function Get-RequiredLocalConfigValue([string]$Name) {
+  $value = Get-LocalConfigValue $Name ""
+  if ([string]::IsNullOrWhiteSpace($value)) {
+    throw "Defina $Name no ambiente, em .env.local ou em .env."
+  }
+
+  return $value
+}
+
+function Get-ComposeEnvArguments {
+  foreach ($envPath in @((Join-Path $root ".env.local"), (Join-Path $root ".env"))) {
+    if (Test-Path $envPath) {
+      return @("--env-file", $envPath)
+    }
+  }
+
+  return @()
+}
+
+function Get-ComposeArguments([switch]$IncludeK6) {
+  $arguments = @("compose") + (Get-ComposeEnvArguments) + @("-f", $ComposeFile)
+  if ($IncludeK6) {
+    $arguments += @("-f", $ComposeK6File)
+  }
+
+  return $arguments
 }
 
 function Get-ThresholdValue([string]$Prefix, [string]$Percentile, [string]$DefaultValue) {
@@ -96,12 +130,12 @@ function Assert-BalanceDatabaseAuthentication {
   $hostName = Get-LocalConfigValue "BALANCE_DB_HOST" "postgres-db"
   $user = Get-LocalConfigValue "BALANCE_DB_WRITE_USER" (Get-LocalConfigValue "BALANCE_DB_USER" "balance_write_user")
   $database = Get-LocalConfigValue "BALANCE_DB_NAME" "appdb"
-  $password = Get-LocalConfigValue "BALANCE_DB_WRITE_PASSWORD" (Get-LocalConfigValue "BALANCE_DB_PASSWORD" "local_dev_password")
+  $password = Get-RequiredLocalConfigValue "BALANCE_DB_WRITE_PASSWORD"
 
   $previousErrorActionPreference = $ErrorActionPreference
   try {
     $ErrorActionPreference = "Continue"
-    & docker compose -f $ComposeFile exec -T `
+    & docker @(Get-ComposeArguments) exec -T `
       -e "PGPASSWORD=$password" `
       "postgres-db" `
       psql -h $hostName -U $user -d $database -v "ON_ERROR_STOP=1" -c "select 1;" 1>$null 2>$null
@@ -122,7 +156,7 @@ function Wait-ComposeServiceHealthy([string]$Service, [int]$TimeoutSeconds = 240
   $lastHealth = ""
 
   do {
-    $json = & docker compose -f $ComposeFile -f $ComposeK6File ps $Service --format json
+    $json = & docker @(Get-ComposeArguments -IncludeK6) ps $Service --format json
     if ($LASTEXITCODE -ne 0) { throw "docker compose ps falhou para $Service" }
 
     $serviceState = $json | ConvertFrom-Json
@@ -142,7 +176,7 @@ function Wait-ComposeServiceHealthy([string]$Service, [int]$TimeoutSeconds = 240
 }
 
 function Assert-LocalPubSubStack {
-  $config = (& docker compose -f $ComposeFile config | Out-String)
+  $config = (& docker @(Get-ComposeArguments) config | Out-String)
   if ($LASTEXITCODE -ne 0) { throw "docker compose config falhou ao validar Pub/Sub local." }
 
   foreach ($expected in @(
@@ -154,7 +188,7 @@ function Assert-LocalPubSubStack {
     }
   }
 
-  $runningServices = @(& docker compose -f $ComposeFile ps --status running --services)
+  $runningServices = @(& docker @(Get-ComposeArguments) ps --status running --services)
   if ($LASTEXITCODE -ne 0) { throw "docker compose ps falhou ao validar Pub/Sub local." }
 
   foreach ($service in @("pubsub-emulator", "ledger-worker", "balance-worker")) {
@@ -163,7 +197,7 @@ function Assert-LocalPubSubStack {
     }
   }
 
-  $pubSubInitJson = & docker compose -f $ComposeFile ps -a pubsub-init --format json
+  $pubSubInitJson = & docker @(Get-ComposeArguments) ps -a pubsub-init --format json
   if ($LASTEXITCODE -ne 0) { throw "docker compose ps falhou ao validar pubsub-init." }
   $pubSubInit = $pubSubInitJson | ConvertFrom-Json
   if ([string]$pubSubInit.State -ne "exited" -or [int]$pubSubInit.ExitCode -ne 0) {
@@ -172,7 +206,7 @@ function Assert-LocalPubSubStack {
 }
 
 function Get-PostgresCount([string]$Service, [string]$User, [string]$Database, [string]$Sql, [string]$Password) {
-  $value = & docker compose -f $ComposeFile exec -T `
+  $value = & docker @(Get-ComposeArguments) exec -T `
     -e "PGPASSWORD=$Password" `
     $Service `
     psql -h $Service -U $User -d $Database -t -A -c $Sql
@@ -183,12 +217,13 @@ function Get-PostgresCount([string]$Service, [string]$User, [string]$Database, [
 function Get-AsyncFlowCounts {
   $ledgerUser = Get-LocalConfigValue "LEDGER_DB_USER" "ledger_app_user"
   $ledgerDatabase = Get-LocalConfigValue "LEDGER_DB_NAME" "appdb"
-  $ledgerPassword = Get-LocalConfigValue "LEDGER_DB_PASSWORD" "local_dev_password"
+  $ledgerPassword = Get-RequiredLocalConfigValue "LEDGER_DB_PASSWORD"
   $balanceUser = Get-LocalConfigValue "BALANCE_DB_READ_USER" (Get-LocalConfigValue "BALANCE_DB_USER" "balance_read_user")
   $balanceDatabase = Get-LocalConfigValue "BALANCE_DB_NAME" "appdb"
-  $balancePassword = Get-LocalConfigValue "BALANCE_DB_READ_PASSWORD" (Get-LocalConfigValue "BALANCE_DB_PASSWORD" "local_dev_password")
+  $balancePassword = Get-RequiredLocalConfigValue "BALANCE_DB_READ_PASSWORD"
   return @{
-    OutboxProcessed = (Get-PostgresCount "postgres-db" $ledgerUser $ledgerDatabase "SELECT COUNT(*) FROM outbox_messages WHERE event_type = 'LedgerEntryCreated.v1' AND status = 'Processed';" $ledgerPassword)
+    OutboxTotal = (Get-PostgresCount "postgres-db" $ledgerUser $ledgerDatabase "SELECT COUNT(*) FROM outbox_messages WHERE event_type IN ('LedgerEntryCreated.v1', 'LedgerEntryCreated.v2');" $ledgerPassword)
+    OutboxProcessed = (Get-PostgresCount "postgres-db" $ledgerUser $ledgerDatabase "SELECT COUNT(*) FROM outbox_messages WHERE event_type IN ('LedgerEntryCreated.v1', 'LedgerEntryCreated.v2') AND status = 'Processed';" $ledgerPassword)
     BalanceProcessed = (Get-PostgresCount "postgres-db" $balanceUser $balanceDatabase "SELECT COUNT(*) FROM processed_events;" $balancePassword)
   }
 }
@@ -198,7 +233,7 @@ function Wait-AsyncFlowProgress([hashtable]$Before, [int]$TimeoutSeconds = 90) {
   do {
     $current = Get-AsyncFlowCounts
     if ($current.OutboxProcessed -gt $Before.OutboxProcessed -and $current.BalanceProcessed -gt $Before.BalanceProcessed) {
-      Write-Host "OK. Smoke Pub/Sub publicou Outbox e projetou evento no Balance."
+      Write-Output "OK. Smoke Pub/Sub publicou Outbox e projetou evento no Balance."
       return
     }
 
@@ -206,6 +241,21 @@ function Wait-AsyncFlowProgress([hashtable]$Before, [int]$TimeoutSeconds = 90) {
   } while ((Get-Date) -lt $deadline)
 
   throw "Timeout aguardando publish/consume via Pub/Sub emulator apos smoke k6."
+}
+
+function Wait-AsyncFlowIdle([int]$TimeoutSeconds = 120) {
+  $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+  do {
+    $current = Get-AsyncFlowCounts
+    if ($current.OutboxProcessed -ge $current.OutboxTotal -and $current.BalanceProcessed -ge $current.OutboxProcessed) {
+      Write-Output "OK. Fluxo assincrono local sem backlog antes do k6."
+      return
+    }
+
+    Start-Sleep -Seconds 2
+  } while ((Get-Date) -lt $deadline)
+
+  throw "Timeout aguardando drenagem do fluxo assincrono antes do k6."
 }
 
 # a) gerar env
@@ -216,7 +266,7 @@ Assert-LocalPubSubStack
 # Aplica o override de carga nas APIs antes de executar o k6. O compose.k6.yaml
 # mantem os testes apontando para as APIs HTTP e aumenta apenas limites tecnicos
 # que poderiam transformar o cenario de throughput em teste de rate limiting.
-& docker compose -f $ComposeFile -f $ComposeK6File up -d --no-build --force-recreate ledger-service balance-service
+& docker @(Get-ComposeArguments -IncludeK6) up -d --no-build --force-recreate ledger-service balance-service
 if ($LASTEXITCODE -ne 0) { throw "docker compose falhou ao aplicar override k6: $LASTEXITCODE" }
 
 Wait-ComposeServiceHealthy "keycloak"
@@ -318,7 +368,8 @@ function Run-K6([string]$scenarioName, [string]$scriptPath, [hashtable]$envVars)
   $hostSummary = Join-Path $ArtifactsDir $summaryFile
 
   $args = @(
-    "compose",
+    "compose"
+  ) + (Get-ComposeEnvArguments) + @(
     "-f", $ComposeFile,
     "-f", $ComposeK6File,
     "--profile", "k6",
@@ -352,6 +403,7 @@ switch ($Mode) {
     Run-K6 "balance_daily_50rps" "scenarios/balance_daily_50rps.js" @{ TOKEN = $token; RATE = "1"; DURATION = "10s"; PREALLOCATED_VUS = "5"; MAX_VUS = "10"; BALANCE_HTTP_REQ_DURATION_P95_MS = (Get-ThresholdValue "BALANCE" "P95" "3000"); BALANCE_HTTP_REQ_DURATION_P99_MS = (Get-ThresholdValue "BALANCE" "P99" "6000") }
   }
   "balance50" {
+    Wait-AsyncFlowIdle
     Run-K6 "balance_daily_50rps" "scenarios/balance_daily_50rps.js" @{ TOKEN = $token; RATE = "50"; DURATION = "1m"; BALANCE_HTTP_REQ_DURATION_P95_MS = (Get-ThresholdValue "BALANCE" "P95" "1000"); BALANCE_HTTP_REQ_DURATION_P99_MS = (Get-ThresholdValue "BALANCE" "P99" "2500") }
   }
   "resilience" {
@@ -359,7 +411,7 @@ switch ($Mode) {
   }
 }
 
-Write-Host "OK. Artifacts em: $ArtifactsDir"
+Write-Output "OK. Artifacts em: $ArtifactsDir"
 
 # Execução local aqui não consegue (e não deve) validar thresholds (k6 já retorna != 0 em caso de falha).
 # TODO: opcionalmente parsear o summary JSON e imprimir um resumo (sem segredos).

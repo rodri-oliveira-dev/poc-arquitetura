@@ -27,6 +27,9 @@ config_value() {
   local value="${!key:-}"
 
   if [[ -z "$value" ]]; then
+    value="$(read_env_value "$ROOT_DIR/.env.local" "$key")"
+  fi
+  if [[ -z "$value" ]]; then
     value="$(read_env_value "$ROOT_DIR/.env" "$key")"
   fi
   if [[ -z "$value" ]]; then
@@ -140,7 +143,7 @@ request_keycloak_token() {
   realm="$(config_value KEYCLOAK_REALM poc)"
   token_url="$(config_value KEYCLOAK_TOKEN_URL "/realms/$realm/protocol/openid-connect/token")"
   client_id="$(config_value KEYCLOAK_CLIENT_ID poc-automation)"
-  client_secret="$(config_value KEYCLOAK_CLIENT_SECRET local_dev_client_secret)"
+  client_secret="$(config_value KEYCLOAK_CLIENT_SECRET)"
   scope="$(config_value KEYCLOAK_SCOPE)"
   url="$(combine_url "$keycloak_base_url" "$token_url")"
 
@@ -199,7 +202,8 @@ request_auth_api_token() {
   fi
 
   username="${username:-${auth_poc_username:-local_user}}"
-  password="${password:-${auth_poc_password:-local_password}}"
+  password="${password:-$auth_poc_password}"
+  [[ -n "$password" ]] || fail "AUTH_POC_PASSWORD ou PASSWORD nao informado"
   scope="${scope:-${auth_poc_scope:-ledger.write balance.read}}"
   auth_base_url="${auth_base_url:-http://localhost:5030}"
   url="$(combine_url "$auth_base_url" "$token_url")"

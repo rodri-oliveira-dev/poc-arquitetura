@@ -30,38 +30,53 @@ Detalhes sobre Node.js, npm, npx, tools .NET locais e validacoes OpenAPI/LikeC4 
 
 Esta stack e local, descartavel e nao deve ser promovida para ambientes compartilhados, homologacao ou producao sem revisao de seguranca, secrets, transporte, imagens e observabilidade.
 
-O compose usa defaults ficticios para desenvolvimento local. Para sobrescrever, copie `.env.example` para `.env` e ajuste os valores localmente. O arquivo `.env` e ignorado pelo Git e nao deve ser versionado. Os defaults atuais sao intencionalmente obvios e descartaveis:
+O `compose.yaml` atual e a base oficial do ambiente local. O `compose.debug.yml` inclui essa mesma base para oferecer um ponto de entrada curto para dependencias de debug. Reaproveite os servicos ja existentes, em especial `postgres-db`, `pubsub-emulator` e `pubsub-init`; nao crie um segundo Compose nem um segundo PostgreSQL para separar Ledger e Balance no desenvolvimento local.
 
-- `POSTGRES_PASSWORD=local_dev_password`
-- `POSTGRES_HOST_PORT=15432`
-- `LEDGER_DB_PASSWORD=local_dev_password`
-- `LEDGER_DB_MIGRATOR_PASSWORD=local_dev_password`
-- `BALANCE_DB_READ_PASSWORD=local_dev_password`
-- `BALANCE_DB_WRITE_PASSWORD=local_dev_password`
-- `BALANCE_DB_MIGRATOR_PASSWORD=local_dev_password`
-- `GRAFANA_ADMIN_PASSWORD=local_dev_password`
-- `TOKEN_PROVIDER=keycloak`
-- `JWT_ISSUER=http://localhost:8081/realms/poc`
-- `JWT_JWKS_URL=http://keycloak:8080/realms/poc/protocol/openid-connect/certs`
-- `JWT_REQUIRE_HTTPS_METADATA=false`
-- `KEYCLOAK_HOST_PORT=8081`
-- `KEYCLOAK_BASE_URL=http://localhost:8081`
-- `KEYCLOAK_REALM=poc`
-- `KEYCLOAK_CLIENT_ID=poc-automation`
-- `KEYCLOAK_CLIENT_SECRET=local_dev_client_secret`
-- `KEYCLOAK_SCOPE=`
-- `KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME=local_admin`
-- `KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD=local_admin_password`
-- `PUBSUB_EMULATOR_HOST_PORT=8085`
-- `PUBSUB_PROJECT_ID=poc-local`
-- `PUBSUB_LEDGER_EVENTS_TOPIC_ID=ledger.ledgerentry.created.local`
-- `PUBSUB_LEDGER_EVENTS_DLQ_TOPIC_ID=ledger.ledgerentry.created.dlq.local`
-- `PUBSUB_BALANCE_SUBSCRIPTION_ID=balance-service-ledger-events-local`
-- `PUBSUB_LEDGER_EVENTS_DLQ_INSPECTION_SUBSCRIPTION_ID=ledger-events-application-dlq-inspection-local`
+O compose nao versiona senhas locais. Para subir a stack por comandos diretos, crie `.env.local` a partir de `.env.local.example` e preencha os placeholders na sua maquina:
+
+```bash
+cp .env.local.example .env.local
+```
+
+No PowerShell:
+
+```powershell
+Copy-Item .env.local.example .env.local
+```
+
+O caminho mais rapido para onboarding e gerar valores locais descartaveis:
+
+```powershell
+./scripts/init-env-local.ps1
+```
+
+No Linux/macOS:
+
+```bash
+./scripts/init-env-local.sh
+```
+
+O script nao sobrescreve `.env.local` existente; use `-Force` no PowerShell ou `--force` no shell apenas quando quiser recriar conscientemente o arquivo local. O arquivo `.env.local` e ignorado pelo Git e nao deve ser versionado. Os scripts `start-local-stack.*` e `start-full-stack.*` tambem leem `.env.local` automaticamente; `.env` permanece aceito como fallback para compatibilidade com fluxos antigos.
+
+Variaveis sensiveis obrigatorias para o compose principal:
+
+- `POSTGRES_PASSWORD`
+- `LEDGER_DB_PASSWORD`
+- `LEDGER_DB_MIGRATOR_PASSWORD`
+- `BALANCE_DB_READ_PASSWORD`
+- `BALANCE_DB_WRITE_PASSWORD`
+- `BALANCE_DB_MIGRATOR_PASSWORD`
+- `KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD`
+- `KEYCLOAK_CLIENT_SECRET`
+- `KEYCLOAK_LOCAL_LEDGER_USER_PASSWORD`
+- `KEYCLOAK_LOCAL_BALANCE_USER_PASSWORD`
+- `KEYCLOAK_LOCAL_ADMIN_USER_PASSWORD`
+
+Variaveis nao sensiveis ou identificadores locais continuam com defaults no compose ou exemplos em `.env.local.example`, como `POSTGRES_HOST_PORT=15432`, `PUBSUB_EMULATOR_HOST_PORT=8085`, `PUBSUB_PROJECT_ID=poc-local` e os nomes locais de topics/subscriptions: `PUBSUB_LEDGER_EVENTS_TOPIC_ID`, `PUBSUB_LEDGER_EVENTS_DLQ_TOPIC_ID`, `PUBSUB_BALANCE_SUBSCRIPTION_ID` e `PUBSUB_LEDGER_EVENTS_DLQ_INSPECTION_SUBSCRIPTION_ID`.
 
 As variaveis `AUTH_POC_USERNAME`, `AUTH_POC_PASSWORD` e `AUTH_POC_SCOPE` continuam aceitas apenas pelo overlay legado `compose.auth-legacy.yaml`.
 
-O PostgreSQL local roda em um unico container `postgres-db`, com database `appdb`, schemas `ledger` e `balance`, e usuarios separados por servico/responsabilidade. As connection strings dos servicos runtime no compose usam `postgres-db:5432/appdb`; as variaveis `LEDGER_DB_*` e `BALANCE_DB_*` configuram as senhas locais usadas pelo init do container e pelas connection strings do compose. Em volumes PostgreSQL existentes, alterar `.env` ou `compose.yaml` nao altera automaticamente roles, grants ou senhas ja gravadas no banco; para reaplicar o init, recrie conscientemente o volume local ou execute o SQL manualmente.
+O PostgreSQL local roda em um unico container `postgres-db`, com volume `postgres-data`, database `appdb`, schemas `ledger` e `balance`, e usuarios separados por servico/responsabilidade. A inicializacao fica nos scripts versionados em `infra/postgres/init`. As connection strings dos servicos runtime no compose usam `postgres-db:5432/appdb`; as variaveis `LEDGER_DB_*` e `BALANCE_DB_*` configuram as senhas locais usadas pelo init do container e pelas connection strings do compose. Em volumes PostgreSQL existentes, alterar `.env.local` ou `compose.yaml` nao altera automaticamente roles, grants ou senhas ja gravadas no banco; para reaplicar o init, recrie conscientemente o volume local ou execute o SQL manualmente.
 
 Topologia local de banco:
 
@@ -79,7 +94,7 @@ Nao reutilize esses valores fora da maquina local. Em ambientes compartilhados o
 
 ## Stack local com compose
 
-Os scripts `start-local-stack.*` sobem por padrao o core funcional de desenvolvimento com `compose.yaml`:
+Os scripts `start-local-stack.*` sobem por padrao o core funcional de desenvolvimento com `compose.yaml`, que deve continuar sendo reaproveitado como fonte de verdade do ambiente local:
 
 - Keycloak;
 - `LedgerService.Api`;
@@ -92,7 +107,7 @@ Os scripts `start-local-stack.*` sobem por padrao o core funcional de desenvolvi
 
 Esse modo tambem pode ser chamado de Dev Lite quando o foco for reduzir consumo local: ele significa core funcional sem observabilidade, SonarQube, k6, Nginx overlay e `Auth.Api` legado. Dev Lite nao significa "sem workers"; `LedgerService.Worker` e `BalanceService.Worker` continuam no fluxo padrao porque validam Outbox, Pub/Sub e projecao ponta a ponta.
 
-Componentes opcionais ficam em arquivos Compose separados:
+Componentes opcionais ficam em arquivos Compose separados. Eles complementam o `compose.yaml`; nao substituem a stack principal nem duplicam banco, Pub/Sub emulator ou servicos .NET:
 
 - `compose.observability.yaml` com profile `observability`: OpenTelemetry Collector, Jaeger, Prometheus, Loki, Grafana Alloy, Alertmanager e Grafana;
 - `compose.k6.yaml` com profile `k6`: container k6;
@@ -146,13 +161,49 @@ OBSERVABILITY=true ./scripts/start-local-stack.sh
 Para subir somente o core funcional pelo compose, sem aplicar migrations:
 
 ```bash
-docker compose -f compose.yaml up -d --build
+docker compose --env-file .env.local -f compose.yaml up -d --build
+```
+
+Para subir somente dependencias externas usadas por processos em debug no host, reaproveite os servicos do `compose.yaml`:
+
+```bash
+docker compose --env-file .env.local -f compose.yaml up -d postgres-db pubsub-emulator pubsub-init
+```
+
+O alias equivalente para debug e:
+
+```powershell
+docker compose --env-file .env.local -f compose.debug.yml up -d postgres-db pubsub-emulator pubsub-init
+```
+
+Para subir os processos .NET pelo compose depois das dependencias:
+
+```bash
+docker compose --env-file .env.local -f compose.yaml up -d ledger-service ledger-worker balance-service balance-worker
+```
+
+Para verificar o status dos containers do core local:
+
+```bash
+docker compose --env-file .env.local -f compose.yaml ps
+```
+
+Para consultar logs das dependencias locais:
+
+```bash
+docker compose --env-file .env.local -f compose.yaml logs postgres-db pubsub-emulator pubsub-init
+```
+
+Para derrubar os containers e redes do core local, preservando volumes:
+
+```bash
+docker compose --env-file .env.local -f compose.yaml down
 ```
 
 Esse comando inicia apenas o core funcional. Para habilitar observabilidade completa pelo compose, incluindo coleta local de logs via Docker API, use:
 
 ```bash
-OTEL_ENABLED=true docker compose -f compose.yaml -f compose.observability.yaml --profile observability up -d --build
+OTEL_ENABLED=true docker compose --env-file .env.local -f compose.yaml -f compose.observability.yaml --profile observability up -d --build
 ```
 
 `OTEL_ENABLED=true` habilita as aplicacoes a exportarem traces e metricas para `otel-collector:4317`. Sem essa variavel, os backends de observabilidade podem subir, mas as aplicacoes permanecem com OpenTelemetry desabilitado para manter o core funcional leve.
@@ -193,7 +244,7 @@ Os scripts reaproveitam o fluxo padrao: sobem infraestrutura, restauram tools .N
 - `PUBSUB_EMULATOR_HOST=pubsub-emulator:8085` e `PUBSUB_PROJECT_ID` nos workers que usam Pub/Sub;
 - overrides `PubSub__Producer__*`, `PubSub__Consumer__*` e `Messaging__Provider=PubSub`.
 
-Os nomes locais seguem a configuracao de `.env.example` e podem ser sobrescritos por `.env`:
+Os nomes locais seguem a configuracao de `.env.local.example` e podem ser sobrescritos por `.env.local`:
 
 | Recurso | Default local |
 | --- | --- |
@@ -230,8 +281,8 @@ OBSERVABILITY=true ./scripts/start-local-stack-pubsub.sh
 Para inspecionar a configuracao Compose efetiva sem subir containers:
 
 ```bash
-docker compose -f compose.yaml config
-docker compose -f compose.yaml config --services
+docker compose --env-file .env.local -f compose.yaml config
+docker compose --env-file .env.local -f compose.yaml config --services
 ```
 
 O socket Docker, mesmo montado como somente leitura, e uma superficie sensivel. Use o profile `observability` apenas em maquina local confiavel; nao use em ambiente compartilhado ou produtivo sem redesenhar a coleta de logs e revisar permissoes.
@@ -305,9 +356,9 @@ Admin Console:
 Credenciais locais descartaveis:
 
 - usuario: `local_admin`
-- senha: `local_admin_password`
+- senha: valor local de `KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD`
 
-Para sobrescrever porta, credenciais administrativas ou credenciais do client de automacao local, copie `.env.example` para `.env` e ajuste `KEYCLOAK_HOST_PORT`, `KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME`, `KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD`, `KEYCLOAK_CLIENT_ID` e `KEYCLOAK_CLIENT_SECRET`. Esses valores sao apenas para desenvolvimento local e nao devem ser usados em ambientes compartilhados ou produtivos.
+Para sobrescrever porta, credenciais administrativas ou credenciais do client de automacao local, copie `.env.local.example` para `.env.local` e ajuste `KEYCLOAK_HOST_PORT`, `KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME`, `KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD`, `KEYCLOAK_CLIENT_ID`, `KEYCLOAK_CLIENT_SECRET` e as senhas dos usuarios locais de debug. Esses valores sao apenas para desenvolvimento local e nao devem ser usados em ambientes compartilhados ou produtivos.
 
 O container usa `start-dev --import-realm`, healthcheck nativo em `/health/ready` na porta de gerenciamento interna `9000` e importa o realm versionado de `infra/keycloak/realm-poc.json`. O compose monta esse arquivo em `/opt/keycloak/data/import/realm-poc.json` como somente leitura.
 
@@ -324,7 +375,7 @@ O realm local importado se chama `poc` e expoe:
 
 As APIs continuam usando `Jwt:JwksUrl` direto, sem introspeccao por request e sem consumir discovery metadata nesta etapa. No compose, `JWT_ISSUER` deve corresponder ao `iss` publico do token (`http://localhost:8081/realms/poc`) e `JWT_JWKS_URL` deve apontar para o endpoint de certificados acessivel pela rede interna (`http://keycloak:8080/realms/poc/protocol/openid-connect/certs`). Para voltar temporariamente ao emissor legado, suba `compose.auth-legacy.yaml` e configure `JWT_ISSUER=https://auth-api`, `JWT_JWKS_URL=http://auth-api:8080/.well-known/jwks.json` e `TOKEN_PROVIDER=auth-api`.
 
-O segredo do client `poc-automation` e `local_dev_client_secret`. Ele e um valor ficticio e descartavel, versionado apenas para tornar a POC local reproduzivel. Nao use esse segredo em ambientes compartilhados ou produtivos.
+O segredo do client `poc-automation` vem de `KEYCLOAK_CLIENT_SECRET` no ambiente do container. O arquivo de realm usa placeholder resolvido pelo Keycloak durante `start-dev --import-realm`, mantendo o valor real fora do repositorio.
 
 Para obter um token Keycloak local, use os scripts versionados. Eles imprimem somente o token em `stdout`:
 
@@ -338,25 +389,25 @@ No Windows:
 ./scripts/get-token.ps1
 ```
 
-Por padrao, `TOKEN_PROVIDER=keycloak` usa `client_credentials` com `KEYCLOAK_CLIENT_ID=poc-automation` e `KEYCLOAK_CLIENT_SECRET=local_dev_client_secret`. A chamada equivalente e:
+Por padrao, `TOKEN_PROVIDER=keycloak` usa `client_credentials` com `KEYCLOAK_CLIENT_ID=poc-automation` e `KEYCLOAK_CLIENT_SECRET` definido localmente. A chamada equivalente e:
 
 ```bash
 curl -s -X POST http://localhost:8081/realms/poc/protocol/openid-connect/token \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "grant_type=client_credentials" \
   -d "client_id=poc-automation" \
-  -d "client_secret=local_dev_client_secret"
+  -d "client_secret=<KEYCLOAK_CLIENT_SECRET>"
 ```
 
-Para confirmar que o realm foi importado, acesse o Admin Console em `http://localhost:8081/` com `local_admin` / `local_admin_password`, selecione o realm `poc` no seletor de realms e confira `Clients` e `Users`. Em uma stack recem-criada, devem existir os clients `poc-automation`, `poc-local-ledger-debug`, `poc-local-balance-debug` e `poc-local-admin-debug`, alem dos usuarios locais abaixo.
+Para confirmar que o realm foi importado, acesse o Admin Console em `http://localhost:8081/` com `local_admin` e o valor local de `KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD`, selecione o realm `poc` no seletor de realms e confira `Clients` e `Users`. Em uma stack recem-criada, devem existir os clients `poc-automation`, `poc-local-ledger-debug`, `poc-local-balance-debug` e `poc-local-admin-debug`, alem dos usuarios locais abaixo.
 
 Usuarios locais de debug importados no realm:
 
 | Usuario | Senha | Client local | Uso local | Scopes | `merchant_id` |
 | --- | --- | --- | --- | --- | --- |
-| `local_ledger_user` | `local_ledger_password` | `poc-local-ledger-debug` | Debug manual do LedgerService | `ledger.write ledger.read` | `tese m1` |
-| `local_balance_user` | `local_balance_password` | `poc-local-balance-debug` | Debug manual do BalanceService | `balance.read` | `tese m1` |
-| `local_admin_user` | `local_admin_password` | `poc-local-admin-debug` | Debug manual completo | `ledger.write ledger.read balance.read outbox.admin` | `tese m1` |
+| `local_ledger_user` | `KEYCLOAK_LOCAL_LEDGER_USER_PASSWORD` | `poc-local-ledger-debug` | Debug manual do LedgerService | `ledger.write ledger.read` | `tese m1` |
+| `local_balance_user` | `KEYCLOAK_LOCAL_BALANCE_USER_PASSWORD` | `poc-local-balance-debug` | Debug manual do BalanceService | `balance.read` | `tese m1` |
+| `local_admin_user` | `KEYCLOAK_LOCAL_ADMIN_USER_PASSWORD` | `poc-local-admin-debug` | Debug manual completo | `ledger.write ledger.read balance.read outbox.admin` | `tese m1` |
 
 Esses usuarios sao apenas conveniencia de desenvolvimento local. Eles nao devem ser usados em ambiente compartilhado, homologacao ou producao, e nao substituem `client_credentials` para automacoes.
 
@@ -720,7 +771,14 @@ Portas expostas no host:
 | LedgerService.Api via Nginx | `https://ledger.localhost:7443/` com `compose.nginx.yaml` |
 | BalanceService.Api via Nginx | `https://balance.localhost:7443/` com `compose.nginx.yaml` |
 
-O compose sobrescreve configuracoes por variaveis de ambiente para usar hosts internos como `postgres-db`, `pubsub-emulator` e `otel-collector`. Quando `compose.observability.yaml` e usado com `OTEL_ENABLED=true` e o profile `observability` ativo, as APIs e workers enviam OTLP somente para o Collector. O Collector encaminha traces para o Jaeger e expoe metricas em formato Prometheus para scrape interno. Prometheus coleta o Collector; Alloy coleta logs dos containers e envia para Loki. Grafana consulta Prometheus, Loki e Jaeger. O Grafana carrega automaticamente a pasta `Observability` com os dashboards `APIs - Visao Geral` e `Runtime .NET - Visao Geral`, versionados em `observability/grafana/dashboards/`. O datasource Loki possui derived field para abrir traces no datasource interno Jaeger a partir de logs com `TraceId=<valor>`. O ambiente local do compose roda como `Development`.
+Diferenca entre nomes internos do Compose e acesso pelo host:
+
+| Recurso | Dentro de container do Compose | Fora do container, no host |
+| --- | --- | --- |
+| PostgreSQL | `postgres-db:5432` | `localhost:${POSTGRES_HOST_PORT}` ou `127.0.0.1:${POSTGRES_HOST_PORT}`; default `15432` |
+| Pub/Sub emulator | `pubsub-emulator:8085` | `localhost:${PUBSUB_EMULATOR_HOST_PORT}` ou `127.0.0.1:${PUBSUB_EMULATOR_HOST_PORT}`; default `8085` |
+
+O compose sobrescreve configuracoes por variaveis de ambiente para usar hosts internos como `postgres-db`, `pubsub-emulator` e `otel-collector`. Processos executados fora do container nao resolvem esses nomes da rede Docker; nesse caso use `localhost` ou `127.0.0.1` com as portas publicadas pelo `compose.yaml`. Quando `compose.observability.yaml` e usado com `OTEL_ENABLED=true` e o profile `observability` ativo, as APIs e workers enviam OTLP somente para o Collector. O Collector encaminha traces para o Jaeger e expoe metricas em formato Prometheus para scrape interno. Prometheus coleta o Collector; Alloy coleta logs dos containers e envia para Loki. Grafana consulta Prometheus, Loki e Jaeger. O Grafana carrega automaticamente a pasta `Observability` com os dashboards `APIs - Visao Geral` e `Runtime .NET - Visao Geral`, versionados em `observability/grafana/dashboards/`. O datasource Loki possui derived field para abrir traces no datasource interno Jaeger a partir de logs com `TraceId=<valor>`. O ambiente local do compose roda como `Local`.
 
 Prometheus tambem carrega regras locais em `observability/prometheus/rules/` e envia alertas para o Alertmanager local. A UI do Alertmanager fica em `http://localhost:9093/` e nao possui integracao externa configurada.
 
@@ -752,7 +810,7 @@ paralelo pode causar disputa por artefatos em `bin/` e `obj/`.
 LedgerService:
 
 ```powershell
-$env:ConnectionStrings__DefaultConnection = "Host=127.0.0.1;Port=15432;Database=appdb;Username=ledger_migrator_user;Password=local_dev_password"
+$env:ConnectionStrings__DefaultConnection = "Host=127.0.0.1;Port=15432;Database=appdb;Username=ledger_migrator_user;Password=<LEDGER_DB_MIGRATOR_PASSWORD>"
 dotnet tool restore
 dotnet tool run dotnet-ef -- database update `
   -p src\LedgerService.Infrastructure\LedgerService.Infrastructure.csproj `
@@ -763,7 +821,7 @@ dotnet tool run dotnet-ef -- database update `
 BalanceService:
 
 ```powershell
-$env:ConnectionStrings__DefaultConnection = "Host=127.0.0.1;Port=15432;Database=appdb;Username=balance_migrator_user;Password=local_dev_password"
+$env:ConnectionStrings__DefaultConnection = "Host=127.0.0.1;Port=15432;Database=appdb;Username=balance_migrator_user;Password=<BALANCE_DB_MIGRATOR_PASSWORD>"
 dotnet tool restore
 dotnet tool run dotnet-ef -- database update `
   -p src\BalanceService.Infrastructure\BalanceService.Infrastructure.csproj `
@@ -773,7 +831,23 @@ dotnet tool run dotnet-ef -- database update `
 
 ## Execucao no host
 
-Use este modo quando PostgreSQL e Pub/Sub emulator ja estiverem disponiveis e voce quiser rodar ou depurar os processos no host. Os profiles de debug dos workers configuram `PUBSUB_EMULATOR_HOST=127.0.0.1:8085`. Para depurar Kafka legado, sobrescreva `Messaging__Provider=Kafka` e os bootstrap servers.
+Use este modo quando PostgreSQL e Pub/Sub emulator ja estiverem disponiveis e voce quiser rodar ou depurar os processos no host. Para execucao local fora do container, use `DOTNET_ENVIRONMENT=Local`. Os profiles de debug dos workers ja configuram `DOTNET_ENVIRONMENT=Local` e `PUBSUB_EMULATOR_HOST=127.0.0.1:8085`. Para depurar Kafka legado, sobrescreva `Messaging__Provider=Kafka` e os bootstrap servers.
+
+Para usar configuracao por arquivo no host, copie os exemplos `appsettings.Local.example.json` para `appsettings.Local.json` quando o projeto possuir esse arquivo de exemplo:
+
+```powershell
+Copy-Item src\LedgerService.Worker\appsettings.Local.example.json src\LedgerService.Worker\appsettings.Local.json
+Copy-Item src\BalanceService.Worker\appsettings.Local.example.json src\BalanceService.Worker\appsettings.Local.json
+```
+
+No Linux/macOS:
+
+```bash
+cp src/LedgerService.Worker/appsettings.Local.example.json src/LedgerService.Worker/appsettings.Local.json
+cp src/BalanceService.Worker/appsettings.Local.example.json src/BalanceService.Worker/appsettings.Local.json
+```
+
+Substitua os placeholders de senha pelos valores locais e mantenha `PUBSUB_EMULATOR_HOST` como variavel de ambiente do processo, por exemplo `$env:PUBSUB_EMULATOR_HOST = "127.0.0.1:8085"` para o emulator local. Os arquivos `appsettings.Local.json` reais sao locais, ignorados pelo Git e nao devem ser versionados.
 
 Restaure as ferramentas:
 
@@ -809,7 +883,11 @@ $env:PUBSUB_EMULATOR_HOST = "127.0.0.1:8085"
 $env:PubSub__Producer__ProjectId = "poc-local"
 ```
 
-Nao versione segredos. Em ambientes compartilhados ou produtivos, remova `PUBSUB_EMULATOR_HOST`, use identidade de workload e configure Pub/Sub real explicitamente. JWKS via HTTP e Kafka legado `Plaintext` nao devem ser usados fora do local.
+Nao versione segredos. Arquivos versionados de configuracao devem conter apenas placeholders ou valores nao sensiveis: nao coloque senha real, connection string com senha real, token, client secret ou credencial operacional em `appsettings*.json`, `.env.local.example` ou documentacao. Valores locais reais pertencem ao `.env.local`, a variaveis de ambiente da sessao ou aos arquivos `appsettings.Local.json` nao versionados.
+
+Essa separacao mantem a experiencia local simples e tambem reduz ruido de ferramentas como SonarQube e Trivy: os scanners continuam analisando os arquivos versionados sem encontrar credenciais descartaveis hard-coded, enquanto cada desenvolvedor ainda consegue preencher os valores reais somente na propria maquina.
+
+Em ambientes compartilhados ou produtivos, remova `PUBSUB_EMULATOR_HOST`, use identidade de workload e configure Pub/Sub real explicitamente. JWKS via HTTP e Kafka legado `Plaintext` nao devem ser usados fora do local.
 
 ## Politica local de imagens
 

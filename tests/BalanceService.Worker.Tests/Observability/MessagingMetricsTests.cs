@@ -104,11 +104,111 @@ public sealed class MessagingMetricsTests
     [Fact]
     public void MessagingMetrics_should_record_remaining_low_cardinality_metrics()
     {
-        using var metrics = new MessagingMetrics($"{MessagingMetrics.MeterName}.Tests.{Guid.NewGuid():N}");
+        var meterName = $"{MessagingMetrics.MeterName}.Tests.{Guid.NewGuid():N}";
+        var expectedMetricNames = new[]
+        {
+            MessagingMetrics.ConsumerProcessingDurationMetricName,
+            MessagingMetrics.ConsumerErrorsMetricName,
+            MessagingMetrics.ConsumerDuplicatesMetricName,
+            MessagingMetrics.DlqPublishErrorsMetricName
+        };
+        using var listener = new MeterListener();
+        using var metrics = new MessagingMetrics(meterName);
+
+        var observedMetrics = new Dictionary<string, ObservedMetric>(StringComparer.Ordinal);
+        var enabledMetricNames = expectedMetricNames.ToHashSet(StringComparer.Ordinal);
+
+        listener.InstrumentPublished = (instrument, meterListener) =>
+        {
+            if (instrument.Meter.Name == meterName &&
+                enabledMetricNames.Contains(instrument.Name))
+            {
+                meterListener.EnableMeasurementEvents(instrument);
+            }
+        };
+
+        listener.SetMeasurementEventCallback<long>((instrument, value, tags, _) =>
+        {
+            observedMetrics[instrument.Name] = new ObservedMetric(
+                value,
+                tags.ToArray().ToDictionary(tag => tag.Key, tag => tag.Value));
+        });
+
+        listener.SetMeasurementEventCallback<double>((instrument, value, tags, _) =>
+        {
+            observedMetrics[instrument.Name] = new ObservedMetric(
+                value,
+                tags.ToArray().ToDictionary(tag => tag.Key, tag => tag.Value));
+        });
+
+        listener.Start();
 
         metrics.RecordConsumerProcessingDuration(12.5, "ledger.ledgerentry.created", "LedgerEntryCreated.v1", "success");
         metrics.RecordConsumerError("ledger.ledgerentry.created", "LedgerEntryCreated.v1", "TimeoutException");
         metrics.RecordConsumerDuplicate("ledger.ledgerentry.created", "LedgerEntryCreated.v1");
         metrics.RecordDlqPublishError("ledger.ledgerentry.created", "LedgerEntryCreated.v1", "KafkaException");
+
+        Assert.Equal(expectedMetricNames.Order(), observedMetrics.Keys.Order());
+        AssertObservedMetric(
+            observedMetrics,
+            MessagingMetrics.ConsumerProcessingDurationMetricName,
+            12.5,
+            new Dictionary<string, object?>
+            {
+                ["topic"] = "ledger.ledgerentry.created",
+                ["event_type"] = "LedgerEntryCreated.v1",
+                ["result"] = "success"
+            });
+        AssertObservedMetric(
+            observedMetrics,
+            MessagingMetrics.ConsumerErrorsMetricName,
+            1L,
+            new Dictionary<string, object?>
+            {
+                ["topic"] = "ledger.ledgerentry.created",
+                ["event_type"] = "LedgerEntryCreated.v1",
+                ["error_type"] = "TimeoutException"
+            });
+        AssertObservedMetric(
+            observedMetrics,
+            MessagingMetrics.ConsumerDuplicatesMetricName,
+            1L,
+            new Dictionary<string, object?>
+            {
+                ["topic"] = "ledger.ledgerentry.created",
+                ["event_type"] = "LedgerEntryCreated.v1"
+            });
+        AssertObservedMetric(
+            observedMetrics,
+            MessagingMetrics.DlqPublishErrorsMetricName,
+            1L,
+            new Dictionary<string, object?>
+            {
+                ["source_topic"] = "ledger.ledgerentry.created",
+                ["event_type"] = "LedgerEntryCreated.v1",
+                ["error_type"] = "KafkaException"
+            });
     }
+
+    private static void AssertObservedMetric(
+        IReadOnlyDictionary<string, ObservedMetric> observedMetrics,
+        string metricName,
+        object expectedValue,
+        IReadOnlyDictionary<string, object?> expectedTags)
+    {
+        Assert.True(observedMetrics.TryGetValue(metricName, out var metric), $"Metric '{metricName}' was not emitted.");
+        Assert.Equal(expectedValue, metric.Value);
+
+        foreach (var expectedTag in expectedTags)
+        {
+            Assert.True(
+                metric.Tags.TryGetValue(expectedTag.Key, out var actualValue),
+                $"Metric '{metricName}' did not emit expected tag '{expectedTag.Key}'.");
+            Assert.Equal(expectedTag.Value, actualValue);
+        }
+
+        Assert.Empty(ProhibitedTags.Intersect(metric.Tags.Keys));
+    }
+
+    private sealed record ObservedMetric(object Value, IReadOnlyDictionary<string, object?> Tags);
 }

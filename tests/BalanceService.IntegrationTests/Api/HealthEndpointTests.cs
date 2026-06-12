@@ -21,9 +21,9 @@ public sealed class HealthEndpointTests : IClassFixture<BalanceApiFactory>
     [Fact]
     public async Task Health_should_return_200_ok_and_generate_correlation_id()
     {
-        var res = await _client.GetAsync("/health");
+        var res = await _client.GetAsync("/health", TestContext.Current.CancellationToken);
         Assert.Equal(System.Net.HttpStatusCode.OK, res.StatusCode);
-        Assert.Equal("ok", (await res.Content.ReadAsStringAsync()));
+        Assert.Equal("ok", (await res.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)));
         Assert.True(res.Headers.TryGetValues("X-Correlation-Id", out var values));
         Assert.True(Guid.TryParse(Assert.Single(values), out _));
     }
@@ -35,7 +35,7 @@ public sealed class HealthEndpointTests : IClassFixture<BalanceApiFactory>
         using var request = new HttpRequestMessage(HttpMethod.Get, "/health");
         request.Headers.Add("X-Correlation-Id", correlationId);
 
-        var res = await _client.SendAsync(request);
+        var res = await _client.SendAsync(request, TestContext.Current.CancellationToken);
         Assert.Equal(System.Net.HttpStatusCode.OK, res.StatusCode);
         Assert.True(res.Headers.TryGetValues("X-Correlation-Id", out var values));
         Assert.Equal(correlationId, Assert.Single(values));
@@ -44,9 +44,9 @@ public sealed class HealthEndpointTests : IClassFixture<BalanceApiFactory>
     [Fact]
     public async Task Ready_should_return_200_when_db_is_available()
     {
-        var res = await _client.GetAsync("/ready");
+        var res = await _client.GetAsync("/ready", TestContext.Current.CancellationToken);
         Assert.Equal(System.Net.HttpStatusCode.OK, res.StatusCode);
-        var body = await res.Content.ReadAsStringAsync();
+        var body = await res.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         Assert.Contains("\"status\":\"ready\"", body);
         Assert.Contains("\"db\":\"ok\"", body);
     }
@@ -54,7 +54,7 @@ public sealed class HealthEndpointTests : IClassFixture<BalanceApiFactory>
     [Fact]
     public async Task Swagger_should_be_unavailable_by_default_in_test()
     {
-        var res = await _client.GetAsync("/swagger/v1/swagger.json");
+        var res = await _client.GetAsync("/swagger/v1/swagger.json", TestContext.Current.CancellationToken);
         Assert.Equal(System.Net.HttpStatusCode.Unauthorized, res.StatusCode);
     }
 
@@ -76,7 +76,7 @@ public sealed class HealthEndpointTests : IClassFixture<BalanceApiFactory>
             AllowAutoRedirect = false
         });
 
-        var res = await client.GetAsync("/swagger/v1/swagger.json");
+        var res = await client.GetAsync("/swagger/v1/swagger.json", TestContext.Current.CancellationToken);
         Assert.Equal(System.Net.HttpStatusCode.OK, res.StatusCode);
     }
 }

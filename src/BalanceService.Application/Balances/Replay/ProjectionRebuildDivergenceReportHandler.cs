@@ -52,8 +52,11 @@ public sealed partial class ProjectionRebuildDivergenceReportHandler
         ArgumentNullException.ThrowIfNull(command.Filter);
         ValidateFilter(command.Filter);
 
-        var reportId = Guid.NewGuid().ToString("N");
         var limit = Math.Clamp(command.Limit, 1, 1000);
+        var execution = new ReplayExecutionContext(
+            Guid.NewGuid().ToString("N"),
+            DryRun: true,
+            command.Reason);
         var filterDescription = Describe(command.Filter);
         var replayFilter = new FilteredEventReplayFilter(
             SupportedEventName,
@@ -93,29 +96,24 @@ public sealed partial class ProjectionRebuildDivergenceReportHandler
                 ProjectionRebuildEventItemStatus.RejectedUnsupportedVersion);
         var totalDuplicates = eventItems.Count(x => x.Status == ProjectionRebuildEventItemStatus.DuplicateInBatch);
         var result = new ProjectionRebuildDivergenceReportResult(
-            reportId,
-            Mutated: false,
+            execution.OperationId,
+            false,
             filterDescription,
-            candidates.Count,
-            candidates.Count - totalInvalid,
-            totalInvalid,
-            totalDuplicates,
-            items.Count,
-            items.Any(x => x.Difference != 0m),
+            new ProjectionRebuildDivergenceSummary(
+                candidates.Count,
+                candidates.Count - totalInvalid,
+                totalInvalid,
+                totalDuplicates,
+                items.Count,
+                items.Any(x => x.Difference != 0m)),
             items,
             eventItems);
 
         LogProjectionRebuildDivergenceReportCompleted(
             _logger,
-            reportId,
+            execution,
             filterDescription,
-            result.TotalFound,
-            result.TotalValid,
-            result.TotalInvalid,
-            result.TotalDuplicates,
-            result.TotalCompared,
-            result.HasDivergences,
-            command.Reason);
+            result.Summary);
 
         return result;
     }
@@ -241,16 +239,19 @@ public sealed partial class ProjectionRebuildDivergenceReportHandler
             var currentNet = currentBalance?.NetBalance ?? 0m;
             var rebuiltNet = rebuilt?.DailyBalance.NetBalance ?? 0m;
             items.Add(new ProjectionRebuildDivergenceItem(
-                rebuilt?.AccountId == MultipleAccountIds ? null : rebuilt?.AccountId,
-                key.MerchantId,
-                key.Date,
-                key.Currency,
-                currentNet,
-                rebuiltNet,
-                rebuiltNet - currentNet,
-                rebuilt?.EventsAnalyzed ?? 0,
-                totalInvalid,
-                totalDuplicates));
+                new ProjectionRebuildDivergenceIdentity(
+                    rebuilt?.AccountId == MultipleAccountIds ? null : rebuilt?.AccountId,
+                    key.MerchantId,
+                    key.Date,
+                    key.Currency),
+                new ProjectionRebuildDivergenceValues(
+                    currentNet,
+                    rebuiltNet,
+                    rebuiltNet - currentNet),
+                new ProjectionRebuildDivergenceCounters(
+                    rebuilt?.EventsAnalyzed ?? 0,
+                    totalInvalid,
+                    totalDuplicates)));
         }
 
         return items;
@@ -365,16 +366,10 @@ public sealed partial class ProjectionRebuildDivergenceReportHandler
     [LoggerMessage(
         EventId = 2304,
         Level = LogLevel.Information,
-        Message = "Projection rebuild divergence report completed. reportId={ReportId} filter={FilterDescription} totalFound={TotalFound} totalValid={TotalValid} totalInvalid={TotalInvalid} totalDuplicates={TotalDuplicates} totalCompared={TotalCompared} hasDivergences={HasDivergences} reason={Reason}")]
+        Message = "Projection rebuild divergence report completed. execution={Execution} filter={FilterDescription} summary={Summary}")]
     private static partial void LogProjectionRebuildDivergenceReportCompleted(
         ILogger logger,
-        string reportId,
+        ReplayExecutionContext execution,
         string filterDescription,
-        int totalFound,
-        int totalValid,
-        int totalInvalid,
-        int totalDuplicates,
-        int totalCompared,
-        bool hasDivergences,
-        string reason);
+        ProjectionRebuildDivergenceSummary summary);
 }

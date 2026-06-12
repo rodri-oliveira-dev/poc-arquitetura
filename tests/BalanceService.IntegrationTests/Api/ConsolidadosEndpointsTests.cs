@@ -37,7 +37,7 @@ public sealed class ConsolidadosEndpointsTests : IClassFixture<BalanceApiFactory
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var res = await _client.GetAsync("/api/v1/consolidados/periodo?merchantId=m1&from=bad&to=2026-02-12");
+        var res = await _client.GetAsync("/api/v1/consolidados/periodo?merchantId=m1&from=bad&to=2026-02-12", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
         var body = await AssertValidationErrorResponseAsync(res);
         Assert.Contains("from", body.Errors.Keys);
@@ -51,7 +51,7 @@ public sealed class ConsolidadosEndpointsTests : IClassFixture<BalanceApiFactory
         req.Headers.Add("Access-Control-Request-Method", "GET");
         req.Headers.Add("Access-Control-Request-Headers", "Idempotency-Key, X-Correlation-Id");
 
-        var res = await _client.SendAsync(req);
+        var res = await _client.SendAsync(req, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.NoContent, res.StatusCode);
         Assert.True(res.Headers.TryGetValues("Access-Control-Allow-Headers", out var values));
         var allowedHeaders = string.Join(",", values!).ToLowerInvariant();
@@ -69,7 +69,7 @@ public sealed class ConsolidadosEndpointsTests : IClassFixture<BalanceApiFactory
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var res = await _client.GetAsync("/api/v1/consolidados/diario/2026-02-10");
+        var res = await _client.GetAsync("/api/v1/consolidados/diario/2026-02-10", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
         var body = await AssertValidationErrorResponseAsync(res);
         Assert.Contains("merchantId", body.Errors.Keys);
@@ -125,15 +125,15 @@ public sealed class ConsolidadosEndpointsTests : IClassFixture<BalanceApiFactory
                 now);
 
             db.DailyBalances.Add(balance);
-            await db.SaveChangesAsync();
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         // Act
-        var res = await _client.GetAsync($"/api/v1/consolidados/diario/{date:yyyy-MM-dd}?merchantId={merchantId}");
+        var res = await _client.GetAsync($"/api/v1/consolidados/diario/{date:yyyy-MM-dd}?merchantId={merchantId}", TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
-        var body = await res.Content.ReadFromJsonAsync<DailyBalanceResponse>();
+        var body = await res.Content.ReadFromJsonAsync<DailyBalanceResponse>(TestContext.Current.CancellationToken);
         Assert.NotNull(body);
         Assert.Equal(merchantId, body!.MerchantId);
         Assert.Equal("2026-02-14", body.Date);
@@ -198,16 +198,17 @@ public sealed class ConsolidadosEndpointsTests : IClassFixture<BalanceApiFactory
                 now);
 
             db.DailyBalances.AddRange(day1, day2);
-            await db.SaveChangesAsync();
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         // Act
         var res = await _client.GetAsync(
-            $"/api/v1/consolidados/periodo?merchantId={merchantId}&from={from:yyyy-MM-dd}&to={to:yyyy-MM-dd}");
+            $"/api/v1/consolidados/periodo?merchantId={merchantId}&from={from:yyyy-MM-dd}&to={to:yyyy-MM-dd}",
+            TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
-        var body = await res.Content.ReadFromJsonAsync<PeriodBalanceResponse>();
+        var body = await res.Content.ReadFromJsonAsync<PeriodBalanceResponse>(TestContext.Current.CancellationToken);
         Assert.NotNull(body);
         Assert.Equal(merchantId, body!.MerchantId);
         Assert.Equal("2026-02-10", body.From);
@@ -232,7 +233,7 @@ public sealed class ConsolidadosEndpointsTests : IClassFixture<BalanceApiFactory
     private static async Task<ValidationErrorResponse> AssertValidationErrorResponseAsync(HttpResponseMessage response)
     {
         Assert.Equal("application/json", response.Content.Headers.ContentType?.MediaType);
-        var body = await response.Content.ReadFromJsonAsync<ValidationErrorResponse>();
+        var body = await response.Content.ReadFromJsonAsync<ValidationErrorResponse>(TestContext.Current.CancellationToken);
         Assert.NotNull(body);
         Assert.Equal("https://httpstatuses.com/400", body!.Type);
         Assert.Equal("Invalid request", body.Title);

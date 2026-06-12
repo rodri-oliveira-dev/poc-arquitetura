@@ -32,12 +32,12 @@ public sealed class GlobalExceptionHandlerTests
             new ValidationFailure("MerchantId", "another")
         });
 
-        var handled = await sut.TryHandleAsync(ctx, ex, CancellationToken.None);
+        var handled = await sut.TryHandleAsync(ctx, ex, TestContext.Current.CancellationToken);
         Assert.True(handled);
         Assert.Equal(StatusCodes.Status400BadRequest, ctx.Response.StatusCode);
         ctx.Response.Body.Position = 0;
         using var reader = new StreamReader(ctx.Response.Body);
-        using var doc = JsonDocument.Parse(await reader.ReadToEndAsync());
+        using var doc = JsonDocument.Parse(await reader.ReadToEndAsync(TestContext.Current.CancellationToken));
         Assert.Equal(2, doc.RootElement.GetProperty("errors").GetProperty("merchantId").GetArrayLength());
         Assert.False(string.IsNullOrWhiteSpace(doc.RootElement.GetProperty("correlationId").GetString()));
     }
@@ -56,7 +56,7 @@ public sealed class GlobalExceptionHandlerTests
 
         var ex = (Exception)Activator.CreateInstance(exType, "boom")!;
 
-        var handled = await sut.TryHandleAsync(ctx, ex, CancellationToken.None);
+        var handled = await sut.TryHandleAsync(ctx, ex, TestContext.Current.CancellationToken);
         Assert.True(handled);
         Assert.Equal(expectedStatus, ctx.Response.StatusCode);
     }
