@@ -1,17 +1,8 @@
-import { check, sleep } from 'k6';
+import { sleep } from 'k6';
 import { loadConfig } from '../lib/config.js';
-import { defaultHeaders, httpPost } from '../lib/http.js';
+import { checkStatusIn } from '../lib/checks.js';
+import { createLedgerEntry } from '../lib/ledger.js';
 import { localLatencyThresholds } from '../lib/thresholds.js';
-
-function uuidv4() {
-    // UUID v4 simples (suficiente para idempotência/correlação em testes)
-    // Fonte: implementação comum baseada em Math.random
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-        const r = (Math.random() * 16) | 0;
-        const v = c === 'x' ? r : (r & 0x3) | 0x8;
-        return v.toString(16);
-    });
-}
 
 export const options = {
     scenarios: {
@@ -32,37 +23,8 @@ export const options = {
 const cfg = loadConfig();
 
 export default function () {
-    const base = cfg.BASE_URL_LEDGER;
-    const path = cfg.LEDGER_POST_PATH;
-    const url = `${base}${path}`;
-    const merchantId = __ENV.MERCHANT_ID || cfg.MERCHANT_ID;
-
-    const idempotencyKey = uuidv4();
-    const correlationId = uuidv4();
-
-    const body = JSON.stringify({
-        type: 'CREDIT',
-        merchantId,
-        amount: 10.0,
-        description: 'k6 resilience test',
-        externalReference: `k6-${idempotencyKey}`,
-    });
-
-    const res = httpPost(url, body, {
-        headers: defaultHeaders({
-            'Idempotency-Key': idempotencyKey,
-            'X-Correlation-Id': correlationId,
-        }),
-        tags: {
-            name: 'ledger_create_entry',
-            service: 'ledger',
-            operation: 'ledger_create_entry',
-        },
-    });
-
-    check(res, {
-        'ledger create entry returns 201 or idempotent 200': (r) => r.status === 201 || r.status === 200,
-    });
+    const res = createLedgerEntry(cfg);
+    checkStatusIn(res, 'ledger create entry returns 201 or idempotent 200', [201, 200]);
 
     // Em constant-vus, o sleep representa think time e reduz o ritmo por VU.
     sleep(0.2);

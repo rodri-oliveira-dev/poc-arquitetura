@@ -65,9 +65,9 @@ export function loadConfig() {
     return cfg;
 }
 
-export function requireTokenOrFail() {
-    const token = (__ENV.TOKEN || '').trim();
-    const allowAnon = (__ENV.ALLOW_ANON || '').toLowerCase() === 'true';
+export function requireTokenOrFail(cfg = loadConfig()) {
+    const token = (cfg.TOKEN || '').trim();
+    const allowAnon = String(cfg.ALLOW_ANON || '').toLowerCase() === 'true';
     if (!token && !allowAnon) {
         throw new Error('TOKEN vazio. Use scripts/run-loadtests.* ou gere token via scripts/get-token.* e informe env TOKEN=... (ALLOW_ANON=true executa anonimamente).');
     }

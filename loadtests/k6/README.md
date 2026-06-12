@@ -4,11 +4,13 @@ Este diretorio contem scripts k6 usados pelos runners em `./scripts/run-loadtest
 
 ## Configuracao
 
-A configuracao e carregada na ordem:
+A configuracao efetiva usa esta precedencia, da menor para a maior:
 
-1. Variaveis de ambiente do k6 (`__ENV`)
+1. Defaults (fallback para execucao local via `localhost`)
 2. Arquivo `.env.k6.auto` (gerado por `scripts/compose-env.*`)
-3. Defaults (fallback para execucao local via `localhost`)
+3. Variaveis de ambiente do k6 (`__ENV`)
+
+Os clients simples em `lib/ledger.js` e `lib/balance.js` concentram montagem de URL, headers e tags por dominio. Os cenarios em `scenarios/` mantem apenas configuracao de carga, chamada do client, checks e `sleep()` quando aplicavel.
 
 Os cenarios exigem `TOKEN` (JWT), a menos que `ALLOW_ANON=true`. Os runners oficiais (`scripts/run-loadtests.*`) obtêm esse token antes de iniciar o k6 chamando `scripts/get-token.*`; por padrão o provider é o Keycloak local via `client_credentials`.
 

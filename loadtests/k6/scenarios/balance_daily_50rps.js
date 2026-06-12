@@ -1,6 +1,6 @@
-import { check } from 'k6';
 import { loadConfig } from '../lib/config.js';
-import { defaultHeaders, httpGet } from '../lib/http.js';
+import { getDailyBalance } from '../lib/balance.js';
+import { checkStatus } from '../lib/checks.js';
 import { localLatencyThresholds } from '../lib/thresholds.js';
 
 export const options = {
@@ -25,22 +25,6 @@ export const options = {
 const cfg = loadConfig();
 
 export default function () {
-    const date = __ENV.DATE || new Date().toISOString().slice(0, 10);
-    const merchantId = __ENV.MERCHANT_ID || cfg.MERCHANT_ID;
-    const base = cfg.BASE_URL_BALANCE;
-    const pathBase = cfg.BALANCE_DAILY_PATH;
-    const url = `${base}${pathBase}/${date}?merchantId=${encodeURIComponent(merchantId)}`;
-
-    const res = httpGet(url, {
-        headers: defaultHeaders(),
-        tags: {
-            name: 'balance_daily_summary',
-            service: 'balance',
-            operation: 'balance_daily_summary',
-        },
-    });
-
-    check(res, {
-        'balance daily summary returns 200': (r) => r.status === 200,
-    });
+    const res = getDailyBalance(cfg, { date: cfg.DATE });
+    checkStatus(res, 'balance daily summary returns 200', 200);
 }

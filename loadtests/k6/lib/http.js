@@ -1,8 +1,8 @@
 import http from 'k6/http';
 import { requireTokenOrFail } from './config.js';
 
-export function defaultHeaders(extra = {}) {
-    const token = requireTokenOrFail();
+export function defaultHeaders(cfg, extra = {}) {
+    const token = requireTokenOrFail(cfg);
     const headers = {
         'Content-Type': 'application/json',
         ...extra,
@@ -15,10 +15,17 @@ export function defaultHeaders(extra = {}) {
     return headers;
 }
 
-export function httpGet(url, params = {}) {
+export function requestParams(cfg, { headers = {}, tags = {} } = {}) {
+    return {
+        headers: defaultHeaders(cfg, headers),
+        tags,
+    };
+}
+
+export function get(url, params = {}) {
     return http.get(url, params);
 }
 
-export function httpPost(url, body, params = {}) {
-    return http.post(url, body, params);
+export function postJson(url, payload, params = {}) {
+    return http.post(url, JSON.stringify(payload), params);
 }
