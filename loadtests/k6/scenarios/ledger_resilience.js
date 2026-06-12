@@ -1,6 +1,6 @@
 import { sleep } from 'k6';
 import { loadConfig } from '../lib/config.js';
-import { checkStatusIn } from '../lib/checks.js';
+import { checkLedgerEntryCreated } from '../lib/checks.js';
 import { createLedgerEntry } from '../lib/ledger.js';
 import { localLatencyThresholds } from '../lib/thresholds.js';
 
@@ -24,7 +24,7 @@ const cfg = loadConfig();
 
 export default function () {
     const res = createLedgerEntry(cfg);
-    checkStatusIn(res, 'ledger create entry returns 201 or idempotent 200', [201, 200]);
+    checkLedgerEntryCreated(res);
 
     // Em constant-vus, o sleep representa think time e reduz o ritmo por VU.
     sleep(0.2);

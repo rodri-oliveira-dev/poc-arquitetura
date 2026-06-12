@@ -1,9 +1,11 @@
-import { uuidv4 } from './ids.js';
-import { postJson, requestParams } from './http.js';
+import { correlationId, idempotencyKey } from './ids.js';
+import { buildUrl, operationParams, postJson } from './http.js';
+
+const CREATE_ENTRY_OPERATION = 'ledger_create_entry';
 
 export function createLedgerEntry(cfg, overrides = {}) {
-    const idempotencyKey = uuidv4();
-    const correlationId = uuidv4();
+    const entryIdempotencyKey = idempotencyKey();
+    const entryCorrelationId = correlationId();
     const merchantId = overrides.merchantId || cfg.MERCHANT_ID;
 
     const payload = {
@@ -11,21 +13,18 @@ export function createLedgerEntry(cfg, overrides = {}) {
         merchantId,
         amount: 10.0,
         description: 'k6 resilience test',
-        externalReference: `k6-${idempotencyKey}`,
+        externalReference: `k6-${entryIdempotencyKey}`,
         ...overrides.payload,
     };
 
-    const url = `${cfg.BASE_URL_LEDGER}${cfg.LEDGER_POST_PATH}`;
+    const url = buildUrl(cfg.BASE_URL_LEDGER, cfg.LEDGER_POST_PATH);
 
-    return postJson(url, payload, requestParams(cfg, {
+    return postJson(url, payload, operationParams(cfg, {
         headers: {
-            'Idempotency-Key': idempotencyKey,
-            'X-Correlation-Id': correlationId,
+            'Idempotency-Key': entryIdempotencyKey,
+            'X-Correlation-Id': entryCorrelationId,
         },
-        tags: {
-            name: 'ledger_create_entry',
-            service: 'ledger',
-            operation: 'ledger_create_entry',
-        },
+        service: 'ledger',
+        operation: CREATE_ENTRY_OPERATION,
     }));
 }

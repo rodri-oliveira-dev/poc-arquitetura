@@ -47,6 +47,38 @@ function merge(base, overlay) {
     return { ...base, ...overlay };
 }
 
+function cleanString(value) {
+    return String(value || '').trim();
+}
+
+function cleanBaseUrl(value) {
+    return cleanString(value).replace(/\/+$/, '');
+}
+
+function cleanPath(value) {
+    const path = cleanString(value);
+    if (!path) return '/';
+    return path.startsWith('/') ? path : `/${path}`;
+}
+
+function parseBoolean(value) {
+    return cleanString(value).toLowerCase() === 'true';
+}
+
+function normalizeConfig(cfg) {
+    return {
+        ...cfg,
+        TOKEN: cleanString(cfg.TOKEN),
+        ALLOW_ANON: parseBoolean(cfg.ALLOW_ANON),
+        BASE_URL_LEDGER: cleanBaseUrl(cfg.BASE_URL_LEDGER),
+        BASE_URL_BALANCE: cleanBaseUrl(cfg.BASE_URL_BALANCE),
+        LEDGER_POST_PATH: cleanPath(cfg.LEDGER_POST_PATH),
+        BALANCE_DAILY_PATH: cleanPath(cfg.BALANCE_DAILY_PATH),
+        BALANCE_PERIOD_PATH: cleanPath(cfg.BALANCE_PERIOD_PATH),
+        MERCHANT_ID: cleanString(cfg.MERCHANT_ID),
+    };
+}
+
 export function loadConfig() {
     const defaults = {
         // Fallback local (host)
@@ -61,13 +93,12 @@ export function loadConfig() {
 
     const fileCfg = loadAutoEnvFile();
     const envCfg = { ...__ENV };
-    const cfg = merge(merge(defaults, fileCfg), envCfg);
-    return cfg;
+    return normalizeConfig(merge(merge(defaults, fileCfg), envCfg));
 }
 
 export function requireTokenOrFail(cfg = loadConfig()) {
-    const token = (cfg.TOKEN || '').trim();
-    const allowAnon = String(cfg.ALLOW_ANON || '').toLowerCase() === 'true';
+    const token = cleanString(cfg.TOKEN);
+    const allowAnon = typeof cfg.ALLOW_ANON === 'boolean' ? cfg.ALLOW_ANON : parseBoolean(cfg.ALLOW_ANON);
     if (!token && !allowAnon) {
         throw new Error('TOKEN vazio. Use scripts/run-loadtests.* ou gere token via scripts/get-token.* e informe env TOKEN=... (ALLOW_ANON=true executa anonimamente).');
     }

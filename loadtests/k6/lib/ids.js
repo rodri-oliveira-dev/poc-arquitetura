@@ -5,3 +5,11 @@ export function uuidv4() {
         return v.toString(16);
     });
 }
+
+export function idempotencyKey() {
+    return uuidv4();
+}
+
+export function correlationId() {
+    return uuidv4();
+}

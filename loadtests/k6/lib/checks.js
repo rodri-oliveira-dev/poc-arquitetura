@@ -11,3 +11,11 @@ export function checkStatusIn(res, name, expectedStatuses) {
         [name]: (r) => expectedStatuses.includes(r.status),
     });
 }
+
+export function checkLedgerEntryCreated(res) {
+    return checkStatusIn(res, 'ledger create entry returns 201 or idempotent 200', [201, 200]);
+}
+
+export function checkBalanceDailySummary(res) {
+    return checkStatus(res, 'balance daily summary returns 200', 200);
+}

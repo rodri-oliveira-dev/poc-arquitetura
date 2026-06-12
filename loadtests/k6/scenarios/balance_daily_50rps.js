@@ -1,6 +1,6 @@
 import { loadConfig } from '../lib/config.js';
 import { getDailyBalance } from '../lib/balance.js';
-import { checkStatus } from '../lib/checks.js';
+import { checkBalanceDailySummary } from '../lib/checks.js';
 import { localLatencyThresholds } from '../lib/thresholds.js';
 
 export const options = {
@@ -26,5 +26,5 @@ const cfg = loadConfig();
 
 export default function () {
     const res = getDailyBalance(cfg, { date: cfg.DATE });
-    checkStatus(res, 'balance daily summary returns 200', 200);
+    checkBalanceDailySummary(res);
 }
