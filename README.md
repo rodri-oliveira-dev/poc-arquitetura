@@ -211,6 +211,7 @@ Os scripts executam testes com cobertura e aplicam gate minimo de 85% de cobertu
 - [Pub/Sub: custo e free tier](docs/development/pubsub-cost-and-free-tier.md)
 - [Observabilidade e operacao minima](docs/observability.md)
 - [Testes e cobertura](docs/development/test-coverage.md)
+- [SonarQube Cloud](docs/development/sonarqube-cloud.md)
 - [SonarQube local](docs/quality/sonarqube.md)
 - [OWASP ZAP local](docs/development/owasp-zap.md)
 - [Troubleshooting](docs/troubleshooting.md)

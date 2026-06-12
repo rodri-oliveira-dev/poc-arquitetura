@@ -4,11 +4,13 @@ Este diretorio contem scripts k6 usados pelos runners em `./scripts/run-loadtest
 
 ## Configuracao
 
-A configuracao e carregada na ordem:
+A configuracao efetiva usa esta precedencia, da menor para a maior:
 
-1. Variaveis de ambiente do k6 (`__ENV`)
+1. Defaults (fallback para execucao local via `localhost`)
 2. Arquivo `.env.k6.auto` (gerado por `scripts/compose-env.*`)
-3. Defaults (fallback para execucao local via `localhost`)
+3. Variaveis de ambiente do k6 (`__ENV`)
+
+Os clients simples em `lib/ledger.js` e `lib/balance.js` concentram montagem de URL, headers e tags por dominio. Os cenarios em `scenarios/` mantem apenas configuracao de carga, chamada do client, checks e `sleep()` quando aplicavel.
 
 Os cenarios exigem `TOKEN` (JWT), a menos que `ALLOW_ANON=true`. Os runners oficiais (`scripts/run-loadtests.*`) obtêm esse token antes de iniciar o k6 chamando `scripts/get-token.*`; por padrão o provider é o Keycloak local via `client_credentials`.
 
@@ -24,9 +26,11 @@ Os runners `./scripts/run-loadtests.ps1` e `./scripts/run-loadtests.sh` expoem t
 
 `smoke` e uma validacao curta de sanidade local. `balance50` e um cenario de throughput de leitura controlado para o Balance. `resilience` e um cenario de escrita concorrente no Ledger, com foco em aceitar chamadas validas sob carga moderada local.
 
-Os scripts k6 declaram thresholds para `checks`, `http_req_failed`, `http_req_duration` p95/p99 e `dropped_iterations`. Os runners tambem conferem o summary JSON para manter diagnostico explicito de checks falhos, taxa de erro HTTP e iteracoes descartadas.
+Os scripts k6 declaram thresholds para `checks`, `dropped_iterations` e para `http_req_failed`/`http_req_duration` filtrados por operacao. As chamadas HTTP usam tags `name`, `service` e `operation`, permitindo separar no summary operacoes como `ledger_create_entry` e `balance_daily_summary`. Os runners tambem conferem o summary JSON para manter diagnostico explicito de checks falhos, taxa de erro HTTP e iteracoes descartadas.
 
 `iteration_duration` continua observacional nesta etapa. Ela aparece no summary do k6, mas mistura tempo de API, `sleep()` do script e comportamento do executor, entao ainda nao e um bom gate para esta POC.
+
+Em cenarios `constant-arrival-rate`, o executor controla a taxa de chegada configurada; `sleep()` dentro da iteracao nao define o RPS e pode apenas aumentar a duracao da iteracao, exigindo mais VUs ou contribuindo para `dropped_iterations`. Em cenarios `constant-vus`, `sleep()` reduz diretamente o ritmo de cada VU e pode representar think time simples quando essa intencao estiver clara.
 
 ## Thresholds iniciais de latencia
 

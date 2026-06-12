@@ -19,7 +19,6 @@ env:
   DOTNET_NOLOGO: true
   BUILD_CONFIGURATION: Release
   SOLUTION_PATH: ./LedgerService.slnx
-  NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
 
 jobs:
   ensure-pr-owner:
@@ -109,18 +108,9 @@ jobs:
           fetch-depth: 0
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7 # v5
+        uses: ./.github/actions/setup-dotnet
         with:
-          global-json-file: global.json
-
-      - name: Cache NuGet packages
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: ${{ env.NUGET_PACKAGES }}
-          key: ${{ runner.os }}-nuget-analyzers-${{ hashFiles('**/*.csproj', 'Directory.Packages.props', 'Directory.Build.props', 'global.json', 'dotnet-tools.json') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-analyzers-
-            ${{ runner.os }}-nuget-
+          cache-key-prefix: nuget-analyzers
 
       - name: Detect changed C# files
         id: changed_files

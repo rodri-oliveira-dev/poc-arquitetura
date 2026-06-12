@@ -73,7 +73,7 @@
   "markdown.preview.mermaid": true,
   "markdown.preview.experimental.useMermaid": true,
   "sonarlint.connectedMode.project": {
-    "connectionId": "sonarcloud-rodri-oliveira-dev",
+    "connectionId": "rodri-oliveira-dev",
     "projectKey": "rodri-oliveira-dev_poc-arquitetura"
   },
   "sonarlint.testFilePattern": "**/*Tests*/**,**/*.Tests/**,**/*Test.cs,**/*Tests.cs",

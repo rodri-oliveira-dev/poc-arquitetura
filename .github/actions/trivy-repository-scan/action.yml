@@ -1,0 +1,42 @@
+name: Trivy repository scan
+description: Run repository Trivy config and filesystem scans used by CI.
+
+inputs:
+  severity:
+    description: Severities that block the scan.
+    required: false
+    default: HIGH,CRITICAL
+  tf-vars:
+    description: Terraform variables file used by Trivy static analysis.
+    required: false
+    default: infra/terraform/environments/dev/validation.tfvars
+  skip-dirs:
+    description: Comma-separated generated or local-only directories ignored by Trivy.
+    required: false
+    default: node_modules,.git,dist,.terraform,bin,**/bin,obj,**/obj,.vs,.idea,TestResults,**/TestResults,coverage,CodeCoverage,StrykerOutput,.dotnet,.dotnet-home,.nuget,artifacts,infra/nginx/certs
+
+runs:
+  using: composite
+  steps:
+    - name: Scan Dockerfile and Terraform misconfigurations
+      uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+      with:
+        scan-type: config
+        scan-ref: .
+        severity: ${{ inputs.severity }}
+        exit-code: "1"
+        tf-vars: ${{ inputs.tf-vars }}
+        hide-progress: true
+        skip-dirs: ${{ inputs.skip-dirs }}
+
+    - name: Scan repository filesystem
+      uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+      with:
+        scan-type: fs
+        scan-ref: .
+        scanners: vuln,secret,misconfig
+        severity: ${{ inputs.severity }}
+        exit-code: "1"
+        tf-vars: ${{ inputs.tf-vars }}
+        hide-progress: true
+        skip-dirs: ${{ inputs.skip-dirs }}

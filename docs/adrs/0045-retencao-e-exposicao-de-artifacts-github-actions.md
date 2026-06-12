@@ -19,7 +19,7 @@ Manter a publicacao de artifacts nos workflows existentes sem renomear workflows
 - `.github/workflows/dotnet.yml`;
 - `.github/workflows/mutation-tests.yml`.
 
-No workflow `dotnet-ci`, manter o artifact `test-results-and-coverage` com retencao de 7 dias e publicar somente:
+Na decisao original para o workflow `dotnet-ci`, manter o artifact `test-results-and-coverage` com retencao de 7 dias e publicar somente:
 
 - arquivos `.trx`;
 - arquivos `coverage.cobertura.xml`;
@@ -38,6 +38,24 @@ Cada artifact passa a publicar apenas o `mutation-report.html` gerado pelo Stryk
 Todos os uploads continuam com `if-no-files-found: warn`, preservando o comportamento atual e evitando falha secundaria falsa quando uma etapa anterior falhar antes de gerar arquivos.
 
 A documentacao operacional da politica fica em `docs/development/workflow-artifacts.md`, com link no README.
+
+## Atualizacao em 2026-06-12
+
+O workflow `.github/workflows/dotnet.yml` passou a gerar um snapshot resumido do SonarQube Cloud apos o scanner, contendo:
+
+- `artifacts/sonarqube/quality-gate.json`;
+- `artifacts/sonarqube/measures.json`;
+- `artifacts/sonarqube/issues.json`;
+- `artifacts/sonarqube/sonarqube-cloud-report.md`.
+
+Como o artifact do workflow principal deixou de conter apenas testes e cobertura, ele foi renomeado de `test-results-and-coverage` para `test-results-coverage-and-sonarqube`.
+
+Essa ampliacao e aceita porque:
+
+- o relatorio Markdown facilita triagem diretamente no GitHub Actions;
+- os JSONs preservam o retorno bruto da API usado para auditar o resumo;
+- a retencao continua curta, com 7 dias;
+- o GitHub Actions artifact continua sendo apenas um snapshot da execucao, enquanto o SonarQube Cloud permanece como fonte principal da analise.
 
 ## Consequencias
 

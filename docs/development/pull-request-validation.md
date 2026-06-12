@@ -44,20 +44,30 @@ Configuracao recomendada em `Settings > Branches > Branch protection rules` ou e
 - exigir branch atualizada antes do merge, se o fluxo do repositorio usar essa politica;
 - bloquear push direto na `main`, exceto para administracao operacional explicita.
 
-O workflow `main-dotnet-ci` permanece como validacao completa de `push` na `main` e execucao manual, incluindo cobertura e relatorios.
+O workflow `main-dotnet-ci` permanece como validacao completa de `push` na `main`, `pull_request` para `main` e execucao manual, incluindo cobertura, SonarQube Cloud e relatorios.
+
+## Acoes compostas internas
+
+Para reduzir repeticao entre workflows, o repositorio centraliza setup mecanico em composite actions locais:
+
+- `.github/actions/setup-dotnet`: configura o SDK pelo `global.json`, define `NUGET_PACKAGES` para cache local do runner, restaura cache NuGet e pode executar `dotnet tool restore` quando o workflow precisa de ferramentas locais;
+- `.github/actions/setup-node`: configura Node.js 22 com cache npm e executa `npm ci`;
+- `.github/actions/trivy-repository-scan`: executa os scans Trivy de configuracao e filesystem usados pela validacao de infraestrutura.
+
+Os workflows continuam mantendo explicitos os comandos de negocio do pipeline, como `dotnet restore`, `dotnet build`, `dotnet test`, geracao OpenAPI, Stryker, ZAP e validacao Terraform. A abstracao fica restrita ao setup repetitivo para preservar legibilidade e evitar overengineering.
 
 ## Matriz de workflows
 
 | Workflow | Arquivo | Evento | Papel | Bloqueante / informativo / operacional |
 | --- | --- | --- | --- | --- |
 | `pr-build-and-test` | `.github/workflows/pull-request-validation.yml` | `pull_request`, `merge_group`, `workflow_dispatch` | Gate minimo de PR. Em PR documental, cria o status check e pula restore/build/test. Em PR com mudanca impactante, executa restore, build e testes sem cobertura e sem recompilar depois do build. | Bloqueante |
-| `main-dotnet-ci` | `.github/workflows/dotnet.yml` | `push` na `main`, `workflow_dispatch` | Validacao completa pos-merge/manual, com restore, vulnerabilidades NuGet, build, testes, cobertura, gate de 85% e artifacts de diagnostico. | Informativo para PR; bloqueante apenas se uma regra externa decidir exigir esse check |
+| `main-dotnet-ci` | `.github/workflows/dotnet.yml` | `push` na `main`, `pull_request` para `main`, `workflow_dispatch` | Validacao completa, com restore, vulnerabilidades NuGet, SonarQube Cloud, build, testes, cobertura, gate de 85% e artifacts de diagnostico. | Bloqueante se exigido por branch protection/ruleset |
 | `dependency-security-review` | `.github/workflows/dependency-review.yml` | `pull_request` para `main` | Revisa dependencias alteradas no PR e falha para vulnerabilidades `moderate` ou superior. | Bloqueante se exigido por branch protection/ruleset |
 | `codeql-security-analysis` | `.github/workflows/codeql.yml` | `push` na `main`, `pull_request` para `main`, `schedule` semanal | Analise estatica de seguranca C# via CodeQL. | Bloqueante se exigido por branch protection/ruleset |
 | `pr-advisory-checks` | `.github/workflows/pr-advisory-review.yml` | `pull_request`, `pull_request_target`, `workflow_dispatch` | Atribui o autor como responsavel do PR quando a API permite e publica recomendacoes de analyzers para arquivos C# alterados. Falhas de atribuicao de responsavel sao registradas como warning e nao bloqueiam o PR. | Informativo |
 | `event-contract-validation` | `.github/workflows/event-contracts.yml` | `pull_request`, `push` na `main`, `workflow_dispatch` quando ha mudancas em contratos, exemplos, docs e tooling de eventos | Valida JSON Schemas e exemplos versionados dos eventos. | Bloqueante se exigido por branch protection/ruleset |
 | `openapi-contract-validation` | `.github/workflows/openapi-contracts.yml` | `pull_request`, `push` na `main`, `workflow_dispatch` quando ha mudancas em APIs, contratos OpenAPI ou tooling relacionado | Gera, linta, compara breaking changes e valida drift dos contratos OpenAPI. | Bloqueante se exigido por branch protection/ruleset |
-| `infra-security-and-terraform-validation` | `.github/workflows/terraform-validation.yml` | `pull_request` e `push` para `main` quando ha mudancas em `infra/terraform/**`, Dockerfiles, Compose ou no proprio workflow; `workflow_dispatch` | Executa Trivy para Dockerfile, Terraform, misconfigurations, secrets e filesystem; depois executa `fmt -check`, `init -backend=false`, `validate` e TFLint. Nao executa `plan`, `apply` nem `destroy`; o `init` sem backend e apenas validacao sintatica sem credenciais. Plan real no CI deve inicializar o backend remoto GCS e nao usar `-lock=false`. | Bloqueante se exigido por branch protection/ruleset |
+| `infra-security-and-terraform-validation` | `.github/workflows/terraform-validation.yml` | `pull_request` e `push` para `main` quando ha mudancas em `infra/terraform/**`, Dockerfiles, Compose, `.github/actions/trivy-repository-scan/**` ou no proprio workflow; `workflow_dispatch` | Executa Trivy para Dockerfile, Terraform, misconfigurations, secrets e filesystem; depois executa `fmt -check`, `init -backend=false`, `validate` e TFLint. Nao executa `plan`, `apply` nem `destroy`; o `init` sem backend e apenas validacao sintatica sem credenciais. Plan real no CI deve inicializar o backend remoto GCS e nao usar `-lock=false`. | Bloqueante se exigido por branch protection/ruleset |
 | `mutation-tests` | `.github/workflows/mutation-tests.yml` | `push` na `main`, `workflow_dispatch` | Diagnostico de qualidade por Stryker.NET com relatorios HTML publicados como artifacts. Nao roda em PR e nao deve virar gate obrigatorio sem decisao explicita. | Informativo |
 | `smoke-load-tests` | `.github/workflows/loadtests-smoke.yml` | `workflow_dispatch` | Executa testes k6 smoke contra a stack local inicializada no runner. | Operacional/manual |
 | `owasp-zap-baseline` | `.github/workflows/owasp-zap.yml` | `workflow_dispatch` | Executa OWASP ZAP baseline contra LedgerService.Api e BalanceService.Api em stack HTTP controlada no runner e publica relatorios como artifacts. Nao roda em PR. | Operacional/manual |
@@ -66,7 +76,7 @@ O workflow `main-dotnet-ci` permanece como validacao completa de `push` na `main
 
 O required check recomendado para proteger a `main` e `Build and test`, job do workflow `pr-build-and-test`.
 
-`main-dotnet-ci` continua sendo a validacao completa pos-merge/manual e alimenta os badges de build/testes do README por meio do arquivo `.github/workflows/dotnet.yml`.
+`main-dotnet-ci` continua sendo a validacao completa e alimenta os badges de build/testes do README por meio do arquivo `.github/workflows/dotnet.yml`.
 
 ## Cuidados antes de renomear checks
 
@@ -90,7 +100,7 @@ Nao promova `owasp-zap-baseline` para gate obrigatorio apenas por existir workfl
 
 ## Pinagem de GitHub Actions
 
-As actions usadas em `.github/workflows/` devem ser referenciadas por SHA completo de commit, mantendo um comentario com a ref semantica original, por exemplo `# v4`.
+As actions externas usadas em `.github/workflows/` e `.github/actions/` devem ser referenciadas por SHA completo de commit, mantendo um comentario com a ref semantica original, por exemplo `# v4`.
 
 Para atualizar uma action:
 
