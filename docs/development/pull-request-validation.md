@@ -44,7 +44,7 @@ Configuracao recomendada em `Settings > Branches > Branch protection rules` ou e
 - exigir branch atualizada antes do merge, se o fluxo do repositorio usar essa politica;
 - bloquear push direto na `main`, exceto para administracao operacional explicita.
 
-O workflow `main-dotnet-ci` permanece como validacao completa de `push` na `main` e execucao manual, incluindo cobertura e relatorios.
+O workflow `main-dotnet-ci` permanece como validacao completa de `push` na `main`, `pull_request` para `main` e execucao manual, incluindo cobertura, SonarQube Cloud e relatorios.
 
 ## Acoes compostas internas
 
@@ -61,7 +61,7 @@ Os workflows continuam mantendo explicitos os comandos de negocio do pipeline, c
 | Workflow | Arquivo | Evento | Papel | Bloqueante / informativo / operacional |
 | --- | --- | --- | --- | --- |
 | `pr-build-and-test` | `.github/workflows/pull-request-validation.yml` | `pull_request`, `merge_group`, `workflow_dispatch` | Gate minimo de PR. Em PR documental, cria o status check e pula restore/build/test. Em PR com mudanca impactante, executa restore, build e testes sem cobertura e sem recompilar depois do build. | Bloqueante |
-| `main-dotnet-ci` | `.github/workflows/dotnet.yml` | `push` na `main`, `workflow_dispatch` | Validacao completa pos-merge/manual, com restore, vulnerabilidades NuGet, build, testes, cobertura, gate de 85% e artifacts de diagnostico. | Informativo para PR; bloqueante apenas se uma regra externa decidir exigir esse check |
+| `main-dotnet-ci` | `.github/workflows/dotnet.yml` | `push` na `main`, `pull_request` para `main`, `workflow_dispatch` | Validacao completa, com restore, vulnerabilidades NuGet, SonarQube Cloud, build, testes, cobertura, gate de 85% e artifacts de diagnostico. | Bloqueante se exigido por branch protection/ruleset |
 | `dependency-security-review` | `.github/workflows/dependency-review.yml` | `pull_request` para `main` | Revisa dependencias alteradas no PR e falha para vulnerabilidades `moderate` ou superior. | Bloqueante se exigido por branch protection/ruleset |
 | `codeql-security-analysis` | `.github/workflows/codeql.yml` | `push` na `main`, `pull_request` para `main`, `schedule` semanal | Analise estatica de seguranca C# via CodeQL. | Bloqueante se exigido por branch protection/ruleset |
 | `pr-advisory-checks` | `.github/workflows/pr-advisory-review.yml` | `pull_request`, `pull_request_target`, `workflow_dispatch` | Atribui o autor como responsavel do PR quando a API permite e publica recomendacoes de analyzers para arquivos C# alterados. Falhas de atribuicao de responsavel sao registradas como warning e nao bloqueiam o PR. | Informativo |
@@ -76,7 +76,7 @@ Os workflows continuam mantendo explicitos os comandos de negocio do pipeline, c
 
 O required check recomendado para proteger a `main` e `Build and test`, job do workflow `pr-build-and-test`.
 
-`main-dotnet-ci` continua sendo a validacao completa pos-merge/manual e alimenta os badges de build/testes do README por meio do arquivo `.github/workflows/dotnet.yml`.
+`main-dotnet-ci` continua sendo a validacao completa e alimenta os badges de build/testes do README por meio do arquivo `.github/workflows/dotnet.yml`.
 
 ## Cuidados antes de renomear checks
 

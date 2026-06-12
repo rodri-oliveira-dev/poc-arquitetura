@@ -16,6 +16,7 @@ Conteudo publicado:
 
 - arquivos `.trx` de resultados de testes;
 - arquivos `coverage.cobertura.xml` coletados pelo Coverlet;
+- arquivos `coverage.opencover.xml` importados pelo SonarQube Cloud;
 - `coverage-report/Summary.json`;
 - `coverage-report/Summary.txt`.
 
@@ -23,6 +24,7 @@ Motivo:
 
 - os arquivos `.trx` ajudam a diagnosticar falhas de teste;
 - o XML Cobertura e os summaries permitem validar a cobertura consolidada, a cobertura dos assemblies Worker e investigar os gates minimos de 85%;
+- o XML OpenCover permite diagnosticar falhas de importacao de cobertura pelo SonarQube Cloud;
 - o relatorio HTML completo do ReportGenerator nao e publicado como artifact, porque os summaries e o XML ja atendem ao diagnostico principal com menor exposicao de paths e trechos renderizados.
 
 ## mutation-tests

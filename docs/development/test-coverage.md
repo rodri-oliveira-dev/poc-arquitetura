@@ -5,6 +5,7 @@ Este repositorio valida cobertura de testes na solution inteira (`LedgerService.
 - `dotnet test` com `--collect:"XPlat Code Coverage"`;
 - `coverlet.runsettings` como configuracao unica de coleta;
 - ReportGenerator para consolidar os arquivos `coverage.cobertura.xml`;
+- OpenCover para importacao de cobertura no SonarQube Cloud;
 - gate minimo de 85% de cobertura total de linhas;
 - gate minimo de 85% de cobertura de linhas para `LedgerService.Worker` e `BalanceService.Worker`.
 
@@ -135,8 +136,8 @@ Quando o gate falhar:
 3. Priorize testes que validem comportamento de dominio, aplicacao, infraestrutura critica ou contratos HTTP.
 4. Use exclusao somente quando houver justificativa tecnica clara e localizada.
 
-O workflow `pr-build-and-test` e um gate rapido de PR e executa testes sem cobertura. O workflow `main-dotnet-ci` continua sendo a validacao completa pos-merge/manual com cobertura, threshold e artifact `test-results-and-coverage` por 7 dias quando executado no GitHub Actions.
+O workflow `pr-build-and-test` e um gate rapido de PR e executa testes sem cobertura. O workflow `main-dotnet-ci` e a validacao completa em `push` para `main`, `pull_request` para `main` e execucao manual, com cobertura, threshold, SonarQube Cloud e artifact `test-results-and-coverage` por 7 dias quando executado no GitHub Actions.
 
-O artifact contem arquivos `.trx`, `coverage.cobertura.xml`, `coverage-report/Summary.json` e `coverage-report/Summary.txt`. O HTML completo do ReportGenerator nao e publicado como artifact porque o XML e os summaries atendem ao diagnostico principal com menor exposicao de paths e trechos renderizados.
+O artifact contem arquivos `.trx`, `coverage.cobertura.xml`, `coverage.opencover.xml`, `coverage-report/Summary.json` e `coverage-report/Summary.txt`. O HTML completo do ReportGenerator nao e publicado como artifact porque o XML e os summaries atendem ao diagnostico principal com menor exposicao de paths e trechos renderizados.
 
 Detalhes da politica de artifacts: [`workflow-artifacts.md`](workflow-artifacts.md).
