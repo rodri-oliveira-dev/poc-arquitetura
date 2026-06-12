@@ -52,6 +52,16 @@ function Assert-DockerComposeAvailable {
   Invoke-External "docker" @("compose", "version")
 }
 
+function Get-ComposeEnvArguments {
+  foreach ($envPath in @((Join-Path $root ".env.local"), (Join-Path $root ".env"))) {
+    if (Test-Path $envPath) {
+      return @("--env-file", $envPath)
+    }
+  }
+
+  return @()
+}
+
 function Assert-NginxCertificates {
   if ((Test-Path $certFile) -and (Test-Path $keyFile)) {
     return
@@ -260,8 +270,7 @@ try {
   $powershellArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass") + $localArgs
   Invoke-External "powershell" $powershellArgs
 
-  $nginxArgs = @(
-    "compose",
+  $nginxArgs = @("compose") + (Get-ComposeEnvArguments) + @(
     "-f", $composeFile,
     "-f", $composeObservabilityFile,
     "-f", $composeNginxFile,
@@ -277,14 +286,13 @@ try {
   $nginxArgs += @("ledger-service-1", "ledger-service-2", "nginx-edge")
   Invoke-External "docker" $nginxArgs
 
-  Invoke-External "docker" @(
-    "compose",
+  Invoke-External "docker" (@("compose") + (Get-ComposeEnvArguments) + @(
     "-f", $composeFile,
     "-f", $composeObservabilityFile,
     "-f", $composeNginxFile,
     "--profile", "observability",
     "ps"
-  )
+  ))
 
   if (-not $SkipHealthChecks) {
     Invoke-HttpCheck "LedgerService.Api direta" "http://localhost:5226/health"

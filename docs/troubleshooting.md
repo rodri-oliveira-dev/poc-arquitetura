@@ -269,7 +269,7 @@ docker compose logs balance-service
 Valide a autenticacao real com as credenciais configuradas. Se voce usa os defaults locais:
 
 ```bash
-docker compose exec -T -e PGPASSWORD=local_dev_password postgres-db psql -h postgres-db -U balance_write_user -d appdb -c "select 1;"
+docker compose --env-file .env.local exec -T -e PGPASSWORD=<BALANCE_DB_WRITE_PASSWORD> postgres-db psql -h postgres-db -U balance_write_user -d appdb -c "select 1;"
 ```
 
 Se houver `.env`, confira se `LEDGER_DB_PASSWORD`, `BALANCE_DB_READ_PASSWORD`, `BALANCE_DB_WRITE_PASSWORD` e `BALANCE_DB_MIGRATOR_PASSWORD` batem com a connection string efetiva do compose:
@@ -281,7 +281,7 @@ docker compose config
 Quando a senha administrativa local for conhecida, atualize a senha manualmente dentro do PostgreSQL. Exemplo para o usuario de escrita do Balance:
 
 ```bash
-docker compose exec -T -e PGPASSWORD=<postgres-password> postgres-db psql -h postgres-db -U postgres_admin -d appdb -c "ALTER USER balance_write_user WITH PASSWORD 'local_dev_password';"
+docker compose --env-file .env.local exec -T -e PGPASSWORD=<POSTGRES_PASSWORD> postgres-db psql -h postgres-db -U postgres_admin -d appdb -c "ALTER USER balance_write_user WITH PASSWORD '<BALANCE_DB_WRITE_PASSWORD>';"
 ```
 
 Se os dados locais forem descartaveis, recrie conscientemente o volume PostgreSQL. Esta acao apaga dados locais dos schemas `ledger` e `balance`:
@@ -292,7 +292,7 @@ docker compose rm -f postgres-db
 docker volume ls
 docker volume rm poc-arquitetura_postgres-data
 docker compose up -d postgres-db
-docker compose exec -T -e PGPASSWORD=local_dev_password postgres-db psql -h postgres-db -U balance_write_user -d appdb -c "select 1;"
+docker compose --env-file .env.local exec -T -e PGPASSWORD=<BALANCE_DB_WRITE_PASSWORD> postgres-db psql -h postgres-db -U balance_write_user -d appdb -c "select 1;"
 ```
 
 Use o nome real mostrado por `docker volume ls` caso o projeto Compose tenha outro nome. Nao use `docker compose down -v`, porque isso remove volumes de outros servicos. Depois de recriar o banco, aplique as migrations pelo fluxo local documentado e reexecute o smoke de carga:

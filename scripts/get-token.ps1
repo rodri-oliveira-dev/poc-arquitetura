@@ -125,7 +125,7 @@ function Request-KeycloakToken {
   }
 
   $clientId = Get-ConfigValue "KEYCLOAK_CLIENT_ID" "poc-automation"
-  $clientSecret = Get-ConfigValue "KEYCLOAK_CLIENT_SECRET" "local_dev_client_secret"
+  $clientSecret = Get-ConfigValue "KEYCLOAK_CLIENT_SECRET"
   $scope = Get-ConfigValue "KEYCLOAK_SCOPE"
 
   if ([string]::IsNullOrWhiteSpace($clientId)) { Fail "KEYCLOAK_CLIENT_ID nao informado" }
@@ -183,7 +183,7 @@ function Request-AuthApiToken {
   if ([string]::IsNullOrWhiteSpace($scope)) { $scope = $authPocScope }
 
   if ([string]::IsNullOrWhiteSpace($username)) { $username = "local_user" }
-  if ([string]::IsNullOrWhiteSpace($password)) { $password = "local_password" }
+  if ([string]::IsNullOrWhiteSpace($password)) { Fail "AUTH_POC_PASSWORD ou PASSWORD nao informado" }
   if ([string]::IsNullOrWhiteSpace($scope)) { $scope = "ledger.write balance.read" }
   if ([string]::IsNullOrWhiteSpace($tokenUrl)) { $tokenUrl = "/auth/login" }
   if ([string]::IsNullOrWhiteSpace($authBaseUrl)) { $authBaseUrl = "http://localhost:5030" }
@@ -213,7 +213,10 @@ if ([string]::IsNullOrWhiteSpace($envFilePath)) {
 }
 
 $script:envFile = Read-EnvFile $envFilePath
-$script:localEnvFile = Read-EnvFile (Join-Path $root ".env")
+$script:localEnvFile = Read-EnvFile (Join-Path $root ".env.local")
+if ($script:localEnvFile.Count -eq 0) {
+  $script:localEnvFile = Read-EnvFile (Join-Path $root ".env")
+}
 
 $provider = (Get-ConfigValue "TOKEN_PROVIDER" "keycloak").ToLowerInvariant()
 

@@ -27,21 +27,21 @@ Configuracao versionada do realm local:
 - clients de debug manual local: `poc-local-ledger-debug`, `poc-local-balance-debug` e `poc-local-admin-debug`;
 - fluxo preferencial para scripts: `client_credentials`.
 
-O client `poc-automation` usa um segredo local descartavel no import versionado: `local_dev_client_secret`. Esse valor existe apenas para desenvolvimento local e nao deve ser reutilizado em ambientes compartilhados ou produtivos.
+O client `poc-automation` usa um segredo local descartavel fornecido por `KEYCLOAK_CLIENT_SECRET` no ambiente do container. O import do realm usa placeholder resolvido pelo Keycloak no startup para manter o valor real fora do repositorio.
 
 Os clients `poc-local-*-debug` sao publicos, habilitam Direct Grant apenas para facilitar debug manual local e nao possuem segredo. Eles nao substituem o fluxo `client_credentials` dos scripts automatizados.
 
 ### Usuarios locais de debug
 
-O realm importado inclui tres usuarios descartaveis para quem precisa depurar autenticacao e autorizacao manualmente, por exemplo no Swagger, REST Client ou `curl`. Eles existem somente no realm local versionado, usam senhas obvias e nunca devem ser tratados como credenciais reais.
+O realm importado inclui tres usuarios descartaveis para quem precisa depurar autenticacao e autorizacao manualmente, por exemplo no Swagger, REST Client ou `curl`. Eles existem somente no realm local versionado, mas as senhas vêm de variaveis locais para evitar segredo hard-coded no import.
 
 Use esses usuarios apenas em maquina de desenvolvimento local:
 
 | Usuario | Senha | Client local | Finalidade | Scopes emitidos | `merchant_id` |
 | --- | --- | --- | --- | --- | --- |
-| `local_ledger_user` | `local_ledger_password` | `poc-local-ledger-debug` | Testar endpoints do LedgerService | `ledger.write ledger.read` | `tese m1` |
-| `local_balance_user` | `local_balance_password` | `poc-local-balance-debug` | Testar endpoints do BalanceService | `balance.read` | `tese m1` |
-| `local_admin_user` | `local_admin_password` | `poc-local-admin-debug` | Facilitar debug local completo | `ledger.write ledger.read balance.read outbox.admin` | `tese m1` |
+| `local_ledger_user` | `KEYCLOAK_LOCAL_LEDGER_USER_PASSWORD` | `poc-local-ledger-debug` | Testar endpoints do LedgerService | `ledger.write ledger.read` | `tese m1` |
+| `local_balance_user` | `KEYCLOAK_LOCAL_BALANCE_USER_PASSWORD` | `poc-local-balance-debug` | Testar endpoints do BalanceService | `balance.read` | `tese m1` |
+| `local_admin_user` | `KEYCLOAK_LOCAL_ADMIN_USER_PASSWORD` | `poc-local-admin-debug` | Facilitar debug local completo | `ledger.write ledger.read balance.read outbox.admin` | `tese m1` |
 
 Todos ficam habilitados no import e possuem senha nao temporaria para nao exigir troca no primeiro login. O realm marca os usuarios com atributos de debug local. As permissoes sao emitidas pela mesma estrategia ja adotada no realm: `clientScopes` default dos clients locais de debug incluem os scopes correspondentes, o client scope `poc-api-audience` adiciona `aud=ledger-api balance-api` e o client scope `poc-merchants` adiciona `merchant_id=tese m1`.
 
@@ -53,7 +53,7 @@ curl -s -X POST http://localhost:8081/realms/poc/protocol/openid-connect/token \
   -d "grant_type=password" \
   -d "client_id=poc-local-ledger-debug" \
   -d "username=local_ledger_user" \
-  -d "password=local_ledger_password"
+  -d "password=<KEYCLOAK_LOCAL_LEDGER_USER_PASSWORD>"
 ```
 
 Exemplo de uso do token no LedgerService:
@@ -75,7 +75,7 @@ curl -s -X POST http://localhost:8081/realms/poc/protocol/openid-connect/token \
   -d "grant_type=password" \
   -d "client_id=poc-local-balance-debug" \
   -d "username=local_balance_user" \
-  -d "password=local_balance_password"
+  -d "password=<KEYCLOAK_LOCAL_BALANCE_USER_PASSWORD>"
 ```
 
 Exemplo de uso do token no BalanceService:
@@ -94,7 +94,7 @@ curl -s -X POST http://localhost:8081/realms/poc/protocol/openid-connect/token \
   -d "grant_type=password" \
   -d "client_id=poc-local-admin-debug" \
   -d "username=local_admin_user" \
-  -d "password=local_admin_password"
+  -d "password=<KEYCLOAK_LOCAL_ADMIN_USER_PASSWORD>"
 ```
 
 Nao use esses usuarios em ambiente compartilhado, homologacao ou producao. Para automacoes locais, load tests, validadores e scanners, continue usando `scripts/get-token.*`, que permanecem no fluxo `client_credentials` com o client `poc-automation`.
@@ -199,7 +199,7 @@ Variaveis Keycloak:
 | `KEYCLOAK_REALM` | `poc` |
 | `KEYCLOAK_TOKEN_URL` | `/realms/<realm>/protocol/openid-connect/token` |
 | `KEYCLOAK_CLIENT_ID` | `poc-automation` |
-| `KEYCLOAK_CLIENT_SECRET` | `local_dev_client_secret` |
+| `KEYCLOAK_CLIENT_SECRET` | `<KEYCLOAK_CLIENT_SECRET>` |
 | `KEYCLOAK_SCOPE` | vazio, usando os default client scopes do realm |
 
 Variaveis legadas preservadas para `TOKEN_PROVIDER=auth-api`:
@@ -209,7 +209,7 @@ Variaveis legadas preservadas para `TOKEN_PROVIDER=auth-api`:
 | `AUTH_BASE_URL` | `http://localhost:5030` |
 | `TOKEN_URL` | `/auth/login` |
 | `AUTH_POC_USERNAME` ou `USERNAME` | `local_user` |
-| `AUTH_POC_PASSWORD` ou `PASSWORD` | `local_password` |
+| `AUTH_POC_PASSWORD` ou `PASSWORD` | `<AUTH_POC_PASSWORD>` |
 | `AUTH_POC_SCOPE` ou `SCOPE` | `ledger.write balance.read` |
 
 O contrato de resposta continua aceitando `access_token` como campo principal e `accessToken` como fallback temporario.
@@ -243,7 +243,7 @@ curl -s -X POST http://localhost:8081/realms/poc/protocol/openid-connect/token \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "grant_type=client_credentials" \
   -d "client_id=poc-automation" \
-  -d "client_secret=local_dev_client_secret"
+  -d "client_secret=<KEYCLOAK_CLIENT_SECRET>"
 ```
 
 O access token emitido pelo realm local deve conter `iss=http://localhost:8081/realms/poc`, audiences `ledger-api` e `balance-api`, scopes `ledger.write ledger.read balance.read outbox.admin` e `merchant_id=tese m1`.
@@ -276,7 +276,7 @@ curl -s -X POST http://localhost:5030/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "username": "local_user",
-    "password": "local_password",
+    "password": "<AUTH_POC_PASSWORD>",
     "scope": "ledger.write balance.read"
   }'
 ```

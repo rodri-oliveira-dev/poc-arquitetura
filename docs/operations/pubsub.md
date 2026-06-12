@@ -77,13 +77,13 @@ Defaults locais:
 | Subscription do Balance | `balance-service-ledger-events-local` |
 | Subscription de inspecao da DLQ de aplicacao | `ledger-events-application-dlq-inspection-local` |
 
-Copie `.env.example` para `.env` quando precisar sobrescrever `PUBSUB_EMULATOR_HOST_PORT`, `PUBSUB_PROJECT_ID`, `PUBSUB_LEDGER_EVENTS_TOPIC_ID`, `PUBSUB_LEDGER_EVENTS_DLQ_TOPIC_ID`, `PUBSUB_BALANCE_SUBSCRIPTION_ID` ou `PUBSUB_LEDGER_EVENTS_DLQ_INSPECTION_SUBSCRIPTION_ID`. Nao versione `.env`.
+Copie `.env.local.example` para `.env.local` quando precisar sobrescrever `PUBSUB_EMULATOR_HOST_PORT`, `PUBSUB_PROJECT_ID`, `PUBSUB_LEDGER_EVENTS_TOPIC_ID`, `PUBSUB_LEDGER_EVENTS_DLQ_TOPIC_ID`, `PUBSUB_BALANCE_SUBSCRIPTION_ID` ou `PUBSUB_LEDGER_EVENTS_DLQ_INSPECTION_SUBSCRIPTION_ID`. Nao versione `.env.local`.
 
 Para inspecionar a configuracao efetiva e os logs:
 
 ```bash
-docker compose -f compose.yaml config
-docker compose -f compose.yaml logs pubsub-emulator pubsub-init ledger-worker balance-worker
+docker compose --env-file .env.local -f compose.yaml config
+docker compose --env-file .env.local -f compose.yaml logs pubsub-emulator pubsub-init ledger-worker balance-worker
 ```
 
 ## Configurar os workers

@@ -180,7 +180,7 @@ services:
         condition: service_started
     environment:
       GF_SECURITY_ADMIN_USER: "admin"
-      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD:-local_dev_password}"
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD:?Defina GRAFANA_ADMIN_PASSWORD no ambiente ou em .env.local}"
       GF_PLUGINS_PREINSTALL_DISABLED: "true"
     ports:
       - "3000:3000"

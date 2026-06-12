@@ -22,15 +22,21 @@ mkdir -p "$ARTIFACTS_DIR"
 
 get_local_env_value() {
   local name="$1"
-  local env_file="$ROOT_DIR/.env"
 
-  if [[ ! -f "$env_file" ]]; then
-    return 0
-  fi
+  for env_file in "$ROOT_DIR/.env.local" "$ROOT_DIR/.env"; do
+    if [[ ! -f "$env_file" ]]; then
+      continue
+    fi
 
-  sed -nE "s/^[[:space:]]*$name[[:space:]]*=[[:space:]]*(.*)[[:space:]]*$/\1/p" "$env_file" |
-    tail -n 1 |
-    sed -E "s/^['\"]//; s/['\"]$//"
+    local value
+    value="$(sed -nE "s/^[[:space:]]*$name[[:space:]]*=[[:space:]]*(.*)[[:space:]]*$/\1/p" "$env_file" |
+      tail -n 1 |
+      sed -E "s/^['\"]//; s/['\"]$//")"
+    if [[ -n "$value" ]]; then
+      printf '%s' "$value"
+      return 0
+    fi
+  done
 }
 
 get_local_config_value() {
@@ -48,6 +54,31 @@ get_local_config_value() {
 
   printf '%s' "$value"
 }
+
+get_required_local_config_value() {
+  local name="$1"
+  local value
+  value="$(get_local_config_value "$name" "")"
+
+  if [[ -z "$value" ]]; then
+    echo "Defina $name no ambiente, em .env.local ou em .env." >&2
+    exit 1
+  fi
+
+  printf '%s' "$value"
+}
+
+get_compose_env_args() {
+  for env_file in "$ROOT_DIR/.env.local" "$ROOT_DIR/.env"; do
+    if [[ -f "$env_file" ]]; then
+      printf '%s\n' "--env-file"
+      printf '%s\n' "$env_file"
+      return 0
+    fi
+  done
+}
+
+mapfile -t compose_env_args < <(get_compose_env_args)
 
 threshold_value() {
   local prefix="$1"
@@ -101,9 +132,9 @@ assert_balance_database_authentication() {
   host_name="$(get_local_config_value BALANCE_DB_HOST postgres-db)"
   user="$(get_local_config_value BALANCE_DB_WRITE_USER "$(get_local_config_value BALANCE_DB_USER balance_write_user)")"
   database="$(get_local_config_value BALANCE_DB_NAME appdb)"
-  password="$(get_local_config_value BALANCE_DB_WRITE_PASSWORD "$(get_local_config_value BALANCE_DB_PASSWORD local_dev_password)")"
+  password="$(get_required_local_config_value BALANCE_DB_WRITE_PASSWORD)"
 
-  if ! docker compose -f "$COMPOSE_FILE" exec -T \
+  if ! docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" exec -T \
     -e "PGPASSWORD=$password" \
     postgres-db \
     psql -h "$host_name" -U "$user" -d "$database" -v "ON_ERROR_STOP=1" -c "select 1;" >/dev/null 2>&1; then
@@ -119,11 +150,11 @@ wait_compose_service_healthy() {
   local health=""
 
   while (( SECONDS < deadline )); do
-    if docker compose -f "$COMPOSE_FILE" -f "$COMPOSE_K6_FILE" ps "$service" --format json | grep -q '"Health":"healthy"'; then
+    if docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_K6_FILE" ps "$service" --format json | grep -q '"Health":"healthy"'; then
       return 0
     fi
 
-    health="$(docker compose -f "$COMPOSE_FILE" -f "$COMPOSE_K6_FILE" ps "$service" --format json | sed -nE 's/.*"Health":"([^"]*)".*/\1/p' | tail -n 1)"
+    health="$(docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_K6_FILE" ps "$service" --format json | sed -nE 's/.*"Health":"([^"]*)".*/\1/p' | tail -n 1)"
     if [[ "$health" == "unhealthy" ]]; then
       echo "$service ficou unhealthy durante a preparacao do k6." 1>&2
       exit 1
@@ -139,7 +170,7 @@ wait_compose_service_healthy() {
 assert_local_pubsub_stack() {
   local config
   local running_services
-  config="$(docker compose -f "$COMPOSE_FILE" config)"
+  config="$(docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" config)"
 
   for expected in \
     "Messaging__Provider: PubSub" \
@@ -151,7 +182,7 @@ assert_local_pubsub_stack() {
     fi
   done
 
-  running_services="$(docker compose -f "$COMPOSE_FILE" ps --status running --services)"
+  running_services="$(docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" ps --status running --services)"
   for service in pubsub-emulator ledger-worker balance-worker; do
     if ! grep -qx "$service" <<<"$running_services"; then
       echo "Servico obrigatorio para k6 local nao esta em execucao: $service. Suba ./scripts/start-local-stack.sh antes do teste." >&2
@@ -160,7 +191,7 @@ assert_local_pubsub_stack() {
   done
 
   local pubsub_init
-  pubsub_init="$(docker compose -f "$COMPOSE_FILE" ps -a pubsub-init --format json)"
+  pubsub_init="$(docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" ps -a pubsub-init --format json)"
   if ! grep -q '"State":"exited"' <<<"$pubsub_init" ||
     ! grep -q '"ExitCode":0' <<<"$pubsub_init"; then
     echo "pubsub-init nao concluiu com sucesso. Confira: docker compose logs pubsub-init" >&2
@@ -174,7 +205,7 @@ postgres_count() {
   local database="$3"
   local sql="$4"
   local password="$5"
-  docker compose -f "$COMPOSE_FILE" exec -T \
+  docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" exec -T \
     -e "PGPASSWORD=$password" \
     "$service" \
     psql -h "$service" -U "$user" -d "$database" -t -A -c "$sql" |
@@ -192,10 +223,10 @@ async_flow_counts() {
   local balance_processed
   ledger_user="$(get_local_config_value LEDGER_DB_USER ledger_app_user)"
   ledger_database="$(get_local_config_value LEDGER_DB_NAME appdb)"
-  ledger_password="$(get_local_config_value LEDGER_DB_PASSWORD local_dev_password)"
+  ledger_password="$(get_required_local_config_value LEDGER_DB_PASSWORD)"
   balance_user="$(get_local_config_value BALANCE_DB_READ_USER "$(get_local_config_value BALANCE_DB_USER balance_read_user)")"
   balance_database="$(get_local_config_value BALANCE_DB_NAME appdb)"
-  balance_password="$(get_local_config_value BALANCE_DB_READ_PASSWORD "$(get_local_config_value BALANCE_DB_PASSWORD local_dev_password)")"
+  balance_password="$(get_required_local_config_value BALANCE_DB_READ_PASSWORD)"
   outbox_processed="$(postgres_count postgres-db "$ledger_user" "$ledger_database" "SELECT COUNT(*) FROM outbox_messages WHERE event_type = 'LedgerEntryCreated.v1' AND status = 'Processed';" "$ledger_password")"
   balance_processed="$(postgres_count postgres-db "$balance_user" "$balance_database" "SELECT COUNT(*) FROM processed_events;" "$balance_password")"
   printf '%s %s\n' "$outbox_processed" "$balance_processed"
@@ -229,7 +260,7 @@ assert_local_pubsub_stack
 # Aplica o override de carga nas APIs antes de executar o k6. O compose.k6.yaml
 # mantem os testes apontando para as APIs HTTP e aumenta apenas limites tecnicos
 # que poderiam transformar o cenario de throughput em teste de rate limiting.
-docker compose -f "$COMPOSE_FILE" -f "$COMPOSE_K6_FILE" up -d --no-build --force-recreate ledger-service balance-service
+docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_K6_FILE" up -d --no-build --force-recreate ledger-service balance-service
 
 wait_compose_service_healthy keycloak
 assert_balance_database_authentication
@@ -283,7 +314,7 @@ run_k6() {
   local summaryFile="summary-$MODE-$scenarioName-$ts.json"
   local hostSummary="$ARTIFACTS_DIR/$summaryFile"
 
-  docker compose -f "$COMPOSE_FILE" -f "$COMPOSE_K6_FILE" --profile k6 run --rm \
+  docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_K6_FILE" --profile k6 run --rm \
     --user "$(id -u):$(id -g)" \
     -e "TOKEN=$TOKEN" \
     "$@" \

@@ -149,7 +149,7 @@ GOOGLE_APPLICATION_CREDENTIALS=./secrets/cloudsql/application_default_credential
 CLOUDSQL_PROXY_HOST_PORT=5432
 DATABASE_NAME=appdb
 DATABASE_USER=app_user
-DATABASE_PASSWORD=change_me_local_only
+DATABASE_PASSWORD=<DATABASE_PASSWORD>
 ```
 
 `GOOGLE_APPLICATION_CREDENTIALS` deve apontar para um arquivo local ignorado

@@ -16,25 +16,41 @@ $composeObservabilityFile = Join-Path $root "compose.observability.yaml"
 $composeKafkaFile = Join-Path $root "compose.kafka.yaml"
 
 function Get-LocalEnvValue([string]$Name) {
-  $envPath = Join-Path $root ".env"
-  if (-not (Test-Path $envPath)) {
-    return ""
+  $envPaths = @(
+    (Join-Path $root ".env.local"),
+    (Join-Path $root ".env")
+  )
+
+  foreach ($envPath in $envPaths) {
+    if (-not (Test-Path $envPath)) {
+      continue
+    }
+
+    foreach ($line in Get-Content -Path $envPath) {
+      $trimmed = $line.Trim()
+      if ([string]::IsNullOrWhiteSpace($trimmed) -or $trimmed.StartsWith("#")) {
+        continue
+      }
+
+      $separatorIndex = $trimmed.IndexOf("=")
+      if ($separatorIndex -le 0) {
+        continue
+      }
+
+      $key = $trimmed.Substring(0, $separatorIndex).Trim()
+      if ($key -eq $Name) {
+        return $trimmed.Substring($separatorIndex + 1).Trim().Trim('"').Trim("'")
+      }
+    }
   }
 
-  foreach ($line in Get-Content -Path $envPath) {
-    $trimmed = $line.Trim()
-    if ([string]::IsNullOrWhiteSpace($trimmed) -or $trimmed.StartsWith("#")) {
-      continue
-    }
+  return ""
+}
 
-    $separatorIndex = $trimmed.IndexOf("=")
-    if ($separatorIndex -le 0) {
-      continue
-    }
-
-    $key = $trimmed.Substring(0, $separatorIndex).Trim()
-    if ($key -eq $Name) {
-      return $trimmed.Substring($separatorIndex + 1).Trim().Trim('"').Trim("'")
+function Get-ComposeEnvFile {
+  foreach ($envPath in @((Join-Path $root ".env.local"), (Join-Path $root ".env"))) {
+    if (Test-Path $envPath) {
+      return $envPath
     }
   }
 
@@ -53,13 +69,23 @@ function Get-LocalConfigValue([string]$Name, [string]$DefaultValue) {
   return $value
 }
 
+function Get-RequiredLocalConfigValue([string]$Name) {
+  $value = Get-LocalConfigValue $Name ""
+  if ([string]::IsNullOrWhiteSpace($value)) {
+    throw "Defina $Name no ambiente, em .env.local ou em .env."
+  }
+
+  return $value
+}
+
+$composeEnvFile = Get-ComposeEnvFile
 $postgresHostPort = Get-LocalConfigValue "POSTGRES_HOST_PORT" "15432"
 $postgresDatabase = "appdb"
-$ledgerRuntimePassword = Get-LocalConfigValue "LEDGER_DB_PASSWORD" "local_dev_password"
-$ledgerMigratorPassword = Get-LocalConfigValue "LEDGER_DB_MIGRATOR_PASSWORD" "local_dev_password"
-$balanceReadPassword = Get-LocalConfigValue "BALANCE_DB_READ_PASSWORD" "local_dev_password"
-$balanceWritePassword = Get-LocalConfigValue "BALANCE_DB_WRITE_PASSWORD" "local_dev_password"
-$balanceMigratorPassword = Get-LocalConfigValue "BALANCE_DB_MIGRATOR_PASSWORD" "local_dev_password"
+$ledgerRuntimePassword = Get-RequiredLocalConfigValue "LEDGER_DB_PASSWORD"
+$ledgerMigratorPassword = Get-RequiredLocalConfigValue "LEDGER_DB_MIGRATOR_PASSWORD"
+$balanceReadPassword = Get-RequiredLocalConfigValue "BALANCE_DB_READ_PASSWORD"
+$balanceWritePassword = Get-RequiredLocalConfigValue "BALANCE_DB_WRITE_PASSWORD"
+$balanceMigratorPassword = Get-RequiredLocalConfigValue "BALANCE_DB_MIGRATOR_PASSWORD"
 
 if ([string]::IsNullOrWhiteSpace($ComposeFile)) {
   $ComposeFile = (Join-Path $root "compose.yaml")
@@ -76,7 +102,12 @@ function Invoke-DockerCompose([string[]]$Arguments) {
 }
 
 function Get-ComposeArguments {
-  $arguments = @("compose", "-f", $ComposeFile)
+  $arguments = @("compose")
+  if (-not [string]::IsNullOrWhiteSpace($composeEnvFile)) {
+    $arguments += @("--env-file", $composeEnvFile)
+  }
+
+  $arguments += @("-f", $ComposeFile)
   if (-not [string]::IsNullOrWhiteSpace($OverlayFile)) {
     $arguments += @("-f", $OverlayFile)
   }
