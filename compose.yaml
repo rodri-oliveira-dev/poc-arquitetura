@@ -224,12 +224,12 @@ services:
         condition: service_healthy
     environment:
       ASPNETCORE_URLS: "http://+:8080"
-      ASPNETCORE_ENVIRONMENT: "Development"
+      ASPNETCORE_ENVIRONMENT: "Local"
 
       # Auth (JWT Bearer via JWKS)
       # Por padrao, valida tokens Keycloak com issuer publico do realm e JWKS interno.
       # Para usar o Auth.Api legado, sobrescreva JWT_ISSUER e JWT_JWKS_URL no .env.
-      # HTTP/JWKS é aceito somente porque o compose local roda em Development.
+      # HTTP/JWKS é aceito somente porque o compose local roda em Local.
       Jwt__Issuer: "${JWT_ISSUER:-http://localhost:8081/realms/poc}"
       Jwt__JwksUrl: "${JWT_JWKS_URL:-http://keycloak:8080/realms/poc/protocol/openid-connect/certs}"
       Jwt__RequireHttpsMetadata: "${JWT_REQUIRE_HTTPS_METADATA:-false}"
@@ -264,7 +264,7 @@ services:
       pubsub-init:
         condition: service_completed_successfully
     environment:
-      DOTNET_ENVIRONMENT: "Development"
+      DOTNET_ENVIRONMENT: "Local"
 
       # Overrides dos appsettings (no container, 127.0.0.1 aponta para ele mesmo)
       ConnectionStrings__DefaultConnection: "Host=postgres-db;Port=5432;Database=appdb;Username=ledger_app_user;Password=${LEDGER_DB_PASSWORD:?Defina LEDGER_DB_PASSWORD no ambiente ou em .env.local}"
@@ -305,12 +305,12 @@ services:
         condition: service_healthy
     environment:
       ASPNETCORE_URLS: "http://+:8080"
-      ASPNETCORE_ENVIRONMENT: "Development"
+      ASPNETCORE_ENVIRONMENT: "Local"
 
       # Auth (JWT Bearer via JWKS)
       # Por padrao, valida tokens Keycloak com issuer publico do realm e JWKS interno.
       # Para usar o Auth.Api legado, sobrescreva JWT_ISSUER e JWT_JWKS_URL no .env.
-      # HTTP/JWKS é aceito somente porque o compose local roda em Development.
+      # HTTP/JWKS é aceito somente porque o compose local roda em Local.
       Jwt__Issuer: "${JWT_ISSUER:-http://localhost:8081/realms/poc}"
       Jwt__JwksUrl: "${JWT_JWKS_URL:-http://keycloak:8080/realms/poc/protocol/openid-connect/certs}"
       Jwt__RequireHttpsMetadata: "${JWT_REQUIRE_HTTPS_METADATA:-false}"
@@ -344,7 +344,7 @@ services:
       pubsub-init:
         condition: service_completed_successfully
     environment:
-      DOTNET_ENVIRONMENT: "Development"
+      DOTNET_ENVIRONMENT: "Local"
 
       # Overrides dos appsettings (no container, 127.0.0.1 aponta para ele mesmo)
       ConnectionStrings__DefaultConnection: "Host=postgres-db;Port=5432;Database=appdb;Username=balance_write_user;Password=${BALANCE_DB_WRITE_PASSWORD:?Defina BALANCE_DB_WRITE_PASSWORD no ambiente ou em .env.local}"

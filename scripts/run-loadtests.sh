@@ -219,6 +219,7 @@ async_flow_counts() {
   local balance_user
   local balance_database
   local balance_password
+  local outbox_total
   local outbox_processed
   local balance_processed
   ledger_user="$(get_local_config_value LEDGER_DB_USER ledger_app_user)"
@@ -227,9 +228,10 @@ async_flow_counts() {
   balance_user="$(get_local_config_value BALANCE_DB_READ_USER "$(get_local_config_value BALANCE_DB_USER balance_read_user)")"
   balance_database="$(get_local_config_value BALANCE_DB_NAME appdb)"
   balance_password="$(get_required_local_config_value BALANCE_DB_READ_PASSWORD)"
-  outbox_processed="$(postgres_count postgres-db "$ledger_user" "$ledger_database" "SELECT COUNT(*) FROM outbox_messages WHERE event_type = 'LedgerEntryCreated.v1' AND status = 'Processed';" "$ledger_password")"
+  outbox_total="$(postgres_count postgres-db "$ledger_user" "$ledger_database" "SELECT COUNT(*) FROM outbox_messages WHERE event_type IN ('LedgerEntryCreated.v1', 'LedgerEntryCreated.v2');" "$ledger_password")"
+  outbox_processed="$(postgres_count postgres-db "$ledger_user" "$ledger_database" "SELECT COUNT(*) FROM outbox_messages WHERE event_type IN ('LedgerEntryCreated.v1', 'LedgerEntryCreated.v2') AND status = 'Processed';" "$ledger_password")"
   balance_processed="$(postgres_count postgres-db "$balance_user" "$balance_database" "SELECT COUNT(*) FROM processed_events;" "$balance_password")"
-  printf '%s %s\n' "$outbox_processed" "$balance_processed"
+  printf '%s %s %s\n' "$outbox_total" "$outbox_processed" "$balance_processed"
 }
 
 wait_async_flow_progress() {
@@ -240,7 +242,7 @@ wait_async_flow_progress() {
   local current_balance
 
   while (( SECONDS < deadline )); do
-    read -r current_outbox current_balance < <(async_flow_counts)
+    read -r _ current_outbox current_balance < <(async_flow_counts)
     if (( current_outbox > before_outbox && current_balance > before_balance )); then
       echo "OK. Smoke Pub/Sub publicou Outbox e projetou evento no Balance."
       return 0
@@ -249,6 +251,25 @@ wait_async_flow_progress() {
   done
 
   echo "Timeout aguardando publish/consume via Pub/Sub emulator apos smoke k6." >&2
+  exit 1
+}
+
+wait_async_flow_idle() {
+  local deadline=$((SECONDS + 120))
+  local outbox_total
+  local outbox_processed
+  local balance_processed
+
+  while (( SECONDS < deadline )); do
+    read -r outbox_total outbox_processed balance_processed < <(async_flow_counts)
+    if (( outbox_processed >= outbox_total && balance_processed >= outbox_processed )); then
+      echo "OK. Fluxo assincrono local sem backlog antes do k6."
+      return 0
+    fi
+    sleep 2
+  done
+
+  echo "Timeout aguardando drenagem do fluxo assincrono antes do k6." >&2
   exit 1
 }
 
@@ -350,12 +371,13 @@ PY
 
 case "$MODE" in
   smoke)
-    read -r before_outbox before_balance < <(async_flow_counts)
+    read -r _ before_outbox before_balance < <(async_flow_counts)
     run_k6 ledger_resilience scenarios/ledger_resilience.js -e VUS=1 -e DURATION=10s -e LEDGER_HTTP_REQ_DURATION_P95_MS="$(threshold_value LEDGER P95 3000)" -e LEDGER_HTTP_REQ_DURATION_P99_MS="$(threshold_value LEDGER P99 6000)"
     wait_async_flow_progress "$before_outbox" "$before_balance"
     run_k6 balance_daily_50rps scenarios/balance_daily_50rps.js -e RATE=1 -e DURATION=10s -e PREALLOCATED_VUS=5 -e MAX_VUS=10 -e BALANCE_HTTP_REQ_DURATION_P95_MS="$(threshold_value BALANCE P95 3000)" -e BALANCE_HTTP_REQ_DURATION_P99_MS="$(threshold_value BALANCE P99 6000)"
     ;;
   balance50)
+    wait_async_flow_idle
     run_k6 balance_daily_50rps scenarios/balance_daily_50rps.js -e RATE=50 -e DURATION=1m -e BALANCE_HTTP_REQ_DURATION_P95_MS="$(threshold_value BALANCE P95 1000)" -e BALANCE_HTTP_REQ_DURATION_P99_MS="$(threshold_value BALANCE P99 2500)"
     ;;
   resilience)

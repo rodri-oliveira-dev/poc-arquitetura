@@ -30,7 +30,7 @@ Detalhes sobre Node.js, npm, npx, tools .NET locais e validacoes OpenAPI/LikeC4 
 
 Esta stack e local, descartavel e nao deve ser promovida para ambientes compartilhados, homologacao ou producao sem revisao de seguranca, secrets, transporte, imagens e observabilidade.
 
-O `compose.yaml` atual e a base oficial do ambiente local. Reaproveite os servicos ja existentes nele, em especial `postgres-db`, `pubsub-emulator` e `pubsub-init`; nao crie um segundo Compose nem um segundo PostgreSQL para separar Ledger e Balance no desenvolvimento local.
+O `compose.yaml` atual e a base oficial do ambiente local. O `compose.debug.yml` inclui essa mesma base para oferecer um ponto de entrada curto para dependencias de debug. Reaproveite os servicos ja existentes, em especial `postgres-db`, `pubsub-emulator` e `pubsub-init`; nao crie um segundo Compose nem um segundo PostgreSQL para separar Ledger e Balance no desenvolvimento local.
 
 O compose nao versiona senhas locais. Para subir a stack por comandos diretos, crie `.env.local` a partir de `.env.local.example` e preencha os placeholders na sua maquina:
 
@@ -168,6 +168,12 @@ Para subir somente dependencias externas usadas por processos em debug no host, 
 
 ```bash
 docker compose --env-file .env.local -f compose.yaml up -d postgres-db pubsub-emulator pubsub-init
+```
+
+O alias equivalente para debug e:
+
+```powershell
+docker compose --env-file .env.local -f compose.debug.yml up -d postgres-db pubsub-emulator pubsub-init
 ```
 
 Para subir os processos .NET pelo compose depois das dependencias:
@@ -772,7 +778,7 @@ Diferenca entre nomes internos do Compose e acesso pelo host:
 | PostgreSQL | `postgres-db:5432` | `localhost:${POSTGRES_HOST_PORT}` ou `127.0.0.1:${POSTGRES_HOST_PORT}`; default `15432` |
 | Pub/Sub emulator | `pubsub-emulator:8085` | `localhost:${PUBSUB_EMULATOR_HOST_PORT}` ou `127.0.0.1:${PUBSUB_EMULATOR_HOST_PORT}`; default `8085` |
 
-O compose sobrescreve configuracoes por variaveis de ambiente para usar hosts internos como `postgres-db`, `pubsub-emulator` e `otel-collector`. Processos executados fora do container nao resolvem esses nomes da rede Docker; nesse caso use `localhost` ou `127.0.0.1` com as portas publicadas pelo `compose.yaml`. Quando `compose.observability.yaml` e usado com `OTEL_ENABLED=true` e o profile `observability` ativo, as APIs e workers enviam OTLP somente para o Collector. O Collector encaminha traces para o Jaeger e expoe metricas em formato Prometheus para scrape interno. Prometheus coleta o Collector; Alloy coleta logs dos containers e envia para Loki. Grafana consulta Prometheus, Loki e Jaeger. O Grafana carrega automaticamente a pasta `Observability` com os dashboards `APIs - Visao Geral` e `Runtime .NET - Visao Geral`, versionados em `observability/grafana/dashboards/`. O datasource Loki possui derived field para abrir traces no datasource interno Jaeger a partir de logs com `TraceId=<valor>`. O ambiente local do compose roda como `Development`.
+O compose sobrescreve configuracoes por variaveis de ambiente para usar hosts internos como `postgres-db`, `pubsub-emulator` e `otel-collector`. Processos executados fora do container nao resolvem esses nomes da rede Docker; nesse caso use `localhost` ou `127.0.0.1` com as portas publicadas pelo `compose.yaml`. Quando `compose.observability.yaml` e usado com `OTEL_ENABLED=true` e o profile `observability` ativo, as APIs e workers enviam OTLP somente para o Collector. O Collector encaminha traces para o Jaeger e expoe metricas em formato Prometheus para scrape interno. Prometheus coleta o Collector; Alloy coleta logs dos containers e envia para Loki. Grafana consulta Prometheus, Loki e Jaeger. O Grafana carrega automaticamente a pasta `Observability` com os dashboards `APIs - Visao Geral` e `Runtime .NET - Visao Geral`, versionados em `observability/grafana/dashboards/`. O datasource Loki possui derived field para abrir traces no datasource interno Jaeger a partir de logs com `TraceId=<valor>`. O ambiente local do compose roda como `Local`.
 
 Prometheus tambem carrega regras locais em `observability/prometheus/rules/` e envia alertas para o Alertmanager local. A UI do Alertmanager fica em `http://localhost:9093/` e nao possui integracao externa configurada.
 

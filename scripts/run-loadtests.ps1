@@ -222,7 +222,8 @@ function Get-AsyncFlowCounts {
   $balanceDatabase = Get-LocalConfigValue "BALANCE_DB_NAME" "appdb"
   $balancePassword = Get-RequiredLocalConfigValue "BALANCE_DB_READ_PASSWORD"
   return @{
-    OutboxProcessed = (Get-PostgresCount "postgres-db" $ledgerUser $ledgerDatabase "SELECT COUNT(*) FROM outbox_messages WHERE event_type = 'LedgerEntryCreated.v1' AND status = 'Processed';" $ledgerPassword)
+    OutboxTotal = (Get-PostgresCount "postgres-db" $ledgerUser $ledgerDatabase "SELECT COUNT(*) FROM outbox_messages WHERE event_type IN ('LedgerEntryCreated.v1', 'LedgerEntryCreated.v2');" $ledgerPassword)
+    OutboxProcessed = (Get-PostgresCount "postgres-db" $ledgerUser $ledgerDatabase "SELECT COUNT(*) FROM outbox_messages WHERE event_type IN ('LedgerEntryCreated.v1', 'LedgerEntryCreated.v2') AND status = 'Processed';" $ledgerPassword)
     BalanceProcessed = (Get-PostgresCount "postgres-db" $balanceUser $balanceDatabase "SELECT COUNT(*) FROM processed_events;" $balancePassword)
   }
 }
@@ -240,6 +241,21 @@ function Wait-AsyncFlowProgress([hashtable]$Before, [int]$TimeoutSeconds = 90) {
   } while ((Get-Date) -lt $deadline)
 
   throw "Timeout aguardando publish/consume via Pub/Sub emulator apos smoke k6."
+}
+
+function Wait-AsyncFlowIdle([int]$TimeoutSeconds = 120) {
+  $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+  do {
+    $current = Get-AsyncFlowCounts
+    if ($current.OutboxProcessed -ge $current.OutboxTotal -and $current.BalanceProcessed -ge $current.OutboxProcessed) {
+      Write-Output "OK. Fluxo assincrono local sem backlog antes do k6."
+      return
+    }
+
+    Start-Sleep -Seconds 2
+  } while ((Get-Date) -lt $deadline)
+
+  throw "Timeout aguardando drenagem do fluxo assincrono antes do k6."
 }
 
 # a) gerar env
@@ -352,7 +368,8 @@ function Run-K6([string]$scenarioName, [string]$scriptPath, [hashtable]$envVars)
   $hostSummary = Join-Path $ArtifactsDir $summaryFile
 
   $args = @(
-    "compose",
+    "compose"
+  ) + (Get-ComposeEnvArguments) + @(
     "-f", $ComposeFile,
     "-f", $ComposeK6File,
     "--profile", "k6",
@@ -386,6 +403,7 @@ switch ($Mode) {
     Run-K6 "balance_daily_50rps" "scenarios/balance_daily_50rps.js" @{ TOKEN = $token; RATE = "1"; DURATION = "10s"; PREALLOCATED_VUS = "5"; MAX_VUS = "10"; BALANCE_HTTP_REQ_DURATION_P95_MS = (Get-ThresholdValue "BALANCE" "P95" "3000"); BALANCE_HTTP_REQ_DURATION_P99_MS = (Get-ThresholdValue "BALANCE" "P99" "6000") }
   }
   "balance50" {
+    Wait-AsyncFlowIdle
     Run-K6 "balance_daily_50rps" "scenarios/balance_daily_50rps.js" @{ TOKEN = $token; RATE = "50"; DURATION = "1m"; BALANCE_HTTP_REQ_DURATION_P95_MS = (Get-ThresholdValue "BALANCE" "P95" "1000"); BALANCE_HTTP_REQ_DURATION_P99_MS = (Get-ThresholdValue "BALANCE" "P99" "2500") }
   }
   "resilience" {
