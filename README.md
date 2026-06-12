@@ -155,6 +155,7 @@ Se houver containers antigos ou rede local presa do proprio projeto, o script pe
 | Build Release | `dotnet build ./LedgerService.slnx --configuration Release --no-restore` |
 | Testes sem rebuild | `dotnet test ./LedgerService.slnx --configuration Release --no-build --settings ./coverlet.runsettings` |
 | Testes com cobertura e gate | `./test.ps1` ou `./test.sh` |
+| Criar `.env.local` de onboarding | `./scripts/init-env-local.ps1` ou `./scripts/init-env-local.sh` |
 | SonarQube local | `docker compose --env-file .env.local -f compose.sonar.yaml --profile quality up -d` |
 | Analise SonarQube local | `bash scripts/sonar-analyze.sh` |
 | Stack local minima | `./scripts/start-local-stack.ps1` ou `./scripts/start-local-stack.sh` |

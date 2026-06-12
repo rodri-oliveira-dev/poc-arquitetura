@@ -30,7 +30,19 @@ Detalhes sobre Node.js, npm, npx, tools .NET locais e validacoes OpenAPI/LikeC4 
 
 Esta stack e local, descartavel e nao deve ser promovida para ambientes compartilhados, homologacao ou producao sem revisao de seguranca, secrets, transporte, imagens e observabilidade.
 
-O compose nao versiona senhas locais. Para subir a stack por comandos diretos, copie `.env.local.example` para `.env.local` e preencha os placeholders na sua maquina. O arquivo `.env.local` e ignorado pelo Git e nao deve ser versionado. Os scripts `start-local-stack.*` e `start-full-stack.*` tambem leem `.env.local` automaticamente; `.env` permanece aceito como fallback para compatibilidade com fluxos antigos.
+O compose nao versiona senhas locais. Para subir a stack por comandos diretos, crie `.env.local` a partir de `.env.local.example` e preencha os placeholders na sua maquina. O caminho mais rapido para onboarding e gerar valores locais descartaveis:
+
+```powershell
+./scripts/init-env-local.ps1
+```
+
+No Linux/macOS:
+
+```bash
+./scripts/init-env-local.sh
+```
+
+O script nao sobrescreve `.env.local` existente; use `-Force` no PowerShell ou `--force` no shell apenas quando quiser recriar conscientemente o arquivo local. O arquivo `.env.local` e ignorado pelo Git e nao deve ser versionado. Os scripts `start-local-stack.*` e `start-full-stack.*` tambem leem `.env.local` automaticamente; `.env` permanece aceito como fallback para compatibilidade com fluxos antigos.
 
 Variaveis sensiveis obrigatorias para o compose principal:
 
