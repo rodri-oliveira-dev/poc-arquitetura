@@ -28,12 +28,9 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7 # v5
+        uses: ./.github/actions/setup-dotnet
         with:
-          global-json-file: global.json
-
-      - name: Restore .NET tools
-        run: dotnet tool restore
+          restore-tools: "true"
 
       - name: Restore dependencies
         run: dotnet restore $SOLUTION_PATH

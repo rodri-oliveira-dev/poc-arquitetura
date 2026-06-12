@@ -10,6 +10,7 @@ on:
       - "package.json"
       - "package-lock.json"
       - "scripts/validate-event-contracts.mjs"
+      - ".github/actions/setup-node/**"
       - ".github/workflows/event-contracts.yml"
   push:
     branches: ["main"]
@@ -20,6 +21,7 @@ on:
       - "package.json"
       - "package-lock.json"
       - "scripts/validate-event-contracts.mjs"
+      - ".github/actions/setup-node/**"
       - ".github/workflows/event-contracts.yml"
   workflow_dispatch:
 
@@ -44,13 +46,7 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: "22"
-          cache: npm
-
-      - name: Install Node dependencies
-        run: npm ci
+        uses: ./.github/actions/setup-node
 
       - name: Validate event schemas and examples
         run: npm run events:validate

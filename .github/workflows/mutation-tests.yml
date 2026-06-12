@@ -17,6 +17,7 @@ on:
       - ".config/dotnet-tools.json"
       - "coverlet.runsettings"
       - "**/stryker-config.json"
+      - ".github/actions/setup-dotnet/**"
       - ".github/workflows/mutation-tests.yml"
   workflow_dispatch:
 
@@ -32,7 +33,6 @@ env:
   DOTNET_NOLOGO: true
   BUILD_CONFIGURATION: Release
   SOLUTION_PATH: ./LedgerService.slnx
-  NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
 
 jobs:
   mutation-tests:
@@ -45,20 +45,9 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7 # v5
+        uses: ./.github/actions/setup-dotnet
         with:
-          global-json-file: global.json
-
-      - name: Cache NuGet packages
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: ${{ env.NUGET_PACKAGES }}
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', 'Directory.Packages.props', 'Directory.Build.props', 'global.json', 'dotnet-tools.json') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
-
-      - name: Restore .NET tools
-        run: dotnet tool restore
+          restore-tools: "true"
 
       - name: Restore dependencies
         run: dotnet restore $SOLUTION_PATH

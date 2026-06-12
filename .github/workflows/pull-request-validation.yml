@@ -19,7 +19,6 @@ env:
   DOTNET_NOLOGO: true
   BUILD_CONFIGURATION: Release
   SOLUTION_PATH: ./LedgerService.slnx
-  NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
 
 jobs:
   build-test:
@@ -84,18 +83,7 @@ jobs:
 
       - name: Setup .NET
         if: ${{ steps.changes.outputs.run_validation == 'true' }}
-        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7 # v5
-        with:
-          global-json-file: global.json
-
-      - name: Cache NuGet packages
-        if: ${{ steps.changes.outputs.run_validation == 'true' }}
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: ${{ env.NUGET_PACKAGES }}
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', 'Directory.Packages.props', 'Directory.Build.props', 'global.json', 'dotnet-tools.json') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
+        uses: ./.github/actions/setup-dotnet
 
       - name: Restore dependencies
         if: ${{ steps.changes.outputs.run_validation == 'true' }}
