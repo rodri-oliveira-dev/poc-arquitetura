@@ -50,6 +50,9 @@ Desktop.ini
 .env
 .env.*
 !.env.example
+.env.local
+appsettings.Local.json
+**/appsettings.Local.json
 
 # Local certificates and private keys
 *.key

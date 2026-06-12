@@ -773,9 +773,9 @@ dotnet tool run dotnet-ef -- database update `
 
 ## Execucao no host
 
-Use este modo quando PostgreSQL e Pub/Sub emulator ja estiverem disponiveis e voce quiser rodar ou depurar os processos no host. Os profiles de debug dos workers configuram `PUBSUB_EMULATOR_HOST=127.0.0.1:8085`. Para depurar Kafka legado, sobrescreva `Messaging__Provider=Kafka` e os bootstrap servers.
+Use este modo quando PostgreSQL e Pub/Sub emulator ja estiverem disponiveis e voce quiser rodar ou depurar os processos no host. Os profiles de debug dos workers configuram `DOTNET_ENVIRONMENT=Local` e `PUBSUB_EMULATOR_HOST=127.0.0.1:8085`. Para depurar Kafka legado, sobrescreva `Messaging__Provider=Kafka` e os bootstrap servers.
 
-Os arquivos `appsettings.PubSub.json` dos workers nao versionam connection string. Ao rodar `LedgerService.Worker` ou `BalanceService.Worker` diretamente no host com esse profile, defina `ConnectionStrings__DefaultConnection` no processo com o usuario e senha locais apropriados para o banco alvo.
+Para usar configuracao por arquivo no host, copie `src/LedgerService.Worker/appsettings.Local.example.json` para `src/LedgerService.Worker/appsettings.Local.json` e `src/BalanceService.Worker/appsettings.Local.example.json` para `src/BalanceService.Worker/appsettings.Local.json`. Substitua os placeholders de senha pelos valores locais e mantenha `PUBSUB_EMULATOR_HOST` como variavel de ambiente do processo, por exemplo `$env:PUBSUB_EMULATOR_HOST = "<PUBSUB_EMULATOR_HOST>"` com o valor `127.0.0.1:8085` para o emulator local. Os arquivos `appsettings.Local.json` reais sao locais e nao devem ser versionados.
 
 Restaure as ferramentas:
 
