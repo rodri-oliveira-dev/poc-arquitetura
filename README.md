@@ -160,6 +160,7 @@ Se houver containers antigos ou rede local presa do proprio projeto, o script pe
 | Stack local minima | `./scripts/start-local-stack.ps1` ou `./scripts/start-local-stack.sh` |
 | Stack com observabilidade | `./scripts/start-local-stack.ps1 -Observability` ou `OBSERVABILITY=true ./scripts/start-local-stack.sh` |
 | Stack local com Pub/Sub emulator | `./scripts/start-local-stack-pubsub.ps1` ou `./scripts/start-local-stack-pubsub.sh` |
+| Dependencias para debug no host | `docker compose --env-file .env.local -f compose.debug.yml up -d` |
 | Stack local com Kafka legado | `./scripts/start-local-stack-kafka.ps1` ou `./scripts/start-local-stack-kafka.sh` |
 | Stack completa com Nginx | `./scripts/start-full-stack.ps1` ou `./scripts/start-full-stack.sh` |
 | Parar stack completa | `./scripts/stop-full-stack.ps1` ou `./scripts/stop-full-stack.sh` |

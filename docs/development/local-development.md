@@ -102,6 +102,7 @@ Componentes opcionais ficam em arquivos Compose separados:
 - `compose.yaml`: stack principal com Pub/Sub emulator, init idempotente dos recursos e workers configurados com `Messaging:Provider=PubSub`.
 - `compose.kafka.yaml` com profile `legacy-kafka`: overrides dos workers para `Messaging:Provider=Kafka`; use apenas para validar o caminho legado.
 - `compose.cloudsql.yaml`: overlay de smoke manual/local com Cloud SQL Auth Proxy, trocando `postgres-db:5432` por `cloud-sql-proxy:5432` dentro dos containers.
+- `compose.debug.yml`: dependencias externas para debug no host, com dois PostgreSQL separados e Pub/Sub emulator, sem APIs nem workers.
 
 Tambem existe um overlay opcional `compose.nginx.yaml` para adicionar uma borda local com Nginx e HTTPS em desenvolvimento. Ele nao faz parte do core funcional e nao altera as APIs, que continuam rodando internamente em HTTP com `ASPNETCORE_URLS=http://+:8080`. Quando o overlay e usado, o Nginx cria um upstream local `ledger_api` com duas instancias da `LedgerService.Api` e algoritmo `least_conn`. O `Auth.Api` foi removido do core funcional e permanece apenas no overlay legado `compose.auth-legacy.yaml`.
 
@@ -774,6 +775,34 @@ dotnet tool run dotnet-ef -- database update `
 ## Execucao no host
 
 Use este modo quando PostgreSQL e Pub/Sub emulator ja estiverem disponiveis e voce quiser rodar ou depurar os processos no host. Os profiles de debug dos workers configuram `DOTNET_ENVIRONMENT=Local` e `PUBSUB_EMULATOR_HOST=127.0.0.1:8085`. Para depurar Kafka legado, sobrescreva `Messaging__Provider=Kafka` e os bootstrap servers.
+
+Quando quiser subir somente dependencias externas para debug no host, use `compose.debug.yml`. Ele nao substitui o compose principal da POC: e um ambiente local descartavel para processos iniciados pela IDE ou pelo terminal, com PostgreSQL do Ledger em `localhost:15432`, PostgreSQL do Balance em `localhost:15433` e Pub/Sub emulator em `localhost:8085`.
+
+Crie primeiro o arquivo local de variaveis:
+
+```bash
+cp .env.local.example .env.local
+```
+
+No PowerShell:
+
+```powershell
+Copy-Item .env.local.example .env.local
+```
+
+Edite `.env.local` somente na sua maquina e preencha `LEDGER_DB_NAME`, `LEDGER_DB_USER`, `LEDGER_DB_PASSWORD`, `BALANCE_DB_NAME`, `BALANCE_DB_USER`, `BALANCE_DB_PASSWORD`, `PUBSUB_PROJECT_ID` e `PUBSUB_EMULATOR_HOST`. O arquivo real e ignorado pelo Git; nao coloque senhas reais em arquivos versionados.
+
+Subir dependencias de debug:
+
+```bash
+docker compose --env-file .env.local -f compose.debug.yml up -d
+```
+
+Derrubar dependencias de debug:
+
+```bash
+docker compose --env-file .env.local -f compose.debug.yml down
+```
 
 Para usar configuracao por arquivo no host, copie `src/LedgerService.Worker/appsettings.Local.example.json` para `src/LedgerService.Worker/appsettings.Local.json` e `src/BalanceService.Worker/appsettings.Local.example.json` para `src/BalanceService.Worker/appsettings.Local.json`. Substitua os placeholders de senha pelos valores locais e mantenha `PUBSUB_EMULATOR_HOST` como variavel de ambiente do processo, por exemplo `$env:PUBSUB_EMULATOR_HOST = "<PUBSUB_EMULATOR_HOST>"` com o valor `127.0.0.1:8085` para o emulator local. Os arquivos `appsettings.Local.json` reais sao locais e nao devem ser versionados.
 

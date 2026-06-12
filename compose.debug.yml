@@ -1,0 +1,81 @@
+name: poc-arquitetura-debug
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "${DOCKER_LOG_MAX_SIZE:-10m}"
+    max-file: "${DOCKER_LOG_MAX_FILE:-3}"
+
+networks:
+  debug-net:
+    driver: bridge
+
+volumes:
+  ledger-debug-postgres-data:
+  balance-debug-postgres-data:
+
+services:
+  ledger-postgres:
+    image: docker.io/postgres:16
+    container_name: poc-ledger-debug-postgres
+    logging: *default-logging
+    environment:
+      POSTGRES_DB: "${LEDGER_DB_NAME:?Defina LEDGER_DB_NAME no .env.local}"
+      POSTGRES_USER: "${LEDGER_DB_USER:?Defina LEDGER_DB_USER no .env.local}"
+      POSTGRES_PASSWORD: "${LEDGER_DB_PASSWORD:?Defina LEDGER_DB_PASSWORD no .env.local}"
+    ports:
+      - "15432:5432"
+    volumes:
+      - ledger-debug-postgres-data:/var/lib/postgresql/data
+    networks:
+      - debug-net
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\"" ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  balance-postgres:
+    image: docker.io/postgres:16
+    container_name: poc-balance-debug-postgres
+    logging: *default-logging
+    environment:
+      POSTGRES_DB: "${BALANCE_DB_NAME:?Defina BALANCE_DB_NAME no .env.local}"
+      POSTGRES_USER: "${BALANCE_DB_USER:?Defina BALANCE_DB_USER no .env.local}"
+      POSTGRES_PASSWORD: "${BALANCE_DB_PASSWORD:?Defina BALANCE_DB_PASSWORD no .env.local}"
+    ports:
+      - "15433:5432"
+    volumes:
+      - balance-debug-postgres-data:/var/lib/postgresql/data
+    networks:
+      - debug-net
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\"" ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  pubsub-emulator:
+    image: gcr.io/google.com/cloudsdktool/google-cloud-cli:548.0.0-emulators
+    container_name: poc-debug-pubsub-emulator
+    logging: *default-logging
+    command:
+      - gcloud
+      - beta
+      - emulators
+      - pubsub
+      - start
+      - "--host-port=0.0.0.0:8085"
+      - "--project=${PUBSUB_PROJECT_ID:?Defina PUBSUB_PROJECT_ID no .env.local}"
+    environment:
+      PUBSUB_PROJECT_ID: "${PUBSUB_PROJECT_ID:?Defina PUBSUB_PROJECT_ID no .env.local}"
+      PUBSUB_EMULATOR_HOST: "${PUBSUB_EMULATOR_HOST:?Defina PUBSUB_EMULATOR_HOST no .env.local}"
+    ports:
+      - "8085:8085"
+    networks:
+      - debug-net
+    healthcheck:
+      test: [ "CMD-SHELL", "bash -ec 'exec 3<>/dev/tcp/127.0.0.1/8085'" ]
+      interval: 5s
+      timeout: 3s
+      retries: 30
