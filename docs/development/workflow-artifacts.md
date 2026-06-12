@@ -8,7 +8,7 @@ Artifacts podem expor nomes de testes, paths internos do repositorio, stack trac
 
 Workflow: `.github/workflows/dotnet.yml`
 
-Artifact: `test-results-and-coverage`
+Artifact: `test-results-coverage-and-sonarqube`
 
 Retencao: 7 dias
 
@@ -18,14 +18,24 @@ Conteudo publicado:
 - arquivos `coverage.cobertura.xml` coletados pelo Coverlet;
 - arquivos `coverage.opencover.xml` importados pelo SonarQube Cloud;
 - `coverage-report/Summary.json`;
-- `coverage-report/Summary.txt`.
+- `coverage-report/Summary.txt`;
+- `artifacts/sonarqube/quality-gate.json`;
+- `artifacts/sonarqube/measures.json`;
+- `artifacts/sonarqube/issues.json`;
+- `artifacts/sonarqube/sonarqube-cloud-report.md`.
 
 Motivo:
 
 - os arquivos `.trx` ajudam a diagnosticar falhas de teste;
 - o XML Cobertura e os summaries permitem validar a cobertura consolidada, a cobertura dos assemblies Worker e investigar os gates minimos de 85%;
 - o XML OpenCover permite diagnosticar falhas de importacao de cobertura pelo SonarQube Cloud;
+- o resumo Markdown e os JSONs do SonarQube Cloud permitem analisar no GitHub Actions um snapshot da execucao do CI sem depender apenas da interface externa durante a triagem;
 - o relatorio HTML completo do ReportGenerator nao e publicado como artifact, porque os summaries e o XML ja atendem ao diagnostico principal com menor exposicao de paths e trechos renderizados.
+
+Risco residual:
+
+- os JSONs do SonarQube Cloud podem conter paths, mensagens de regras, contagens de achados e detalhes de arquivos analisados;
+- o dashboard oficial do SonarQube Cloud continua sendo a fonte principal da analise, enquanto o artifact e apenas um snapshot retido por 7 dias.
 
 ## mutation-tests
 

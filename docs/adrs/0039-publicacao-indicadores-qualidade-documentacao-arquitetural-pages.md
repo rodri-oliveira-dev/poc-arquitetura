@@ -29,7 +29,7 @@ Documentar a operacao em `docs/development/github-pages.md` e manter a politica 
 ## Estrategia de badges no README
 Os badges de build e testes apontam para o workflow `dotnet-ci`, pois build, testes e cobertura ja sao executados no mesmo fluxo.
 
-O badge de cobertura representa o gate minimo da solution inteira (`>= 80%` de linhas), em vez de tentar publicar um percentual dinamico sem armazenamento estavel. O percentual real continua disponivel no artefato `test-results-and-coverage` do workflow `dotnet-ci`.
+O badge de cobertura representa o gate minimo da solution inteira (`>= 80%` de linhas), em vez de tentar publicar um percentual dinamico sem armazenamento estavel. O percentual real continua disponivel no artifact do workflow `dotnet-ci`, atualmente chamado `test-results-coverage-and-sonarqube`.
 
 O badge de documentacao aponta para o workflow `pages-architecture`.
 
@@ -76,7 +76,7 @@ O deploy ocorre apenas em `push` para `main` ou execucao manual em `main`. Em pu
 ## Impacto no fluxo de desenvolvimento
 Alteracoes em `docs/architecture/**` devem passar pelo workflow `pages-architecture` no pull request.
 
-Alteracoes de codigo continuam passando pelo `dotnet-ci`, que executa build, testes, cobertura e gate de 80%. O relatorio detalhado fica no artefato `test-results-and-coverage`.
+Alteracoes de codigo continuam passando pelo `dotnet-ci`, que executa build, testes, cobertura e gate de 80%. O relatorio detalhado fica no artifact do workflow `dotnet-ci`, atualmente chamado `test-results-coverage-and-sonarqube`.
 
 Para gerar a documentacao localmente, o desenvolvedor pode usar:
 

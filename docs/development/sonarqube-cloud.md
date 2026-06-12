@@ -47,9 +47,10 @@ A ordem correta no workflow principal e:
 8. testes com cobertura;
 9. validacao dos arquivos de cobertura;
 10. SonarQube Cloud end;
-11. geracao do relatorio de cobertura;
-12. gate local de cobertura;
-13. upload de artifacts.
+11. geracao do relatorio resumido do SonarQube Cloud no GitHub Actions;
+12. geracao do relatorio de cobertura;
+13. gate local de cobertura;
+14. upload de artifacts.
 
 O `begin` do SonarQube Cloud precisa ocorrer antes do build. O `end` precisa ocorrer depois dos testes com cobertura para que o scanner consiga enviar a analise e importar o relatorio OpenCover.
 
@@ -81,6 +82,52 @@ Esses gates tem responsabilidades diferentes:
 
 O parametro `sonar.qualitygate.wait=true` faz sentido para este projeto porque transforma a decisao do quality gate remoto em feedback do workflow. O custo e aguardar a avaliacao do SonarQube Cloud durante o job.
 
+## Relatorio no GitHub Actions
+
+Apos o step `SonarQube Cloud end`, o workflow executa o step `Generate SonarQube Cloud report`.
+
+Esse step consulta a API do SonarQube Cloud com `secrets.SONAR_TOKEN`, sem imprimir o token em logs, e grava um snapshot da execucao em:
+
+```text
+artifacts/sonarqube/
+```
+
+Arquivos gerados:
+
+- `quality-gate.json`: retorno bruto do endpoint de quality gate;
+- `measures.json`: retorno bruto das metricas principais do projeto;
+- `issues.json`: retorno bruto das issues abertas retornadas pela API;
+- `sonarqube-cloud-report.md`: resumo em Markdown com dashboard, quality gate, metricas, condicoes e issues.
+
+O mesmo conteudo de `sonarqube-cloud-report.md` e adicionado ao GitHub Step Summary do job. Para consultar:
+
+1. abra a execucao do workflow no GitHub Actions;
+2. entre no job `Build, test and coverage`;
+3. veja a aba ou secao `Summary` da execucao.
+
+Se `SONAR_TOKEN` estiver ausente ou se a API do SonarQube Cloud nao responder, o step registra uma mensagem clara, gera arquivos de erro em `artifacts/sonarqube` e nao quebra o restante do job. O quality gate remoto continua sendo aplicado pelo scanner quando `SonarQube Cloud end` executa com sucesso.
+
+## Artifact do GitHub Actions
+
+O workflow publica o artifact `test-results-coverage-and-sonarqube` por 7 dias.
+
+Para baixar:
+
+1. abra a execucao do workflow no GitHub Actions;
+2. role ate `Artifacts`;
+3. baixe `test-results-coverage-and-sonarqube`.
+
+Esse artifact contem:
+
+- resultados de testes `.trx`;
+- arquivos `coverage.cobertura.xml` usados pelo ReportGenerator e pelo gate local;
+- arquivos `coverage.opencover.xml` importados pelo SonarQube Cloud;
+- summaries de cobertura `coverage-report/Summary.json` e `coverage-report/Summary.txt`;
+- resumo do SonarQube Cloud em `artifacts/sonarqube/sonarqube-cloud-report.md`;
+- JSONs retornados pela API do SonarQube Cloud em `artifacts/sonarqube/*.json`.
+
+O relatorio do GitHub Actions e apenas um snapshot da execucao do CI. Ele facilita triagem no proprio workflow, mas nao substitui o dashboard oficial do SonarQube Cloud, que continua sendo a fonte principal para historico, detalhes navegaveis, configuracao de quality gate, regras, tendencias e estado mais recente do projeto.
+
 ## Workflow atual
 
 O workflow `main-dotnet-ci` roda em:
@@ -94,7 +141,7 @@ As permissoes declaradas sao minimas para leitura do repositorio e contexto do p
 - `contents: read`;
 - `pull-requests: read`.
 
-O workflow publica o artifact `test-results-and-coverage` por 7 dias com resultados `.trx`, arquivos `coverage.cobertura.xml`, arquivos `coverage.opencover.xml` e summaries do ReportGenerator.
+O workflow publica o artifact `test-results-coverage-and-sonarqube` por 7 dias com resultados `.trx`, arquivos `coverage.cobertura.xml`, arquivos `coverage.opencover.xml`, summaries do ReportGenerator e o snapshot resumido do SonarQube Cloud.
 
 ## Ferramentas locais
 
@@ -168,6 +215,8 @@ Depois confirme se o workflow esta usando:
 - O workflow executa restore, build e testes com cobertura com sucesso.
 - O SonarQube Cloud recebe a analise do projeto.
 - O SonarQube Cloud exibe cobertura de testes importada via OpenCover.
+- O GitHub Step Summary exibe o resumo do SonarQube Cloud quando a API pode ser consultada.
+- O artifact do workflow contem `artifacts/sonarqube`.
 - O workflow falha com mensagem clara quando `SONAR_TOKEN` nao esta configurado.
 - O workflow falha com mensagem clara quando `coverage.opencover.xml` nao e gerado.
 - A documentacao explica como manter, corrigir e evoluir a integracao.
