@@ -198,7 +198,7 @@ function Wait-AsyncFlowProgress([hashtable]$Before, [int]$TimeoutSeconds = 90) {
   do {
     $current = Get-AsyncFlowCounts
     if ($current.OutboxProcessed -gt $Before.OutboxProcessed -and $current.BalanceProcessed -gt $Before.BalanceProcessed) {
-      Write-Host "OK. Smoke Pub/Sub publicou Outbox e projetou evento no Balance."
+      Write-Output "OK. Smoke Pub/Sub publicou Outbox e projetou evento no Balance."
       return
     }
 
@@ -359,7 +359,7 @@ switch ($Mode) {
   }
 }
 
-Write-Host "OK. Artifacts em: $ArtifactsDir"
+Write-Output "OK. Artifacts em: $ArtifactsDir"
 
 # Execução local aqui não consegue (e não deve) validar thresholds (k6 já retorna != 0 em caso de falha).
 # TODO: opcionalmente parsear o summary JSON e imprimir um resumo (sem segredos).

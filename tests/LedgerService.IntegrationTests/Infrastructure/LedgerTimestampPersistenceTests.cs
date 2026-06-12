@@ -63,14 +63,19 @@ public sealed class LedgerTimestampPersistenceTests : IAsyncLifetime
             VALUES
                 ({0}, 'm1', 'Credit', 10.00, TIMESTAMPTZ '2026-06-01 12:30:00+00', 'Venda', {1}, {2}, TIMESTAMPTZ '2026-06-01 12:30:00+00');
             """,
-            entryId,
-            $"ext-{Guid.NewGuid():N}",
-            correlationId);
+            [
+                entryId,
+                $"ext-{Guid.NewGuid():N}",
+                correlationId
+            ],
+            TestContext.Current.CancellationToken);
 
         var actualColumns = await GetTimestampWithTimeZoneColumnsAsync(db);
         Assert.True(ExpectedTimestampColumns.SetEquals(actualColumns));
 
-        var saved = await db.LedgerEntries.AsNoTracking().SingleAsync(x => x.Id == entryId);
+        var saved = await db.LedgerEntries
+            .AsNoTracking()
+            .SingleAsync(x => x.Id == entryId, TestContext.Current.CancellationToken);
         Assert.Equal(expectedUtc, saved.OccurredAt);
         Assert.Equal(DateTimeKind.Utc, saved.OccurredAt.Kind);
         Assert.Equal(expectedUtc, saved.CreatedAt);
@@ -81,7 +86,7 @@ public sealed class LedgerTimestampPersistenceTests : IAsyncLifetime
         AppDbContext db)
     {
         var connection = db.Database.GetDbConnection();
-        await connection.OpenAsync();
+        await connection.OpenAsync(TestContext.Current.CancellationToken);
 
         await using var command = connection.CreateCommand();
         command.CommandText =
@@ -93,8 +98,8 @@ public sealed class LedgerTimestampPersistenceTests : IAsyncLifetime
             """;
 
         var columns = new HashSet<(string Table, string Column)>();
-        await using var reader = await command.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
+        await using var reader = await command.ExecuteReaderAsync(TestContext.Current.CancellationToken);
+        while (await reader.ReadAsync(TestContext.Current.CancellationToken))
         {
             columns.Add((reader.GetString(0), reader.GetString(1)));
         }

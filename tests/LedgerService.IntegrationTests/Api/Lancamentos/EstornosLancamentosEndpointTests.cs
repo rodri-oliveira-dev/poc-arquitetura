@@ -38,9 +38,9 @@ public sealed class EstornosLancamentosEndpointTests : IClassFixture<LedgerApiFa
 
         using var req = CreateRequest(lancamento.Id, idempotencyKey);
 
-        var res = await _client.SendAsync(req);
+        var res = await _client.SendAsync(req, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Accepted, res.StatusCode);
-        var body = await res.Content.ReadFromJsonAsync<SolicitarEstornoLancamentoResponse>();
+        var body = await res.Content.ReadFromJsonAsync<SolicitarEstornoLancamentoResponse>(TestContext.Current.CancellationToken);
         Assert.NotNull(body);
         Assert.NotEqual(Guid.Empty, body!.EstornoId);
         Assert.Equal(lancamento.Id, body.LancamentoOriginalId);
@@ -52,9 +52,9 @@ public sealed class EstornosLancamentosEndpointTests : IClassFixture<LedgerApiFa
         Assert.Equal(EstornoLancamentoStatus.Pending, db.EstornosLancamentos.Single(x => x.Id == body.EstornoId).Status);
         Assert.Equal("LancamentoEstornoSolicitado.v1", db.OutboxMessages.Single(x => x.AggregateId == body.EstornoId).EventType);
         using var replayReq = CreateRequest(lancamento.Id, idempotencyKey);
-        var replayRes = await _client.SendAsync(replayReq);
+        var replayRes = await _client.SendAsync(replayReq, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Accepted, replayRes.StatusCode);
-        var replayBody = await replayRes.Content.ReadFromJsonAsync<SolicitarEstornoLancamentoResponse>();
+        var replayBody = await replayRes.Content.ReadFromJsonAsync<SolicitarEstornoLancamentoResponse>(TestContext.Current.CancellationToken);
         Assert.Equivalent(body, replayBody);
         Assert.Equal(body.StatusUrl, replayRes.Headers.Location?.ToString());
     }
@@ -66,7 +66,7 @@ public sealed class EstornosLancamentosEndpointTests : IClassFixture<LedgerApiFa
 
         using var req = CreateRequest(Guid.NewGuid(), Guid.NewGuid().ToString(), "");
 
-        var res = await _client.SendAsync(req);
+        var res = await _client.SendAsync(req, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
         var body = await AssertValidationErrorResponseAsync(res);
         Assert.Contains("motivo", body.Errors.Keys);
@@ -79,7 +79,7 @@ public sealed class EstornosLancamentosEndpointTests : IClassFixture<LedgerApiFa
 
         using var req = CreateRequest(Guid.NewGuid(), Guid.NewGuid().ToString());
 
-        var res = await _client.SendAsync(req);
+        var res = await _client.SendAsync(req, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.NotFound, res.StatusCode);
     }
 
@@ -90,10 +90,10 @@ public sealed class EstornosLancamentosEndpointTests : IClassFixture<LedgerApiFa
         var lancamento = await SeedLancamentoAsync("m1");
 
         using var firstReq = CreateRequest(lancamento.Id, Guid.NewGuid().ToString());
-        var firstRes = await _client.SendAsync(firstReq);
+        var firstRes = await _client.SendAsync(firstReq, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Accepted, firstRes.StatusCode);
         using var duplicateReq = CreateRequest(lancamento.Id, Guid.NewGuid().ToString());
-        var duplicateRes = await _client.SendAsync(duplicateReq);
+        var duplicateRes = await _client.SendAsync(duplicateReq, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Conflict, duplicateRes.StatusCode);
     }
 
@@ -105,7 +105,7 @@ public sealed class EstornosLancamentosEndpointTests : IClassFixture<LedgerApiFa
 
         using var req = CreateRequest(lancamento.Id, Guid.NewGuid().ToString());
 
-        var res = await _client.SendAsync(req);
+        var res = await _client.SendAsync(req, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
     }
 
@@ -117,7 +117,7 @@ public sealed class EstornosLancamentosEndpointTests : IClassFixture<LedgerApiFa
 
         using var req = CreateRequest(lancamento.Id, Guid.NewGuid().ToString());
 
-        var res = await _client.SendAsync(req);
+        var res = await _client.SendAsync(req, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
     }
 
@@ -128,15 +128,15 @@ public sealed class EstornosLancamentosEndpointTests : IClassFixture<LedgerApiFa
         var lancamento = await SeedLancamentoAsync("m1");
 
         using var createReq = CreateRequest(lancamento.Id, Guid.NewGuid().ToString());
-        var createRes = await _client.SendAsync(createReq);
+        var createRes = await _client.SendAsync(createReq, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Accepted, createRes.StatusCode);
-        var created = await createRes.Content.ReadFromJsonAsync<SolicitarEstornoLancamentoResponse>();
+        var created = await createRes.Content.ReadFromJsonAsync<SolicitarEstornoLancamentoResponse>(TestContext.Current.CancellationToken);
         Assert.NotNull(created);
         using (var scope = _factory.Services.CreateScope())
         {
             var sender = scope.ServiceProvider.GetRequiredService<ISender>();
-            await sender.Send(new ProcessarEstornoLancamentoCommand(created!.EstornoId));
-            await sender.Send(new ProcessarEstornoLancamentoCommand(created.EstornoId));
+            await sender.Send(new ProcessarEstornoLancamentoCommand(created!.EstornoId), TestContext.Current.CancellationToken);
+            await sender.Send(new ProcessarEstornoLancamentoCommand(created.EstornoId), TestContext.Current.CancellationToken);
         }
 
         using var assertScope = _factory.Services.CreateScope();
@@ -160,15 +160,15 @@ public sealed class EstornosLancamentosEndpointTests : IClassFixture<LedgerApiFa
         var lancamento = await SeedLancamentoAsync("m1");
 
         using var createReq = CreateRequest(lancamento.Id, Guid.NewGuid().ToString());
-        var createRes = await _client.SendAsync(createReq);
+        var createRes = await _client.SendAsync(createReq, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Accepted, createRes.StatusCode);
-        var created = await createRes.Content.ReadFromJsonAsync<SolicitarEstornoLancamentoResponse>();
+        var created = await createRes.Content.ReadFromJsonAsync<SolicitarEstornoLancamentoResponse>(TestContext.Current.CancellationToken);
         Assert.NotNull(created);
         Authenticate(scopes: "ledger.read");
 
-        var res = await _client.GetAsync($"/api/v1/lancamentos/estornos/{created!.EstornoId}");
+        var res = await _client.GetAsync($"/api/v1/lancamentos/estornos/{created!.EstornoId}", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
-        var body = await res.Content.ReadFromJsonAsync<ObterStatusEstornoLancamentoResponse>();
+        var body = await res.Content.ReadFromJsonAsync<ObterStatusEstornoLancamentoResponse>(TestContext.Current.CancellationToken);
         Assert.NotNull(body);
         Assert.Equal(created.EstornoId, body!.EstornoId);
         Assert.Equal(lancamento.Id, body.LancamentoOriginalId);
@@ -182,7 +182,7 @@ public sealed class EstornosLancamentosEndpointTests : IClassFixture<LedgerApiFa
     {
         Authenticate(scopes: "ledger.read");
 
-        var res = await _client.GetAsync($"/api/v1/lancamentos/estornos/{Guid.NewGuid()}");
+        var res = await _client.GetAsync($"/api/v1/lancamentos/estornos/{Guid.NewGuid()}", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.NotFound, res.StatusCode);
     }
 
@@ -191,7 +191,7 @@ public sealed class EstornosLancamentosEndpointTests : IClassFixture<LedgerApiFa
     {
         Authenticate(scopes: "ledger.read");
 
-        var res = await _client.GetAsync("/api/v1/lancamentos/estornos/not-a-guid");
+        var res = await _client.GetAsync("/api/v1/lancamentos/estornos/not-a-guid", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.NotFound, res.StatusCode);
     }
 
@@ -201,7 +201,7 @@ public sealed class EstornosLancamentosEndpointTests : IClassFixture<LedgerApiFa
         var estorno = await SeedEstornoAsync("m1");
         Authenticate(scopes: "ledger.read", merchantIds: "m2");
 
-        var res = await _client.GetAsync($"/api/v1/lancamentos/estornos/{estorno.Id}");
+        var res = await _client.GetAsync($"/api/v1/lancamentos/estornos/{estorno.Id}", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
     }
 
@@ -211,7 +211,7 @@ public sealed class EstornosLancamentosEndpointTests : IClassFixture<LedgerApiFa
         var estorno = await SeedEstornoAsync("m1");
         Authenticate(scopes: "ledger.write");
 
-        var res = await _client.GetAsync($"/api/v1/lancamentos/estornos/{estorno.Id}");
+        var res = await _client.GetAsync($"/api/v1/lancamentos/estornos/{estorno.Id}", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
     }
 
@@ -221,7 +221,7 @@ public sealed class EstornosLancamentosEndpointTests : IClassFixture<LedgerApiFa
         var estorno = await SeedEstornoAsync("m1");
         Authenticate(scopes: "ledger.read", merchantIds: null);
 
-        var res = await _client.GetAsync($"/api/v1/lancamentos/estornos/{estorno.Id}");
+        var res = await _client.GetAsync($"/api/v1/lancamentos/estornos/{estorno.Id}", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
     }
 
@@ -230,7 +230,7 @@ public sealed class EstornosLancamentosEndpointTests : IClassFixture<LedgerApiFa
     {
         _client.DefaultRequestHeaders.Authorization = null;
 
-        var res = await _client.GetAsync($"/api/v1/lancamentos/estornos/{Guid.NewGuid()}");
+        var res = await _client.GetAsync($"/api/v1/lancamentos/estornos/{Guid.NewGuid()}", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Unauthorized, res.StatusCode);
     }
 
@@ -272,8 +272,8 @@ public sealed class EstornosLancamentosEndpointTests : IClassFixture<LedgerApiFa
             Guid.NewGuid(),
             DateTime.UtcNow);
 
-        await db.LedgerEntries.AddAsync(lancamento);
-        await db.SaveChangesAsync();
+        await db.LedgerEntries.AddAsync(lancamento, TestContext.Current.CancellationToken);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         return lancamento;
     }
@@ -289,8 +289,8 @@ public sealed class EstornosLancamentosEndpointTests : IClassFixture<LedgerApiFa
             Guid.NewGuid(),
             DateTime.UtcNow);
 
-        await db.EstornosLancamentos.AddAsync(estorno);
-        await db.SaveChangesAsync();
+        await db.EstornosLancamentos.AddAsync(estorno, TestContext.Current.CancellationToken);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         return estorno;
     }
@@ -298,7 +298,7 @@ public sealed class EstornosLancamentosEndpointTests : IClassFixture<LedgerApiFa
     private static async Task<ValidationErrorResponse> AssertValidationErrorResponseAsync(HttpResponseMessage response)
     {
         Assert.Equal("application/json", response.Content.Headers.ContentType?.MediaType);
-        var body = await response.Content.ReadFromJsonAsync<ValidationErrorResponse>();
+        var body = await response.Content.ReadFromJsonAsync<ValidationErrorResponse>(TestContext.Current.CancellationToken);
         Assert.NotNull(body);
         Assert.Equal("https://httpstatuses.com/400", body!.Type);
         Assert.Equal("Invalid request", body.Title);

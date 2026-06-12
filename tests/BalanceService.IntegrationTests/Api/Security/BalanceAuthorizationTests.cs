@@ -20,16 +20,16 @@ public sealed class BalanceAuthorizationTests : IClassFixture<BalanceApiFactory>
     [Fact]
     public async Task Health_should_return_200_without_token()
     {
-        var res = await _client.GetAsync("/health");
+        var res = await _client.GetAsync("/health", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
     }
 
     [Fact]
     public async Task Ready_should_return_200_without_token_when_db_is_available()
     {
-        var res = await _client.GetAsync("/ready");
+        var res = await _client.GetAsync("/ready", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
-        var body = await res.Content.ReadAsStringAsync();
+        var body = await res.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         Assert.Contains("\"status\":\"ready\"", body);
         Assert.Contains("\"db\":\"ok\"", body);
         Assert.DoesNotContain("\"kafka\"", body);
@@ -38,7 +38,7 @@ public sealed class BalanceAuthorizationTests : IClassFixture<BalanceApiFactory>
     [Fact]
     public async Task Period_endpoint_should_return_401_without_token()
     {
-        var res = await _client.GetAsync("/api/v1/consolidados/periodo?merchantId=m1&from=2026-02-10&to=2026-02-12");
+        var res = await _client.GetAsync("/api/v1/consolidados/periodo?merchantId=m1&from=2026-02-10&to=2026-02-12", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Unauthorized, res.StatusCode);
     }
 
@@ -52,7 +52,7 @@ public sealed class BalanceAuthorizationTests : IClassFixture<BalanceApiFactory>
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var res = await _client.GetAsync("/api/v1/consolidados/periodo?merchantId=m1&from=2026-02-10&to=2026-02-12");
+        var res = await _client.GetAsync("/api/v1/consolidados/periodo?merchantId=m1&from=2026-02-10&to=2026-02-12", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
     }
 
@@ -66,7 +66,7 @@ public sealed class BalanceAuthorizationTests : IClassFixture<BalanceApiFactory>
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var res = await _client.GetAsync("/api/v1/consolidados/periodo?merchantId=m1&from=2026-02-10&to=2026-02-12");
+        var res = await _client.GetAsync("/api/v1/consolidados/periodo?merchantId=m1&from=2026-02-10&to=2026-02-12", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
     }
 
@@ -80,7 +80,7 @@ public sealed class BalanceAuthorizationTests : IClassFixture<BalanceApiFactory>
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var res = await _client.GetAsync("/api/v1/consolidados/periodo?merchantId=m1&from=2026-02-10&to=2026-02-12");
+        var res = await _client.GetAsync("/api/v1/consolidados/periodo?merchantId=m1&from=2026-02-10&to=2026-02-12", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Unauthorized, res.StatusCode);
     }
 
@@ -94,7 +94,7 @@ public sealed class BalanceAuthorizationTests : IClassFixture<BalanceApiFactory>
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var res = await _client.GetAsync("/api/v1/consolidados/periodo?merchantId=m1&from=2026-02-10&to=2026-02-12");
+        var res = await _client.GetAsync("/api/v1/consolidados/periodo?merchantId=m1&from=2026-02-10&to=2026-02-12", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Unauthorized, res.StatusCode);
     }
 
@@ -110,7 +110,7 @@ public sealed class BalanceAuthorizationTests : IClassFixture<BalanceApiFactory>
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var res = await _client.GetAsync("/api/v1/consolidados/periodo?merchantId=m1&from=2026-02-10&to=2026-02-12");
+        var res = await _client.GetAsync("/api/v1/consolidados/periodo?merchantId=m1&from=2026-02-10&to=2026-02-12", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Unauthorized, res.StatusCode);
     }
 
@@ -125,7 +125,7 @@ public sealed class BalanceAuthorizationTests : IClassFixture<BalanceApiFactory>
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var res = await _client.GetAsync("/api/v1/consolidados/periodo?merchantId=m1&from=2026-02-10&to=2026-02-12");
+        var res = await _client.GetAsync("/api/v1/consolidados/periodo?merchantId=m1&from=2026-02-10&to=2026-02-12", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Unauthorized, res.StatusCode);
     }
 
@@ -140,7 +140,7 @@ public sealed class BalanceAuthorizationTests : IClassFixture<BalanceApiFactory>
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var res = await _client.GetAsync("/api/v1/consolidados/periodo?merchantId=m1&from=2026-02-10&to=2026-02-12");
+        var res = await _client.GetAsync("/api/v1/consolidados/periodo?merchantId=m1&from=2026-02-10&to=2026-02-12", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
     }
 
@@ -151,7 +151,7 @@ public sealed class BalanceAuthorizationTests : IClassFixture<BalanceApiFactory>
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var res = await _client.GetAsync("/api/v1/consolidados/diario/2026-02-10?merchantId=tese");
+        var res = await _client.GetAsync("/api/v1/consolidados/diario/2026-02-10?merchantId=tese", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
     }
 
@@ -166,7 +166,7 @@ public sealed class BalanceAuthorizationTests : IClassFixture<BalanceApiFactory>
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var res = await _client.GetAsync("/api/v1/consolidados/diario/2026-02-10?merchantId=m1");
+        var res = await _client.GetAsync("/api/v1/consolidados/diario/2026-02-10?merchantId=m1", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
     }
 }

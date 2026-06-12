@@ -31,7 +31,7 @@ public sealed class OutboxAdminEndpointTests : IClassFixture<LedgerApiFactory>
         var res = await _client.PostAsJsonAsync($"/api/v1/outbox/dead-letters/{Guid.NewGuid()}/requeue", new
         {
             reason = "broker recuperado"
-        });
+        }, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
     }
 
@@ -44,7 +44,7 @@ public sealed class OutboxAdminEndpointTests : IClassFixture<LedgerApiFactory>
         var res = await _client.PostAsJsonAsync($"/api/v1/outbox/dead-letters/{outboxId}/requeue", new
         {
             reason = "broker recuperado"
-        });
+        }, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -63,10 +63,10 @@ public sealed class OutboxAdminEndpointTests : IClassFixture<LedgerApiFactory>
         Authenticate("outbox.admin");
         var outboxId = await SeedDeadLetterOutboxMessageAsync();
 
-        var res = await _client.GetAsync("/api/v1/outbox/dead-letters?page=1&pageSize=10");
+        var res = await _client.GetAsync("/api/v1/outbox/dead-letters?page=1&pageSize=10", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
-        var content = await res.Content.ReadAsStringAsync();
+        var content = await res.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         Assert.Contains(outboxId.ToString(), content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("kafka down", content, StringComparison.OrdinalIgnoreCase);
     }
@@ -97,7 +97,7 @@ public sealed class OutboxAdminEndpointTests : IClassFixture<LedgerApiFactory>
         message.MarkFailedPublishAttempt(1, DateTime.UtcNow.AddSeconds(10), "kafka down");
 
         db.OutboxMessages.Add(message);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         return message.Id;
     }

@@ -59,7 +59,7 @@ Execute antes:
     exit 1
   }
 
-  Write-Host "Gerando $outputPath"
+  Write-Output "Gerando $outputPath"
   & dotnet tool run swagger -- tofile --output $outputPath $assemblyPath $Document
   if ($LASTEXITCODE -ne 0) {
     throw "Falha ao gerar contrato OpenAPI para $ServiceName."
@@ -128,4 +128,4 @@ finally {
   }
 }
 
-Write-Host "Contratos OpenAPI gerados em: $OutputDir"
+Write-Output "Contratos OpenAPI gerados em: $OutputDir"

@@ -10,8 +10,8 @@ if ([string]::IsNullOrWhiteSpace($ProjectName)) {
 }
 
 function Write-Section([string]$Title) {
-  Write-Host ""
-  Write-Host "== $Title =="
+  Write-Output ""
+  Write-Output "== $Title =="
 }
 
 function Invoke-DockerBestEffort([string]$Title, [string[]]$Arguments) {

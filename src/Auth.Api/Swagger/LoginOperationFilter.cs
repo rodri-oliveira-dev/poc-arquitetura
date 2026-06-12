@@ -23,7 +23,7 @@ public sealed class LoginOperationFilter : IOperationFilter
         // Request example
         if (operation.RequestBody?.Content.TryGetValue("application/json", out var reqMedia) == true)
         {
-            ((OpenApiMediaType)reqMedia).Example = new JsonObject
+            reqMedia!.Example = new JsonObject
             {
                 ["username"] = "<configure Auth:DevelopmentUser:Username>",
                 ["password"] = "<configure Auth:DevelopmentUser:Password>",
@@ -34,7 +34,7 @@ public sealed class LoginOperationFilter : IOperationFilter
         // Response examples
         if (operation.Responses.TryGetValue("200", out var r200) && r200.Content.TryGetValue("application/json", out var m200))
         {
-            ((OpenApiMediaType)m200).Example = new JsonObject
+            m200!.Example = new JsonObject
             {
                 ["access_token"] = "<jwt>",
                 ["token_type"] = "Bearer",
@@ -45,7 +45,7 @@ public sealed class LoginOperationFilter : IOperationFilter
 
         if (operation.Responses.TryGetValue("401", out var r401) && r401.Content.TryGetValue("application/json", out var m401))
         {
-            ((OpenApiMediaType)m401).Example = new JsonObject
+            m401!.Example = new JsonObject
             {
                 ["error"] = "invalid_credentials",
                 ["message"] = "Usuário ou senha inválidos."
@@ -54,7 +54,7 @@ public sealed class LoginOperationFilter : IOperationFilter
 
         if (operation.Responses.TryGetValue("400", out var r400) && r400.Content.TryGetValue("application/json", out var m400))
         {
-            ((OpenApiMediaType)m400).Example = new JsonObject
+            m400!.Example = new JsonObject
             {
                 ["error"] = "invalid_scope",
                 ["message"] = $"Informe ao menos um scope explicito. Scopes validos: {ScopeCatalog.ValidScopesAsString()}"

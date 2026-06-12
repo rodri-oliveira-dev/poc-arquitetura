@@ -19,7 +19,7 @@ public sealed class DailyBalanceReadRepositoryTests
         await using var db = new BalanceDbContext(options);
         var sut = new DailyBalanceReadRepository(db);
 
-        var res = await sut.GetDailyAsync("m1", new DateOnly(2026, 2, 10));
+        var res = await sut.GetDailyAsync("m1", new DateOnly(2026, 2, 10), TestContext.Current.CancellationToken);
         Assert.Null(res);
     }
 
@@ -48,10 +48,10 @@ public sealed class DailyBalanceReadRepositoryTests
             ExternalReference: null), now);
 
         db.DailyBalances.Add(entity);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var sut = new DailyBalanceReadRepository(db);
-        var res = await sut.GetDailyAsync("m1", new DateOnly(2026, 2, 10));
+        var res = await sut.GetDailyAsync("m1", new DateOnly(2026, 2, 10), TestContext.Current.CancellationToken);
         Assert.NotNull(res);
         Assert.Equal("m1", res!.MerchantId);
         Assert.Equal(new DateOnly(2026, 2, 10), res.Date);
@@ -72,10 +72,10 @@ public sealed class DailyBalanceReadRepositoryTests
         db.DailyBalances.Add(new DailyBalance("m1", new DateOnly(2026, 2, 11), "BRL", now));
         db.DailyBalances.Add(new DailyBalance("m1", new DateOnly(2026, 2, 10), "BRL", now));
         db.DailyBalances.Add(new DailyBalance("m2", new DateOnly(2026, 2, 10), "BRL", now));
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var sut = new DailyBalanceReadRepository(db);
-        var res = await sut.ListByPeriodAsync("m1", new DateOnly(2026, 2, 10), new DateOnly(2026, 2, 11));
+        var res = await sut.ListByPeriodAsync("m1", new DateOnly(2026, 2, 10), new DateOnly(2026, 2, 11), TestContext.Current.CancellationToken);
         Assert.Equal(2, res.Count);
         Assert.Equal(new DateOnly(2026, 2, 10), res[0].Date);
         Assert.Equal(new DateOnly(2026, 2, 11), res[1].Date);

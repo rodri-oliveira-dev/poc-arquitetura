@@ -24,7 +24,11 @@ COPY src/LedgerService.Domain/ ./src/LedgerService.Domain/
 COPY src/LedgerService.Infrastructure/ ./src/LedgerService.Infrastructure/
 
 RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages,sharing=locked \
-    dotnet publish src/LedgerService.Worker/LedgerService.Worker.csproj -c Release -o /app/publish --no-restore /p:UseAppHost=false
+    dotnet publish src/LedgerService.Worker/LedgerService.Worker.csproj \
+    -c Release \
+    -o /app/publish \
+    --no-restore \
+    /p:UseAppHost=false
 
 FROM mcr.microsoft.com/dotnet/runtime:10.0 AS final
 WORKDIR /app

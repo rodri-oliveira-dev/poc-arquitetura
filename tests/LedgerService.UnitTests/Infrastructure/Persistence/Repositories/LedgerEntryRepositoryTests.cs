@@ -26,10 +26,10 @@ public sealed class LedgerEntryRepositoryTests
             correlationId: correlationId,
             createdAt: occurredAt);
 
-        await repo.AddAsync(entry);
-        await db.SaveChangesAsync();
+        await repo.AddAsync(entry, TestContext.Current.CancellationToken);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var saved = await db.LedgerEntries.SingleAsync();
+        var saved = await db.LedgerEntries.SingleAsync(TestContext.Current.CancellationToken);
         Assert.Equal(entry.Id, saved.Id);
         Assert.Equal("merchant-1", saved.MerchantId);
         Assert.Equal(LedgerEntryType.Credit, saved.Type);

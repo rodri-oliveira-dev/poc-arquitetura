@@ -24,7 +24,11 @@ COPY src/BalanceService.Domain/ ./src/BalanceService.Domain/
 COPY src/BalanceService.Infrastructure/ ./src/BalanceService.Infrastructure/
 
 RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages,sharing=locked \
-    dotnet publish src/BalanceService.Worker/BalanceService.Worker.csproj -c Release -o /app/publish --no-restore /p:UseAppHost=false
+    dotnet publish src/BalanceService.Worker/BalanceService.Worker.csproj \
+    -c Release \
+    -o /app/publish \
+    --no-restore \
+    /p:UseAppHost=false
 
 FROM mcr.microsoft.com/dotnet/runtime:10.0 AS final
 WORKDIR /app

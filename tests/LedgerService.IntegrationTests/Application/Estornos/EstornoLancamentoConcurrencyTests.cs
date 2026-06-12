@@ -60,17 +60,17 @@ public sealed class EstornoLancamentoConcurrencyTests : IAsyncLifetime
         var estornos = await db.EstornosLancamentos
             .AsNoTracking()
             .Where(x => x.LancamentoOriginalId == lancamento.Id)
-            .ToListAsync();
+            .ToListAsync(TestContext.Current.CancellationToken);
         Assert.Single(estornos);
         Assert.Equal(1, estornos.Count(x => x.Status is EstornoLancamentoStatus.Pending or EstornoLancamentoStatus.Processing));
 
         var created = await responses.Single(x => x.StatusCode == HttpStatusCode.Accepted)
             .Content
-            .ReadFromJsonAsync<SolicitarEstornoLancamentoResponse>();
+            .ReadFromJsonAsync<SolicitarEstornoLancamentoResponse>(TestContext.Current.CancellationToken);
         Assert.NotNull(created);
         var requestOutboxCount = await db.OutboxMessages
             .Where(x => x.AggregateId == created!.EstornoId && x.EventType == LancamentoEstornoSolicitadoV1.EventType)
-            .CountAsync();
+            .CountAsync(TestContext.Current.CancellationToken);
         Assert.Equal(1, requestOutboxCount);
     }
 
@@ -91,7 +91,9 @@ public sealed class EstornoLancamentoConcurrencyTests : IAsyncLifetime
 
         await using var scope = _factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var persisted = await db.EstornosLancamentos.AsNoTracking().SingleAsync(x => x.Id == estorno.Id);
+        var persisted = await db.EstornosLancamentos
+            .AsNoTracking()
+            .SingleAsync(x => x.Id == estorno.Id, TestContext.Current.CancellationToken);
         Assert.Equal(EstornoLancamentoStatus.Processing, persisted.Status);
     }
 
@@ -110,16 +112,18 @@ public sealed class EstornoLancamentoConcurrencyTests : IAsyncLifetime
 
         await using var scope = _factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var persisted = await db.EstornosLancamentos.AsNoTracking().SingleAsync(x => x.Id == estorno.Id);
+        var persisted = await db.EstornosLancamentos
+            .AsNoTracking()
+            .SingleAsync(x => x.Id == estorno.Id, TestContext.Current.CancellationToken);
         Assert.Equal(EstornoLancamentoStatus.Completed, persisted.Status);
         Assert.NotNull(persisted.LancamentoCompensatorioId);
         var compensatingEntries = await db.LedgerEntries
             .Where(x => x.ExternalReference == $"estorno:{lancamento.Id:N}")
-            .CountAsync();
+            .CountAsync(TestContext.Current.CancellationToken);
         Assert.Equal(1, compensatingEntries);
         var finalOutboxCount = await db.OutboxMessages
             .Where(x => x.AggregateId == persisted.LancamentoCompensatorioId && x.EventType == LedgerEntryCreatedV2.EventType)
-            .CountAsync();
+            .CountAsync(TestContext.Current.CancellationToken);
         Assert.Equal(1, finalOutboxCount);
     }
 
@@ -152,7 +156,7 @@ public sealed class EstornoLancamentoConcurrencyTests : IAsyncLifetime
             Content = JsonContent.Create(new { motivo = "Erro operacional no lancamento original" })
         };
         req.Headers.Add("Idempotency-Key", idempotencyKey);
-        return await client.SendAsync(req);
+        return await client.SendAsync(req, TestContext.Current.CancellationToken);
     }
 
     private async Task<IReadOnlyList<EstornoLancamento>> ClaimAfterGateAsync(Task gate)
@@ -160,7 +164,7 @@ public sealed class EstornoLancamentoConcurrencyTests : IAsyncLifetime
         await gate;
         await using var scope = _factory.Services.CreateAsyncScope();
         var repo = scope.ServiceProvider.GetRequiredService<IEstornoLancamentoRepository>();
-        return await repo.ClaimPendingAsync(10);
+        return await repo.ClaimPendingAsync(10, TestContext.Current.CancellationToken);
     }
 
     private async Task ProcessAfterGateAsync(Guid estornoId, Task gate)
@@ -168,7 +172,7 @@ public sealed class EstornoLancamentoConcurrencyTests : IAsyncLifetime
         await gate;
         await using var scope = _factory.Services.CreateAsyncScope();
         var sender = scope.ServiceProvider.GetRequiredService<ISender>();
-        await sender.Send(new ProcessarEstornoLancamentoCommand(estornoId));
+        await sender.Send(new ProcessarEstornoLancamentoCommand(estornoId), TestContext.Current.CancellationToken);
     }
 
     private async Task<LedgerEntry> SeedLancamentoAsync()
@@ -185,8 +189,8 @@ public sealed class EstornoLancamentoConcurrencyTests : IAsyncLifetime
             Guid.NewGuid(),
             DateTime.UtcNow);
 
-        await db.LedgerEntries.AddAsync(lancamento);
-        await db.SaveChangesAsync();
+        await db.LedgerEntries.AddAsync(lancamento, TestContext.Current.CancellationToken);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         return lancamento;
     }
 
@@ -201,8 +205,8 @@ public sealed class EstornoLancamentoConcurrencyTests : IAsyncLifetime
             Guid.NewGuid(),
             DateTime.UtcNow);
 
-        await db.EstornosLancamentos.AddAsync(estorno);
-        await db.SaveChangesAsync();
+        await db.EstornosLancamentos.AddAsync(estorno, TestContext.Current.CancellationToken);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         return estorno;
     }
 }
