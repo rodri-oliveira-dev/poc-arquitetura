@@ -1,4 +1,4 @@
-import { check, sleep } from 'k6';
+import { check } from 'k6';
 import { loadConfig } from '../lib/config.js';
 import { defaultHeaders, httpGet } from '../lib/http.js';
 import { localLatencyThresholds } from '../lib/thresholds.js';
@@ -15,8 +15,8 @@ export const options = {
         },
     },
     thresholds: {
-        http_req_failed: ['rate<=0.05'],
-        http_req_duration: localLatencyThresholds('BALANCE', { p95: 1000, p99: 2500 }),
+        'http_req_failed{name:balance_daily_summary}': ['rate<=0.05'],
+        'http_req_duration{name:balance_daily_summary}': localLatencyThresholds('BALANCE', { p95: 1000, p99: 2500 }),
         checks: ['rate==1'],
         dropped_iterations: ['count==0'],
     },
@@ -31,11 +31,16 @@ export default function () {
     const pathBase = cfg.BALANCE_DAILY_PATH;
     const url = `${base}${pathBase}/${date}?merchantId=${encodeURIComponent(merchantId)}`;
 
-    const res = httpGet(url, { headers: defaultHeaders() });
-
-    check(res, {
-        'status is 200': (r) => r.status === 200,
+    const res = httpGet(url, {
+        headers: defaultHeaders(),
+        tags: {
+            name: 'balance_daily_summary',
+            service: 'balance',
+            operation: 'balance_daily_summary',
+        },
     });
 
-    sleep(0.1);
+    check(res, {
+        'balance daily summary returns 200': (r) => r.status === 200,
+    });
 }

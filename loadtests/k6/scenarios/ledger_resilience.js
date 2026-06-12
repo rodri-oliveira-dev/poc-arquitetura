@@ -22,8 +22,8 @@ export const options = {
         },
     },
     thresholds: {
-        http_req_failed: ['rate<=0.05'],
-        http_req_duration: localLatencyThresholds('LEDGER', { p95: 2000, p99: 5000 }),
+        'http_req_failed{name:ledger_create_entry}': ['rate<=0.05'],
+        'http_req_duration{name:ledger_create_entry}': localLatencyThresholds('LEDGER', { p95: 2000, p99: 5000 }),
         checks: ['rate==1'],
         dropped_iterations: ['count==0'],
     },
@@ -53,11 +53,17 @@ export default function () {
             'Idempotency-Key': idempotencyKey,
             'X-Correlation-Id': correlationId,
         }),
+        tags: {
+            name: 'ledger_create_entry',
+            service: 'ledger',
+            operation: 'ledger_create_entry',
+        },
     });
 
     check(res, {
-        'status is 201 or 200': (r) => r.status === 201 || r.status === 200,
+        'ledger create entry returns 201 or idempotent 200': (r) => r.status === 201 || r.status === 200,
     });
 
+    // Em constant-vus, o sleep representa think time e reduz o ritmo por VU.
     sleep(0.2);
 }
