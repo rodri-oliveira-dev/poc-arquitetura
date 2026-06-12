@@ -124,7 +124,8 @@ jobs:
           echo "${OASDIFF_LINUX_AMD64_SHA256}  ${archive}" | sha256sum --check -
           tar -xzf "$archive" oasdiff
           sudo install -m 0755 oasdiff /usr/local/bin/oasdiff
-          oasdiff version
+          command -v oasdiff
+          oasdiff --help >/dev/null
 
       - name: Detect breaking OpenAPI changes
         if: ${{ github.event_name == 'pull_request' && steps.main_openapi_contracts.outputs.available == 'true' }}
