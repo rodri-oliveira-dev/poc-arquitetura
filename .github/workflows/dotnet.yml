@@ -130,6 +130,7 @@ jobs:
           /d:sonar.token="$SONAR_TOKEN"
           /d:sonar.host.url="https://sonarcloud.io"
           /d:sonar.cs.opencover.reportsPaths="${{ env.TEST_RESULTS_DIR }}/**/coverage.opencover.xml"
+          /d:sonar.exclusions="**/appsettings.Local*.json"
           /d:sonar.coverage.exclusions=".github/**,docs/**,infra/**,loadtests/**,scripts/**"
           /d:sonar.qualitygate.wait=true
 

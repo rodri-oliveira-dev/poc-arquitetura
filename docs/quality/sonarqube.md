@@ -46,6 +46,8 @@ O script restaura as tools locais, inicia o SonarScanner for .NET, compila `Ledg
 
 A cobertura para o SonarQube usa o formato OpenCover, consumido por `sonar.cs.opencover.reportsPaths`. O mesmo `coverlet.runsettings` tambem gera Cobertura, preservando o formato usado pelo fluxo de cobertura existente do CI.
 
+O script exclui da analise somente `**/appsettings.Local*.json`, mantendo `appsettings.json`, `appsettings.Development.json` e demais configuracoes nao locais no escopo do SonarQube.
+
 ## Tratativas de erro
 
 ### `vm.max_map_count` baixo

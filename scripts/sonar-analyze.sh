@@ -47,6 +47,7 @@ dotnet sonarscanner begin \
   /n:"$PROJECT_NAME" \
   /d:sonar.host.url="$SONAR_HOST_URL" \
   /d:sonar.token="$SONAR_TOKEN" \
+  /d:sonar.exclusions="**/appsettings.Local*.json" \
   /d:sonar.cs.opencover.reportsPaths="$TEST_RESULTS_DIR/**/coverage.opencover.xml"
 
 echo "==> Building $SOLUTION_PATH with configuration $BUILD_CONFIGURATION"
