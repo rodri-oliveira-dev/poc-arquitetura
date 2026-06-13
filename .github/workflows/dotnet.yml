@@ -123,6 +123,7 @@ jobs:
       - name: SonarQube Cloud begin
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_PLACEHOLDER_SECRET_LINE_REGEX: ".*(PASSWORD|[Pp]assword|PWD|PGPASSWORD|CLIENT_SECRET|[Cc]lient[_-]?[Ss]ecret|SECRET|[Ss]ecret|TOKEN|[Tt]oken|API[_-]?KEY|[Aa]pi[_-]?[Kk]ey).*<[A-Z0-9_]*(PASSWORD|SECRET|TOKEN|API_KEY)[A-Z0-9_]*>.*"
         run: >
           dotnet tool run dotnet-sonarscanner begin
           /k:"rodri-oliveira-dev_poc-arquitetura"
@@ -130,6 +131,9 @@ jobs:
           /d:sonar.token="$SONAR_TOKEN"
           /d:sonar.host.url="https://sonarcloud.io"
           /d:sonar.cs.opencover.reportsPaths="${{ env.TEST_RESULTS_DIR }}/**/coverage.opencover.xml"
+          /d:sonar.issue.ignore.block=placeholderSecrets
+          /d:sonar.issue.ignore.block.placeholderSecrets.beginBlockRegexp="$SONAR_PLACEHOLDER_SECRET_LINE_REGEX"
+          /d:sonar.issue.ignore.block.placeholderSecrets.endBlockRegexp="$SONAR_PLACEHOLDER_SECRET_LINE_REGEX"
           /d:sonar.coverage.exclusions=".github/**,docs/**,infra/**,loadtests/**,scripts/**"
           /d:sonar.qualitygate.wait=true
 

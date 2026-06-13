@@ -3,15 +3,13 @@ name: pr-advisory-checks
 on:
   pull_request:
     types: [opened, reopened, synchronize, ready_for_review, edited]
-  pull_request_target:
-    types: [opened, reopened, synchronize, ready_for_review, edited]
-  workflow_dispatch:
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 env:
@@ -21,84 +19,10 @@ env:
   SOLUTION_PATH: ./LedgerService.slnx
 
 jobs:
-  ensure-pr-owner:
-    name: Assign PR owner (advisory)
-    if: ${{ github.event_name == 'pull_request_target' || github.event_name == 'workflow_dispatch' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: read
-      issues: write
-      pull-requests: read
-
-    steps:
-      - name: Assign PR opener as owner
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          EVENT_NAME: ${{ github.event_name }}
-          REPOSITORY: ${{ github.repository }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
-        run: |
-          set -euo pipefail
-
-          ensure_owner() {
-            local pr_number="$1"
-            local pr_author="$2"
-
-            if [ -z "$pr_number" ] || [ -z "$pr_author" ]; then
-              {
-                echo "### PR owner assignment"
-                echo
-                echo "PR number or author not available. Owner assignment was skipped."
-              } >> "$GITHUB_STEP_SUMMARY"
-              echo "::warning::PR number or author not available. Owner assignment was skipped."
-              return 0
-            fi
-
-            echo "Checking PR #$pr_number owner: $pr_author"
-
-            if gh api "repos/$REPOSITORY/issues/$pr_number" --jq '.assignees[].login' | grep -Fxq "$pr_author"; then
-              echo "PR #$pr_number already has $pr_author assigned as owner."
-              return 0
-            fi
-
-            if gh api \
-              --method POST \
-              "repos/$REPOSITORY/issues/$pr_number/assignees" \
-              -f "assignees[]=$pr_author" \
-              >/dev/null; then
-              echo "Assigned $pr_author as owner of PR #$pr_number."
-              return 0
-            fi
-
-            {
-              echo "### PR owner assignment"
-              echo
-              echo "Could not assign \`$pr_author\` as owner of PR #$pr_number. This advisory automation was skipped without blocking the pull request."
-            } >> "$GITHUB_STEP_SUMMARY"
-            echo "::warning::Could not assign $pr_author as owner of PR #$pr_number. This advisory automation was skipped."
-            return 0
-          }
-
-          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            gh api --paginate "repos/$REPOSITORY/pulls?state=open&per_page=100" --jq '.[] | [.number, .user.login] | @tsv' |
-              while IFS=$'\t' read -r number author; do
-                ensure_owner "$number" "$author"
-              done
-          else
-            ensure_owner "$PR_NUMBER" "$PR_AUTHOR"
-          fi
-
   analyzer-recommendations:
     name: Run analyzer recommendations
-    if: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    permissions:
-      contents: read
-      pull-requests: read
 
     steps:
       - name: Checkout PR head
