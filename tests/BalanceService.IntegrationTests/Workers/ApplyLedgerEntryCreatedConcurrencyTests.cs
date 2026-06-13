@@ -3,20 +3,18 @@ using System.Globalization;
 using BalanceService.Application.Balances.Commands;
 using BalanceService.Domain.Balances;
 using BalanceService.IntegrationTests.Infrastructure;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BalanceService.IntegrationTests.Workers;
 
+[Trait("Category", "Container")]
+[Trait("Category", "Integration")]
 [Collection(PostgresBalanceCollection.Name)]
-public sealed class ApplyLedgerEntryCreatedConcurrencyTests
+public sealed class ApplyLedgerEntryCreatedConcurrencyTests(PostgresBalanceFixture fixture)
 {
-    private readonly PostgresBalanceFixture _fixture;
-
-    public ApplyLedgerEntryCreatedConcurrencyTests(PostgresBalanceFixture fixture)
-    {
-        _fixture = fixture;
-    }
+    private readonly PostgresBalanceFixture _fixture = fixture;
 
     [Fact]
     public async Task Should_accumulate_distinct_events_for_same_daily_balance_under_concurrency()
@@ -168,7 +166,10 @@ public sealed class ApplyLedgerEntryCreatedConcurrencyTests
             type: "CREDIT",
             amount: "100.00",
             occurredAt: DateTimeOffset.Parse("2026-02-16T10:00:00-03:00", CultureInfo.InvariantCulture));
-        var second = first with { Id = $"evt-{Guid.NewGuid():N}" };
+        var second = first with
+        {
+            Id = $"evt-{Guid.NewGuid():N}"
+        };
 
         using (var serviceProvider = _fixture.CreateServiceProvider(firstNow))
         {

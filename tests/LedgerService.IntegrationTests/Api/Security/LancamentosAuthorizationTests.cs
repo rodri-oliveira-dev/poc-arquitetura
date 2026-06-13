@@ -10,10 +10,12 @@ using LedgerService.Domain.Entities;
 using LedgerService.Infrastructure.Persistence;
 using LedgerService.IntegrationTests.Infrastructure;
 using LedgerService.IntegrationTests.Infrastructure.Security;
+
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LedgerService.IntegrationTests.Api.Security;
 
+[Trait("Category", "Integration")]
 public sealed class LancamentosAuthorizationTests : IClassFixture<LedgerApiFactory>
 {
     private readonly LedgerApiFactory _factory;
@@ -219,6 +221,7 @@ public sealed class LancamentosAuthorizationTests : IClassFixture<LedgerApiFacto
         using var req = new HttpRequestMessage(HttpMethod.Post, "/api/v1/lancamentos")
         {
             Content = new StringContent(
+                /*lang=json,strict*/
                 """
                 {
                   "merchantId": "m1",
@@ -256,12 +259,12 @@ public sealed class LancamentosAuthorizationTests : IClassFixture<LedgerApiFacto
         // Contrato do endpoint: 201 + body (LancamentoDto) e header X-Correlation-Id
         Assert.Equal(HttpStatusCode.Created, res.StatusCode);
         Assert.True(res.Headers.TryGetValues("X-Correlation-Id", out var correlationValues));
-        var correlationId = correlationValues!.Single();
+        var correlationId = correlationValues.Single();
         Assert.True(Guid.TryParse(correlationId, out _));
 
         var body = await res.Content.ReadFromJsonAsync<LancamentoDto>(TestContext.Current.CancellationToken);
         Assert.NotNull(body);
-        Assert.StartsWith("lan_", body!.Id);
+        Assert.StartsWith("lan_", body.Id);
         Assert.Equal("lan_".Length + 8, body.Id.Length);
         Assert.Equal($"/api/v1/lancamentos/{body.Id}", res.Headers.Location?.ToString());
         Assert.Equal("tese", body.MerchantId);
@@ -283,7 +286,7 @@ public sealed class LancamentosAuthorizationTests : IClassFixture<LedgerApiFacto
         Assert.Equal(res.Headers.Location, replayRes.Headers.Location);
         var replayBody = await replayRes.Content.ReadFromJsonAsync<LancamentoDto>(TestContext.Current.CancellationToken);
         Assert.NotNull(replayBody);
-        Assert.Equivalent(body, replayBody!);
+        Assert.Equivalent(body, replayBody);
     }
 
     [Fact]
@@ -298,7 +301,7 @@ public sealed class LancamentosAuthorizationTests : IClassFixture<LedgerApiFacto
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
         var body = await res.Content.ReadFromJsonAsync<ObterStatusEstornoLancamentoResponse>(TestContext.Current.CancellationToken);
         Assert.NotNull(body);
-        Assert.Equal(estorno.Id, body!.EstornoId);
+        Assert.Equal(estorno.Id, body.EstornoId);
     }
 
     [Fact]
@@ -314,6 +317,7 @@ public sealed class LancamentosAuthorizationTests : IClassFixture<LedgerApiFacto
         using var req = new HttpRequestMessage(HttpMethod.Post, "/api/v1/lancamentos")
         {
             Content = new StringContent(
+                /*lang=json,strict*/
                 """
                 {
                   "merchantId": "m1",
@@ -465,7 +469,7 @@ public sealed class LancamentosAuthorizationTests : IClassFixture<LedgerApiFacto
         var res = await _client.SendAsync(req, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.NoContent, res.StatusCode);
         Assert.True(res.Headers.TryGetValues("Access-Control-Allow-Headers", out var values));
-        var allowedHeaders = string.Join(",", values!).ToLowerInvariant();
+        var allowedHeaders = string.Join(",", values).ToLowerInvariant();
         Assert.Contains("idempotency-key", allowedHeaders);
         Assert.Contains("x-correlation-id", allowedHeaders);
     }
@@ -475,7 +479,7 @@ public sealed class LancamentosAuthorizationTests : IClassFixture<LedgerApiFacto
         Assert.Equal("application/json", response.Content.Headers.ContentType?.MediaType);
         var body = await response.Content.ReadFromJsonAsync<ValidationErrorResponse>(TestContext.Current.CancellationToken);
         Assert.NotNull(body);
-        Assert.Equal("https://httpstatuses.com/400", body!.Type);
+        Assert.Equal("https://httpstatuses.com/400", body.Type);
         Assert.Equal("Invalid request", body.Title);
         Assert.Equal(400, body.Status);
         Assert.Equal("One or more validation errors occurred.", body.Detail);

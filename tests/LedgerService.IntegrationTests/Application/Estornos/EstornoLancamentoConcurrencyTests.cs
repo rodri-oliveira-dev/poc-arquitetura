@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 
-using LedgerService.Api.Contracts.Requests;
 using LedgerService.Api.Contracts.Responses;
 using LedgerService.Application.Lancamentos.Commands;
 using LedgerService.Application.Lancamentos.Events;
@@ -11,21 +10,20 @@ using LedgerService.Domain.Repositories;
 using LedgerService.Infrastructure.Persistence;
 using LedgerService.IntegrationTests.Infrastructure;
 using LedgerService.IntegrationTests.Infrastructure.Security;
+
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LedgerService.IntegrationTests.Application.Estornos;
 
+[Trait("Category", "Container")]
+[Trait("Category", "Integration")]
 [Collection(PostgresLedgerCollection.Name)]
-public sealed class EstornoLancamentoConcurrencyTests : IAsyncLifetime
+public sealed class EstornoLancamentoConcurrencyTests(PostgresLedgerFixture fixture) : IAsyncLifetime
 {
-    private readonly PostgresLedgerApiFactory _factory;
-
-    public EstornoLancamentoConcurrencyTests(PostgresLedgerFixture fixture)
-    {
-        _factory = new PostgresLedgerApiFactory(fixture.ConnectionString);
-    }
+    private readonly PostgresLedgerApiFactory _factory = new PostgresLedgerApiFactory(fixture.ConnectionString);
 
     public async ValueTask InitializeAsync()
     {
@@ -69,7 +67,7 @@ public sealed class EstornoLancamentoConcurrencyTests : IAsyncLifetime
             .ReadFromJsonAsync<SolicitarEstornoLancamentoResponse>(TestContext.Current.CancellationToken);
         Assert.NotNull(created);
         var requestOutboxCount = await db.OutboxMessages
-            .Where(x => x.AggregateId == created!.EstornoId && x.EventType == LancamentoEstornoSolicitadoV1.EventType)
+            .Where(x => x.AggregateId == created.EstornoId && x.EventType == LancamentoEstornoSolicitadoV1.EventType)
             .CountAsync(TestContext.Current.CancellationToken);
         Assert.Equal(1, requestOutboxCount);
     }

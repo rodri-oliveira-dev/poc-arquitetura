@@ -1,14 +1,17 @@
-using LedgerService.Domain.Entities;
-using LedgerService.Infrastructure.Persistence;
-using LedgerService.IntegrationTests.Infrastructure;
-using LedgerService.IntegrationTests.Infrastructure.Security;
-using Microsoft.Extensions.DependencyInjection;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 
+using LedgerService.Domain.Entities;
+using LedgerService.Infrastructure.Persistence;
+using LedgerService.IntegrationTests.Infrastructure;
+using LedgerService.IntegrationTests.Infrastructure.Security;
+
+using Microsoft.Extensions.DependencyInjection;
+
 namespace LedgerService.IntegrationTests.Api.Outbox;
 
+[Trait("Category", "Integration")]
 public sealed class OutboxAdminEndpointTests : IClassFixture<LedgerApiFactory>
 {
     private readonly HttpClient _client;

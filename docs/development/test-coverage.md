@@ -23,10 +23,10 @@ Linux/macOS:
 ./test.sh
 ```
 
-Esses scripts representam a validacao completa de cobertura. O `pre-push` padrao usa um caminho rapido sem cobertura; para incluir cobertura no hook local, execute:
+Esses scripts representam a validacao completa de cobertura. O `pre-push` padrao usa um caminho rapido sem cobertura e nao possui modo de cobertura embutido; para validar cobertura localmente, execute:
 
 ```bash
-PRE_PUSH_COVERAGE=true .githooks/pre-push
+./test.sh
 ```
 
 Comando equivalente:
@@ -95,7 +95,7 @@ Depois da coleta, os scripts executam o ReportGenerator e leem `TestResults/cove
 - A validacao considera a cobertura consolidada da solution inteira.
 - `LedgerService.Worker` e `BalanceService.Worker` tambem precisam atingir 85% de cobertura de linhas por assembly.
 - O minimo aceito e 85% de cobertura de linhas.
-- O mesmo limite deve ser usado localmente, no `pre-push` com `PRE_PUSH_COVERAGE=true` e no CI completo.
+- O mesmo limite deve ser usado localmente pelos scripts `test.sh`/`test.ps1` e no CI completo.
 - Se `LedgerService.Worker` ou `BalanceService.Worker` estiver ausente do `Summary.json`/`Summary.txt`, o gate falha; assembly ausente nao e tratado como sucesso.
 - Relatorios ficam em `TestResults/`, que nao e versionado.
 

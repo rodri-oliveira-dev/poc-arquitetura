@@ -13,6 +13,7 @@ using PubSubProducerOptions = LedgerWorker::LedgerService.Worker.Messaging.PubSu
 
 namespace LedgerService.IntegrationTests.Messaging.PubSub;
 
+[Trait("Category", "Integration")]
 public sealed class PubSubOutboxMessagePublisherEmulatorTests
 {
     private const string EmulatorHostVariable = "PUBSUB_EMULATOR_HOST";
@@ -72,7 +73,7 @@ public sealed class PubSubOutboxMessagePublisherEmulatorTests
                 aggregateType: "LedgerEntry",
                 aggregateId: Guid.NewGuid(),
                 eventType: "LedgerEntryCreated.v1",
-                payload: """{"amount":10}""",
+                payload: /*lang=json,strict*/ """{"amount":10}""",
                 occurredAt: DateTime.UtcNow,
                 correlationId,
                 traceParent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",

@@ -3,16 +3,16 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 
 using BalanceService.Api.Contracts;
+using BalanceService.Domain.Balances;
+using BalanceService.Infrastructure.Persistence;
 using BalanceService.IntegrationTests.Infrastructure;
 using BalanceService.IntegrationTests.Infrastructure.Security;
-using BalanceService.Infrastructure.Persistence;
-using BalanceService.Domain.Balances;
-
 
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BalanceService.IntegrationTests.Api;
 
+[Trait("Category", "Integration")]
 public sealed class ConsolidadosEndpointsTests : IClassFixture<BalanceApiFactory>
 {
     private readonly HttpClient _client;
@@ -54,7 +54,7 @@ public sealed class ConsolidadosEndpointsTests : IClassFixture<BalanceApiFactory
         var res = await _client.SendAsync(req, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.NoContent, res.StatusCode);
         Assert.True(res.Headers.TryGetValues("Access-Control-Allow-Headers", out var values));
-        var allowedHeaders = string.Join(",", values!).ToLowerInvariant();
+        var allowedHeaders = string.Join(",", values).ToLowerInvariant();
         Assert.Contains("idempotency-key", allowedHeaders);
         Assert.Contains("x-correlation-id", allowedHeaders);
     }
@@ -135,7 +135,7 @@ public sealed class ConsolidadosEndpointsTests : IClassFixture<BalanceApiFactory
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
         var body = await res.Content.ReadFromJsonAsync<DailyBalanceResponse>(TestContext.Current.CancellationToken);
         Assert.NotNull(body);
-        Assert.Equal(merchantId, body!.MerchantId);
+        Assert.Equal(merchantId, body.MerchantId);
         Assert.Equal("2026-02-14", body.Date);
         Assert.Equal("BRL", body.Currency);
         Assert.Equal("150.00", body.TotalCredits);
@@ -210,7 +210,7 @@ public sealed class ConsolidadosEndpointsTests : IClassFixture<BalanceApiFactory
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
         var body = await res.Content.ReadFromJsonAsync<PeriodBalanceResponse>(TestContext.Current.CancellationToken);
         Assert.NotNull(body);
-        Assert.Equal(merchantId, body!.MerchantId);
+        Assert.Equal(merchantId, body.MerchantId);
         Assert.Equal("2026-02-10", body.From);
         Assert.Equal("2026-02-14", body.To);
         Assert.Equal("BRL", body.Currency);
@@ -227,7 +227,8 @@ public sealed class ConsolidadosEndpointsTests : IClassFixture<BalanceApiFactory
         Assert.Equal("150.00", body.Items[1].TotalCredits);
         Assert.Equal("0.00", body.Items[1].TotalDebits);
         Assert.Equal("150.00", body.Items[1].NetBalance);
-        Assert.False(string.IsNullOrWhiteSpace(body.Items[1].AsOf));        Assert.False(string.IsNullOrWhiteSpace(body.CalculatedAt));
+        Assert.False(string.IsNullOrWhiteSpace(body.Items[1].AsOf));
+        Assert.False(string.IsNullOrWhiteSpace(body.CalculatedAt));
     }
 
     private static async Task<ValidationErrorResponse> AssertValidationErrorResponseAsync(HttpResponseMessage response)
@@ -235,7 +236,7 @@ public sealed class ConsolidadosEndpointsTests : IClassFixture<BalanceApiFactory
         Assert.Equal("application/json", response.Content.Headers.ContentType?.MediaType);
         var body = await response.Content.ReadFromJsonAsync<ValidationErrorResponse>(TestContext.Current.CancellationToken);
         Assert.NotNull(body);
-        Assert.Equal("https://httpstatuses.com/400", body!.Type);
+        Assert.Equal("https://httpstatuses.com/400", body.Type);
         Assert.Equal("Invalid request", body.Title);
         Assert.Equal(400, body.Status);
         Assert.Equal("One or more validation errors occurred.", body.Detail);

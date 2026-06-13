@@ -2,9 +2,8 @@
 set -eu
 
 CONFIGURATION="${CONFIGURATION:-Release}"
-THRESHOLD="${COVERAGE_THRESHOLD:-85}"
-PRE_PUSH_COVERAGE="${PRE_PUSH_COVERAGE:-false}"
 ZERO_SHA="0000000000000000000000000000000000000000"
+UNIT_TEST_FILTER="${UNIT_TEST_FILTER:-Category!=Integration&Category!=Container&Category!=Contract}"
 
 if command -v git >/dev/null 2>&1; then
   repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
@@ -14,100 +13,37 @@ fi
 
 cd "$repo_root"
 
-results_dir="$repo_root/TestResults/pre-push"
-trivy_tf_vars="$repo_root/infra/terraform/environments/dev/validation.tfvars"
-
-run_trivy_security_scan() {
-  if ! command -v trivy >/dev/null 2>&1; then
-    echo "==> pre-push: Trivy nao encontrado; validacao local de Dockerfile, Terraform, secrets e filesystem ignorada"
-    echo "==> pre-push: instale o Trivy para feedback antecipado. Consulte docs/development/trivy-security-scan.md"
-    return 0
-  fi
-
-  echo "==> pre-push: executando Trivy config (Dockerfile, Terraform e misconfigurations)"
-  trivy config \
-    --severity HIGH,CRITICAL \
-    --exit-code 1 \
-    --tf-vars "$trivy_tf_vars" \
-    --skip-dirs node_modules \
-    --skip-dirs .git \
-    --skip-dirs dist \
-    --skip-dirs .terraform \
-    --skip-dirs bin \
-    --skip-dirs "**/bin" \
-    --skip-dirs obj \
-    --skip-dirs "**/obj" \
-    --skip-dirs .vs \
-    --skip-dirs .idea \
-    --skip-dirs TestResults \
-    --skip-dirs "**/TestResults" \
-    --skip-dirs coverage \
-    --skip-dirs CodeCoverage \
-    --skip-dirs StrykerOutput \
-    --skip-dirs .dotnet \
-    --skip-dirs .dotnet-home \
-    --skip-dirs .nuget \
-    --skip-dirs artifacts \
-    --skip-dirs infra/nginx/certs \
-    .
-
-  echo "==> pre-push: executando Trivy fs (vulnerabilidades, secrets e misconfigurations)"
-  trivy fs \
-    --scanners vuln,secret,misconfig \
-    --severity HIGH,CRITICAL \
-    --exit-code 1 \
-    --tf-vars "$trivy_tf_vars" \
-    --skip-dirs node_modules \
-    --skip-dirs .git \
-    --skip-dirs dist \
-    --skip-dirs .terraform \
-    --skip-dirs bin \
-    --skip-dirs "**/bin" \
-    --skip-dirs obj \
-    --skip-dirs "**/obj" \
-    --skip-dirs .vs \
-    --skip-dirs .idea \
-    --skip-dirs TestResults \
-    --skip-dirs "**/TestResults" \
-    --skip-dirs coverage \
-    --skip-dirs CodeCoverage \
-    --skip-dirs StrykerOutput \
-    --skip-dirs .dotnet \
-    --skip-dirs .dotnet-home \
-    --skip-dirs .nuget \
-    --skip-dirs artifacts \
-    --skip-dirs infra/nginx/certs \
-    .
-}
-
-if find "$repo_root/infra/terraform" -type f -name '*.tf' -print -quit 2>/dev/null | grep -q .; then
-  echo "==> pre-push: validando Terraform versionado"
-  sh "$repo_root/scripts/validate-terraform.sh"
-fi
-
-run_trivy_security_scan
-
 if command -v mktemp >/dev/null 2>&1; then
   changed_files="$(mktemp "${TMPDIR:-/tmp}/pre-push-changed.XXXXXX")"
+  dotnet_format_files="$(mktemp "${TMPDIR:-/tmp}/pre-push-format.XXXXXX")"
 else
   changed_files="${TMPDIR:-/tmp}/pre-push-changed.$$"
+  dotnet_format_files="${TMPDIR:-/tmp}/pre-push-format.$$"
   : >"$changed_files"
+  : >"$dotnet_format_files"
 fi
 
-trap 'rm -f "$changed_files"' EXIT
+trap 'rm -f "$changed_files" "$dotnet_format_files"' EXIT
 
-is_impacting_path() {
+is_dotnet_impacting_path() {
   case "$1" in
-    src/*|tests/*|.github/workflows/*|.githooks/*|scripts/*|tools/*|loadtests/k6/lib/*|loadtests/k6/scenarios/*)
+    src/*|tests/*|.github/workflows/*|.githooks/*|scripts/*|tools/*)
       return 0
       ;;
     *.cs|*.csproj|*.sln|*.slnx|*.props|*.targets|*.runsettings|*.editorconfig|*.globalconfig|*.ruleset)
       return 0
       ;;
-    *.json|*.yml|*.yaml)
+    global.json|NuGet.config|Directory.Build.props|Directory.Build.targets|Directory.Packages.props|dotnet-tools.json|coverlet.runsettings|test.sh|test.ps1)
       return 0
       ;;
-    Dockerfile|*/Dockerfile|compose.yaml|compose.*.yaml|global.json|NuGet.config|Directory.Build.props|Directory.Build.targets|Directory.Packages.props|dotnet-tools.json|coverlet.runsettings|test.sh|test.ps1)
+  esac
+
+  return 1
+}
+
+is_terraform_impacting_path() {
+  case "$1" in
+    infra/terraform/*.tf|infra/terraform/*.tfvars|infra/terraform/**/*.tf|infra/terraform/**/*.tfvars|*.tf|*.tfvars)
       return 0
       ;;
   esac
@@ -309,115 +245,82 @@ if [ "$stdin_seen" = false ]; then
   fi
 fi
 
+dotnet_changes=false
+terraform_changes=false
+dotnet_format_check=true
+
 if [ "$diff_is_safe" = false ]; then
   echo "==> pre-push: validacoes serao executadas por seguranca"
+  dotnet_changes=true
+  terraform_changes=true
+  dotnet_format_check=false
 else
-  impacting_file=""
   while IFS= read -r changed_file
   do
-    [ -z "$changed_file" ] && continue
+    [ -n "$changed_file" ] || continue
 
-    if is_impacting_path "$changed_file"; then
-      impacting_file="$changed_file"
-      break
+    if is_dotnet_impacting_path "$changed_file"; then
+      dotnet_changes=true
+      echo "==> pre-push: alteracao .NET impactante detectada em $changed_file"
+
+      case "$changed_file" in
+        *.cs)
+          printf '%s\n' "$changed_file" >>"$dotnet_format_files"
+          ;;
+      esac
+    fi
+
+    if is_terraform_impacting_path "$changed_file"; then
+      terraform_changes=true
+      echo "==> pre-push: alteracao Terraform detectada em $changed_file"
     fi
   done <"$changed_files"
 
-  if [ -z "$impacting_file" ]; then
-    echo "==> pre-push: nenhuma alteracao impactante detectada; pulando build, testes e cobertura"
+  if [ "$dotnet_changes" = false ] && [ "$terraform_changes" = false ]; then
+    echo "==> pre-push: nenhuma alteracao localmente impactante detectada; pulando validacoes locais"
+    echo "==> pre-push: gates pesados continuam no Pull Request/GitHub Actions"
     exit 0
   fi
+fi
 
-  echo "==> pre-push: alteracao impactante detectada em $impacting_file"
+if [ "$terraform_changes" = true ]; then
+  if command -v terraform >/dev/null 2>&1; then
+    echo "==> pre-push: verificando formatacao Terraform"
+    terraform fmt -check -recursive "$repo_root/infra/terraform"
+  else
+    echo "==> pre-push: Terraform CLI nao encontrado; fmt local ignorado"
+    echo "==> pre-push: terraform validate completo roda no Pull Request"
+  fi
+fi
+
+if [ "$dotnet_changes" = false ]; then
+  echo "==> pre-push: sem alteracoes .NET; pulando restore, format, build e testes unitarios"
+  exit 0
 fi
 
 echo "==> pre-push: restaurando dependencias"
 dotnet restore ./LedgerService.slnx
 
+if [ "$dotnet_format_check" = true ] && [ -s "$dotnet_format_files" ]; then
+  echo "==> pre-push: verificando formatacao dos arquivos .cs alterados"
+  dotnet format whitespace ./LedgerService.slnx \
+    --verify-no-changes \
+    --no-restore \
+    --verbosity minimal \
+    --include $(cat "$dotnet_format_files")
+else
+  echo "==> pre-push: sem arquivos .cs alterados ou diff inseguro; formatacao .NET local ignorada"
+fi
+
 echo "==> pre-push: executando build ($CONFIGURATION)"
 dotnet build ./LedgerService.slnx --configuration "$CONFIGURATION" --no-restore
 
-case "$PRE_PUSH_COVERAGE" in
-  true|TRUE|1|yes|YES)
-    coverage_enabled=true
-    ;;
-  *)
-    coverage_enabled=false
-    ;;
-esac
-
-if [ "$coverage_enabled" != true ]; then
-  echo "==> pre-push: executando testes rapidos sem cobertura"
-  dotnet test ./LedgerService.slnx \
-    --configuration "$CONFIGURATION" \
-    --no-build \
-    --no-restore
-
-  echo "==> pre-push: build e testes rapidos aprovados"
-  echo "==> pre-push: para executar cobertura neste hook, use PRE_PUSH_COVERAGE=true"
-  exit 0
-fi
-
-echo "==> pre-push: executando testes com cobertura"
-rm -rf "$results_dir"
-mkdir -p "$results_dir"
-
+echo "==> pre-push: executando testes unitarios rapidos sem cobertura"
 dotnet test ./LedgerService.slnx \
   --configuration "$CONFIGURATION" \
   --no-build \
   --no-restore \
-  --collect:"XPlat Code Coverage" \
-  --settings ./coverlet.runsettings \
-  --results-directory "$results_dir"
+  --filter "$UNIT_TEST_FILTER"
 
-echo "==> pre-push: consolidando cobertura"
-dotnet tool restore >/dev/null
-
-report_dir="$results_dir/coverage-report"
-dotnet tool run reportgenerator \
-  -reports:"$results_dir/**/coverage.cobertura.xml" \
-  -targetdir:"$report_dir" \
-  -reporttypes:"JsonSummary;TextSummary" >/dev/null
-
-summary_txt="$report_dir/Summary.txt"
-if [ ! -f "$summary_txt" ]; then
-  echo "pre-push: Summary.txt nao encontrado em $summary_txt." >&2
-  exit 1
-fi
-
-coverage="$(awk -F'[:%]' '/^[[:space:]]*Line coverage:/ { gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2); print $2; exit }' "$summary_txt")"
-if [ -z "$coverage" ]; then
-  echo "pre-push: nao foi possivel ler a cobertura de linhas em $summary_txt." >&2
-  exit 1
-fi
-
-echo "==> pre-push: cobertura total de linhas: $coverage%"
-
-if ! awk -v coverage="$coverage" -v threshold="$THRESHOLD" 'BEGIN { exit (coverage + 0 >= threshold + 0 ? 0 : 1) }'; then
-  echo "pre-push: cobertura abaixo do minimo. Atual=$coverage% Minimo=$THRESHOLD%" >&2
-  echo "Corrija os testes ou revise a necessidade da mudanca antes de enviar o push." >&2
-  exit 1
-fi
-
-assert_assembly_coverage() {
-  assembly_name="$1"
-
-  assembly_coverage="$(awk -v assembly="$assembly_name" '$1 == assembly { gsub(/%/, "", $NF); print $NF; exit }' "$summary_txt")"
-  if [ -z "$assembly_coverage" ]; then
-    echo "pre-push: nao foi possivel encontrar a cobertura de $assembly_name em $summary_txt." >&2
-    exit 1
-  fi
-
-  echo "==> pre-push: cobertura de linhas de $assembly_name: $assembly_coverage%"
-
-  if ! awk -v coverage="$assembly_coverage" -v threshold="$THRESHOLD" 'BEGIN { exit (coverage + 0 >= threshold + 0 ? 0 : 1) }'; then
-    echo "pre-push: cobertura de $assembly_name abaixo do minimo. Atual=$assembly_coverage% Minimo=$THRESHOLD%" >&2
-    echo "Corrija os testes ou revise a necessidade da mudanca antes de enviar o push." >&2
-    exit 1
-  fi
-}
-
-assert_assembly_coverage "LedgerService.Worker"
-assert_assembly_coverage "BalanceService.Worker"
-
-echo "==> pre-push: build, testes e cobertura aprovados"
+echo "==> pre-push: build, formatacao e testes unitarios aprovados"
+echo "==> pre-push: testes Integration/Container/Contract, cobertura, SonarQube, Trivy e Terraform validate completo ficam no Pull Request"

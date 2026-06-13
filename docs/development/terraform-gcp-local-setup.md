@@ -78,9 +78,9 @@ terraform init -backend-config="bucket=rodri-terraform-state-bucket"
 terraform validate
 ```
 
-O hook `.githooks/pre-push` executa a mesma validacao quando encontra arquivos `*.tf` versionados. A ausencia de `terraform` ou `tflint` falha com orientacao para instalar a ferramenta. A validacao sintatica basica nao depende de autenticacao GCP, secrets ou projeto real.
+O hook `.githooks/pre-push` executa apenas `terraform fmt -check -recursive ./infra/terraform` quando encontra alteracoes em `*.tf` ou `*.tfvars`. Se a Terraform CLI nao estiver disponivel, o hook avisa e permite o push; a validacao completa fica no Pull Request.
 
-O mesmo hook tambem executa Trivy quando a ferramenta esta instalada localmente, cobrindo misconfigurations em Terraform e Dockerfiles, secrets e vulnerabilidades detectaveis no filesystem. A ausencia local do Trivy mostra apenas um aviso e nao bloqueia o push. Consulte [validacao de seguranca com Trivy](trivy-security-scan.md).
+O hook nao executa Trivy automaticamente. Para feedback antecipado, rode Trivy manualmente conforme [validacao de seguranca com Trivy](trivy-security-scan.md). O workflow de infraestrutura continua executando Trivy no Pull Request quando ha mudancas cobertas pelos filtros.
 
 Para evitar falsos positivos fora do codigo versionado, os scans do Trivy ignoram diretorios gerados, dependencias locais e caches como `node_modules`, `dist`, `bin`, `obj`, `TestResults`, `coverage` e `.terraform`.
 

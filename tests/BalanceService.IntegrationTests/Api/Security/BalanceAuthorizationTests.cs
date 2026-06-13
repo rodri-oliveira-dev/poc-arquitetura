@@ -1,10 +1,12 @@
-using BalanceService.IntegrationTests.Infrastructure;
-using BalanceService.IntegrationTests.Infrastructure.Security;
 using System.Net;
 using System.Net.Http.Headers;
 
+using BalanceService.IntegrationTests.Infrastructure;
+using BalanceService.IntegrationTests.Infrastructure.Security;
+
 namespace BalanceService.IntegrationTests.Api.Security;
 
+[Trait("Category", "Integration")]
 public sealed class BalanceAuthorizationTests : IClassFixture<BalanceApiFactory>
 {
     private readonly HttpClient _client;

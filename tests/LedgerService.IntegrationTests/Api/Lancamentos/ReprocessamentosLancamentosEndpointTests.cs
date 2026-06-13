@@ -2,18 +2,20 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 
-using LedgerService.Api.Contracts.Requests;
 using LedgerService.Api.Contracts.Responses;
 using LedgerService.Application.Lancamentos.Commands;
 using LedgerService.Domain.Entities;
 using LedgerService.Infrastructure.Persistence;
 using LedgerService.IntegrationTests.Infrastructure;
 using LedgerService.IntegrationTests.Infrastructure.Security;
+
 using MediatR;
+
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LedgerService.IntegrationTests.Api.Lancamentos;
 
+[Trait("Category", "Integration")]
 public sealed class ReprocessamentosLancamentosEndpointTests : IClassFixture<LedgerApiFactory>
 {
     private readonly LedgerApiFactory _factory;
@@ -40,7 +42,7 @@ public sealed class ReprocessamentosLancamentosEndpointTests : IClassFixture<Led
         Assert.Equal(HttpStatusCode.Accepted, res.StatusCode);
         var body = await res.Content.ReadFromJsonAsync<SolicitarReprocessamentoLancamentosResponse>(TestContext.Current.CancellationToken);
         Assert.NotNull(body);
-        Assert.NotEqual(Guid.Empty, body!.ReprocessamentoId);
+        Assert.NotEqual(Guid.Empty, body.ReprocessamentoId);
         Assert.Equal("m1", body.MerchantId);
         Assert.Equal(new DateOnly(2026, 5, 1), body.DataInicial);
         Assert.Equal(new DateOnly(2026, 5, 6), body.DataFinal);
@@ -125,11 +127,11 @@ public sealed class ReprocessamentosLancamentosEndpointTests : IClassFixture<Led
         Assert.NotNull(created);
         Authenticate(scopes: "ledger.read");
 
-        var res = await _client.GetAsync($"/api/v1/lancamentos/reprocessamentos/{created!.ReprocessamentoId}", TestContext.Current.CancellationToken);
+        var res = await _client.GetAsync($"/api/v1/lancamentos/reprocessamentos/{created.ReprocessamentoId}", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
         var body = await res.Content.ReadFromJsonAsync<ObterStatusReprocessamentoLancamentosResponse>(TestContext.Current.CancellationToken);
         Assert.NotNull(body);
-        Assert.Equal(created.ReprocessamentoId, body!.ReprocessamentoId);
+        Assert.Equal(created.ReprocessamentoId, body.ReprocessamentoId);
         Assert.Equal("Pending", body.Status);
         Assert.Equal("Correcao de regra de consolidacao", body.Motivo);
     }
@@ -155,7 +157,7 @@ public sealed class ReprocessamentosLancamentosEndpointTests : IClassFixture<Led
         Assert.NotNull(created);
         Authenticate(scopes: "ledger.read", merchantIds: "m2");
 
-        var res = await _client.GetAsync($"/api/v1/lancamentos/reprocessamentos/{created!.ReprocessamentoId}", TestContext.Current.CancellationToken);
+        var res = await _client.GetAsync($"/api/v1/lancamentos/reprocessamentos/{created.ReprocessamentoId}", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
     }
 
@@ -171,7 +173,7 @@ public sealed class ReprocessamentosLancamentosEndpointTests : IClassFixture<Led
         Assert.NotNull(created);
         Authenticate(scopes: "ledger.read", merchantIds: null);
 
-        var res = await _client.GetAsync($"/api/v1/lancamentos/reprocessamentos/{created!.ReprocessamentoId}", TestContext.Current.CancellationToken);
+        var res = await _client.GetAsync($"/api/v1/lancamentos/reprocessamentos/{created.ReprocessamentoId}", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
     }
 
@@ -191,13 +193,13 @@ public sealed class ReprocessamentosLancamentosEndpointTests : IClassFixture<Led
         using (var scope = _factory.Services.CreateScope())
         {
             var sender = scope.ServiceProvider.GetRequiredService<ISender>();
-            await sender.Send(new ProcessarReprocessamentoLancamentosCommand(created!.ReprocessamentoId), TestContext.Current.CancellationToken);
+            await sender.Send(new ProcessarReprocessamentoLancamentosCommand(created.ReprocessamentoId), TestContext.Current.CancellationToken);
             await sender.Send(new ProcessarReprocessamentoLancamentosCommand(created.ReprocessamentoId), TestContext.Current.CancellationToken);
         }
 
         using var assertScope = _factory.Services.CreateScope();
         var db = assertScope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var reprocessamento = db.ReprocessamentosLancamentos.Single(x => x.Id == created!.ReprocessamentoId);
+        var reprocessamento = db.ReprocessamentosLancamentos.Single(x => x.Id == created.ReprocessamentoId);
         Assert.Equal(ReprocessamentoLancamentosStatus.Completed, reprocessamento.Status);
         Assert.NotNull(reprocessamento.ProcessingStartedAt);
         Assert.NotNull(reprocessamento.CompletedAt);
@@ -268,7 +270,7 @@ public sealed class ReprocessamentosLancamentosEndpointTests : IClassFixture<Led
         Assert.Equal("application/json", response.Content.Headers.ContentType?.MediaType);
         var body = await response.Content.ReadFromJsonAsync<ValidationErrorResponse>(TestContext.Current.CancellationToken);
         Assert.NotNull(body);
-        Assert.Equal("https://httpstatuses.com/400", body!.Type);
+        Assert.Equal("https://httpstatuses.com/400", body.Type);
         Assert.Equal("Invalid request", body.Title);
         Assert.Equal(400, body.Status);
         Assert.Equal("One or more validation errors occurred.", body.Detail);

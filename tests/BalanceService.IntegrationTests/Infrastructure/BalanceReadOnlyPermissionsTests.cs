@@ -1,19 +1,17 @@
 using System.Diagnostics.CodeAnalysis;
 
 using Microsoft.EntityFrameworkCore;
+
 using Npgsql;
 
 namespace BalanceService.IntegrationTests.Infrastructure;
 
+[Trait("Category", "Container")]
+[Trait("Category", "Integration")]
 [Collection(PostgresBalanceCollection.Name)]
-public sealed class BalanceReadOnlyPermissionsTests
+public sealed class BalanceReadOnlyPermissionsTests(PostgresBalanceFixture fixture)
 {
-    private readonly PostgresBalanceFixture _fixture;
-
-    public BalanceReadOnlyPermissionsTests(PostgresBalanceFixture fixture)
-    {
-        _fixture = fixture;
-    }
+    private readonly PostgresBalanceFixture _fixture = fixture;
 
     [Fact]
     public async Task Balance_read_user_should_not_execute_dml_on_balance_schema()
