@@ -12,6 +12,7 @@ BUILD_CONFIGURATION="${BUILD_CONFIGURATION:-Release}"
 SONAR_HOST_URL="${SONAR_HOST_URL:-http://localhost:9000}"
 DEFAULT_TEST_RESULTS_DIR="$REPO_ROOT/artifacts/test-results"
 TEST_RESULTS_DIR="${TEST_RESULTS_DIR:-$DEFAULT_TEST_RESULTS_DIR}"
+SONAR_PLACEHOLDER_SECRET_LINE_REGEX='.*(PASSWORD|[Pp]assword|PWD|PGPASSWORD|CLIENT_SECRET|[Cc]lient[_-]?[Ss]ecret|SECRET|[Ss]ecret|TOKEN|[Tt]oken|API[_-]?KEY|[Aa]pi[_-]?[Kk]ey).*<[A-Z0-9_]*(PASSWORD|SECRET|TOKEN|API_KEY)[A-Z0-9_]*>.*'
 
 if [[ -z "${SONAR_TOKEN:-}" ]]; then
   echo "SONAR_TOKEN nao esta definido. Execute com SONAR_TOKEN=<token> bash scripts/sonar-analyze.sh" >&2
@@ -47,7 +48,9 @@ dotnet sonarscanner begin \
   /n:"$PROJECT_NAME" \
   /d:sonar.host.url="$SONAR_HOST_URL" \
   /d:sonar.token="$SONAR_TOKEN" \
-  /d:sonar.exclusions="**/appsettings.Local*.json" \
+  /d:sonar.issue.ignore.block=placeholderSecrets \
+  /d:sonar.issue.ignore.block.placeholderSecrets.beginBlockRegexp="$SONAR_PLACEHOLDER_SECRET_LINE_REGEX" \
+  /d:sonar.issue.ignore.block.placeholderSecrets.endBlockRegexp="$SONAR_PLACEHOLDER_SECRET_LINE_REGEX" \
   /d:sonar.cs.opencover.reportsPaths="$TEST_RESULTS_DIR/**/coverage.opencover.xml"
 
 echo "==> Building $SOLUTION_PATH with configuration $BUILD_CONFIGURATION"

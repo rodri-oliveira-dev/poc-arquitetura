@@ -46,7 +46,7 @@ O script restaura as tools locais, inicia o SonarScanner for .NET, compila `Ledg
 
 A cobertura para o SonarQube usa o formato OpenCover, consumido por `sonar.cs.opencover.reportsPaths`. O mesmo `coverlet.runsettings` tambem gera Cobertura, preservando o formato usado pelo fluxo de cobertura existente do CI.
 
-O script exclui da analise somente `**/appsettings.Local*.json`, mantendo `appsettings.json`, `appsettings.Development.json` e demais configuracoes nao locais no escopo do SonarQube.
+O script mantem a deteccao geral de credenciais hard-coded ativa, mas ignora issues somente em linhas cujo contexto pareca credencial e cujo valor seja um placeholder uppercase de secret entre `<...>`, como `Password=<LEDGER_DB_PASSWORD>` ou `KEYCLOAK_CLIENT_SECRET=<KEYCLOAK_CLIENT_SECRET>`. Valores reais ou literais, como `Password=postgres`, `Password=123456`, `Password=localpassword` ou `Password=my-secret`, continuam fora desse padrao.
 
 ## Tratativas de erro
 
