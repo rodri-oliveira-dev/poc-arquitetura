@@ -14,6 +14,11 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [Maturidade tecnica do projeto](maturity.md): criterios atuais de documentacao, seguranca, testes, CI, observabilidade e pendencias.
 - [Roadmap arquitetural consolidado](roadmap.md): proximas frentes por area de maturidade, sem representar compromisso de producao.
 
+## Estudos orientados
+
+- [Personas de estudo](personas/README.md): leitura complementar com Product Owner e Arquiteto de Software para orientar estudos incrementais.
+- [Estudos orientados](study/README.md): backlog inicial derivado das personas, com estudos pequenos para documentacao, dominio, contratos, testes e observabilidade.
+
 ## How-to
 
 - [Autenticacao e autorizacao](development/authentication.md): obter token local, validar scopes, audiences e autorizacao por merchant.
@@ -72,7 +77,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 
 - [Documentacao arquitetural](architecture/README.md): modelo LikeC4 e publicacao no GitHub Pages.
 - [Boundaries arquiteturais](architecture/boundaries.md): responsabilidades de `Api`, `Application`, `Domain` e `Infrastructure`.
-- [Analise arquitetural e decisoes recomendadas](architecture/decisions.md): riscos, simplificacoes e roadmap pragmatico.
+- [Analise arquitetural e decisoes recomendadas](architecture/decisions.md): riscos, simplificacoes e roadmap pragmatico de evolucao.
 - [Baseline de evolucao produtiva](architecture/production-readiness.md): requisitos recomendados para evolucao futura fora do laboratorio local, ainda sem implementacao produtiva.
 - [Roadmap arquitetural consolidado](roadmap.md): leitura consolidada das frentes feitas, parciais, proximos passos e itens fora de escopo por enquanto.
 - [ADRs](adrs/README.md): historico de decisoes arquiteturais e pontos de melhoria.
