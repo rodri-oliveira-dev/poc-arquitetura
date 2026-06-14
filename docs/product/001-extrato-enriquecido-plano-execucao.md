@@ -8,6 +8,12 @@ A funcionalidade deve ser entregue em fatias pequenas. Cada etapa inclui testes 
 
 Permitir que o usuario consulte um extrato financeiro por merchant e periodo, visualizando os lancamentos em ordem deterministica e o saldo apos cada lancamento.
 
+## Regra central que os testes devem proteger
+
+O saldo apos cada lancamento deve ser calculado a partir de uma sequencia deterministica de movimentos do mesmo merchant e periodo.
+
+A query de Infrastructure e responsavel por entregar os movimentos corretos, filtrados e ordenados. A Application e responsavel por compor o extrato e calcular o saldo acumulado sem depender de detalhe de banco ou HTTP.
+
 ## Prompt 1 - Descoberta tecnica e contrato
 
 ### Objetivo
@@ -37,38 +43,78 @@ A validacao e documental. O PR deve registrar contrato proposto, trade-offs e pr
 
 ### Objetivo
 
-Criar a regra de composicao do extrato na camada de Application, sem expor endpoint HTTP ainda.
+Criar a regra de composicao do extrato na camada de Application, sem expor endpoint HTTP e sem acoplar a regra ao EF Core.
 
 ### Entregas
 
 - Request interno do caso de uso.
 - Response interno do extrato.
 - Item do extrato com valor, tipo, data, referencia e saldo apos lancamento.
-- Regra de saldo acumulado em ordem deterministica.
+- Regra pura de saldo acumulado.
+- Validacoes de entrada do caso de uso.
 
-### Testes unitarios
+### Regras que devem ser validadas
 
-- Deve calcular saldo acumulado para lista de lancamentos positivos.
-- Deve calcular saldo acumulado para entradas e saidas misturadas.
-- Deve manter saldo correto quando houver estorno ou movimento negativo, conforme modelo atual.
-- Deve retornar lista vazia e saldo adequado quando nao houver lancamentos.
-- Deve respeitar a ordenacao recebida ou aplicar ordenacao explicitamente, conforme decisao do contrato.
+- O extrato pertence a um unico merchant.
+- O periodo informado deve ser valido.
+- A sequencia de calculo deve ser deterministica.
+- O saldo apos lancamento deve refletir todos os movimentos anteriores da mesma sequencia.
+- O calculo nao deve depender de API, banco, timezone local da maquina ou ordem acidental de colecao.
+- Lista vazia deve ser um resultado valido, nao um erro.
 
-### Testes de componente
+### Testes unitarios obrigatorios
 
-- Caso de uso com repositorio fake ou stub deve retornar response completa.
-- Caso de uso deve validar periodo invalido.
-- Caso de uso deve validar merchant obrigatorio, se esse for o contrato escolhido.
+#### Calculo de saldo acumulado
+
+- Dado saldo inicial zero e tres entradas positivas, deve acumular progressivamente.
+- Dado saldo inicial zero com entrada, saida e nova entrada, deve refletir cada movimento na ordem.
+- Dado saldo inicial diferente de zero, deve iniciar o acumulado a partir desse saldo.
+- Dado movimento negativo ou estorno conforme modelo atual, deve reduzir o saldo corretamente.
+- Dado valor decimal, deve preservar precisao monetaria sem arredondamento inesperado.
+
+#### Ordenacao e determinismo
+
+- Dado movimentos fora de ordem, deve calcular usando a ordenacao definida no contrato.
+- Dado dois movimentos na mesma data/hora, deve usar criterio secundario estavel.
+- Dado dois movimentos com mesma data/hora e mesmo criterio secundario invalido ou ausente, deve haver decisao explicita: rejeitar, ordenar por outro campo ou documentar impossibilidade.
+
+#### Saida vazia
+
+- Dado periodo sem movimentos, deve retornar lista vazia.
+- Dado periodo sem movimentos e saldo inicial conhecido, deve retornar metadados coerentes, se o contrato incluir saldo inicial/final.
+
+#### Validacao de entrada
+
+- Merchant vazio deve falhar, se merchant for obrigatorio.
+- Data inicial maior que data final deve falhar.
+- Periodo aberto deve seguir decisao do contrato: rejeitar ou aplicar default documentado.
+- Tamanho de pagina invalido deve falhar, se a paginacao for definida nesta etapa.
+
+### Testes de componente obrigatorios
+
+- Caso de uso com repositorio fake deve retornar extrato completo para uma sequencia simples.
+- Caso de uso com repositorio fake deve propagar filtros de merchant e periodo para a porta de leitura.
+- Caso de uso deve retornar erro de validacao sem consultar repositorio quando o request for invalido.
+- Caso de uso deve montar response sem expor entidade de persistencia.
+- Caso de uso deve manter o mesmo resultado quando recebe a mesma entrada em execucoes repetidas.
 
 ### Testes de integracao
 
-- Nao obrigatorio nesta etapa se a Infrastructure ainda nao foi alterada.
+Nao obrigatorios nesta etapa. A regra de saldo acumulado deve estar protegida antes de conectar EF Core e banco.
+
+### Fora de escopo deste prompt
+
+- Endpoint HTTP.
+- Query EF Core real.
+- Migration.
+- OpenAPI.
+- Otimizacao de indice.
 
 ## Prompt 3 - Consulta de dados na Infrastructure
 
 ### Objetivo
 
-Implementar a consulta real dos lancamentos necessarios para montar o extrato.
+Implementar a consulta real dos lancamentos necessarios para montar o extrato, garantindo que a Infrastructure entregue para a Application exatamente a sequencia que a regra de saldo acumulado precisa.
 
 ### Entregas
 
@@ -77,25 +123,91 @@ Implementar a consulta real dos lancamentos necessarios para montar o extrato.
 - Ordenacao deterministica.
 - Paginacao.
 - Projecao apenas dos campos necessarios.
+- Porta de leitura ou implementacao equivalente usada pela Application.
+
+### Regras que devem ser validadas
+
+- A query nao pode misturar movimentos de merchants diferentes.
+- A query nao pode retornar movimentos fora do periodo contratado.
+- A query deve retornar movimentos em ordem deterministica.
+- A paginacao deve ser estavel para a mesma base de dados e os mesmos filtros.
+- A projecao deve trazer todos os campos exigidos pela Application para calcular e exibir o extrato.
+- A query nao deve depender de Include desnecessario nem carregar entidade completa se uma projecao simples resolver.
 
 ### Testes unitarios
 
-- Nao priorizar testes unitarios para query EF pura.
-- Testar apenas helpers ou specifications se forem criados.
+Nao priorizar teste unitario para query EF Core pura.
 
-### Testes de componente
+Criar teste unitario apenas se houver:
 
-- Repositorio com banco local de teste deve aplicar filtro por merchant.
-- Repositorio deve aplicar filtro por periodo.
-- Repositorio deve respeitar paginacao.
-- Repositorio deve respeitar ordenacao quando houver lancamentos com mesma data.
+- objeto de filtro com normalizacao de periodo;
+- specification reutilizavel;
+- builder de ordenacao;
+- mapper de entidade para item de leitura.
 
-### Testes de integracao
+### Testes de componente obrigatorios
 
-- Teste com PostgreSQL via Testcontainers ou padrao ja usado no repositorio.
-- Deve persistir lancamentos reais de teste e recuperar na ordem esperada.
-- Deve validar comportamento com pagina vazia.
-- Deve validar que outro merchant nao aparece no resultado.
+Usar o padrao de banco de teste ja aceito no repositorio para validar a implementacao da porta de leitura.
+
+#### Filtros
+
+- Deve retornar apenas movimentos do merchant solicitado.
+- Deve excluir movimentos de outro merchant no mesmo periodo.
+- Deve incluir movimento exatamente na data inicial quando o contrato for inclusivo.
+- Deve excluir ou incluir movimento exatamente na data final conforme decisao explicita do contrato.
+- Deve retornar vazio quando nao houver dados para o periodo.
+
+#### Ordenacao
+
+- Deve ordenar por data do movimento.
+- Deve aplicar criterio secundario estavel quando houver mesma data/hora.
+- Deve manter a mesma ordem em execucoes repetidas com a mesma massa.
+
+#### Paginacao
+
+- Primeira pagina deve respeitar tamanho informado.
+- Segunda pagina nao deve repetir itens da primeira.
+- Paginacao deve preservar ordenacao global.
+- Tamanho de pagina acima do limite deve ser rejeitado ou normalizado, conforme contrato.
+
+#### Projecao
+
+- Deve retornar valor, tipo, data, referencia e identificador necessario para desempate.
+- Deve nao carregar dados que nao sao usados no extrato, quando isso puder ser validado de forma simples.
+
+### Testes de integracao obrigatorios
+
+Usar PostgreSQL via Testcontainers ou o padrao de integracao existente no repositorio.
+
+- Persistir movimentos reais e recuperar apenas os do merchant correto.
+- Persistir movimentos antes, dentro e depois do periodo e validar o recorte.
+- Persistir movimentos com mesma data/hora e validar desempate deterministico.
+- Persistir quantidade maior que uma pagina e validar pagina 1 e pagina 2.
+- Validar que pagina vazia retorna sucesso com lista vazia.
+- Validar que a query entrega dados suficientes para a Application calcular saldo apos lancamento.
+
+### Teste de integracao entre Prompt 2 e Prompt 3
+
+Depois da query real existir, adicionar pelo menos um teste integrando Application e Infrastructure:
+
+- Dado movimentos persistidos fora de ordem, quando o caso de uso consultar o extrato, entao o retorno deve vir ordenado e com saldo apos cada lancamento correto.
+- Dado movimentos de dois merchants, quando consultar um merchant, entao o saldo acumulado deve ignorar completamente o outro merchant.
+- Dado pagina 2, quando consultar o extrato paginado, entao o comportamento de saldo deve seguir a decisao do contrato: saldo acumulado da pagina ou saldo acumulado global ate cada item.
+
+### Decisao obrigatoria antes de implementar paginacao
+
+Definir se `saldoAposLancamento` em uma pagina representa:
+
+1. saldo acumulado global ate aquele lancamento, considerando movimentos anteriores fora da pagina; ou
+2. saldo acumulado apenas dentro da pagina retornada.
+
+Para produto financeiro, a recomendacao e usar saldo acumulado global, porque o usuario espera que o saldo apos o lancamento explique o saldo real naquele ponto da linha do tempo.
+
+### Fora de escopo deste prompt
+
+- Endpoint HTTP.
+- Documentacao final de API.
+- Alertas, conciliacao, recorrencia ou novas regras de produto.
 
 ## Prompt 4 - Endpoint HTTP
 
@@ -123,7 +235,7 @@ Expor a consulta de extrato pela API escolhida.
 
 ### Testes de integracao
 
-- WebApplicationFactory deve chamar endpoint com token ou autenticacao de teste, conforme padrao do projeto.
+- WebApplicationFactory deve chamar endpoint com autenticacao de teste, conforme padrao do projeto.
 - Deve retornar 200 para consulta valida.
 - Deve retornar 400 para periodo invalido.
 - Deve retornar 401 ou 403 conforme regra de autenticacao/autorizacao existente.
