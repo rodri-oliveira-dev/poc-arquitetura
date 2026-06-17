@@ -15,6 +15,7 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 
 | ADR                                                                   | Status      | Resumo                                                                                           |
 | --------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------ |
+| [ADR-0087](./0087-saga-orquestrada-transfer-service-kafka.md) | Proposto | Define estudo de Saga Orquestrada no `TransferService` para transferencias entre merchants usando Kafka, Outbox transacional, worker assincrono, idempotencia por etapa e DLQ de aplicacao. |
 | [ADR-0086](./0086-pre-push-leve-gates-pesados-no-pr.md) | Aceito | Mantem o pre-push leve e desloca validacoes pesadas como cobertura, Trivy, Terraform validate e testes de container para o Pull Request. |
 | [ADR-0085](./0085-separacao-configuracoes-locais-sensiveis-arquivos-versionados.md) | Proposta | Define a separacao entre configuracoes locais sensiveis nao versionadas e exemplos versionados com placeholders. |
 | [ADR-0084](./0084-ledger-entry-created-v2-currency-explicita.md) | Aceito | Cria `LedgerEntryCreated.v2` com `currency` obrigatoria e mantem leitura de v1 como legado. |
