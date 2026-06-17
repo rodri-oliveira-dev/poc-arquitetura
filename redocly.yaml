@@ -6,6 +6,8 @@ apis:
     root: docs/openapi/ledger.v1.json
   balance@v1:
     root: docs/openapi/balance.v1.json
+  transfer@v1:
+    root: docs/openapi/transfer.v1.json
 
 rules:
   operation-operationId: warn

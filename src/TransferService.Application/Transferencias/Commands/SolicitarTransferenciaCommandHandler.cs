@@ -45,7 +45,14 @@ public sealed class SolicitarTransferenciaCommandHandler
         var sourceMerchantId = request.SourceMerchantId.Trim();
         var destinationMerchantId = request.DestinationMerchantId.Trim();
         var idempotencyKey = request.IdempotencyKey.Trim();
-        var requestHash = GenerateRequestHash(sourceMerchantId, destinationMerchantId, request.Amount);
+        var description = Normalize(request.Description);
+        var externalReference = Normalize(request.ExternalReference);
+        var requestHash = GenerateRequestHash(
+            sourceMerchantId,
+            destinationMerchantId,
+            request.Amount,
+            description,
+            externalReference);
 
         var existing = await _idempotencyService.GetAsync(sourceMerchantId, idempotencyKey, cancellationToken);
         if (existing is not null)
@@ -62,7 +69,13 @@ public sealed class SolicitarTransferenciaCommandHandler
             new MerchantId(destinationMerchantId),
             new TransferAmount(request.Amount),
             now);
-        saga.RegisterRequestMetadata(idempotencyKey, requestHash, request.CorrelationId, now);
+        saga.RegisterRequestMetadata(
+            idempotencyKey,
+            requestHash,
+            request.CorrelationId,
+            now,
+            description,
+            externalReference);
 
         var response = ToResult(saga, idempotentReplay: false);
         var evento = TransferenciaSagaEventFactory.TransferenciaSolicitada(
@@ -99,16 +112,23 @@ public sealed class SolicitarTransferenciaCommandHandler
     private static string GenerateRequestHash(
         string sourceMerchantId,
         string destinationMerchantId,
-        decimal amount)
+        decimal amount,
+        string? description,
+        string? externalReference)
     {
         var canonical = JsonSerializer.Serialize(new
         {
             SourceMerchantId = sourceMerchantId,
             DestinationMerchantId = destinationMerchantId,
-            Amount = amount
+            Amount = amount,
+            Description = description,
+            ExternalReference = externalReference
         }, JsonOptions);
 
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(canonical));
         return Convert.ToHexString(bytes).ToLowerInvariant();
     }
+
+    private static string? Normalize(string? value)
+        => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

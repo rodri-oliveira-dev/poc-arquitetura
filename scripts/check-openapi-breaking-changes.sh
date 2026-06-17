@@ -10,6 +10,7 @@ OASDIFF_FAIL_ON="${OASDIFF_FAIL_ON:-ERR}"
 contracts=(
   "ledger.v1.json"
   "balance.v1.json"
+  "transfer.v1.json"
 )
 
 if ! command -v oasdiff >/dev/null 2>&1; then

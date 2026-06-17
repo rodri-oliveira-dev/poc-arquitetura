@@ -89,5 +89,6 @@ mkdir -p "$OUTPUT_DIR"
 
 generate_contract "LedgerService.Api" "LedgerService.Api" "ledger.v1.json"
 generate_contract "BalanceService.Api" "BalanceService.Api" "balance.v1.json"
+generate_contract "TransferService.Api" "TransferService.Api" "transfer.v1.json"
 
 echo "Contratos OpenAPI gerados em: $OUTPUT_DIR"

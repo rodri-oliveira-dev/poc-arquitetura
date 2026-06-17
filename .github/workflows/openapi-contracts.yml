@@ -89,7 +89,7 @@ jobs:
           mkdir -p .openapi-main
 
           missing_contracts=()
-          for contract in ledger.v1.json balance.v1.json; do
+          for contract in ledger.v1.json balance.v1.json transfer.v1.json; do
             source_ref="origin/${{ github.base_ref }}:docs/openapi/${contract}"
             if git cat-file -e "$source_ref"; then
               git show "$source_ref" > ".openapi-main/${contract}"

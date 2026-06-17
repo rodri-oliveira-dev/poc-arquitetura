@@ -35,6 +35,12 @@ public sealed class SolicitarTransferenciaCommandValidator : AbstractValidator<S
 
         RuleFor(x => x.CorrelationId)
             .MaximumLength(200);
+
+        RuleFor(x => x.Description)
+            .MaximumLength(500);
+
+        RuleFor(x => x.ExternalReference)
+            .MaximumLength(200);
     }
 
     private static string Normalize(string? value) => value?.Trim() ?? string.Empty;

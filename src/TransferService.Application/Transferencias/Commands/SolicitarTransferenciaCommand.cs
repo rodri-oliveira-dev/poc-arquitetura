@@ -7,4 +7,6 @@ public sealed record SolicitarTransferenciaCommand(
     string SourceMerchantId,
     string DestinationMerchantId,
     decimal Amount,
-    string? CorrelationId = null) : IRequest<SolicitarTransferenciaResult>;
+    string? CorrelationId = null,
+    string? Description = null,
+    string? ExternalReference = null) : IRequest<SolicitarTransferenciaResult>;

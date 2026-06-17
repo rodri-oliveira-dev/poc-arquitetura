@@ -14,6 +14,10 @@ public sealed class TransferApiCompositionTests
         HostApplicationBuilder builder = Host.CreateApplicationBuilder();
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
+            ["Jwt:Issuer"] = "http://localhost:8081/realms/poc",
+            ["Jwt:Audience"] = "transfer-api",
+            ["Jwt:JwksUrl"] = "https://localhost/jwks.json",
+            ["ApiLimits:MaxRequestBodySizeBytes"] = "1024",
             ["ConnectionStrings:DefaultConnection"] = "Host=localhost;Database=transfer-tests;Username=app;Password=app"
         });
 

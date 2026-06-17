@@ -1,0 +1,513 @@
+{
+  "openapi": "3.0.4",
+  "info": {
+    "title": "Poc Arquitetura Transfer API",
+    "description": "API em Clean Architecture com saga de transferencias",
+    "version": "1.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:5230",
+      "description": "Ambiente local direto do TransferService.Api"
+    }
+  ],
+  "paths": {
+    "/api/v1/transferencias": {
+      "post": {
+        "tags": [
+          "Transferencias"
+        ],
+        "summary": "Solicita uma transferencia entre merchants.",
+        "description": "Registra uma saga de transferencia com status Pending e grava a intencao no Outbox para processamento assincrono posterior. O endpoint exige Idempotency-Key e retorna 202 Accepted.\n\n<b>Autorizacao</b>: requer scope(s): <c>transfer.write</c>. (claim <c>scope</c> do JWT)",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Chave de idempotencia em formato UUID. Deve ser unica por operacao logica.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Correlation-Id",
+            "in": "header",
+            "description": "Correlation id opcional em formato UUID. Se ausente, a API gera e devolve um valor no response header.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitarTransferenciaRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitarTransferenciaRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitarTransferenciaRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Solicitacao aceita para processamento assincrono. Retorna Location com a URI de status.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/SolicitarTransferenciaResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SolicitarTransferenciaResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SolicitarTransferenciaResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request invalido.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente ou invalido."
+          },
+          "403": {
+            "description": "Scope insuficiente ou token sem autorizacao para o merchant de origem."
+          },
+          "409": {
+            "description": "Conflito de idempotencia.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body acima do limite configurado.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Violacao de regra de dominio.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Limite de requisicoes excedido."
+          },
+          "500": {
+            "description": "Erro interno.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          { }
+        ]
+      }
+    },
+    "/api/v1/transferencias/{transferenciaId}": {
+      "get": {
+        "tags": [
+          "Transferencias"
+        ],
+        "summary": "Consulta status de uma transferencia.",
+        "description": "Retorna o estado atual da saga de transferencia registrada previamente. O processamento da transferencia e assincrono e pode evoluir apos a resposta do endpoint de criacao.\n\n<b>Autorizacao</b>: requer scope(s): <c>transfer.read</c>. (claim <c>scope</c> do JWT)",
+        "parameters": [
+          {
+            "name": "transferenciaId",
+            "in": "path",
+            "description": "Identificador da transferencia.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Status da transferencia.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObterStatusTransferenciaResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObterStatusTransferenciaResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObterStatusTransferenciaResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente ou invalido."
+          },
+          "403": {
+            "description": "Scope insuficiente ou token sem autorizacao para os merchants da transferencia."
+          },
+          "404": {
+            "description": "Transferencia inexistente.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Limite de requisicoes excedido."
+          },
+          "500": {
+            "description": "Erro interno.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          { }
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "TransferService.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
+        ],
+        "summary": "Health check simples",
+        "description": "Retorna 200 com body 'ok'. Endpoint publico para liveness simples.",
+        "operationId": "Health",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/ready": {
+      "get": {
+        "tags": [
+          "TransferService.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
+        ],
+        "summary": "Readiness check",
+        "description": "Valida dependencias necessarias para aceitar trafego HTTP: banco.",
+        "operationId": "Ready",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "503": {
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ObterStatusTransferenciaResponse": {
+        "type": "object",
+        "properties": {
+          "transferenciaId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "nullable": true
+          },
+          "sourceMerchantId": {
+            "type": "string",
+            "nullable": true
+          },
+          "destinationMerchantId": {
+            "type": "string",
+            "nullable": true
+          },
+          "amount": {
+            "type": "number",
+            "format": "double"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "detail": {
+            "type": "string",
+            "nullable": true
+          },
+          "instance": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": { }
+      },
+      "SolicitarTransferenciaRequest": {
+        "type": "object",
+        "properties": {
+          "sourceMerchantId": {
+            "type": "string",
+            "nullable": true
+          },
+          "destinationMerchantId": {
+            "type": "string",
+            "nullable": true
+          },
+          "amount": {
+            "type": "number",
+            "format": "double"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "externalReference": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "SolicitarTransferenciaResponse": {
+        "type": "object",
+        "properties": {
+          "transferenciaId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "nullable": true
+          },
+          "sourceMerchantId": {
+            "type": "string",
+            "nullable": true
+          },
+          "destinationMerchantId": {
+            "type": "string",
+            "nullable": true
+          },
+          "amount": {
+            "type": "number",
+            "format": "double"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "statusUrl": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ValidationErrorResponse": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "detail": {
+            "type": "string",
+            "nullable": true
+          },
+          "errors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "nullable": true
+          },
+          "correlationId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "securitySchemes": {
+      "X-Correlation-Id": {
+        "type": "apiKey",
+        "description": "Identificador de correlacao (UUID). Se nao for enviado, a API gera um novo e o retorna no header de response.",
+        "name": "X-Correlation-Id",
+        "in": "header"
+      },
+      "Idempotency-Key": {
+        "type": "apiKey",
+        "description": "Chave de idempotencia (UUID). Requisicoes com a mesma chave e mesmo payload retornam replay da resposta. Se a mesma chave for usada com payload diferente, a API retorna 409.",
+        "name": "Idempotency-Key",
+        "in": "header"
+      },
+      "Bearer": {
+        "type": "http",
+        "description": "Autenticacao via JWT Bearer. Scopes relevantes nesta API: transfer.write (escrita) / transfer.read (leitura).",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Transferencias"
+    },
+    {
+      "name": "TransferService.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
+    }
+  ]
+}
