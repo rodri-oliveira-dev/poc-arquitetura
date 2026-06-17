@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
+
 using TransferService.Api.Extensions;
 
 namespace TransferService.IntegrationTests.Composition;

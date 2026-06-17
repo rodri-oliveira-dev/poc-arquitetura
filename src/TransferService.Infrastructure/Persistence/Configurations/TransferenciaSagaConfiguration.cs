@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+
 using TransferService.Domain.Sagas;
 
 namespace TransferService.Infrastructure.Persistence.Configurations;

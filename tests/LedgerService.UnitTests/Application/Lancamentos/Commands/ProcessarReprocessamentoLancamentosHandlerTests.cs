@@ -4,6 +4,7 @@ using LedgerService.Application.Lancamentos.Commands;
 using LedgerService.Application.Lancamentos.Events;
 using LedgerService.Domain.Entities;
 using LedgerService.Domain.Repositories;
+
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace LedgerService.UnitTests.Application.Lancamentos.Commands;
@@ -112,7 +113,10 @@ public sealed class ProcessarReprocessamentoLancamentosHandlerTests
         {
         }
 
-        public bool ThrowWhenListingEntries { get; init; }
+        public bool ThrowWhenListingEntries
+        {
+            get; init;
+        }
     }
 
     private sealed class ReprocessamentoRepo : IReprocessamentoLancamentosRepository

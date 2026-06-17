@@ -2,23 +2,74 @@ namespace TransferService.Infrastructure.Persistence.Outbox;
 
 public sealed class TransferenciaOutboxMessage
 {
-    public Guid Id { get; private set; }
-    public string AggregateType { get; private set; }
-    public Guid AggregateId { get; private set; }
-    public string EventType { get; private set; }
-    public string Payload { get; private set; }
-    public string Topic { get; private set; }
-    public string MessageKey { get; private set; }
-    public string? CorrelationId { get; private set; }
-    public TransferenciaOutboxStatus Status { get; private set; }
-    public int RetryCount { get; private set; }
-    public string? LastError { get; private set; }
-    public DateTimeOffset? NextRetryAt { get; private set; }
-    public DateTimeOffset OccurredAt { get; private set; }
-    public DateTimeOffset CreatedAt { get; private set; }
-    public DateTimeOffset? PublishedAt { get; private set; }
-    public string? LockOwner { get; private set; }
-    public DateTimeOffset? LockedUntil { get; private set; }
+    public Guid Id
+    {
+        get; private set;
+    }
+    public string AggregateType
+    {
+        get; private set;
+    }
+    public Guid AggregateId
+    {
+        get; private set;
+    }
+    public string EventType
+    {
+        get; private set;
+    }
+    public string Payload
+    {
+        get; private set;
+    }
+    public string Topic
+    {
+        get; private set;
+    }
+    public string MessageKey
+    {
+        get; private set;
+    }
+    public string? CorrelationId
+    {
+        get; private set;
+    }
+    public TransferenciaOutboxStatus Status
+    {
+        get; private set;
+    }
+    public int RetryCount
+    {
+        get; private set;
+    }
+    public string? LastError
+    {
+        get; private set;
+    }
+    public DateTimeOffset? NextRetryAt
+    {
+        get; private set;
+    }
+    public DateTimeOffset OccurredAt
+    {
+        get; private set;
+    }
+    public DateTimeOffset CreatedAt
+    {
+        get; private set;
+    }
+    public DateTimeOffset? PublishedAt
+    {
+        get; private set;
+    }
+    public string? LockOwner
+    {
+        get; private set;
+    }
+    public DateTimeOffset? LockedUntil
+    {
+        get; private set;
+    }
 
     private TransferenciaOutboxMessage()
     {

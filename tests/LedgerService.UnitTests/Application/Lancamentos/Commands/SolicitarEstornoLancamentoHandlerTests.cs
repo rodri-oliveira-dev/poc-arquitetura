@@ -5,6 +5,7 @@ using LedgerService.Application.Lancamentos.Commands;
 using LedgerService.Application.Lancamentos.Events;
 using LedgerService.Domain.Entities;
 using LedgerService.Domain.Repositories;
+
 using Moq;
 
 namespace LedgerService.UnitTests.Application.Lancamentos.Commands;

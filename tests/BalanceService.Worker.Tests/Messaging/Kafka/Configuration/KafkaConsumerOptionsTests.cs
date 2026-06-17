@@ -2,11 +2,14 @@ using BalanceService.Api.Extensions;
 using BalanceService.Worker.Extensions;
 using BalanceService.Worker.Messaging.Kafka.Configuration;
 using BalanceService.Worker.Messaging.Kafka.Consumers;
+
 using Confluent.Kafka;
+
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+
 using Moq;
 
 namespace BalanceService.Worker.Tests.Messaging.Kafka.Configuration;

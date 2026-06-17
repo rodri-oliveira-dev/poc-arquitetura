@@ -1,6 +1,8 @@
 using ApiDefaults.Extensions;
+
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
+
 using Moq;
 
 namespace BalanceService.UnitTests.Api.Swagger;

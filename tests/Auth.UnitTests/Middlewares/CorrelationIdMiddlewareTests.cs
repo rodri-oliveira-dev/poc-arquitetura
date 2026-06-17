@@ -1,6 +1,7 @@
 using System.Diagnostics;
 
 using Auth.Api.Middlewares;
+
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 

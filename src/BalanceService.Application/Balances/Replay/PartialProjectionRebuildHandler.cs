@@ -111,9 +111,12 @@ public sealed partial class PartialProjectionRebuildHandler
 
             items = items
                 .Select(item => item.Status == PartialProjectionRebuildItemStatus.Eligible
-                    ? item with { Status = rebuildResult.RebuiltEventIds.Contains(item.EventId ?? string.Empty)
+                    ? item with
+                    {
+                        Status = rebuildResult.RebuiltEventIds.Contains(item.EventId ?? string.Empty)
                         ? PartialProjectionRebuildItemStatus.Rebuilt
-                        : PartialProjectionRebuildItemStatus.SkippedConcurrentDuplicate }
+                        : PartialProjectionRebuildItemStatus.SkippedConcurrentDuplicate
+                    }
                     : item)
                 .ToList();
         }
@@ -184,7 +187,10 @@ public sealed partial class PartialProjectionRebuildHandler
                 !seenEventIds.Add(evaluation.EventId))
             {
                 evaluated.Add(new EvaluatedCandidate(
-                    item with { Status = PartialProjectionRebuildItemStatus.DuplicateInBatch },
+                    item with
+                    {
+                        Status = PartialProjectionRebuildItemStatus.DuplicateInBatch
+                    },
                     null));
                 continue;
             }

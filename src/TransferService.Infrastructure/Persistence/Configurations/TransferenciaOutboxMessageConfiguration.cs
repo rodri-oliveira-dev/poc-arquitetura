@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+
 using TransferService.Infrastructure.Persistence.Outbox;
 
 namespace TransferService.Infrastructure.Persistence.Configurations;

@@ -5,5 +5,8 @@ namespace LedgerService.Api.Contracts.Requests;
 public sealed class RequeueDeadLetterRequest
 {
     [JsonPropertyName("reason")]
-    public string? Reason { get; init; }
+    public string? Reason
+    {
+        get; init;
+    }
 }

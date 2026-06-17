@@ -1,7 +1,9 @@
 using Auth.Api.Options;
 using Auth.Api.Security;
+
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+
 using System.Security.Cryptography;
 
 namespace Auth.UnitTests.Security;

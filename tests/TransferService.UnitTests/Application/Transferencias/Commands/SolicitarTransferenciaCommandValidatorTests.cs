@@ -19,7 +19,10 @@ public sealed class SolicitarTransferenciaCommandValidatorTests
     [Fact]
     public void Validate_should_reject_empty_idempotency_key()
     {
-        var command = ValidCommand() with { IdempotencyKey = " " };
+        var command = ValidCommand() with
+        {
+            IdempotencyKey = " "
+        };
 
         var result = _validator.Validate(command);
 
@@ -48,7 +51,10 @@ public sealed class SolicitarTransferenciaCommandValidatorTests
     [InlineData(10.123)]
     public void Validate_should_reject_invalid_amount(decimal amount)
     {
-        var command = ValidCommand() with { Amount = amount };
+        var command = ValidCommand() with
+        {
+            Amount = amount
+        };
 
         var result = _validator.Validate(command);
 

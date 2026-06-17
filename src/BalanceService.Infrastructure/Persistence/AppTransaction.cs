@@ -1,4 +1,5 @@
 using BalanceService.Application.Abstractions.Persistence;
+
 using Microsoft.EntityFrameworkCore.Storage;
 
 namespace BalanceService.Infrastructure.Persistence;

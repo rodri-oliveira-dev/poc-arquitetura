@@ -15,7 +15,10 @@ public sealed class PubSubConsumerOptions : IValidatableObject
     [Required]
     public string DeadLetterTopicId { get; init; } = string.Empty;
 
-    public bool EnableExactlyOnceDelivery { get; init; }
+    public bool EnableExactlyOnceDelivery
+    {
+        get; init;
+    }
 
     public TimeSpan ProcessingErrorRetryDelay { get; init; } = TimeSpan.FromSeconds(5);
 

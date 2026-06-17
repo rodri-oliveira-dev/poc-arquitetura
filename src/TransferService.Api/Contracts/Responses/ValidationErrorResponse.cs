@@ -12,5 +12,8 @@ public sealed class ValidationErrorResponse
 
     public Dictionary<string, string[]> Errors { get; init; } = new();
 
-    public string? CorrelationId { get; init; }
+    public string? CorrelationId
+    {
+        get; init;
+    }
 }

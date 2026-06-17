@@ -3,11 +3,14 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
+
 using TransferService.Infrastructure.Persistence;
 using TransferService.IntegrationTests.Infrastructure.Security;
 
@@ -21,6 +24,11 @@ public sealed class TransferApiFactory : WebApplicationFactory<Program>, IDispos
 
     private readonly Dictionary<string, string?> _previousEnvironmentValues = new(StringComparer.Ordinal);
     private readonly string _dbName = $"transfer-it-{Guid.NewGuid():N}";
+    private readonly InMemoryDatabaseRoot _databaseRoot = new();
+
+    public IReadOnlyCollection<string> LogMessages => _loggerProvider.Messages;
+
+    private readonly TestLoggerProvider _loggerProvider = new();
 
     public TransferApiFactory()
     {
@@ -38,6 +46,8 @@ public sealed class TransferApiFactory : WebApplicationFactory<Program>, IDispos
         {
             logging.ClearProviders();
             logging.AddDebug();
+            logging.AddConsole();
+            logging.AddProvider(_loggerProvider);
         });
 
         builder.ConfigureAppConfiguration((_, cfg) =>
@@ -54,13 +64,8 @@ public sealed class TransferApiFactory : WebApplicationFactory<Program>, IDispos
 
         builder.ConfigureServices(services =>
         {
-            var db = services.SingleOrDefault(d => d.ServiceType == typeof(TransferServiceDbContext));
-            if (db is not null)
-                services.Remove(db);
-
-            var dbDescriptor = services.SingleOrDefault(d => d.ServiceType == typeof(DbContextOptions<TransferServiceDbContext>));
-            if (dbDescriptor is not null)
-                services.Remove(dbDescriptor);
+            services.RemoveAll<TransferServiceDbContext>();
+            services.RemoveAll<DbContextOptions<TransferServiceDbContext>>();
 
             var npgsqlProviderDescriptors = services
                 .Where(d =>
@@ -74,7 +79,7 @@ public sealed class TransferApiFactory : WebApplicationFactory<Program>, IDispos
 
             services.AddDbContext<TransferServiceDbContext>(options =>
             {
-                options.UseInMemoryDatabase(_dbName);
+                options.UseInMemoryDatabase(_dbName, _databaseRoot);
                 options.ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning));
                 options.UseInternalServiceProvider(InMemoryEfProvider);
             });
@@ -96,6 +101,25 @@ public sealed class TransferApiFactory : WebApplicationFactory<Program>, IDispos
         });
     }
 
+    public TransferServiceDbContext CreateDbContext()
+    {
+        var options = new DbContextOptionsBuilder<TransferServiceDbContext>()
+            .UseInMemoryDatabase(_dbName, _databaseRoot)
+            .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+            .Options;
+
+        return new TransferServiceDbContext(options);
+    }
+
+    public DbContextOptionsBuilder ConfigureDbContext(DbContextOptionsBuilder options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+
+        options.UseInMemoryDatabase(_dbName, _databaseRoot);
+        options.ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning));
+        return options;
+    }
+
     public new void Dispose()
     {
         foreach (var (name, value) in _previousEnvironmentValues)
@@ -111,5 +135,56 @@ public sealed class TransferApiFactory : WebApplicationFactory<Program>, IDispos
 
         if (string.IsNullOrWhiteSpace(previous))
             Environment.SetEnvironmentVariable(name, value, EnvironmentVariableTarget.Process);
+    }
+
+    private sealed class TestLoggerProvider : ILoggerProvider
+    {
+        private readonly List<string> _messages = [];
+
+        public IReadOnlyCollection<string> Messages => _messages;
+
+        public ILogger CreateLogger(string categoryName) => new TestLogger(categoryName, _messages);
+
+        public void Dispose()
+        {
+        }
+
+        private sealed class TestLogger(string categoryName, List<string> messages) : ILogger
+        {
+            public IDisposable BeginScope<TState>(TState state)
+                where TState : notnull
+                => NullScope.Instance;
+
+            public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Warning;
+
+            public void Log<TState>(
+                LogLevel logLevel,
+                EventId eventId,
+                TState state,
+                Exception? exception,
+                Func<TState, Exception?, string> formatter)
+            {
+                if (!IsEnabled(logLevel))
+                    return;
+
+                var message = $"{logLevel}: {categoryName}: {formatter(state, exception)}";
+                if (exception is not null)
+                    message += Environment.NewLine + exception;
+
+                lock (messages)
+                {
+                    messages.Add(message);
+                }
+            }
+        }
+
+        private sealed class NullScope : IDisposable
+        {
+            public static readonly NullScope Instance = new();
+
+            public void Dispose()
+            {
+            }
+        }
     }
 }

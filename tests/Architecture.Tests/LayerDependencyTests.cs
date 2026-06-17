@@ -26,6 +26,7 @@ public sealed class LayerDependencyTests
     [
         "Microsoft.AspNetCore.Http",
         "Microsoft.AspNetCore.Mvc",
+        "Microsoft.EntityFrameworkCore",
         "Microsoft.OpenApi",
         "Swashbuckle.AspNetCore",
         "Confluent.Kafka",
@@ -122,6 +123,30 @@ public sealed class LayerDependencyTests
         AssertProjectReferencesOnlyInternalLayers("TransferService", "Infrastructure", ["Application", "Domain"]);
         AssertProjectReferencesOnlyInternalLayers("TransferService", "Api", ["Application", "Infrastructure"]);
         AssertProjectReferencesOnlyInternalLayers("TransferService", "Worker", ["Application", "Infrastructure"]);
+    }
+
+    [Fact]
+    public void TransferService_should_not_use_pubsub()
+    {
+        foreach (string layerName in new[] { "Api", "Application", "Domain", "Infrastructure", "Worker" })
+        {
+            AssertProjectHasNoForbiddenReferences("TransferService", layerName, ["Google.Cloud.PubSub.V1"]);
+            AssertSourceFilesDoNotContain("TransferService", layerName, ["PubSub", "Pub/Sub", "Google.Cloud.PubSub"]);
+        }
+    }
+
+    [Fact]
+    public void TransferService_api_should_not_register_worker_hosted_services()
+    {
+        AssertProjectHasNoForbiddenLayerReferences("TransferService", "Api", ["Worker"]);
+        AssertSourceFilesDoNotContain("TransferService", "Api", ["AddHostedService", "BackgroundService"]);
+    }
+
+    [Fact]
+    public void TransferService_worker_should_not_reference_controllers_or_swagger_sources()
+    {
+        AssertProjectHasNoForbiddenReferences("TransferService", "Worker", ["Swashbuckle.AspNetCore", "Microsoft.OpenApi"]);
+        AssertSourceFilesDoNotContain("TransferService", "Worker", ["ControllerBase", "MapControllers", "Swagger"]);
     }
 
     [Theory]
@@ -271,6 +296,12 @@ public sealed class LayerDependencyTests
     }
 
     private static void AssertSourceFilesDoNotContainProviderNames(string serviceName, string layerName)
+        => AssertSourceFilesDoNotContain(serviceName, layerName, MessagingProviderNames);
+
+    private static void AssertSourceFilesDoNotContain(
+        string serviceName,
+        string layerName,
+        IEnumerable<string> forbiddenTerms)
     {
         string sourceDirectory = Path.Combine(RepositoryRoot.FullName, "src", $"{serviceName}.{layerName}");
         string[] sourceFiles = Directory.GetFiles(sourceDirectory, "*.cs", SearchOption.AllDirectories)
@@ -278,16 +309,16 @@ public sealed class LayerDependencyTests
             .Where(sourceFile => !sourceFile.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
             .ToArray();
 
-        foreach (string providerName in MessagingProviderNames)
+        foreach (string forbiddenTerm in forbiddenTerms)
         {
             string[] violations = sourceFiles
-                .Where(sourceFile => File.ReadAllText(sourceFile).Contains(providerName, StringComparison.OrdinalIgnoreCase))
+                .Where(sourceFile => File.ReadAllText(sourceFile).Contains(forbiddenTerm, StringComparison.OrdinalIgnoreCase))
                 .Select(sourceFile => Path.GetRelativePath(RepositoryRoot.FullName, sourceFile))
                 .ToArray();
 
             Assert.True(
                 violations.Length == 0,
-                $"{serviceName}.{layerName} must not name messaging provider {providerName}. "
+                $"{serviceName}.{layerName} must not contain forbidden term {forbiddenTerm}. "
                 + $"Found: {string.Join(", ", violations)}");
         }
     }

@@ -1,12 +1,16 @@
 using FluentValidation;
+
 using LedgerService.Api.Contracts.Requests;
 using LedgerService.Api.Contracts.Responses;
 using LedgerService.Application.Common.Exceptions;
 using LedgerService.Domain.Exceptions;
+
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+
 using Npgsql;
+
 using System.Text.Json;
 
 namespace LedgerService.Api.Middlewares;

@@ -10,11 +10,19 @@ public sealed class ProcessedEvent : Entity
 {
     public string EventId { get; private set; } = string.Empty;
     public string MerchantId { get; private set; } = string.Empty;
-    public DateTimeOffset OccurredAt { get; private set; }
-    public DateTimeOffset ProcessedAt { get; private set; }
+    public DateTimeOffset OccurredAt
+    {
+        get; private set;
+    }
+    public DateTimeOffset ProcessedAt
+    {
+        get; private set;
+    }
 
     // EF Core
-    private ProcessedEvent() { }
+    private ProcessedEvent()
+    {
+    }
 
     public ProcessedEvent(string eventId, string merchantId, DateTimeOffset occurredAt, DateTimeOffset processedAt)
     {

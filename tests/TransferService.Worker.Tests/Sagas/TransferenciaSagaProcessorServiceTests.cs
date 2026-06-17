@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+
 using TransferService.Application.Abstractions.Messaging;
 using TransferService.Application.Abstractions.Persistence;
 using TransferService.Application.Abstractions.Time;
@@ -16,6 +17,7 @@ using TransferService.Worker.Messaging;
 using TransferService.Worker.Options;
 using TransferService.Worker.Outbox;
 using TransferService.Worker.Sagas;
+
 using OptionsFactory = Microsoft.Extensions.Options.Options;
 
 namespace TransferService.Worker.Tests.Sagas;
@@ -268,13 +270,25 @@ public sealed class TransferenciaSagaProcessorServiceTests
             OutboxWriter = _provider.GetRequiredService<ITransferenciaOutboxWriter>();
         }
 
-        public TransferServiceDbContext Db { get; }
+        public TransferServiceDbContext Db
+        {
+            get;
+        }
         public FakeClock Clock { get; } = new();
         public FakeLedgerClient Ledger { get; } = new();
         public FakeKafkaProducer Kafka { get; } = new();
-        public TransferenciaSagaProcessorService SagaProcessor { get; }
-        public TransferenciaOutboxPublisherService OutboxPublisher { get; }
-        public ITransferenciaOutboxWriter OutboxWriter { get; }
+        public TransferenciaSagaProcessorService SagaProcessor
+        {
+            get;
+        }
+        public TransferenciaOutboxPublisherService OutboxPublisher
+        {
+            get;
+        }
+        public ITransferenciaOutboxWriter OutboxWriter
+        {
+            get;
+        }
 
         public TransferenciaSaga AddSaga()
         {
@@ -346,7 +360,10 @@ public sealed class TransferenciaSagaProcessorServiceTests
 
     private sealed class FakeKafkaProducer : ITransferenciaKafkaProducer
     {
-        public TransferenciaKafkaPublishException? PublishException { get; set; }
+        public TransferenciaKafkaPublishException? PublishException
+        {
+            get; set;
+        }
         public List<(TransferenciaOutboxMessage Message, string Topic)> Published { get; } = [];
         public List<(TransferenciaOutboxMessage Message, string Topic, string Reason)> Dlq { get; } = [];
 

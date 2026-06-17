@@ -5,29 +5,98 @@ namespace TransferService.Domain.Sagas;
 
 public sealed class TransferenciaSaga : Entity, IAggregateRoot
 {
-    public MerchantId SourceMerchantId { get; private set; }
-    public MerchantId DestinationMerchantId { get; private set; }
-    public TransferAmount Amount { get; private set; }
-    public string? Description { get; private set; }
-    public string? ExternalReference { get; private set; }
-    public TransferenciaSagaStatus Status { get; private set; }
-    public TransferenciaSagaStep Step { get; private set; }
-    public Guid? DebitLancamentoId { get; private set; }
-    public Guid? CreditLancamentoId { get; private set; }
-    public Guid? CompensationEstornoId { get; private set; }
-    public string? IdempotencyKey { get; private set; }
-    public string? IdempotencyPayloadHash { get; private set; }
-    public string? CorrelationId { get; private set; }
-    public string? FailureReason { get; private set; }
-    public int RetryCount { get; private set; }
-    public DateTimeOffset? NextRetryAt { get; private set; }
-    public string? ProcessingLockOwner { get; private set; }
-    public DateTimeOffset? ProcessingLockedUntil { get; private set; }
-    public bool DebitCreated { get; private set; }
-    public bool CreditCreated { get; private set; }
-    public DateTimeOffset CreatedAt { get; private set; }
-    public DateTimeOffset UpdatedAt { get; private set; }
-    public DateTimeOffset? CompletedAt { get; private set; }
+    public MerchantId SourceMerchantId
+    {
+        get; private set;
+    }
+    public MerchantId DestinationMerchantId
+    {
+        get; private set;
+    }
+    public TransferAmount Amount
+    {
+        get; private set;
+    }
+    public string? Description
+    {
+        get; private set;
+    }
+    public string? ExternalReference
+    {
+        get; private set;
+    }
+    public TransferenciaSagaStatus Status
+    {
+        get; private set;
+    }
+    public TransferenciaSagaStep Step
+    {
+        get; private set;
+    }
+    public Guid? DebitLancamentoId
+    {
+        get; private set;
+    }
+    public Guid? CreditLancamentoId
+    {
+        get; private set;
+    }
+    public Guid? CompensationEstornoId
+    {
+        get; private set;
+    }
+    public string? IdempotencyKey
+    {
+        get; private set;
+    }
+    public string? IdempotencyPayloadHash
+    {
+        get; private set;
+    }
+    public string? CorrelationId
+    {
+        get; private set;
+    }
+    public string? FailureReason
+    {
+        get; private set;
+    }
+    public int RetryCount
+    {
+        get; private set;
+    }
+    public DateTimeOffset? NextRetryAt
+    {
+        get; private set;
+    }
+    public string? ProcessingLockOwner
+    {
+        get; private set;
+    }
+    public DateTimeOffset? ProcessingLockedUntil
+    {
+        get; private set;
+    }
+    public bool DebitCreated
+    {
+        get; private set;
+    }
+    public bool CreditCreated
+    {
+        get; private set;
+    }
+    public DateTimeOffset CreatedAt
+    {
+        get; private set;
+    }
+    public DateTimeOffset UpdatedAt
+    {
+        get; private set;
+    }
+    public DateTimeOffset? CompletedAt
+    {
+        get; private set;
+    }
 
     private TransferenciaSaga()
     {

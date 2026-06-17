@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+
 using BalanceService.Worker.Messaging.PubSub.Configuration;
 
 namespace BalanceService.Worker.Tests.Messaging.PubSub.Configuration;

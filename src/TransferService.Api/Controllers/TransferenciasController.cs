@@ -1,9 +1,14 @@
 using Asp.Versioning;
+
 using ApiDefaults.Middlewares;
+
 using MediatR;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+
 using Swashbuckle.AspNetCore.Annotations;
+
 using TransferService.Api.Contracts.Requests;
 using TransferService.Api.Contracts.Responses;
 using TransferService.Api.Controllers.Binds;

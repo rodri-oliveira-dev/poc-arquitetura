@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+
 using TransferService.Application.Abstractions.Messaging;
 using TransferService.Application.Abstractions.Persistence;
 using TransferService.Application.Abstractions.Time;
@@ -114,6 +115,12 @@ public sealed class TransferenciaSagaProcessorService : BackgroundService
             ["CorrelationId"] = saga.CorrelationId,
             ["TransferenciaId"] = saga.Id
         });
+
+        _logger.LogInformation(
+            "Processando Saga de transferencia. TransferenciaId={TransferenciaId} CorrelationId={CorrelationId} Status={Status}",
+            saga.Id,
+            saga.CorrelationId,
+            saga.Status);
 
         if (!saga.DebitCreated)
         {

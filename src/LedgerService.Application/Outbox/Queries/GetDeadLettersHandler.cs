@@ -1,4 +1,5 @@
 using LedgerService.Domain.Repositories;
+
 using MediatR;
 
 namespace LedgerService.Application.Outbox.Queries;

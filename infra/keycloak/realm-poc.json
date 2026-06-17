@@ -35,6 +35,18 @@
       "authorizationServicesEnabled": false
     },
     {
+      "clientId": "transfer-api",
+      "name": "TransferService.Api audience",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "authorizationServicesEnabled": false
+    },
+    {
       "clientId": "poc-automation",
       "name": "POC local automation",
       "description": "Client local descartavel para obter tokens via client_credentials.",
@@ -53,6 +65,8 @@
         "ledger.write",
         "ledger.read",
         "balance.read",
+        "transfer.write",
+        "transfer.read",
         "outbox.admin",
         "poc-api-audience",
         "poc-merchants"
@@ -116,6 +130,8 @@
       "defaultClientScopes": [
         "ledger.write",
         "ledger.read",
+        "transfer.write",
+        "transfer.read",
         "balance.read",
         "outbox.admin",
         "poc-api-audience",
@@ -146,6 +162,24 @@
     {
       "name": "balance.read",
       "description": "Permite consultar consolidados do Balance.",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      }
+    },
+    {
+      "name": "transfer.write",
+      "description": "Permite solicitar transferencias no TransferService.",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      }
+    },
+    {
+      "name": "transfer.read",
+      "description": "Permite consultar transferencias no TransferService.",
       "protocol": "openid-connect",
       "attributes": {
         "include.in.token.scope": "true",
@@ -191,6 +225,17 @@
             "id.token.claim": "false",
             "access.token.claim": "true"
           }
+        },
+        {
+          "name": "transfer-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "transfer-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
         }
       ]
     },
@@ -210,7 +255,7 @@
           "consentRequired": false,
           "config": {
             "claim.name": "merchant_id",
-            "claim.value": "tese m1",
+            "claim.value": "tese m1 m2",
             "jsonType.label": "String",
             "id.token.claim": "false",
             "access.token.claim": "true",

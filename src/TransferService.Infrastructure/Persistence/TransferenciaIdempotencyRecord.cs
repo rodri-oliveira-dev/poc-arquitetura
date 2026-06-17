@@ -4,14 +4,38 @@ namespace TransferService.Infrastructure.Persistence;
 
 public sealed class TransferenciaIdempotencyRecord
 {
-    public Guid Id { get; private set; }
-    public string SourceMerchantId { get; private set; }
-    public string IdempotencyKey { get; private set; }
-    public string RequestHash { get; private set; }
-    public Guid TransferenciaId { get; private set; }
-    public string ResponseBody { get; private set; }
-    public DateTimeOffset CreatedAt { get; private set; }
-    public DateTimeOffset ExpiresAt { get; private set; }
+    public Guid Id
+    {
+        get; private set;
+    }
+    public string SourceMerchantId
+    {
+        get; private set;
+    }
+    public string IdempotencyKey
+    {
+        get; private set;
+    }
+    public string RequestHash
+    {
+        get; private set;
+    }
+    public Guid TransferenciaId
+    {
+        get; private set;
+    }
+    public string ResponseBody
+    {
+        get; private set;
+    }
+    public DateTimeOffset CreatedAt
+    {
+        get; private set;
+    }
+    public DateTimeOffset ExpiresAt
+    {
+        get; private set;
+    }
 
     private TransferenciaIdempotencyRecord()
     {

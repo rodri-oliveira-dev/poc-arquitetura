@@ -1,4 +1,5 @@
 using Auth.Api.Security;
+
 using System.Security.Cryptography;
 
 namespace Auth.UnitTests.Security;

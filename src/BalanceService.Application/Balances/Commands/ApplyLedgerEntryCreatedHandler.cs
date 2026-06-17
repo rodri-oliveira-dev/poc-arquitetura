@@ -102,7 +102,7 @@ public sealed class ApplyLedgerEntryCreatedHandler : IRequestHandler<ApplyLedger
             {
                 _logger.LogDebug("Evento ja processado (idempotencia). Nenhuma alteracao aplicada.");
                 await transaction.CommitAsync(cancellationToken);
-            RecordApplyMetrics(startedAt, command.EventType, "duplicate", projectionUpdated: false, currency);
+                RecordApplyMetrics(startedAt, command.EventType, "duplicate", projectionUpdated: false, currency);
                 return ApplyLedgerEntryCreatedResult.IgnoredDuplicate;
             }
 

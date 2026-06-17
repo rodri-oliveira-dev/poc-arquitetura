@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Primitives;
+
 using System.Diagnostics;
 
 namespace Auth.Api.Middlewares;

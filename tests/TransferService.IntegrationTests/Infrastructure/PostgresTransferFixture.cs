@@ -1,7 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+
 using Testcontainers.PostgreSql;
+
 using TransferService.Application.Abstractions.Messaging;
 using TransferService.Application.Abstractions.Persistence;
 using TransferService.Application.Abstractions.Time;
@@ -90,6 +92,9 @@ public sealed class PostgresTransferFixture : IAsyncLifetime
             UtcNow = utcNow;
         }
 
-        public DateTimeOffset UtcNow { get; }
+        public DateTimeOffset UtcNow
+        {
+            get;
+        }
     }
 }

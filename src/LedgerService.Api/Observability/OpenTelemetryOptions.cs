@@ -22,7 +22,10 @@ public sealed class OpenTelemetryOptions
     /// Endpoint OTLP opcional usado para exportar traces e métricas.
     /// Exemplo: http://localhost:4317.
     /// </summary>
-    public string? OtlpEndpoint { get; init; }
+    public string? OtlpEndpoint
+    {
+        get; init;
+    }
 
     /// <summary>
     /// Nome do serviço usado no Resource do OpenTelemetry.

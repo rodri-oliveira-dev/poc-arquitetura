@@ -1,13 +1,18 @@
 using Asp.Versioning;
+
 using LedgerService.Api.Contracts.Requests;
 using LedgerService.Api.Contracts.Responses;
 using LedgerService.Api.Security;
 using LedgerService.Application.Outbox.Commands;
 using LedgerService.Application.Outbox.Queries;
+
 using MediatR;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+
 using Swashbuckle.AspNetCore.Annotations;
+
 using System.Security.Claims;
 
 namespace LedgerService.Api.Controllers;

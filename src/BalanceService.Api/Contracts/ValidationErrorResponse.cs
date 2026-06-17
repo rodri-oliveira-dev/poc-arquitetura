@@ -37,5 +37,8 @@ public sealed class ValidationErrorResponse
     /// <summary>
     /// CorrelationId associado à requisição (mesmo valor retornado no header <c>X-Correlation-Id</c>).
     /// </summary>
-    public string? CorrelationId { get; init; }
+    public string? CorrelationId
+    {
+        get; init;
+    }
 }

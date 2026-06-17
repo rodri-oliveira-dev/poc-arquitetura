@@ -1,6 +1,8 @@
 using Auth.Api.Extensions;
+
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
+
 using Moq;
 
 namespace Auth.UnitTests.Swagger;

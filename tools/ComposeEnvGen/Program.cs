@@ -1,4 +1,5 @@
 using System.Globalization;
+
 using YamlDotNet.RepresentationModel;
 
 namespace ComposeEnvGen;
@@ -174,14 +175,16 @@ internal static class ComposeHelpers
 {
     public static YamlNode? GetChild(YamlMappingNode map, string key)
     {
-        if (!map.Children.TryGetValue(new YamlScalarNode(key), out var node)) return null;
+        if (!map.Children.TryGetValue(new YamlScalarNode(key), out var node))
+            return null;
         return node;
     }
 
     public static IEnumerable<string> GetStringSequence(YamlMappingNode map, string key)
     {
         var node = GetChild(map, key);
-        if (node is not YamlSequenceNode seq) yield break;
+        if (node is not YamlSequenceNode seq)
+            yield break;
         foreach (var item in seq)
         {
             if (item is YamlScalarNode s && !string.IsNullOrWhiteSpace(s.Value))
@@ -199,7 +202,8 @@ internal static class ComposeHelpers
             foreach (var kv in envMap.Children)
             {
                 var k = (kv.Key as YamlScalarNode)?.Value;
-                if (string.IsNullOrWhiteSpace(k)) continue;
+                if (string.IsNullOrWhiteSpace(k))
+                    continue;
                 var v = (kv.Value as YamlScalarNode)?.Value ?? string.Empty;
                 dict[k!] = v;
             }
@@ -208,7 +212,8 @@ internal static class ComposeHelpers
         {
             foreach (var item in envSeq.Children)
             {
-                if (item is not YamlScalarNode s || string.IsNullOrWhiteSpace(s.Value)) continue;
+                if (item is not YamlScalarNode s || string.IsNullOrWhiteSpace(s.Value))
+                    continue;
                 var parts = s.Value!.Split('=', 2);
                 dict[parts[0]] = parts.Length == 2 ? parts[1] : string.Empty;
             }
@@ -225,7 +230,8 @@ internal static class ComposeHelpers
         foreach (var p in ports)
         {
             var v = p.Trim();
-            if (string.IsNullOrEmpty(v)) continue;
+            if (string.IsNullOrEmpty(v))
+                continue;
             // remove /proto
             var noProto = v.Split('/', 2)[0];
             var parts = noProto.Split(':');
@@ -247,14 +253,17 @@ internal static class ComposeHelpers
     public static int? TryParseHttpPortFromAspNetCoreUrls(string? urls)
     {
         // Ex.: http://+:8080;https://+:8443
-        if (string.IsNullOrWhiteSpace(urls)) return null;
+        if (string.IsNullOrWhiteSpace(urls))
+            return null;
         var tokens = urls.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         foreach (var t in tokens)
         {
-            if (!t.StartsWith("http://", StringComparison.OrdinalIgnoreCase)) continue;
+            if (!t.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
+                continue;
             // http://+:8080 or http://0.0.0.0:8080
             var idx = t.LastIndexOf(':');
-            if (idx <= 0) continue;
+            if (idx <= 0)
+                continue;
             var portStr = t[(idx + 1)..];
             if (int.TryParse(portStr, NumberStyles.Integer, CultureInfo.InvariantCulture, out var port))
                 return port;
@@ -276,7 +285,8 @@ internal static class ServiceDiscovery
             .Where(n => includeKeywords.Any(kw => n.Contains(kw, StringComparison.OrdinalIgnoreCase)))
             .ToList();
 
-        if (candidates.Count == 0) return null;
+        if (candidates.Count == 0)
+            return null;
 
         (string Name, int Score) best = (candidates[0], int.MinValue);
 
@@ -288,31 +298,42 @@ internal static class ServiceDiscovery
             var score = 0;
 
             // Nome
-            if (name.Contains("service", StringComparison.OrdinalIgnoreCase)) score += 30;
-            if (name.Contains("api", StringComparison.OrdinalIgnoreCase)) score += 30;
-            if (name.Contains("db", StringComparison.OrdinalIgnoreCase)) score -= 50;
-            if (name.Contains("postgres", StringComparison.OrdinalIgnoreCase)) score -= 50;
-            if (name.Contains("kafka", StringComparison.OrdinalIgnoreCase)) score -= 50;
-            if (name.Contains("init", StringComparison.OrdinalIgnoreCase)) score -= 20;
+            if (name.Contains("service", StringComparison.OrdinalIgnoreCase))
+                score += 30;
+            if (name.Contains("api", StringComparison.OrdinalIgnoreCase))
+                score += 30;
+            if (name.Contains("db", StringComparison.OrdinalIgnoreCase))
+                score -= 50;
+            if (name.Contains("postgres", StringComparison.OrdinalIgnoreCase))
+                score -= 50;
+            if (name.Contains("kafka", StringComparison.OrdinalIgnoreCase))
+                score -= 50;
+            if (name.Contains("init", StringComparison.OrdinalIgnoreCase))
+                score -= 20;
 
             // Indícios de HTTP app
             var env = ComposeHelpers.GetEnvironment(svc);
-            if (env.ContainsKey("ASPNETCORE_URLS")) score += 100;
+            if (env.ContainsKey("ASPNETCORE_URLS"))
+                score += 100;
 
             var ports = ComposeHelpers.GetStringSequence(svc, "ports").ToArray();
             var containerPort = ComposeHelpers.TryParseContainerPortFromPorts(ports);
             if (containerPort.HasValue)
             {
-                if (containerPort.Value is 80 or 8080 or 5000 or 5001) score += 50;
-                if (NonHttpContainerPorts.Contains(containerPort.Value)) score -= 100;
+                if (containerPort.Value is 80 or 8080 or 5000 or 5001)
+                    score += 50;
+                if (NonHttpContainerPorts.Contains(containerPort.Value))
+                    score -= 100;
             }
 
             // Build tende a ser nosso serviço local
-            if (ComposeHelpers.GetChild(svc, "build") is not null) score += 20;
+            if (ComposeHelpers.GetChild(svc, "build") is not null)
+                score += 20;
 
             // Evita escolher DB por engano
             var image = (ComposeHelpers.GetChild(svc, "image") as YamlScalarNode)?.Value ?? string.Empty;
-            if (image.Contains("postgres", StringComparison.OrdinalIgnoreCase)) score -= 200;
+            if (image.Contains("postgres", StringComparison.OrdinalIgnoreCase))
+                score -= 200;
 
             if (score > best.Score)
                 best = (name, score);
@@ -326,14 +347,16 @@ internal static class ServiceDiscovery
         // 1) ports:
         var ports = ComposeHelpers.GetStringSequence(service, "ports").ToArray();
         var fromPorts = ComposeHelpers.TryParseContainerPortFromPorts(ports);
-        if (fromPorts.HasValue) return fromPorts.Value;
+        if (fromPorts.HasValue)
+            return fromPorts.Value;
 
         // 2) ASPNETCORE_URLS
         var env = ComposeHelpers.GetEnvironment(service);
         if (env.TryGetValue("ASPNETCORE_URLS", out var urls))
         {
             var fromUrls = ComposeHelpers.TryParseHttpPortFromAspNetCoreUrls(urls);
-            if (fromUrls.HasValue) return fromUrls.Value;
+            if (fromUrls.HasValue)
+                return fromUrls.Value;
         }
 
         // 3) PORT / HTTP_PORT / etc.

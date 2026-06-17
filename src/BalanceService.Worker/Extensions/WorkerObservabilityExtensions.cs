@@ -1,6 +1,7 @@
 using BalanceService.Worker.HostedServices;
 using BalanceService.Worker.Messaging.Processors;
 using BalanceService.Worker.Observability;
+
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;

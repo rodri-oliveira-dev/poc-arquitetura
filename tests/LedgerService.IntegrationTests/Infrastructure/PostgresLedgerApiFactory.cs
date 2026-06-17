@@ -1,5 +1,6 @@
 using LedgerService.Infrastructure.Persistence;
 using LedgerService.IntegrationTests.Infrastructure.Security;
+
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;

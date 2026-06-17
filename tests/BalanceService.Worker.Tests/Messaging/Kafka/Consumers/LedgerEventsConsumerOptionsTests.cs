@@ -1,5 +1,6 @@
 using BalanceService.Worker.Messaging.Kafka.Configuration;
 using BalanceService.Worker.Messaging.Kafka.Consumers;
+
 using Confluent.Kafka;
 
 namespace BalanceService.Worker.Tests.Messaging.Kafka.Consumers;

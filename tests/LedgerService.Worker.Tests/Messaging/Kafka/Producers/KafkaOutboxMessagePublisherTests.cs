@@ -7,8 +7,10 @@ using LedgerService.Infrastructure.Observability;
 using LedgerService.Worker.Messaging.Kafka.Configuration;
 using LedgerService.Worker.Messaging.Kafka.Producers;
 using LedgerService.Worker.Messaging.Kafka.Tracing;
+
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+
 using Moq;
 
 namespace LedgerService.Worker.Tests.Messaging.Kafka.Producers;

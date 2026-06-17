@@ -8,5 +8,8 @@ public sealed class TransferenciaKafkaPublishException : Exception
         IsTransient = isTransient;
     }
 
-    public bool IsTransient { get; }
+    public bool IsTransient
+    {
+        get;
+    }
 }

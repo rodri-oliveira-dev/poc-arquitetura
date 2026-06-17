@@ -81,6 +81,8 @@ public sealed class LancamentosExamplesOperationFilterTests
 
     private sealed class OtherController
     {
-        public static void Get() { }
+        public static void Get()
+        {
+        }
     }
 }

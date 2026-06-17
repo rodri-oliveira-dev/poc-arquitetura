@@ -8,6 +8,7 @@ using LedgerService.Application.Common.Observability;
 using LedgerService.Application.Lancamentos.Events;
 using LedgerService.Domain.Entities;
 using LedgerService.Domain.Repositories;
+
 using MediatR;
 
 namespace LedgerService.Application.Lancamentos.Commands;

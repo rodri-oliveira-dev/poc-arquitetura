@@ -11,8 +11,14 @@ public sealed class LedgerServiceException : Exception
         ResponseBody = responseBody;
     }
 
-    public HttpStatusCode StatusCode { get; }
-    public string ResponseBody { get; }
+    public HttpStatusCode StatusCode
+    {
+        get;
+    }
+    public string ResponseBody
+    {
+        get;
+    }
 
     public bool IsTransient
         => StatusCode is HttpStatusCode.RequestTimeout

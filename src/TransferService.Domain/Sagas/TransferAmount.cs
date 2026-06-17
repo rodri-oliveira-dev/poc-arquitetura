@@ -1,11 +1,15 @@
 using TransferService.Domain.Exceptions;
+
 using System.Globalization;
 
 namespace TransferService.Domain.Sagas;
 
 public readonly record struct TransferAmount
 {
-    public decimal Value { get; }
+    public decimal Value
+    {
+        get;
+    }
 
     public TransferAmount(decimal value)
     {

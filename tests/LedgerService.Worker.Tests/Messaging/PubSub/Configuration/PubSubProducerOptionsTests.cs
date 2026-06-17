@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+
 using LedgerService.Worker.Messaging.PubSub.Configuration;
 
 namespace LedgerService.Worker.Tests.Messaging.PubSub.Configuration;

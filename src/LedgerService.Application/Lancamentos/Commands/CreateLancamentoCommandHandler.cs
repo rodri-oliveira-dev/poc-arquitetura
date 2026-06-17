@@ -8,6 +8,7 @@ using LedgerService.Application.Lancamentos.Services;
 using LedgerService.Domain.Entities;
 using LedgerService.Domain.Exceptions;
 using LedgerService.Domain.Repositories;
+
 using MediatR;
 
 namespace LedgerService.Application.Lancamentos.Commands;

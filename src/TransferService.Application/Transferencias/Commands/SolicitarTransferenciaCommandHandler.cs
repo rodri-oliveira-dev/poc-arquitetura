@@ -1,7 +1,9 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+
 using MediatR;
+
 using TransferService.Application.Abstractions.Messaging;
 using TransferService.Application.Abstractions.Persistence;
 using TransferService.Application.Abstractions.Time;
@@ -60,7 +62,10 @@ public sealed class SolicitarTransferenciaCommandHandler
             if (!string.Equals(existing.RequestHash, requestHash, StringComparison.Ordinal))
                 throw new ConflictException("Idempotency-Key already used with a different payload.");
 
-            return existing.Response with { IdempotentReplay = true };
+            return existing.Response with
+            {
+                IdempotentReplay = true
+            };
         }
 
         var now = _clock.UtcNow;

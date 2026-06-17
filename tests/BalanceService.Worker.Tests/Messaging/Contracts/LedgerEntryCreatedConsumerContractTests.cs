@@ -260,12 +260,30 @@ public sealed class LedgerEntryCreatedConsumerContractTests
                 NullLogger<LedgerEntryCreatedMessageProcessor>.Instance);
         }
 
-        public InMemoryDailyBalanceRepository DailyBalances { get; }
-        public InMemoryProcessedEventRepository ProcessedEvents { get; }
-        public InMemoryUnitOfWork UnitOfWork { get; }
-        public CapturingDeadLetterPublisher DeadLetters { get; }
-        public MessagingMetrics Metrics { get; }
-        public LedgerEntryCreatedMessageProcessor Processor { get; }
+        public InMemoryDailyBalanceRepository DailyBalances
+        {
+            get;
+        }
+        public InMemoryProcessedEventRepository ProcessedEvents
+        {
+            get;
+        }
+        public InMemoryUnitOfWork UnitOfWork
+        {
+            get;
+        }
+        public CapturingDeadLetterPublisher DeadLetters
+        {
+            get;
+        }
+        public MessagingMetrics Metrics
+        {
+            get;
+        }
+        public LedgerEntryCreatedMessageProcessor Processor
+        {
+            get;
+        }
 
         public void Dispose()
         {
@@ -324,7 +342,10 @@ public sealed class LedgerEntryCreatedConsumerContractTests
     {
         private readonly HashSet<string> _eventIds = new(StringComparer.Ordinal);
 
-        public int InsertedCount { get; private set; }
+        public int InsertedCount
+        {
+            get; private set;
+        }
 
         public Task<bool> ExistsAsync(string eventId, CancellationToken cancellationToken = default)
             => Task.FromResult(_eventIds.Contains(eventId));
@@ -349,7 +370,10 @@ public sealed class LedgerEntryCreatedConsumerContractTests
 
     private sealed class InMemoryUnitOfWork : IUnitOfWork
     {
-        public int SaveChangesCalls { get; private set; }
+        public int SaveChangesCalls
+        {
+            get; private set;
+        }
 
         public Task<IAppTransaction> BeginTransactionAsync(CancellationToken cancellationToken = default)
             => Task.FromResult<IAppTransaction>(new NoopTransaction());

@@ -66,6 +66,8 @@ Variaveis sensiveis obrigatorias para o compose principal:
 - `BALANCE_DB_READ_PASSWORD`
 - `BALANCE_DB_WRITE_PASSWORD`
 - `BALANCE_DB_MIGRATOR_PASSWORD`
+- `TRANSFER_DB_PASSWORD`
+- `TRANSFER_DB_MIGRATOR_PASSWORD`
 - `KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD`
 - `KEYCLOAK_CLIENT_SECRET`
 - `KEYCLOAK_LOCAL_LEDGER_USER_PASSWORD`
@@ -76,7 +78,7 @@ Variaveis nao sensiveis ou identificadores locais continuam com defaults no comp
 
 As variaveis `AUTH_POC_USERNAME`, `AUTH_POC_PASSWORD` e `AUTH_POC_SCOPE` continuam aceitas apenas pelo overlay legado `compose.auth-legacy.yaml`.
 
-O PostgreSQL local roda em um unico container `postgres-db`, com volume `postgres-data`, database `appdb`, schemas `ledger` e `balance`, e usuarios separados por servico/responsabilidade. A inicializacao fica nos scripts versionados em `infra/postgres/init`. As connection strings dos servicos runtime no compose usam `postgres-db:5432/appdb`; as variaveis `LEDGER_DB_*` e `BALANCE_DB_*` configuram as senhas locais usadas pelo init do container e pelas connection strings do compose. Em volumes PostgreSQL existentes, alterar `.env.local` ou `compose.yaml` nao altera automaticamente roles, grants ou senhas ja gravadas no banco; para reaplicar o init, recrie conscientemente o volume local ou execute o SQL manualmente.
+O PostgreSQL local roda em um unico container `postgres-db`, com volume `postgres-data`, database `appdb`, schemas `ledger`, `balance` e `transfer`, e usuarios separados por servico/responsabilidade. A inicializacao fica nos scripts versionados em `infra/postgres/init`. As connection strings dos servicos runtime no compose usam `postgres-db:5432/appdb`; as variaveis `LEDGER_DB_*`, `BALANCE_DB_*` e `TRANSFER_DB_*` configuram as senhas locais usadas pelo init do container e pelas connection strings do compose. Em volumes PostgreSQL existentes, alterar `.env.local` ou `compose.yaml` nao altera automaticamente roles, grants ou senhas ja gravadas no banco; para reaplicar o init, recrie conscientemente o volume local ou execute o SQL manualmente.
 
 Topologia local de banco:
 
@@ -87,6 +89,8 @@ Topologia local de banco:
 | Runtime de leitura do BalanceService.Api | `appdb.balance` | `balance_read_user` |
 | Runtime de escrita do BalanceService.Worker | `appdb.balance` | `balance_write_user` |
 | Migrations do BalanceService | `appdb.balance` | `balance_migrator_user` |
+| Runtime do TransferService.Api e TransferService.Worker | `appdb.transfer` | `transfer_app_user` |
+| Migrations do TransferService | `appdb.transfer` | `transfer_migrator_user` |
 
 O `BalanceService.Api` deve permanecer read-only no banco: ele consulta a projecao `balance`, mas nao aplica eventos nem executa INSERT/UPDATE/DELETE. A escrita da projecao pertence ao `BalanceService.Worker` com `balance_write_user`. A reducao para um unico container e apenas local; o isolamento logico entre servicos continua sendo preservado por schemas, migrations separadas e grants por role.
 
@@ -101,7 +105,8 @@ Os scripts `start-local-stack.*` sobem por padrao o core funcional de desenvolvi
 - `LedgerService.Worker`;
 - `BalanceService.Api`;
 - `BalanceService.Worker`;
-- PostgreSQL unico (`postgres-db`) com schemas `ledger` e `balance`;
+- `TransferService.Api`;
+- PostgreSQL unico (`postgres-db`) com schemas `ledger`, `balance` e `transfer`;
 - Pub/Sub emulator;
 - job idempotente de inicializacao do topic principal, DLQ de aplicacao, subscription do Balance e subscription de inspecao da DLQ de aplicacao.
 
@@ -115,7 +120,7 @@ Componentes opcionais ficam em arquivos Compose separados. Eles complementam o `
 - `compose.sonar.yaml` com profile `quality`: SonarQube local;
 - `compose.auth-legacy.yaml` com profile `legacy-auth`: `Auth.Api` legado.
 - `compose.yaml`: stack principal com Pub/Sub emulator, init idempotente dos recursos e workers configurados com `Messaging:Provider=PubSub`.
-- `compose.kafka.yaml` com profile `legacy-kafka`: overrides dos workers para `Messaging:Provider=Kafka`; use apenas para validar o caminho legado.
+- `compose.kafka.yaml` com profile `legacy-kafka`: overrides dos workers de Ledger/Balance para `Messaging:Provider=Kafka` e habilitacao do `TransferService.Worker`, que usa Kafka explicitamente no fluxo de Saga.
 - `compose.cloudsql.yaml`: overlay de smoke manual/local com Cloud SQL Auth Proxy, trocando `postgres-db:5432` por `cloud-sql-proxy:5432` dentro dos containers.
 
 Tambem existe um overlay opcional `compose.nginx.yaml` para adicionar uma borda local com Nginx e HTTPS em desenvolvimento. Ele nao faz parte do core funcional e nao altera as APIs, que continuam rodando internamente em HTTP com `ASPNETCORE_URLS=http://+:8080`. Quando o overlay e usado, o Nginx cria um upstream local `ledger_api` com duas instancias da `LedgerService.Api` e algoritmo `least_conn`. O `Auth.Api` foi removido do core funcional e permanece apenas no overlay legado `compose.auth-legacy.yaml`.
@@ -142,7 +147,7 @@ No Linux/macOS:
 ./scripts/start-local-stack.sh
 ```
 
-Esse fluxo sobe bancos, Pub/Sub emulator e Keycloak, aplica migrations pelo host e depois inicia `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker`.
+Esse fluxo sobe bancos, Pub/Sub emulator e Keycloak, aplica migrations pelo host e depois inicia `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api`, `BalanceService.Worker` e `TransferService.Api`.
 
 Os scripts `start-local-stack.*` usam Docker Compose, restauram tools .NET, aplicam migrations pelo host e nao removem volumes. Eles nao executam testes automatizados, k6 nem scanners.
 
@@ -179,7 +184,7 @@ docker compose --env-file .env.local -f compose.debug.yml up -d postgres-db pubs
 Para subir os processos .NET pelo compose depois das dependencias:
 
 ```bash
-docker compose --env-file .env.local -f compose.yaml up -d ledger-service ledger-worker balance-service balance-worker
+docker compose --env-file .env.local -f compose.yaml up -d ledger-service ledger-worker balance-service balance-worker transfer-service
 ```
 
 Para verificar o status dos containers do core local:
@@ -256,7 +261,9 @@ Os nomes locais seguem a configuracao de `.env.local.example` e podem ser sobres
 
 O emulator e descartavel, nao usa credenciais GCP e fica fora do Terraform. Ele nao reproduz integralmente comportamento, limites e garantias do servico real. A DLQ tecnica nativa nao e simulada localmente; o topic de DLQ criado pelo init e a DLQ de aplicacao.
 
-Para iniciar Kafka somente quando o caminho legado for necessario:
+### Kafka local e Saga do TransferService
+
+Para iniciar Kafka somente quando o caminho legado ou a Saga do TransferService forem necessarios:
 
 ```powershell
 ./scripts/start-local-stack-kafka.ps1
@@ -266,7 +273,28 @@ Para iniciar Kafka somente quando o caminho legado for necessario:
 ./scripts/start-local-stack-kafka.sh
 ```
 
-O modo Kafka legado continua necessario para validar o fluxo assincrono de reprocessamento ponta a ponta enquanto o consumer Pub/Sub correspondente nao existir.
+O modo Kafka legado continua necessario para validar o fluxo assincrono de reprocessamento ponta a ponta enquanto o consumer Pub/Sub correspondente nao existir. Ele tambem sobe o `TransferService.Worker`, porque a Saga orquestrada do TransferService usa Kafka como transporte explicito dos eventos da Saga e nao configura Pub/Sub.
+
+O compose cria os topicos Kafka abaixo de forma idempotente pelo container `kafka-init-topics`:
+
+| Topico | Uso |
+| --- | --- |
+| `transfer.transferencia.solicitada` | Solicitação aceita pela API e gravada no Outbox. |
+| `transfer.transferencia.debito-criado` | Debito criado no Ledger. |
+| `transfer.transferencia.credito-criado` | Credito criado no Ledger. |
+| `transfer.transferencia.concluida` | Saga concluida. |
+| `transfer.transferencia.compensacao-solicitada` | Estorno/compensacao do debito solicitado. |
+| `transfer.transferencia.compensada` | Saga compensada quando esse estado for registrado. |
+| `transfer.transferencia.falhou` | Falha definitiva da Saga. |
+| `transfer.transferencia.dlq` | DLQ de aplicacao para publicacao invalida ou erro definitivo da Outbox. |
+
+Para subir apenas os componentes necessarios ao fluxo de transferencia com Kafka pelo compose, aplique migrations pelo host e use:
+
+```bash
+docker compose --env-file .env.local -f compose.yaml -f compose.kafka.yaml --profile legacy-kafka up -d --build postgres-db kafka kafka-init-topics keycloak ledger-service transfer-service transfer-worker
+```
+
+No host, a API de transferencias fica em `http://localhost:${TRANSFER_SERVICE_HOST_PORT:-5230}`. O Worker chama o Ledger pela rede interna em `http://ledger-service:8080`, grava evolucoes no Outbox do schema `transfer` e publica no Kafka com `transferenciaId` como message key.
 
 Para combinar Pub/Sub emulator e observabilidade:
 
@@ -369,9 +397,9 @@ O realm local importado se chama `poc` e expoe:
 - client local de automacao: `poc-automation`;
 - clients locais de debug manual: `poc-local-ledger-debug`, `poc-local-balance-debug` e `poc-local-admin-debug`;
 - fluxo preferencial para scripts: `client_credentials`;
-- audiences: `ledger-api` e `balance-api`;
-- scopes: `ledger.write`, `ledger.read`, `balance.read` e `outbox.admin`;
-- claim `merchant_id`: `tese m1`.
+- audiences: `ledger-api`, `balance-api` e `transfer-api`;
+- scopes: `ledger.write`, `ledger.read`, `balance.read`, `transfer.write`, `transfer.read` e `outbox.admin`;
+- claim `merchant_id`: `tese m1 m2`.
 
 As APIs continuam usando `Jwt:JwksUrl` direto, sem introspeccao por request e sem consumir discovery metadata nesta etapa. No compose, `JWT_ISSUER` deve corresponder ao `iss` publico do token (`http://localhost:8081/realms/poc`) e `JWT_JWKS_URL` deve apontar para o endpoint de certificados acessivel pela rede interna (`http://keycloak:8080/realms/poc/protocol/openid-connect/certs`). Para voltar temporariamente ao emissor legado, suba `compose.auth-legacy.yaml` e configure `JWT_ISSUER=https://auth-api`, `JWT_JWKS_URL=http://auth-api:8080/.well-known/jwks.json` e `TOKEN_PROVIDER=auth-api`.
 
@@ -407,7 +435,7 @@ Usuarios locais de debug importados no realm:
 | --- | --- | --- | --- | --- | --- |
 | `local_ledger_user` | `KEYCLOAK_LOCAL_LEDGER_USER_PASSWORD` | `poc-local-ledger-debug` | Debug manual do LedgerService | `ledger.write ledger.read` | `tese m1` |
 | `local_balance_user` | `KEYCLOAK_LOCAL_BALANCE_USER_PASSWORD` | `poc-local-balance-debug` | Debug manual do BalanceService | `balance.read` | `tese m1` |
-| `local_admin_user` | `KEYCLOAK_LOCAL_ADMIN_USER_PASSWORD` | `poc-local-admin-debug` | Debug manual completo | `ledger.write ledger.read balance.read outbox.admin` | `tese m1` |
+| `local_admin_user` | `KEYCLOAK_LOCAL_ADMIN_USER_PASSWORD` | `poc-local-admin-debug` | Debug manual completo | `ledger.write ledger.read balance.read transfer.write transfer.read outbox.admin` | `tese m1 m2` |
 
 Esses usuarios sao apenas conveniencia de desenvolvimento local. Eles nao devem ser usados em ambiente compartilhado, homologacao ou producao, e nao substituem `client_credentials` para automacoes.
 
@@ -422,7 +450,7 @@ curl -s -X POST http://localhost:8081/realms/poc/protocol/openid-connect/token \
   -d "password=local_ledger_password"
 ```
 
-Troque `client_id`, `username` e `password` para `poc-local-balance-debug` / `local_balance_user` ou `poc-local-admin-debug` / `local_admin_user` quando quiser validar os demais perfis. O token deve manter `iss=http://localhost:8081/realms/poc`, `aud` com `ledger-api` e `balance-api`, `merchant_id=tese m1` e a claim `scope` conforme o perfil escolhido.
+Troque `client_id`, `username` e `password` para `poc-local-balance-debug` / `local_balance_user` ou `poc-local-admin-debug` / `local_admin_user` quando quiser validar os demais perfis. O token deve manter `iss=http://localhost:8081/realms/poc`, `aud` com as APIs autorizadas, `merchant_id` conforme o perfil e a claim `scope` conforme o perfil escolhido. Para testar `TransferService.Api`, use o token do `poc-automation` ou `poc-local-admin-debug`, que inclui `transfer-api`, `transfer.write`, `transfer.read` e merchants `m1 m2`.
 
 Para usar temporariamente tokens emitidos pelo `Auth.Api`, suba o overlay legado e sobrescreva tambem a configuracao JWT das APIs para apontar para o emissor legado:
 

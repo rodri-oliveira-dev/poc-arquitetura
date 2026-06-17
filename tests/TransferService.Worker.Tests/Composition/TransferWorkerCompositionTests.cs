@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+
 using TransferService.Worker.Extensions;
 
 namespace TransferService.Worker.Tests.Composition;

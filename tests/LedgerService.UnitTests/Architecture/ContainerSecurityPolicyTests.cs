@@ -46,7 +46,7 @@ public sealed class ContainerSecurityPolicyTests
         foreach (var composePath in new[] { "compose.yaml", "compose.k6.yaml" })
         {
             var compose = File.ReadAllText(Path.Combine(repositoryRoot.FullName, composePath));
-        Assert.DoesNotContain(":latest", compose);
+            Assert.DoesNotContain(":latest", compose);
         }
     }
 
@@ -59,12 +59,12 @@ public sealed class ContainerSecurityPolicyTests
         foreach (var service in ComposeServicesWithLimits)
         {
             var serviceBlock = GetServiceBlock(compose, service);
-        Assert.Contains("deploy:", serviceBlock);
-        Assert.Contains("resources:", serviceBlock);
-        Assert.Contains("limits:", serviceBlock);
-        Assert.Contains("cpus:", serviceBlock);
-        Assert.Contains("memory:", serviceBlock);
-        Assert.Contains("pids:", serviceBlock);
+            Assert.Contains("deploy:", serviceBlock);
+            Assert.Contains("resources:", serviceBlock);
+            Assert.Contains("limits:", serviceBlock);
+            Assert.Contains("cpus:", serviceBlock);
+            Assert.Contains("memory:", serviceBlock);
+            Assert.Contains("pids:", serviceBlock);
         }
     }
 

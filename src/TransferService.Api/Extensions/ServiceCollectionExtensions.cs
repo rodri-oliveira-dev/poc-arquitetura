@@ -1,8 +1,11 @@
 using ApiDefaults.Extensions;
+
 using Microsoft.OpenApi;
+
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
+
 using TransferService.Api.Observability;
 using TransferService.Api.Security;
 using TransferService.Api.Swagger;

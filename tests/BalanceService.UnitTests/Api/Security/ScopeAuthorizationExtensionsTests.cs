@@ -1,4 +1,5 @@
 using BalanceService.Api.Security;
+
 using System.Security.Claims;
 
 namespace BalanceService.UnitTests.Api.Security;

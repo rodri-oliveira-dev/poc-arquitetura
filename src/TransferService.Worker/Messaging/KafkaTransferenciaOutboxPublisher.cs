@@ -1,7 +1,10 @@
 using System.Text;
 using System.Text.Json;
+
 using Confluent.Kafka;
+
 using Microsoft.Extensions.Options;
+
 using TransferService.Infrastructure.Persistence.Outbox;
 using TransferService.Worker.Options;
 

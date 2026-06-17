@@ -1,7 +1,10 @@
 using Auth.Api.Swagger;
+
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.OpenApi;
+
 using Swashbuckle.AspNetCore.SwaggerGen;
+
 using System.Reflection;
 using System.Text.Json;
 
@@ -82,5 +85,7 @@ public sealed class LoginOperationFilterTests
         return new OperationFilterContext(apiDescription, new SchemaGenerator(new SchemaGeneratorOptions(), new JsonSerializerDataContractResolver(new JsonSerializerOptions())), new SchemaRepository(), new OpenApiDocument(), method);
     }
 
-    private static void Dummy() { }
+    private static void Dummy()
+    {
+    }
 }

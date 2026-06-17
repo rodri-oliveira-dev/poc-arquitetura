@@ -1,6 +1,7 @@
 using LedgerService.Application.Common.Exceptions;
 using LedgerService.Domain.Entities;
 using LedgerService.Domain.Repositories;
+
 using MediatR;
 
 namespace LedgerService.Application.Lancamentos.Queries;

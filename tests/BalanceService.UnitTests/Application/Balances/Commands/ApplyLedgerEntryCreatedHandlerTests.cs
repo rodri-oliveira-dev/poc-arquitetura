@@ -5,7 +5,9 @@ using BalanceService.Application.Abstractions.Time;
 using BalanceService.Application.Balances.Commands;
 using BalanceService.Domain.Balances;
 using BalanceService.UnitTests.Fixtures;
+
 using Microsoft.Extensions.Logging;
+
 using Moq;
 
 namespace BalanceService.UnitTests.Application.Balances.Commands;

@@ -6,6 +6,7 @@ using LedgerService.Application.Lancamentos.Services;
 using LedgerService.Domain.Entities;
 using LedgerService.Domain.Repositories;
 using LedgerService.UnitTests.Fixtures;
+
 using Moq;
 
 namespace LedgerService.UnitTests.Application.Lancamentos.Services;

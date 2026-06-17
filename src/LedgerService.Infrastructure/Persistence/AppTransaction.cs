@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore.Storage;
+
 using LedgerService.Domain.Repositories;
 
 namespace LedgerService.Infrastructure.Persistence;

@@ -19,7 +19,10 @@ public sealed class SolicitarReprocessamentoLancamentosCommandValidatorTests
     [InlineData("curto")]
     public void Should_reject_invalid_motivo(string motivo)
     {
-        var command = ValidCommand() with { Motivo = motivo };
+        var command = ValidCommand() with
+        {
+            Motivo = motivo
+        };
 
         var result = _validator.Validate(command);
         Assert.False(result.IsValid);
@@ -57,7 +60,10 @@ public sealed class SolicitarReprocessamentoLancamentosCommandValidatorTests
     [Fact]
     public void Should_reject_invalid_idempotency_key()
     {
-        var command = ValidCommand() with { IdempotencyKey = "invalid" };
+        var command = ValidCommand() with
+        {
+            IdempotencyKey = "invalid"
+        };
 
         var result = _validator.Validate(command);
         Assert.False(result.IsValid);

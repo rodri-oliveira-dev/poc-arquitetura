@@ -75,7 +75,10 @@ public sealed class SolicitarTransferenciaCommandHandlerTests
         var command = ValidCommand();
         await fixture.Handler.Handle(command, CancellationToken.None);
 
-        var differentPayload = command with { Amount = 150m };
+        var differentPayload = command with
+        {
+            Amount = 150m
+        };
 
         var exception = await Assert.ThrowsAsync<ConflictException>(
             () => fixture.Handler.Handle(differentPayload, CancellationToken.None));
@@ -103,7 +106,10 @@ public sealed class SolicitarTransferenciaCommandHandlerTests
     public async Task Handle_should_reject_invalid_amount()
     {
         var fixture = new HandlerFixture();
-        var command = ValidCommand() with { Amount = 0m };
+        var command = ValidCommand() with
+        {
+            Amount = 0m
+        };
 
         var exception = await Assert.ThrowsAsync<TransferService.Domain.Exceptions.DomainException>(
             () => fixture.Handler.Handle(command, CancellationToken.None));
@@ -135,7 +141,10 @@ public sealed class SolicitarTransferenciaCommandHandlerTests
         public FakeTransferenciaIdempotencyService IdempotencyService { get; } = new();
         public FakeTransferenciaOutboxWriter OutboxWriter { get; } = new();
         public FakeUnitOfWork UnitOfWork { get; } = new();
-        public SolicitarTransferenciaCommandHandler Handler { get; }
+        public SolicitarTransferenciaCommandHandler Handler
+        {
+            get;
+        }
     }
 
     private sealed class FixedClock : IClock
@@ -145,7 +154,10 @@ public sealed class SolicitarTransferenciaCommandHandlerTests
             UtcNow = utcNow;
         }
 
-        public DateTimeOffset UtcNow { get; }
+        public DateTimeOffset UtcNow
+        {
+            get;
+        }
     }
 
     private sealed class FakeTransferenciaSagaRepository : ITransferenciaSagaRepository

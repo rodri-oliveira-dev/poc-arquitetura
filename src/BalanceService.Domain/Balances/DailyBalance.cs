@@ -1,5 +1,6 @@
 using BalanceService.Domain.Common;
 using BalanceService.Domain.Exceptions;
+
 using System.Globalization;
 
 namespace BalanceService.Domain.Balances;
@@ -10,18 +11,38 @@ namespace BalanceService.Domain.Balances;
 public sealed class DailyBalance : Entity, IAggregateRoot
 {
     public string MerchantId { get; private set; } = string.Empty;
-    public DateOnly Date { get; private set; }
+    public DateOnly Date
+    {
+        get; private set;
+    }
     public string Currency { get; private set; } = string.Empty;
 
-    public decimal TotalCredits { get; private set; }
-    public decimal TotalDebits { get; private set; }
-    public decimal NetBalance { get; private set; }
+    public decimal TotalCredits
+    {
+        get; private set;
+    }
+    public decimal TotalDebits
+    {
+        get; private set;
+    }
+    public decimal NetBalance
+    {
+        get; private set;
+    }
 
-    public DateTimeOffset AsOf { get; private set; }
-    public DateTimeOffset UpdatedAt { get; private set; }
+    public DateTimeOffset AsOf
+    {
+        get; private set;
+    }
+    public DateTimeOffset UpdatedAt
+    {
+        get; private set;
+    }
 
     // EF Core
-    private DailyBalance() { }
+    private DailyBalance()
+    {
+    }
 
     public DailyBalance(string merchantId, DateOnly date, string currency, DateTimeOffset now)
     {

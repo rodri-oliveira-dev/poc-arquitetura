@@ -12,7 +12,10 @@ public sealed class SolicitarEstornoLancamentoCommandValidatorTests
     [InlineData("curto")]
     public void Should_reject_invalid_motivo(string motivo)
     {
-        var command = ValidCommand() with { Motivo = motivo };
+        var command = ValidCommand() with
+        {
+            Motivo = motivo
+        };
 
         var result = _validator.Validate(command);
         Assert.False(result.IsValid);
@@ -22,7 +25,10 @@ public sealed class SolicitarEstornoLancamentoCommandValidatorTests
     [Fact]
     public void Should_reject_empty_lancamento_id()
     {
-        var command = ValidCommand() with { LancamentoId = Guid.Empty };
+        var command = ValidCommand() with
+        {
+            LancamentoId = Guid.Empty
+        };
 
         var result = _validator.Validate(command);
         Assert.False(result.IsValid);

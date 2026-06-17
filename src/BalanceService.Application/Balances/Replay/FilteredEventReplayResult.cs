@@ -16,11 +16,20 @@ public sealed record FilteredEventReplayResult
         Items = items;
     }
 
-    public string ReplayId { get; init; }
-    public bool DryRun { get; init; }
+    public string ReplayId
+    {
+        get; init;
+    }
+    public bool DryRun
+    {
+        get; init;
+    }
 
     [JsonIgnore]
-    public FilteredEventReplaySummary Summary { get; init; }
+    public FilteredEventReplaySummary Summary
+    {
+        get; init;
+    }
 
     public int TotalFound => Summary.TotalFound;
     public int TotalValid => Summary.TotalValid;
@@ -29,5 +38,8 @@ public sealed record FilteredEventReplayResult
     public int TotalEligible => Summary.TotalEligible;
     public int TotalRejected => Summary.TotalRejected;
     public int TotalReplayed => Summary.TotalReplayed;
-    public IReadOnlyList<FilteredEventReplayItemResult> Items { get; init; }
+    public IReadOnlyList<FilteredEventReplayItemResult> Items
+    {
+        get; init;
+    }
 }

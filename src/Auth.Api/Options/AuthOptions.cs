@@ -48,9 +48,15 @@ public sealed class AuthOptions
 
 public sealed class AuthDevelopmentUserOptions
 {
-    public string? Username { get; init; }
+    public string? Username
+    {
+        get; init;
+    }
 
-    public string? Password { get; init; }
+    public string? Password
+    {
+        get; init;
+    }
 }
 
 public sealed class AuthLoginRateLimitOptions

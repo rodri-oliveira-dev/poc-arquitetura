@@ -29,6 +29,8 @@ services:
       BALANCE_DB_READ_PASSWORD: "${BALANCE_DB_READ_PASSWORD:?Defina BALANCE_DB_READ_PASSWORD no ambiente ou em .env.local}"
       BALANCE_DB_WRITE_PASSWORD: "${BALANCE_DB_WRITE_PASSWORD:?Defina BALANCE_DB_WRITE_PASSWORD no ambiente ou em .env.local}"
       BALANCE_DB_MIGRATOR_PASSWORD: "${BALANCE_DB_MIGRATOR_PASSWORD:?Defina BALANCE_DB_MIGRATOR_PASSWORD no ambiente ou em .env.local}"
+      TRANSFER_DB_PASSWORD: "${TRANSFER_DB_PASSWORD:?Defina TRANSFER_DB_PASSWORD no ambiente ou em .env.local}"
+      TRANSFER_DB_MIGRATOR_PASSWORD: "${TRANSFER_DB_MIGRATOR_PASSWORD:?Defina TRANSFER_DB_MIGRATOR_PASSWORD no ambiente ou em .env.local}"
     ports:
       # Porta exposta para uso local (psql, migrations, etc.)
       # Obs: pode conflitar com um Postgres já rodando no host.
@@ -210,6 +212,22 @@ services:
           --topic ledger.lancamentos.reprocessamento.solicitado --partitions 1 --replication-factor 1;
         /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists \
           --topic ledger.ledgerentry.created.dlq --partitions 1 --replication-factor 1;
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists \
+          --topic transfer.transferencia.solicitada --partitions 1 --replication-factor 1;
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists \
+          --topic transfer.transferencia.debito-criado --partitions 1 --replication-factor 1;
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists \
+          --topic transfer.transferencia.credito-criado --partitions 1 --replication-factor 1;
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists \
+          --topic transfer.transferencia.concluida --partitions 1 --replication-factor 1;
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists \
+          --topic transfer.transferencia.compensacao-solicitada --partitions 1 --replication-factor 1;
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists \
+          --topic transfer.transferencia.compensada --partitions 1 --replication-factor 1;
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists \
+          --topic transfer.transferencia.falhou --partitions 1 --replication-factor 1;
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists \
+          --topic transfer.transferencia.dlq --partitions 1 --replication-factor 1;
         echo "[kafka-init-topics] OK.";
 
   # --- Microservices ---
@@ -364,6 +382,95 @@ services:
       Observability__OpenTelemetry__UseConsoleExporter: "false"
       Observability__OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"
       Observability__OpenTelemetry__ServiceName: "BalanceService.Worker"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512m
+          pids: 256
+    networks:
+      - poc-net
+
+  transfer-service:
+    build:
+      context: .
+      dockerfile: src/TransferService.Api/Dockerfile
+    container_name: poc-transfer-service
+    logging: *default-logging
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_URLS: "http://+:8080"
+      ASPNETCORE_ENVIRONMENT: "Local"
+
+      Jwt__Issuer: "${JWT_ISSUER:-http://localhost:8081/realms/poc}"
+      Jwt__Audience: "transfer-api"
+      Jwt__JwksUrl: "${JWT_JWKS_URL:-http://keycloak:8080/realms/poc/protocol/openid-connect/certs}"
+      Jwt__RequireHttpsMetadata: "${JWT_REQUIRE_HTTPS_METADATA:-false}"
+
+      ConnectionStrings__DefaultConnection: "Host=postgres-db;Port=5432;Database=appdb;Username=transfer_app_user;Password=${TRANSFER_DB_PASSWORD:?Defina TRANSFER_DB_PASSWORD no ambiente ou em .env.local}"
+      Messaging__Provider: "Kafka"
+      Observability__OpenTelemetry__Enabled: "${OTEL_ENABLED:-false}"
+      Observability__OpenTelemetry__UseConsoleExporter: "false"
+      Observability__OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"
+      Observability__OpenTelemetry__ServiceName: "TransferService.Api"
+    ports:
+      - "${TRANSFER_SERVICE_HOST_PORT:-5230}:8080"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512m
+          pids: 256
+    networks:
+      - poc-net
+
+  transfer-worker:
+    profiles:
+      - legacy-kafka
+    build:
+      context: .
+      dockerfile: src/TransferService.Worker/Dockerfile
+    container_name: poc-transfer-worker
+    logging: *default-logging
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+      kafka-init-topics:
+        condition: service_completed_successfully
+      ledger-service:
+        condition: service_started
+    environment:
+      DOTNET_ENVIRONMENT: "Local"
+
+      ConnectionStrings__DefaultConnection: "Host=postgres-db;Port=5432;Database=appdb;Username=transfer_app_user;Password=${TRANSFER_DB_PASSWORD:?Defina TRANSFER_DB_PASSWORD no ambiente ou em .env.local}"
+      Messaging__Provider: "Kafka"
+      TransferService__Worker__Enabled: "true"
+      TransferService__Worker__PollingInterval: "00:00:05"
+      TransferService__Worker__BatchSize: "20"
+      TransferService__Worker__MaxRetryCount: "5"
+      TransferService__Worker__LockDuration: "00:02:00"
+      TransferService__Worker__RetryBackoff: "00:00:30"
+      TransferService__Worker__DlqTopic: "transfer.transferencia.dlq"
+      TransferService__Worker__Kafka__BootstrapServers: "kafka:9092"
+      TransferService__Worker__Kafka__ClientId: "transfer-service-worker-local"
+      TransferService__Worker__Kafka__SecurityProtocol: "Plaintext"
+      TransferService__Worker__Kafka__Acks: "all"
+      TransferService__Worker__Kafka__EnableIdempotence: "true"
+      TransferService__Worker__Topics__Solicitada: "transfer.transferencia.solicitada"
+      TransferService__Worker__Topics__DebitoCriado: "transfer.transferencia.debito-criado"
+      TransferService__Worker__Topics__CreditoCriado: "transfer.transferencia.credito-criado"
+      TransferService__Worker__Topics__Concluida: "transfer.transferencia.concluida"
+      TransferService__Worker__Topics__CompensacaoSolicitada: "transfer.transferencia.compensacao-solicitada"
+      TransferService__Worker__Topics__Compensada: "transfer.transferencia.compensada"
+      TransferService__Worker__Topics__Falhou: "transfer.transferencia.falhou"
+      TransferService__Worker__Ledger__BaseAddress: "http://ledger-service:8080"
+      TransferService__Worker__Ledger__Timeout: "00:00:10"
+      Observability__OpenTelemetry__Enabled: "${OTEL_ENABLED:-false}"
+      Observability__OpenTelemetry__UseConsoleExporter: "false"
+      Observability__OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"
+      Observability__OpenTelemetry__ServiceName: "TransferService.Worker"
     deploy:
       resources:
         limits:

@@ -13,14 +13,20 @@ public sealed class LoginRequest
     /// </summary>
     [Required]
     [JsonPropertyName("username")]
-    public string? Username { get; init; }
+    public string? Username
+    {
+        get; init;
+    }
 
     /// <summary>
     /// Senha local da PoC, configurada via <c>Auth:DevelopmentUser:Password</c>.
     /// </summary>
     [Required]
     [JsonPropertyName("password")]
-    public string? Password { get; init; }
+    public string? Password
+    {
+        get; init;
+    }
 
     /// <summary>
     /// Scopes desejados separados por espaço.
@@ -28,5 +34,8 @@ public sealed class LoginRequest
     /// - Se preenchido: valida contra a lista fixa de scopes válidos.
     /// </summary>
     [JsonPropertyName("scope")]
-    public string? Scope { get; init; }
+    public string? Scope
+    {
+        get; init;
+    }
 }

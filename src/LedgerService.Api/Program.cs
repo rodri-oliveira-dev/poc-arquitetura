@@ -40,8 +40,16 @@ app.MapGet("/ready", [AllowAnonymous] async (
 
     var ready = checks.Values.All(v => v is "ok");
     return ready
-        ? Results.Ok(new { status = "ready", checks })
-        : Results.Json(new { status = "not_ready", checks }, statusCode: StatusCodes.Status503ServiceUnavailable);
+        ? Results.Ok(new
+        {
+            status = "ready",
+            checks
+        })
+        : Results.Json(new
+        {
+            status = "not_ready",
+            checks
+        }, statusCode: StatusCodes.Status503ServiceUnavailable);
 })
     .WithGroupName("v1")
     .WithName("Ready")
@@ -55,4 +63,6 @@ app.MapControllers().RequireRateLimiting("fixed");
 
 app.Run();
 
-public partial class Program { }
+public partial class Program
+{
+}

@@ -1,6 +1,7 @@
 using LedgerService.Domain.Entities;
 using LedgerService.Domain.Repositories;
 using LedgerService.Infrastructure.Persistence;
+
 using Microsoft.EntityFrameworkCore;
 
 namespace LedgerService.Infrastructure.Persistence.Repositories;

@@ -3,6 +3,7 @@ using BalanceService.Application.Balances.Replay;
 using Microsoft.EntityFrameworkCore;
 
 using Npgsql;
+
 using NpgsqlTypes;
 
 namespace BalanceService.Infrastructure.Persistence.Repositories;
@@ -102,10 +103,16 @@ public sealed class OutboxFilteredEventReplaySource : IFilteredEventReplaySource
     }
 
     private static NpgsqlParameter TextParameter(string name, string? value)
-        => new(name, NpgsqlDbType.Text) { Value = string.IsNullOrWhiteSpace(value) ? DBNull.Value : value };
+        => new(name, NpgsqlDbType.Text)
+        {
+            Value = string.IsNullOrWhiteSpace(value) ? DBNull.Value : value
+        };
 
     private static NpgsqlParameter TimestampParameter(string name, DateTimeOffset? value)
-        => new(name, NpgsqlDbType.TimestampTz) { Value = value?.UtcDateTime ?? (object)DBNull.Value };
+        => new(name, NpgsqlDbType.TimestampTz)
+        {
+            Value = value?.UtcDateTime ?? (object)DBNull.Value
+        };
 
     public sealed class OutboxReplayRow
     {
@@ -113,16 +120,40 @@ public sealed class OutboxFilteredEventReplaySource : IFilteredEventReplaySource
         public string Payload { get; init; } = string.Empty;
         public string EventName { get; init; } = string.Empty;
         public string EventVersion { get; init; } = string.Empty;
-        public DateTimeOffset OccurredAt { get; init; }
-        public string? MerchantId { get; init; }
-        public string? AccountId { get; init; }
-        public string? Status { get; init; }
+        public DateTimeOffset OccurredAt
+        {
+            get; init;
+        }
+        public string? MerchantId
+        {
+            get; init;
+        }
+        public string? AccountId
+        {
+            get; init;
+        }
+        public string? Status
+        {
+            get; init;
+        }
         public string EventType { get; init; } = string.Empty;
         public string AggregateType { get; init; } = string.Empty;
         public string AggregateId { get; init; } = string.Empty;
-        public string? CorrelationId { get; init; }
-        public string? TraceParent { get; init; }
-        public string? TraceState { get; init; }
-        public string? Baggage { get; init; }
+        public string? CorrelationId
+        {
+            get; init;
+        }
+        public string? TraceParent
+        {
+            get; init;
+        }
+        public string? TraceState
+        {
+            get; init;
+        }
+        public string? Baggage
+        {
+            get; init;
+        }
     }
 }

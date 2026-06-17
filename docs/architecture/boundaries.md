@@ -151,16 +151,17 @@ Pontos de atencao:
 
 ### TransferService
 
-O `TransferService` existe como bounded context inicial planejado pela ADR-0087. A estrutura atual ja contem aggregate de Saga, portas de persistencia/idempotencia/Outbox em Application, `TransferServiceDbContext`, mappings EF Core, migration do schema `transfer`, repository concreto, idempotencia persistida, Outbox transacional e metadados Kafka para publicacao posterior pelo Worker.
+O `TransferService` existe como bounded context de transferencias entre merchants conforme ADR-0087. A estrutura atual contem aggregate de Saga, portas de persistencia/idempotencia/Outbox em Application, `TransferServiceDbContext`, mappings EF Core, migration do schema `transfer`, repository concreto, idempotencia persistida, Outbox transacional, API HTTP de solicitacao/status, Worker de Saga, client HTTP do Ledger e publisher Kafka da Outbox.
 
-Ainda nao ha endpoints funcionais, producers Kafka, consumers, HostedServices, DLQ ou processamento completo de Saga. A publicacao deve continuar fora da Application: a Application grava o evento logico pela porta de Outbox, enquanto Infrastructure mapeia `event_type`, `topic`, headers e `message_key`.
+A publicacao continua fora da Application: a Application grava o evento logico pela porta de Outbox, enquanto Infrastructure mapeia `event_type`, `topic`, headers e `message_key`; o Worker publica no Kafka e envia payload invalido ou erro definitivo para DLQ de aplicacao.
 
 Pontos de atencao:
 
 - `TransferService.Domain` nao deve referenciar nenhum projeto interno.
 - `TransferService.Application` pode depender apenas do dominio local.
 - `TransferService.Infrastructure` pode depender de Application e Domain, concentrando EF Core, PostgreSQL, Outbox, idempotencia persistida e mapeamento Kafka.
-- `TransferService.Api` e `TransferService.Worker` podem compor Application e Infrastructure, mantendo endpoints e HostedServices funcionais fora do escopo ate a implementacao do runtime da Saga.
+- `TransferService.Api` expoe HTTP e nao registra HostedServices de Worker.
+- `TransferService.Worker` registra HostedServices, client HTTP do Ledger e publisher Kafka, sem controllers, Swagger ou CORS.
 - Pub/Sub nao faz parte do fluxo do TransferService definido pela ADR-0087.
 
 ### Auth.Api legado
@@ -188,7 +189,7 @@ Pontos de atencao:
 A arquitetura ideal para este projeto deve ser minimalista e pragmatica, com robustez seletiva:
 
 - manter quatro camadas para LedgerService e BalanceService;
-- manter o TransferService como bounded context separado, evoluindo o runtime da Saga somente quando houver caso de uso implementado;
+- manter o TransferService como bounded context separado, com Saga e Outbox Kafka isolados do fluxo Pub/Sub de Ledger/Balance;
 - manter APIs e workers como processos separados, com composition root e `ServiceName` explicitos por processo;
 - manter Auth.Api legado em projeto unico enquanto ele existir;
 - reforcar boundaries onde ha risco real: contratos de eventos, tempo/clock, outbox e idempotencia;

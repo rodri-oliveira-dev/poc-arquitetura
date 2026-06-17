@@ -1,6 +1,8 @@
 using System.Text.Json;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+
 using TransferService.Application.Abstractions.Persistence;
 using TransferService.Application.Abstractions.Time;
 using TransferService.Infrastructure.Persistence;
@@ -112,6 +114,13 @@ public sealed class TransferenciaOutboxPublisherService : BackgroundService
             await producer.PublishAsync(message, message.Topic, cancellationToken);
             message.MarkPublished(_clock.UtcNow);
             await unitOfWork.SaveChangesAsync(cancellationToken);
+            _logger.LogInformation(
+                "Outbox de transferencia publicada no Kafka. OutboxId={OutboxId} TransferenciaId={TransferenciaId} CorrelationId={CorrelationId} EventType={EventType} Topic={Topic}",
+                message.Id,
+                message.AggregateId,
+                message.CorrelationId,
+                message.EventType,
+                message.Topic);
         }
         catch (JsonException ex)
         {

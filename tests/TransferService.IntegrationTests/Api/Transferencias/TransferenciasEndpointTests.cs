@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+
 using TransferService.Api.Contracts.Responses;
 using TransferService.IntegrationTests.Infrastructure;
 using TransferService.IntegrationTests.Infrastructure.Security;

@@ -3,6 +3,7 @@ using System.Globalization;
 using BalanceService.Domain.Balances;
 using BalanceService.Infrastructure.Persistence;
 using BalanceService.Infrastructure.Persistence.Repositories;
+
 using Microsoft.EntityFrameworkCore;
 
 namespace BalanceService.UnitTests.Infrastructure.Persistence.Repositories;

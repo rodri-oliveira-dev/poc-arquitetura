@@ -81,6 +81,8 @@ LEDGER_DB_MIGRATOR_PASSWORD="$(get_required_local_config_value LEDGER_DB_MIGRATO
 BALANCE_DB_READ_PASSWORD="$(get_required_local_config_value BALANCE_DB_READ_PASSWORD)"
 BALANCE_DB_WRITE_PASSWORD="$(get_required_local_config_value BALANCE_DB_WRITE_PASSWORD)"
 BALANCE_DB_MIGRATOR_PASSWORD="$(get_required_local_config_value BALANCE_DB_MIGRATOR_PASSWORD)"
+TRANSFER_DB_PASSWORD="$(get_required_local_config_value TRANSFER_DB_PASSWORD)"
+TRANSFER_DB_MIGRATOR_PASSWORD="$(get_required_local_config_value TRANSFER_DB_MIGRATOR_PASSWORD)"
 
 compose_files=()
 if [[ -n "$COMPOSE_ENV_FILE" ]]; then
@@ -185,6 +187,8 @@ assert_database_authentication ledger_migrator_user "$LEDGER_DB_MIGRATOR_PASSWOR
 assert_database_authentication balance_read_user "$BALANCE_DB_READ_PASSWORD"
 assert_database_authentication balance_write_user "$BALANCE_DB_WRITE_PASSWORD"
 assert_database_authentication balance_migrator_user "$BALANCE_DB_MIGRATOR_PASSWORD"
+assert_database_authentication transfer_app_user "$TRANSFER_DB_PASSWORD"
+assert_database_authentication transfer_migrator_user "$TRANSFER_DB_MIGRATOR_PASSWORD"
 
 run_migration \
   "Host=127.0.0.1;Port=$POSTGRES_HOST_PORT;Database=$POSTGRES_DATABASE;Username=ledger_migrator_user;Password=$LEDGER_DB_MIGRATOR_PASSWORD" \
@@ -198,6 +202,12 @@ run_migration \
   "src/BalanceService.Api/BalanceService.Api.csproj" \
   "BalanceDbContext"
 
+run_migration \
+  "Host=127.0.0.1;Port=$POSTGRES_HOST_PORT;Database=$POSTGRES_DATABASE;Username=transfer_migrator_user;Password=$TRANSFER_DB_MIGRATOR_PASSWORD" \
+  "src/TransferService.Infrastructure/TransferService.Infrastructure.csproj" \
+  "src/TransferService.Api/TransferService.Api.csproj" \
+  "TransferServiceDbContext"
+
 api_up=(docker compose "${compose_files[@]}" up -d)
 if [[ "$OBSERVABILITY" == "true" ]]; then
   api_up=(docker compose "${compose_files[@]}" -f "$COMPOSE_OBSERVABILITY_FILE" --profile observability up -d)
@@ -207,6 +217,10 @@ if [[ "$NO_BUILD" != "true" ]]; then
   api_up+=(--build)
 fi
 
-"${api_up[@]}" ledger-service ledger-worker balance-service balance-worker
+if [[ "$MESSAGING_PROVIDER" == "Kafka" ]]; then
+  "${api_up[@]}" ledger-service ledger-worker balance-service balance-worker transfer-service transfer-worker
+else
+  "${api_up[@]}" ledger-service ledger-worker balance-service balance-worker transfer-service
+fi
 
 echo "OK. Stack local pronta."

@@ -27,6 +27,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\TransferService.Api\TransferService.Api.csproj" />
     <ProjectReference Include="..\..\src\TransferService.Infrastructure\TransferService.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\TransferService.Worker\TransferService.Worker.csproj" />
   </ItemGroup>
 
   <ItemGroup>

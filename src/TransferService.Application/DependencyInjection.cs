@@ -1,6 +1,9 @@
 using FluentValidation;
+
 using Microsoft.Extensions.DependencyInjection;
+
 using MediatR;
+
 using TransferService.Application.Abstractions.Time;
 using TransferService.Application.Common.Behaviors;
 

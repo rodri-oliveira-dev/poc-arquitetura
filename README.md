@@ -24,7 +24,7 @@ Principais servicos:
 | `LedgerService.Worker` | Processo dedicado para publicar Outbox pelo provider de mensageria selecionado e processar estornos/reprocessamentos do Ledger. |
 | `BalanceService.Api` | API de leitura de saldos consolidados projetados pelo Worker. |
 | `BalanceService.Worker` | Processo dedicado para consumir eventos financeiros do Ledger pelo provider selecionado e atualizar a projecao de saldos. |
-| `TransferService.Api` / `TransferService.Worker` | Bounded context de transferencias planejado pela ADR-0087, com Saga, persistencia EF Core, Outbox transacional e metadados Kafka iniciais; ainda sem endpoints funcionais nem processamento completo de Saga. |
+| `TransferService.Api` / `TransferService.Worker` | Bounded context de transferencias com Saga orquestrada, POST/consulta HTTP, persistencia EF Core, Outbox transacional e publicacao Kafka explicita dos eventos da Saga. |
 
 ## Arquitetura
 
@@ -45,7 +45,7 @@ Documentacao arquitetural publicada:
 
 ## Mensageria: Kafka e Pub/Sub
 
-Kafka e Pub/Sub coexistem como adapters do boundary de mensageria dos workers. Pub/Sub e o provider principal e o desenvolvimento local usa o emulator. Kafka permanece suportado como opcao legada explicita, selecionada com `Messaging:Provider=Kafka`, sem tentar esconder as diferencas semanticas entre providers.
+Kafka e Pub/Sub coexistem como adapters do boundary de mensageria dos workers. Pub/Sub e o provider principal para Ledger/Balance e o desenvolvimento local usa o emulator. Kafka permanece suportado como opcao legada explicita para Ledger/Balance, selecionada com `Messaging:Provider=Kafka`, sem tentar esconder as diferencas semanticas entre providers. O fluxo de Saga do `TransferService` e uma excecao intencional: usa Kafka como transporte explicito dos eventos da Saga e nao usa Pub/Sub.
 
 | Kafka | Pub/Sub |
 | --- | --- |
@@ -133,6 +133,8 @@ No Linux/macOS:
 
 Esse fluxo usa o `compose.yaml` principal, cria topic principal, topic de DLQ, subscription do Balance e subscription de inspecao da DLQ de aplicacao de forma idempotente e inicia os workers com `Messaging:Provider=PubSub`. Kafka nao e iniciado. Para usar o provider legado, execute `./scripts/start-local-stack-kafka.ps1` ou `./scripts/start-local-stack-kafka.sh`. Detalhes ficam em [desenvolvimento local](docs/development/local-development.md#pubsub-emulator-local) e no runbook de [operacao do Pub/Sub](docs/operations/pubsub.md).
 
+A Saga orquestrada do `TransferService` usa Kafka explicitamente. Para exercitar `POST /api/v1/transferencias` com Worker e publicacao da Outbox no Kafka, use o modo Kafka local e consulte [TransferService API](docs/development/transfer-api.md) e [desenvolvimento local](docs/development/local-development.md#kafka-local-e-saga-do-transferservice).
+
 Para subir a stack completa com observabilidade e Nginx HTTPS local, gere antes os certificados em `infra/nginx/certs/` conforme [desenvolvimento local](docs/development/local-development.md#borda-local-https-com-nginx):
 
 ```powershell
@@ -205,6 +207,7 @@ Os scripts executam testes com cobertura e aplicam gate minimo de 85% de cobertu
 - [ADRs](docs/adrs/README.md)
 - [Autenticacao e autorizacao](docs/development/authentication.md)
 - [Kafka, Outbox e DLQ](docs/development/kafka-outbox.md)
+- [Runbook DLQ e replay da Saga do TransferService](docs/operations/transfer-saga-kafka.md)
 - [Pub/Sub: operacao e emulator local](docs/operations/pubsub.md)
 - [Runbook de recuperacao de eventos](docs/operations/event-recovery-runbook.md)
 - [Replay e DLQ orientados por contrato](docs/operations/event-replay-and-dlq.md)

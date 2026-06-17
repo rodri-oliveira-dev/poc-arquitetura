@@ -247,14 +247,14 @@ model {
   }
 
   transfer = softwareSystem "TransferService" {
-    description "Bounded context planejado para orquestracao de transferencias entre merchants conforme ADR-0087. Nesta etapa possui Saga, persistencia EF Core, Outbox transacional e metadados Kafka iniciais, ainda sem endpoints funcionais ou processamento completo."
+    description "Bounded context de transferencias entre merchants com Saga orquestrada, API HTTP, Worker, Outbox transacional e eventos Kafka explicitos."
 
     transferApi = container "TransferService.Api" {
       technology "ASP.NET Core"
-      description "Composition root HTTP inicial do TransferService. Ainda nao expoe endpoints funcionais."
+      description "Composition root HTTP do TransferService. Expoe solicitacao e consulta de transferencias, com idempotencia e autorizacao por merchant."
 
       transferApiLayer = component "API Layer" {
-        description "Camada HTTP reservada para contratos e endpoints futuros de transferencia."
+        description "Camada HTTP de POST /transferencias e consulta de status, sem regras de Saga no controller."
       }
 
       transferApplication = component "Application Layer" {
@@ -272,16 +272,21 @@ model {
 
     transferWorker = container "TransferService.Worker" {
       technology ".NET Worker Service"
-      description "Composition root de worker inicial do TransferService. Ainda nao registra HostedServices ou processamento de Saga."
+      description "Worker dedicado para processar Sagas pendentes e publicar a Outbox do TransferService no Kafka, sem superficie HTTP."
 
       transferWorkerComposition = component "Worker composition root" {
-        description "Registra Application e Infrastructure para permitir processamento futuro da Saga e publicacao posterior da Outbox."
+        description "Registra Application, Infrastructure, LedgerServiceClient, processor da Saga e publisher Kafka da Outbox."
       }
+    }
+
+    transferDb = container "PostgreSQL schema transfer" {
+      technology "PostgreSQL"
+      description "Schema transfer no PostgreSQL local unico ou boundary equivalente por ambiente: transferencias_sagas, outbox_messages e idempotency_records."
     }
   }
 
   kafka = softwareSystem "Kafka" {
-    description "Broker Kafka legado local em KRaft, com topico principal e DLQ."
+    description "Broker Kafka local em KRaft. Legado opcional para Ledger/Balance e transporte explicito da Saga do TransferService."
 
     ledgerTopic = container "ledger.ledgerentry.created" {
       technology "Kafka topic"
@@ -301,6 +306,16 @@ model {
     ledgerDlq = container "ledger.ledgerentry.created.dlq" {
       technology "Kafka topic"
       description "DLQ usada pelo BalanceService para mensagens invalidas ou nao recuperaveis."
+    }
+
+    transferSagaTopics = container "transfer.transferencia.*" {
+      technology "Kafka topics"
+      description "Topicos da Saga do TransferService: solicitada, debito-criado, credito-criado, concluida, compensacao-solicitada, compensada e falhou."
+    }
+
+    transferSagaDlq = container "transfer.transferencia.dlq" {
+      technology "Kafka topic"
+      description "DLQ de aplicacao da Outbox Kafka do TransferService."
     }
   }
 
@@ -451,10 +466,14 @@ model {
   balance.balanceWorker.balanceWorkerInfrastructure -> balance.balanceWorker.balanceWorkerApplication "Implementa adapters tecnicos"
   balance.balanceWorker.balanceWorkerInfrastructure -> balance.balanceDomain "Mapeia entidades e contrato consumido"
 
-  transfer.transferApiLayer -> transfer.transferApplication "Compoe camada de aplicacao futura"
+  transfer.transferApiLayer -> transfer.transferApplication "Compoe camada de aplicacao"
   transfer.transferApplication -> transfer.transferDomain "Pode usar dominio local"
-  transfer.transferInfrastructure -> transfer.transferApplication "Pode implementar portas futuras"
-  transfer.transferInfrastructure -> transfer.transferDomain "Pode mapear dominio futuro"
+  transfer.transferInfrastructure -> transfer.transferApplication "Implementa portas de persistencia e Outbox"
+  transfer.transferInfrastructure -> transfer.transferDomain "Mapeia dominio da Saga"
+  transfer.transferInfrastructure -> transfer.transferDb "Persiste Saga, idempotencia e Outbox" "EF Core"
   transfer.transferWorker.transferWorkerComposition -> transfer.transferApplication "Registra Application"
   transfer.transferWorker.transferWorkerComposition -> transfer.transferInfrastructure "Registra Infrastructure"
+  transfer.transferWorker.transferWorkerComposition -> ledger.ledgerApi "Cria debito, credito e compensacao via HTTP" "HTTP"
+  transfer.transferWorker.transferWorkerComposition -> kafka.transferSagaTopics "Publica eventos da Saga com transferenciaId como key" "Kafka"
+  transfer.transferWorker.transferWorkerComposition -> kafka.transferSagaDlq "Publica mensagens invalidas ou definitivas da Outbox" "Kafka DLQ"
 }

@@ -5,19 +5,58 @@ namespace LedgerService.Domain.Entities;
 
 public sealed class ReprocessamentoLancamentos : Entity, IAggregateRoot
 {
-    public string MerchantId { get; private set; }
-    public DateOnly DataInicial { get; private set; }
-    public DateOnly DataFinal { get; private set; }
-    public string Motivo { get; private set; }
-    public ReprocessamentoLancamentosStatus Status { get; private set; }
-    public Guid CorrelationId { get; private set; }
-    public DateTime CreatedAt { get; private set; }
-    public DateTime? ProcessingStartedAt { get; private set; }
-    public DateTime? CompletedAt { get; private set; }
-    public DateTime? FailedAt { get; private set; }
-    public DateTime? RejectedAt { get; private set; }
-    public string? FailureReason { get; private set; }
-    public string? RejectionReason { get; private set; }
+    public string MerchantId
+    {
+        get; private set;
+    }
+    public DateOnly DataInicial
+    {
+        get; private set;
+    }
+    public DateOnly DataFinal
+    {
+        get; private set;
+    }
+    public string Motivo
+    {
+        get; private set;
+    }
+    public ReprocessamentoLancamentosStatus Status
+    {
+        get; private set;
+    }
+    public Guid CorrelationId
+    {
+        get; private set;
+    }
+    public DateTime CreatedAt
+    {
+        get; private set;
+    }
+    public DateTime? ProcessingStartedAt
+    {
+        get; private set;
+    }
+    public DateTime? CompletedAt
+    {
+        get; private set;
+    }
+    public DateTime? FailedAt
+    {
+        get; private set;
+    }
+    public DateTime? RejectedAt
+    {
+        get; private set;
+    }
+    public string? FailureReason
+    {
+        get; private set;
+    }
+    public string? RejectionReason
+    {
+        get; private set;
+    }
 
     private ReprocessamentoLancamentos()
     {

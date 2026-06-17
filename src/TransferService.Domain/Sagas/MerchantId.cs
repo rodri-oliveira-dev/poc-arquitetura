@@ -4,7 +4,10 @@ namespace TransferService.Domain.Sagas;
 
 public readonly record struct MerchantId
 {
-    public string Value { get; }
+    public string Value
+    {
+        get;
+    }
 
     public MerchantId(string value)
     {

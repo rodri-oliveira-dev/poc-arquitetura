@@ -12,7 +12,10 @@ public sealed class PubSubProducerOptions
     [Required]
     public string DefaultTopicId { get; init; } = string.Empty;
 
-    public bool EnableMessageOrdering { get; init; }
+    public bool EnableMessageOrdering
+    {
+        get; init;
+    }
 
     public Dictionary<string, string> TopicMap { get; init; } = new();
 

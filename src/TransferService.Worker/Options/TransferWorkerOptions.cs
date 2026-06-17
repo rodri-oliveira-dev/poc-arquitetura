@@ -39,6 +39,9 @@ public sealed class TransferKafkaTopicsOptions
 
 public sealed class LedgerClientOptions
 {
-    public Uri? BaseAddress { get; set; }
+    public Uri? BaseAddress
+    {
+        get; set;
+    }
     public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(10);
 }

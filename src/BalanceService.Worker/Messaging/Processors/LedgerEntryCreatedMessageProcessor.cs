@@ -324,7 +324,10 @@ public sealed partial class LedgerEntryCreatedMessageProcessor
             ValidateBusinessShape(evt);
             var currency = LedgerEntryCreatedEventNormalizer.NormalizeCurrency(evt, contractVersion);
 
-            return evt with { Currency = currency };
+            return evt with
+            {
+                Currency = currency
+            };
         }
 
         private static void ValidateRequiredFields(LedgerEntryCreatedEvent evt)

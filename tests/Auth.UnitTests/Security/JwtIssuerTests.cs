@@ -1,7 +1,10 @@
 using Auth.Api.Options;
 using Auth.Api.Security;
+
 using Microsoft.Extensions.Options;
+
 using Moq;
+
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Cryptography;
 

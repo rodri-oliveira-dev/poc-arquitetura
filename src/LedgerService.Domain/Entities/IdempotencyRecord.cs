@@ -4,14 +4,38 @@ namespace LedgerService.Domain.Entities;
 
 public sealed class IdempotencyRecord : Entity
 {
-    public string MerchantId { get; private set; }
-    public string IdempotencyKey { get; private set; }
-    public string RequestHash { get; private set; }
-    public Guid? LedgerEntryId { get; private set; }
-    public int ResponseStatusCode { get; private set; }
-    public string? ResponseBody { get; private set; }
-    public DateTime CreatedAt { get; private set; }
-    public DateTime ExpiresAt { get; private set; }
+    public string MerchantId
+    {
+        get; private set;
+    }
+    public string IdempotencyKey
+    {
+        get; private set;
+    }
+    public string RequestHash
+    {
+        get; private set;
+    }
+    public Guid? LedgerEntryId
+    {
+        get; private set;
+    }
+    public int ResponseStatusCode
+    {
+        get; private set;
+    }
+    public string? ResponseBody
+    {
+        get; private set;
+    }
+    public DateTime CreatedAt
+    {
+        get; private set;
+    }
+    public DateTime ExpiresAt
+    {
+        get; private set;
+    }
 
     private IdempotencyRecord()
     {

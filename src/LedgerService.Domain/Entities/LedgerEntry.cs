@@ -5,14 +5,38 @@ namespace LedgerService.Domain.Entities;
 
 public sealed class LedgerEntry : Entity, IAggregateRoot
 {
-    public string MerchantId { get; private set; }
-    public LedgerEntryType Type { get; private set; }
-    public decimal Amount { get; private set; }
-    public DateTime OccurredAt { get; private set; }
-    public string? Description { get; private set; }
-    public string? ExternalReference { get; private set; }
-    public Guid CorrelationId { get; private set; }
-    public DateTime CreatedAt { get; private set; }
+    public string MerchantId
+    {
+        get; private set;
+    }
+    public LedgerEntryType Type
+    {
+        get; private set;
+    }
+    public decimal Amount
+    {
+        get; private set;
+    }
+    public DateTime OccurredAt
+    {
+        get; private set;
+    }
+    public string? Description
+    {
+        get; private set;
+    }
+    public string? ExternalReference
+    {
+        get; private set;
+    }
+    public Guid CorrelationId
+    {
+        get; private set;
+    }
+    public DateTime CreatedAt
+    {
+        get; private set;
+    }
 
     private LedgerEntry()
     {
