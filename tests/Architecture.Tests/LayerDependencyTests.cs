@@ -247,7 +247,9 @@ public sealed class LayerDependencyTests
     {
         string[] projectReferences = LoadProject(serviceName, layerName)
             .Descendants("ProjectReference")
-            .Select(element => (string?)element.Attribute("Include") ?? string.Empty)
+            .Select(GetProjectReferenceFileName)
+            .Where(reference => reference is not null)
+            .Select(reference => reference!)
             .ToArray();
 
         foreach (string forbiddenLayer in forbiddenLayers)
@@ -275,8 +277,10 @@ public sealed class LayerDependencyTests
 
         string[] internalProjectReferences = LoadProject(serviceName, layerName)
             .Descendants("ProjectReference")
-            .Select(element => Path.GetFileName((string?)element.Attribute("Include") ?? string.Empty))
-            .Where(reference => reference.StartsWith($"{serviceName}.", StringComparison.OrdinalIgnoreCase))
+            .Select(GetProjectReferenceFileName)
+            .Where(reference => reference is not null
+                && reference.StartsWith($"{serviceName}.", StringComparison.OrdinalIgnoreCase))
+            .Select(reference => reference!)
             .Order(StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
@@ -293,6 +297,15 @@ public sealed class LayerDependencyTests
             .ToArray();
 
         Assert.Contains(packageName, packageReferences);
+    }
+
+    private static string? GetProjectReferenceFileName(XElement projectReference)
+    {
+        string normalizedPath = ((string?)projectReference.Attribute("Include") ?? string.Empty)
+            .Replace('\\', Path.DirectorySeparatorChar)
+            .Replace('/', Path.DirectorySeparatorChar);
+
+        return Path.GetFileName(normalizedPath);
     }
 
     private static void AssertSourceFilesDoNotContainProviderNames(string serviceName, string layerName)
