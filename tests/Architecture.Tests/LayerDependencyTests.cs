@@ -13,7 +13,8 @@ namespace Architecture.Tests;
 
 public sealed class LayerDependencyTests
 {
-    private static readonly string[] ServiceNames = ["LedgerService", "BalanceService"];
+    private static readonly string[] ServiceNames = ["LedgerService", "BalanceService", "TransferService"];
+    private static readonly string[] ServicesWithPersistence = ["LedgerService", "BalanceService"];
     private static readonly string[] DomainForbiddenReferences =
     [
         "Microsoft.AspNetCore",
@@ -113,8 +114,18 @@ public sealed class LayerDependencyTests
         AssertProjectHasNoForbiddenLayerReferences(serviceName, "Worker", ["Api"]);
     }
 
+    [Fact]
+    public void TransferService_projects_should_reference_only_allowed_internal_layers()
+    {
+        AssertProjectReferencesOnlyInternalLayers("TransferService", "Domain", []);
+        AssertProjectReferencesOnlyInternalLayers("TransferService", "Application", ["Domain"]);
+        AssertProjectReferencesOnlyInternalLayers("TransferService", "Infrastructure", ["Application", "Domain"]);
+        AssertProjectReferencesOnlyInternalLayers("TransferService", "Api", ["Application", "Infrastructure"]);
+        AssertProjectReferencesOnlyInternalLayers("TransferService", "Worker", ["Application", "Infrastructure"]);
+    }
+
     [Theory]
-    [MemberData(nameof(Services))]
+    [MemberData(nameof(PersistentServices))]
     public void Infrastructure_should_reference_ef_core_and_implement_repository_ports(string serviceName)
     {
         // Infrastructure owns EF Core and concrete adapters behind application or domain ports.
@@ -142,6 +153,18 @@ public sealed class LayerDependencyTests
         TheoryData<string> services = [];
 
         foreach (string serviceName in ServiceNames)
+        {
+            services.Add(serviceName);
+        }
+
+        return services;
+    }
+
+    public static TheoryData<string> PersistentServices()
+    {
+        TheoryData<string> services = [];
+
+        foreach (string serviceName in ServicesWithPersistence)
         {
             services.Add(serviceName);
         }
@@ -214,6 +237,27 @@ public sealed class LayerDependencyTests
                 $"{serviceName}.{layerName}.csproj must not reference {forbiddenProject}. "
                 + $"Found: {string.Join(", ", violations)}");
         }
+    }
+
+    private static void AssertProjectReferencesOnlyInternalLayers(
+        string serviceName,
+        string layerName,
+        IEnumerable<string> allowedLayers)
+    {
+        string[] allowedProjects = allowedLayers
+            .Select(allowedLayer => $"{serviceName}.{allowedLayer}.csproj")
+            .ToArray();
+
+        string[] internalProjectReferences = LoadProject(serviceName, layerName)
+            .Descendants("ProjectReference")
+            .Select(element => Path.GetFileName((string?)element.Attribute("Include") ?? string.Empty))
+            .Where(reference => reference.StartsWith($"{serviceName}.", StringComparison.OrdinalIgnoreCase))
+            .Order(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        Assert.Equal(
+            allowedProjects.Order(StringComparer.OrdinalIgnoreCase),
+            internalProjectReferences);
     }
 
     private static void AssertProjectReferencesPackage(string serviceName, string layerName, string packageName)

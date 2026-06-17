@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <ProjectReference Include="..\TransferService.Application\TransferService.Application.csproj" />
+    <ProjectReference Include="..\TransferService.Infrastructure\TransferService.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>poc-arquitetura-transfer-service-api</UserSecretsId>
+  </PropertyGroup>
+
+</Project>

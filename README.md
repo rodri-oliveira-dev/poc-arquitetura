@@ -24,10 +24,11 @@ Principais servicos:
 | `LedgerService.Worker` | Processo dedicado para publicar Outbox pelo provider de mensageria selecionado e processar estornos/reprocessamentos do Ledger. |
 | `BalanceService.Api` | API de leitura de saldos consolidados projetados pelo Worker. |
 | `BalanceService.Worker` | Processo dedicado para consumir eventos financeiros do Ledger pelo provider selecionado e atualizar a projecao de saldos. |
+| `TransferService.Api` / `TransferService.Worker` | Esqueleto inicial do bounded context de transferencias planejado pela ADR-0087, ainda sem endpoints funcionais, persistencia ou processamento de Saga. |
 
 ## Arquitetura
 
-`LedgerService` e `BalanceService` usam projetos por camada:
+`LedgerService`, `BalanceService` e o esqueleto inicial de `TransferService` usam projetos por camada:
 
 - `Api`: entrada HTTP, autenticacao, autorizacao, Swagger, health/readiness e composicao via DI.
 - `Shared/ApiDefaults`: defaults HTTP tecnicos compartilhados pelas APIs de negocio, sem regras de dominio ou policies especificas.

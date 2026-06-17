@@ -213,12 +213,17 @@ O `TransferService` deve propagar correlation id nas chamadas HTTP para o `Ledge
    - Rejeitada. A transferencia deve ser assincrona para permitir retry, compensacao, observabilidade e recuperacao por worker.
 
 ## Fora do escopo
-- Implementar projetos `TransferService.Api`, `TransferService.Worker`, `TransferService.Application`, `TransferService.Domain` ou `TransferService.Infrastructure`.
-- Criar migrations, tabelas, contratos JSON Schema, producers, consumers ou endpoints reais.
+- Implementar runtime funcional da Saga no `TransferService`.
+- Criar migrations, tabelas, contratos JSON Schema, producers, consumers, HostedServices ou endpoints reais.
 - Alterar contratos atuais do `LedgerService.Api`.
 - Alterar `BalanceService`.
-- Atualizar diagramas LikeC4 antes de existir estrutura implementada ou especificacao visual dedicada.
 - Executar testes de carga ou alterar cenarios k6.
+
+## Nota de implementacao inicial
+
+Em 2026-06-17, foi criada apenas a estrutura inicial dos projetos `TransferService.Api`, `TransferService.Worker`, `TransferService.Application`, `TransferService.Domain` e `TransferService.Infrastructure`, com composition roots minimas para compilacao e testes de arquitetura para as dependencias permitidas entre camadas.
+
+Essa etapa nao implementa modelo de dominio, endpoints, persistencia, Outbox, mensageria, DLQ ou processamento da Saga. A decisao funcional desta ADR permanece planejada para etapa futura.
 
 ## Validacao esperada em etapa futura
 Quando o runtime for implementado, a validacao devera cobrir:

@@ -246,6 +246,40 @@ model {
     }
   }
 
+  transfer = softwareSystem "TransferService" {
+    description "Bounded context planejado para orquestracao futura de transferencias entre merchants conforme ADR-0087. Nesta etapa possui apenas estrutura de projetos e composition roots minimas, sem endpoints funcionais, persistencia ou processamento de Saga."
+
+    transferApi = container "TransferService.Api" {
+      technology "ASP.NET Core"
+      description "Composition root HTTP inicial do TransferService. Ainda nao expoe endpoints funcionais."
+
+      transferApiLayer = component "API Layer" {
+        description "Camada HTTP reservada para contratos e endpoints futuros de transferencia."
+      }
+
+      transferApplication = component "Application Layer" {
+        description "Camada de casos de uso futura, atualmente sem handlers ou regras de aplicacao."
+      }
+
+      transferDomain = component "Domain Layer" {
+        description "Camada de dominio futura, atualmente sem agregados, entidades ou invariantes."
+      }
+
+      transferInfrastructure = component "Infrastructure Layer" {
+        description "Camada de infraestrutura futura, atualmente sem DbContext, migrations, mensageria, Outbox ou adapters concretos."
+      }
+    }
+
+    transferWorker = container "TransferService.Worker" {
+      technology ".NET Worker Service"
+      description "Composition root de worker inicial do TransferService. Ainda nao registra HostedServices ou processamento de Saga."
+
+      transferWorkerComposition = component "Worker composition root" {
+        description "Registra Application e Infrastructure de forma minima para manter o processo separado da API."
+      }
+    }
+  }
+
   kafka = softwareSystem "Kafka" {
     description "Broker Kafka legado local em KRaft, com topico principal e DLQ."
 
@@ -416,4 +450,11 @@ model {
   balance.balanceWorker.balanceWorkerApplication -> balance.balanceDomain "Aplica regras de consolidacao"
   balance.balanceWorker.balanceWorkerInfrastructure -> balance.balanceWorker.balanceWorkerApplication "Implementa adapters tecnicos"
   balance.balanceWorker.balanceWorkerInfrastructure -> balance.balanceDomain "Mapeia entidades e contrato consumido"
+
+  transfer.transferApiLayer -> transfer.transferApplication "Compoe camada de aplicacao futura"
+  transfer.transferApplication -> transfer.transferDomain "Pode usar dominio local"
+  transfer.transferInfrastructure -> transfer.transferApplication "Pode implementar portas futuras"
+  transfer.transferInfrastructure -> transfer.transferDomain "Pode mapear dominio futuro"
+  transfer.transferWorker.transferWorkerComposition -> transfer.transferApplication "Registra Application"
+  transfer.transferWorker.transferWorkerComposition -> transfer.transferInfrastructure "Registra Infrastructure"
 }
