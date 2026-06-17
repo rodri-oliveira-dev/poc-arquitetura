@@ -11,7 +11,10 @@
   <ItemGroup>
     <PackageReference Include="coverlet.collector" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Testcontainers" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="xunit.runner.visualstudio" />
   </ItemGroup>
@@ -22,6 +25,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\TransferService.Api\TransferService.Api.csproj" />
+    <ProjectReference Include="..\..\src\TransferService.Infrastructure\TransferService.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>

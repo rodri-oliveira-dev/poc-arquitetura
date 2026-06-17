@@ -81,5 +81,13 @@ public sealed class ObterStatusTransferenciaQueryHandlerTests
             _sagas.Add(saga.Id, saga);
             return Task.CompletedTask;
         }
+
+        public Task<IReadOnlyList<TransferenciaSaga>> ClaimPendingAsync(
+            int batchSize,
+            DateTimeOffset now,
+            string lockOwner,
+            TimeSpan lockDuration,
+            CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<TransferenciaSaga>>([]);
     }
 }

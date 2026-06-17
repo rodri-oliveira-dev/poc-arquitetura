@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using TransferService.Api.Extensions;
 
@@ -11,6 +12,10 @@ public sealed class TransferApiCompositionTests
     {
         ServiceCollection services = [];
         HostApplicationBuilder builder = Host.CreateApplicationBuilder();
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["ConnectionStrings:DefaultConnection"] = "Host=localhost;Database=transfer-tests;Username=app;Password=app"
+        });
 
         IServiceCollection result = services.AddTransferApiComposition(builder.Configuration, builder.Environment);
 

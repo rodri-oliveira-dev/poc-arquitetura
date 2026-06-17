@@ -227,14 +227,15 @@ Em etapa posterior no mesmo dia, `TransferService.Application` recebeu os casos 
 
 Essa etapa implementa apenas a orquestracao inicial de Application para criar a Saga em `Pending`, consultar status publico e expressar idempotencia e Outbox por portas. Ela nao implementa endpoints, persistencia EF Core, migrations, producers, consumers, HostedServices, DLQ, topicos Kafka ou publicacao real de mensagens. A garantia operacional de transacao entre Saga, idempotencia e Outbox depende dos adapters de Infrastructure em etapa futura.
 
+Em etapa posterior no mesmo dia, `TransferService.Infrastructure` recebeu `TransferServiceDbContext`, mappings EF Core, migration `InitialTransferSchema`, repository concreto da Saga, idempotencia persistida, Outbox transacional no schema `transfer` e mapper de metadados Kafka. A gravacao de Saga, idempotencia e Outbox passou a ocorrer sob `IUnitOfWork` na Application, sem expor EF Core para fora da Infrastructure. Essa etapa ainda nao implementa endpoints HTTP funcionais, producer Kafka, HostedService de publicacao, DLQ ou processamento completo da Saga; Pub/Sub permanece fora deste fluxo.
+
 ## Validacao esperada em etapa futura
 Quando o runtime for implementado, a validacao devera cobrir:
 
 - testes de dominio e aplicacao para transicoes validas e invalidas da Saga;
-- testes de idempotencia por etapa;
-- testes de integracao para persistencia de estado e Outbox;
+- testes de idempotencia por etapa alem da idempotencia inicial de solicitacao;
 - testes de contrato HTTP do `TransferService.Api`;
 - testes de contrato dos eventos `Transferencia*.v1`;
 - testes de chamada ao `LedgerService.Api` com idempotencia;
-- testes de publicacao Kafka e DLQ de aplicacao;
+- testes de publicacao Kafka, HostedService de Outbox e DLQ de aplicacao;
 - revisao de observabilidade, correlation id e headers Kafka.

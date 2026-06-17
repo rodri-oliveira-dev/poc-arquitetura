@@ -19,17 +19,20 @@ public sealed class SolicitarTransferenciaCommandHandler
     private readonly ITransferenciaSagaRepository _sagaRepository;
     private readonly ITransferenciaIdempotencyService _idempotencyService;
     private readonly ITransferenciaOutboxWriter _outboxWriter;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly IClock _clock;
 
     public SolicitarTransferenciaCommandHandler(
         ITransferenciaSagaRepository sagaRepository,
         ITransferenciaIdempotencyService idempotencyService,
         ITransferenciaOutboxWriter outboxWriter,
+        IUnitOfWork unitOfWork,
         IClock clock)
     {
         _sagaRepository = sagaRepository;
         _idempotencyService = idempotencyService;
         _outboxWriter = outboxWriter;
+        _unitOfWork = unitOfWork;
         _clock = clock;
     }
 
@@ -59,6 +62,7 @@ public sealed class SolicitarTransferenciaCommandHandler
             new MerchantId(destinationMerchantId),
             new TransferAmount(request.Amount),
             now);
+        saga.RegisterRequestMetadata(idempotencyKey, requestHash, request.CorrelationId, now);
 
         var response = ToResult(saga, idempotentReplay: false);
         var evento = TransferenciaSagaEventFactory.TransferenciaSolicitada(
@@ -66,6 +70,7 @@ public sealed class SolicitarTransferenciaCommandHandler
             request.CorrelationId,
             now);
 
+        await using var transaction = await _unitOfWork.BeginTransactionAsync(cancellationToken);
         await _sagaRepository.AddAsync(saga, cancellationToken);
         await _outboxWriter.WriteAsync(evento, cancellationToken);
         await _idempotencyService.AddAsync(
@@ -75,6 +80,8 @@ public sealed class SolicitarTransferenciaCommandHandler
             response,
             now.AddDays(7),
             cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         return response;
     }

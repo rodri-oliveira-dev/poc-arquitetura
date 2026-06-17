@@ -151,16 +151,17 @@ Pontos de atencao:
 
 ### TransferService
 
-O `TransferService` existe como bounded context inicial planejado pela ADR-0087. A estrutura atual cria apenas os projetos `Api`, `Application`, `Domain`, `Infrastructure` e `Worker`, com composition root minima para compilar e testes de arquitetura garantindo as dependencias permitidas entre camadas.
+O `TransferService` existe como bounded context inicial planejado pela ADR-0087. A estrutura atual ja contem aggregate de Saga, portas de persistencia/idempotencia/Outbox em Application, `TransferServiceDbContext`, mappings EF Core, migration do schema `transfer`, repository concreto, idempotencia persistida, Outbox transacional e metadados Kafka para publicacao posterior pelo Worker.
 
-Ainda nao ha endpoints funcionais, modelo de dominio, DbContext, migrations, contratos de eventos, producers, consumers, Outbox ou processamento de Saga. Essa ausencia e intencional: a etapa atual cria o limite arquitetural sem antecipar regra de negocio ou infraestrutura antes de o runtime da transferencia ser implementado.
+Ainda nao ha endpoints funcionais, producers Kafka, consumers, HostedServices, DLQ ou processamento completo de Saga. A publicacao deve continuar fora da Application: a Application grava o evento logico pela porta de Outbox, enquanto Infrastructure mapeia `event_type`, `topic`, headers e `message_key`.
 
 Pontos de atencao:
 
 - `TransferService.Domain` nao deve referenciar nenhum projeto interno.
 - `TransferService.Application` pode depender apenas do dominio local.
-- `TransferService.Infrastructure` pode depender de Application e Domain, mas nao deve ganhar EF Core, Kafka, Pub/Sub ou Outbox ate haver requisito concreto.
-- `TransferService.Api` e `TransferService.Worker` podem compor Application e Infrastructure, mantendo endpoints e HostedServices funcionais fora do escopo ate a implementacao da Saga.
+- `TransferService.Infrastructure` pode depender de Application e Domain, concentrando EF Core, PostgreSQL, Outbox, idempotencia persistida e mapeamento Kafka.
+- `TransferService.Api` e `TransferService.Worker` podem compor Application e Infrastructure, mantendo endpoints e HostedServices funcionais fora do escopo ate a implementacao do runtime da Saga.
+- Pub/Sub nao faz parte do fluxo do TransferService definido pela ADR-0087.
 
 ### Auth.Api legado
 

@@ -127,12 +127,14 @@ public sealed class SolicitarTransferenciaCommandHandlerTests
                 SagaRepository,
                 IdempotencyService,
                 OutboxWriter,
+                UnitOfWork,
                 new FixedClock(Now));
         }
 
         public FakeTransferenciaSagaRepository SagaRepository { get; } = new();
         public FakeTransferenciaIdempotencyService IdempotencyService { get; } = new();
         public FakeTransferenciaOutboxWriter OutboxWriter { get; } = new();
+        public FakeUnitOfWork UnitOfWork { get; } = new();
         public SolicitarTransferenciaCommandHandler Handler { get; }
     }
 
@@ -158,6 +160,14 @@ public sealed class SolicitarTransferenciaCommandHandlerTests
             Sagas.Add(saga);
             return Task.CompletedTask;
         }
+
+        public Task<IReadOnlyList<TransferenciaSaga>> ClaimPendingAsync(
+            int batchSize,
+            DateTimeOffset now,
+            string lockOwner,
+            TimeSpan lockDuration,
+            CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<TransferenciaSaga>>([]);
     }
 
     private sealed class FakeTransferenciaIdempotencyService : ITransferenciaIdempotencyService
@@ -198,5 +208,23 @@ public sealed class SolicitarTransferenciaCommandHandlerTests
             Events.Add(evento);
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class FakeUnitOfWork : IUnitOfWork
+    {
+        public Task<IAppTransaction> BeginTransactionAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult<IAppTransaction>(new FakeAppTransaction());
+
+        public Task<int> SaveChangesAsync(CancellationToken cancellationToken)
+            => Task.FromResult(1);
+    }
+
+    private sealed class FakeAppTransaction : IAppTransaction
+    {
+        public Task CommitAsync(CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public ValueTask DisposeAsync()
+            => ValueTask.CompletedTask;
     }
 }

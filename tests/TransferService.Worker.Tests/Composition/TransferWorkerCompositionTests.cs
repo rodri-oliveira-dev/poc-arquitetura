@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using TransferService.Worker.Extensions;
@@ -11,6 +12,10 @@ public sealed class TransferWorkerCompositionTests
     {
         ServiceCollection services = [];
         HostApplicationBuilder builder = Host.CreateApplicationBuilder();
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["ConnectionStrings:DefaultConnection"] = "Host=localhost;Database=transfer-tests;Username=app;Password=app"
+        });
 
         IServiceCollection result = services.AddTransferWorkerComposition(builder.Configuration, builder.Environment);
 

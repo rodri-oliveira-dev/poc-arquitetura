@@ -247,7 +247,7 @@ model {
   }
 
   transfer = softwareSystem "TransferService" {
-    description "Bounded context planejado para orquestracao futura de transferencias entre merchants conforme ADR-0087. Nesta etapa possui apenas estrutura de projetos e composition roots minimas, sem endpoints funcionais, persistencia ou processamento de Saga."
+    description "Bounded context planejado para orquestracao de transferencias entre merchants conforme ADR-0087. Nesta etapa possui Saga, persistencia EF Core, Outbox transacional e metadados Kafka iniciais, ainda sem endpoints funcionais ou processamento completo."
 
     transferApi = container "TransferService.Api" {
       technology "ASP.NET Core"
@@ -258,15 +258,15 @@ model {
       }
 
       transferApplication = component "Application Layer" {
-        description "Camada de casos de uso futura, atualmente sem handlers ou regras de aplicacao."
+        description "Handlers iniciais de solicitacao/status, portas de repository, idempotencia, Outbox e Unit of Work."
       }
 
       transferDomain = component "Domain Layer" {
-        description "Camada de dominio futura, atualmente sem agregados, entidades ou invariantes."
+        description "Aggregate TransferenciaSaga com estados, etapas, retry, idempotencia e metadados de correlacao."
       }
 
       transferInfrastructure = component "Infrastructure Layer" {
-        description "Camada de infraestrutura futura, atualmente sem DbContext, migrations, mensageria, Outbox ou adapters concretos."
+        description "TransferServiceDbContext, migrations do schema transfer, repository concreto, idempotencia persistida, Outbox transacional e mapper de metadados Kafka."
       }
     }
 
@@ -275,7 +275,7 @@ model {
       description "Composition root de worker inicial do TransferService. Ainda nao registra HostedServices ou processamento de Saga."
 
       transferWorkerComposition = component "Worker composition root" {
-        description "Registra Application e Infrastructure de forma minima para manter o processo separado da API."
+        description "Registra Application e Infrastructure para permitir processamento futuro da Saga e publicacao posterior da Outbox."
       }
     }
   }
