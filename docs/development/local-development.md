@@ -857,6 +857,17 @@ dotnet tool run dotnet-ef -- database update `
   -c BalanceDbContext
 ```
 
+TransferService:
+
+```powershell
+$env:TRANSFER_SERVICE_CONNECTION_STRING = "Host=127.0.0.1;Port=15432;Database=appdb;Username=transfer_migrator_user;Password=<TRANSFER_DB_MIGRATOR_PASSWORD>"
+dotnet tool restore
+dotnet tool run dotnet-ef -- database update `
+  -p src\TransferService.Infrastructure\TransferService.Infrastructure.csproj `
+  -s src\TransferService.Api\TransferService.Api.csproj `
+  -c TransferServiceDbContext
+```
+
 ## Execucao no host
 
 Use este modo quando PostgreSQL e Pub/Sub emulator ja estiverem disponiveis e voce quiser rodar ou depurar os processos no host. Para execucao local fora do container, use `DOTNET_ENVIRONMENT=Local`. Os profiles de debug dos workers ja configuram `DOTNET_ENVIRONMENT=Local` e `PUBSUB_EMULATOR_HOST=127.0.0.1:8085`. Para depurar Kafka legado, sobrescreva `Messaging__Provider=Kafka` e os bootstrap servers.
@@ -1165,6 +1176,16 @@ dotnet tool run dotnet-ef -- migrations list \
   -p src\\BalanceService.Infrastructure\\BalanceService.Infrastructure.csproj \
   -s src\\BalanceService.Api\\BalanceService.Api.csproj \
   -c BalanceDbContext
+```
+
+TransferService:
+
+```bash
+TRANSFER_SERVICE_CONNECTION_STRING="Host=127.0.0.1;Port=15432;Database=appdb;Username=transfer_migrator_user;Password=<TRANSFER_DB_MIGRATOR_PASSWORD>" \
+dotnet tool run dotnet-ef -- migrations list \
+  -p src\\TransferService.Infrastructure\\TransferService.Infrastructure.csproj \
+  -s src\\TransferService.Api\\TransferService.Api.csproj \
+  -c TransferServiceDbContext
 ```
 
 Para criar, aplicar ou reverter migrations, use os mesmos projetos e contexts acima. Nao altere migrations antigas apenas para organizar.

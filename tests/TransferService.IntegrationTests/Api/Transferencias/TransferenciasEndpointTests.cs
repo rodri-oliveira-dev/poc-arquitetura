@@ -85,6 +85,20 @@ public sealed class TransferenciasEndpointTests : IClassFixture<TransferApiFacto
     }
 
     [Fact]
+    public async Task Post_transferencias_should_return_400_without_amountAsync()
+    {
+        Authenticate(scopes: "transfer.write");
+
+        using var req = CreatePostRequestWithoutAmount(Guid.NewGuid().ToString());
+
+        var res = await _client.SendAsync(req, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
+        var body = await AssertValidationErrorResponseAsync(res);
+        Assert.Contains("amount", body.Errors.Keys);
+    }
+
+    [Fact]
     public async Task Post_transferencias_should_return_403_when_merchant_is_not_authorized()
     {
         Authenticate(scopes: "transfer.write", merchantIds: "m9");
@@ -223,8 +237,27 @@ public sealed class TransferenciasEndpointTests : IClassFixture<TransferApiFacto
         };
 
         if (idempotencyKey is not null)
+        {
             req.Headers.Add("Idempotency-Key", idempotencyKey);
+        }
 
+        return req;
+    }
+
+    private static HttpRequestMessage CreatePostRequestWithoutAmount(string idempotencyKey)
+    {
+        var req = new HttpRequestMessage(HttpMethod.Post, "/api/v1/transferencias")
+        {
+            Content = JsonContent.Create(new
+            {
+                sourceMerchantId = "m1",
+                destinationMerchantId = "m2",
+                description = "Transferencia entre carteiras",
+                externalReference = "pedido-123"
+            })
+        };
+
+        req.Headers.Add("Idempotency-Key", idempotencyKey);
         return req;
     }
 

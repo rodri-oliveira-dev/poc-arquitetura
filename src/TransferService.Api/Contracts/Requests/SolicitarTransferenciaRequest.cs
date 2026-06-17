@@ -6,7 +6,7 @@ public sealed class SolicitarTransferenciaRequest
 
     public string DestinationMerchantId { get; init; } = string.Empty;
 
-    public decimal Amount
+    public decimal? Amount
     {
         get; init;
     }

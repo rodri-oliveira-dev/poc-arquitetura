@@ -11,14 +11,18 @@ public static class TransferenciaMapper
         SolicitarTransferenciaRequest request,
         string idempotencyKey,
         string? correlationId)
-        => new(
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return new(
             idempotencyKey,
             request.SourceMerchantId,
             request.DestinationMerchantId,
-            request.Amount,
+            request.Amount!.Value,
             correlationId,
             request.Description,
             request.ExternalReference);
+    }
 
     public static SolicitarTransferenciaResponse ToResponse(SolicitarTransferenciaResult result)
         => new(

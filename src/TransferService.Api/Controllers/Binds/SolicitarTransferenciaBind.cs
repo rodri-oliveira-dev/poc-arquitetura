@@ -1,8 +1,10 @@
+using ApiDefaults.Middlewares;
+
 using FluentValidation;
 using FluentValidation.Results;
+
 using TransferService.Api.Contracts.Requests;
 using TransferService.Api.Mappers;
-using ApiDefaults.Middlewares;
 using TransferService.Application.Transferencias.Commands;
 
 namespace TransferService.Api.Controllers.Binds;
@@ -31,29 +33,34 @@ public static class SolicitarTransferenciaBind
     {
         if (string.IsNullOrWhiteSpace(idempotencyKey))
         {
-            throw new ValidationException(new[]
-            {
+            throw new ValidationException(
+            [
                 new ValidationFailure(nameof(SolicitarTransferenciaCommand.IdempotencyKey), "Idempotency-Key is required.")
-            });
+            ]);
         }
 
         if (!Guid.TryParse(idempotencyKey, out _))
         {
-            throw new ValidationException(new[]
-            {
+            throw new ValidationException(
+            [
                 new ValidationFailure(nameof(SolicitarTransferenciaCommand.IdempotencyKey), "Idempotency-Key must be a valid UUID.")
-            });
+            ]);
         }
     }
 
     private static SolicitarTransferenciaRequest ValidateRequestBody(SolicitarTransferenciaRequest? request)
     {
-        if (request is not null)
-            return request;
-
-        throw new ValidationException(new[]
+        return request switch
         {
-            new ValidationFailure("$", "Request body is required.")
-        });
+            null => throw new ValidationException(
+            [
+                new ValidationFailure("$", "Request body is required.")
+            ]),
+            { Amount: null } => throw new ValidationException(
+                [
+                    new ValidationFailure(nameof(SolicitarTransferenciaRequest.Amount), "Amount is required.")
+                ]),
+            _ => request
+        };
     }
 }

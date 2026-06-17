@@ -397,7 +397,8 @@
           },
           "amount": {
             "type": "number",
-            "format": "double"
+            "format": "double",
+            "nullable": true
           },
           "description": {
             "type": "string",

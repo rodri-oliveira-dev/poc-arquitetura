@@ -5,11 +5,17 @@ namespace TransferService.Infrastructure.Persistence;
 
 public sealed class TransferServiceDbContextFactory : IDesignTimeDbContextFactory<TransferServiceDbContext>
 {
+    private const string DefaultConnectionString =
+        "Host=localhost;Port=5432;Database=poc_arquitetura;Username=postgres";
+
     public TransferServiceDbContext CreateDbContext(string[] args)
     {
+        var connectionString = Environment.GetEnvironmentVariable("TRANSFER_SERVICE_CONNECTION_STRING")
+            ?? DefaultConnectionString;
+
         var options = new DbContextOptionsBuilder<TransferServiceDbContext>()
             .UseNpgsql(
-                "Host=localhost;Port=5432;Database=poc_arquitetura;Username=postgres;Password=postgres",
+                connectionString,
                 npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "transfer"))
             .Options;
 
