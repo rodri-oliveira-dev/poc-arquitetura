@@ -43,6 +43,7 @@ public sealed class CreateLancamentoIdempotencyServiceTests
         var input = LancamentoFixture.ValidInput(type: "CREDIT", amount: "10.00");
         var expected = new LancamentoDto(
             "lan_12345678",
+            Guid.NewGuid(),
             input.MerchantId,
             "CREDIT",
             "10.00",

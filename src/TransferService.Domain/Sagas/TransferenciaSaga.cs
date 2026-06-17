@@ -117,13 +117,14 @@ public sealed class TransferenciaSaga : Entity, IAggregateRoot
         MoveTo(TransferenciaSagaStatus.Completed, TransferenciaSagaStep.Completed, now);
     }
 
-    public void MarkCompensationRequested(DateTimeOffset now)
+    public void MarkCompensationRequested(DateTimeOffset now, Guid? compensationEstornoId = null)
     {
         EnsureNotFinalized();
 
         if (!DebitCreated)
             throw new DomainException("Compensacao somente pode ser solicitada apos debito criado.");
 
+        CompensationEstornoId = compensationEstornoId ?? CompensationEstornoId;
         MoveTo(TransferenciaSagaStatus.CompensationRequested, TransferenciaSagaStep.Compensation, now);
     }
 

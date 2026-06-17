@@ -96,6 +96,15 @@ public sealed class TransferenciaOutboxMessage
         NextRetryAt = nextRetryAt;
     }
 
+    public void MarkDeadLetter(string? lastError)
+    {
+        Status = TransferenciaOutboxStatus.DeadLetter;
+        LastError = Normalize(lastError);
+        NextRetryAt = null;
+        LockOwner = null;
+        LockedUntil = null;
+    }
+
     private static string? Normalize(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

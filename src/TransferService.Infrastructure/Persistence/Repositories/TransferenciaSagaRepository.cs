@@ -42,7 +42,12 @@ public sealed class TransferenciaSagaRepository : ITransferenciaSagaRepository
             var lockedUntilFallback = now.Add(lockDuration);
             var candidates = await _context.TransferenciasSagas
                 .Where(x =>
-                    (x.Status == TransferenciaSagaStatus.Pending || x.Status == TransferenciaSagaStatus.Processing) &&
+                    (x.Status == TransferenciaSagaStatus.Pending
+                        || x.Status == TransferenciaSagaStatus.Processing
+                        || x.Status == TransferenciaSagaStatus.DebitCreating
+                        || x.Status == TransferenciaSagaStatus.DebitCreated
+                        || x.Status == TransferenciaSagaStatus.CreditCreating
+                        || x.Status == TransferenciaSagaStatus.CompensationRequested) &&
                     (x.NextRetryAt == null || x.NextRetryAt <= now) &&
                     (x.ProcessingLockedUntil == null || x.ProcessingLockedUntil <= now))
                 .OrderBy(x => x.CreatedAt)
@@ -62,7 +67,7 @@ public sealed class TransferenciaSagaRepository : ITransferenciaSagaRepository
 WITH cte AS (
     SELECT id
     FROM transfer.transferencias_sagas
-    WHERE status IN (@p_pending, @p_processing)
+    WHERE status IN (@p_pending, @p_processing, @p_debit_creating, @p_debit_created, @p_credit_creating, @p_compensation_requested)
       AND (next_retry_at IS NULL OR next_retry_at <= @p_now)
       AND (processing_locked_until IS NULL OR processing_locked_until <= @p_now)
     ORDER BY created_at
@@ -70,8 +75,8 @@ WITH cte AS (
     LIMIT @p_batch
 )
 UPDATE transfer.transferencias_sagas s
-SET status = @p_processing,
-    current_step = @p_processing_step,
+SET status = CASE WHEN s.status = @p_pending THEN @p_processing ELSE s.status END,
+    current_step = CASE WHEN s.status = @p_pending THEN @p_processing_step ELSE s.current_step END,
     processing_lock_owner = @p_lock_owner,
     processing_locked_until = @p_locked_until,
     updated_at = @p_now
@@ -84,6 +89,10 @@ RETURNING s.*;
             sql,
             new NpgsqlParameter("p_pending", NpgsqlDbType.Text) { Value = TransferenciaSagaStatus.Pending.ToString() },
             new NpgsqlParameter("p_processing", NpgsqlDbType.Text) { Value = TransferenciaSagaStatus.Processing.ToString() },
+            new NpgsqlParameter("p_debit_creating", NpgsqlDbType.Text) { Value = TransferenciaSagaStatus.DebitCreating.ToString() },
+            new NpgsqlParameter("p_debit_created", NpgsqlDbType.Text) { Value = TransferenciaSagaStatus.DebitCreated.ToString() },
+            new NpgsqlParameter("p_credit_creating", NpgsqlDbType.Text) { Value = TransferenciaSagaStatus.CreditCreating.ToString() },
+            new NpgsqlParameter("p_compensation_requested", NpgsqlDbType.Text) { Value = TransferenciaSagaStatus.CompensationRequested.ToString() },
             new NpgsqlParameter("p_processing_step", NpgsqlDbType.Text) { Value = TransferenciaSagaStep.Processing.ToString() },
             new NpgsqlParameter("p_now", NpgsqlDbType.TimestampTz) { Value = now },
             new NpgsqlParameter("p_locked_until", NpgsqlDbType.TimestampTz) { Value = lockedUntil },

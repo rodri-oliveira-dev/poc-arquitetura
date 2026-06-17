@@ -110,6 +110,7 @@ public sealed class CreateLancamentoCommandHandler
     private static LancamentoDto ToResponse(LedgerEntry ledgerEntry)
         => new(
             Id: $"lan_{ledgerEntry.Id.ToString("N")[..8]}",
+            LancamentoId: ledgerEntry.Id,
             MerchantId: ledgerEntry.MerchantId,
             Type: ledgerEntry.Type == LedgerEntryType.Credit ? "CREDIT" : "DEBIT",
             Amount: ledgerEntry.Amount.ToString("0.00", CultureInfo.InvariantCulture),

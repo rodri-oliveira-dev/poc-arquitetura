@@ -65,8 +65,13 @@ public sealed class PostgresTransferFixture : IAsyncLifetime
         services.AddSingleton(new TransferenciaSagaKafkaMetadataMapper(
             Options.Create(new TransferenciaKafkaTopicOptions
             {
-                Transferencias = "transferencias.saga.events.v1",
-                TransferenciasFalhas = "transferencias.saga.failures.v1"
+                Solicitada = "transfer.transferencia.solicitada",
+                DebitoCriado = "transfer.transferencia.debito-criado",
+                CreditoCriado = "transfer.transferencia.credito-criado",
+                Concluida = "transfer.transferencia.concluida",
+                CompensacaoSolicitada = "transfer.transferencia.compensacao-solicitada",
+                Compensada = "transfer.transferencia.compensada",
+                Falhou = "transfer.transferencia.falhou"
             })));
         services.AddScoped<SolicitarTransferenciaCommandHandler>();
 

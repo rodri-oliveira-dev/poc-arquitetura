@@ -1,7 +1,7 @@
 # ADR-0087: Saga orquestrada de transferencias entre merchants com TransferService e Kafka
 
 ## Status
-Proposto
+Aceito
 
 ## Data
 2026-06-17
@@ -139,6 +139,12 @@ O `TransferService` deve usar Outbox transacional para publicar eventos no Kafka
 
 Cada mudanca relevante de estado da Saga e o respectivo evento logico devem ser persistidos na mesma transacao do banco do `TransferService`. A publicacao no Kafka deve acontecer de forma assincrona por worker, com semantica de entrega pelo menos uma vez, retry controlado e registro de falhas.
 
+## Decisao sobre compensacao registrada
+
+O endpoint de estorno do `LedgerService.Api` registra uma solicitacao assincrona de estorno e retorna aceite operacional, mas nao confirma que o estorno financeiro ja foi processado.
+
+Por isso, quando o credito falhar apos o debito ter sido criado e o `LedgerService.Api` aceitar a solicitacao de estorno, o `TransferService` deve marcar a Saga como `CompensationRequested`, persistir `compensationEstornoId` e gravar `TransferenciaCompensacaoSolicitada.v1` no Outbox. O estado `Compensated` e o evento `TransferenciaCompensada.v1` ficam reservados para uma confirmacao futura e explicita de compensacao concluida. Essa decisao evita publicar um fato de negocio mais forte do que a resposta real do Ledger permite garantir.
+
 ## Worker assincrono
 
 O processamento da Saga deve ser executado por worker do `TransferService`, separado da responsabilidade do request HTTP.
@@ -228,6 +234,8 @@ Em etapa posterior no mesmo dia, `TransferService.Application` recebeu os casos 
 Essa etapa implementa apenas a orquestracao inicial de Application para criar a Saga em `Pending`, consultar status publico e expressar idempotencia e Outbox por portas. Ela nao implementa endpoints, persistencia EF Core, migrations, producers, consumers, HostedServices, DLQ, topicos Kafka ou publicacao real de mensagens. A garantia operacional de transacao entre Saga, idempotencia e Outbox depende dos adapters de Infrastructure em etapa futura.
 
 Em etapa posterior no mesmo dia, `TransferService.Infrastructure` recebeu `TransferServiceDbContext`, mappings EF Core, migration `InitialTransferSchema`, repository concreto da Saga, idempotencia persistida, Outbox transacional no schema `transfer` e mapper de metadados Kafka. A gravacao de Saga, idempotencia e Outbox passou a ocorrer sob `IUnitOfWork` na Application, sem expor EF Core para fora da Infrastructure. Essa etapa ainda nao implementa endpoints HTTP funcionais, producer Kafka, HostedService de publicacao, DLQ ou processamento completo da Saga; Pub/Sub permanece fora deste fluxo.
+
+Em etapa posterior no mesmo dia, `TransferService.Worker` passou a executar duas responsabilidades separadas: processamento de Sagas pendentes/recuperaveis e publicacao da Outbox do TransferService no Kafka. O fluxo usa `LedgerService.Api` para debito, credito e solicitacao de estorno, idempotency keys deterministicas por etapa, topicos Kafka explicitos por `event_type`, `transferenciaId` como message key, retry persistido no estado da Saga e DLQ de aplicacao `transfer.transferencia.dlq` para payload invalido ou erro definitivo de publicacao.
 
 ## Validacao esperada em etapa futura
 Quando o runtime for implementado, a validacao devera cobrir:

@@ -102,7 +102,7 @@ public sealed class TransferPersistenceTests(PostgresTransferFixture fixture)
         Assert.Equal(TransferenciaSolicitadaV1.Type, outbox.EventType);
         Assert.Equal(TransferenciaOutboxStatus.Pending, outbox.Status);
         Assert.Equal(result.TransferenciaId.ToString(), outbox.MessageKey);
-        Assert.Equal("transferencias.saga.events.v1", outbox.Topic);
+        Assert.Equal("transfer.transferencia.solicitada", outbox.Topic);
     }
 
     [Fact]
@@ -111,8 +111,8 @@ public sealed class TransferPersistenceTests(PostgresTransferFixture fixture)
         var mapper = new TransferenciaSagaKafkaMetadataMapper(
             Options.Create(new TransferenciaKafkaTopicOptions
             {
-                Transferencias = "transfer-events",
-                TransferenciasFalhas = "transfer-failures"
+                Solicitada = "transfer-events",
+                Falhou = "transfer-failures"
             }));
         var transferenciaId = Guid.NewGuid();
 

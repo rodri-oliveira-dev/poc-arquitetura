@@ -9,6 +9,10 @@ public sealed record LancamentoDto(
     /// </summary>
     string Id,
     /// <summary>
+    /// Identificador interno do lancamento usado por comandos operacionais, como solicitacao de estorno.
+    /// </summary>
+    Guid LancamentoId,
+    /// <summary>
     /// Identificador do merchant/lojista.
     /// </summary>
     string MerchantId,

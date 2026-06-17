@@ -399,6 +399,7 @@ public sealed class CreateLancamentoCommandHandlerTests
 
         var expectedReplay = new LancamentoDto(
             "lan_12345678",
+            Guid.NewGuid(),
             originalInput.MerchantId,
             "CREDIT",
             "10.00",

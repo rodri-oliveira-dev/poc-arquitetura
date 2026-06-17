@@ -10,6 +10,7 @@ public sealed class LedgerEntryCreatedEventFactoryTests
     {
         var response = new LancamentoDto(
             "lan_12345678",
+            Guid.NewGuid(),
             "m1",
             "CREDIT",
             "10.00",

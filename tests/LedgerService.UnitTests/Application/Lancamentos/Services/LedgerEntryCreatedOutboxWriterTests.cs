@@ -22,6 +22,7 @@ public sealed class LedgerEntryCreatedOutboxWriterTests
         var ledgerEntry = new LedgerEntry("m1", LedgerEntryType.Credit, 10.00m, occurredAt, "desc", "ext", correlationId, occurredAt);
         var response = new LancamentoDto(
             $"lan_{ledgerEntry.Id.ToString("N")[..8]}",
+            ledgerEntry.Id,
             "m1",
             "CREDIT",
             "10.00",
