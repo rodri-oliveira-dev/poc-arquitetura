@@ -223,7 +223,9 @@ O `TransferService` deve propagar correlation id nas chamadas HTTP para o `Ledge
 
 Em 2026-06-17, foi criada apenas a estrutura inicial dos projetos `TransferService.Api`, `TransferService.Worker`, `TransferService.Application`, `TransferService.Domain` e `TransferService.Infrastructure`, com composition roots minimas para compilacao e testes de arquitetura para as dependencias permitidas entre camadas.
 
-Essa etapa nao implementa modelo de dominio, endpoints, persistencia, Outbox, mensageria, DLQ ou processamento da Saga. A decisao funcional desta ADR permanece planejada para etapa futura.
+Em etapa posterior no mesmo dia, `TransferService.Application` recebeu os casos de uso iniciais `SolicitarTransferenciaCommand` e `ObterStatusTransferenciaQuery`, validators, modelos internos de resultado, portas de persistencia/idempotencia/Outbox/relogio e factories para os eventos logicos `Transferencia*.v1`.
+
+Essa etapa implementa apenas a orquestracao inicial de Application para criar a Saga em `Pending`, consultar status publico e expressar idempotencia e Outbox por portas. Ela nao implementa endpoints, persistencia EF Core, migrations, producers, consumers, HostedServices, DLQ, topicos Kafka ou publicacao real de mensagens. A garantia operacional de transacao entre Saga, idempotencia e Outbox depende dos adapters de Infrastructure em etapa futura.
 
 ## Validacao esperada em etapa futura
 Quando o runtime for implementado, a validacao devera cobrir:

@@ -31,7 +31,7 @@ public sealed class TransferenciaSaga : Entity, IAggregateRoot
         SourceMerchantId = sourceMerchantId;
         DestinationMerchantId = destinationMerchantId;
         Amount = amount;
-        Status = TransferenciaSagaStatus.Created;
+        Status = TransferenciaSagaStatus.Pending;
         Step = TransferenciaSagaStep.Created;
         CreatedAt = now;
         UpdatedAt = now;
@@ -40,7 +40,7 @@ public sealed class TransferenciaSaga : Entity, IAggregateRoot
     public void StartProcessing(DateTimeOffset now)
     {
         EnsureNotFinalized();
-        EnsureStatus(TransferenciaSagaStatus.Created, "Saga somente pode iniciar processamento quando estiver criada.");
+        EnsureStatus(TransferenciaSagaStatus.Pending, "Saga somente pode iniciar processamento quando estiver pendente.");
 
         MoveTo(TransferenciaSagaStatus.Processing, TransferenciaSagaStep.Processing, now);
     }

@@ -2,7 +2,7 @@ namespace TransferService.Domain.Sagas;
 
 public enum TransferenciaSagaStatus
 {
-    Created = 0,
+    Pending = 0,
     Processing = 1,
     DebitCreating = 2,
     DebitCreated = 3,

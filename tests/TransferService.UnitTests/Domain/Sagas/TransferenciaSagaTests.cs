@@ -15,7 +15,7 @@ public sealed class TransferenciaSagaTests
         Assert.Equal(new MerchantId("source"), saga.SourceMerchantId);
         Assert.Equal(new MerchantId("destination"), saga.DestinationMerchantId);
         Assert.Equal(new TransferAmount(100m), saga.Amount);
-        Assert.Equal(TransferenciaSagaStatus.Created, saga.Status);
+        Assert.Equal(TransferenciaSagaStatus.Pending, saga.Status);
         Assert.Equal(TransferenciaSagaStep.Created, saga.Step);
         Assert.False(saga.DebitCreated);
         Assert.False(saga.CreditCreated);
@@ -94,7 +94,7 @@ public sealed class TransferenciaSagaTests
         var exception = Assert.Throws<DomainException>(() => saga.MarkDebitCreating(Now.AddMinutes(1)));
 
         Assert.Contains("inicio do processamento", exception.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.Equal(TransferenciaSagaStatus.Created, saga.Status);
+        Assert.Equal(TransferenciaSagaStatus.Pending, saga.Status);
     }
 
     [Fact]
