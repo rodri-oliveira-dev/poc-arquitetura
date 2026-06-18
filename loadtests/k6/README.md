@@ -23,8 +23,10 @@ Os runners `./scripts/run-loadtests.ps1` e `./scripts/run-loadtests.sh` expoem t
 | `smoke` | `ledger_resilience` e `balance_daily_50rps` | Validar que Ledger e Balance respondem no ambiente local e que ao menos um evento percorre Outbox -> Pub/Sub emulator -> Balance antes de cenarios maiores. | Ledger: 1 VU constante. Balance: 1 req/s, 5 VUs pre-alocados e maximo 10 VUs. | 10s por cenario. | Sem checks falhos, `checks == 100%`, `http_req_failed <= 0.05`, `dropped_iterations == 0`, `http_req_duration p95 < 3000ms`, `http_req_duration p99 < 6000ms` e incremento de Outbox processada e `processed_events` no Balance. |
 | `balance50` | `balance_daily_50rps` | Exercitar consulta de consolidado diario no BalanceService.Api com taxa constante controlada. | 50 req/s, 50 VUs pre-alocados e maximo 200 VUs. | 1m. | Sem checks falhos, `checks == 100%`, `http_req_failed <= 0.05`, `dropped_iterations == 0`, `http_req_duration p95 < 1000ms` e `http_req_duration p99 < 2500ms`. |
 | `resilience` | `ledger_resilience` | Exercitar criacao de lancamentos no LedgerService.Api com idempotency key e correlation id por iteracao. | 5 VUs constantes. | 1m. | Sem checks falhos, `checks == 100%`, `http_req_failed <= 0.05`, `dropped_iterations == 0`, `http_req_duration p95 < 2000ms` e `http_req_duration p99 < 5000ms`. |
+| `transfer-smoke` | `transfer_smoke` | Validar o contrato HTTP basico do `TransferService.Api` para criacao, consulta, autenticacao, validacao e idempotencia. | 1 VU, 1 iteracao. | Ate 30s. | Sem checks falhos, `http_req_failed{service:transfer} == 0`, `transfer_post_success == 100%`, `transfer_get_success == 100%`, replay idempotente com `202`, conflito com `409`, `401`, `403`, `404` e validacoes `400` esperadas. |
+| `transfer-load` | `transfer_load` | Exercitar criacao e consulta de transferencias com concorrencia moderada local, sem depender da conclusao da Saga pelo Worker. | Ramping ate 10 VUs. | 1m subida, 3m sustentado, 1m descida. | `http_req_failed{service:transfer} < 2%`, `checks >= 99%`, `transfer_post_success >= 99%`, `transfer_get_success >= 99%`, `dropped_iterations == 0`, `http_req_duration p95 < 1000ms` e `p99 < 2000ms`. |
 
-`smoke` e uma validacao curta de sanidade local. `balance50` e um cenario de throughput de leitura controlado para o Balance. `resilience` e um cenario de escrita concorrente no Ledger, com foco em aceitar chamadas validas sob carga moderada local.
+`smoke` e uma validacao curta de sanidade local. `balance50` e um cenario de throughput de leitura controlado para o Balance. `resilience` e um cenario de escrita concorrente no Ledger, com foco em aceitar chamadas validas sob carga moderada local. `transfer-smoke` e um smoke contratual da API de transferencias, e `transfer-load` e carga moderada manual para POST/GET do TransferService.
 
 Os scripts k6 declaram thresholds para `checks`, `dropped_iterations` e para `http_req_failed`/`http_req_duration` filtrados por operacao. As chamadas HTTP usam tags `name`, `service` e `operation`, permitindo separar no summary operacoes como `ledger_create_entry` e `balance_daily_summary`. Os runners tambem conferem o summary JSON para manter diagnostico explicito de checks falhos, taxa de erro HTTP e iteracoes descartadas.
 
@@ -42,6 +44,8 @@ Os limites sao guardrails iniciais para ambiente local controlado, nao SLO produ
 | `smoke` Balance | `BALANCE` | 3000ms | 6000ms | Sanidade curta de leitura com 1 req/s. |
 | `balance50` | `BALANCE` | 1000ms | 2500ms | Leitura HTTP do consolidado diario a 50 req/s em stack local aquecida. |
 | `resilience` | `LEDGER` | 2000ms | 5000ms | Escrita HTTP moderada com persistencia, idempotency key, correlation id e Outbox. |
+| `transfer-smoke` | `TRANSFER` | 500ms | 1000ms | Smoke curto de contrato HTTP do TransferService.Api. |
+| `transfer-load` | `TRANSFER` | 1000ms | 2000ms | Escrita e leitura HTTP moderadas sem aguardar conclusao assincrona da Saga. |
 
 Para sobrescrever os limites sem alterar codigo, informe variaveis no processo que executa o k6:
 
@@ -77,10 +81,13 @@ Execute a stack local antes dos testes. Os runners precisam do Keycloak local pa
 - Keycloak, para emissão do token JWT padrão usado pelos runners;
 - `LedgerService.Api`, para `POST /api/v1/lancamentos`;
 - `BalanceService.Api`, para `GET /api/v1/consolidados/diario/{date}`.
+- `TransferService.Api`, para `POST /api/v1/transferencias` e `GET /api/v1/transferencias/{transferenciaId}` nos modos `transfer-smoke` e `transfer-load`.
 
 `Auth.Api` permanece disponível somente como fallback de transição quando `TOKEN_PROVIDER=auth-api` também estiver acompanhado da configuração JWT legada das APIs, conforme `docs/development/authentication.md`.
 
 Os runners exigem `pubsub-emulator`, `LedgerService.Worker` e `BalanceService.Worker` em execucao e confirmam que os workers usam `Messaging__Provider=PubSub` com `PUBSUB_EMULATOR_HOST=pubsub-emulator:8085`. Isso impede que o fluxo local publique contra Pub/Sub real por acidente. Os workers nao sao tratados como APIs HTTP.
+
+Os modos `transfer-smoke` e `transfer-load` nao exigem Pub/Sub, Kafka nem `TransferService.Worker`. Eles validam a API publica e a persistencia inicial da Saga como `Pending`; a conclusao assincrona da transferencia pertence ao modo Kafka/full-stack documentado em `docs/development/transfer-api.md`.
 
 Antes do modo `balance50`, os runners aguardam a Outbox local de `LedgerEntryCreated.v1`/`LedgerEntryCreated.v2` estar processada e refletida em `processed_events`. Essa espera evita medir a leitura do Balance enquanto o worker ainda drena eventos gerados por cenarios de escrita anteriores, sem reduzir a taxa, a duracao ou os thresholds do teste.
 

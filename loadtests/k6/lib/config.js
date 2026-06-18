@@ -81,10 +81,14 @@ function normalizeConfig(cfg) {
         ALLOW_ANON: parseBoolean(cfg.ALLOW_ANON),
         BASE_URL_LEDGER: cleanBaseUrl(cfg.BASE_URL_LEDGER),
         BASE_URL_BALANCE: cleanBaseUrl(cfg.BASE_URL_BALANCE),
+        BASE_URL_TRANSFER: cleanBaseUrl(cfg.BASE_URL_TRANSFER),
         LEDGER_POST_PATH: cleanPath(cfg.LEDGER_POST_PATH),
         BALANCE_DAILY_PATH: cleanPath(cfg.BALANCE_DAILY_PATH),
         BALANCE_PERIOD_PATH: cleanPath(cfg.BALANCE_PERIOD_PATH),
+        TRANSFER_PATH: cleanPath(cfg.TRANSFER_PATH),
         MERCHANT_ID: cleanString(cfg.MERCHANT_ID),
+        SOURCE_MERCHANT_ID: cleanString(cfg.SOURCE_MERCHANT_ID),
+        DESTINATION_MERCHANT_ID: cleanString(cfg.DESTINATION_MERCHANT_ID),
     };
 }
 
@@ -93,11 +97,15 @@ export function loadConfig() {
         // Fallback local (host)
         BASE_URL_LEDGER: 'http://localhost:5226',
         BASE_URL_BALANCE: 'http://localhost:5228',
+        BASE_URL_TRANSFER: 'http://localhost:5230',
         LEDGER_POST_PATH: '/api/v1/lancamentos',
         BALANCE_DAILY_PATH: '/api/v1/consolidados/diario',
         BALANCE_PERIOD_PATH: '/api/v1/consolidados/periodo',
+        TRANSFER_PATH: '/api/v1/transferencias',
 
         MERCHANT_ID: 'poc-merchant',
+        SOURCE_MERCHANT_ID: 'm1',
+        DESTINATION_MERCHANT_ID: 'm2',
     };
 
     const fileCfg = loadAutoEnvFile();

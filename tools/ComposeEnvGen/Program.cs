@@ -76,6 +76,7 @@ internal static class Program
 
         var ledgerServiceName = ServiceDiscovery.PickBestService(servicesNode, serviceNames, ["ledger"]);
         var balanceServiceName = ServiceDiscovery.PickBestService(servicesNode, serviceNames, ["balance", "consolid"]);
+        var transferServiceName = ServiceDiscovery.PickBestService(servicesNode, serviceNames, ["transfer"]);
         var authServiceName = ServiceDiscovery.PickBestService(servicesNode, serviceNames, ["auth", "keycloak", "identity"]);
 
         if (ledgerServiceName is null)
@@ -88,6 +89,11 @@ internal static class Program
             Console.Error.WriteLine("[ComposeEnvGen] Não foi possível inferir o service do Balance (keywords: balance|consolid).");
             return ExitCodes.ComposeParseFailed;
         }
+        if (transferServiceName is null)
+        {
+            Console.Error.WriteLine("[ComposeEnvGen] Nao foi possivel inferir o service do Transfer (keyword: transfer).");
+            return ExitCodes.ComposeParseFailed;
+        }
         if (authServiceName is null)
         {
             Console.Error.WriteLine("[ComposeEnvGen] Não foi possível inferir o service de Auth (keywords: auth|keycloak|identity).");
@@ -96,9 +102,10 @@ internal static class Program
 
         var ledgerService = servicesNode.Children[new YamlScalarNode(ledgerServiceName)] as YamlMappingNode;
         var balanceService = servicesNode.Children[new YamlScalarNode(balanceServiceName)] as YamlMappingNode;
+        var transferService = servicesNode.Children[new YamlScalarNode(transferServiceName)] as YamlMappingNode;
         var authService = servicesNode.Children[new YamlScalarNode(authServiceName)] as YamlMappingNode;
 
-        if (ledgerService is null || balanceService is null || authService is null)
+        if (ledgerService is null || balanceService is null || transferService is null || authService is null)
         {
             Console.Error.WriteLine("[ComposeEnvGen] Erro interno: service mapping não encontrado.");
             return ExitCodes.ComposeParseFailed;
@@ -106,6 +113,7 @@ internal static class Program
 
         var ledgerPort = ServiceDiscovery.DetermineInternalHttpPort(ledgerService);
         var balancePort = ServiceDiscovery.DetermineInternalHttpPort(balanceService);
+        var transferPort = ServiceDiscovery.DetermineInternalHttpPort(transferService);
         var authPort = ServiceDiscovery.DetermineInternalHttpPort(authService);
 
         var envLines = new List<string>
@@ -115,10 +123,12 @@ internal static class Program
             "",
             $"LEDGER_SERVICE_NAME={ledgerServiceName}",
             $"BALANCE_SERVICE_NAME={balanceServiceName}",
+            $"TRANSFER_SERVICE_NAME={transferServiceName}",
             $"AUTH_SERVICE_NAME={authServiceName}",
             "",
             $"BASE_URL_LEDGER=http://{ledgerServiceName}:{ledgerPort}",
             $"BASE_URL_BALANCE=http://{balanceServiceName}:{balancePort}",
+            $"BASE_URL_TRANSFER=http://{transferServiceName}:{transferPort}",
             $"AUTH_BASE_URL=http://{authServiceName}:{authPort}",
             "",
             // Paths inferidos do README atual (rotas estáveis)
@@ -126,6 +136,7 @@ internal static class Program
             "LEDGER_POST_PATH=/api/v1/lancamentos",
             "BALANCE_DAILY_PATH=/api/v1/consolidados/diario",
             "BALANCE_PERIOD_PATH=/api/v1/consolidados/periodo",
+            "TRANSFER_PATH=/api/v1/transferencias",
             "",
             "# Credenciais locais ficticias - podem ser sobrescritas por env no get-token",
             "AUTH_POC_USERNAME=local_user",
@@ -135,6 +146,8 @@ internal static class Program
             "PASSWORD=local_password",
             "SCOPE=ledger.write balance.read",
             "MERCHANT_ID=tese",
+            "SOURCE_MERCHANT_ID=m1",
+            "DESTINATION_MERCHANT_ID=m2",
         };
 
         try

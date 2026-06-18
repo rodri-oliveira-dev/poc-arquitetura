@@ -17,6 +17,12 @@ services:
       ApiLimits__RateLimitWindowSeconds: "60"
       ApiLimits__RateLimitQueueLimit: "1000"
 
+  transfer-service:
+    environment:
+      ApiLimits__RateLimitPermitLimit: "10000"
+      ApiLimits__RateLimitWindowSeconds: "60"
+      ApiLimits__RateLimitQueueLimit: "1000"
+
   k6:
     image: docker.io/grafana/k6:1.7.1
     container_name: poc-k6

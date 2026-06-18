@@ -171,6 +171,7 @@ Se houver containers antigos ou rede local presa do proprio projeto, o script pe
 | Diagnosticar disco Docker | `./scripts/docker-disk-report.ps1` ou `./scripts/docker-disk-report.sh` |
 | Limpeza segura Docker | `./scripts/docker-clean-safe.ps1` ou `./scripts/docker-clean-safe.sh` |
 | Load test smoke | `./scripts/run-loadtests.ps1 -Mode smoke` ou `./scripts/run-loadtests.sh smoke` |
+| TransferService smoke | `./scripts/run-loadtests.ps1 -Mode transfer-smoke` ou `./scripts/run-loadtests.sh transfer-smoke` |
 | OWASP ZAP local | `./scripts/run-owasp-zap.ps1` ou `./scripts/run-owasp-zap.sh` |
 
 ## Testes
@@ -244,4 +245,4 @@ Consulte [troubleshooting](docs/troubleshooting.md), especialmente para migratio
 
 ## Observacoes
 
-Os testes de carga ficam em `loadtests/k6` e rodam em container dentro da rede do compose, usando `compose.k6.yaml`. Arquivos gerados como `.env.k6.auto`, `artifacts/k6` e `TestResults` nao devem ser versionados.
+Os testes de carga ficam em `loadtests/k6` e rodam em container dentro da rede do compose, usando `compose.k6.yaml`. Os modos `transfer-smoke` e `transfer-load` cobrem os endpoints HTTP do TransferService sem exigir conclusao da Saga pelo Worker. Arquivos gerados como `.env.k6.auto`, `artifacts/k6` e `TestResults` nao devem ser versionados.

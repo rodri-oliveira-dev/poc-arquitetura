@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
   [Parameter(Mandatory = $true)]
-  [ValidateSet("smoke", "balance50", "resilience")]
+  [ValidateSet("smoke", "balance50", "resilience", "transfer-smoke", "transfer-load")]
   [string]$Mode,
 
   [string]$ComposeFile = "",
@@ -175,6 +175,21 @@ function Wait-ComposeServiceHealthy([string]$Service, [int]$TimeoutSeconds = 240
   throw "Timeout aguardando $Service ficar healthy. Ultimo health: $lastHealth"
 }
 
+function Wait-HttpEndpoint([string]$Url, [int]$TimeoutSeconds = 120) {
+  $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+  do {
+    try {
+      Invoke-WebRequest -Method Get -Uri $Url -UseBasicParsing -TimeoutSec 5 | Out-Null
+      return
+    }
+    catch {
+      Start-Sleep -Seconds 2
+    }
+  } while ((Get-Date) -lt $deadline)
+
+  throw "Timeout aguardando endpoint HTTP: $Url"
+}
+
 function Assert-LocalPubSubStack {
   $config = (& docker @(Get-ComposeArguments) config | Out-String)
   if ($LASTEXITCODE -ne 0) { throw "docker compose config falhou ao validar Pub/Sub local." }
@@ -261,16 +276,31 @@ function Wait-AsyncFlowIdle([int]$TimeoutSeconds = 120) {
 # a) gerar env
 powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "scripts\compose-env.ps1") -ComposeFile $ComposeFile -OutFile $EnvFile | Out-Host
 
-Assert-LocalPubSubStack
+$isTransferMode = $Mode -in @("transfer-smoke", "transfer-load")
+
+if (-not $isTransferMode) {
+  Assert-LocalPubSubStack
+}
 
 # Aplica o override de carga nas APIs antes de executar o k6. O compose.k6.yaml
 # mantem os testes apontando para as APIs HTTP e aumenta apenas limites tecnicos
 # que poderiam transformar o cenario de throughput em teste de rate limiting.
-& docker @(Get-ComposeArguments -IncludeK6) up -d --no-build --force-recreate ledger-service balance-service
+if ($isTransferMode) {
+  & docker @(Get-ComposeArguments -IncludeK6) up -d --no-build --force-recreate transfer-service
+}
+else {
+  & docker @(Get-ComposeArguments -IncludeK6) up -d --no-build --force-recreate ledger-service balance-service
+}
 if ($LASTEXITCODE -ne 0) { throw "docker compose falhou ao aplicar override k6: $LASTEXITCODE" }
 
 Wait-ComposeServiceHealthy "keycloak"
-Assert-BalanceDatabaseAuthentication
+if ($isTransferMode) {
+  $transferHostPort = Get-LocalConfigValue "TRANSFER_SERVICE_HOST_PORT" "5230"
+  Wait-HttpEndpoint "http://localhost:$transferHostPort/health"
+}
+else {
+  Assert-BalanceDatabaseAuthentication
+}
 
 # b) obter token pelo provider local configurado. Por padrao, Keycloak.
 function Get-LoadTestToken {
@@ -332,7 +362,9 @@ function Invoke-BalanceWarmup([string]$token) {
   }
 }
 
-Invoke-BalanceWarmup $token
+if (-not $isTransferMode) {
+  Invoke-BalanceWarmup $token
+}
 
 New-Item -ItemType Directory -Force -Path $ArtifactsDir | Out-Null
 $ts = Get-Date -Format "yyyyMMdd-HHmmss"
@@ -408,6 +440,12 @@ switch ($Mode) {
   }
   "resilience" {
     Run-K6 "ledger_resilience" "scenarios/ledger_resilience.js" @{ TOKEN = $token; VUS = "5"; DURATION = "1m"; LEDGER_HTTP_REQ_DURATION_P95_MS = (Get-ThresholdValue "LEDGER" "P95" "2000"); LEDGER_HTTP_REQ_DURATION_P99_MS = (Get-ThresholdValue "LEDGER" "P99" "5000") }
+  }
+  "transfer-smoke" {
+    Run-K6 "transfer_smoke" "scenarios/transfer_smoke.js" @{ TOKEN = $token; DURATION = "30s"; TRANSFER_HTTP_REQ_DURATION_P95_MS = (Get-ThresholdValue "TRANSFER" "P95" "500"); TRANSFER_HTTP_REQ_DURATION_P99_MS = (Get-ThresholdValue "TRANSFER" "P99" "1000") }
+  }
+  "transfer-load" {
+    Run-K6 "transfer_load" "scenarios/transfer_load.js" @{ TOKEN = $token; VUS = "10"; TRANSFER_HTTP_REQ_DURATION_P95_MS = (Get-ThresholdValue "TRANSFER" "P95" "1000"); TRANSFER_HTTP_REQ_DURATION_P99_MS = (Get-ThresholdValue "TRANSFER" "P99" "2000") }
   }
 }
 

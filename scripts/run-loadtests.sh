@@ -8,7 +8,7 @@ set -euo pipefail
 
 MODE="${1:-}"
 if [[ -z "$MODE" ]]; then
-  echo "Uso: ./scripts/run-loadtests.sh <smoke|balance50|resilience>" 1>&2
+  echo "Uso: ./scripts/run-loadtests.sh <smoke|balance50|resilience|transfer-smoke|transfer-load>" 1>&2
   exit 2
 fi
 
@@ -167,6 +167,23 @@ wait_compose_service_healthy() {
   exit 1
 }
 
+wait_http_endpoint() {
+  local url="$1"
+  local timeout_seconds="${2:-120}"
+  local deadline=$((SECONDS + timeout_seconds))
+
+  while (( SECONDS < deadline )); do
+    if curl -fsS "$url" >/dev/null; then
+      return 0
+    fi
+
+    sleep 2
+  done
+
+  echo "Timeout aguardando endpoint HTTP: $url" 1>&2
+  exit 1
+}
+
 assert_local_pubsub_stack() {
   local config
   local running_services
@@ -276,15 +293,31 @@ wait_async_flow_idle() {
 # a) gerar env
 COMPOSE_FILE="$COMPOSE_FILE" OUT_FILE="$ENV_FILE" "$ROOT_DIR/scripts/compose-env.sh" >/dev/null
 
-assert_local_pubsub_stack
+is_transfer_mode=false
+if [[ "$MODE" == "transfer-smoke" || "$MODE" == "transfer-load" ]]; then
+  is_transfer_mode=true
+fi
+
+if [[ "$is_transfer_mode" != true ]]; then
+  assert_local_pubsub_stack
+fi
 
 # Aplica o override de carga nas APIs antes de executar o k6. O compose.k6.yaml
 # mantem os testes apontando para as APIs HTTP e aumenta apenas limites tecnicos
 # que poderiam transformar o cenario de throughput em teste de rate limiting.
-docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_K6_FILE" up -d --no-build --force-recreate ledger-service balance-service
+if [[ "$is_transfer_mode" == true ]]; then
+  docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_K6_FILE" up -d --no-build --force-recreate transfer-service
+else
+  docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_K6_FILE" up -d --no-build --force-recreate ledger-service balance-service
+fi
 
 wait_compose_service_healthy keycloak
-assert_balance_database_authentication
+if [[ "$is_transfer_mode" == true ]]; then
+  transfer_host_port="$(get_local_config_value TRANSFER_SERVICE_HOST_PORT 5230)"
+  wait_http_endpoint "http://localhost:$transfer_host_port/health"
+else
+  assert_balance_database_authentication
+fi
 
 # b) obter token pelo provider local configurado. Por padrao, Keycloak.
 TOKEN=""
@@ -325,7 +358,9 @@ PY
   curl -fsS -H "Authorization: Bearer $TOKEN" "$url" >/dev/null
 }
 
-warmup_balance
+if [[ "$is_transfer_mode" != true ]]; then
+  warmup_balance
+fi
 
 ts="$(date +%Y%m%d-%H%M%S)"
 
@@ -383,8 +418,14 @@ case "$MODE" in
   resilience)
     run_k6 ledger_resilience scenarios/ledger_resilience.js -e VUS=5 -e DURATION=1m -e LEDGER_HTTP_REQ_DURATION_P95_MS="$(threshold_value LEDGER P95 2000)" -e LEDGER_HTTP_REQ_DURATION_P99_MS="$(threshold_value LEDGER P99 5000)"
     ;;
+  transfer-smoke)
+    run_k6 transfer_smoke scenarios/transfer_smoke.js -e DURATION=30s -e TRANSFER_HTTP_REQ_DURATION_P95_MS="$(threshold_value TRANSFER P95 500)" -e TRANSFER_HTTP_REQ_DURATION_P99_MS="$(threshold_value TRANSFER P99 1000)"
+    ;;
+  transfer-load)
+    run_k6 transfer_load scenarios/transfer_load.js -e VUS=10 -e TRANSFER_HTTP_REQ_DURATION_P95_MS="$(threshold_value TRANSFER P95 1000)" -e TRANSFER_HTTP_REQ_DURATION_P99_MS="$(threshold_value TRANSFER P99 2000)"
+    ;;
   *)
-    echo "Modo inválido: $MODE (use smoke|balance50|resilience)" 1>&2
+    echo "Modo invalido: $MODE (use smoke|balance50|resilience|transfer-smoke|transfer-load)" 1>&2
     exit 2
     ;;
 esac

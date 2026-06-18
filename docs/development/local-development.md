@@ -1083,16 +1083,20 @@ Windows:
 
 ```powershell
 ./scripts/run-loadtests.ps1 -Mode smoke
+./scripts/run-loadtests.ps1 -Mode transfer-smoke
 ./scripts/run-loadtests.ps1 -Mode balance50
 ./scripts/run-loadtests.ps1 -Mode resilience
+./scripts/run-loadtests.ps1 -Mode transfer-load
 ```
 
 Linux/macOS:
 
 ```bash
 ./scripts/run-loadtests.sh smoke
+./scripts/run-loadtests.sh transfer-smoke
 ./scripts/run-loadtests.sh balance50
 ./scripts/run-loadtests.sh resilience
+./scripts/run-loadtests.sh transfer-load
 ```
 
 Arquivos gerados em `artifacts/k6` e `.env.k6.auto` nao sao versionados.
@@ -1100,6 +1104,8 @@ Arquivos gerados em `artifacts/k6` e `.env.k6.auto` nao sao versionados.
 Os cenarios k6 possuem thresholds locais iniciais para `checks`, `http_req_failed`, `dropped_iterations` e `http_req_duration` p95/p99. Eles sao guardrails de baseline local, nao SLO produtivo. Os valores e overrides por ambiente estao documentados em `loadtests/k6/README.md`.
 
 Os runners aplicam `compose.k6.yaml` e recriam os containers HTTP alvo antes do k6 para manter os testes apontando para as APIs e garantir que overrides de ambiente entrem em vigor. Os workers continuam sem endpoint HTTP nos cenarios de carga. Antes de obter token e executar o k6, os runners exigem `pubsub-emulator`, `ledger-worker` e `balance-worker` ativos, confirmam `Messaging__Provider=PubSub` e `PUBSUB_EMULATOR_HOST=pubsub-emulator:8085`, e validam uma conexao real no PostgreSQL usando o usuario runtime de escrita do Balance (`balance_write_user`) e `BALANCE_DB_WRITE_PASSWORD`; se a senha do volume local divergir da configuracao, o fluxo falha cedo com diagnostico e nenhuma acao destrutiva. No modo `smoke`, o runner tambem aguarda incremento de Outbox processada e de `processed_events` para confirmar publish/consume via emulator.
+
+Os modos `transfer-smoke` e `transfer-load` usam a mesma infraestrutura k6, mas exigem apenas Keycloak, PostgreSQL e `TransferService.Api` disponiveis na stack local. Eles nao sobem nem exigem Kafka ou `TransferService.Worker`: o objetivo e validar `POST /api/v1/transferencias`, `GET /api/v1/transferencias/{transferenciaId}`, autenticacao, validacao, idempotencia e comportamento basico sob concorrencia sem aguardar a Saga finalizar. Para validar a Saga completa com Worker, suba o modo Kafka local descrito em [Kafka local e Saga do TransferService](#kafka-local-e-saga-do-transferservice).
 
 O token usado nos cenarios k6 e obtido pelos runners com `scripts/get-token.*`. O fluxo oficial local e `TOKEN_PROVIDER=keycloak`, usando `KEYCLOAK_CLIENT_ID`, `KEYCLOAK_CLIENT_SECRET`, `KEYCLOAK_REALM` e `KEYCLOAK_BASE_URL`/`KEYCLOAK_HOST_PORT`. Para usar temporariamente o fallback `Auth.Api`, suba `compose.auth-legacy.yaml` e configure tambem as APIs de negocio com `JWT_ISSUER=https://auth-api`, `JWT_JWKS_URL=http://auth-api:8080/.well-known/jwks.json` e `TOKEN_PROVIDER=auth-api`, conforme [autenticacao e autorizacao](authentication.md).
 
