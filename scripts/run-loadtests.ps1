@@ -1,8 +1,10 @@
 [CmdletBinding()]
 param(
   [Parameter(Mandatory = $true)]
-  [ValidateSet("smoke", "balance50", "resilience", "transfer-smoke", "transfer-load", "transfer-fullstack-kafka")]
+  [ValidateSet("smoke", "smoke-kafka", "balance50", "load-kafka", "balance-load-kafka", "resilience", "ledger-load-kafka", "transfer-smoke", "transfer-smoke-kafka", "transfer-load", "transfer-load-kafka", "transfer-fullstack-kafka")]
   [string]$Mode,
+
+  [string]$Provider = "",
 
   [string]$ComposeFile = "",
   [string]$ComposeKafkaFile = "",
@@ -16,6 +18,33 @@ $ErrorActionPreference = "Stop"
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $root = (Resolve-Path (Join-Path $scriptDir ".."))
+
+if ([string]::IsNullOrWhiteSpace($Provider)) {
+  $Provider = [System.Environment]::GetEnvironmentVariable("MESSAGING_PROVIDER", "Process")
+}
+if ([string]::IsNullOrWhiteSpace($Provider)) {
+  $Provider = "Kafka"
+}
+if ($Provider -ieq "Kafka") {
+  $Provider = "Kafka"
+}
+elseif ($Provider -ieq "PubSub") {
+  $Provider = "PubSub"
+}
+if ($Provider -notin @("Kafka", "PubSub")) {
+  throw "Provider invalido: $Provider (use Kafka ou PubSub)."
+}
+if ($Provider -eq "PubSub") {
+  throw "Os testes de carga padrao usam Kafka. Pub/Sub e legado/opt-in para a stack local; nao ha runner k6 Pub/Sub versionado. Use Provider=Kafka ou suba ./scripts/start-local-stack-pubsub.ps1 para validacoes manuais legadas."
+}
+
+switch ($Mode) {
+  "smoke-kafka" { $Mode = "smoke" }
+  "balance-load-kafka" { $Mode = "balance50" }
+  "ledger-load-kafka" { $Mode = "resilience" }
+  "transfer-smoke-kafka" { $Mode = "transfer-smoke" }
+  "transfer-load-kafka" { $Mode = "transfer-load" }
+}
 
 if ([string]::IsNullOrWhiteSpace($ComposeFile)) { $ComposeFile = (Join-Path $root "compose.yaml") }
 if ([string]::IsNullOrWhiteSpace($ComposeKafkaFile)) { $ComposeKafkaFile = (Join-Path $root "compose.kafka.yaml") }
@@ -214,15 +243,20 @@ function Assert-LocalKafkaStack {
 
   foreach ($service in @("kafka", "ledger-worker", "balance-worker")) {
     if ($runningServices -notcontains $service) {
-      throw "Servico obrigatorio para k6 local nao esta em execucao: $service. Suba ./scripts/start-local-stack.ps1 antes do teste."
+      throw "Kafka indisponivel para o caminho padrao k6: servico obrigatorio nao esta em execucao ($service). Suba ./scripts/start-local-stack.ps1 antes do teste."
     }
+  }
+
+  & docker @(Get-ComposeArguments) exec -T kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --list 1>$null
+  if ($LASTEXITCODE -ne 0) {
+    throw "Kafka indisponivel em kafka:9092. Confira docker compose logs kafka e rode ./scripts/start-local-stack.ps1."
   }
 
   $kafkaInitJson = & docker @(Get-ComposeArguments) ps -a kafka-init-topics --format json
   if ($LASTEXITCODE -ne 0) { throw "docker compose ps falhou ao validar kafka-init-topics." }
   $kafkaInit = $kafkaInitJson | ConvertFrom-Json
   if ([string]$kafkaInit.State -ne "exited" -or [int]$kafkaInit.ExitCode -ne 0) {
-    throw "kafka-init-topics nao concluiu com sucesso. Confira: docker compose logs kafka-init-topics"
+    throw "Topicos Kafka ausentes ou inicializacao incompleta. Rode ./scripts/start-local-stack.ps1 ou confira: docker compose logs kafka-init-topics"
   }
 }
 
@@ -245,27 +279,34 @@ function Assert-LocalTransferKafkaStack {
 
   foreach ($service in @("kafka", "ledger-service", "transfer-service", "transfer-worker")) {
     if ($runningServices -notcontains $service) {
-      throw "Servico obrigatorio para full-stack Kafka nao esta em execucao: $service. Suba ./scripts/start-local-stack.ps1 antes do teste."
+      throw "Kafka full-stack indisponivel: servico obrigatorio nao esta em execucao ($service). Suba ./scripts/start-local-stack.ps1 antes do teste."
     }
+  }
+
+  & docker @(Get-ComposeArguments -IncludeKafka) exec -T kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --list 1>$null
+  if ($LASTEXITCODE -ne 0) {
+    throw "Kafka indisponivel em kafka:9092 para full-stack TransferService. Confira docker compose logs kafka e rode ./scripts/start-local-stack.ps1."
   }
 
   $kafkaInitJson = & docker @(Get-ComposeArguments -IncludeKafka) ps -a kafka-init-topics --format json
   if ($LASTEXITCODE -ne 0) { throw "docker compose ps falhou ao validar kafka-init-topics." }
   $kafkaInit = $kafkaInitJson | ConvertFrom-Json
   if ([string]$kafkaInit.State -ne "exited" -or [int]$kafkaInit.ExitCode -ne 0) {
-    throw "kafka-init-topics nao concluiu com sucesso. Confira: docker compose logs kafka-init-topics"
+    throw "Topicos Kafka ausentes ou inicializacao incompleta. Rode ./scripts/start-local-stack.ps1 ou confira: docker compose logs kafka-init-topics"
   }
 }
 
-function Get-KafkaTopicEndOffset([string]$Topic) {
-  $output = & docker @(Get-ComposeArguments -IncludeKafka) exec -T kafka `
-    /opt/kafka/bin/kafka-run-class.sh `
-    kafka.tools.GetOffsetShell `
-    --broker-list kafka:9092 `
+function Get-KafkaTopicEndOffset([string]$Topic, [switch]$IncludeKafka) {
+  $composeArgs = if ($IncludeKafka) { Get-ComposeArguments -IncludeKafka } else { Get-ComposeArguments }
+  $output = & docker @($composeArgs) exec -T kafka `
+    /opt/kafka/bin/kafka-get-offsets.sh `
+    --bootstrap-server kafka:9092 `
     --topic $Topic `
-    --time -1
+    --time latest 2>&1
 
-  if ($LASTEXITCODE -ne 0) { throw "Falha ao consultar offset Kafka do topico $Topic." }
+  if ($LASTEXITCODE -ne 0) {
+    throw "Falha ao consultar offset Kafka do topico $Topic. Se o topico estiver ausente, rode ./scripts/start-local-stack.ps1 para executar kafka-init-topics. Detalhe: $($output | Out-String)"
+  }
 
   $sum = [Int64]0
   foreach ($line in $output) {
@@ -290,30 +331,107 @@ function Get-TransferKafkaOffsets {
 
   $offsets = @{}
   foreach ($topic in $topics) {
+    $offsets[$topic] = Get-KafkaTopicEndOffset $topic -IncludeKafka
+  }
+
+  return $offsets
+}
+
+function Get-LedgerKafkaOffsets {
+  $topics = @(
+    "ledger.ledgerentry.created",
+    "ledger.ledgerentry.created.dlq"
+  )
+
+  $offsets = @{}
+  foreach ($topic in $topics) {
     $offsets[$topic] = Get-KafkaTopicEndOffset $topic
   }
 
   return $offsets
 }
 
-function Assert-TransferKafkaEventsPublished([hashtable]$Before, [hashtable]$After) {
-  foreach ($topic in @(
-    "transfer.transferencia.solicitada",
-    "transfer.transferencia.debito-criado",
-    "transfer.transferencia.credito-criado",
-    "transfer.transferencia.concluida"
+function Assert-LedgerKafkaSmoke([hashtable]$Before, [hashtable]$After) {
+  $topic = "ledger.ledgerentry.created"
+  if ([Int64]$After[$topic] -le [Int64]$Before[$topic]) {
+    throw "Kafka nao recebeu evento esperado no topico $topic durante smoke Ledger/Balance."
+  }
+
+  $dlqTopic = "ledger.ledgerentry.created.dlq"
+  if ([Int64]$After[$dlqTopic] -ne [Int64]$Before[$dlqTopic]) {
+    throw "DLQ Kafka recebeu mensagem no fluxo feliz Ledger/Balance: topic=$dlqTopic antes=$($Before[$dlqTopic]) depois=$($After[$dlqTopic]). Inspecione topic/key/correlation_id com kafka-console-consumer."
+  }
+
+  Write-Output "OK. Smoke Kafka publicou LedgerEntryCreated e manteve DLQ do Balance sem crescimento."
+}
+
+function Read-KafkaTopicSample([string]$Topic, [int]$MaxMessages = 1000, [int]$TimeoutMs = 10000) {
+  $output = & docker @(Get-ComposeArguments -IncludeKafka) exec -T kafka `
+    /opt/kafka/bin/kafka-console-consumer.sh `
+    --bootstrap-server kafka:9092 `
+    --topic $Topic `
+    --from-beginning `
+    --timeout-ms $TimeoutMs `
+    --max-messages $MaxMessages `
+    --property print.key=true `
+    --property key.separator="@@KEY@@" 2>&1
+
+  return @($output)
+}
+
+function Find-TransferKafkaEvent([string]$Topic, [string]$ExpectedEventType, [string]$CorrelationId, [string]$ExpectedTransferenciaId) {
+  $lines = Read-KafkaTopicSample $Topic
+  foreach ($line in $lines) {
+    $text = [string]$line
+    if (-not $text.Contains("@@KEY@@")) { continue }
+    if (-not $text.Contains("`"eventType`":`"$ExpectedEventType`"")) { continue }
+    if (-not $text.Contains("`"correlationId`":`"$CorrelationId`"")) { continue }
+
+    $parts = $text.Split("@@KEY@@", 2)
+    $key = $parts[0].Trim()
+    $payload = $parts[1]
+    $match = [regex]::Match($payload, '"transferenciaId"\s*:\s*"([^"]+)"')
+    if (-not $match.Success) {
+      throw "Evento Kafka $ExpectedEventType em $Topic nao contem transferenciaId no payload."
+    }
+
+    $transferenciaId = $match.Groups[1].Value
+    if ($key -ne $transferenciaId) {
+      throw "Kafka publicou $ExpectedEventType com message key divergente: topic=$Topic key=$key transferenciaId=$transferenciaId correlationId=$CorrelationId"
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($ExpectedTransferenciaId) -and $transferenciaId -ne $ExpectedTransferenciaId) {
+      throw "Kafka publicou $ExpectedEventType para transferenciaId inesperado: topic=$Topic esperado=$ExpectedTransferenciaId recebido=$transferenciaId correlationId=$CorrelationId"
+    }
+
+    return $transferenciaId
+  }
+
+  throw "Kafka nao encontrou $ExpectedEventType com correlationId=$CorrelationId no topico $Topic. Se o topico estiver ausente, rode ./scripts/start-local-stack.ps1 para executar kafka-init-topics."
+}
+
+function Assert-TransferKafkaEventsPublished([hashtable]$Before, [hashtable]$After, [string]$CorrelationId) {
+  $expectedTransferenciaId = ""
+  foreach ($entry in @(
+    @{ Topic = "transfer.transferencia.solicitada"; EventType = "TransferenciaSolicitada.v1" },
+    @{ Topic = "transfer.transferencia.debito-criado"; EventType = "TransferenciaDebitoCriado.v1" },
+    @{ Topic = "transfer.transferencia.credito-criado"; EventType = "TransferenciaCreditoCriado.v1" },
+    @{ Topic = "transfer.transferencia.concluida"; EventType = "TransferenciaConcluida.v1" }
   )) {
+    $topic = $entry["Topic"]
     if ([Int64]$After[$topic] -le [Int64]$Before[$topic]) {
       throw "Kafka nao recebeu evento esperado no topico $topic durante o full-stack smoke."
     }
+
+    $expectedTransferenciaId = Find-TransferKafkaEvent $topic $entry["EventType"] $CorrelationId $expectedTransferenciaId
   }
 
   $dlqTopic = "transfer.transferencia.dlq"
   if ([Int64]$After[$dlqTopic] -ne [Int64]$Before[$dlqTopic]) {
-    throw "DLQ Kafka recebeu mensagem no fluxo feliz do TransferService: $dlqTopic antes=$($Before[$dlqTopic]) depois=$($After[$dlqTopic])"
+    throw "DLQ Kafka recebeu mensagem no fluxo feliz do TransferService: topic=$dlqTopic antes=$($Before[$dlqTopic]) depois=$($After[$dlqTopic]) correlationId=$CorrelationId. Inspecione topic/key/correlation_id com kafka-console-consumer."
   }
 
-  Write-Output "OK. Full-stack Kafka publicou eventos da Saga e manteve DLQ sem crescimento."
+  Write-Output "OK. Full-stack Kafka publicou eventos da Saga com key=transferenciaId, correlationId esperado e DLQ sem crescimento."
 }
 
 function Get-PostgresCount([string]$Service, [string]$User, [string]$Database, [string]$Sql, [string]$Password) {
@@ -521,6 +639,13 @@ function Run-K6([string]$scenarioName, [string]$scriptPath, [hashtable]$envVars)
     $args += "-e"; $args += "$k=$($envVars[$k])"
   }
 
+  if (-not $envVars.ContainsKey("MESSAGING_PROVIDER")) {
+    $args += "-e"; $args += "MESSAGING_PROVIDER=Kafka"
+  }
+  if (-not $envVars.ContainsKey("KAFKA_BOOTSTRAP_SERVERS")) {
+    $args += "-e"; $args += "KAFKA_BOOTSTRAP_SERVERS=kafka:9092"
+  }
+
   $args += @(
     "k6",
     "run",
@@ -537,13 +662,20 @@ function Run-K6([string]$scenarioName, [string]$scriptPath, [hashtable]$envVars)
 switch ($Mode) {
   "smoke" {
     $asyncFlowBefore = Get-AsyncFlowCounts
+    $ledgerKafkaBefore = Get-LedgerKafkaOffsets
     Run-K6 "ledger_resilience" "scenarios/ledger_resilience.js" @{ TOKEN = $token; VUS = "1"; DURATION = "10s"; LEDGER_HTTP_REQ_DURATION_P95_MS = (Get-ThresholdValue "LEDGER" "P95" "3000"); LEDGER_HTTP_REQ_DURATION_P99_MS = (Get-ThresholdValue "LEDGER" "P99" "6000") }
     Wait-AsyncFlowProgress $asyncFlowBefore
+    $ledgerKafkaAfter = Get-LedgerKafkaOffsets
+    Assert-LedgerKafkaSmoke $ledgerKafkaBefore $ledgerKafkaAfter
     Run-K6 "balance_daily_50rps" "scenarios/balance_daily_50rps.js" @{ TOKEN = $token; RATE = "1"; DURATION = "10s"; PREALLOCATED_VUS = "5"; MAX_VUS = "10"; BALANCE_HTTP_REQ_DURATION_P95_MS = (Get-ThresholdValue "BALANCE" "P95" "3000"); BALANCE_HTTP_REQ_DURATION_P99_MS = (Get-ThresholdValue "BALANCE" "P99" "6000") }
   }
   "balance50" {
     Wait-AsyncFlowIdle
     Run-K6 "balance_daily_50rps" "scenarios/balance_daily_50rps.js" @{ TOKEN = $token; RATE = "50"; DURATION = "1m"; BALANCE_HTTP_REQ_DURATION_P95_MS = (Get-ThresholdValue "BALANCE" "P95" "1000"); BALANCE_HTTP_REQ_DURATION_P99_MS = (Get-ThresholdValue "BALANCE" "P99" "2500") }
+  }
+  "load-kafka" {
+    Wait-AsyncFlowIdle
+    Run-K6 "balance_daily_light" "scenarios/balance_daily_50rps.js" @{ TOKEN = $token; RATE = "5"; DURATION = "30s"; PREALLOCATED_VUS = "10"; MAX_VUS = "30"; BALANCE_HTTP_REQ_DURATION_P95_MS = (Get-ThresholdValue "BALANCE" "P95" "1000"); BALANCE_HTTP_REQ_DURATION_P99_MS = (Get-ThresholdValue "BALANCE" "P99" "2500") }
   }
   "resilience" {
     Run-K6 "ledger_resilience" "scenarios/ledger_resilience.js" @{ TOKEN = $token; VUS = "5"; DURATION = "1m"; LEDGER_HTTP_REQ_DURATION_P95_MS = (Get-ThresholdValue "LEDGER" "P95" "2000"); LEDGER_HTTP_REQ_DURATION_P99_MS = (Get-ThresholdValue "LEDGER" "P99" "5000") }
@@ -556,9 +688,10 @@ switch ($Mode) {
   }
   "transfer-fullstack-kafka" {
     $kafkaOffsetsBefore = Get-TransferKafkaOffsets
-    Run-K6 "transfer_fullstack_kafka" "scenarios/transfer_fullstack_kafka.js" @{ TOKEN = $token; VUS = "1"; ITERATIONS = "1"; DURATION = "90s"; TRANSFER_FINAL_STATUS_TIMEOUT_SECONDS = "60"; TRANSFER_HTTP_REQ_DURATION_P95_MS = (Get-ThresholdValue "TRANSFER" "P95" "1000"); TRANSFER_HTTP_REQ_DURATION_P99_MS = (Get-ThresholdValue "TRANSFER" "P99" "2000") }
+    $transferCorrelationId = [guid]::NewGuid().ToString()
+    Run-K6 "transfer_fullstack_kafka" "scenarios/transfer_fullstack_kafka.js" @{ TOKEN = $token; VUS = "1"; ITERATIONS = "1"; DURATION = "90s"; TRANSFER_FINAL_STATUS_TIMEOUT_SECONDS = "60"; TRANSFER_CORRELATION_ID = $transferCorrelationId; TRANSFER_HTTP_REQ_DURATION_P95_MS = (Get-ThresholdValue "TRANSFER" "P95" "1000"); TRANSFER_HTTP_REQ_DURATION_P99_MS = (Get-ThresholdValue "TRANSFER" "P99" "2000") }
     $kafkaOffsetsAfter = Get-TransferKafkaOffsets
-    Assert-TransferKafkaEventsPublished $kafkaOffsetsBefore $kafkaOffsetsAfter
+    Assert-TransferKafkaEventsPublished $kafkaOffsetsBefore $kafkaOffsetsAfter $transferCorrelationId
   }
 }
 

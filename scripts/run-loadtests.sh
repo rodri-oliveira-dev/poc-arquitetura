@@ -8,9 +8,48 @@ set -euo pipefail
 
 MODE="${1:-}"
 if [[ -z "$MODE" ]]; then
-  echo "Uso: ./scripts/run-loadtests.sh <smoke|balance50|resilience|transfer-smoke|transfer-load|transfer-fullstack-kafka>" 1>&2
+  echo "Uso: ./scripts/run-loadtests.sh <smoke-kafka|load-kafka|smoke|balance50|resilience|transfer-smoke-kafka|transfer-load-kafka|transfer-fullstack-kafka> [--provider Kafka]" 1>&2
   exit 2
 fi
+
+shift || true
+PROVIDER="${MESSAGING_PROVIDER:-Kafka}"
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --provider)
+      PROVIDER="${2:-}"
+      shift 2
+      ;;
+    --provider=*)
+      PROVIDER="${1#--provider=}"
+      shift
+      ;;
+    *)
+      echo "Argumento invalido: $1" 1>&2
+      exit 2
+      ;;
+  esac
+done
+
+case "$PROVIDER" in
+  Kafka|kafka) PROVIDER="Kafka" ;;
+  PubSub|pubsub)
+    echo "Os testes de carga padrao usam Kafka. Pub/Sub e legado/opt-in para a stack local; nao ha runner k6 Pub/Sub versionado. Use --provider Kafka ou suba ./scripts/start-local-stack-pubsub.sh para validacoes manuais legadas." >&2
+    exit 2
+    ;;
+  *)
+    echo "Provider invalido: $PROVIDER (use Kafka ou PubSub)." >&2
+    exit 2
+    ;;
+esac
+
+case "$MODE" in
+  smoke-kafka) MODE=smoke ;;
+  balance-load-kafka) MODE=balance50 ;;
+  ledger-load-kafka) MODE=resilience ;;
+  transfer-smoke-kafka) MODE=transfer-smoke ;;
+  transfer-load-kafka) MODE=transfer-load ;;
+esac
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_FILE="${COMPOSE_FILE:-$ROOT_DIR/compose.yaml}"
@@ -204,16 +243,21 @@ assert_local_kafka_stack() {
   running_services="$(docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" ps --status running --services)"
   for service in kafka ledger-worker balance-worker; do
     if ! grep -qx "$service" <<<"$running_services"; then
-      echo "Servico obrigatorio para k6 local nao esta em execucao: $service. Suba ./scripts/start-local-stack.sh antes do teste." >&2
+      echo "Kafka indisponivel para o caminho padrao k6: servico obrigatorio nao esta em execucao ($service). Suba ./scripts/start-local-stack.sh antes do teste." >&2
       exit 1
     fi
   done
+
+  if ! docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" exec -T kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --list >/dev/null; then
+    echo "Kafka indisponivel em kafka:9092. Confira docker compose logs kafka e rode ./scripts/start-local-stack.sh." >&2
+    exit 1
+  fi
 
   local kafka_init
   kafka_init="$(docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" ps -a kafka-init-topics --format json)"
   if ! grep -q '"State":"exited"' <<<"$kafka_init" ||
     ! grep -q '"ExitCode":0' <<<"$kafka_init"; then
-    echo "kafka-init-topics nao concluiu com sucesso. Confira: docker compose logs kafka-init-topics" >&2
+    echo "Topicos Kafka ausentes ou inicializacao incompleta. Rode ./scripts/start-local-stack.sh ou confira: docker compose logs kafka-init-topics" >&2
     exit 1
   fi
 }
@@ -237,29 +281,44 @@ assert_local_transfer_kafka_stack() {
   running_services="$(docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_KAFKA_FILE" ps --status running --services)"
   for service in kafka ledger-service transfer-service transfer-worker; do
     if ! grep -qx "$service" <<<"$running_services"; then
-      echo "Servico obrigatorio para full-stack Kafka nao esta em execucao: $service. Suba ./scripts/start-local-stack.sh antes do teste." >&2
+      echo "Kafka full-stack indisponivel: servico obrigatorio nao esta em execucao ($service). Suba ./scripts/start-local-stack.sh antes do teste." >&2
       exit 1
     fi
   done
+
+  if ! docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_KAFKA_FILE" exec -T kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --list >/dev/null; then
+    echo "Kafka indisponivel em kafka:9092 para full-stack TransferService. Confira docker compose logs kafka e rode ./scripts/start-local-stack.sh." >&2
+    exit 1
+  fi
 
   local kafka_init
   kafka_init="$(docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_KAFKA_FILE" ps -a kafka-init-topics --format json)"
   if ! grep -q '"State":"exited"' <<<"$kafka_init" ||
     ! grep -q '"ExitCode":0' <<<"$kafka_init"; then
-    echo "kafka-init-topics nao concluiu com sucesso. Confira: docker compose logs kafka-init-topics" >&2
+    echo "Topicos Kafka ausentes ou inicializacao incompleta. Rode ./scripts/start-local-stack.sh ou confira: docker compose logs kafka-init-topics" >&2
     exit 1
   fi
 }
 
 kafka_topic_end_offset() {
   local topic="$1"
-  docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_KAFKA_FILE" exec -T kafka \
-    /opt/kafka/bin/kafka-run-class.sh \
-    kafka.tools.GetOffsetShell \
-    --broker-list kafka:9092 \
+  local include_kafka="${2:-false}"
+  local compose_files=(-f "$COMPOSE_FILE")
+  if [[ "$include_kafka" == true ]]; then
+    compose_files+=(-f "$COMPOSE_KAFKA_FILE")
+  fi
+
+  local output
+  if ! output="$(docker compose "${compose_env_args[@]}" "${compose_files[@]}" exec -T kafka \
+    /opt/kafka/bin/kafka-get-offsets.sh \
+    --bootstrap-server kafka:9092 \
     --topic "$topic" \
-    --time -1 |
-    awk -F: '{ sum += $NF } END { print sum + 0 }'
+    --time latest 2>&1)"; then
+    echo "Falha ao consultar offset Kafka do topico $topic. Se o topico estiver ausente, rode ./scripts/start-local-stack.sh para executar kafka-init-topics. Detalhe: $output" >&2
+    exit 1
+  fi
+
+  awk -F: '{ sum += $NF } END { print sum + 0 }' <<<"$output"
 }
 
 capture_transfer_kafka_offsets() {
@@ -271,6 +330,17 @@ capture_transfer_kafka_offsets() {
     transfer.transferencia.credito-criado \
     transfer.transferencia.concluida \
     transfer.transferencia.dlq
+  do
+    printf '%s=%s\n' "$topic" "$(kafka_topic_end_offset "$topic" true)" >>"$output_file"
+  done
+}
+
+capture_ledger_kafka_offsets() {
+  local output_file="$1"
+  : >"$output_file"
+  for topic in \
+    ledger.ledgerentry.created \
+    ledger.ledgerentry.created.dlq
   do
     printf '%s=%s\n' "$topic" "$(kafka_topic_end_offset "$topic")" >>"$output_file"
   done
@@ -285,13 +355,11 @@ offset_value() {
 assert_transfer_kafka_events_published() {
   local before_file="$1"
   local after_file="$2"
+  local correlation_id="$3"
+  local expected_transferencia_id=""
 
-  for topic in \
-    transfer.transferencia.solicitada \
-    transfer.transferencia.debito-criado \
-    transfer.transferencia.credito-criado \
-    transfer.transferencia.concluida
-  do
+  while IFS='|' read -r topic event_type; do
+    [[ -z "$topic" ]] && continue
     local before
     local after
     before="$(offset_value "$before_file" "$topic")"
@@ -300,7 +368,14 @@ assert_transfer_kafka_events_published() {
       echo "Kafka nao recebeu evento esperado no topico $topic durante o full-stack smoke." >&2
       exit 1
     fi
-  done
+
+    expected_transferencia_id="$(find_transfer_kafka_event "$topic" "$event_type" "$correlation_id" "$expected_transferencia_id")"
+  done <<'EOF'
+transfer.transferencia.solicitada|TransferenciaSolicitada.v1
+transfer.transferencia.debito-criado|TransferenciaDebitoCriado.v1
+transfer.transferencia.credito-criado|TransferenciaCreditoCriado.v1
+transfer.transferencia.concluida|TransferenciaConcluida.v1
+EOF
 
   local dlq_topic="transfer.transferencia.dlq"
   local dlq_before
@@ -308,11 +383,108 @@ assert_transfer_kafka_events_published() {
   dlq_before="$(offset_value "$before_file" "$dlq_topic")"
   dlq_after="$(offset_value "$after_file" "$dlq_topic")"
   if (( dlq_after != dlq_before )); then
-    echo "DLQ Kafka recebeu mensagem no fluxo feliz do TransferService: $dlq_topic antes=$dlq_before depois=$dlq_after" >&2
+    echo "DLQ Kafka recebeu mensagem no fluxo feliz do TransferService: topic=$dlq_topic antes=$dlq_before depois=$dlq_after correlationId=$correlation_id. Inspecione topic/key/correlation_id com kafka-console-consumer." >&2
     exit 1
   fi
 
-  echo "OK. Full-stack Kafka publicou eventos da Saga e manteve DLQ sem crescimento."
+  echo "OK. Full-stack Kafka publicou eventos da Saga com key=transferenciaId, correlationId esperado e DLQ sem crescimento."
+}
+
+assert_ledger_kafka_smoke() {
+  local before_file="$1"
+  local after_file="$2"
+  local topic="ledger.ledgerentry.created"
+  local before
+  local after
+  before="$(offset_value "$before_file" "$topic")"
+  after="$(offset_value "$after_file" "$topic")"
+  if (( after <= before )); then
+    echo "Kafka nao recebeu evento esperado no topico $topic durante smoke Ledger/Balance." >&2
+    exit 1
+  fi
+
+  local dlq_topic="ledger.ledgerentry.created.dlq"
+  local dlq_before
+  local dlq_after
+  dlq_before="$(offset_value "$before_file" "$dlq_topic")"
+  dlq_after="$(offset_value "$after_file" "$dlq_topic")"
+  if (( dlq_after != dlq_before )); then
+    echo "DLQ Kafka recebeu mensagem no fluxo feliz Ledger/Balance: topic=$dlq_topic antes=$dlq_before depois=$dlq_after. Inspecione topic/key/correlation_id com kafka-console-consumer." >&2
+    exit 1
+  fi
+
+  echo "OK. Smoke Kafka publicou LedgerEntryCreated e manteve DLQ do Balance sem crescimento."
+}
+
+read_kafka_topic_sample() {
+  local topic="$1"
+  docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_KAFKA_FILE" exec -T kafka \
+    /opt/kafka/bin/kafka-console-consumer.sh \
+    --bootstrap-server kafka:9092 \
+    --topic "$topic" \
+    --from-beginning \
+    --timeout-ms 10000 \
+    --max-messages 1000 \
+    --property print.key=true \
+    --property key.separator="@@KEY@@" 2>&1 || true
+}
+
+json_string_value() {
+  local json="$1"
+  local property="$2"
+  python3 - "$json" "$property" <<'PY'
+import json
+import sys
+
+payload = sys.argv[1]
+prop = sys.argv[2]
+try:
+    data = json.loads(payload)
+except json.JSONDecodeError:
+    sys.exit(1)
+value = data.get(prop)
+if value is None:
+    sys.exit(1)
+print(value)
+PY
+}
+
+find_transfer_kafka_event() {
+  local topic="$1"
+  local event_type="$2"
+  local correlation_id="$3"
+  local expected_transferencia_id="$4"
+  local line
+
+  while IFS= read -r line; do
+    [[ "$line" == *"@@KEY@@"* ]] || continue
+    [[ "$line" == *"\"eventType\":\"$event_type\""* ]] || continue
+    [[ "$line" == *"\"correlationId\":\"$correlation_id\""* ]] || continue
+
+    local key="${line%%@@KEY@@*}"
+    local payload="${line#*@@KEY@@}"
+    local transferencia_id
+    if ! transferencia_id="$(json_string_value "$payload" transferenciaId)"; then
+      echo "Evento Kafka $event_type em $topic nao contem transferenciaId no payload." >&2
+      exit 1
+    fi
+
+    if [[ "$key" != "$transferencia_id" ]]; then
+      echo "Kafka publicou $event_type com message key divergente: topic=$topic key=$key transferenciaId=$transferencia_id correlationId=$correlation_id" >&2
+      exit 1
+    fi
+
+    if [[ -n "$expected_transferencia_id" && "$transferencia_id" != "$expected_transferencia_id" ]]; then
+      echo "Kafka publicou $event_type para transferenciaId inesperado: topic=$topic esperado=$expected_transferencia_id recebido=$transferencia_id correlationId=$correlation_id" >&2
+      exit 1
+    fi
+
+    printf '%s' "$transferencia_id"
+    return 0
+  done < <(read_kafka_topic_sample "$topic")
+
+  echo "Kafka nao encontrou $event_type com correlationId=$correlation_id no topico $topic. Se o topico estiver ausente, rode ./scripts/start-local-stack.sh para executar kafka-init-topics." >&2
+  exit 1
 }
 
 postgres_count() {
@@ -486,6 +658,8 @@ run_k6() {
   docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_K6_FILE" --profile k6 run --rm \
     --user "$(id -u):$(id -g)" \
     -e "TOKEN=$TOKEN" \
+    -e "MESSAGING_PROVIDER=Kafka" \
+    -e "KAFKA_BOOTSTRAP_SERVERS=kafka:9092" \
     "$@" \
     k6 run "$scriptPath" --summary-export "/artifacts/$summaryFile"
 
@@ -519,14 +693,24 @@ PY
 
 case "$MODE" in
   smoke)
+    before_ledger_offsets="$(mktemp)"
+    after_ledger_offsets="$(mktemp)"
+    trap 'rm -f "${before_ledger_offsets:-}" "${after_ledger_offsets:-}"' EXIT
     read -r _ before_outbox before_balance < <(async_flow_counts)
+    capture_ledger_kafka_offsets "$before_ledger_offsets"
     run_k6 ledger_resilience scenarios/ledger_resilience.js -e VUS=1 -e DURATION=10s -e LEDGER_HTTP_REQ_DURATION_P95_MS="$(threshold_value LEDGER P95 3000)" -e LEDGER_HTTP_REQ_DURATION_P99_MS="$(threshold_value LEDGER P99 6000)"
     wait_async_flow_progress "$before_outbox" "$before_balance"
+    capture_ledger_kafka_offsets "$after_ledger_offsets"
+    assert_ledger_kafka_smoke "$before_ledger_offsets" "$after_ledger_offsets"
     run_k6 balance_daily_50rps scenarios/balance_daily_50rps.js -e RATE=1 -e DURATION=10s -e PREALLOCATED_VUS=5 -e MAX_VUS=10 -e BALANCE_HTTP_REQ_DURATION_P95_MS="$(threshold_value BALANCE P95 3000)" -e BALANCE_HTTP_REQ_DURATION_P99_MS="$(threshold_value BALANCE P99 6000)"
     ;;
   balance50)
     wait_async_flow_idle
     run_k6 balance_daily_50rps scenarios/balance_daily_50rps.js -e RATE=50 -e DURATION=1m -e BALANCE_HTTP_REQ_DURATION_P95_MS="$(threshold_value BALANCE P95 1000)" -e BALANCE_HTTP_REQ_DURATION_P99_MS="$(threshold_value BALANCE P99 2500)"
+    ;;
+  load-kafka)
+    wait_async_flow_idle
+    run_k6 balance_daily_light scenarios/balance_daily_50rps.js -e RATE=5 -e DURATION=30s -e PREALLOCATED_VUS=10 -e MAX_VUS=30 -e BALANCE_HTTP_REQ_DURATION_P95_MS="$(threshold_value BALANCE P95 1000)" -e BALANCE_HTTP_REQ_DURATION_P99_MS="$(threshold_value BALANCE P99 2500)"
     ;;
   resilience)
     run_k6 ledger_resilience scenarios/ledger_resilience.js -e VUS=5 -e DURATION=1m -e LEDGER_HTTP_REQ_DURATION_P95_MS="$(threshold_value LEDGER P95 2000)" -e LEDGER_HTTP_REQ_DURATION_P99_MS="$(threshold_value LEDGER P99 5000)"
@@ -541,13 +725,18 @@ case "$MODE" in
     before_offsets="$(mktemp)"
     after_offsets="$(mktemp)"
     trap 'rm -f "$before_offsets" "$after_offsets"' EXIT
+    transfer_correlation_id="$(python3 - <<'PY'
+import uuid
+print(uuid.uuid4())
+PY
+)"
     capture_transfer_kafka_offsets "$before_offsets"
-    run_k6 transfer_fullstack_kafka scenarios/transfer_fullstack_kafka.js -e VUS=1 -e ITERATIONS=1 -e DURATION=90s -e TRANSFER_FINAL_STATUS_TIMEOUT_SECONDS=60 -e TRANSFER_HTTP_REQ_DURATION_P95_MS="$(threshold_value TRANSFER P95 1000)" -e TRANSFER_HTTP_REQ_DURATION_P99_MS="$(threshold_value TRANSFER P99 2000)"
+    run_k6 transfer_fullstack_kafka scenarios/transfer_fullstack_kafka.js -e VUS=1 -e ITERATIONS=1 -e DURATION=90s -e TRANSFER_FINAL_STATUS_TIMEOUT_SECONDS=60 -e "TRANSFER_CORRELATION_ID=$transfer_correlation_id" -e TRANSFER_HTTP_REQ_DURATION_P95_MS="$(threshold_value TRANSFER P95 1000)" -e TRANSFER_HTTP_REQ_DURATION_P99_MS="$(threshold_value TRANSFER P99 2000)"
     capture_transfer_kafka_offsets "$after_offsets"
-    assert_transfer_kafka_events_published "$before_offsets" "$after_offsets"
+    assert_transfer_kafka_events_published "$before_offsets" "$after_offsets" "$transfer_correlation_id"
     ;;
   *)
-    echo "Modo invalido: $MODE (use smoke|balance50|resilience|transfer-smoke|transfer-load|transfer-fullstack-kafka)" 1>&2
+    echo "Modo invalido: $MODE (use smoke-kafka|load-kafka|smoke|balance50|resilience|transfer-smoke-kafka|transfer-load-kafka|transfer-fullstack-kafka)" 1>&2
     exit 2
     ;;
 esac

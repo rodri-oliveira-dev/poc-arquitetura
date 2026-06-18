@@ -175,14 +175,14 @@ Os smoke tests e testes de carga do `TransferService.Api` seguem o padrao k6 do 
 Smoke local:
 
 ```powershell
-./scripts/run-loadtests.ps1 -Mode transfer-smoke
+./scripts/run-loadtests.ps1 -Mode transfer-smoke-kafka
 ```
 
 ```bash
-./scripts/run-loadtests.sh transfer-smoke
+./scripts/run-loadtests.sh transfer-smoke-kafka
 ```
 
-O modo `transfer-smoke` valida:
+O modo `transfer-smoke-kafka` valida:
 
 - obtencao de token pelo fluxo local padrao de `scripts/get-token.*`;
 - `POST /api/v1/transferencias` com `Idempotency-Key` e `X-Correlation-Id`;
@@ -198,14 +198,14 @@ O modo `transfer-smoke` valida:
 Carga moderada local:
 
 ```powershell
-./scripts/run-loadtests.ps1 -Mode transfer-load
+./scripts/run-loadtests.ps1 -Mode transfer-load-kafka
 ```
 
 ```bash
-./scripts/run-loadtests.sh transfer-load
+./scripts/run-loadtests.sh transfer-load-kafka
 ```
 
-O modo `transfer-load` executa POST/GET com ramping ate 10 VUs por padrao, gerando `Idempotency-Key`, `X-Correlation-Id` e `externalReference` unicos por iteracao. Os thresholds iniciais sao `http_req_failed{service:transfer} < 2%`, `checks >= 99%`, `transfer_post_success >= 99%`, `transfer_get_success >= 99%`, `dropped_iterations == 0`, p95 menor que 1000ms e p99 menor que 2000ms para as operacoes de criacao e consulta.
+O modo `transfer-load-kafka` executa POST/GET com ramping ate 10 VUs por padrao, gerando `Idempotency-Key`, `X-Correlation-Id` e `externalReference` unicos por iteracao. Ele nao exige conclusao full-stack em 100% das iteracoes para evitar instabilidade artificial em teste de carga HTTP. Os thresholds iniciais sao `http_req_failed{service:transfer} < 2%`, `checks >= 99%`, `transfer_post_success >= 99%`, `transfer_get_success >= 99%`, `dropped_iterations == 0`, p95 menor que 1000ms e p99 menor que 2000ms para as operacoes de criacao e consulta.
 
 Variaveis uteis:
 
@@ -230,7 +230,7 @@ Smoke full-stack Kafka:
 ./scripts/run-loadtests.sh transfer-fullstack-kafka
 ```
 
-O modo `transfer-fullstack-kafka` e manual e valida API + Worker + LedgerService + Outbox + Kafka. Ele usa o compose padrao com Kafka, garante que Kafka e `transfer-worker` estejam em execucao, executa uma transferencia, consulta o status com polling ate `Completed` e valida pelo runner que os topicos `transfer.transferencia.solicitada`, `transfer.transferencia.debito-criado`, `transfer.transferencia.credito-criado` e `transfer.transferencia.concluida` receberam novas mensagens. A DLQ `transfer.transferencia.dlq` nao pode crescer no fluxo feliz.
+O modo `transfer-fullstack-kafka` e manual e valida API + Worker + LedgerService + Outbox + Kafka. Ele usa o compose padrao com Kafka, garante que Kafka e `transfer-worker` estejam em execucao, executa uma transferencia com `TRANSFER_CORRELATION_ID` controlado, consulta o status com polling ate `Completed` e valida pelo runner que os topicos `transfer.transferencia.solicitada`, `transfer.transferencia.debito-criado`, `transfer.transferencia.credito-criado` e `transfer.transferencia.concluida` receberam novas mensagens. A amostra Kafka do fluxo precisa ter `message key = transferenciaId`, payload com o `correlationId` esperado e a DLQ `transfer.transferencia.dlq` nao pode crescer no fluxo feliz.
 
 Esse smoke nao usa Pub/Sub e nao depende de `BalanceService` para decidir a Saga. O `BalanceService` continua sendo uma projecao eventual fora da decisao de debito, credito e compensacao.
 

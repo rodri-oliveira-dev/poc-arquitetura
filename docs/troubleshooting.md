@@ -299,7 +299,7 @@ Use o nome real mostrado por `docker volume ls` caso o projeto Compose tenha out
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/start-local-stack.ps1 -NoBuild
-powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/run-loadtests.ps1 -Mode smoke
+powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/run-loadtests.ps1 -Mode smoke-kafka
 ```
 
 Nenhum script do repositorio remove volumes automaticamente.
@@ -379,13 +379,13 @@ Quando o log contem `TraceId=<valor>`, o datasource Loki mostra o link `Abrir tr
 Os testes k6 rodam em container dentro da rede do compose e exigem a stack local ativa. Comece pelo modo smoke:
 
 ```powershell
-./scripts/run-loadtests.ps1 -Mode smoke
+./scripts/run-loadtests.ps1 -Mode smoke-kafka
 ```
 
 No Linux/macOS:
 
 ```bash
-./scripts/run-loadtests.sh smoke
+./scripts/run-loadtests.sh smoke-kafka
 ```
 
 Detalhes ficam em [load tests com k6](development/local-development.md#load-tests-com-k6) e [loadtests/k6](../loadtests/k6/README.md).

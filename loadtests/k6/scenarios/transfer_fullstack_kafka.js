@@ -68,7 +68,7 @@ function waitForCompletedStatus(transferenciaId) {
 
 export default function () {
     const key = idempotencyKey();
-    const transferCorrelationId = correlationId();
+    const transferCorrelationId = __ENV.TRANSFER_CORRELATION_ID || correlationId();
     const payload = transferPayload(cfg, {
         externalReference: `fullstack-kafka-${key}`,
     });
