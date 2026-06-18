@@ -2,6 +2,15 @@ name: smoke-load-tests
 
 on:
   workflow_dispatch:
+    inputs:
+      include-transfer-fullstack-kafka:
+        description: Run TransferService full-stack Kafka smoke
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
 
 permissions:
   contents: read
@@ -66,6 +75,14 @@ jobs:
 
       - name: Run TransferService API smoke tests
         run: bash ./scripts/run-loadtests.sh transfer-smoke
+
+      - name: Start Kafka stack for TransferService full-stack smoke
+        if: ${{ inputs.include-transfer-fullstack-kafka == 'true' }}
+        run: bash ./scripts/start-local-stack-kafka.sh
+
+      - name: Run TransferService full-stack Kafka smoke test
+        if: ${{ inputs.include-transfer-fullstack-kafka == 'true' }}
+        run: bash ./scripts/run-loadtests.sh transfer-fullstack-kafka
 
       - name: List k6 summaries
         if: ${{ always() }}

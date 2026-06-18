@@ -1,10 +1,11 @@
 [CmdletBinding()]
 param(
   [Parameter(Mandatory = $true)]
-  [ValidateSet("smoke", "balance50", "resilience", "transfer-smoke", "transfer-load")]
+  [ValidateSet("smoke", "balance50", "resilience", "transfer-smoke", "transfer-load", "transfer-fullstack-kafka")]
   [string]$Mode,
 
   [string]$ComposeFile = "",
+  [string]$ComposeKafkaFile = "",
   [string]$ComposeK6File = "",
 
   [string]$ArtifactsDir = "",
@@ -17,6 +18,7 @@ $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $root = (Resolve-Path (Join-Path $scriptDir ".."))
 
 if ([string]::IsNullOrWhiteSpace($ComposeFile)) { $ComposeFile = (Join-Path $root "compose.yaml") }
+if ([string]::IsNullOrWhiteSpace($ComposeKafkaFile)) { $ComposeKafkaFile = (Join-Path $root "compose.kafka.yaml") }
 if ([string]::IsNullOrWhiteSpace($ComposeK6File)) { $ComposeK6File = (Join-Path $root "compose.k6.yaml") }
 if ([string]::IsNullOrWhiteSpace($ArtifactsDir)) { $ArtifactsDir = (Join-Path $root "artifacts\k6") }
 if ([string]::IsNullOrWhiteSpace($EnvFile)) { $EnvFile = (Join-Path $root ".env.k6.auto") }
@@ -84,8 +86,11 @@ function Get-ComposeEnvArguments {
   return @()
 }
 
-function Get-ComposeArguments([switch]$IncludeK6) {
+function Get-ComposeArguments([switch]$IncludeK6, [switch]$IncludeKafka) {
   $arguments = @("compose") + (Get-ComposeEnvArguments) + @("-f", $ComposeFile)
+  if ($IncludeKafka) {
+    $arguments += @("-f", $ComposeKafkaFile, "--profile", "legacy-kafka")
+  }
   if ($IncludeK6) {
     $arguments += @("-f", $ComposeK6File)
   }
@@ -220,6 +225,96 @@ function Assert-LocalPubSubStack {
   }
 }
 
+function Assert-LocalTransferKafkaStack {
+  $config = (& docker @(Get-ComposeArguments -IncludeKafka) config | Out-String)
+  if ($LASTEXITCODE -ne 0) { throw "docker compose config falhou ao validar Kafka local do TransferService." }
+
+  foreach ($expected in @(
+    "Messaging__Provider: Kafka",
+    "TransferService__Worker__Kafka__BootstrapServers: kafka:9092",
+    "TransferService__Worker__Topics__Solicitada: transfer.transferencia.solicitada"
+  )) {
+    if (-not $config.Contains($expected)) {
+      throw "Stack full-stack do TransferService deve usar Kafka. Configuracao ausente: $expected"
+    }
+  }
+
+  $runningServices = @(& docker @(Get-ComposeArguments -IncludeKafka) ps --status running --services)
+  if ($LASTEXITCODE -ne 0) { throw "docker compose ps falhou ao validar Kafka local do TransferService." }
+
+  foreach ($service in @("kafka", "ledger-service", "transfer-service", "transfer-worker")) {
+    if ($runningServices -notcontains $service) {
+      throw "Servico obrigatorio para full-stack Kafka nao esta em execucao: $service. Suba ./scripts/start-local-stack-kafka.ps1 antes do teste."
+    }
+  }
+
+  $kafkaInitJson = & docker @(Get-ComposeArguments -IncludeKafka) ps -a kafka-init-topics --format json
+  if ($LASTEXITCODE -ne 0) { throw "docker compose ps falhou ao validar kafka-init-topics." }
+  $kafkaInit = $kafkaInitJson | ConvertFrom-Json
+  if ([string]$kafkaInit.State -ne "exited" -or [int]$kafkaInit.ExitCode -ne 0) {
+    throw "kafka-init-topics nao concluiu com sucesso. Confira: docker compose logs kafka-init-topics"
+  }
+}
+
+function Get-KafkaTopicEndOffset([string]$Topic) {
+  $output = & docker @(Get-ComposeArguments -IncludeKafka) exec -T kafka `
+    /opt/kafka/bin/kafka-run-class.sh `
+    kafka.tools.GetOffsetShell `
+    --broker-list kafka:9092 `
+    --topic $Topic `
+    --time -1
+
+  if ($LASTEXITCODE -ne 0) { throw "Falha ao consultar offset Kafka do topico $Topic." }
+
+  $sum = [Int64]0
+  foreach ($line in $output) {
+    $parts = ([string]$line).Trim().Split(":")
+    $parsed = [Int64]0
+    if ($parts.Length -ge 3 -and [Int64]::TryParse($parts[$parts.Length - 1], [ref]$parsed)) {
+      $sum += $parsed
+    }
+  }
+
+  return $sum
+}
+
+function Get-TransferKafkaOffsets {
+  $topics = @(
+    "transfer.transferencia.solicitada",
+    "transfer.transferencia.debito-criado",
+    "transfer.transferencia.credito-criado",
+    "transfer.transferencia.concluida",
+    "transfer.transferencia.dlq"
+  )
+
+  $offsets = @{}
+  foreach ($topic in $topics) {
+    $offsets[$topic] = Get-KafkaTopicEndOffset $topic
+  }
+
+  return $offsets
+}
+
+function Assert-TransferKafkaEventsPublished([hashtable]$Before, [hashtable]$After) {
+  foreach ($topic in @(
+    "transfer.transferencia.solicitada",
+    "transfer.transferencia.debito-criado",
+    "transfer.transferencia.credito-criado",
+    "transfer.transferencia.concluida"
+  )) {
+    if ([Int64]$After[$topic] -le [Int64]$Before[$topic]) {
+      throw "Kafka nao recebeu evento esperado no topico $topic durante o full-stack smoke."
+    }
+  }
+
+  $dlqTopic = "transfer.transferencia.dlq"
+  if ([Int64]$After[$dlqTopic] -ne [Int64]$Before[$dlqTopic]) {
+    throw "DLQ Kafka recebeu mensagem no fluxo feliz do TransferService: $dlqTopic antes=$($Before[$dlqTopic]) depois=$($After[$dlqTopic])"
+  }
+
+  Write-Output "OK. Full-stack Kafka publicou eventos da Saga e manteve DLQ sem crescimento."
+}
+
 function Get-PostgresCount([string]$Service, [string]$User, [string]$Database, [string]$Sql, [string]$Password) {
   $value = & docker @(Get-ComposeArguments) exec -T `
     -e "PGPASSWORD=$Password" `
@@ -276,7 +371,8 @@ function Wait-AsyncFlowIdle([int]$TimeoutSeconds = 120) {
 # a) gerar env
 powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "scripts\compose-env.ps1") -ComposeFile $ComposeFile -OutFile $EnvFile | Out-Host
 
-$isTransferMode = $Mode -in @("transfer-smoke", "transfer-load")
+$isTransferFullStackKafka = $Mode -eq "transfer-fullstack-kafka"
+$isTransferMode = $Mode -in @("transfer-smoke", "transfer-load", "transfer-fullstack-kafka")
 
 if (-not $isTransferMode) {
   Assert-LocalPubSubStack
@@ -286,7 +382,12 @@ if (-not $isTransferMode) {
 # mantem os testes apontando para as APIs HTTP e aumenta apenas limites tecnicos
 # que poderiam transformar o cenario de throughput em teste de rate limiting.
 if ($isTransferMode) {
-  & docker @(Get-ComposeArguments -IncludeK6) up -d --no-build --force-recreate transfer-service
+  if ($isTransferFullStackKafka) {
+    & docker @(Get-ComposeArguments -IncludeK6 -IncludeKafka) up -d --no-build --force-recreate kafka kafka-init-topics ledger-service transfer-service transfer-worker
+  }
+  else {
+    & docker @(Get-ComposeArguments -IncludeK6) up -d --no-build --force-recreate transfer-service
+  }
 }
 else {
   & docker @(Get-ComposeArguments -IncludeK6) up -d --no-build --force-recreate ledger-service balance-service
@@ -297,6 +398,11 @@ Wait-ComposeServiceHealthy "keycloak"
 if ($isTransferMode) {
   $transferHostPort = Get-LocalConfigValue "TRANSFER_SERVICE_HOST_PORT" "5230"
   Wait-HttpEndpoint "http://localhost:$transferHostPort/health"
+  if ($isTransferFullStackKafka) {
+    $ledgerHostPort = Get-LocalConfigValue "LEDGER_SERVICE_HOST_PORT" "5226"
+    Wait-HttpEndpoint "http://localhost:$ledgerHostPort/health"
+    Assert-LocalTransferKafkaStack
+  }
 }
 else {
   Assert-BalanceDatabaseAuthentication
@@ -446,6 +552,12 @@ switch ($Mode) {
   }
   "transfer-load" {
     Run-K6 "transfer_load" "scenarios/transfer_load.js" @{ TOKEN = $token; VUS = "10"; TRANSFER_HTTP_REQ_DURATION_P95_MS = (Get-ThresholdValue "TRANSFER" "P95" "1000"); TRANSFER_HTTP_REQ_DURATION_P99_MS = (Get-ThresholdValue "TRANSFER" "P99" "2000") }
+  }
+  "transfer-fullstack-kafka" {
+    $kafkaOffsetsBefore = Get-TransferKafkaOffsets
+    Run-K6 "transfer_fullstack_kafka" "scenarios/transfer_fullstack_kafka.js" @{ TOKEN = $token; VUS = "1"; ITERATIONS = "1"; DURATION = "90s"; TRANSFER_FINAL_STATUS_TIMEOUT_SECONDS = "60"; TRANSFER_HTTP_REQ_DURATION_P95_MS = (Get-ThresholdValue "TRANSFER" "P95" "1000"); TRANSFER_HTTP_REQ_DURATION_P99_MS = (Get-ThresholdValue "TRANSFER" "P99" "2000") }
+    $kafkaOffsetsAfter = Get-TransferKafkaOffsets
+    Assert-TransferKafkaEventsPublished $kafkaOffsetsBefore $kafkaOffsetsAfter
   }
 }
 

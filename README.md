@@ -172,6 +172,7 @@ Se houver containers antigos ou rede local presa do proprio projeto, o script pe
 | Limpeza segura Docker | `./scripts/docker-clean-safe.ps1` ou `./scripts/docker-clean-safe.sh` |
 | Load test smoke | `./scripts/run-loadtests.ps1 -Mode smoke` ou `./scripts/run-loadtests.sh smoke` |
 | TransferService smoke | `./scripts/run-loadtests.ps1 -Mode transfer-smoke` ou `./scripts/run-loadtests.sh transfer-smoke` |
+| TransferService full-stack Kafka | `./scripts/run-loadtests.ps1 -Mode transfer-fullstack-kafka` ou `./scripts/run-loadtests.sh transfer-fullstack-kafka` |
 | OWASP ZAP local | `./scripts/run-owasp-zap.ps1` ou `./scripts/run-owasp-zap.sh` |
 
 ## Testes
@@ -245,4 +246,4 @@ Consulte [troubleshooting](docs/troubleshooting.md), especialmente para migratio
 
 ## Observacoes
 
-Os testes de carga ficam em `loadtests/k6` e rodam em container dentro da rede do compose, usando `compose.k6.yaml`. Os modos `transfer-smoke` e `transfer-load` cobrem os endpoints HTTP do TransferService sem exigir conclusao da Saga pelo Worker. Arquivos gerados como `.env.k6.auto`, `artifacts/k6` e `TestResults` nao devem ser versionados.
+Os testes de carga ficam em `loadtests/k6` e rodam em container dentro da rede do compose, usando `compose.k6.yaml`. Os modos `transfer-smoke` e `transfer-load` cobrem os endpoints HTTP do TransferService sem exigir conclusao da Saga pelo Worker; `transfer-fullstack-kafka` valida API + Worker + LedgerService + Kafka no fluxo feliz da Saga. Arquivos gerados como `.env.k6.auto`, `artifacts/k6` e `TestResults` nao devem ser versionados.

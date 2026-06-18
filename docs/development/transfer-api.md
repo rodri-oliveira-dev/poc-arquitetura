@@ -220,4 +220,18 @@ Variaveis uteis:
 
 Esses testes nao validam a conclusao da Saga, chamadas ao Ledger, publicacao Kafka, DLQ ou compensacao. Para validar o fluxo completo com `TransferService.Worker`, suba a stack Kafka local e acompanhe a Saga conforme a secao de processamento assincrono deste documento.
 
+Smoke full-stack Kafka:
+
+```powershell
+./scripts/run-loadtests.ps1 -Mode transfer-fullstack-kafka
+```
+
+```bash
+./scripts/run-loadtests.sh transfer-fullstack-kafka
+```
+
+O modo `transfer-fullstack-kafka` e manual e valida API + Worker + LedgerService + Outbox + Kafka. Ele usa o `compose.kafka.yaml`, garante que Kafka e `transfer-worker` estejam em execucao, executa uma transferencia, consulta o status com polling ate `Completed` e valida pelo runner que os topicos `transfer.transferencia.solicitada`, `transfer.transferencia.debito-criado`, `transfer.transferencia.credito-criado` e `transfer.transferencia.concluida` receberam novas mensagens. A DLQ `transfer.transferencia.dlq` nao pode crescer no fluxo feliz.
+
+Esse smoke nao usa Pub/Sub e nao depende de `BalanceService` para decidir a Saga. O `BalanceService` continua sendo uma projecao eventual fora da decisao de debito, credito e compensacao.
+
 Use o provider padrao `TOKEN_PROVIDER=keycloak` ou informe `TOKEN` manualmente com `transfer.write`, `transfer.read`, audience `transfer-api` e `merchant_id` contendo os merchants testados. O `Auth.Api` legado nao e o caminho recomendado para esses modos porque seu catalogo historico nao cobre os scopes do TransferService.
