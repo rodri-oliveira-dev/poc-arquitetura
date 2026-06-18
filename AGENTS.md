@@ -50,6 +50,7 @@ Componentes principais:
 - Nao introduza segredos no repositorio.
 - Nao invente URLs, portas, contratos, comandos ou arquitetura.
 - Quando mudar contrato, fluxo arquitetural, setup local ou comportamento relevante, atualize a documentacao correspondente.
+- Quando adicionar endpoint ou alterar contrato HTTP, payload, status code, autenticacao, autorizacao, header, Swagger/OpenAPI ou comportamento exposto por API, gere novamente os contratos OpenAPI com `./scripts/generate-openapi.sh` ou `./scripts/generate-openapi.ps1` e versione as alteracoes em `docs/openapi`.
 - Nao altere testes apenas para faze-los passar.
 - Nao faca push.
 - Nao crie branch sem solicitacao explicita.
@@ -86,6 +87,8 @@ Exemplo: workers nao precisam necessariamente expor `/health` ou `/ready` se nao
 Ao alterar endpoints protegidos, revise issuer, audience, scopes, policies e autorizacao por merchant. Ao alterar eventos, preserve correlacao, headers, idempotencia e contrato entre produtor e consumidor.
 
 Quando alterar endpoints, contratos HTTP, payloads, status codes, autenticacao, autorizacao ou headers usados por cenarios de carga, avalie se os testes k6 precisam ser atualizados. Execute testes de carga apenas quando houver pedido explicito ou mudanca diretamente relacionada aos cenarios.
+
+Depois de qualquer mudanca em endpoints, Swagger/OpenAPI ou contratos HTTP, valide que `docs/openapi` esta sincronizado executando o build, o gerador OpenAPI, `npm run openapi:lint` e `git diff --exit-code -- docs/openapi`. Nao edite manualmente os JSONs quando o gerador conseguir produzi-los.
 
 ## EF Core
 
