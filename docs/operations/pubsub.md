@@ -2,7 +2,7 @@
 
 Este runbook descreve como selecionar, executar e diagnosticar o provider Pub/Sub no fluxo de eventos financeiros entre `LedgerService.Worker` e `BalanceService.Worker`.
 
-Pub/Sub e o provider principal. Kafka permanece como opcao legada explicita: preserve Outbox, idempotencia e a separacao entre DLQ de aplicacao e DLQ tecnica do transporte.
+Pub/Sub e um provider explicito/legado. Kafka e o default local dos workers principais; preserve Outbox, idempotencia e a separacao entre DLQ de aplicacao e DLQ tecnica do transporte ao alternar providers.
 
 ## Escolher o provider
 
@@ -13,17 +13,17 @@ O default versionado e:
 ```json
 {
   "Messaging": {
-    "Provider": "PubSub"
+    "Provider": "Kafka"
   }
 }
 ```
 
-Para usar Kafka legado:
+Para usar Pub/Sub explicitamente:
 
 ```json
 {
   "Messaging": {
-    "Provider": "Kafka"
+    "Provider": "PubSub"
   }
 }
 ```
@@ -46,19 +46,19 @@ $env:Messaging__Provider = "Kafka"
 
 O emulator e descartavel, nao usa credenciais GCP e fica fora do Terraform. Ele nao reproduz integralmente limites e garantias do servico real.
 
-Os scripts locais padrao ja aplicam o emulator. No Windows:
+Use os scripts explicitos de Pub/Sub. No Windows:
 
 ```powershell
-./scripts/start-local-stack.ps1
+./scripts/start-local-stack-pubsub.ps1
 ```
 
 No Linux/macOS:
 
 ```bash
-./scripts/start-local-stack.sh
+./scripts/start-local-stack-pubsub.sh
 ```
 
-Os scripts usam o `compose.yaml` principal, executam migrations e iniciam APIs e workers. O compose:
+Os scripts usam `compose.yaml` com `compose.pubsub.yaml`, executam migrations e iniciam APIs e workers de Ledger/Balance. O compose:
 
 - sobe `pubsub-emulator` em `localhost:8085` por padrao;
 - cria idempotentemente topic principal, topic de DLQ, subscription pull do Balance e subscription de inspecao da DLQ de aplicacao;
@@ -82,8 +82,8 @@ Copie `.env.local.example` para `.env.local` quando precisar sobrescrever `PUBSU
 Para inspecionar a configuracao efetiva e os logs:
 
 ```bash
-docker compose --env-file .env.local -f compose.yaml config
-docker compose --env-file .env.local -f compose.yaml logs pubsub-emulator pubsub-init ledger-worker balance-worker
+docker compose --env-file .env.local -f compose.yaml -f compose.pubsub.yaml --profile legacy-pubsub config
+docker compose --env-file .env.local -f compose.yaml -f compose.pubsub.yaml --profile legacy-pubsub logs pubsub-emulator pubsub-init ledger-worker balance-worker
 ```
 
 ## Configurar os workers
@@ -135,9 +135,9 @@ emulator. Para GCP real, use os outputs `*.dev` do Terraform conforme o
 [contrato entre infraestrutura e aplicacao](../development/pubsub-infra-app-contract.md).
 Remova `PUBSUB_EMULATOR_HOST` do processo antes de apontar para GCP real.
 
-## Kafka legado
+## Kafka default
 
-Para iniciar Kafka explicitamente no local:
+Para iniciar Kafka no local:
 
 ```powershell
 ./scripts/start-local-stack-kafka.ps1
@@ -147,10 +147,7 @@ Para iniciar Kafka explicitamente no local:
 ./scripts/start-local-stack-kafka.sh
 ```
 
-Esse fluxo usa `compose.kafka.yaml`, profile `legacy-kafka` e
-`Messaging__Provider=Kafka`. Ele continua necessario para validar o
-reprocessamento assincrono ponta a ponta enquanto o consumer Pub/Sub
-correspondente nao existir.
+Esse fluxo chama o compose principal com `Messaging__Provider=Kafka`. Os scripts existem por compatibilidade; `./scripts/start-local-stack.ps1` e `./scripts/start-local-stack.sh` ja usam Kafka por padrao.
 
 ## Aplicar Terraform em dev
 

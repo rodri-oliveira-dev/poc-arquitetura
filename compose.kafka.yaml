@@ -1,28 +1,3 @@
 name: poc-arquitetura
 
-services:
-  pubsub-emulator:
-    profiles:
-      - pubsub-disabled-in-kafka-mode
-
-  pubsub-init:
-    profiles:
-      - pubsub-disabled-in-kafka-mode
-
-  ledger-worker:
-    depends_on: !reset
-      postgres-db:
-        condition: service_healthy
-      kafka-init-topics:
-        condition: service_completed_successfully
-    environment:
-      Messaging__Provider: "Kafka"
-
-  balance-worker:
-    depends_on: !reset
-      postgres-db:
-        condition: service_healthy
-      kafka-init-topics:
-        condition: service_completed_successfully
-    environment:
-      Messaging__Provider: "Kafka"
+x-kafka-default-note: "Kafka ja faz parte do compose.yaml padrao; este overlay permanece apenas como alias compativel."

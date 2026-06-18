@@ -3,7 +3,7 @@ param(
   [string]$ComposeFile = "",
   [string]$OverlayFile = "",
   [ValidateSet("PubSub", "Kafka")]
-  [string]$MessagingProvider = "PubSub",
+  [string]$MessagingProvider = "Kafka",
   [switch]$NoBuild,
   [switch]$Observability
 )
@@ -13,7 +13,7 @@ $ErrorActionPreference = "Stop"
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $root = (Resolve-Path (Join-Path $scriptDir ".."))
 $composeObservabilityFile = Join-Path $root "compose.observability.yaml"
-$composeKafkaFile = Join-Path $root "compose.kafka.yaml"
+$composePubSubFile = Join-Path $root "compose.pubsub.yaml"
 
 function Get-LocalEnvValue([string]$Name) {
   $envPaths = @(
@@ -93,7 +93,7 @@ if ([string]::IsNullOrWhiteSpace($ComposeFile)) {
   $ComposeFile = (Join-Path $root "compose.yaml")
 }
 if ([string]::IsNullOrWhiteSpace($OverlayFile)) {
-  $OverlayFile = if ($MessagingProvider -eq "Kafka") { $composeKafkaFile } else { "" }
+  $OverlayFile = if ($MessagingProvider -eq "PubSub") { $composePubSubFile } else { "" }
 }
 
 function Invoke-DockerCompose([string[]]$Arguments) {
@@ -113,8 +113,8 @@ function Get-ComposeArguments {
   if (-not [string]::IsNullOrWhiteSpace($OverlayFile)) {
     $arguments += @("-f", $OverlayFile)
   }
-  if ($MessagingProvider -eq "Kafka") {
-    $arguments += @("--profile", "legacy-kafka")
+  if ($MessagingProvider -eq "PubSub") {
+    $arguments += @("--profile", "legacy-pubsub")
   }
 
   return $arguments
@@ -174,11 +174,13 @@ Nenhuma acao destrutiva foi executada automaticamente.
   }
 }
 
-function Invoke-Migration([string]$ConnectionString, [string]$Project, [string]$StartupProject, [string]$DbContext) {
+function Invoke-Migration([string]$ConnectionString, [string]$Project, [string]$StartupProject, [string]$DbContext, [string]$ConnectionStringEnvironmentVariable = "ConnectionStrings__DefaultConnection") {
   $previous = [System.Environment]::GetEnvironmentVariable("ConnectionStrings__DefaultConnection", "Process")
+  $previousSpecific = [System.Environment]::GetEnvironmentVariable($ConnectionStringEnvironmentVariable, "Process")
 
   try {
     [System.Environment]::SetEnvironmentVariable("ConnectionStrings__DefaultConnection", $ConnectionString, "Process")
+    [System.Environment]::SetEnvironmentVariable($ConnectionStringEnvironmentVariable, $ConnectionString, "Process")
 
     Invoke-Dotnet @(
       "tool", "run", "dotnet-ef", "--", "database", "update",
@@ -190,6 +192,7 @@ function Invoke-Migration([string]$ConnectionString, [string]$Project, [string]$
   }
   finally {
     [System.Environment]::SetEnvironmentVariable("ConnectionStrings__DefaultConnection", $previous, "Process")
+    [System.Environment]::SetEnvironmentVariable($ConnectionStringEnvironmentVariable, $previousSpecific, "Process")
   }
 }
 
@@ -259,7 +262,8 @@ try {
     "Host=127.0.0.1;Port=$postgresHostPort;Database=$postgresDatabase;Username=transfer_migrator_user;Password=$transferMigratorPassword" `
     "src/TransferService.Infrastructure/TransferService.Infrastructure.csproj" `
     "src/TransferService.Api/TransferService.Api.csproj" `
-    "TransferServiceDbContext"
+    "TransferServiceDbContext" `
+    "TRANSFER_SERVICE_CONNECTION_STRING"
 
   $apiArgs = @(Get-ComposeArguments) + @("up", "-d")
   if ($Observability) {

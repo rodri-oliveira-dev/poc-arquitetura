@@ -1,0 +1,36 @@
+name: poc-arquitetura
+
+services:
+  kafka:
+    profiles:
+      - kafka-disabled-in-pubsub-mode
+
+  kafka-init-topics:
+    profiles:
+      - kafka-disabled-in-pubsub-mode
+
+  ledger-worker:
+    depends_on: !reset
+      postgres-db:
+        condition: service_healthy
+      pubsub-init:
+        condition: service_completed_successfully
+    environment:
+      Messaging__Provider: "PubSub"
+      PubSub__Enabled: "true"
+      PUBSUB_EMULATOR_HOST: "pubsub-emulator:8085"
+
+  balance-worker:
+    depends_on: !reset
+      postgres-db:
+        condition: service_healthy
+      pubsub-init:
+        condition: service_completed_successfully
+    environment:
+      Messaging__Provider: "PubSub"
+      PubSub__Enabled: "true"
+      PUBSUB_EMULATOR_HOST: "pubsub-emulator:8085"
+
+  transfer-worker:
+    profiles:
+      - kafka-disabled-in-pubsub-mode

@@ -167,3 +167,71 @@ Falhas antes de debito efetivo seguem retry controlado por estado da Saga. Ao es
 | `TransferenciaFalhou.v1` | `transfer.transferencia.falhou` |
 
 A DLQ de aplicacao e `transfer.transferencia.dlq`. Mensagens publicadas nao sao republicadas. Erros temporarios de Kafka mantem a mensagem pendente para retry; erro definitivo ou payload invalido envia a mensagem para DLQ e marca a Outbox como `DeadLetter`.
+
+## Smoke tests e carga local
+
+Os smoke tests e testes de carga do `TransferService.Api` seguem o padrao k6 do repositorio em `loadtests/k6` e sao executados pelos runners `scripts/run-loadtests.*`. Nao ha collection Postman/Newman versionada para este bounded context porque o repositorio ja centraliza smoke/load HTTP em k6.
+
+Smoke local:
+
+```powershell
+./scripts/run-loadtests.ps1 -Mode transfer-smoke
+```
+
+```bash
+./scripts/run-loadtests.sh transfer-smoke
+```
+
+O modo `transfer-smoke` valida:
+
+- obtencao de token pelo fluxo local padrao de `scripts/get-token.*`;
+- `POST /api/v1/transferencias` com `Idempotency-Key` e `X-Correlation-Id`;
+- resposta `202 Accepted`, body com `transferenciaId`, status `Pending`, `statusUrl` e header `Location`;
+- `GET /api/v1/transferencias/{transferenciaId}` com `200 OK`;
+- replay idempotente com mesma chave e mesmo payload;
+- conflito `409 Conflict` com mesma chave e payload diferente;
+- `404 Not Found` para id inexistente;
+- `401 Unauthorized` sem token;
+- `403 Forbidden` para merchant de origem fora da claim `merchant_id`;
+- `400 Bad Request` para `Idempotency-Key` ausente, `amount <= 0` e origem igual ao destino.
+
+Carga moderada local:
+
+```powershell
+./scripts/run-loadtests.ps1 -Mode transfer-load
+```
+
+```bash
+./scripts/run-loadtests.sh transfer-load
+```
+
+O modo `transfer-load` executa POST/GET com ramping ate 10 VUs por padrao, gerando `Idempotency-Key`, `X-Correlation-Id` e `externalReference` unicos por iteracao. Os thresholds iniciais sao `http_req_failed{service:transfer} < 2%`, `checks >= 99%`, `transfer_post_success >= 99%`, `transfer_get_success >= 99%`, `dropped_iterations == 0`, p95 menor que 1000ms e p99 menor que 2000ms para as operacoes de criacao e consulta.
+
+Variaveis uteis:
+
+| Variavel | Default local | Uso |
+| --- | --- | --- |
+| `BASE_URL_TRANSFER` | inferida como `http://transfer-service:8080` dentro do compose | Base URL usada pelo k6. |
+| `TRANSFER_PATH` | `/api/v1/transferencias` | Rota versionada de transferencias. |
+| `SOURCE_MERCHANT_ID` | `m1` | Merchant de origem autorizado pelo realm local. |
+| `DESTINATION_MERCHANT_ID` | `m2` | Merchant de destino usado nos cenarios. |
+| `TRANSFER_HTTP_REQ_DURATION_P95_MS` | `500` no smoke, `1000` no load | Override do threshold p95. |
+| `TRANSFER_HTTP_REQ_DURATION_P99_MS` | `1000` no smoke, `2000` no load | Override do threshold p99. |
+
+Esses testes nao validam a conclusao da Saga, chamadas ao Ledger, publicacao Kafka, DLQ ou compensacao. Para validar o fluxo completo com `TransferService.Worker`, suba a stack Kafka local e acompanhe a Saga conforme a secao de processamento assincrono deste documento.
+
+Smoke full-stack Kafka:
+
+```powershell
+./scripts/run-loadtests.ps1 -Mode transfer-fullstack-kafka
+```
+
+```bash
+./scripts/run-loadtests.sh transfer-fullstack-kafka
+```
+
+O modo `transfer-fullstack-kafka` e manual e valida API + Worker + LedgerService + Outbox + Kafka. Ele usa o compose padrao com Kafka, garante que Kafka e `transfer-worker` estejam em execucao, executa uma transferencia, consulta o status com polling ate `Completed` e valida pelo runner que os topicos `transfer.transferencia.solicitada`, `transfer.transferencia.debito-criado`, `transfer.transferencia.credito-criado` e `transfer.transferencia.concluida` receberam novas mensagens. A DLQ `transfer.transferencia.dlq` nao pode crescer no fluxo feliz.
+
+Esse smoke nao usa Pub/Sub e nao depende de `BalanceService` para decidir a Saga. O `BalanceService` continua sendo uma projecao eventual fora da decisao de debito, credito e compensacao.
+
+Use o provider padrao `TOKEN_PROVIDER=keycloak` ou informe `TOKEN` manualmente com `transfer.write`, `transfer.read`, audience `transfer-api` e `merchant_id` contendo os merchants testados. O `Auth.Api` legado nao e o caminho recomendado para esses modos porque seu catalogo historico nao cobre os scopes do TransferService.

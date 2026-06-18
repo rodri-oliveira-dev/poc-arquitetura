@@ -2,6 +2,15 @@ name: smoke-load-tests
 
 on:
   workflow_dispatch:
+    inputs:
+      include-transfer-fullstack-kafka:
+        description: Run TransferService full-stack Kafka smoke
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
 
 permissions:
   contents: read
@@ -46,7 +55,8 @@ jobs:
         run: |
           for url in \
             http://localhost:5226/health \
-            http://localhost:5228/health
+            http://localhost:5228/health \
+            http://localhost:5230/health
           do
             for i in {1..30}; do
               if curl -fsS "$url" >/dev/null; then
@@ -63,18 +73,29 @@ jobs:
       - name: Run k6 smoke load tests
         run: bash ./scripts/run-loadtests.sh smoke
 
+      - name: Run TransferService API smoke tests
+        run: bash ./scripts/run-loadtests.sh transfer-smoke
+
+      - name: Ensure default Kafka stack for TransferService full-stack smoke
+        if: ${{ inputs.include-transfer-fullstack-kafka == 'true' }}
+        run: bash ./scripts/start-local-stack.sh
+
+      - name: Run TransferService full-stack Kafka smoke test
+        if: ${{ inputs.include-transfer-fullstack-kafka == 'true' }}
+        run: bash ./scripts/run-loadtests.sh transfer-fullstack-kafka
+
       - name: List k6 summaries
         if: ${{ always() }}
         shell: bash
         run: |
-          find "$K6_ARTIFACTS_DIR" -maxdepth 1 -type f -name 'summary-smoke-*.json' -print | sort || true
+          find "$K6_ARTIFACTS_DIR" -maxdepth 1 -type f -name 'summary-*.json' -print | sort || true
 
       - name: Upload k6 summaries
         if: ${{ always() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: k6-smoke-summaries
-          path: ${{ env.K6_ARTIFACTS_DIR }}/summary-smoke-*.json
+          path: ${{ env.K6_ARTIFACTS_DIR }}/summary-*.json
           if-no-files-found: warn
           retention-days: 3
 

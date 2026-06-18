@@ -2,13 +2,13 @@
 
 ## O que este projeto demonstra tecnicamente?
 
-Ele demonstra uma arquitetura de microservicos em .NET com escrita e leitura separadas, Clean Architecture/DDD, PostgreSQL por servico, Pub/Sub principal, Kafka legado opcional, Outbox, DLQ, autenticacao JWT com JWKS, autorizacao por merchant, observabilidade local e testes automatizados. A visao resumida fica no [README](../README.md) e a leitura arquitetural fica em [docs/architecture](architecture/README.md).
+Ele demonstra uma arquitetura de microservicos em .NET com escrita e leitura separadas, Clean Architecture/DDD, PostgreSQL por servico, Kafka como mensageria local padrao, Pub/Sub explicito/legado opcional, Outbox, DLQ, autenticacao JWT com JWKS, autorizacao por merchant, observabilidade local e testes automatizados. A visao resumida fica no [README](../README.md) e a leitura arquitetural fica em [docs/architecture](architecture/README.md).
 
 No estado atual, APIs HTTP e workers rodam como processos separados: `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker`. Essa separacao torna escala, deploy, readiness, troubleshooting e observabilidade independentes por `ServiceName`.
 
 ## Qual problema este projeto resolve?
 
-O projeto resolve, em formato de POC, o fluxo de registrar lancamentos financeiros com consistencia transacional local, publicar eventos de forma confiavel e manter uma projecao de saldo para consulta. O desenho evita atualizar saldo diretamente no mesmo request de escrita e usa consistencia eventual via Pub/Sub por padrao.
+O projeto resolve, em formato de POC, o fluxo de registrar lancamentos financeiros com consistencia transacional local, publicar eventos de forma confiavel e manter uma projecao de saldo para consulta. O desenho evita atualizar saldo diretamente no mesmo request de escrita e usa consistencia eventual via Kafka por padrao na stack local.
 
 ## Como executo o projeto localmente?
 
@@ -28,7 +28,7 @@ O guia completo, incluindo portas, migrations, execucao no host e Testcontainers
 
 ## Quais pre-requisitos preciso instalar?
 
-Os pre-requisitos principais sao .NET SDK conforme `global.json`, Docker-compatible API, CLI `docker` com `docker compose` e, para execucao fora de container, PostgreSQL e Pub/Sub emulator acessiveis. Kafka e necessario apenas no modo legado. Veja [pre-requisitos de desenvolvimento local](development/local-development.md#pre-requisitos).
+Os pre-requisitos principais sao .NET SDK conforme `global.json`, Docker-compatible API, CLI `docker` com `docker compose` e, para execucao fora de container, PostgreSQL e Kafka acessiveis. Pub/Sub emulator e necessario apenas no modo explicito/legado. Veja [pre-requisitos de desenvolvimento local](development/local-development.md#pre-requisitos).
 
 ## Como rodo os testes?
 
@@ -56,7 +56,7 @@ O resumo esta no [README](../README.md#arquitetura). A explicacao detalhada das 
 
 ## Quais padroes arquiteturais foram usados?
 
-O projeto usa Clean Architecture/DDD nos servicos de negocio, CQRS pragmatico entre escrita e leitura, Outbox para publicacao confiavel, Pub/Sub para integracao assincrona principal e JWT/JWKS para autenticacao. Kafka permanece como adapter legado opcional. Os trade-offs estao em [analise arquitetural](architecture/decisions.md) e nas [ADRs](adrs/README.md).
+O projeto usa Clean Architecture/DDD nos servicos de negocio, CQRS pragmatico entre escrita e leitura, Outbox para publicacao confiavel, Kafka para integracao assincrona local padrao e JWT/JWKS para autenticacao. Pub/Sub permanece como adapter explicito/legado opcional. Os trade-offs estao em [analise arquitetural](architecture/decisions.md) e nas [ADRs](adrs/README.md).
 
 ## Como configuro variaveis de ambiente?
 
@@ -64,7 +64,7 @@ Use variaveis com `__` para separar secoes, por exemplo `ConnectionStrings__Defa
 
 ## Como faco troubleshooting de erros comuns?
 
-Use [troubleshooting](troubleshooting.md). O guia aponta para diagnosticos de migrations, Testcontainers, Docker-compatible API, Swagger, Pub/Sub, Kafka legado, Outbox, readiness, Grafana/Prometheus/Loki e load tests.
+Use [troubleshooting](troubleshooting.md). O guia aponta para diagnosticos de migrations, Testcontainers, Docker-compatible API, Swagger, Kafka, Pub/Sub legado, Outbox, readiness, Grafana/Prometheus/Loki e load tests.
 
 ## Onde ficam as instrucoes para Codex ou agentes?
 

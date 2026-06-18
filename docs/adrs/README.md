@@ -15,6 +15,7 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 
 | ADR                                                                   | Status      | Resumo                                                                                           |
 | --------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------ |
+| [ADR-0088](./0088-kafka-default-ledger-balance-workers.md) | Aceito | Define Kafka como default dos workers principais Ledger/Balance e mantem Pub/Sub apenas por selecao explicita. |
 | [ADR-0087](./0087-saga-orquestrada-transfer-service-kafka.md) | Proposto | Define estudo de Saga Orquestrada no `TransferService` para transferencias entre merchants usando Kafka, Outbox transacional, worker assincrono, idempotencia por etapa e DLQ de aplicacao. |
 | [ADR-0086](./0086-pre-push-leve-gates-pesados-no-pr.md) | Aceito | Mantem o pre-push leve e desloca validacoes pesadas como cobertura, Trivy, Terraform validate e testes de container para o Pull Request. |
 | [ADR-0085](./0085-separacao-configuracoes-locais-sensiveis-arquivos-versionados.md) | Proposta | Define a separacao entre configuracoes locais sensiveis nao versionadas e exemplos versionados com placeholders. |
@@ -24,7 +25,7 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 | [ADR-0081](./0081-postgres-local-unico-com-schemas-por-servico.md) | Aceito | Usa um PostgreSQL local unico com schemas e usuarios separados por servico e responsabilidade. |
 | [ADR-0080](./0080-backend-remoto-gcs-terraform-dev.md) | Aceito | Configura backend remoto GCS parcial para o Terraform dev, com state separado por ambiente e migracao manual. |
 | [ADR-0079](./0079-terraform-state-local-e-backend-remoto.md) | Aceito | Registra riscos do state local, gatilhos e estrategia que orientaram a adocao posterior do backend remoto GCS. |
-| [ADR-0078](./0078-pubsub-provider-principal-local-emulator.md) | Aceito | Define Pub/Sub como provider principal, emulator como default local e Kafka como opcao legada explicita. |
+| [ADR-0078](./0078-pubsub-provider-principal-local-emulator.md) | Substituido | Historico da fase em que Pub/Sub foi provider principal; substituido pela ADR-0088 para o default dos workers Ledger/Balance. |
 | [ADR-0077](./0077-pubsub-provider-mensageria.md) | Substituido | Define a fase incremental de Pub/Sub como provider alternativo, encerrada pela ADR-0078. |
 | [ADR-0076](./0076-formalizar-contrato-ledger-entry-created-v1.md) | Aceito | Formaliza `LedgerEntryCreated.v1` em JSON Schema e mantem `BRL` como limitacao conhecida fora do payload. |
 | [ADR-0075](./0075-mensageria-ports-adapters-kafka-provider.md) | Parcialmente substituido | Define o boundary de mensageria por ports and adapters na fase em que Kafka era o provider atual; a ADR-0078 promove Pub/Sub a principal. |

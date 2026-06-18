@@ -30,7 +30,7 @@ public sealed class TransferServiceDbContextFactoryTests
     }
 
     [Fact]
-    public void CreateDbContext_should_keep_local_fallback_without_hardcoded_password()
+    public void CreateDbContext_should_use_postgresql_local_stack_fallback_without_hardcoded_password()
     {
         var previousValue = Environment.GetEnvironmentVariable(EnvironmentVariableName);
 
@@ -41,7 +41,10 @@ public sealed class TransferServiceDbContextFactoryTests
             using var db = new TransferServiceDbContextFactory().CreateDbContext([]);
 
             var connectionString = db.Database.GetDbConnection().ConnectionString;
-            Assert.Contains("Database=poc_arquitetura", connectionString, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Host=127.0.0.1", connectionString, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Port=15432", connectionString, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Database=appdb", connectionString, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Username=transfer_migrator_user", connectionString, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("Password=", connectionString, StringComparison.OrdinalIgnoreCase);
         }
         finally

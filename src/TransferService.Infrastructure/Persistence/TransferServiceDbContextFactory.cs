@@ -6,7 +6,7 @@ namespace TransferService.Infrastructure.Persistence;
 public sealed class TransferServiceDbContextFactory : IDesignTimeDbContextFactory<TransferServiceDbContext>
 {
     private const string DefaultConnectionString =
-        "Host=localhost;Port=5432;Database=poc_arquitetura;Username=postgres";
+        "Host=127.0.0.1;Port=15432;Database=appdb;Username=transfer_migrator_user";
 
     public TransferServiceDbContext CreateDbContext(string[] args)
     {

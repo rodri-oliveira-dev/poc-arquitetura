@@ -125,7 +125,7 @@ model {
       description "Processo dedicado sem HTTP que hospeda os workers do Ledger para Outbox, estornos e reprocessamentos, com composition root proprio."
 
       ledgerWorkerComposition = component "Worker composition root" {
-        description "Registra Application, persistencia, repositorios, AddLedgerMessaging e HostedServices explicitamente no processo Worker; Pub/Sub e o provider principal e Kafka permanece legado."
+        description "Registra Application, persistencia, repositorios, AddLedgerMessaging e HostedServices explicitamente no processo Worker; Kafka e o provider default e Pub/Sub permanece explicito/legado."
       }
 
       ledgerWorkerApplication = component "Application handlers" {
@@ -133,7 +133,7 @@ model {
       }
 
       ledgerWorkerInfrastructure = component "Worker infrastructure" {
-        description "Adapters exclusivos do Worker: Pub/Sub principal, Kafka legado, consumers, metrics e HostedServices registrados pelo processo Worker."
+        description "Adapters exclusivos do Worker: Kafka default, Pub/Sub explicito/legado, consumers, metrics e HostedServices registrados pelo processo Worker."
       }
 
       ledgerOutbox = component "Outbox publisher" {
@@ -145,11 +145,11 @@ model {
       }
 
       ledgerKafkaOutboxPublisher = component "KafkaOutboxMessagePublisher" {
-        description "Adapter Kafka legado da porta IOutboxMessagePublisher; resolve topicos, keys, headers e confirmacao de publicacao."
+        description "Adapter Kafka default da porta IOutboxMessagePublisher; resolve topicos, keys, headers e confirmacao de publicacao."
       }
 
       ledgerPubSubOutboxPublisher = component "PubSubOutboxMessagePublisher" {
-        description "Adapter Pub/Sub principal da porta IOutboxMessagePublisher; resolve topics, ordering key, attributes e confirmacao de publicacao."
+        description "Adapter Pub/Sub explicito/legado da porta IOutboxMessagePublisher; resolve topics, ordering key, attributes e confirmacao de publicacao."
       }
 
       ledgerEstornoProcessor = component "Estorno processor" {
@@ -204,7 +204,7 @@ model {
       description "Processo dedicado sem HTTP que hospeda o consumidor do provider de mensageria atual para projetar saldos, com composition root proprio."
 
       balanceWorkerComposition = component "Worker composition root" {
-        description "Registra Application, persistencia, repositorios, AddBalanceMessaging, DLQ e HostedServices explicitamente no processo Worker; Pub/Sub e o provider principal e Kafka permanece legado."
+        description "Registra Application, persistencia, repositorios, AddBalanceMessaging, DLQ e HostedServices explicitamente no processo Worker; Kafka e o provider default e Pub/Sub permanece explicito/legado."
       }
 
       balanceWorkerApplication = component "Application handlers" {
@@ -212,11 +212,11 @@ model {
       }
 
       balanceWorkerInfrastructure = component "Worker infrastructure" {
-        description "Adapters exclusivos do Worker: Pub/Sub principal, Kafka legado, DLQ, metrics e HostedService registrados pelo processo Worker."
+        description "Adapters exclusivos do Worker: Kafka default, Pub/Sub explicito/legado, DLQ, metrics e HostedService registrados pelo processo Worker."
       }
 
       balanceConsumer = component "Kafka ledger events consumer" {
-        description "Adapter Kafka legado que consome LedgerEntryCreated.v2 e v1 legado, controla commit e delega o conteudo para o mapper e processor neutro."
+        description "Adapter Kafka default que consome LedgerEntryCreated.v2 e v1 legado, controla commit e delega o conteudo para o mapper e processor neutro."
       }
 
       balanceReceivedMessageMapper = component "KafkaReceivedMessageMapper" {
@@ -224,7 +224,7 @@ model {
       }
 
       balancePubSubConsumer = component "LedgerEventsPubSubConsumer" {
-        description "Adapter Pub/Sub principal que consome LedgerEntryCreated.v2 e v1 legado, responde ack/nack e delega o conteudo para o mapper e processor neutro."
+        description "Adapter Pub/Sub explicito/legado que consome LedgerEntryCreated.v2 e v1 legado, responde ack/nack e delega o conteudo para o mapper e processor neutro."
       }
 
       balancePubSubReceivedMessageMapper = component "PubSubReceivedMessageMapper" {
@@ -286,7 +286,7 @@ model {
   }
 
   kafka = softwareSystem "Kafka" {
-    description "Broker Kafka local em KRaft. Legado opcional para Ledger/Balance e transporte explicito da Saga do TransferService."
+    description "Broker Kafka local em KRaft. Provider default de Ledger/Balance e transporte explicito da Saga do TransferService."
 
     ledgerTopic = container "ledger.ledgerentry.created" {
       technology "Kafka topic"

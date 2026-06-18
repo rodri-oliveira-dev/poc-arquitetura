@@ -1,7 +1,7 @@
 # ADR-0078: Pub/Sub como provider principal com emulator local
 
 ## Status
-Aceito
+Substituido pela [ADR-0088](./0088-kafka-default-ledger-balance-workers.md) no ponto sobre provider principal/default dos workers `LedgerService` e `BalanceService`.
 
 ## Data
 2026-06-02

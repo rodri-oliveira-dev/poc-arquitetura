@@ -150,8 +150,8 @@ O catalogo do `Auth.Api` legado aceita somente estes scopes no `POST /auth/login
 
 Os endpoints de consulta de status do `LedgerService.Api` exigem `ledger.read`, mas esse scope nao esta no catalogo emitido pelo `Auth.Api` legado. Esse desalinhamento e aceito apenas enquanto o projeto legado existir; o fluxo operacional local deve usar Keycloak, cujo realm inclui `ledger.read`.
 
-O realm Keycloak local inclui `ledger.read` junto com `ledger.write`, `balance.read` e `outbox.admin`.
-O client `poc-automation` declara esses scopes como default client scopes, adiciona as audiences `ledger-api` e `balance-api` no access token e emite `merchant_id=tese m1` pelo mapper `poc-merchants`.
+O realm Keycloak local inclui `ledger.read` junto com `ledger.write`, `balance.read`, `transfer.write`, `transfer.read` e `outbox.admin`.
+O client `poc-automation` declara esses scopes como default client scopes, adiciona as audiences `ledger-api`, `balance-api` e `transfer-api` no access token e emite `merchant_id=tese m1 m2` pelo mapper `poc-merchants`.
 Os clients `poc-local-*-debug` adicionam as mesmas audiences e emitem `scope` pelos seus `clientScopes` default e `merchant_id` pelo mapper `poc-merchants`, sem usar roles nativas do Keycloak como contrato das APIs.
 
 ## Scopes por endpoint
@@ -167,6 +167,8 @@ Os clients `poc-local-*-debug` adicionam as mesmas audiences e emitem `scope` pe
 | LedgerService.Api | `POST /api/v1/outbox/dead-letters/{id}/requeue` | `outbox.admin` | Nao se aplica. Endpoint administrativo da Outbox. |
 | BalanceService.Api | `GET /api/v1/consolidados/diario/{date}` | `balance.read` | Valida `merchantId` da query string contra `merchant_id`. |
 | BalanceService.Api | `GET /api/v1/consolidados/periodo` | `balance.read` | Valida `merchantId` da query string contra `merchant_id`. |
+| TransferService.Api | `POST /api/v1/transferencias` | `transfer.write` | Valida `sourceMerchantId` do body contra `merchant_id`. |
+| TransferService.Api | `GET /api/v1/transferencias/{transferenciaId}` | `transfer.read` | Valida o merchant da transferencia persistida contra `merchant_id`. |
 
 ## Transporte e JWKS
 
@@ -246,7 +248,7 @@ curl -s -X POST http://localhost:8081/realms/poc/protocol/openid-connect/token \
   -d "client_secret=<KEYCLOAK_CLIENT_SECRET>"
 ```
 
-O access token emitido pelo realm local deve conter `iss=http://localhost:8081/realms/poc`, audiences `ledger-api` e `balance-api`, scopes `ledger.write ledger.read balance.read outbox.admin` e `merchant_id=tese m1`.
+O access token emitido pelo realm local deve conter `iss=http://localhost:8081/realms/poc`, audiences `ledger-api`, `balance-api` e `transfer-api`, scopes `ledger.write ledger.read balance.read transfer.write transfer.read outbox.admin` e `merchant_id=tese m1 m2`.
 
 Para debug manual com usuario/senha, use o client publico de debug correspondente diretamente no token endpoint com `grant_type=password`. Os scripts versionados nao usam esse fluxo por padrao para evitar transformar Direct Grant em automacao oficial.
 

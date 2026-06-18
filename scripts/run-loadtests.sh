@@ -8,12 +8,13 @@ set -euo pipefail
 
 MODE="${1:-}"
 if [[ -z "$MODE" ]]; then
-  echo "Uso: ./scripts/run-loadtests.sh <smoke|balance50|resilience>" 1>&2
+  echo "Uso: ./scripts/run-loadtests.sh <smoke|balance50|resilience|transfer-smoke|transfer-load|transfer-fullstack-kafka>" 1>&2
   exit 2
 fi
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_FILE="${COMPOSE_FILE:-$ROOT_DIR/compose.yaml}"
+COMPOSE_KAFKA_FILE="${COMPOSE_KAFKA_FILE:-$ROOT_DIR/compose.kafka.yaml}"
 COMPOSE_K6_FILE="${COMPOSE_K6_FILE:-$ROOT_DIR/compose.k6.yaml}"
 ENV_FILE="${ENV_FILE:-$ROOT_DIR/.env.k6.auto}"
 ARTIFACTS_DIR="${ARTIFACTS_DIR:-$ROOT_DIR/artifacts/k6}"
@@ -167,36 +168,151 @@ wait_compose_service_healthy() {
   exit 1
 }
 
-assert_local_pubsub_stack() {
+wait_http_endpoint() {
+  local url="$1"
+  local timeout_seconds="${2:-120}"
+  local deadline=$((SECONDS + timeout_seconds))
+
+  while (( SECONDS < deadline )); do
+    if curl -fsS "$url" >/dev/null; then
+      return 0
+    fi
+
+    sleep 2
+  done
+
+  echo "Timeout aguardando endpoint HTTP: $url" 1>&2
+  exit 1
+}
+
+assert_local_kafka_stack() {
   local config
   local running_services
   config="$(docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" config)"
 
   for expected in \
-    "Messaging__Provider: PubSub" \
-    "PUBSUB_EMULATOR_HOST: pubsub-emulator:8085"
+    "Messaging__Provider: Kafka" \
+    "Kafka__Producer__BootstrapServers: kafka:9092" \
+    "Kafka__Consumer__BootstrapServers: kafka:9092"
   do
     if ! grep -Fq "$expected" <<<"$config"; then
-      echo "Stack k6 deve usar Pub/Sub emulator local. Configuracao ausente: $expected" >&2
+      echo "Stack k6 deve usar Kafka local. Configuracao ausente: $expected" >&2
       exit 1
     fi
   done
 
   running_services="$(docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" ps --status running --services)"
-  for service in pubsub-emulator ledger-worker balance-worker; do
+  for service in kafka ledger-worker balance-worker; do
     if ! grep -qx "$service" <<<"$running_services"; then
       echo "Servico obrigatorio para k6 local nao esta em execucao: $service. Suba ./scripts/start-local-stack.sh antes do teste." >&2
       exit 1
     fi
   done
 
-  local pubsub_init
-  pubsub_init="$(docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" ps -a pubsub-init --format json)"
-  if ! grep -q '"State":"exited"' <<<"$pubsub_init" ||
-    ! grep -q '"ExitCode":0' <<<"$pubsub_init"; then
-    echo "pubsub-init nao concluiu com sucesso. Confira: docker compose logs pubsub-init" >&2
+  local kafka_init
+  kafka_init="$(docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" ps -a kafka-init-topics --format json)"
+  if ! grep -q '"State":"exited"' <<<"$kafka_init" ||
+    ! grep -q '"ExitCode":0' <<<"$kafka_init"; then
+    echo "kafka-init-topics nao concluiu com sucesso. Confira: docker compose logs kafka-init-topics" >&2
     exit 1
   fi
+}
+
+assert_local_transfer_kafka_stack() {
+  local config
+  local running_services
+  config="$(docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_KAFKA_FILE" config)"
+
+  for expected in \
+    "Messaging__Provider: Kafka" \
+    "TransferService__Worker__Kafka__BootstrapServers: kafka:9092" \
+    "TransferService__Worker__Topics__Solicitada: transfer.transferencia.solicitada"
+  do
+    if ! grep -Fq "$expected" <<<"$config"; then
+      echo "Stack full-stack do TransferService deve usar Kafka. Configuracao ausente: $expected" >&2
+      exit 1
+    fi
+  done
+
+  running_services="$(docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_KAFKA_FILE" ps --status running --services)"
+  for service in kafka ledger-service transfer-service transfer-worker; do
+    if ! grep -qx "$service" <<<"$running_services"; then
+      echo "Servico obrigatorio para full-stack Kafka nao esta em execucao: $service. Suba ./scripts/start-local-stack.sh antes do teste." >&2
+      exit 1
+    fi
+  done
+
+  local kafka_init
+  kafka_init="$(docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_KAFKA_FILE" ps -a kafka-init-topics --format json)"
+  if ! grep -q '"State":"exited"' <<<"$kafka_init" ||
+    ! grep -q '"ExitCode":0' <<<"$kafka_init"; then
+    echo "kafka-init-topics nao concluiu com sucesso. Confira: docker compose logs kafka-init-topics" >&2
+    exit 1
+  fi
+}
+
+kafka_topic_end_offset() {
+  local topic="$1"
+  docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_KAFKA_FILE" exec -T kafka \
+    /opt/kafka/bin/kafka-run-class.sh \
+    kafka.tools.GetOffsetShell \
+    --broker-list kafka:9092 \
+    --topic "$topic" \
+    --time -1 |
+    awk -F: '{ sum += $NF } END { print sum + 0 }'
+}
+
+capture_transfer_kafka_offsets() {
+  local output_file="$1"
+  : >"$output_file"
+  for topic in \
+    transfer.transferencia.solicitada \
+    transfer.transferencia.debito-criado \
+    transfer.transferencia.credito-criado \
+    transfer.transferencia.concluida \
+    transfer.transferencia.dlq
+  do
+    printf '%s=%s\n' "$topic" "$(kafka_topic_end_offset "$topic")" >>"$output_file"
+  done
+}
+
+offset_value() {
+  local file="$1"
+  local topic="$2"
+  sed -nE "s/^${topic//./\\.}=([0-9]+)$/\1/p" "$file" | tail -n 1
+}
+
+assert_transfer_kafka_events_published() {
+  local before_file="$1"
+  local after_file="$2"
+
+  for topic in \
+    transfer.transferencia.solicitada \
+    transfer.transferencia.debito-criado \
+    transfer.transferencia.credito-criado \
+    transfer.transferencia.concluida
+  do
+    local before
+    local after
+    before="$(offset_value "$before_file" "$topic")"
+    after="$(offset_value "$after_file" "$topic")"
+    if (( after <= before )); then
+      echo "Kafka nao recebeu evento esperado no topico $topic durante o full-stack smoke." >&2
+      exit 1
+    fi
+  done
+
+  local dlq_topic="transfer.transferencia.dlq"
+  local dlq_before
+  local dlq_after
+  dlq_before="$(offset_value "$before_file" "$dlq_topic")"
+  dlq_after="$(offset_value "$after_file" "$dlq_topic")"
+  if (( dlq_after != dlq_before )); then
+    echo "DLQ Kafka recebeu mensagem no fluxo feliz do TransferService: $dlq_topic antes=$dlq_before depois=$dlq_after" >&2
+    exit 1
+  fi
+
+  echo "OK. Full-stack Kafka publicou eventos da Saga e manteve DLQ sem crescimento."
 }
 
 postgres_count() {
@@ -244,13 +360,13 @@ wait_async_flow_progress() {
   while (( SECONDS < deadline )); do
     read -r _ current_outbox current_balance < <(async_flow_counts)
     if (( current_outbox > before_outbox && current_balance > before_balance )); then
-      echo "OK. Smoke Pub/Sub publicou Outbox e projetou evento no Balance."
+      echo "OK. Smoke Kafka publicou Outbox e projetou evento no Balance."
       return 0
     fi
     sleep 2
   done
 
-  echo "Timeout aguardando publish/consume via Pub/Sub emulator apos smoke k6." >&2
+  echo "Timeout aguardando publish/consume via Kafka apos smoke k6." >&2
   exit 1
 }
 
@@ -276,15 +392,45 @@ wait_async_flow_idle() {
 # a) gerar env
 COMPOSE_FILE="$COMPOSE_FILE" OUT_FILE="$ENV_FILE" "$ROOT_DIR/scripts/compose-env.sh" >/dev/null
 
-assert_local_pubsub_stack
+is_transfer_fullstack_kafka=false
+if [[ "$MODE" == "transfer-fullstack-kafka" ]]; then
+  is_transfer_fullstack_kafka=true
+fi
+
+is_transfer_mode=false
+if [[ "$MODE" == "transfer-smoke" || "$MODE" == "transfer-load" || "$MODE" == "transfer-fullstack-kafka" ]]; then
+  is_transfer_mode=true
+fi
+
+if [[ "$is_transfer_mode" != true ]]; then
+  assert_local_kafka_stack
+fi
 
 # Aplica o override de carga nas APIs antes de executar o k6. O compose.k6.yaml
 # mantem os testes apontando para as APIs HTTP e aumenta apenas limites tecnicos
 # que poderiam transformar o cenario de throughput em teste de rate limiting.
-docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_K6_FILE" up -d --no-build --force-recreate ledger-service balance-service
+if [[ "$is_transfer_mode" == true ]]; then
+  if [[ "$is_transfer_fullstack_kafka" == true ]]; then
+    docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_KAFKA_FILE" -f "$COMPOSE_K6_FILE" up -d --no-build --force-recreate kafka kafka-init-topics ledger-service transfer-service transfer-worker
+  else
+    docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_K6_FILE" up -d --no-build --force-recreate transfer-service
+  fi
+else
+  docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_K6_FILE" up -d --no-build --force-recreate ledger-service balance-service
+fi
 
 wait_compose_service_healthy keycloak
-assert_balance_database_authentication
+if [[ "$is_transfer_mode" == true ]]; then
+  transfer_host_port="$(get_local_config_value TRANSFER_SERVICE_HOST_PORT 5230)"
+  wait_http_endpoint "http://localhost:$transfer_host_port/health"
+  if [[ "$is_transfer_fullstack_kafka" == true ]]; then
+    ledger_host_port="$(get_local_config_value LEDGER_SERVICE_HOST_PORT 5226)"
+    wait_http_endpoint "http://localhost:$ledger_host_port/health"
+    assert_local_transfer_kafka_stack
+  fi
+else
+  assert_balance_database_authentication
+fi
 
 # b) obter token pelo provider local configurado. Por padrao, Keycloak.
 TOKEN=""
@@ -325,7 +471,9 @@ PY
   curl -fsS -H "Authorization: Bearer $TOKEN" "$url" >/dev/null
 }
 
-warmup_balance
+if [[ "$is_transfer_mode" != true ]]; then
+  warmup_balance
+fi
 
 ts="$(date +%Y%m%d-%H%M%S)"
 
@@ -383,8 +531,23 @@ case "$MODE" in
   resilience)
     run_k6 ledger_resilience scenarios/ledger_resilience.js -e VUS=5 -e DURATION=1m -e LEDGER_HTTP_REQ_DURATION_P95_MS="$(threshold_value LEDGER P95 2000)" -e LEDGER_HTTP_REQ_DURATION_P99_MS="$(threshold_value LEDGER P99 5000)"
     ;;
+  transfer-smoke)
+    run_k6 transfer_smoke scenarios/transfer_smoke.js -e DURATION=30s -e TRANSFER_HTTP_REQ_DURATION_P95_MS="$(threshold_value TRANSFER P95 500)" -e TRANSFER_HTTP_REQ_DURATION_P99_MS="$(threshold_value TRANSFER P99 1000)"
+    ;;
+  transfer-load)
+    run_k6 transfer_load scenarios/transfer_load.js -e VUS=10 -e TRANSFER_HTTP_REQ_DURATION_P95_MS="$(threshold_value TRANSFER P95 1000)" -e TRANSFER_HTTP_REQ_DURATION_P99_MS="$(threshold_value TRANSFER P99 2000)"
+    ;;
+  transfer-fullstack-kafka)
+    before_offsets="$(mktemp)"
+    after_offsets="$(mktemp)"
+    trap 'rm -f "$before_offsets" "$after_offsets"' EXIT
+    capture_transfer_kafka_offsets "$before_offsets"
+    run_k6 transfer_fullstack_kafka scenarios/transfer_fullstack_kafka.js -e VUS=1 -e ITERATIONS=1 -e DURATION=90s -e TRANSFER_FINAL_STATUS_TIMEOUT_SECONDS=60 -e TRANSFER_HTTP_REQ_DURATION_P95_MS="$(threshold_value TRANSFER P95 1000)" -e TRANSFER_HTTP_REQ_DURATION_P99_MS="$(threshold_value TRANSFER P99 2000)"
+    capture_transfer_kafka_offsets "$after_offsets"
+    assert_transfer_kafka_events_published "$before_offsets" "$after_offsets"
+    ;;
   *)
-    echo "Modo inválido: $MODE (use smoke|balance50|resilience)" 1>&2
+    echo "Modo invalido: $MODE (use smoke|balance50|resilience|transfer-smoke|transfer-load|transfer-fullstack-kafka)" 1>&2
     exit 2
     ;;
 esac

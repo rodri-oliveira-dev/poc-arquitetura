@@ -8,7 +8,7 @@ views {
   }
 
   view containers {
-    title "Container View - APIs, workers, bancos, Pub/Sub, Kafka legado e observabilidade"
+    title "Container View - APIs, workers, bancos, Kafka, Pub/Sub e observabilidade"
     include customer
     include edge.nginx
     include edge.nginx.portal

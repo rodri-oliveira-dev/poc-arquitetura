@@ -5,7 +5,7 @@
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=rodri-oliveira-dev_poc-arquitetura&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=rodri-oliveira-dev_poc-arquitetura)
 [![Architecture Docs](https://img.shields.io/github/actions/workflow/status/rodri-oliveira-dev/poc-arquitetura/pages-architecture.yml?branch=main&label=architecture%20docs)](https://rodri-oliveira-dev.github.io/poc-arquitetura/)
 
-Projeto de estudos arquiteturais em .NET para evoluir Clean Architecture, DDD, PostgreSQL, Outbox, mensageria por ports and adapters com Pub/Sub principal e Kafka legado opcional, autenticacao JWT/OIDC com Keycloak e JWKS, observabilidade, contratos e testes automatizados. Nasceu como POC de microservicos e evoluiu para um laboratorio continuo de arquitetura, contratos, seguranca, observabilidade, testes e operacao.
+Projeto de estudos arquiteturais em .NET para evoluir Clean Architecture, DDD, PostgreSQL, Outbox, mensageria por ports and adapters com Kafka como default dos workers principais e Pub/Sub explicito/legado, autenticacao JWT/OIDC com Keycloak e JWKS, observabilidade, contratos e testes automatizados. Nasceu como POC de microservicos e evoluiu para um laboratorio continuo de arquitetura, contratos, seguranca, observabilidade, testes e operacao.
 
 ## Problema
 
@@ -13,7 +13,7 @@ O projeto modela um cenario comum em sistemas financeiros: registrar lancamentos
 
 ## Solucao
 
-A arquitetura separa escrita e leitura em servicos distintos e separa APIs HTTP de workers. O `LedgerService.Api` recebe comandos de lancamento, estorno e reprocessamento, persiste os dados e grava eventos em Outbox na mesma transacao. O `LedgerService.Worker` publica a Outbox pelo provider de mensageria selecionado e executa processamentos assincronos do Ledger. O `BalanceService.Worker` consome os eventos financeiros pelo provider selecionado e atualiza saldos consolidados; o `BalanceService.Api` atende consultas HTTP. Pub/Sub e o provider principal e usa emulator por padrao no fluxo local. Kafka permanece disponivel como opcao legada explicita via `Messaging:Provider=Kafka`. O Keycloak local emite tokens JWT RS256 e publica JWKS para validacao offline pelas APIs de negocio. O `Auth.Api` foi depreciado como emissor legado de POC e nao faz parte da stack principal.
+A arquitetura separa escrita e leitura em servicos distintos e separa APIs HTTP de workers. O `LedgerService.Api` recebe comandos de lancamento, estorno e reprocessamento, persiste os dados e grava eventos em Outbox na mesma transacao. O `LedgerService.Worker` publica a Outbox pelo provider de mensageria selecionado e executa processamentos assincronos do Ledger. O `BalanceService.Worker` consome os eventos financeiros pelo provider selecionado e atualiza saldos consolidados; o `BalanceService.Api` atende consultas HTTP. Kafka e o provider default dos workers principais quando `Messaging:Provider` esta ausente. Pub/Sub permanece disponivel por selecao explicita via `Messaging:Provider=PubSub`. O Keycloak local emite tokens JWT RS256 e publica JWKS para validacao offline pelas APIs de negocio. O `Auth.Api` foi depreciado como emissor legado de POC e nao faz parte da stack principal.
 
 Principais servicos:
 
@@ -45,7 +45,7 @@ Documentacao arquitetural publicada:
 
 ## Mensageria: Kafka e Pub/Sub
 
-Kafka e Pub/Sub coexistem como adapters do boundary de mensageria dos workers. Pub/Sub e o provider principal para Ledger/Balance e o desenvolvimento local usa o emulator. Kafka permanece suportado como opcao legada explicita para Ledger/Balance, selecionada com `Messaging:Provider=Kafka`, sem tentar esconder as diferencas semanticas entre providers. O fluxo de Saga do `TransferService` e uma excecao intencional: usa Kafka como transporte explicito dos eventos da Saga e nao usa Pub/Sub.
+Kafka e Pub/Sub coexistem como adapters do boundary de mensageria dos workers. Kafka e o default para Ledger/Balance, selecionado quando `Messaging:Provider` esta ausente ou configurado como `Kafka`. Pub/Sub permanece suportado como opcao explicita/legada para Ledger/Balance, selecionada com `Messaging:Provider=PubSub`, sem tentar esconder as diferencas semanticas entre providers. O fluxo de Saga do `TransferService` tambem usa Kafka como transporte explicito dos eventos da Saga e nao usa Pub/Sub.
 
 | Kafka | Pub/Sub |
 | --- | --- |
@@ -57,7 +57,7 @@ As portas compartilhadas preservam Outbox, idempotencia e o contrato logico dos 
 
 Leitura complementar:
 
-- [ADR-0078: Pub/Sub como provider principal](docs/adrs/0078-pubsub-provider-principal-local-emulator.md)
+- [ADR-0088: Kafka como default dos workers principais](docs/adrs/0088-kafka-default-ledger-balance-workers.md)
 - [Operacao do Pub/Sub e emulator local](docs/operations/pubsub.md)
 - [Runbook de recuperacao de eventos](docs/operations/event-recovery-runbook.md)
 - [Replay e DLQ orientados por contrato](docs/operations/event-replay-and-dlq.md)
@@ -74,7 +74,7 @@ Leitura complementar:
 - .NET SDK conforme `global.json`.
 - Docker-compatible API para Testcontainers e stack local.
 - CLI `docker` com suporte a `docker compose` para a stack local.
-- PostgreSQL e o provider de mensageria selecionado acessiveis quando rodar APIs e workers fora de container. Pub/Sub emulator e o default local; Pub/Sub real exige configuracao explicita sem `PUBSUB_EMULATOR_HOST`, e Kafka permanece opcional.
+- PostgreSQL e o provider de mensageria selecionado acessiveis quando rodar APIs e workers fora de container. Kafka local usa `127.0.0.1:19092`; Pub/Sub exige configuracao explicita sem `PUBSUB_EMULATOR_HOST` para ambiente real.
 
 O projeto nao exige Docker Desktop como premissa. No Windows sem Docker Desktop, o ambiente recomendado e Rancher Desktop com `moby/dockerd`.
 
@@ -103,7 +103,7 @@ No Linux/macOS:
 ./scripts/start-local-stack.sh
 ```
 
-Esse script sobe o core funcional local: PostgreSQL persistente unico com schemas `ledger` e `balance`, Pub/Sub emulator, Keycloak, APIs e workers. Ele aplica migrations pelo host e inicia as APIs depois do schema estar pronto. O passo a passo manual fica em [desenvolvimento local](docs/development/local-development.md).
+Esse script sobe o core funcional local: PostgreSQL persistente unico com schemas `ledger`, `balance` e `transfer`, Kafka, Keycloak, APIs e workers, incluindo `TransferService.Worker`. Ele aplica migrations pelo host e inicia as APIs depois do schema estar pronto. O passo a passo manual fica em [desenvolvimento local](docs/development/local-development.md).
 
 Para incluir observabilidade local completa:
 
@@ -119,7 +119,7 @@ OBSERVABILITY=true ./scripts/start-local-stack.sh
 
 A observabilidade fica no overlay `compose.observability.yaml`. O modo padrao de desenvolvimento nao sobe Jaeger, Collector, Prometheus, Loki, Alloy, Alertmanager nem Grafana, mas continua subindo `ledger-worker` e `balance-worker` para preservar o fluxo ponta a ponta.
 
-Os aliases abaixo continuam disponiveis para explicitar o mesmo fluxo Pub/Sub local:
+Pub/Sub permanece disponivel como caminho explicito/legado:
 
 ```powershell
 ./scripts/start-local-stack-pubsub.ps1
@@ -131,9 +131,9 @@ No Linux/macOS:
 ./scripts/start-local-stack-pubsub.sh
 ```
 
-Esse fluxo usa o `compose.yaml` principal, cria topic principal, topic de DLQ, subscription do Balance e subscription de inspecao da DLQ de aplicacao de forma idempotente e inicia os workers com `Messaging:Provider=PubSub`. Kafka nao e iniciado. Para usar o provider legado, execute `./scripts/start-local-stack-kafka.ps1` ou `./scripts/start-local-stack-kafka.sh`. Detalhes ficam em [desenvolvimento local](docs/development/local-development.md#pubsub-emulator-local) e no runbook de [operacao do Pub/Sub](docs/operations/pubsub.md).
+Esse fluxo usa `compose.pubsub.yaml`, habilita o profile `legacy-pubsub`, cria topic principal, topic de DLQ, subscription do Balance e subscription de inspecao da DLQ de aplicacao de forma idempotente e inicia os workers de Ledger/Balance com `Messaging:Provider=PubSub`. Kafka nao e iniciado nesse modo. Os scripts `start-local-stack-kafka.*` continuam como aliases compativeis do fluxo padrao. Detalhes ficam em [desenvolvimento local](docs/development/local-development.md#pubsub-emulator-local) e no runbook de [operacao do Pub/Sub](docs/operations/pubsub.md).
 
-A Saga orquestrada do `TransferService` usa Kafka explicitamente. Para exercitar `POST /api/v1/transferencias` com Worker e publicacao da Outbox no Kafka, use o modo Kafka local e consulte [TransferService API](docs/development/transfer-api.md) e [desenvolvimento local](docs/development/local-development.md#kafka-local-e-saga-do-transferservice).
+A Saga orquestrada do `TransferService` usa Kafka explicitamente. Como Kafka e o default local, o `TransferService.Worker` sobe no fluxo padrao e pode processar Sagas automaticamente. Consulte [TransferService API](docs/development/transfer-api.md) e [desenvolvimento local](docs/development/local-development.md#kafka-local-e-saga-do-transferservice).
 
 Para subir a stack completa com observabilidade e Nginx HTTPS local, gere antes os certificados em `infra/nginx/certs/` conforme [desenvolvimento local](docs/development/local-development.md#borda-local-https-com-nginx):
 
@@ -164,13 +164,15 @@ Se houver containers antigos ou rede local presa do proprio projeto, o script pe
 | Stack local minima | `./scripts/start-local-stack.ps1` ou `./scripts/start-local-stack.sh` |
 | Stack com observabilidade | `./scripts/start-local-stack.ps1 -Observability` ou `OBSERVABILITY=true ./scripts/start-local-stack.sh` |
 | Stack local com Pub/Sub emulator | `./scripts/start-local-stack-pubsub.ps1` ou `./scripts/start-local-stack-pubsub.sh` |
-| Dependencias locais para debug | `docker compose --env-file .env.local -f compose.debug.yml up -d postgres-db pubsub-emulator pubsub-init` |
-| Stack local com Kafka legado | `./scripts/start-local-stack-kafka.ps1` ou `./scripts/start-local-stack-kafka.sh` |
+| Dependencias Kafka para debug | `docker compose --env-file .env.local -f compose.yaml up -d postgres-db kafka kafka-init-topics keycloak` |
+| Stack local com Kafka | `./scripts/start-local-stack-kafka.ps1` ou `./scripts/start-local-stack-kafka.sh` |
 | Stack completa com Nginx | `./scripts/start-full-stack.ps1` ou `./scripts/start-full-stack.sh` |
 | Parar stack completa | `./scripts/stop-full-stack.ps1` ou `./scripts/stop-full-stack.sh` |
 | Diagnosticar disco Docker | `./scripts/docker-disk-report.ps1` ou `./scripts/docker-disk-report.sh` |
 | Limpeza segura Docker | `./scripts/docker-clean-safe.ps1` ou `./scripts/docker-clean-safe.sh` |
 | Load test smoke | `./scripts/run-loadtests.ps1 -Mode smoke` ou `./scripts/run-loadtests.sh smoke` |
+| TransferService smoke | `./scripts/run-loadtests.ps1 -Mode transfer-smoke` ou `./scripts/run-loadtests.sh transfer-smoke` |
+| TransferService full-stack Kafka | `./scripts/run-loadtests.ps1 -Mode transfer-fullstack-kafka` ou `./scripts/run-loadtests.sh transfer-fullstack-kafka` |
 | OWASP ZAP local | `./scripts/run-owasp-zap.ps1` ou `./scripts/run-owasp-zap.sh` |
 
 ## Testes
@@ -228,7 +230,7 @@ Os scripts executam testes com cobertura e aplicam gate minimo de 85% de cobertu
 
 **O que este projeto demonstra tecnicamente?**
 
-Microservicos .NET com separacao de escrita/leitura, Clean Architecture/DDD, Outbox, mensageria por ports and adapters com Pub/Sub principal e Kafka legado opcional, PostgreSQL, JWT/JWKS, idempotencia, observabilidade e validacao automatizada. Veja [FAQ completa](docs/faq.md).
+Microservicos .NET com separacao de escrita/leitura, Clean Architecture/DDD, Outbox, mensageria por ports and adapters com Kafka default e Pub/Sub explicito/legado, PostgreSQL, JWT/JWKS, idempotencia, observabilidade e validacao automatizada. Veja [FAQ completa](docs/faq.md).
 
 **Como executo localmente?**
 
@@ -240,8 +242,8 @@ Use o indice de [ADRs](docs/adrs/README.md) e a leitura de [arquitetura](docs/ar
 
 **Como resolvo erros comuns?**
 
-Consulte [troubleshooting](docs/troubleshooting.md), especialmente para migrations, Docker-compatible API, Testcontainers, Swagger, Pub/Sub, Kafka legado, Outbox e observabilidade local. Para Pub/Sub, use tambem o runbook de [operacao](docs/operations/pubsub.md#troubleshooting).
+Consulte [troubleshooting](docs/troubleshooting.md), especialmente para migrations, Docker-compatible API, Testcontainers, Swagger, Pub/Sub, Kafka, Outbox e observabilidade local. Para Pub/Sub, use tambem o runbook de [operacao](docs/operations/pubsub.md#troubleshooting).
 
 ## Observacoes
 
-Os testes de carga ficam em `loadtests/k6` e rodam em container dentro da rede do compose, usando `compose.k6.yaml`. Arquivos gerados como `.env.k6.auto`, `artifacts/k6` e `TestResults` nao devem ser versionados.
+Os testes de carga ficam em `loadtests/k6` e rodam em container dentro da rede do compose, usando `compose.k6.yaml`. Os modos `transfer-smoke` e `transfer-load` cobrem os endpoints HTTP do TransferService sem exigir conclusao da Saga pelo Worker; `transfer-fullstack-kafka` valida API + Worker + LedgerService + Kafka no fluxo feliz da Saga. Arquivos gerados como `.env.k6.auto`, `artifacts/k6` e `TestResults` nao devem ser versionados.
