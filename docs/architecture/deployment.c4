@@ -5,12 +5,12 @@ deployment {
   environment local "Ambiente local" {
     technology "Docker Compose / nerdctl compose"
     summary "Ambiente local da POC definido no compose.yaml."
-    description "Ambiente local executado em Docker Compose, com APIs, workers, PostgreSQL unico com schemas por servico, Pub/Sub emulator principal, Kafka legado opcional e stack de observabilidade na rede poc-net."
+    description "Ambiente local executado em Docker Compose, com APIs, workers, PostgreSQL unico com schemas por servico, Kafka para workers principais, Pub/Sub emulator explicito/legado e stack de observabilidade na rede poc-net."
 
     composeNetwork pocNet "poc-net" {
       technology "Docker bridge network"
       summary "Rede bridge compartilhada pelos servicos do compose local."
-      description "Rede Docker Compose usada para comunicacao interna entre APIs, workers, PostgreSQL, Pub/Sub emulator principal, Kafka legado opcional e observabilidade."
+      description "Rede Docker Compose usada para comunicacao interna entre APIs, workers, PostgreSQL, Kafka, Pub/Sub emulator explicito/legado e observabilidade."
 
       composeService keycloak "keycloak" {
         technology "Docker container / Keycloak"

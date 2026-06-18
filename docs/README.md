@@ -5,7 +5,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 ## Tutorial
 
 - [README do projeto](../README.md): problema, solucao, quickstart, comandos principais e links.
-- [Desenvolvimento local](development/local-development.md): compose, Pub/Sub emulator padrao, Kafka legado opcional, portas, migrations, execucao no host, VS Code, Testcontainers e load tests.
+- [Desenvolvimento local](development/local-development.md): compose, Kafka como default dos workers principais, Pub/Sub explicito/legado, portas, migrations, execucao no host, VS Code, Testcontainers e load tests.
 - [Dev Container opcional](development/devcontainer.md): ambiente VS Code conteinerizado sem substituir o fluxo local do host.
 - [Ferramentas auxiliares](development/tooling.md): Node.js LTS, npm, npx, tools .NET, Redocly CLI, LikeC4, Swashbuckle CLI e fluxo local de OpenAPI.
 - [Validacao dos contratos OpenAPI](development/openapi-contract-validation.md): geracao, lint, drift e diff de breaking changes contra a main.
@@ -17,7 +17,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 ## How-to
 
 - [Autenticacao e autorizacao](development/authentication.md): obter token local, validar scopes, audiences e autorizacao por merchant.
-- [Mensageria, Outbox e DLQ](development/kafka-outbox.md): validar Pub/Sub principal, Kafka legado opcional, publicacao, consumo, DLQ, requeue e fluxos assincronos.
+- [Mensageria, Outbox e DLQ](development/kafka-outbox.md): validar Kafka default, Pub/Sub explicito/legado, publicacao, consumo, DLQ, requeue e fluxos assincronos.
 - [Cobertura de testes](development/test-coverage.md): executar testes com cobertura, interpretar falhas e entender os gates de 85% global e dos workers.
 - [SonarQube Cloud](development/sonarqube-cloud.md): configurar analise via GitHub Actions, token, importacao OpenCover, quality gate e troubleshooting.
 - [SonarQube local](quality/sonarqube.md): subir SonarQube com Docker Compose e executar analise estatica local.
@@ -52,7 +52,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [JSON Schemas versionados de eventos](../contracts/events/README.md): schemas e exemplos para validar payloads logicos de eventos.
 - [Versionamento de contratos de eventos](development/event-contract-versioning.md): politica de compatibilidade, transporte, schemas, testes e depreciacao.
 - [Runbook de recuperacao de eventos](operations/event-recovery-runbook.md): guia operacional consolidado para decidir entre retry, replay, redrive, descarte, relatorio de divergencia e rebuild de projecao.
-- [Replay e DLQ orientados por contrato](operations/event-replay-and-dlq.md): runbook operacional para Pub/Sub, Kafka legado, replay, redrive e validacao antes de reprocessar.
+- [Replay e DLQ orientados por contrato](operations/event-replay-and-dlq.md): runbook operacional para Pub/Sub, Kafka, replay, redrive e validacao antes de reprocessar.
 - [Estrategia operacional de DLQ](operations/dlq-strategy.md): criterios operacionais para DLQ de aplicacao, DLQ tecnica, idempotencia, contratos e troubleshooting.
 - [Estrategia operacional de replay seguro](operations/replay-strategy.md): pre-condicoes, filtros, dry-run, auditoria e decisoes de replay seguro em Pub/Sub e Kafka.
 - [Runbook DLQ e replay da Saga do TransferService](operations/transfer-saga-kafka.md): operacao local da DLQ e replay controlado da Outbox/Saga do TransferService com Kafka.
@@ -82,7 +82,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [Terraform state local e backend remoto](adrs/0079-terraform-state-local-e-backend-remoto.md): registra os riscos do state local, gatilhos e estrategia que antecederam a adocao do backend remoto GCS.
 - [Backend remoto GCS para Terraform dev](adrs/0080-backend-remoto-gcs-terraform-dev.md): registra a adocao do backend remoto parcial em GCS, separacao por ambiente e migracao manual de state.
 - [Mensageria por ports and adapters](adrs/0075-mensageria-ports-adapters-kafka-provider.md): historico da introducao do boundary quando Kafka ainda era o provider atual.
-- [Pub/Sub como provider principal](adrs/0078-pubsub-provider-principal-local-emulator.md): adota Pub/Sub como caminho principal, emulator como default local e Kafka como opcao legada.
+- [Kafka como default dos workers](adrs/0088-kafka-default-ledger-balance-workers.md): adota Kafka como default para Ledger/Balance e mantem Pub/Sub por selecao explicita.
 - [LedgerEntryCreated.v2 com currency explicita](adrs/0084-ledger-entry-created-v2-currency-explicita.md): cria v2 com `currency` obrigatoria e mantem leitura de v1 como legado.
 - [Separacao de configuracoes locais sensiveis](adrs/0085-separacao-configuracoes-locais-sensiveis-arquivos-versionados.md): registra a decisao de manter secrets locais fora dos arquivos versionados usando exemplos com placeholders.
 - [Saga orquestrada no TransferService com Kafka](adrs/0087-saga-orquestrada-transfer-service-kafka.md): planeja o estudo de transferencias entre merchants com orquestracao central, Outbox transacional, worker assincrono, Kafka explicito, idempotencia por etapa e DLQ de aplicacao.

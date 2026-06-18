@@ -4,9 +4,9 @@ Esta pasta registra a leitura arquitetural atual da POC e o modelo LikeC4 usado 
 
 Arquivos principais:
 
-- `model.c4`: modelo estrutural do ecossistema, containers e componentes reais, distinguindo Pub/Sub emulator local, Pub/Sub real na GCP e Kafka legado opcional.
+- `model.c4`: modelo estrutural do ecossistema, containers e componentes reais, distinguindo Kafka default, Pub/Sub emulator local e Pub/Sub real explicito/legado na GCP.
 - `deployment.c4`: modelo de deployment local que associa servicos do `compose.yaml` e overlays locais aos elementos logicos com `instanceOf`, alimentando a aba `Deployments` do LikeC4.
-- `views.c4`: views LikeC4 para landscape, containers, fluxo principal local, Pub/Sub real na GCP, Kafka legado, observabilidade local e componentes por processo.
+- `views.c4`: views LikeC4 para landscape, containers, fluxo Kafka, Pub/Sub real explicito/legado na GCP, observabilidade local e componentes por processo.
 - `boundaries.md`: regras de fronteira entre camadas, responsabilidades e anti-patterns.
 - `decisions.md`: avaliacao critica, riscos e roadmap pragmatico de evolucao.
 - `production-readiness.md`: baseline recomendado para uma evolucao futura em GCP mais proxima de producao, sem declarar prontidao produtiva nem implementar infraestrutura nova.

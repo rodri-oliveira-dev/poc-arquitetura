@@ -4,7 +4,6 @@ using LedgerService.Worker.Extensions;
 using LedgerService.Worker.Messaging.Abstractions;
 using LedgerService.Worker.Messaging.Kafka.Configuration;
 using LedgerService.Worker.Messaging.Kafka.Consumers;
-using LedgerService.Worker.Messaging.Processors;
 using LedgerService.Worker.Messaging.Kafka.Producers;
 using LedgerService.Worker.Messaging.PubSub.Configuration;
 using LedgerService.Worker.Messaging.PubSub.Producers;
@@ -84,19 +83,15 @@ public sealed class ProcessCompositionPolicyTests
     }
 
     [Fact]
-    public void LedgerServiceWorker_should_use_pubsub_when_provider_is_not_configured()
+    public void LedgerServiceWorker_should_use_kafka_when_provider_is_not_configured()
     {
         var services = new ServiceCollection();
 
-        services.AddLedgerWorkerComposition(CreateConfiguration(new Dictionary<string, string?>
-        {
-            ["PubSub:Producer:ProjectId"] = "poc-project",
-            ["PubSub:Producer:DefaultTopicId"] = "ledger-events"
-        }), CreateEnvironment());
+        services.AddLedgerWorkerComposition(CreateConfiguration(), CreateEnvironment());
 
-        services.ContainSingleton<IOutboxMessagePublisher, PubSubOutboxMessagePublisher>();
+        services.ContainSingleton<IOutboxMessagePublisher, KafkaOutboxMessagePublisher>();
         services.ContainHostedService<OutboxPublisherService>();
-        services.NotContainHostedService<ReprocessamentoLancamentosConsumerService>();
+        services.ContainHostedService<ReprocessamentoLancamentosConsumerService>();
     }
 
     [Fact]
@@ -119,12 +114,15 @@ public sealed class ProcessCompositionPolicyTests
     {
         var services = new ServiceCollection();
 
-        var act = () => services.AddLedgerWorkerComposition(CreateConfiguration(new Dictionary<string, string?>
+        IServiceCollection act()
         {
-            ["Messaging:Provider"] = "RabbitMq"
-        }), CreateEnvironment());
+            return services.AddLedgerWorkerComposition(CreateConfiguration(new Dictionary<string, string?>
+            {
+                ["Messaging:Provider"] = "RabbitMq"
+            }), CreateEnvironment());
+        }
 
-        var ex = Assert.Throws<InvalidOperationException>(act);
+        var ex = Assert.Throws<InvalidOperationException>((Func<IServiceCollection>)act);
         Assert.Equal("Unsupported messaging provider 'RabbitMq'.", ex.Message);
     }
 
@@ -152,8 +150,12 @@ public sealed class ProcessCompositionPolicyTests
             ["Outbox:Publisher:BatchSize"] = "0"
         });
 
-        var act = () => provider.GetRequiredService<IOptions<OutboxPublisherOptions>>().Value;
-        var ex = Assert.Throws<OptionsValidationException>(act);
+        OutboxPublisherOptions act()
+        {
+            return provider.GetRequiredService<IOptions<OutboxPublisherOptions>>().Value;
+        }
+
+        var ex = Assert.Throws<OptionsValidationException>((Func<OutboxPublisherOptions>)act);
         Assert.Matches("^" + System.Text.RegularExpressions.Regex.Escape("*Outbox Publisher BatchSize*").Replace("\\*", ".*") + "$", ex.Message);
     }
 
@@ -167,8 +169,12 @@ public sealed class ProcessCompositionPolicyTests
             ["PubSub:Producer:DefaultTopicId"] = "ledger-events"
         });
 
-        var act = () => provider.GetRequiredService<IOptions<PubSubProducerOptions>>().Value;
-        var ex = Assert.Throws<OptionsValidationException>(act);
+        PubSubProducerOptions act()
+        {
+            return provider.GetRequiredService<IOptions<PubSubProducerOptions>>().Value;
+        }
+
+        var ex = Assert.Throws<OptionsValidationException>((Func<PubSubProducerOptions>)act);
         Assert.Matches("^" + System.Text.RegularExpressions.Regex.Escape("*PubSub ProjectId*").Replace("\\*", ".*") + "$", ex.Message);
     }
 
@@ -180,8 +186,12 @@ public sealed class ProcessCompositionPolicyTests
             ["Estornos:Processor:PollingIntervalSeconds"] = "0"
         });
 
-        var act = () => provider.GetRequiredService<IOptions<EstornoProcessingOptions>>().Value;
-        var ex = Assert.Throws<OptionsValidationException>(act);
+        EstornoProcessingOptions act()
+        {
+            return provider.GetRequiredService<IOptions<EstornoProcessingOptions>>().Value;
+        }
+
+        var ex = Assert.Throws<OptionsValidationException>((Func<EstornoProcessingOptions>)act);
         Assert.Matches("^" + System.Text.RegularExpressions.Regex.Escape("*Estornos Processor PollingIntervalSeconds*").Replace("\\*", ".*") + "$", ex.Message);
     }
 
@@ -194,8 +204,12 @@ public sealed class ProcessCompositionPolicyTests
             ["Reprocessamentos:Consumer:Topic"] = ""
         });
 
-        var act = () => provider.GetRequiredService<IOptions<ReprocessamentoLancamentosConsumerOptions>>().Value;
-        var ex = Assert.Throws<OptionsValidationException>(act);
+        ReprocessamentoLancamentosConsumerOptions act()
+        {
+            return provider.GetRequiredService<IOptions<ReprocessamentoLancamentosConsumerOptions>>().Value;
+        }
+
+        var ex = Assert.Throws<OptionsValidationException>((Func<ReprocessamentoLancamentosConsumerOptions>)act);
         Assert.Matches("^" + System.Text.RegularExpressions.Regex.Escape("*Reprocessamentos Consumer Topic*").Replace("\\*", ".*") + "$", ex.Message);
     }
 
@@ -236,7 +250,9 @@ public sealed class ProcessCompositionPolicyTests
         if (overrides is not null)
         {
             foreach (var item in overrides)
+            {
                 values[item.Key] = item.Value;
+            }
         }
 
         return new ConfigurationBuilder().AddInMemoryCollection(values).Build();
@@ -250,7 +266,7 @@ public sealed class ProcessCompositionPolicyTests
     }
 }
 
-file static class HostedServiceAssertions
+static file class HostedServiceAssertions
 {
     public static void ContainSingleton<TService, TImplementation>(this IServiceCollection services)
     {

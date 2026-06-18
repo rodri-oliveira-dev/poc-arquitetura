@@ -230,7 +230,7 @@ Detalhes de credenciais, variaveis e validacao ficam em
 
 ### Pub/Sub emulator local
 
-Pub/Sub e o provider principal. Os scripts `start-local-stack.*` usam o `compose.yaml` com emulator local sem iniciar Kafka. Os aliases abaixo deixam essa escolha explicita:
+Pub/Sub permanece disponivel como provider explicito/legado. Use este modo quando quiser validar o adapter Pub/Sub, o emulator local ou cenarios GCP relacionados. Os aliases abaixo deixam essa escolha explicita:
 
 ```powershell
 ./scripts/start-local-stack-pubsub.ps1
@@ -263,7 +263,7 @@ O emulator e descartavel, nao usa credenciais GCP e fica fora do Terraform. Ele 
 
 ### Kafka local e Saga do TransferService
 
-Para iniciar Kafka somente quando o caminho legado ou a Saga do TransferService forem necessarios:
+Kafka e o default de mensageria dos workers principais quando `Messaging:Provider` esta ausente. No compose local, use o overlay/profile Kafka para subir o broker, criar topicos e configurar os workers com `Messaging:Provider=Kafka`:
 
 ```powershell
 ./scripts/start-local-stack-kafka.ps1
@@ -273,7 +273,7 @@ Para iniciar Kafka somente quando o caminho legado ou a Saga do TransferService 
 ./scripts/start-local-stack-kafka.sh
 ```
 
-O modo Kafka legado continua necessario para validar o fluxo assincrono de reprocessamento ponta a ponta enquanto o consumer Pub/Sub correspondente nao existir. Ele tambem sobe o `TransferService.Worker`, porque a Saga orquestrada do TransferService usa Kafka como transporte explicito dos eventos da Saga e nao configura Pub/Sub.
+O modo Kafka continua necessario para validar o fluxo assincrono de reprocessamento ponta a ponta enquanto o consumer Pub/Sub correspondente nao existir. Ele tambem sobe o `TransferService.Worker`, porque a Saga orquestrada do TransferService usa Kafka como transporte explicito dos eventos da Saga e nao configura Pub/Sub.
 
 O compose cria os topicos Kafka abaixo de forma idempotente pelo container `kafka-init-topics`:
 
@@ -785,7 +785,7 @@ Portas expostas no host:
 | PostgreSQL | `localhost:15432` |
 | Cloud SQL Auth Proxy | `127.0.0.1:5432` somente com `compose.cloudsql.yaml` |
 | Pub/Sub emulator | `localhost:8085` com `compose.yaml` |
-| Kafka legado | `localhost:19092` com `compose.kafka.yaml` e profile `legacy-kafka` |
+| Kafka | `localhost:19092` com `compose.kafka.yaml` e profile `legacy-kafka` |
 | Jaeger UI | `http://localhost:16686/` com profile `observability` |
 | Jaeger OTLP | `localhost:4317` e `localhost:4318` com profile `observability`, para diagnostico direto |
 | OpenTelemetry Collector OTLP | `otel-collector:4317` e `otel-collector:4318` na rede interna do compose, com profile `observability` |
@@ -870,7 +870,7 @@ dotnet tool run dotnet-ef -- database update `
 
 ## Execucao no host
 
-Use este modo quando PostgreSQL e Pub/Sub emulator ja estiverem disponiveis e voce quiser rodar ou depurar os processos no host. Para execucao local fora do container, use `DOTNET_ENVIRONMENT=Local`. Os profiles de debug dos workers ja configuram `DOTNET_ENVIRONMENT=Local` e `PUBSUB_EMULATOR_HOST=127.0.0.1:8085`. Para depurar Kafka legado, sobrescreva `Messaging__Provider=Kafka` e os bootstrap servers.
+Use este modo quando PostgreSQL e o provider de mensageria escolhido ja estiverem disponiveis e voce quiser rodar ou depurar os processos no host. Para execucao local fora do container, use `DOTNET_ENVIRONMENT=Local`. Os profiles de debug dos workers ja configuram `DOTNET_ENVIRONMENT=Local`. Para Pub/Sub, configure `Messaging__Provider=PubSub` e `PUBSUB_EMULATOR_HOST=127.0.0.1:8085`; para Kafka, use os bootstrap servers locais em `127.0.0.1:19092`.
 
 Para usar configuracao por arquivo no host, copie os exemplos `appsettings.Local.example.json` para `appsettings.Local.json` quando o projeto possuir esse arquivo de exemplo:
 
@@ -926,7 +926,7 @@ Nao versione segredos. Arquivos versionados de configuracao devem conter apenas 
 
 Essa separacao mantem a experiencia local simples e tambem reduz ruido de ferramentas como SonarQube e Trivy: os scanners continuam analisando os arquivos versionados sem encontrar credenciais descartaveis hard-coded, enquanto cada desenvolvedor ainda consegue preencher os valores reais somente na propria maquina.
 
-Em ambientes compartilhados ou produtivos, remova `PUBSUB_EMULATOR_HOST`, use identidade de workload e configure Pub/Sub real explicitamente. JWKS via HTTP e Kafka legado `Plaintext` nao devem ser usados fora do local.
+Em ambientes compartilhados ou produtivos, remova `PUBSUB_EMULATOR_HOST`, use identidade de workload quando Pub/Sub real for selecionado explicitamente e configure transporte seguro para o provider escolhido. JWKS via HTTP e Kafka `Plaintext` nao devem ser usados fora do local.
 
 ## Politica local de imagens
 

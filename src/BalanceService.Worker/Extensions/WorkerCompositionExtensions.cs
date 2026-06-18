@@ -39,7 +39,7 @@ public static class WorkerCompositionExtensions
         IConfiguration configuration,
         IHostEnvironment environment)
     {
-        var provider = configuration.GetValue<string>(MessagingProviderConfigurationKey) ?? PubSubProvider;
+        var provider = configuration.GetValue<string>(MessagingProviderConfigurationKey) ?? KafkaProvider;
 
         return provider.Trim().ToUpperInvariant() switch
         {
@@ -74,9 +74,11 @@ public static class WorkerCompositionExtensions
         IConfiguration configuration,
         IHostEnvironment environment)
     {
-        var kafkaEnabled = configuration.GetValue<bool>("Kafka:Enabled", defaultValue: true);
+        var kafkaEnabled = configuration.GetValue("Kafka:Enabled", defaultValue: true);
         if (!kafkaEnabled)
+        {
             return services;
+        }
 
         services.AddSingleton<MessagingMetrics>();
 
@@ -103,9 +105,11 @@ public static class WorkerCompositionExtensions
         IConfiguration configuration,
         IHostEnvironment _)
     {
-        var pubSubEnabled = configuration.GetValue<bool>($"{PubSubProvider}:Enabled", defaultValue: true);
+        var pubSubEnabled = configuration.GetValue($"{PubSubProvider}:Enabled", defaultValue: true);
         if (!pubSubEnabled)
+        {
             return services;
+        }
 
         services.AddSingleton<MessagingMetrics>();
 
@@ -129,9 +133,11 @@ public static class WorkerCompositionExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        var kafkaEnabled = configuration.GetValue<bool>("Kafka:Enabled", defaultValue: true);
+        var kafkaEnabled = configuration.GetValue("Kafka:Enabled", defaultValue: true);
         if (!kafkaEnabled)
+        {
             return services;
+        }
 
         services.AddHostedService<LedgerEventsConsumer>();
 
@@ -142,9 +148,11 @@ public static class WorkerCompositionExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        var pubSubEnabled = configuration.GetValue<bool>($"{PubSubProvider}:Enabled", defaultValue: true);
+        var pubSubEnabled = configuration.GetValue($"{PubSubProvider}:Enabled", defaultValue: true);
         if (!pubSubEnabled)
+        {
             return services;
+        }
 
         services.AddHostedService<LedgerEventsPubSubConsumer>();
 

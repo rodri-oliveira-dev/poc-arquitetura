@@ -40,7 +40,7 @@ public static class WorkerCompositionExtensions
         IConfiguration configuration,
         IHostEnvironment environment)
     {
-        var provider = configuration.GetValue<string>(MessagingProviderConfigurationKey) ?? PubSubProvider;
+        var provider = configuration.GetValue<string>(MessagingProviderConfigurationKey) ?? KafkaProvider;
 
         return provider.Trim().ToUpperInvariant() switch
         {
@@ -76,9 +76,11 @@ public static class WorkerCompositionExtensions
         IConfiguration configuration,
         IHostEnvironment environment)
     {
-        var kafkaEnabled = configuration.GetValue<bool>("Kafka:Enabled", defaultValue: true);
+        var kafkaEnabled = configuration.GetValue("Kafka:Enabled", defaultValue: true);
         if (!kafkaEnabled)
+        {
             return services;
+        }
 
         services.AddOptions<KafkaProducerOptions>()
             .Bind(configuration.GetSection(KafkaProducerOptions.SectionName))
@@ -96,9 +98,11 @@ public static class WorkerCompositionExtensions
         IConfiguration configuration,
         IHostEnvironment _)
     {
-        var pubSubEnabled = configuration.GetValue<bool>($"{PubSubProvider}:Enabled", defaultValue: true);
+        var pubSubEnabled = configuration.GetValue($"{PubSubProvider}:Enabled", defaultValue: true);
         if (!pubSubEnabled)
+        {
             return services;
+        }
 
         services.AddOptions<PubSubProducerOptions>()
             .Bind(configuration.GetSection(PubSubProducerOptions.SectionName))
@@ -116,22 +120,16 @@ public static class WorkerCompositionExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        var kafkaEnabled = configuration.GetValue<bool>("Kafka:Enabled", defaultValue: true);
-        if (!kafkaEnabled)
-            return services;
-
-        return services.AddLedgerOutboxPublisherWorker(configuration);
+        var kafkaEnabled = configuration.GetValue("Kafka:Enabled", defaultValue: true);
+        return !kafkaEnabled ? services : services.AddLedgerOutboxPublisherWorker(configuration);
     }
 
     public static IServiceCollection AddLedgerPubSubOutboxWorker(
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        var pubSubEnabled = configuration.GetValue<bool>($"{PubSubProvider}:Enabled", defaultValue: true);
-        if (!pubSubEnabled)
-            return services;
-
-        return services.AddLedgerOutboxPublisherWorker(configuration);
+        var pubSubEnabled = configuration.GetValue($"{PubSubProvider}:Enabled", defaultValue: true);
+        return !pubSubEnabled ? services : services.AddLedgerOutboxPublisherWorker(configuration);
     }
 
     private static IServiceCollection AddLedgerOutboxPublisherWorker(
@@ -157,9 +155,11 @@ public static class WorkerCompositionExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        var estornoProcessorEnabled = configuration.GetValue<bool>("Estornos:Processor:Enabled", defaultValue: true);
+        var estornoProcessorEnabled = configuration.GetValue("Estornos:Processor:Enabled", defaultValue: true);
         if (!estornoProcessorEnabled)
+        {
             return services;
+        }
 
         services.AddOptions<EstornoProcessingOptions>()
             .Bind(configuration.GetSection(EstornoProcessingOptions.SectionName))
@@ -177,15 +177,19 @@ public static class WorkerCompositionExtensions
         IConfiguration configuration,
         IHostEnvironment environment)
     {
-        var kafkaEnabled = configuration.GetValue<bool>("Kafka:Enabled", defaultValue: true);
+        var kafkaEnabled = configuration.GetValue("Kafka:Enabled", defaultValue: true);
         if (!kafkaEnabled)
+        {
             return services;
+        }
 
-        var reprocessamentoConsumerEnabled = configuration.GetValue<bool>(
+        var reprocessamentoConsumerEnabled = configuration.GetValue(
             $"{ReprocessamentoLancamentosConsumerOptions.SectionName}:Enabled",
             defaultValue: true);
         if (!reprocessamentoConsumerEnabled)
+        {
             return services;
+        }
 
         services.AddOptions<ReprocessamentoLancamentosConsumerOptions>()
             .Bind(configuration.GetSection(ReprocessamentoLancamentosConsumerOptions.SectionName))

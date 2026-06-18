@@ -1,13 +1,14 @@
 using BalanceService.Api.Extensions;
 using BalanceService.Application.Abstractions.Persistence;
+using BalanceService.Worker.Extensions;
 using BalanceService.Worker.Messaging.Abstractions;
 using BalanceService.Worker.Messaging.Kafka.Consumers;
+using BalanceService.Worker.Messaging.Kafka.DeadLetter;
+using BalanceService.Worker.Messaging.Processors;
 using BalanceService.Worker.Messaging.PubSub.Configuration;
 using BalanceService.Worker.Messaging.PubSub.Consumers;
 using BalanceService.Worker.Messaging.PubSub.DeadLetter;
-using BalanceService.Worker.Messaging.Processors;
 using BalanceService.Worker.Observability;
-using BalanceService.Worker.Extensions;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -78,20 +79,15 @@ public sealed class ProcessCompositionPolicyTests
     }
 
     [Fact]
-    public void BalanceServiceWorker_should_use_pubsub_when_provider_is_not_configured()
+    public void BalanceServiceWorker_should_use_kafka_when_provider_is_not_configured()
     {
         var services = new ServiceCollection();
 
-        services.AddBalanceWorkerComposition(CreateConfiguration(new Dictionary<string, string?>
-        {
-            ["PubSub:Consumer:ProjectId"] = "poc-project",
-            ["PubSub:Consumer:SubscriptionId"] = "ledger-events-balance",
-            ["PubSub:Consumer:DeadLetterTopicId"] = "ledger-events-dlq"
-        }), CreateEnvironment());
+        services.AddBalanceWorkerComposition(CreateConfiguration(), CreateEnvironment());
 
-        services.ContainSingleton<IDeadLetterPublisher, PubSubDeadLetterPublisher>();
-        services.ContainHostedService<LedgerEventsPubSubConsumer>();
-        services.NotContainHostedService<LedgerEventsConsumer>();
+        services.ContainSingleton<IDeadLetterPublisher, KafkaDeadLetterPublisher>();
+        services.ContainHostedService<LedgerEventsConsumer>();
+        services.NotContainHostedService<LedgerEventsPubSubConsumer>();
     }
 
     [Fact]
@@ -113,17 +109,20 @@ public sealed class ProcessCompositionPolicyTests
     {
         var services = new ServiceCollection();
 
-        var act = () => services.AddBalanceWorkerComposition(CreateConfiguration(new Dictionary<string, string?>
+        IServiceCollection act()
         {
-            ["Messaging:Provider"] = "RabbitMq"
-        }), CreateEnvironment());
+            return services.AddBalanceWorkerComposition(CreateConfiguration(new Dictionary<string, string?>
+            {
+                ["Messaging:Provider"] = "RabbitMq"
+            }), CreateEnvironment());
+        }
 
-        var ex = Assert.Throws<InvalidOperationException>(act);
+        var ex = Assert.Throws<InvalidOperationException>((Func<IServiceCollection>)act);
         Assert.Equal("Unsupported messaging provider 'RabbitMq'.", ex.Message);
     }
 
     [Fact]
-    public void BalanceServiceWorker_should_register_consumer_dependencies_when_pubsub_is_default()
+    public void BalanceServiceWorker_should_register_consumer_dependencies_when_kafka_is_default()
     {
         var services = new ServiceCollection();
 
@@ -146,8 +145,12 @@ public sealed class ProcessCompositionPolicyTests
             ["PubSub:Consumer:DeadLetterTopicId"] = "ledger-events-dlq"
         });
 
-        var act = () => provider.GetRequiredService<IOptions<PubSubConsumerOptions>>().Value;
-        var ex = Assert.Throws<OptionsValidationException>(act);
+        PubSubConsumerOptions act()
+        {
+            return provider.GetRequiredService<IOptions<PubSubConsumerOptions>>().Value;
+        }
+
+        var ex = Assert.Throws<OptionsValidationException>((Func<PubSubConsumerOptions>)act);
         Assert.Matches("^" + System.Text.RegularExpressions.Regex.Escape("*PubSub ProjectId*").Replace("\\*", ".*") + "$", ex.Message);
     }
 
@@ -177,7 +180,9 @@ public sealed class ProcessCompositionPolicyTests
         if (overrides is not null)
         {
             foreach (var item in overrides)
+            {
                 values[item.Key] = item.Value;
+            }
         }
 
         return new ConfigurationBuilder().AddInMemoryCollection(values).Build();
@@ -191,7 +196,7 @@ public sealed class ProcessCompositionPolicyTests
     }
 }
 
-file static class HostedServiceAssertions
+static file class HostedServiceAssertions
 {
     public static void ContainSingleton<TService, TImplementation>(this IServiceCollection services)
     {
