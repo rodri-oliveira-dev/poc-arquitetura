@@ -9,7 +9,7 @@
     "architecture:build": "likec4 build docs/architecture -o dist/architecture --base ./"
   },
   "devDependencies": {
-    "@redocly/cli": "2.31.6",
+    "@redocly/cli": "2.34.0",
     "ajv": "npm:@redocly/ajv@8.18.1",
     "ajv-formats": "3.0.1",
     "likec4": "1.58.0",
