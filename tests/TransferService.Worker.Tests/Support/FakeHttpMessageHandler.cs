@@ -22,6 +22,9 @@ internal sealed class FakeHttpMessageHandler : HttpMessageHandler
         get; private set;
     }
 
+    public int PendingResponses
+        => _responses.Count;
+
     public void EnqueueJson(HttpStatusCode statusCode, string json)
     {
         _responses.Enqueue((_, _) => Task.FromResult(new HttpResponseMessage(statusCode)

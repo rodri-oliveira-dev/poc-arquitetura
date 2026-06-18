@@ -78,6 +78,8 @@ Variaveis nao sensiveis ou identificadores locais continuam com defaults no comp
 
 As variaveis `AUTH_POC_USERNAME`, `AUTH_POC_PASSWORD` e `AUTH_POC_SCOPE` continuam aceitas apenas pelo overlay legado `compose.auth-legacy.yaml`.
 
+O mesmo `KEYCLOAK_CLIENT_SECRET` alimenta o client local `poc-automation` usado pelos scripts e pelo `TransferService.Worker` quando ele chama o `LedgerService.Api`. O scope service-to-service do worker fica em `TRANSFER_WORKER_LEDGER_AUTH_SCOPE`, com default `ledger.write`.
+
 O PostgreSQL local roda em um unico container `postgres-db`, com volume `postgres-data`, database `appdb`, schemas `ledger`, `balance` e `transfer`, e usuarios separados por servico/responsabilidade. A inicializacao fica nos scripts versionados em `infra/postgres/init`. As connection strings dos servicos runtime no compose usam `postgres-db:5432/appdb`; as variaveis `LEDGER_DB_*`, `BALANCE_DB_*` e `TRANSFER_DB_*` configuram as senhas locais usadas pelo init do container e pelas connection strings do compose. Em volumes PostgreSQL existentes, alterar `.env.local` ou `compose.yaml` nao altera automaticamente roles, grants ou senhas ja gravadas no banco; para reaplicar o init, recrie conscientemente o volume local ou execute o SQL manualmente.
 
 Topologia local de banco:
@@ -275,7 +277,7 @@ Kafka e o default de mensageria dos workers principais quando `Messaging:Provide
 ./scripts/start-local-stack-kafka.sh
 ```
 
-O fluxo padrao tambem sobe o `TransferService.Worker`, porque a Saga orquestrada do TransferService usa Kafka como transporte explicito dos eventos da Saga e nao configura Pub/Sub. Com isso, transferencias criadas localmente podem ser processadas automaticamente pelo worker.
+O fluxo padrao tambem sobe o `TransferService.Worker`, porque a Saga orquestrada do TransferService usa Kafka como transporte explicito dos eventos da Saga e nao configura Pub/Sub. Com isso, transferencias criadas localmente podem ser processadas automaticamente pelo worker. O worker chama o `LedgerService.Api` autenticado via OAuth2 client credentials, usando `TransferService__Worker__Ledger__Auth__TokenEndpoint=http://keycloak:8080/realms/poc/protocol/openid-connect/token`, `KEYCLOAK_CLIENT_ID`, `KEYCLOAK_CLIENT_SECRET` e scope `ledger.write`.
 
 O compose cria os topicos Kafka abaixo de forma idempotente pelo container `kafka-init-topics`:
 
@@ -1112,7 +1114,7 @@ Os runners aplicam `compose.k6.yaml` e recriam os containers HTTP alvo antes do 
 
 Os modos `transfer-smoke-kafka` e `transfer-load-kafka` usam a mesma infraestrutura k6, mas exigem apenas Keycloak, PostgreSQL e `TransferService.Api` disponiveis na stack local. Eles nao exigem conclusao full-stack da Saga em todas as iteracoes: o objetivo e validar `POST /api/v1/transferencias`, `GET /api/v1/transferencias/{transferenciaId}`, autenticacao, validacao, idempotencia e comportamento basico sob concorrencia sem aguardar a Saga finalizar.
 
-O modo `transfer-fullstack-kafka` e o smoke manual da Saga completa. Ele usa o compose padrao com Kafka, sobe ou recria `kafka`, `kafka-init-topics`, `ledger-service`, `transfer-service` e `transfer-worker`, aguarda a transferencia chegar a `Completed` com polling controlado e valida pelos offsets e pela amostra Kafka que os eventos principais foram publicados com `message key = transferenciaId` e `correlationId` esperado. A DLQ `transfer.transferencia.dlq` nao pode crescer no fluxo feliz. Esse modo nao usa Pub/Sub para o TransferService.
+O modo `transfer-fullstack-kafka` e o smoke manual da Saga completa. Ele usa o compose padrao com Kafka, sobe ou recria `kafka`, `kafka-init-topics`, `ledger-service`, `transfer-service` e `transfer-worker`, aguarda a transferencia chegar a `Completed` com polling controlado e valida pelos offsets e pela amostra Kafka que os eventos principais foram publicados com `message key = transferenciaId` e `correlationId` esperado. A DLQ `transfer.transferencia.dlq` nao pode crescer no fluxo feliz. Esse modo nao usa Pub/Sub para o TransferService. Se a Saga ficar `Failed` por `401 Unauthorized`, valide a configuracao `TransferService__Worker__Ledger__Auth__*`, o segredo local do Keycloak, audience `ledger-api`, scope `ledger.write` e `merchant_id` do token do worker.
 
 O token usado nos cenarios k6 e obtido pelos runners com `scripts/get-token.*`. O fluxo oficial local e `TOKEN_PROVIDER=keycloak`, usando `KEYCLOAK_CLIENT_ID`, `KEYCLOAK_CLIENT_SECRET`, `KEYCLOAK_REALM` e `KEYCLOAK_BASE_URL`/`KEYCLOAK_HOST_PORT`. Para usar temporariamente o fallback `Auth.Api`, suba `compose.auth-legacy.yaml` e configure tambem as APIs de negocio com `JWT_ISSUER=https://auth-api`, `JWT_JWKS_URL=http://auth-api:8080/.well-known/jwks.json` e `TOKEN_PROVIDER=auth-api`, conforme [autenticacao e autorizacao](authentication.md).
 

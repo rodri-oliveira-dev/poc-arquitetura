@@ -1,3 +1,6 @@
+using System.Security.Cryptography;
+using System.Text;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -11,26 +14,35 @@ using TransferService.Worker.Options;
 
 namespace TransferService.Worker.Sagas;
 
-public sealed class TransferenciaSagaProcessorService : BackgroundService
+public sealed class TransferenciaSagaProcessorService(
+    IServiceProvider serviceProvider,
+    IOptions<TransferWorkerOptions> options,
+    IClock clock,
+    ILogger<TransferenciaSagaProcessorService> logger) : BackgroundService
 {
-    private readonly IServiceProvider _serviceProvider;
-    private readonly IOptions<TransferWorkerOptions> _options;
-    private readonly IClock _clock;
-    private readonly ILogger<TransferenciaSagaProcessorService> _logger;
-    private readonly string _lockOwner;
+    private readonly IServiceProvider _serviceProvider = serviceProvider;
+    private readonly IOptions<TransferWorkerOptions> _options = options;
+    private readonly IClock _clock = clock;
+    private readonly ILogger<TransferenciaSagaProcessorService> _logger = logger;
+    private readonly string _lockOwner = $"{Environment.MachineName}:{Guid.NewGuid():N}";
 
-    public TransferenciaSagaProcessorService(
-        IServiceProvider serviceProvider,
-        IOptions<TransferWorkerOptions> options,
-        IClock clock,
-        ILogger<TransferenciaSagaProcessorService> logger)
-    {
-        _serviceProvider = serviceProvider;
-        _options = options;
-        _clock = clock;
-        _logger = logger;
-        _lockOwner = $"{Environment.MachineName}:{Guid.NewGuid():N}";
-    }
+    private static readonly Action<ILogger, Exception?> _logUnhandledSagaProcessingError =
+        LoggerMessage.Define(
+            LogLevel.Error,
+            new EventId(1, nameof(_logUnhandledSagaProcessingError)),
+            "Erro nao tratado no processamento de Sagas de transferencia.");
+
+    private static readonly Action<ILogger, Guid, Exception?> _logHandledSagaProcessingError =
+        LoggerMessage.Define<Guid>(
+            LogLevel.Error,
+            new EventId(2, nameof(_logHandledSagaProcessingError)),
+            "Erro do Ledger ou persistencia tratado sem derrubar o worker. TransferenciaId={TransferenciaId}");
+
+    private static readonly Action<ILogger, Guid, string, TransferenciaSagaStatus, Exception?> _logSagaProcessing =
+        LoggerMessage.Define<Guid, string, TransferenciaSagaStatus>(
+            LogLevel.Information,
+            new EventId(3, nameof(_logSagaProcessing)),
+            "Processando Saga de transferencia. TransferenciaId={TransferenciaId} CorrelationId={CorrelationId} Status={Status}");
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -44,9 +56,12 @@ public sealed class TransferenciaSagaProcessorService : BackgroundService
             {
                 break;
             }
+#pragma warning disable CA1031
+            // Mantem o BackgroundService vivo; falhas especificas da Saga sao registradas e reprocessadas pelo proximo ciclo.
             catch (Exception ex)
+#pragma warning restore CA1031
             {
-                _logger.LogError(ex, "Erro nao tratado no processamento de Sagas de transferencia.");
+                _logUnhandledSagaProcessingError(_logger, ex);
             }
 
             await Task.Delay(_options.Value.PollingInterval, stoppingToken);
@@ -56,7 +71,9 @@ public sealed class TransferenciaSagaProcessorService : BackgroundService
     public async Task ProcessOnceAsync(CancellationToken cancellationToken)
     {
         if (!_options.Value.Enabled)
+        {
             return;
+        }
 
         using var scope = _serviceProvider.CreateScope();
         var repository = scope.ServiceProvider.GetRequiredService<ITransferenciaSagaRepository>();
@@ -71,7 +88,9 @@ public sealed class TransferenciaSagaProcessorService : BackgroundService
             cancellationToken);
 
         if (sagas.Count == 0)
+        {
             return;
+        }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -92,9 +111,12 @@ public sealed class TransferenciaSagaProcessorService : BackgroundService
         {
             throw;
         }
+#pragma warning disable CA1031
+        // Isola uma Saga com falha inesperada para as demais continuarem no mesmo ciclo do worker.
         catch (Exception ex)
+#pragma warning restore CA1031
         {
-            _logger.LogError(ex, "Erro do Ledger ou persistencia tratado sem derrubar o worker. TransferenciaId={TransferenciaId}", sagaId);
+            _logHandledSagaProcessingError(_logger, sagaId, ex);
         }
     }
 
@@ -108,7 +130,9 @@ public sealed class TransferenciaSagaProcessorService : BackgroundService
 
         var saga = await db.TransferenciasSagas.FirstOrDefaultAsync(x => x.Id == sagaId, cancellationToken);
         if (saga is null || IsFinal(saga.Status))
+        {
             return;
+        }
 
         using var logScope = _logger.BeginScope(new Dictionary<string, object?>
         {
@@ -116,17 +140,15 @@ public sealed class TransferenciaSagaProcessorService : BackgroundService
             ["TransferenciaId"] = saga.Id
         });
 
-        _logger.LogInformation(
-            "Processando Saga de transferencia. TransferenciaId={TransferenciaId} CorrelationId={CorrelationId} Status={Status}",
-            saga.Id,
-            saga.CorrelationId,
-            saga.Status);
+        _logSagaProcessing(_logger, saga.Id, saga.CorrelationId ?? string.Empty, saga.Status, null);
 
         if (!saga.DebitCreated)
         {
             await CreateDebitAsync(saga, ledger, outbox, unitOfWork, cancellationToken);
             if (!saga.DebitCreated)
+            {
                 return;
+            }
         }
 
         if (!saga.CreditCreated)
@@ -292,5 +314,8 @@ public sealed class TransferenciaSagaProcessorService : BackgroundService
             or TransferenciaSagaStatus.Rejected;
 
     private static string IdempotencyKey(Guid sagaId, string step)
-        => $"transferencia:{sagaId}:{step}";
+    {
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes($"transferencia:{sagaId:N}:{step}"));
+        return new Guid(hash.AsSpan(0, 16)).ToString();
+    }
 }

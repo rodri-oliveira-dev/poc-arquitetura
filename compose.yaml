@@ -437,6 +437,8 @@ services:
         condition: service_completed_successfully
       ledger-service:
         condition: service_started
+      keycloak:
+        condition: service_healthy
     environment:
       DOTNET_ENVIRONMENT: "Local"
 
@@ -463,6 +465,11 @@ services:
       TransferService__Worker__Topics__Falhou: "transfer.transferencia.falhou"
       TransferService__Worker__Ledger__BaseAddress: "http://ledger-service:8080"
       TransferService__Worker__Ledger__Timeout: "00:00:10"
+      TransferService__Worker__Ledger__Auth__TokenEndpoint: "http://keycloak:8080/realms/poc/protocol/openid-connect/token"
+      TransferService__Worker__Ledger__Auth__ClientId: "${KEYCLOAK_CLIENT_ID:-poc-automation}"
+      TransferService__Worker__Ledger__Auth__ClientSecret: "${KEYCLOAK_CLIENT_SECRET:?Defina KEYCLOAK_CLIENT_SECRET no ambiente ou em .env.local}"
+      TransferService__Worker__Ledger__Auth__Scope: "${TRANSFER_WORKER_LEDGER_AUTH_SCOPE:-ledger.write}"
+      TransferService__Worker__Ledger__Auth__RefreshSkew: "00:01:00"
       Observability__OpenTelemetry__Enabled: "${OTEL_ENABLED:-false}"
       Observability__OpenTelemetry__UseConsoleExporter: "false"
       Observability__OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"

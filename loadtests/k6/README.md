@@ -96,6 +96,8 @@ Execute a stack local Kafka antes dos testes. Os runners precisam de:
 - `TransferService.Api`, para os modos `transfer-smoke-kafka`, `transfer-load-kafka` e `transfer-fullstack-kafka`;
 - `TransferService.Worker` e `LedgerService.Api`, apenas para `transfer-fullstack-kafka`.
 
+No `transfer-fullstack-kafka`, o `TransferService.Worker` precisa autenticar no `LedgerService.Api` por OAuth2 client credentials. No compose local isso usa `KEYCLOAK_CLIENT_ID=poc-automation`, `KEYCLOAK_CLIENT_SECRET` e `TRANSFER_WORKER_LEDGER_AUTH_SCOPE=ledger.write`. Uma Saga `Failed` por `401 Unauthorized` deve falhar o smoke e indica problema real nessa configuracao, no token emitido ou na validacao JWT do Ledger.
+
 Os runners falham cedo quando Kafka esta indisponivel, quando um servico obrigatorio nao esta em execucao ou quando `kafka-init-topics` nao concluiu. Se um topico estiver ausente, a mensagem sugere subir a stack local para executar o script de criacao de topicos.
 
 ## Validacao Kafka
@@ -116,7 +118,7 @@ No `transfer-fullstack-kafka`, o runner:
 - confirma que o payload contem o `correlationId` esperado;
 - confirma que `transfer.transferencia.dlq` nao cresceu.
 
-As validacoes Kafka ficam no runner Docker, nao no codigo k6. Os cenarios k6 continuam focados em contrato HTTP, carga e thresholds.
+As validacoes Kafka ficam no runner Docker, nao no codigo k6. Os cenarios k6 continuam focados em contrato HTTP, carga e thresholds. No `transfer-fullstack-kafka`, os thresholds de latencia sao opcionais porque o cenario sobe/usa a stack local e executa uma iteracao funcional sujeita a cold start; para habilita-los explicitamente, defina `TRANSFER_FULLSTACK_ENFORCE_LATENCY_THRESHOLDS=true`.
 
 ## Observacoes
 

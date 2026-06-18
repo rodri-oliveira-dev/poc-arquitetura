@@ -17,6 +17,22 @@ export const transferCompletedSuccess = new Rate('transfer_completed_success');
 
 const finalStatusTimeoutSeconds = Number(__ENV.TRANSFER_FINAL_STATUS_TIMEOUT_SECONDS || 60);
 const pollIntervalSeconds = Number(__ENV.TRANSFER_FINAL_STATUS_POLL_INTERVAL_SECONDS || 1);
+const enforceLatencyThresholds = String(__ENV.TRANSFER_FULLSTACK_ENFORCE_LATENCY_THRESHOLDS || 'false')
+    .toLowerCase() === 'true';
+
+const thresholds = {
+    transfer_post_success: ['rate==1'],
+    transfer_get_success: ['rate==1'],
+    transfer_completed_success: ['rate==1'],
+    'http_req_failed{service:transfer}': ['rate==0'],
+    checks: ['rate==1'],
+    dropped_iterations: ['count==0'],
+};
+
+if (enforceLatencyThresholds) {
+    thresholds['http_req_duration{name:transfer_create}'] = localLatencyThresholds('TRANSFER', { p95: 1000, p99: 2000 });
+    thresholds['http_req_duration{name:transfer_get_final_status}'] = localLatencyThresholds('TRANSFER', { p95: 1000, p99: 2000 });
+}
 
 export const options = {
     scenarios: {
@@ -27,16 +43,7 @@ export const options = {
             maxDuration: __ENV.DURATION || '90s',
         },
     },
-    thresholds: {
-        transfer_post_success: ['rate==1'],
-        transfer_get_success: ['rate==1'],
-        transfer_completed_success: ['rate==1'],
-        'http_req_failed{service:transfer}': ['rate==0'],
-        'http_req_duration{name:transfer_create}': localLatencyThresholds('TRANSFER', { p95: 1000, p99: 2000 }),
-        'http_req_duration{name:transfer_get_final_status}': localLatencyThresholds('TRANSFER', { p95: 1000, p99: 2000 }),
-        checks: ['rate==1'],
-        dropped_iterations: ['count==0'],
-    },
+    thresholds,
 };
 
 const cfg = loadConfig();

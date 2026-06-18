@@ -366,15 +366,22 @@ function Assert-LedgerKafkaSmoke([hashtable]$Before, [hashtable]$After) {
 }
 
 function Read-KafkaTopicSample([string]$Topic, [int]$MaxMessages = 1000, [int]$TimeoutMs = 10000) {
-  $output = & docker @(Get-ComposeArguments -IncludeKafka) exec -T kafka `
-    /opt/kafka/bin/kafka-console-consumer.sh `
-    --bootstrap-server kafka:9092 `
-    --topic $Topic `
-    --from-beginning `
-    --timeout-ms $TimeoutMs `
-    --max-messages $MaxMessages `
-    --property print.key=true `
-    --property key.separator="@@KEY@@" 2>&1
+  $previousErrorActionPreference = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
+  try {
+    $output = & docker @(Get-ComposeArguments -IncludeKafka) exec -T kafka `
+      /opt/kafka/bin/kafka-console-consumer.sh `
+      --bootstrap-server kafka:9092 `
+      --topic $Topic `
+      --from-beginning `
+      --timeout-ms $TimeoutMs `
+      --max-messages $MaxMessages `
+      --property print.key=true `
+      --property key.separator="@@KEY@@" 2>&1
+  }
+  finally {
+    $ErrorActionPreference = $previousErrorActionPreference
+  }
 
   return @($output)
 }
@@ -384,18 +391,26 @@ function Find-TransferKafkaEvent([string]$Topic, [string]$ExpectedEventType, [st
   foreach ($line in $lines) {
     $text = [string]$line
     if (-not $text.Contains("@@KEY@@")) { continue }
-    if (-not $text.Contains("`"eventType`":`"$ExpectedEventType`"")) { continue }
-    if (-not $text.Contains("`"correlationId`":`"$CorrelationId`"")) { continue }
 
-    $parts = $text.Split("@@KEY@@", 2)
+    $parts = $text -split [regex]::Escape("@@KEY@@"), 2
     $key = $parts[0].Trim()
     $payload = $parts[1]
-    $match = [regex]::Match($payload, '"transferenciaId"\s*:\s*"([^"]+)"')
-    if (-not $match.Success) {
+
+    try {
+      $event = $payload | ConvertFrom-Json -ErrorAction Stop
+    }
+    catch {
+      continue
+    }
+
+    if ($event.eventType -ne $ExpectedEventType) { continue }
+    if ($event.correlationId -ne $CorrelationId) { continue }
+
+    $transferenciaId = [string]$event.transferenciaId
+    if ([string]::IsNullOrWhiteSpace($transferenciaId)) {
       throw "Evento Kafka $ExpectedEventType em $Topic nao contem transferenciaId no payload."
     }
 
-    $transferenciaId = $match.Groups[1].Value
     if ($key -ne $transferenciaId) {
       throw "Kafka publicou $ExpectedEventType com message key divergente: topic=$Topic key=$key transferenciaId=$transferenciaId correlationId=$CorrelationId"
     }
