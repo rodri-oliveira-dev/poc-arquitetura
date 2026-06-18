@@ -26,6 +26,11 @@
     <ProjectReference Include="..\..\src\BalanceService.Domain\BalanceService.Domain.csproj" />
     <ProjectReference Include="..\..\src\BalanceService.Infrastructure\BalanceService.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\BalanceService.Worker\BalanceService.Worker.csproj" />
+    <ProjectReference Include="..\..\src\TransferService.Api\TransferService.Api.csproj" />
+    <ProjectReference Include="..\..\src\TransferService.Application\TransferService.Application.csproj" />
+    <ProjectReference Include="..\..\src\TransferService.Domain\TransferService.Domain.csproj" />
+    <ProjectReference Include="..\..\src\TransferService.Infrastructure\TransferService.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\TransferService.Worker\TransferService.Worker.csproj" />
     <ProjectReference Include="..\..\src\LedgerService.Api\LedgerService.Api.csproj" />
     <ProjectReference Include="..\..\src\LedgerService.Application\LedgerService.Application.csproj" />
     <ProjectReference Include="..\..\src\LedgerService.Domain\LedgerService.Domain.csproj" />

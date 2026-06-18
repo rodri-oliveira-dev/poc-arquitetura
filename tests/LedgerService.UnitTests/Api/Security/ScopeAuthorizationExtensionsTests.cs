@@ -1,4 +1,5 @@
 using LedgerService.Api.Security;
+
 using System.Security.Claims;
 
 namespace LedgerService.UnitTests.Api.Security;

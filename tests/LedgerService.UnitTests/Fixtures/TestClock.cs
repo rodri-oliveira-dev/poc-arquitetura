@@ -9,5 +9,8 @@ public sealed class TestClock : IClock
         UtcNow = utcNow ?? new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
     }
 
-    public DateTimeOffset UtcNow { get; set; }
+    public DateTimeOffset UtcNow
+    {
+        get; set;
+    }
 }

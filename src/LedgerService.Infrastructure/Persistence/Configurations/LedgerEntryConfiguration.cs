@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+
 using LedgerService.Domain.Entities;
 
 namespace LedgerService.Infrastructure.Persistence.Configurations;

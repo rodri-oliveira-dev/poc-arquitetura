@@ -8,10 +8,12 @@ using BalanceService.Worker.Messaging.PubSub.DeadLetter;
 using BalanceService.Worker.Messaging.Processors;
 using BalanceService.Worker.Observability;
 using BalanceService.Worker.Extensions;
+
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+
 using Moq;
 
 namespace BalanceService.Worker.Tests.Composition;

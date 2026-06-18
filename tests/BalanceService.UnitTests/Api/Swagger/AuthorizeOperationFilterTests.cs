@@ -1,8 +1,11 @@
 using System.Reflection;
+
 using BalanceService.Api.Swagger;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.OpenApi;
+
 using Swashbuckle.AspNetCore.SwaggerGen;
 
 namespace BalanceService.UnitTests.Api.Swagger;
@@ -57,18 +60,24 @@ public sealed class AuthorizeOperationFilterTests
     private sealed class AnonymousController
     {
         [AllowAnonymous]
-        public void Get() { }
+        public void Get()
+        {
+        }
     }
 
     [Authorize(Policy = "scope:balance.read")]
     private sealed class SecuredController
     {
-        public void Post() { }
+        public void Post()
+        {
+        }
     }
 
     private sealed class NoPolicyController
     {
         [Authorize]
-        public void Get() { }
+        public void Get()
+        {
+        }
     }
 }

@@ -2,6 +2,7 @@ using LedgerService.Application.Common.Exceptions;
 using LedgerService.Application.Lancamentos.Queries;
 using LedgerService.Domain.Entities;
 using LedgerService.Domain.Repositories;
+
 using Moq;
 
 namespace LedgerService.UnitTests.Application.Lancamentos.Queries;

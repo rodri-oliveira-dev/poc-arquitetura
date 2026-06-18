@@ -2,6 +2,7 @@ using LedgerService.Domain.Repositories;
 using LedgerService.Infrastructure.Observability;
 using LedgerService.Infrastructure.Persistence;
 using LedgerService.Infrastructure.Persistence.Repositories;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;

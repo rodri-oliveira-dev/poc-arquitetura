@@ -4,7 +4,7 @@ O repositorio usa Trivy para feedback antecipado sobre configuracoes de infraest
 
 ## O que e validado
 
-O hook local `.githooks/pre-push` e a composite action `.github/actions/trivy-repository-scan`, chamada pelo workflow `.github/workflows/terraform-validation.yml`, executam:
+A composite action `.github/actions/trivy-repository-scan`, chamada pelo workflow `.github/workflows/terraform-validation.yml`, executa:
 
 ```powershell
 trivy config `
@@ -115,7 +115,7 @@ chmod +x .githooks/pre-push
 
 No Windows, execute os hooks com Git Bash ou outro shell POSIX compativel.
 
-Quando o Trivy esta instalado, o `pre-push` bloqueia o push se encontrar achados `HIGH` ou `CRITICAL`. Quando o Trivy nao esta instalado, o hook mostra um aviso amigavel e permite o push; a ausencia do Trivy local nao impede o envio da branch.
+O `pre-push` nao executa Trivy automaticamente. Para feedback local antecipado, execute os comandos manuais desta pagina. A ausencia do Trivy local nao impede o envio da branch, porque o Pull Request continua protegido pelo workflow de infraestrutura quando os filtros de caminho se aplicam.
 
 ## Execucao manual
 
@@ -237,8 +237,8 @@ O workflow `infra-security-and-terraform-validation` roda Trivy em pull requests
 
 No CI, a validacao executa independentemente da instalacao local do desenvolvedor. Os scans sao bloqueantes para severidades `HIGH` e `CRITICAL`, porque nao dependem de credenciais cloud nem alteram infraestrutura real.
 
-O hook local serve apenas como feedback antecipado antes do PR; o CI continua sendo a linha de defesa obrigatoria. Por isso, a ausencia local do Trivy nunca bloqueia o `git push`, mas a mesma classe de achado bloqueia o pull request quando detectada pelo workflow.
+O scan local serve apenas como feedback antecipado manual antes do PR; o CI continua sendo a linha de defesa obrigatoria. Por isso, a ausencia local do Trivy nunca bloqueia o `git push`, mas a mesma classe de achado bloqueia o pull request quando detectada pelo workflow.
 
 O workflow tambem executa Terraform e TFLint por meio de `scripts/validate-terraform.sh`. Essa etapa instala as ferramentas no runner, nao usa credenciais cloud e nao executa `terraform plan`, `terraform apply` ou `terraform destroy`.
 
-Se os argumentos comuns do Trivy mudarem no CI, atualize a composite action `.github/actions/trivy-repository-scan` e confira se o hook local `.githooks/pre-push` e os exemplos deste documento continuam equivalentes.
+Se os argumentos comuns do Trivy mudarem no CI, atualize a composite action `.github/actions/trivy-repository-scan` e confira se os exemplos deste documento continuam equivalentes.

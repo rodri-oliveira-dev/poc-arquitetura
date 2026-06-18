@@ -7,12 +7,16 @@ using LedgerService.Domain.Entities;
 using LedgerService.Infrastructure.Persistence;
 using LedgerService.IntegrationTests.Infrastructure;
 using LedgerService.IntegrationTests.Infrastructure.Security;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+
 using Npgsql;
 
 namespace LedgerService.IntegrationTests.Api.Lancamentos;
 
+[Trait("Category", "Container")]
+[Trait("Category", "Integration")]
 [Collection(PostgresLedgerCollection.Name)]
 public sealed class CreateLancamentoPostgresTests : IAsyncLifetime
 {

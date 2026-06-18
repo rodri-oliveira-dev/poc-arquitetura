@@ -36,6 +36,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [Replay e DLQ orientados por contrato](operations/event-replay-and-dlq.md): inspecionar DLQ, validar schema por versao, decidir discard, ack, nack ou redrive e preservar idempotencia.
 - [Estrategia operacional de DLQ](operations/dlq-strategy.md): classificar falhas, decidir discard, retry ou replay/redrive em Pub/Sub e Kafka, preservar idempotencia e orientar observabilidade.
 - [Estrategia operacional de replay seguro](operations/replay-strategy.md): diferenciar retry e replay, definir dry-run, filtros, idempotencia, auditoria e cuidados para Pub/Sub, Kafka, DLQ e Outbox.
+- [Runbook DLQ e replay da Saga do TransferService](operations/transfer-saga-kafka.md): diagnosticar DLQ Kafka, Outbox e reprocessamento local da Saga de transferencia.
 - [Rebuild de projecao do Balance](operations/projection-rebuild.md): calcular saldo reconstruido em paralelo logico, comparar com a projecao atual e gerar relatorio de divergencia sem alterar dados.
 - [Validacao de pull requests](development/pull-request-validation.md): entender checks obrigatorios, workflows e branch protection.
 - [GitHub Pages e LikeC4](development/github-pages.md): gerar e publicar a documentacao arquitetural.
@@ -46,6 +47,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 
 - [LedgerService API](development/ledger-api.md): contratos HTTP de escrita, headers, idempotencia, estornos e reprocessamentos.
 - [BalanceService API](development/balance-api.md): contratos HTTP de leitura de consolidados diarios e por periodo.
+- [TransferService API](development/transfer-api.md): contratos HTTP para solicitacao e consulta de sagas de transferencia.
 - [Contratos logicos de eventos](events/README.md): payloads logicos atuais, produtores, consumidores e mapeamentos Pub/Sub/Kafka dos eventos.
 - [JSON Schemas versionados de eventos](../contracts/events/README.md): schemas e exemplos para validar payloads logicos de eventos.
 - [Versionamento de contratos de eventos](development/event-contract-versioning.md): politica de compatibilidade, transporte, schemas, testes e depreciacao.
@@ -53,6 +55,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [Replay e DLQ orientados por contrato](operations/event-replay-and-dlq.md): runbook operacional para Pub/Sub, Kafka legado, replay, redrive e validacao antes de reprocessar.
 - [Estrategia operacional de DLQ](operations/dlq-strategy.md): criterios operacionais para DLQ de aplicacao, DLQ tecnica, idempotencia, contratos e troubleshooting.
 - [Estrategia operacional de replay seguro](operations/replay-strategy.md): pre-condicoes, filtros, dry-run, auditoria e decisoes de replay seguro em Pub/Sub e Kafka.
+- [Runbook DLQ e replay da Saga do TransferService](operations/transfer-saga-kafka.md): operacao local da DLQ e replay controlado da Outbox/Saga do TransferService com Kafka.
 - [Rebuild de projecao do Balance](operations/projection-rebuild.md): relatorio de divergencia para rebuild paralelo logico antes de qualquer correcao ou troca de projecao.
 - [Contrato LedgerEntryCreated.v1](events/ledger-entry-created-v1.md): contrato legado sem `currency`, aceito para mensagens antigas.
 - [Contrato LedgerEntryCreated.v2](events/ledger-entry-created-v2.md): contrato atual com `currency` obrigatoria.
@@ -82,6 +85,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [Pub/Sub como provider principal](adrs/0078-pubsub-provider-principal-local-emulator.md): adota Pub/Sub como caminho principal, emulator como default local e Kafka como opcao legada.
 - [LedgerEntryCreated.v2 com currency explicita](adrs/0084-ledger-entry-created-v2-currency-explicita.md): cria v2 com `currency` obrigatoria e mantem leitura de v1 como legado.
 - [Separacao de configuracoes locais sensiveis](adrs/0085-separacao-configuracoes-locais-sensiveis-arquivos-versionados.md): registra a decisao de manter secrets locais fora dos arquivos versionados usando exemplos com placeholders.
+- [Saga orquestrada no TransferService com Kafka](adrs/0087-saga-orquestrada-transfer-service-kafka.md): planeja o estudo de transferencias entre merchants com orquestracao central, Outbox transacional, worker assincrono, Kafka explicito, idempotencia por etapa e DLQ de aplicacao.
 - [Pub/Sub como provider alternativo](adrs/0077-pubsub-provider-mensageria.md): historico do plano incremental que precedeu a adocao principal.
 - [Plano de migracao Auth.Api para Keycloak/OIDC](adrs/0073-plano-migracao-auth-api-keycloak-oidc.md): execucao incremental mantendo validacao JWT offline via JWKS.
 - [Keycloak como identidade principal](adrs/0074-keycloak-como-identidade-principal.md): decisao final de remover Auth.Api da stack principal e mante-lo apenas como legado por overlay.

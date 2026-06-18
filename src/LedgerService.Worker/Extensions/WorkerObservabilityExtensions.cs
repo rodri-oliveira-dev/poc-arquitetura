@@ -1,6 +1,7 @@
 using LedgerService.Infrastructure.Observability;
 using LedgerService.Worker.HostedServices;
 using LedgerService.Worker.Observability;
+
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;

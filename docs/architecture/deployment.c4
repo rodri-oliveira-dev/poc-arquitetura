@@ -92,9 +92,29 @@ deployment {
         }
       }
 
+      composeService transferApi "transfer-service" {
+        technology "Docker container / ASP.NET Core"
+        description "Servico Docker Compose que executa a TransferService.Api."
+
+        api = instanceOf transfer.transferApi {
+          title "poc-transfer-service"
+          description "Container local da TransferService.Api exposto na porta 5230 do host e 8080 no container."
+        }
+      }
+
+      composeService transferWorker "transfer-worker" {
+        technology "Docker container / .NET Worker Service"
+        description "Servico Docker Compose ativado pelo profile legacy-kafka para processar Sagas do TransferService e publicar Outbox no Kafka."
+
+        worker = instanceOf transfer.transferWorker {
+          title "poc-transfer-worker"
+          description "Worker local do TransferService sem HTTP, usando Kafka explicitamente e chamando LedgerService.Api pela rede interna."
+        }
+      }
+
       composeService postgresDb "postgres-db" {
         technology "PostgreSQL 16"
-        description "Servico Docker Compose que executa o PostgreSQL local unico com database appdb, schemas ledger e balance, e roles separadas por responsabilidade."
+        description "Servico Docker Compose que executa o PostgreSQL local unico com database appdb, schemas ledger, balance e transfer, e roles separadas por responsabilidade."
 
         ledgerSchema = instanceOf ledger.ledgerDb {
           title "poc-postgres-db / schema ledger"
@@ -104,6 +124,11 @@ deployment {
         balanceSchema = instanceOf balance.balanceDb {
           title "poc-postgres-db / schema balance"
           description "Schema local do Balance no PostgreSQL unico, acessado por balance_read_user, balance_write_user e balance_migrator_user conforme responsabilidade."
+        }
+
+        transferSchema = instanceOf transfer.transferDb {
+          title "poc-postgres-db / schema transfer"
+          description "Schema local do Transfer no PostgreSQL unico, acessado por transfer_app_user em runtime e transfer_migrator_user para migrations."
         }
       }
 

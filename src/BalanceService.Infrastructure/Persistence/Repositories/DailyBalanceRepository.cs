@@ -1,7 +1,9 @@
 using BalanceService.Application.Abstractions.Persistence;
 using BalanceService.Domain.Balances;
 using BalanceService.Infrastructure.Persistence;
+
 using Microsoft.EntityFrameworkCore;
+
 using System.Globalization;
 
 namespace BalanceService.Infrastructure.Persistence.Repositories;

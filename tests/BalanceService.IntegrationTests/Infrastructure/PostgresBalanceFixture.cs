@@ -3,10 +3,13 @@ using BalanceService.Application.Abstractions.Time;
 using BalanceService.Application.Balances.Commands;
 using BalanceService.Infrastructure.Persistence;
 using BalanceService.Infrastructure.Persistence.Repositories;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+
 using Npgsql;
+
 using Testcontainers.PostgreSql;
 
 namespace BalanceService.IntegrationTests.Infrastructure;
@@ -159,6 +162,9 @@ public sealed class PostgresBalanceFixture : IAsyncLifetime
             UtcNow = utcNow;
         }
 
-        public DateTimeOffset UtcNow { get; }
+        public DateTimeOffset UtcNow
+        {
+            get;
+        }
     }
 }

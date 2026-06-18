@@ -5,6 +5,7 @@
 A solucao atual e uma arquitetura hibrida:
 
 - Clean Architecture/DDD em LedgerService e BalanceService, com projetos `Api`, `Application`, `Domain` e `Infrastructure`.
+- Esqueleto inicial de Clean Architecture para TransferService, com projetos `Api`, `Application`, `Domain`, `Infrastructure` e `Worker`, ainda sem regra de negocio, persistencia ou endpoints funcionais.
 - Elementos hexagonais onde existem contratos de persistencia e implementacoes em Infrastructure.
 - Layered architecture na entrega HTTP, porque controllers, auth e composicao ficam concentrados nos projetos `*.Api`, com defaults tecnicos comuns em `Shared/ApiDefaults`.
 - Workers dedicados (`LedgerService.Worker` e `BalanceService.Worker`) para processamento assincrono continuo, sem superficie HTTP.
@@ -148,6 +149,21 @@ Pontos de atencao:
 - As consultas diaria e por periodo ficam diretamente em handlers MediatR. As interfaces e services intermediarios foram removidos porque apenas encaminhavam chamadas sem representar boundary ou variacao real.
 - A ausencia de currency no evento obriga default `BRL` no handler. Isso e uma fragilidade de contrato, nao uma regra de dominio consolidada.
 
+### TransferService
+
+O `TransferService` existe como bounded context de transferencias entre merchants conforme ADR-0087. A estrutura atual contem aggregate de Saga, portas de persistencia/idempotencia/Outbox em Application, `TransferServiceDbContext`, mappings EF Core, migration do schema `transfer`, repository concreto, idempotencia persistida, Outbox transacional, API HTTP de solicitacao/status, Worker de Saga, client HTTP do Ledger e publisher Kafka da Outbox.
+
+A publicacao continua fora da Application: a Application grava o evento logico pela porta de Outbox, enquanto Infrastructure mapeia `event_type`, `topic`, headers e `message_key`; o Worker publica no Kafka e envia payload invalido ou erro definitivo para DLQ de aplicacao.
+
+Pontos de atencao:
+
+- `TransferService.Domain` nao deve referenciar nenhum projeto interno.
+- `TransferService.Application` pode depender apenas do dominio local.
+- `TransferService.Infrastructure` pode depender de Application e Domain, concentrando EF Core, PostgreSQL, Outbox, idempotencia persistida e mapeamento Kafka.
+- `TransferService.Api` expoe HTTP e nao registra HostedServices de Worker.
+- `TransferService.Worker` registra HostedServices, client HTTP do Ledger e publisher Kafka, sem controllers, Swagger ou CORS.
+- Pub/Sub nao faz parte do fluxo do TransferService definido pela ADR-0087.
+
 ### Auth.Api legado
 
 Projeto unico e a escolha correta neste momento. Criar `Auth.Application`, `Auth.Domain` e `Auth.Infrastructure` agora seria overengineering.
@@ -173,6 +189,7 @@ Pontos de atencao:
 A arquitetura ideal para este projeto deve ser minimalista e pragmatica, com robustez seletiva:
 
 - manter quatro camadas para LedgerService e BalanceService;
+- manter o TransferService como bounded context separado, com Saga e Outbox Kafka isolados do fluxo Pub/Sub de Ledger/Balance;
 - manter APIs e workers como processos separados, com composition root e `ServiceName` explicitos por processo;
 - manter Auth.Api legado em projeto unico enquanto ele existir;
 - reforcar boundaries onde ha risco real: contratos de eventos, tempo/clock, outbox e idempotencia;

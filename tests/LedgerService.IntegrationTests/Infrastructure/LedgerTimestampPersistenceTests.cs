@@ -1,11 +1,14 @@
 using LedgerService.Infrastructure.Persistence;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LedgerService.IntegrationTests.Infrastructure;
 
+[Trait("Category", "Container")]
+[Trait("Category", "Integration")]
 [Collection(PostgresLedgerCollection.Name)]
-public sealed class LedgerTimestampPersistenceTests : IAsyncLifetime
+public sealed class LedgerTimestampPersistenceTests(PostgresLedgerFixture fixture) : IAsyncLifetime
 {
     private static readonly HashSet<(string Table, string Column)> ExpectedTimestampColumns =
     [
@@ -30,12 +33,7 @@ public sealed class LedgerTimestampPersistenceTests : IAsyncLifetime
         ("reprocessamentos_lancamentos", "rejected_at")
     ];
 
-    private readonly PostgresLedgerApiFactory _factory;
-
-    public LedgerTimestampPersistenceTests(PostgresLedgerFixture fixture)
-    {
-        _factory = new PostgresLedgerApiFactory(fixture.ConnectionString);
-    }
+    private readonly PostgresLedgerApiFactory _factory = new PostgresLedgerApiFactory(fixture.ConnectionString);
 
     public async ValueTask InitializeAsync()
     {

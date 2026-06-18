@@ -118,6 +118,7 @@ try {
 
   Invoke-OpenApiGeneration "LedgerService.Api" "LedgerService.Api" "ledger.v1.json"
   Invoke-OpenApiGeneration "BalanceService.Api" "BalanceService.Api" "balance.v1.json"
+  Invoke-OpenApiGeneration "TransferService.Api" "TransferService.Api" "transfer.v1.json"
 }
 finally {
   [System.Environment]::SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", $previousAspNetCoreEnvironment, "Process")

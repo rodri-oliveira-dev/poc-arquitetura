@@ -20,12 +20,24 @@ public sealed record ProjectionRebuildDivergenceReportResult
         Events = events;
     }
 
-    public string ReportId { get; init; }
-    public bool Mutated { get; init; }
-    public string FilterDescription { get; init; }
+    public string ReportId
+    {
+        get; init;
+    }
+    public bool Mutated
+    {
+        get; init;
+    }
+    public string FilterDescription
+    {
+        get; init;
+    }
 
     [JsonIgnore]
-    public ProjectionRebuildDivergenceSummary Summary { get; init; }
+    public ProjectionRebuildDivergenceSummary Summary
+    {
+        get; init;
+    }
 
     public int TotalFound => Summary.TotalFound;
     public int TotalValid => Summary.TotalValid;
@@ -33,6 +45,12 @@ public sealed record ProjectionRebuildDivergenceReportResult
     public int TotalDuplicates => Summary.TotalDuplicates;
     public int TotalCompared => Summary.TotalCompared;
     public bool HasDivergences => Summary.HasDivergences;
-    public IReadOnlyList<ProjectionRebuildDivergenceItem> Items { get; init; }
-    public IReadOnlyList<ProjectionRebuildEventItemResult> Events { get; init; }
+    public IReadOnlyList<ProjectionRebuildDivergenceItem> Items
+    {
+        get; init;
+    }
+    public IReadOnlyList<ProjectionRebuildEventItemResult> Events
+    {
+        get; init;
+    }
 }

@@ -95,7 +95,10 @@ public sealed class EventReplayMessageEvaluator
     private static LedgerEntryCreatedEvent NormalizeEvent(LedgerEntryCreatedEvent evt, string eventVersion)
     {
         if (string.Equals(eventVersion, "v1", StringComparison.Ordinal))
-            return evt with { Currency = LegacyV1CurrencyFallback };
+            return evt with
+            {
+                Currency = LegacyV1CurrencyFallback
+            };
 
         return evt;
     }

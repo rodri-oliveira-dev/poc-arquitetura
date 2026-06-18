@@ -15,13 +15,22 @@ public sealed record ProjectionRebuildDivergenceItem
     }
 
     [JsonIgnore]
-    public ProjectionRebuildDivergenceIdentity Identity { get; init; }
+    public ProjectionRebuildDivergenceIdentity Identity
+    {
+        get; init;
+    }
 
     [JsonIgnore]
-    public ProjectionRebuildDivergenceValues Values { get; init; }
+    public ProjectionRebuildDivergenceValues Values
+    {
+        get; init;
+    }
 
     [JsonIgnore]
-    public ProjectionRebuildDivergenceCounters Counters { get; init; }
+    public ProjectionRebuildDivergenceCounters Counters
+    {
+        get; init;
+    }
 
     public string? AccountId => Identity.AccountId;
     public string MerchantId => Identity.MerchantId;

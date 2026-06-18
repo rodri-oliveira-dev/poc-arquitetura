@@ -12,7 +12,7 @@ O target e idempotente, roda apos o build, ignora CI (`CI=true`) e nao falha o b
 
 - `commit-msg`: valida a primeira linha da mensagem de commit com Conventional Commits.
 - `post-merge`: apos `git merge` ou `git pull`, restaura as tools locais e as dependencias da solution.
-- `pre-push`: valida Terraform versionado, executa Trivy quando disponivel localmente e executa restore, build e testes sem cobertura quando houver alteracoes impactantes. A cobertura completa e opt-in com `PRE_PUSH_COVERAGE=true`.
+- `pre-push`: executa validacoes locais leves quando houver alteracoes impactantes: Terraform `fmt -check` para arquivos Terraform, restore, formatacao dos arquivos `.cs` alterados, build e testes unitarios rapidos sem cobertura. Testes de integracao/container, cobertura, SonarQube, Trivy e Terraform validate completo ficam no Pull Request/GitHub Actions.
 
 ## Politica do post-merge
 
@@ -36,32 +36,29 @@ Antes de executar validacoes, o `pre-push` tenta identificar os arquivos alterad
 - em execucoes manuais sem entrada padrao do Git, aplica a mesma estrategia contra `HEAD`;
 - se nenhuma base segura estiver disponivel, executa as validacoes por seguranca.
 
-Quando existem arquivos `*.tf` versionados em `infra/terraform`, o hook executa primeiro `scripts/validate-terraform.sh`. Essa etapa exige Terraform CLI e TFLint, roda apenas `fmt -check`, `init -backend=false`, `validate` e lint recursivo, sem executar `plan`, `apply`, `destroy` ou autenticacao GCP. O `init` sem backend e uma validacao sintatica e nao exercita locking remoto; para plan real use o backend GCS configurado no ambiente. Consulte [setup local Terraform e GCP](terraform-gcp-local-setup.md).
+Quando existem alteracoes em `*.tf` ou `*.tfvars`, o hook executa apenas `terraform fmt -check -recursive ./infra/terraform`, se a Terraform CLI estiver disponivel. Se a ferramenta nao existir localmente, o hook avisa e permite o push, porque o workflow `infra-security-and-terraform-validation` executa a validacao completa no Pull Request.
 
-Na sequencia, o hook tenta executar Trivy para validar Dockerfiles, Terraform, misconfigurations, secrets e vulnerabilidades detectaveis no filesystem. Se o comando `trivy` nao estiver instalado, o hook exibe um aviso e permite o push. Se o Trivy estiver instalado e encontrar achados `HIGH` ou `CRITICAL`, o push e bloqueado. Consulte [validacao de seguranca com Trivy](trivy-security-scan.md).
+O `pre-push` nao executa Trivy localmente por padrao. Os scans bloqueantes de Dockerfile, Terraform, misconfigurations, secrets e filesystem rodam no GitHub Actions pelo workflow `infra-security-and-terraform-validation` quando ha mudancas em Terraform, Dockerfiles, Compose, na action de Trivy ou no proprio workflow. Consulte [validacao de seguranca com Trivy](trivy-security-scan.md).
 
-Os scans do Trivy ignoram diretorios gerados, dependencias locais e caches como `node_modules`, `dist`, `bin`, `obj`, `TestResults`, `coverage` e `.terraform` para evitar falsos positivos fora dos arquivos versionados do projeto.
-
-O hook executa restore, build e testes rapidos sem cobertura quando encontra qualquer arquivo impactante, incluindo:
+O hook executa restore, `dotnet format whitespace --verify-no-changes` somente para arquivos `.cs` alterados, build e testes unitarios rapidos sem cobertura quando encontra qualquer arquivo .NET impactante, incluindo:
 
 - codigo, projetos e solution: `*.cs`, `*.csproj`, `*.sln`, `*.slnx`;
 - configuracao de build/teste: `*.props`, `*.targets`, `*.runsettings`, `.editorconfig`, `global.json`, `NuGet.config`, `Directory.Build.*`, `Directory.Packages.props`, `.config/dotnet-tools.json`, `coverlet.runsettings`;
-- configuracoes conservadoras: `*.json`, `*.yml`, `*.yaml`, `*.ruleset`;
-- Docker e compose: `Dockerfile`, `*/Dockerfile`, `compose.yaml`, `compose.*.yaml`;
-- caminhos operacionais: `src/`, `tests/`, `.github/workflows/`, `.githooks/`, `scripts/`, `tools/`, `loadtests/k6/lib/`, `loadtests/k6/scenarios/`;
+- configuracoes de analise: `*.ruleset`, `.globalconfig`;
+- caminhos operacionais .NET ou de automacao local: `src/`, `tests/`, `.github/workflows/`, `.githooks/`, `scripts/`, `tools/`;
 - scripts raiz usados por validacao: `test.sh` e `test.ps1`.
 
-O hook pula build, testes e cobertura quando todas as alteracoes sao claramente nao impactantes, como Markdown, arquivos em `docs/`, imagens de documentacao (`png`, `jpg`, `jpeg`, `gif`, `svg`, `webp`), diagramas Mermaid/LikeC4 e notas textuais que nao entram no build.
+O hook pula restore, formatacao, build e testes quando todas as alteracoes sao claramente nao impactantes para validacao local, como Markdown, arquivos em `docs/`, imagens de documentacao (`png`, `jpg`, `jpeg`, `gif`, `svg`, `webp`), diagramas Mermaid/LikeC4 e notas textuais que nao entram no build. Mudancas em Dockerfile, Compose e Trivy sao validadas no Pull Request pelo workflow de infraestrutura quando seus filtros se aplicam.
 
 Se houver mistura de documentacao com qualquer arquivo impactante, as validacoes rapidas sao executadas. Em caso de duvida, a regra e validar.
 
-Para executar tambem o gate completo de cobertura no `pre-push`, habilite explicitamente:
+Os testes locais do `pre-push` usam o filtro:
 
 ```bash
-PRE_PUSH_COVERAGE=true .githooks/pre-push
+Category!=Integration&Category!=Container&Category!=Contract
 ```
 
-Com `PRE_PUSH_COVERAGE=true`, o hook usa `coverlet.runsettings`, grava resultados em `TestResults/pre-push`, consolida a cobertura com ReportGenerator e valida cobertura total e dos assemblies `LedgerService.Worker` e `BalanceService.Worker` contra `COVERAGE_THRESHOLD` (85% por padrao).
+Isso evita executar testes de integracao, contrato ou container no push local. O hook nao depende de Docker ligado: testes baseados em Testcontainers/PostgreSQL e testes opcionais de emulador ficam para o PR ou execucao manual explicita.
 
 ## Padrao de commit
 
@@ -116,10 +113,10 @@ Validar `pre-push`:
 .githooks/pre-push
 ```
 
-Por padrao, essa execucao manual roda apenas restore, build e testes sem cobertura. Para incluir cobertura:
+Por padrao, essa execucao manual roda apenas validacoes locais leves sem cobertura. Para executar a validacao completa com cobertura:
 
 ```bash
-PRE_PUSH_COVERAGE=true .githooks/pre-push
+./test.sh
 ```
 
 Validar `post-merge` manualmente:
@@ -132,13 +129,14 @@ Para executar a validacao rapida manualmente sem passar pelo hook, use os comand
 
 ```bash
 dotnet restore ./LedgerService.slnx
+dotnet format whitespace ./LedgerService.slnx --verify-no-changes --no-restore --verbosity minimal --include <arquivos-cs-alterados>
 dotnet build ./LedgerService.slnx --configuration Release --no-restore
-dotnet test ./LedgerService.slnx --configuration Release --no-build --no-restore
+dotnet test ./LedgerService.slnx --configuration Release --no-build --no-restore --filter "Category!=Integration&Category!=Container&Category!=Contract"
 ```
 
-Para a validacao completa com cobertura, use `./test.sh`, `./test.ps1` ou `PRE_PUSH_COVERAGE=true .githooks/pre-push`.
+Para a validacao completa com cobertura, use `./test.sh` ou `./test.ps1`. Esses comandos podem executar testes de integracao/container e, portanto, precisam de Docker-compatible API quando a suite completa exigir Testcontainers.
 
-Para executar apenas a validacao Trivy manualmente:
+Para executar apenas a validacao Trivy manualmente, use os mesmos comandos de scan do CI:
 
 ```bash
 trivy config \
@@ -202,10 +200,11 @@ Mudancas em codigo, projetos, solution, build, testes, Docker, workflows, hooks 
 
 - Mensagem de commit invalida: ajuste a primeira linha para `type: descricao` ou `type(scope): descricao`.
 - Build ou testes falhando: corrija o erro local antes de enviar o push.
-- Cobertura abaixo de 85% em execucoes completas: adicione ou ajuste testes para cobrir o comportamento alterado.
+- Cobertura abaixo de 85% em execucoes completas ou no CI: adicione ou ajuste testes para cobrir o comportamento alterado.
 - Ferramentas POSIX indisponiveis: execute os hooks em ambiente compativel com Git Bash no Windows ou shell POSIX no Linux/macOS.
-- Terraform CLI ou TFLint ausente: instale as ferramentas descritas em [setup local Terraform e GCP](terraform-gcp-local-setup.md).
-- Trivy ausente: instale a ferramenta para feedback local antecipado ou envie o push sabendo que o CI executara a validacao. A ausencia local do Trivy nao bloqueia o push.
+- Terraform CLI ausente: o `fmt` local e ignorado, mas o Pull Request executara a validacao completa. Instale as ferramentas descritas em [setup local Terraform e GCP](terraform-gcp-local-setup.md) para feedback antecipado.
+- Trivy ausente: nao afeta o `pre-push`; o CI executara a validacao bloqueante quando houver mudancas cobertas pelo workflow de infraestrutura.
+- Docker desligado: o `pre-push` continua executando apenas testes unitarios. Testes `Integration`, `Container` e `Contract` ficam para o Pull Request ou execucao manual.
 
 ## Desabilitacao excepcional
 

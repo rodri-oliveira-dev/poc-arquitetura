@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 
 namespace LedgerService.IntegrationTests.Api;
 
+[Trait("Category", "Integration")]
 public sealed class HealthEndpointTests : IClassFixture<LedgerApiFactory>
 {
     private readonly LedgerApiFactory _factory;

@@ -156,7 +156,10 @@ public sealed partial class ProjectionRebuildDivergenceReportHandler
                 !seenEventIds.Add(evaluation.EventId))
             {
                 evaluated.Add(new EvaluatedCandidate(
-                    item with { Status = ProjectionRebuildEventItemStatus.DuplicateInBatch },
+                    item with
+                    {
+                        Status = ProjectionRebuildEventItemStatus.DuplicateInBatch
+                    },
                     null,
                     candidate.AccountId));
                 continue;

@@ -1,9 +1,12 @@
 using FluentValidation;
+
 using BalanceService.Api.Contracts;
 using BalanceService.Application.Common.Exceptions;
 using BalanceService.Domain.Exceptions;
+
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
+
 using System.Text.Json;
 
 namespace BalanceService.Api.Middlewares;

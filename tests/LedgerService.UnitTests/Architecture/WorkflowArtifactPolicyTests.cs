@@ -49,8 +49,8 @@ public sealed partial class WorkflowArtifactPolicyTests
         Assert.NotEmpty(actionReferences);
         foreach (Match actionReference in actionReferences)
         {
-        Assert.Matches("^[0-9a-f]{40}$", actionReference.Groups["ref"].Value);
-        Assert.Matches(@"^v\d+", actionReference.Groups["comment"].Value);
+            Assert.Matches("^[0-9a-f]{40}$", actionReference.Groups["ref"].Value);
+            Assert.Matches(@"^v\d+", actionReference.Groups["comment"].Value);
         }
     }
 
@@ -65,8 +65,8 @@ public sealed partial class WorkflowArtifactPolicyTests
         Assert.NotEmpty(uploadArtifactSteps);
         foreach (Match step in uploadArtifactSteps)
         {
-        Assert.Contains("if-no-files-found: warn", step.Value);
-        Assert.Matches(@"retention-days:\s*\d+", step.Value);
+            Assert.Contains("if-no-files-found: warn", step.Value);
+            Assert.Matches(@"retention-days:\s*\d+", step.Value);
         }
     }
 

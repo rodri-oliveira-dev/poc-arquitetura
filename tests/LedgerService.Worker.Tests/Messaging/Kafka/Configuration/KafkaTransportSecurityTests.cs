@@ -2,11 +2,14 @@ using LedgerService.Worker.Extensions;
 using LedgerService.Worker.Messaging.Kafka.Configuration;
 using LedgerService.Worker.Messaging.Kafka.Consumers;
 using LedgerService.Worker.Messaging.Processors;
+
 using Confluent.Kafka;
+
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+
 using Moq;
 
 namespace LedgerService.Worker.Tests.Messaging.Kafka.Configuration;

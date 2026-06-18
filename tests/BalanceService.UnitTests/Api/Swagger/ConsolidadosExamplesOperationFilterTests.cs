@@ -87,6 +87,8 @@ public sealed class ConsolidadosExamplesOperationFilterTests
 
     private sealed class OtherController
     {
-        public static void Get() { }
+        public static void Get()
+        {
+        }
     }
 }

@@ -5,6 +5,7 @@ using LedgerService.Application.Lancamentos.Commands;
 using LedgerService.Application.Lancamentos.Events;
 using LedgerService.Domain.Entities;
 using LedgerService.Domain.Repositories;
+
 using Moq;
 
 namespace LedgerService.UnitTests.Application.Lancamentos.Commands;
@@ -127,7 +128,10 @@ public sealed class SolicitarReprocessamentoLancamentosHandlerTests
         var idemRepo = new Mock<IIdempotencyRecordRepository>(MockBehavior.Strict);
         var outboxRepo = new Mock<IOutboxMessageRepository>(MockBehavior.Strict);
         var uow = new Mock<IUnitOfWork>(MockBehavior.Strict);
-        var command = ValidCommand() with { AuthorizedMerchantIds = ["m2"] };
+        var command = ValidCommand() with
+        {
+            AuthorizedMerchantIds = ["m2"]
+        };
         var sut = CreateSut(reprocessamentoRepo, idemRepo, outboxRepo, uow);
 
         var act = async () => await sut.Handle(command, CancellationToken.None);

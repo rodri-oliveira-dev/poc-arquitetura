@@ -13,13 +13,13 @@ public sealed class ComposeEnvGenYamlTests
         try
         {
             var exitCode = ComposeEnvGen.Program.Main(["--compose", composePath, "--out", outputPath]);
-        Assert.Equal(0, exitCode);
-        Assert.True(File.Exists(outputPath));
+            Assert.Equal(0, exitCode);
+            Assert.True(File.Exists(outputPath));
             var generatedEnvironment = File.ReadAllLines(outputPath);
-        Assert.Contains("LEDGER_SERVICE_NAME=ledger-service", generatedEnvironment);
-        Assert.Contains("BALANCE_SERVICE_NAME=balance-service", generatedEnvironment);
-        Assert.Contains("BASE_URL_LEDGER=http://ledger-service:8080", generatedEnvironment);
-        Assert.Contains("BASE_URL_BALANCE=http://balance-service:8080", generatedEnvironment);
+            Assert.Contains("LEDGER_SERVICE_NAME=ledger-service", generatedEnvironment);
+            Assert.Contains("BALANCE_SERVICE_NAME=balance-service", generatedEnvironment);
+            Assert.Contains("BASE_URL_LEDGER=http://ledger-service:8080", generatedEnvironment);
+            Assert.Contains("BASE_URL_BALANCE=http://balance-service:8080", generatedEnvironment);
         }
         finally
         {

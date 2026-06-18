@@ -22,16 +22,34 @@ public sealed record PartialProjectionRebuildResult
         Items = items;
     }
 
-    public string RebuildId { get; init; }
-    public bool DryRun { get; init; }
-    public bool Mutated { get; init; }
-    public string FilterDescription { get; init; }
+    public string RebuildId
+    {
+        get; init;
+    }
+    public bool DryRun
+    {
+        get; init;
+    }
+    public bool Mutated
+    {
+        get; init;
+    }
+    public string FilterDescription
+    {
+        get; init;
+    }
 
     [JsonIgnore]
-    public ProjectionRebuildEvaluationSummary EvaluationSummary { get; init; }
+    public ProjectionRebuildEvaluationSummary EvaluationSummary
+    {
+        get; init;
+    }
 
     [JsonIgnore]
-    public ProjectionRebuildMutationSummary MutationSummary { get; init; }
+    public ProjectionRebuildMutationSummary MutationSummary
+    {
+        get; init;
+    }
 
     public int TotalFound => EvaluationSummary.TotalFound;
     public int TotalValid => EvaluationSummary.TotalValid;
@@ -42,5 +60,8 @@ public sealed record PartialProjectionRebuildResult
     public int TotalRebuilt => MutationSummary.TotalRebuilt;
     public int TotalDailyBalancesDeleted => MutationSummary.TotalDailyBalancesDeleted;
     public int TotalProcessedEventsDeleted => MutationSummary.TotalProcessedEventsDeleted;
-    public IReadOnlyList<PartialProjectionRebuildItemResult> Items { get; init; }
+    public IReadOnlyList<PartialProjectionRebuildItemResult> Items
+    {
+        get; init;
+    }
 }

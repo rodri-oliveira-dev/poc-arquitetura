@@ -410,7 +410,10 @@ public sealed class LedgerEntryCreatedMessageProcessorTests
     private sealed class CapturingDeadLetterProducer : IDeadLetterPublisher
     {
         public List<DeadLetterMessage> Messages { get; } = new();
-        public bool ThrowOnProduce { get; init; }
+        public bool ThrowOnProduce
+        {
+            get; init;
+        }
 
         public Task PublishAsync(DeadLetterMessage message, CancellationToken cancellationToken)
         {

@@ -47,6 +47,7 @@ Location: /api/v1/lancamentos/lan_12345678
 ```json
 {
   "id": "lan_12345678",
+  "lancamentoId": "11111111-1111-1111-1111-111111111111",
   "merchantId": "m1",
   "type": "CREDIT",
   "amount": "10.00",

@@ -18,7 +18,7 @@ Quando ha qualquer arquivo fora desse conjunto, ou quando a deteccao de arquivos
 - `dotnet build ./LedgerService.slnx --configuration Release --no-restore`;
 - `dotnet test ./LedgerService.slnx --configuration Release --no-build --no-restore`.
 
-Ele nao executa verificacao de vulnerabilidades, cobertura ou publicacao de relatorios, e nao chama `test.sh`. Essas responsabilidades continuam nos workflows especificos, como `dependency-security-review` e `main-dotnet-ci`.
+Ele nao executa verificacao de vulnerabilidades, cobertura ou publicacao de relatorios, e nao chama `test.sh`. Ele executa a suite de testes sem filtro, portanto inclui testes `Integration`, `Container` e `Contract` quando existirem e quando o runner disponibilizar as dependencias esperadas. As demais responsabilidades continuam nos workflows especificos, como `dependency-security-review`, `main-dotnet-ci` e `infra-security-and-terraform-validation`.
 
 O workflow roda em:
 

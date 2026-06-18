@@ -200,3 +200,15 @@ Use Conventional Commits:
 * `ci:`
 
 Antes de commitar, revise o diff e execute validacoes proporcionais ao impacto. Nao crie commit se houver falha de build/teste sem registrar claramente o motivo.
+
+Quando houver arquivos `.cs` alterados, valide a formatacao antes do commit usando `dotnet format` restrito aos arquivos C# modificados, para antecipar o hook de `pre-push`:
+
+```powershell
+$csFiles = @(
+  git diff --name-only --diff-filter=ACMRT HEAD -- '*.cs'
+  git ls-files --others --exclude-standard -- '*.cs'
+) | Sort-Object -Unique
+if ($csFiles) { dotnet format ./LedgerService.slnx --include $csFiles --verify-no-changes }
+```
+
+Se a verificacao falhar, corrija a formatacao e repita a validacao antes de criar ou emendar o commit. Evite deixar churn de `dotnet format` em arquivos fora do escopo; quando uma execucao ampla tocar arquivos nao relacionados, restaure o ruido e mantenha apenas as mudancas necessarias.

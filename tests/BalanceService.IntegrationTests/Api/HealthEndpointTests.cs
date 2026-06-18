@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 
 namespace BalanceService.IntegrationTests.Api;
 
+[Trait("Category", "Integration")]
 public sealed class HealthEndpointTests : IClassFixture<BalanceApiFactory>
 {
     private readonly BalanceApiFactory _factory;
@@ -23,7 +24,7 @@ public sealed class HealthEndpointTests : IClassFixture<BalanceApiFactory>
     {
         var res = await _client.GetAsync("/health", TestContext.Current.CancellationToken);
         Assert.Equal(System.Net.HttpStatusCode.OK, res.StatusCode);
-        Assert.Equal("ok", (await res.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)));
+        Assert.Equal("ok", await res.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.True(res.Headers.TryGetValues("X-Correlation-Id", out var values));
         Assert.True(Guid.TryParse(Assert.Single(values), out _));
     }

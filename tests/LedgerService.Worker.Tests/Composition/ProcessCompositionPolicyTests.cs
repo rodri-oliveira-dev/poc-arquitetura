@@ -9,10 +9,12 @@ using LedgerService.Worker.Messaging.Kafka.Producers;
 using LedgerService.Worker.Messaging.PubSub.Configuration;
 using LedgerService.Worker.Messaging.PubSub.Producers;
 using LedgerService.Worker.Outbox;
+
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+
 using Moq;
 
 namespace LedgerService.Worker.Tests.Composition;

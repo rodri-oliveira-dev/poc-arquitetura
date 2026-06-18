@@ -1,6 +1,7 @@
 extern alias LedgerWorker;
 
 using System.Collections.Concurrent;
+
 using LedgerService.Application.Outbox.Retry;
 using LedgerService.Domain.Entities;
 using LedgerService.Domain.Repositories;
@@ -8,27 +9,27 @@ using LedgerService.Infrastructure.Observability;
 using LedgerService.Infrastructure.Persistence;
 using LedgerService.Infrastructure.Persistence.Repositories;
 using LedgerService.IntegrationTests.Infrastructure;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+
 using IOutboxMessagePublisher = LedgerWorker::LedgerService.Worker.Messaging.Abstractions.IOutboxMessagePublisher;
 using MessagePublishException = LedgerWorker::LedgerService.Worker.Messaging.Abstractions.MessagePublishException;
-using OutboxPublisherService = LedgerWorker::LedgerService.Worker.Outbox.OutboxPublisherService;
 using OutboxPublisherOptions = LedgerWorker::LedgerService.Worker.Outbox.OutboxPublisherOptions;
+using OutboxPublisherService = LedgerWorker::LedgerService.Worker.Outbox.OutboxPublisherService;
 
 namespace LedgerService.IntegrationTests.Outbox;
 
+[Trait("Category", "Container")]
+[Trait("Category", "Integration")]
 [Collection(PostgresLedgerCollection.Name)]
-public sealed class OutboxPublisherWorkerTests
+public sealed class OutboxPublisherWorkerTests(PostgresLedgerFixture fixture)
 {
-    private readonly PostgresLedgerFixture _fixture;
-
-    public OutboxPublisherWorkerTests(PostgresLedgerFixture fixture)
-    {
-        _fixture = fixture;
-    }
+    private readonly PostgresLedgerFixture _fixture = fixture;
+    private static readonly string[] collection = new[] { "publisher-1", "publisher-2" };
 
     [Fact]
     public async Task Worker_should_mark_batch_as_processed_when_publish_succeeds()
@@ -111,7 +112,7 @@ public sealed class OutboxPublisherWorkerTests
             x => x.Id == outboxId,
             TestContext.Current.CancellationToken);
         Assert.Equal(OutboxStatus.Processing, refreshed.Status);
-        Assert.Contains(refreshed.LockOwner, new[] { "publisher-1", "publisher-2" });
+        Assert.Contains(refreshed.LockOwner, collection);
         Assert.NotNull(refreshed.LockedUntil);
     }
 
@@ -252,9 +253,11 @@ public sealed class OutboxPublisherWorkerTests
     {
         var ids = new List<Guid>(count);
         for (var index = 0; index < count; index++)
+        {
             ids.Add(await SeedPendingMessageAsync(DateTime.UtcNow.AddMinutes(-count + index)));
+        }
 
-        return ids.ToArray();
+        return [.. ids];
     }
 
     private ServiceProvider CreateProvider(
@@ -340,19 +343,17 @@ public sealed class OutboxPublisherWorkerTests
         }
     }
 
-    private sealed class ConcurrencyTrackingOutboxMessagePublisher : RecordingOutboxMessagePublisher
+    private sealed class ConcurrencyTrackingOutboxMessagePublisher(int expectedParallelism) : RecordingOutboxMessagePublisher
     {
-        private readonly int _expectedParallelism;
+        private readonly int _expectedParallelism = expectedParallelism;
         private readonly TaskCompletionSource _release = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private int _activePublishers;
         private int _peakParallelism;
 
-        public ConcurrencyTrackingOutboxMessagePublisher(int expectedParallelism)
+        public TaskCompletionSource ExpectedParallelismReached
         {
-            _expectedParallelism = expectedParallelism;
-        }
-
-        public TaskCompletionSource ExpectedParallelismReached { get; } =
+            get;
+        } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public int PeakParallelism => _peakParallelism;
@@ -364,7 +365,9 @@ public sealed class OutboxPublisherWorkerTests
             var activePublishers = Interlocked.Increment(ref _activePublishers);
             UpdatePeakParallelism(activePublishers);
             if (activePublishers == _expectedParallelism)
+            {
                 ExpectedParallelismReached.TrySetResult();
+            }
 
             try
             {
@@ -385,31 +388,33 @@ public sealed class OutboxPublisherWorkerTests
             {
                 var previous = Interlocked.CompareExchange(ref _peakParallelism, activePublishers, peak);
                 if (previous == peak)
+                {
                     return;
+                }
 
                 peak = previous;
             }
         }
     }
 
-    private sealed class BlockingOutboxMessagePublisher : RecordingOutboxMessagePublisher
+    private sealed class BlockingOutboxMessagePublisher(Guid blockedOutboxId) : RecordingOutboxMessagePublisher
     {
-        private readonly Guid _blockedOutboxId;
+        private readonly Guid _blockedOutboxId = blockedOutboxId;
         private readonly TaskCompletionSource _release = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public BlockingOutboxMessagePublisher(Guid blockedOutboxId)
+        public TaskCompletionSource FirstPublishStarted
         {
-            _blockedOutboxId = blockedOutboxId;
-        }
-
-        public TaskCompletionSource FirstPublishStarted { get; } =
+            get;
+        } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public override async Task PublishAsync(OutboxMessage message, CancellationToken cancellationToken)
         {
             await base.PublishAsync(message, cancellationToken);
             if (message.Id != _blockedOutboxId)
+            {
                 return;
+            }
 
             FirstPublishStarted.TrySetResult();
             await _release.Task.WaitAsync(cancellationToken);
@@ -418,27 +423,24 @@ public sealed class OutboxPublisherWorkerTests
         public void Release() => _release.TrySetResult();
     }
 
-    private sealed class UnexpectedFailureOutboxMessagePublisher : RecordingOutboxMessagePublisher
+    private sealed class UnexpectedFailureOutboxMessagePublisher(Guid failingOutboxId) : RecordingOutboxMessagePublisher
     {
-        private readonly Guid _failingOutboxId;
-
-        public UnexpectedFailureOutboxMessagePublisher(Guid failingOutboxId)
-        {
-            _failingOutboxId = failingOutboxId;
-        }
+        private readonly Guid _failingOutboxId = failingOutboxId;
 
         public override Task PublishAsync(OutboxMessage message, CancellationToken cancellationToken)
         {
-            if (message.Id == _failingOutboxId)
-                throw new InvalidOperationException("Unexpected publisher failure.");
-
-            return base.PublishAsync(message, cancellationToken);
+            return message.Id == _failingOutboxId
+                ? throw new InvalidOperationException("Unexpected publisher failure.")
+                : base.PublishAsync(message, cancellationToken);
         }
     }
 
     private sealed class CancellationAwareOutboxMessagePublisher : RecordingOutboxMessagePublisher
     {
-        public TaskCompletionSource PublishStarted { get; } =
+        public TaskCompletionSource PublishStarted
+        {
+            get;
+        } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public override async Task PublishAsync(OutboxMessage message, CancellationToken cancellationToken)
@@ -471,11 +473,9 @@ public sealed class OutboxPublisherWorkerTests
 
     private sealed record LogEntry(int EventId, string Message);
 
-    private sealed class FixedJitterProvider : IJitterProvider
+    private sealed class FixedJitterProvider(TimeSpan jitter) : IJitterProvider
     {
-        private readonly TimeSpan _jitter;
-
-        public FixedJitterProvider(TimeSpan jitter) => _jitter = jitter;
+        private readonly TimeSpan _jitter = jitter;
 
         public TimeSpan NextJitter() => _jitter;
     }

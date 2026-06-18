@@ -1,4 +1,5 @@
 using BalanceService.Application.Balances.Queries.Models;
+
 using MediatR;
 
 namespace BalanceService.Application.Balances.Queries;

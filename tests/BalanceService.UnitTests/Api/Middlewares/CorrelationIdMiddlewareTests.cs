@@ -1,6 +1,7 @@
 using System.Diagnostics;
 
 using ApiDefaults.Middlewares;
+
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 

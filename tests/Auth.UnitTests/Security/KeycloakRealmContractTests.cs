@@ -19,6 +19,8 @@ public sealed class KeycloakRealmContractTests
         Assert.Contains("ledger.write", defaultClientScopes);
         Assert.Contains("ledger.read", defaultClientScopes);
         Assert.Contains("balance.read", defaultClientScopes);
+        Assert.Contains("transfer.write", defaultClientScopes);
+        Assert.Contains("transfer.read", defaultClientScopes);
         Assert.Contains("outbox.admin", defaultClientScopes);
         Assert.Contains("poc-api-audience", defaultClientScopes);
         Assert.Contains("poc-merchants", defaultClientScopes);
@@ -26,12 +28,15 @@ public sealed class KeycloakRealmContractTests
         AssertClientScopeIsIncludedInTokenScope(root, "ledger.write");
         AssertClientScopeIsIncludedInTokenScope(root, "ledger.read");
         AssertClientScopeIsIncludedInTokenScope(root, "balance.read");
+        AssertClientScopeIsIncludedInTokenScope(root, "transfer.write");
+        AssertClientScopeIsIncludedInTokenScope(root, "transfer.read");
         AssertClientScopeIsIncludedInTokenScope(root, "outbox.admin");
 
         var audienceScope = FindByName(root.GetProperty("clientScopes"), "name", "poc-api-audience");
         var audienceMappers = audienceScope.GetProperty("protocolMappers");
         AssertAudienceMapper(audienceMappers, "ledger-api-audience", "ledger-api");
         AssertAudienceMapper(audienceMappers, "balance-api-audience", "balance-api");
+        AssertAudienceMapper(audienceMappers, "transfer-api-audience", "transfer-api");
 
         var merchantScope = FindByName(root.GetProperty("clientScopes"), "name", "poc-merchants");
         var merchantMapper = FindByName(merchantScope.GetProperty("protocolMappers"), "name", "merchant-id");
@@ -40,7 +45,7 @@ public sealed class KeycloakRealmContractTests
         Assert.Equal("true", merchantConfig.GetProperty("access.token.claim").GetString());
 
         var merchantClaimValue = merchantConfig.GetProperty("claim.value").GetString();
-        Assert.Equal("tese m1", merchantClaimValue);
+        Assert.Equal("tese m1 m2", merchantClaimValue);
         Assert.DoesNotContain("*", merchantClaimValue);
     }
 

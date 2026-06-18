@@ -1,4 +1,5 @@
 using Confluent.Kafka;
+
 using LedgerService.Worker.Messaging.Kafka.Configuration;
 using LedgerService.Worker.Messaging.Kafka.Consumers;
 

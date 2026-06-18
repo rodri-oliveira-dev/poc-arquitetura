@@ -3,6 +3,7 @@ using Auth.Api.Security;
 using Microsoft.OpenApi;
 
 using Swashbuckle.AspNetCore.SwaggerGen;
+
 using System.Text.Json.Nodes;
 
 namespace Auth.Api.Swagger;

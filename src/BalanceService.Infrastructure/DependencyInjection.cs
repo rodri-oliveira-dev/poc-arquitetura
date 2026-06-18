@@ -2,6 +2,7 @@ using BalanceService.Application.Abstractions.Persistence;
 using BalanceService.Application.Balances.Replay;
 using BalanceService.Infrastructure.Persistence;
 using BalanceService.Infrastructure.Persistence.Repositories;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;

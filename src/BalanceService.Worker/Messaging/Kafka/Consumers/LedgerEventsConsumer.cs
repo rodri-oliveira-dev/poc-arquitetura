@@ -4,6 +4,7 @@ using BalanceService.Worker.Messaging.Kafka.Configuration;
 using BalanceService.Worker.Messaging.Processors;
 using BalanceService.Worker.Messaging.Kafka.Tracing;
 using BalanceService.Worker.Observability;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;

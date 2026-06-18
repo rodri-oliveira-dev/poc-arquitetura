@@ -6,11 +6,13 @@ using LedgerService.Infrastructure.Observability;
 using LedgerService.Infrastructure.Persistence;
 using LedgerService.Worker.Messaging.Abstractions;
 using LedgerService.Worker.Observability;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+
 using System.Diagnostics;
 
 namespace LedgerService.Worker.Outbox;

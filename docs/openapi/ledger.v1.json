@@ -78,6 +78,7 @@
                 },
                 "example": {
                   "id": "lan_9f3a1b2c",
+                  "lancamentoId": "11111111-1111-1111-1111-111111111111",
                   "merchantId": "tese",
                   "type": "CREDIT",
                   "amount": "150.00",
@@ -1097,6 +1098,10 @@
           "id": {
             "type": "string",
             "nullable": true
+          },
+          "lancamentoId": {
+            "type": "string",
+            "format": "uuid"
           },
           "merchantId": {
             "type": "string",

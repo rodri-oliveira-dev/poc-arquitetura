@@ -12,7 +12,7 @@ Arquivos principais:
 - `production-readiness.md`: baseline recomendado para uma evolucao futura em GCP mais proxima de producao, sem declarar prontidao produtiva nem implementar infraestrutura nova.
 - [`../README.md`](../README.md): indice geral da documentacao.
 
-Classificacao atual: arquitetura hibrida, com predominancia de Clean Architecture/DDD em LedgerService e BalanceService, elementos hexagonais por portas de persistencia/mensageria, camada HTTP tradicional, workers dedicados para processamento assincrono e CQRS/projecao assincrona entre escrita e leitura.
+Classificacao atual: arquitetura hibrida, com predominancia de Clean Architecture/DDD em LedgerService e BalanceService, TransferService com Saga orquestrada, API HTTP, Worker dedicado e Outbox Kafka explicita, elementos hexagonais por portas de persistencia/mensageria onde ja existem adapters, camada HTTP tradicional, workers dedicados para processamento assincrono e CQRS/projecao assincrona entre escrita e leitura.
 
 ## Visualizacao
 

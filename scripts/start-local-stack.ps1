@@ -86,6 +86,8 @@ $ledgerMigratorPassword = Get-RequiredLocalConfigValue "LEDGER_DB_MIGRATOR_PASSW
 $balanceReadPassword = Get-RequiredLocalConfigValue "BALANCE_DB_READ_PASSWORD"
 $balanceWritePassword = Get-RequiredLocalConfigValue "BALANCE_DB_WRITE_PASSWORD"
 $balanceMigratorPassword = Get-RequiredLocalConfigValue "BALANCE_DB_MIGRATOR_PASSWORD"
+$transferRuntimePassword = Get-RequiredLocalConfigValue "TRANSFER_DB_PASSWORD"
+$transferMigratorPassword = Get-RequiredLocalConfigValue "TRANSFER_DB_MIGRATOR_PASSWORD"
 
 if ([string]::IsNullOrWhiteSpace($ComposeFile)) {
   $ComposeFile = (Join-Path $root "compose.yaml")
@@ -238,6 +240,8 @@ try {
   Assert-DatabaseAuthentication "balance_read_user" $balanceReadPassword
   Assert-DatabaseAuthentication "balance_write_user" $balanceWritePassword
   Assert-DatabaseAuthentication "balance_migrator_user" $balanceMigratorPassword
+  Assert-DatabaseAuthentication "transfer_app_user" $transferRuntimePassword
+  Assert-DatabaseAuthentication "transfer_migrator_user" $transferMigratorPassword
 
   Invoke-Migration `
     "Host=127.0.0.1;Port=$postgresHostPort;Database=$postgresDatabase;Username=ledger_migrator_user;Password=$ledgerMigratorPassword" `
@@ -251,6 +255,12 @@ try {
     "src/BalanceService.Api/BalanceService.Api.csproj" `
     "BalanceDbContext"
 
+  Invoke-Migration `
+    "Host=127.0.0.1;Port=$postgresHostPort;Database=$postgresDatabase;Username=transfer_migrator_user;Password=$transferMigratorPassword" `
+    "src/TransferService.Infrastructure/TransferService.Infrastructure.csproj" `
+    "src/TransferService.Api/TransferService.Api.csproj" `
+    "TransferServiceDbContext"
+
   $apiArgs = @(Get-ComposeArguments) + @("up", "-d")
   if ($Observability) {
     $apiArgs = @(Get-ComposeArguments) + @("-f", $composeObservabilityFile, "--profile", "observability", "up", "-d")
@@ -260,7 +270,10 @@ try {
     $apiArgs += "--build"
   }
 
-  $apiArgs += @("ledger-service", "ledger-worker", "balance-service", "balance-worker")
+  $apiArgs += @("ledger-service", "ledger-worker", "balance-service", "balance-worker", "transfer-service")
+  if ($MessagingProvider -eq "Kafka") {
+    $apiArgs += "transfer-worker"
+  }
   Invoke-DockerCompose $apiArgs
 
   Write-Host "OK. Stack local pronta."

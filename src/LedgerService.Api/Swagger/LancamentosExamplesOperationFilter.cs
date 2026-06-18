@@ -34,6 +34,7 @@ public sealed class LancamentosExamplesOperationFilter : IOperationFilter
             createdMediaType.Example = new JsonObject
             {
                 ["id"] = "lan_9f3a1b2c",
+                ["lancamentoId"] = "11111111-1111-1111-1111-111111111111",
                 ["merchantId"] = "tese",
                 ["type"] = "CREDIT",
                 ["amount"] = "150.00",

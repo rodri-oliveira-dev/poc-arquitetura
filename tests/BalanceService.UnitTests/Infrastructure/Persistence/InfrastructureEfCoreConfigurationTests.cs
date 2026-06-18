@@ -1,5 +1,6 @@
 using BalanceService.Domain.Balances;
 using BalanceService.Infrastructure.Persistence;
+
 using Microsoft.EntityFrameworkCore;
 
 namespace BalanceService.UnitTests.Infrastructure.Persistence;

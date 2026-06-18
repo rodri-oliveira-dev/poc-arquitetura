@@ -1,0 +1,75 @@
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.OpenApi;
+
+using Swashbuckle.AspNetCore.SwaggerGen;
+
+namespace TransferService.Api.Swagger;
+
+public sealed class AuthorizeOperationFilter : IOperationFilter
+{
+    public void Apply(OpenApiOperation operation, OperationFilterContext context)
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+        ArgumentNullException.ThrowIfNull(context);
+
+        var hasAllowAnonymous = context.MethodInfo
+            .GetCustomAttributes(true)
+            .OfType<AllowAnonymousAttribute>()
+            .Any();
+
+        if (hasAllowAnonymous)
+        {
+            return;
+        }
+
+        var authorizeAttributes = context.MethodInfo
+            .GetCustomAttributes(true)
+            .OfType<AuthorizeAttribute>()
+            .Concat(context.MethodInfo.DeclaringType?.GetCustomAttributes(true).OfType<AuthorizeAttribute>() ?? [])
+            .ToArray();
+
+        if (authorizeAttributes.Length == 0)
+        {
+            return;
+        }
+
+        operation.Security ??= [];
+        operation.Security.Add(new OpenApiSecurityRequirement
+        {
+            [new OpenApiSecuritySchemeReference("Bearer", null!)] = []
+        });
+
+        var policies = authorizeAttributes
+            .Select(a => a.Policy)
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        if (policies.Length == 0)
+        {
+            return;
+        }
+
+        var requiredScopes = policies
+            .Select(MapPolicyToScope)
+            .Where(s => !string.IsNullOrWhiteSpace(s))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        if (requiredScopes.Length == 0)
+        {
+            return;
+        }
+
+        operation.Description = string.Join("\n\n", new[]
+        {
+            operation.Description,
+            $"<b>Autorizacao</b>: requer scope(s): <c>{string.Join(" ", requiredScopes)}</c>. (claim <c>scope</c> do JWT)"
+        }.Where(x => !string.IsNullOrWhiteSpace(x)));
+    }
+
+    private static string? MapPolicyToScope(string? policy)
+    {
+        return policy is not null && policy.StartsWith("scope:", StringComparison.Ordinal) ? policy["scope:".Length..] : null;
+    }
+}

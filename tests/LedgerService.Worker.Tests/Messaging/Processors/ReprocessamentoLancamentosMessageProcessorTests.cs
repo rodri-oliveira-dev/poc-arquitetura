@@ -4,9 +4,12 @@ using LedgerService.Application.Lancamentos.Commands;
 using LedgerService.Application.Lancamentos.Events;
 using LedgerService.Worker.Messaging.Abstractions;
 using LedgerService.Worker.Messaging.Processors;
+
 using MediatR;
+
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+
 using Moq;
 
 namespace LedgerService.Worker.Tests.Messaging.Processors;

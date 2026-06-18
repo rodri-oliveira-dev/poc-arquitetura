@@ -1,4 +1,5 @@
 using BalanceService.Domain.Balances;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 

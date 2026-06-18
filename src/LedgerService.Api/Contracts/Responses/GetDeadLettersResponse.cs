@@ -8,11 +8,20 @@ public sealed class GetDeadLettersResponse
     public IReadOnlyList<DeadLetterOutboxMessageResponse> Items { get; init; } = Array.Empty<DeadLetterOutboxMessageResponse>();
 
     [JsonPropertyName("page")]
-    public int Page { get; init; }
+    public int Page
+    {
+        get; init;
+    }
 
     [JsonPropertyName("pageSize")]
-    public int PageSize { get; init; }
+    public int PageSize
+    {
+        get; init;
+    }
 
     [JsonPropertyName("totalCount")]
-    public int TotalCount { get; init; }
+    public int TotalCount
+    {
+        get; init;
+    }
 }

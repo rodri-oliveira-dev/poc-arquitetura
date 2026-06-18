@@ -1,12 +1,14 @@
-using Auth.Api.Contracts.Requests;
-using Auth.Api.Contracts.Responses;
-using Auth.IntegrationTests.Infrastructure;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 
+using Auth.Api.Contracts.Requests;
+using Auth.Api.Contracts.Responses;
+using Auth.IntegrationTests.Infrastructure;
+
 namespace Auth.IntegrationTests.Api;
 
+[Trait("Category", "Integration")]
 public sealed class AuthEndpointsTests : IClassFixture<AuthApiFactory>
 {
     private readonly HttpClient _client;
@@ -24,7 +26,7 @@ public sealed class AuthEndpointsTests : IClassFixture<AuthApiFactory>
     {
         var res = await _client.GetAsync("/health", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
-        Assert.Equal("ok", (await res.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)));
+        Assert.Equal("ok", await res.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -101,7 +103,7 @@ public sealed class AuthEndpointsTests : IClassFixture<AuthApiFactory>
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
         var body = await res.Content.ReadFromJsonAsync<LoginResponse>(TestContext.Current.CancellationToken);
         Assert.NotNull(body);
-        Assert.False(string.IsNullOrWhiteSpace(body!.AccessToken));
+        Assert.False(string.IsNullOrWhiteSpace(body.AccessToken));
         Assert.Equal("Bearer", body.TokenType);
         Assert.Equal(600, body.ExpiresIn);
         Assert.Equal("ledger.write", body.Scope);
@@ -119,7 +121,7 @@ public sealed class AuthEndpointsTests : IClassFixture<AuthApiFactory>
         Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
         var body = await res.Content.ReadFromJsonAsync<ErrorResponse>(TestContext.Current.CancellationToken);
         Assert.NotNull(body);
-        Assert.Equal("invalid_scope", body!.Error);
+        Assert.Equal("invalid_scope", body.Error);
     }
 
     [Fact]

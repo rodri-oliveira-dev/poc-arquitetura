@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 
-using LedgerService.Api.Contracts.Requests;
 using LedgerService.Api.Contracts.Responses;
 using LedgerService.Application.Lancamentos.Commands;
 using LedgerService.Application.Lancamentos.Events;
@@ -10,11 +9,14 @@ using LedgerService.Domain.Entities;
 using LedgerService.Infrastructure.Persistence;
 using LedgerService.IntegrationTests.Infrastructure;
 using LedgerService.IntegrationTests.Infrastructure.Security;
+
 using MediatR;
+
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LedgerService.IntegrationTests.Api.Lancamentos;
 
+[Trait("Category", "Integration")]
 public sealed class EstornosLancamentosEndpointTests : IClassFixture<LedgerApiFactory>
 {
     private readonly LedgerApiFactory _factory;
@@ -42,7 +44,7 @@ public sealed class EstornosLancamentosEndpointTests : IClassFixture<LedgerApiFa
         Assert.Equal(HttpStatusCode.Accepted, res.StatusCode);
         var body = await res.Content.ReadFromJsonAsync<SolicitarEstornoLancamentoResponse>(TestContext.Current.CancellationToken);
         Assert.NotNull(body);
-        Assert.NotEqual(Guid.Empty, body!.EstornoId);
+        Assert.NotEqual(Guid.Empty, body.EstornoId);
         Assert.Equal(lancamento.Id, body.LancamentoOriginalId);
         Assert.Equal("Pending", body.Status);
         Assert.Equal($"/api/v1/lancamentos/estornos/{body.EstornoId}", body.StatusUrl);
@@ -135,13 +137,13 @@ public sealed class EstornosLancamentosEndpointTests : IClassFixture<LedgerApiFa
         using (var scope = _factory.Services.CreateScope())
         {
             var sender = scope.ServiceProvider.GetRequiredService<ISender>();
-            await sender.Send(new ProcessarEstornoLancamentoCommand(created!.EstornoId), TestContext.Current.CancellationToken);
+            await sender.Send(new ProcessarEstornoLancamentoCommand(created.EstornoId), TestContext.Current.CancellationToken);
             await sender.Send(new ProcessarEstornoLancamentoCommand(created.EstornoId), TestContext.Current.CancellationToken);
         }
 
         using var assertScope = _factory.Services.CreateScope();
         var db = assertScope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var estorno = db.EstornosLancamentos.Single(x => x.Id == created!.EstornoId);
+        var estorno = db.EstornosLancamentos.Single(x => x.Id == created.EstornoId);
         Assert.Equal(EstornoLancamentoStatus.Completed, estorno.Status);
         Assert.NotNull(estorno.LancamentoCompensatorioId);
         var compensating = db.LedgerEntries.Single(x => x.Id == estorno.LancamentoCompensatorioId);
@@ -166,11 +168,11 @@ public sealed class EstornosLancamentosEndpointTests : IClassFixture<LedgerApiFa
         Assert.NotNull(created);
         Authenticate(scopes: "ledger.read");
 
-        var res = await _client.GetAsync($"/api/v1/lancamentos/estornos/{created!.EstornoId}", TestContext.Current.CancellationToken);
+        var res = await _client.GetAsync($"/api/v1/lancamentos/estornos/{created.EstornoId}", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
         var body = await res.Content.ReadFromJsonAsync<ObterStatusEstornoLancamentoResponse>(TestContext.Current.CancellationToken);
         Assert.NotNull(body);
-        Assert.Equal(created.EstornoId, body!.EstornoId);
+        Assert.Equal(created.EstornoId, body.EstornoId);
         Assert.Equal(lancamento.Id, body.LancamentoOriginalId);
         Assert.Equal("Pending", body.Status);
         Assert.Equal("Erro operacional no lancamento original", body.Motivo);
@@ -300,7 +302,7 @@ public sealed class EstornosLancamentosEndpointTests : IClassFixture<LedgerApiFa
         Assert.Equal("application/json", response.Content.Headers.ContentType?.MediaType);
         var body = await response.Content.ReadFromJsonAsync<ValidationErrorResponse>(TestContext.Current.CancellationToken);
         Assert.NotNull(body);
-        Assert.Equal("https://httpstatuses.com/400", body!.Type);
+        Assert.Equal("https://httpstatuses.com/400", body.Type);
         Assert.Equal("Invalid request", body.Title);
         Assert.Equal(400, body.Status);
         Assert.Equal("One or more validation errors occurred.", body.Detail);

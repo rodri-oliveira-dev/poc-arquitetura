@@ -4,26 +4,86 @@ namespace LedgerService.Domain.Entities;
 
 public sealed class OutboxMessage : Entity
 {
-    public string AggregateType { get; private set; }
-    public Guid AggregateId { get; private set; }
-    public string EventType { get; private set; }
-    public string Payload { get; private set; }
-    public DateTime OccurredAt { get; private set; }
-    public OutboxStatus Status { get; private set; }
-    public int RetryCount { get; private set; }
-    public DateTime? NextRetryAt { get; private set; }
-    public DateTime? ProcessedAt { get; private set; }
-    public string? LastError { get; private set; }
-    public Guid? CorrelationId { get; private set; }
-    public string? TraceParent { get; private set; }
-    public string? TraceState { get; private set; }
-    public string? Baggage { get; private set; }
-    public DateTime? LockedUntil { get; private set; }
-    public string? LockOwner { get; private set; }
-    public int RequeueCount { get; private set; }
-    public DateTime? LastRequeuedAt { get; private set; }
-    public string? LastRequeuedBy { get; private set; }
-    public string? LastRequeueReason { get; private set; }
+    public string AggregateType
+    {
+        get; private set;
+    }
+    public Guid AggregateId
+    {
+        get; private set;
+    }
+    public string EventType
+    {
+        get; private set;
+    }
+    public string Payload
+    {
+        get; private set;
+    }
+    public DateTime OccurredAt
+    {
+        get; private set;
+    }
+    public OutboxStatus Status
+    {
+        get; private set;
+    }
+    public int RetryCount
+    {
+        get; private set;
+    }
+    public DateTime? NextRetryAt
+    {
+        get; private set;
+    }
+    public DateTime? ProcessedAt
+    {
+        get; private set;
+    }
+    public string? LastError
+    {
+        get; private set;
+    }
+    public Guid? CorrelationId
+    {
+        get; private set;
+    }
+    public string? TraceParent
+    {
+        get; private set;
+    }
+    public string? TraceState
+    {
+        get; private set;
+    }
+    public string? Baggage
+    {
+        get; private set;
+    }
+    public DateTime? LockedUntil
+    {
+        get; private set;
+    }
+    public string? LockOwner
+    {
+        get; private set;
+    }
+    public int RequeueCount
+    {
+        get; private set;
+    }
+    public DateTime? LastRequeuedAt
+    {
+        get; private set;
+    }
+    public string? LastRequeuedBy
+    {
+        get; private set;
+    }
+    public string? LastRequeueReason
+    {
+        get; private set;
+    }
 
     private OutboxMessage()
     {

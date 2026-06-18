@@ -2,8 +2,10 @@ using BalanceService.Worker.Messaging.Abstractions;
 using BalanceService.Worker.Messaging.Kafka.Configuration;
 using BalanceService.Worker.Messaging.Kafka.DeadLetter;
 using BalanceService.Worker.Observability;
+
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+
 using Moq;
 
 namespace BalanceService.Worker.Tests.Messaging.Kafka.DeadLetter;
