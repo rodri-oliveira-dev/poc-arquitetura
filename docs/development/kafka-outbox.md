@@ -20,9 +20,9 @@ Configuracao neutra:
 
 Para a publicacao Pub/Sub do Ledger e o consumo Pub/Sub do Balance, use `Messaging:Provider=PubSub` explicitamente. A configuracao `PubSub:Enabled=false` desliga os hosted services relacionados a Pub/Sub de forma equivalente ao flag Kafka.
 
-Para executar esse provider localmente com Pub/Sub emulator, use `./scripts/start-local-stack.ps1` no Windows ou `./scripts/start-local-stack.sh` no Linux/macOS. O `compose.yaml` principal define `PUBSUB_EMULATOR_HOST`, configura `PUBSUB_PROJECT_ID` e cria topic principal, topic de DLQ, subscription do Balance e subscription de inspecao da DLQ de aplicacao de forma idempotente. O setup detalhado fica em [desenvolvimento local](local-development.md#pubsub-emulator-local).
+Para executar esse provider localmente com Pub/Sub emulator, use `./scripts/start-local-stack-pubsub.ps1` no Windows ou `./scripts/start-local-stack-pubsub.sh` no Linux/macOS. O `compose.pubsub.yaml` habilita o profile `legacy-pubsub`, define `PUBSUB_EMULATOR_HOST`, configura `PUBSUB_PROJECT_ID` e cria topic principal, topic de DLQ, subscription do Balance e subscription de inspecao da DLQ de aplicacao de forma idempotente. O setup detalhado fica em [desenvolvimento local](local-development.md#pubsub-emulator-local).
 
-Para executar Kafka via compose local, use `./scripts/start-local-stack-kafka.ps1` ou `./scripts/start-local-stack-kafka.sh`, que habilitam o overlay/profile Kafka e configuram os workers com `Messaging:Provider=Kafka`. O fluxo de reprocessamento assincrono ponta a ponta depende desse modo enquanto o consumer Pub/Sub correspondente nao existir.
+Para executar Kafka via compose local, use `./scripts/start-local-stack.ps1` ou `./scripts/start-local-stack.sh`. Os aliases `start-local-stack-kafka.*` continuam disponiveis por compatibilidade, mas Kafka ja e o default do compose principal.
 
 Para executar os workers diretamente no host contra um emulator ja iniciado, use o perfil de exemplo `PubSub`:
 

@@ -247,9 +247,9 @@ As APIs usam `UseForwardedHeaders` antes de Swagger, redirecionamento HTTPS, aut
 - conexao com PostgreSQL;
 - connection strings usadas no ambiente.
 
-Pub/Sub, Kafka legado, topics, subscriptions, flags de provider e DLQ pertencem aos workers. Quando houver falha de consumo ou publicacao, investigue logs e metricas de `LedgerService.Worker` e `BalanceService.Worker`; a indisponibilidade do consumer nao deve derrubar o readiness do `BalanceService.Api`.
+Kafka, Pub/Sub legado, topics, subscriptions, flags de provider e DLQ pertencem aos workers. Quando houver falha de consumo ou publicacao, investigue logs e metricas de `LedgerService.Worker` e `BalanceService.Worker`; a indisponibilidade do consumer nao deve derrubar o readiness do `BalanceService.Api`.
 
-No compose local, use `docker compose -f compose.yaml logs -f ledger-worker balance-worker pubsub-emulator pubsub-init` para o fluxo principal. No modo Kafka legado, use `docker compose -f compose.yaml -f compose.kafka.yaml --profile legacy-kafka logs -f ledger-worker balance-worker kafka kafka-init-topics`. `ledger-service` e `balance-service` representam apenas as APIs HTTP.
+No compose local, use `docker compose -f compose.yaml logs -f ledger-worker balance-worker kafka kafka-init-topics` para o fluxo principal. No modo Pub/Sub legado, use `docker compose -f compose.yaml -f compose.pubsub.yaml --profile legacy-pubsub logs -f ledger-worker balance-worker pubsub-emulator pubsub-init`. `ledger-service` e `balance-service` representam apenas as APIs HTTP.
 
 Detalhes ficam em [observabilidade](observability.md#readiness) e [Kafka, Outbox e DLQ](development/kafka-outbox.md).
 

@@ -14,26 +14,26 @@ Este runbook cobre a operacao local do fluxo de Saga orquestrada do `TransferSer
 1. Verificar containers:
 
 ```bash
-docker compose --env-file .env.local -f compose.yaml -f compose.kafka.yaml --profile legacy-kafka ps
+docker compose --env-file .env.local -f compose.yaml ps
 ```
 
 2. Verificar logs do Worker com correlation id ou transferencia:
 
 ```bash
-docker compose --env-file .env.local -f compose.yaml -f compose.kafka.yaml --profile legacy-kafka logs transfer-worker
+docker compose --env-file .env.local -f compose.yaml logs transfer-worker
 ```
 
 3. Listar topicos Kafka:
 
 ```bash
-docker compose --env-file .env.local -f compose.yaml --profile legacy-kafka exec kafka \
+docker compose --env-file .env.local -f compose.yaml exec kafka \
   /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --list
 ```
 
 4. Inspecionar DLQ:
 
 ```bash
-docker compose --env-file .env.local -f compose.yaml --profile legacy-kafka exec kafka \
+docker compose --env-file .env.local -f compose.yaml exec kafka \
   /opt/kafka/bin/kafka-console-consumer.sh \
   --bootstrap-server kafka:9092 \
   --topic transfer.transferencia.dlq \

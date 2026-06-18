@@ -89,7 +89,7 @@ function Get-ComposeEnvArguments {
 function Get-ComposeArguments([switch]$IncludeK6, [switch]$IncludeKafka) {
   $arguments = @("compose") + (Get-ComposeEnvArguments) + @("-f", $ComposeFile)
   if ($IncludeKafka) {
-    $arguments += @("-f", $ComposeKafkaFile, "--profile", "legacy-kafka")
+    $arguments += @("-f", $ComposeKafkaFile)
   }
   if ($IncludeK6) {
     $arguments += @("-f", $ComposeK6File)

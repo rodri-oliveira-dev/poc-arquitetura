@@ -220,7 +220,7 @@ assert_local_pubsub_stack() {
 assert_local_transfer_kafka_stack() {
   local config
   local running_services
-  config="$(docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_KAFKA_FILE" --profile legacy-kafka config)"
+  config="$(docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_KAFKA_FILE" config)"
 
   for expected in \
     "Messaging__Provider: Kafka" \
@@ -233,7 +233,7 @@ assert_local_transfer_kafka_stack() {
     fi
   done
 
-  running_services="$(docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_KAFKA_FILE" --profile legacy-kafka ps --status running --services)"
+  running_services="$(docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_KAFKA_FILE" ps --status running --services)"
   for service in kafka ledger-service transfer-service transfer-worker; do
     if ! grep -qx "$service" <<<"$running_services"; then
       echo "Servico obrigatorio para full-stack Kafka nao esta em execucao: $service. Suba ./scripts/start-local-stack-kafka.sh antes do teste." >&2
@@ -242,7 +242,7 @@ assert_local_transfer_kafka_stack() {
   done
 
   local kafka_init
-  kafka_init="$(docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_KAFKA_FILE" --profile legacy-kafka ps -a kafka-init-topics --format json)"
+  kafka_init="$(docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_KAFKA_FILE" ps -a kafka-init-topics --format json)"
   if ! grep -q '"State":"exited"' <<<"$kafka_init" ||
     ! grep -q '"ExitCode":0' <<<"$kafka_init"; then
     echo "kafka-init-topics nao concluiu com sucesso. Confira: docker compose logs kafka-init-topics" >&2
@@ -252,7 +252,7 @@ assert_local_transfer_kafka_stack() {
 
 kafka_topic_end_offset() {
   local topic="$1"
-  docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_KAFKA_FILE" --profile legacy-kafka exec -T kafka \
+  docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_KAFKA_FILE" exec -T kafka \
     /opt/kafka/bin/kafka-run-class.sh \
     kafka.tools.GetOffsetShell \
     --broker-list kafka:9092 \
@@ -410,7 +410,7 @@ fi
 # que poderiam transformar o cenario de throughput em teste de rate limiting.
 if [[ "$is_transfer_mode" == true ]]; then
   if [[ "$is_transfer_fullstack_kafka" == true ]]; then
-    docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_KAFKA_FILE" -f "$COMPOSE_K6_FILE" --profile legacy-kafka up -d --no-build --force-recreate kafka kafka-init-topics ledger-service transfer-service transfer-worker
+    docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_KAFKA_FILE" -f "$COMPOSE_K6_FILE" up -d --no-build --force-recreate kafka kafka-init-topics ledger-service transfer-service transfer-worker
   else
     docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_K6_FILE" up -d --no-build --force-recreate transfer-service
   fi

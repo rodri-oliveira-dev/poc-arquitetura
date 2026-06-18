@@ -103,7 +103,7 @@ No Linux/macOS:
 ./scripts/start-local-stack.sh
 ```
 
-Esse script sobe o core funcional local: PostgreSQL persistente unico com schemas `ledger` e `balance`, Pub/Sub emulator, Keycloak, APIs e workers. Ele aplica migrations pelo host e inicia as APIs depois do schema estar pronto. O passo a passo manual fica em [desenvolvimento local](docs/development/local-development.md).
+Esse script sobe o core funcional local: PostgreSQL persistente unico com schemas `ledger`, `balance` e `transfer`, Kafka, Keycloak, APIs e workers, incluindo `TransferService.Worker`. Ele aplica migrations pelo host e inicia as APIs depois do schema estar pronto. O passo a passo manual fica em [desenvolvimento local](docs/development/local-development.md).
 
 Para incluir observabilidade local completa:
 
@@ -119,7 +119,7 @@ OBSERVABILITY=true ./scripts/start-local-stack.sh
 
 A observabilidade fica no overlay `compose.observability.yaml`. O modo padrao de desenvolvimento nao sobe Jaeger, Collector, Prometheus, Loki, Alloy, Alertmanager nem Grafana, mas continua subindo `ledger-worker` e `balance-worker` para preservar o fluxo ponta a ponta.
 
-Os aliases abaixo continuam disponiveis para explicitar o mesmo fluxo Pub/Sub local:
+Pub/Sub permanece disponivel como caminho explicito/legado:
 
 ```powershell
 ./scripts/start-local-stack-pubsub.ps1
@@ -131,9 +131,9 @@ No Linux/macOS:
 ./scripts/start-local-stack-pubsub.sh
 ```
 
-Esse fluxo usa o `compose.yaml` principal, cria topic principal, topic de DLQ, subscription do Balance e subscription de inspecao da DLQ de aplicacao de forma idempotente e inicia os workers com `Messaging:Provider=PubSub`. Kafka nao e iniciado. Para usar o provider legado, execute `./scripts/start-local-stack-kafka.ps1` ou `./scripts/start-local-stack-kafka.sh`. Detalhes ficam em [desenvolvimento local](docs/development/local-development.md#pubsub-emulator-local) e no runbook de [operacao do Pub/Sub](docs/operations/pubsub.md).
+Esse fluxo usa `compose.pubsub.yaml`, habilita o profile `legacy-pubsub`, cria topic principal, topic de DLQ, subscription do Balance e subscription de inspecao da DLQ de aplicacao de forma idempotente e inicia os workers de Ledger/Balance com `Messaging:Provider=PubSub`. Kafka nao e iniciado nesse modo. Os scripts `start-local-stack-kafka.*` continuam como aliases compativeis do fluxo padrao. Detalhes ficam em [desenvolvimento local](docs/development/local-development.md#pubsub-emulator-local) e no runbook de [operacao do Pub/Sub](docs/operations/pubsub.md).
 
-A Saga orquestrada do `TransferService` usa Kafka explicitamente. Para exercitar `POST /api/v1/transferencias` com Worker e publicacao da Outbox no Kafka, use o modo Kafka local e consulte [TransferService API](docs/development/transfer-api.md) e [desenvolvimento local](docs/development/local-development.md#kafka-local-e-saga-do-transferservice).
+A Saga orquestrada do `TransferService` usa Kafka explicitamente. Como Kafka e o default local, o `TransferService.Worker` sobe no fluxo padrao e pode processar Sagas automaticamente. Consulte [TransferService API](docs/development/transfer-api.md) e [desenvolvimento local](docs/development/local-development.md#kafka-local-e-saga-do-transferservice).
 
 Para subir a stack completa com observabilidade e Nginx HTTPS local, gere antes os certificados em `infra/nginx/certs/` conforme [desenvolvimento local](docs/development/local-development.md#borda-local-https-com-nginx):
 
@@ -164,7 +164,7 @@ Se houver containers antigos ou rede local presa do proprio projeto, o script pe
 | Stack local minima | `./scripts/start-local-stack.ps1` ou `./scripts/start-local-stack.sh` |
 | Stack com observabilidade | `./scripts/start-local-stack.ps1 -Observability` ou `OBSERVABILITY=true ./scripts/start-local-stack.sh` |
 | Stack local com Pub/Sub emulator | `./scripts/start-local-stack-pubsub.ps1` ou `./scripts/start-local-stack-pubsub.sh` |
-| Dependencias locais para debug | `docker compose --env-file .env.local -f compose.debug.yml up -d postgres-db pubsub-emulator pubsub-init` |
+| Dependencias Kafka para debug | `docker compose --env-file .env.local -f compose.yaml up -d postgres-db kafka kafka-init-topics keycloak` |
 | Stack local com Kafka | `./scripts/start-local-stack-kafka.ps1` ou `./scripts/start-local-stack-kafka.sh` |
 | Stack completa com Nginx | `./scripts/start-full-stack.ps1` ou `./scripts/start-full-stack.sh` |
 | Parar stack completa | `./scripts/stop-full-stack.ps1` ou `./scripts/stop-full-stack.sh` |

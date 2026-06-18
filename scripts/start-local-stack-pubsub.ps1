@@ -7,9 +7,11 @@ param(
 $ErrorActionPreference = "Stop"
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$root = (Resolve-Path (Join-Path $scriptDir ".."))
 $startLocalScript = Join-Path $scriptDir "start-local-stack.ps1"
+$composePubSubFile = Join-Path $root "compose.pubsub.yaml"
 
-$arguments = @("-MessagingProvider", "PubSub")
+$arguments = @("-MessagingProvider", "PubSub", "-OverlayFile", $composePubSubFile)
 if ($NoBuild) {
   $arguments += "-NoBuild"
 }

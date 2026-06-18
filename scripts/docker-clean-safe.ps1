@@ -50,7 +50,7 @@ try {
     "--profile", "direct-ledger",
     "--profile", "k6",
     "--profile", "legacy-auth",
-    "--profile", "legacy-kafka",
+    "--profile", "legacy-pubsub",
     "down",
     "--remove-orphans"
   )

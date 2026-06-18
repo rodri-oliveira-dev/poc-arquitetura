@@ -3,11 +3,11 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_FILE="${COMPOSE_FILE:-$ROOT_DIR/compose.yaml}"
-MESSAGING_PROVIDER="${MESSAGING_PROVIDER:-PubSub}"
+MESSAGING_PROVIDER="${MESSAGING_PROVIDER:-Kafka}"
 if [[ "$MESSAGING_PROVIDER" == "PubSub" ]]; then
-  COMPOSE_OVERLAY_FILE="${COMPOSE_OVERLAY_FILE:-}"
+  COMPOSE_OVERLAY_FILE="${COMPOSE_OVERLAY_FILE:-$ROOT_DIR/compose.pubsub.yaml}"
 elif [[ "$MESSAGING_PROVIDER" == "Kafka" ]]; then
-  COMPOSE_OVERLAY_FILE="${COMPOSE_OVERLAY_FILE:-$ROOT_DIR/compose.kafka.yaml}"
+  COMPOSE_OVERLAY_FILE="${COMPOSE_OVERLAY_FILE:-}"
 else
   echo "MESSAGING_PROVIDER invalido: $MESSAGING_PROVIDER (use PubSub ou Kafka)" >&2
   exit 2
@@ -92,8 +92,8 @@ compose_files+=(-f "$COMPOSE_FILE")
 if [[ -n "$COMPOSE_OVERLAY_FILE" ]]; then
   compose_files+=(-f "$COMPOSE_OVERLAY_FILE")
 fi
-if [[ "$MESSAGING_PROVIDER" == "Kafka" ]]; then
-  compose_files+=(--profile legacy-kafka)
+if [[ "$MESSAGING_PROVIDER" == "PubSub" ]]; then
+  compose_files+=(--profile legacy-pubsub)
 fi
 
 wait_database() {
@@ -144,8 +144,11 @@ run_migration() {
   local project="$2"
   local startup_project="$3"
   local db_context="$4"
+  local connection_string_env="${5:-ConnectionStrings__DefaultConnection}"
 
-  ConnectionStrings__DefaultConnection="$connection_string" \
+  env \
+    ConnectionStrings__DefaultConnection="$connection_string" \
+    "$connection_string_env=$connection_string" \
     dotnet tool run dotnet-ef -- database update \
       -p "$project" \
       -s "$startup_project" \
@@ -206,7 +209,8 @@ run_migration \
   "Host=127.0.0.1;Port=$POSTGRES_HOST_PORT;Database=$POSTGRES_DATABASE;Username=transfer_migrator_user;Password=$TRANSFER_DB_MIGRATOR_PASSWORD" \
   "src/TransferService.Infrastructure/TransferService.Infrastructure.csproj" \
   "src/TransferService.Api/TransferService.Api.csproj" \
-  "TransferServiceDbContext"
+  "TransferServiceDbContext" \
+  "TRANSFER_SERVICE_CONNECTION_STRING"
 
 api_up=(docker compose "${compose_files[@]}" up -d)
 if [[ "$OBSERVABILITY" == "true" ]]; then

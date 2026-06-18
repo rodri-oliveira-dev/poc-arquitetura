@@ -286,7 +286,7 @@ model {
   }
 
   kafka = softwareSystem "Kafka" {
-    description "Broker Kafka local em KRaft. Legado opcional para Ledger/Balance e transporte explicito da Saga do TransferService."
+    description "Broker Kafka local em KRaft. Provider default de Ledger/Balance e transporte explicito da Saga do TransferService."
 
     ledgerTopic = container "ledger.ledgerentry.created" {
       technology "Kafka topic"

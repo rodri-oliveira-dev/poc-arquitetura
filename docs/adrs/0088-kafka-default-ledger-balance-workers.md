@@ -31,11 +31,16 @@ Kafka passa a ser o default de mensageria dos workers principais:
   `Messaging:Provider=Kafka`;
 - os bootstrap servers para execucao no host usam a porta publicada do Kafka
   local, `127.0.0.1:19092`;
-- em containers, a configuracao Kafka continua usando `kafka:9092` quando
-  selecionada pelo compose/overlay;
+- em containers, a configuracao Kafka usa `kafka:9092` no compose padrao;
+- Kafka, `kafka-init-topics`, `ledger-worker`, `balance-worker` e
+  `transfer-worker` sobem no fluxo local padrao;
+- `transfer-worker` sai do profile legado porque a Saga do `TransferService`
+  usa Kafka explicitamente; como consequencia, Sagas podem ser processadas
+  automaticamente no ambiente local padrao;
 - Pub/Sub permanece implementado e suportado somente quando configurado
   explicitamente com `Messaging:Provider=PubSub`, incluindo os arquivos
-  `appsettings.PubSub.json`.
+  `appsettings.PubSub.json`, `compose.pubsub.yaml`, profile `legacy-pubsub` e
+  scripts `start-local-stack-pubsub.*`.
 
 Provider invalido continua falhando cedo na composition root com mensagem
 objetiva. Esta decisao nao altera contratos HTTP, contratos de eventos,
@@ -54,9 +59,9 @@ migrations, regras de dominio nem acopla `Application` ou `Domain` a Kafka.
 ### Custos e limitacoes
 - Documentos e scripts operacionais que executam Pub/Sub devem ser tratados
   como fluxos explicitos/legados quando selecionarem `Messaging:Provider=PubSub`.
-- Remover Pub/Sub ou mudar a stack local de compose para Kafka por padrao fica
-  fora desta decisao e exige frente propria, pois impacta scripts, k6,
-  troubleshooting e custo local.
+- O modo Pub/Sub passa a ser opt-in e nao sobe `TransferService.Worker`.
+- A stack local padrao consome mais recursos que o modo Pub/Sub legado porque
+  inclui Kafka e o worker de Saga.
 
 ## Substitui
 - ADR-0078 no ponto especifico sobre provider principal/default dos workers
@@ -66,4 +71,3 @@ migrations, regras de dominio nem acopla `Application` ou `Domain` a Kafka.
 - Remover adapters Pub/Sub.
 - Reimplementar Kafka.
 - Alterar contratos HTTP ou eventos.
-- Trocar a topologia completa do compose local e scripts associados.

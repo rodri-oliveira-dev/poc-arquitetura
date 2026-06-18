@@ -104,7 +104,7 @@ deployment {
 
       composeService transferWorker "transfer-worker" {
         technology "Docker container / .NET Worker Service"
-        description "Servico Docker Compose ativado pelo profile legacy-kafka para processar Sagas do TransferService e publicar Outbox no Kafka."
+        description "Servico Docker Compose padrao que processa Sagas do TransferService e publica Outbox no Kafka."
 
         worker = instanceOf transfer.transferWorker {
           title "poc-transfer-worker"
@@ -134,7 +134,7 @@ deployment {
 
       composeService kafkaBroker "kafka" {
         technology "Apache Kafka 3.7.0 / KRaft"
-        description "Servico Docker Compose legado ativado explicitamente pelo profile legacy-kafka."
+        description "Servico Docker Compose padrao da mensageria local."
 
         kafkaInstance = instanceOf kafka {
           title "poc-kafka"
@@ -149,17 +149,17 @@ deployment {
 
       composeService pubsubEmulator "pubsub-emulator" {
         technology "Google Cloud CLI / Pub/Sub emulator"
-        description "Servico do compose.yaml principal, fora do Terraform e exposto na porta 8085 do host."
+        description "Servico explicito/legado do compose.yaml, fora do Terraform e exposto na porta 8085 do host quando o profile legacy-pubsub e usado."
 
         emulator = instanceOf pubsubLocal {
           title "poc-pubsub-emulator"
-          description "Emulator local descartavel usado por padrao pelos workers com PUBSUB_EMULATOR_HOST=pubsub-emulator:8085."
+          description "Emulator local descartavel usado somente quando os workers sao configurados com Messaging:Provider=PubSub."
         }
       }
 
       composeService pubsubInit "pubsub-init" {
         technology "curl / init container"
-        description "Container auxiliar e idempotente do compose.yaml que cria topic principal, topic de DLQ, subscription pull do BalanceService.Worker e subscription de inspecao da DLQ de aplicacao no Pub/Sub emulator."
+        description "Container auxiliar e idempotente do profile legacy-pubsub que cria topic principal, topic de DLQ, subscription pull do BalanceService.Worker e subscription de inspecao da DLQ de aplicacao no Pub/Sub emulator."
       }
 
       composeService jaeger "jaeger" {
