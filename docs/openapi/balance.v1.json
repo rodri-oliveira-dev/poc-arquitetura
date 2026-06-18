@@ -18,7 +18,7 @@
           "BalanceService.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
         ],
         "summary": "Health check simples",
-        "description": "Retorna 200 com body 'ok'. Endpoint público para liveness simples.",
+        "description": "Retorna 200 com body 'ok'. Endpoint publico para liveness simples.",
         "operationId": "Health",
         "responses": {
           "200": {
@@ -33,7 +33,7 @@
           "BalanceService.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
         ],
         "summary": "Readiness check",
-        "description": "Valida dependências necessárias para aceitar tráfego HTTP: banco.",
+        "description": "Valida dependencias necessarias para aceitar trafego HTTP: banco.",
         "operationId": "Ready",
         "responses": {
           "200": {
