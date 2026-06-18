@@ -16,10 +16,24 @@ namespace TransferService.Api.Middlewares;
 
 public sealed class GlobalExceptionHandler : IExceptionHandler
 {
+    private static readonly Action<ILogger, string, Exception?> LogHandled =
+        LoggerMessage.Define<string>(
+            LogLevel.Warning,
+            new EventId(1, nameof(LogHandled)),
+            "Excecao tratada. TraceId: {TraceId}");
+
+    private static readonly Action<ILogger, string, Exception?> LogUnhandled =
+        LoggerMessage.Define<string>(
+            LogLevel.Error,
+            new EventId(2, nameof(LogUnhandled)),
+            "Erro nao tratado. TraceId: {TraceId}");
+
     private readonly ILogger<GlobalExceptionHandler> _logger;
 
     public GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger)
     {
+        ArgumentNullException.ThrowIfNull(logger);
+
         _logger = logger;
     }
 
@@ -78,11 +92,11 @@ public sealed class GlobalExceptionHandler : IExceptionHandler
         if (exception is ValidationException or ForbiddenException or ConflictException or NotFoundException or DomainException
             || IsTransferUniqueViolation(exception))
         {
-            _logger.LogWarning(exception, "Excecao tratada. TraceId: {TraceId}", traceId);
+            LogHandled(_logger, traceId, exception);
             return;
         }
 
-        _logger.LogError(exception, "Erro nao tratado. TraceId: {TraceId}", traceId);
+        LogUnhandled(_logger, traceId, exception);
     }
 
     private static (int statusCode, string title, string detail) MapException(Exception exception)
@@ -112,5 +126,5 @@ public sealed class GlobalExceptionHandler : IExceptionHandler
 
     private static bool IsJsonRequestException(Exception exception)
         => exception is JsonException or BadHttpRequestException ||
-            exception.InnerException is not null && IsJsonRequestException(exception.InnerException);
+            (exception.InnerException is not null && IsJsonRequestException(exception.InnerException));
 }

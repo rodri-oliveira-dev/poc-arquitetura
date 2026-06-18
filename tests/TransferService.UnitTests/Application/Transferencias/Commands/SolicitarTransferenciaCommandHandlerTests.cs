@@ -5,26 +5,25 @@ using TransferService.Application.Common.Exceptions;
 using TransferService.Application.Transferencias.Commands;
 using TransferService.Application.Transferencias.Events;
 using TransferService.Domain.Sagas;
+using TransferService.UnitTests.Support;
 
 namespace TransferService.UnitTests.Application.Transferencias.Commands;
 
 public sealed class SolicitarTransferenciaCommandHandlerTests
 {
-    private static readonly DateTimeOffset Now = new(2026, 6, 17, 10, 0, 0, TimeSpan.Zero);
-
     [Fact]
     public async Task Handle_should_create_valid_saga()
     {
         var fixture = new HandlerFixture();
 
-        var result = await fixture.Handler.Handle(ValidCommand(), CancellationToken.None);
+        var result = await fixture.Handler.Handle(TransferenciaTestData.CreateCommand(), CancellationToken.None);
 
         Assert.NotEqual(Guid.Empty, result.TransferenciaId);
         Assert.Equal(TransferenciaSagaStatus.Pending.ToString(), result.Status);
         Assert.Equal("merchant-source", result.SourceMerchantId);
         Assert.Equal("merchant-destination", result.DestinationMerchantId);
         Assert.Equal(100m, result.Amount);
-        Assert.Equal(Now, result.CreatedAt);
+        Assert.Equal(TransferenciaTestData.Now, result.CreatedAt);
         Assert.False(result.IdempotentReplay);
 
         var saga = Assert.Single(fixture.SagaRepository.Sagas);
@@ -37,7 +36,7 @@ public sealed class SolicitarTransferenciaCommandHandlerTests
     {
         var fixture = new HandlerFixture();
 
-        var result = await fixture.Handler.Handle(ValidCommand(), CancellationToken.None);
+        var result = await fixture.Handler.Handle(TransferenciaTestData.CreateCommand(), CancellationToken.None);
 
         var evento = Assert.IsType<TransferenciaSolicitadaV1>(Assert.Single(fixture.OutboxWriter.Events));
         Assert.Equal(TransferenciaSolicitadaV1.Type, evento.EventType);
@@ -45,7 +44,7 @@ public sealed class SolicitarTransferenciaCommandHandlerTests
         Assert.Equal("merchant-source", evento.SourceMerchantId);
         Assert.Equal("merchant-destination", evento.DestinationMerchantId);
         Assert.Equal(100m, evento.Amount);
-        Assert.Equal(Now, evento.OccurredAt);
+        Assert.Equal(TransferenciaTestData.Now, evento.OccurredAt);
         Assert.Equal("correlation-1", evento.CorrelationId);
     }
 
@@ -53,7 +52,7 @@ public sealed class SolicitarTransferenciaCommandHandlerTests
     public async Task Handle_should_return_idempotent_replay_for_same_key_and_payload()
     {
         var fixture = new HandlerFixture();
-        var command = ValidCommand();
+        var command = TransferenciaTestData.CreateCommand();
         var created = await fixture.Handler.Handle(command, CancellationToken.None);
 
         fixture.SagaRepository.Sagas.Clear();
@@ -72,7 +71,7 @@ public sealed class SolicitarTransferenciaCommandHandlerTests
     public async Task Handle_should_reject_same_key_with_different_payload()
     {
         var fixture = new HandlerFixture();
-        var command = ValidCommand();
+        var command = TransferenciaTestData.CreateCommand();
         await fixture.Handler.Handle(command, CancellationToken.None);
 
         var differentPayload = command with
@@ -90,7 +89,7 @@ public sealed class SolicitarTransferenciaCommandHandlerTests
     public async Task Handle_should_reject_same_merchants()
     {
         var fixture = new HandlerFixture();
-        var command = ValidCommand() with
+        var command = TransferenciaTestData.CreateCommand() with
         {
             SourceMerchantId = "same",
             DestinationMerchantId = "same"
@@ -106,7 +105,7 @@ public sealed class SolicitarTransferenciaCommandHandlerTests
     public async Task Handle_should_reject_invalid_amount()
     {
         var fixture = new HandlerFixture();
-        var command = ValidCommand() with
+        var command = TransferenciaTestData.CreateCommand() with
         {
             Amount = 0m
         };
@@ -117,14 +116,6 @@ public sealed class SolicitarTransferenciaCommandHandlerTests
         Assert.Contains("maior que zero", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static SolicitarTransferenciaCommand ValidCommand()
-        => new(
-            "idem-1",
-            "merchant-source",
-            "merchant-destination",
-            100m,
-            "correlation-1");
-
     private sealed class HandlerFixture
     {
         public HandlerFixture()
@@ -134,7 +125,7 @@ public sealed class SolicitarTransferenciaCommandHandlerTests
                 IdempotencyService,
                 OutboxWriter,
                 UnitOfWork,
-                new FixedClock(Now));
+                new FixedClock(TransferenciaTestData.Now));
         }
 
         public FakeTransferenciaSagaRepository SagaRepository { get; } = new();
@@ -147,17 +138,12 @@ public sealed class SolicitarTransferenciaCommandHandlerTests
         }
     }
 
-    private sealed class FixedClock : IClock
+    private sealed class FixedClock(DateTimeOffset utcNow) : IClock
     {
-        public FixedClock(DateTimeOffset utcNow)
-        {
-            UtcNow = utcNow;
-        }
-
         public DateTimeOffset UtcNow
         {
             get;
-        }
+        } = utcNow;
     }
 
     private sealed class FakeTransferenciaSagaRepository : ITransferenciaSagaRepository

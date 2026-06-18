@@ -9,13 +9,18 @@ public sealed class AuthorizeOperationFilter : IOperationFilter
 {
     public void Apply(OpenApiOperation operation, OperationFilterContext context)
     {
+        ArgumentNullException.ThrowIfNull(operation);
+        ArgumentNullException.ThrowIfNull(context);
+
         var hasAllowAnonymous = context.MethodInfo
             .GetCustomAttributes(true)
             .OfType<AllowAnonymousAttribute>()
             .Any();
 
         if (hasAllowAnonymous)
+        {
             return;
+        }
 
         var authorizeAttributes = context.MethodInfo
             .GetCustomAttributes(true)
@@ -24,7 +29,9 @@ public sealed class AuthorizeOperationFilter : IOperationFilter
             .ToArray();
 
         if (authorizeAttributes.Length == 0)
+        {
             return;
+        }
 
         operation.Security ??= [];
         operation.Security.Add(new OpenApiSecurityRequirement
@@ -39,7 +46,9 @@ public sealed class AuthorizeOperationFilter : IOperationFilter
             .ToArray();
 
         if (policies.Length == 0)
+        {
             return;
+        }
 
         var requiredScopes = policies
             .Select(MapPolicyToScope)
@@ -48,7 +57,9 @@ public sealed class AuthorizeOperationFilter : IOperationFilter
             .ToArray();
 
         if (requiredScopes.Length == 0)
+        {
             return;
+        }
 
         operation.Description = string.Join("\n\n", new[]
         {
@@ -59,9 +70,6 @@ public sealed class AuthorizeOperationFilter : IOperationFilter
 
     private static string? MapPolicyToScope(string? policy)
     {
-        if (policy is not null && policy.StartsWith("scope:", StringComparison.Ordinal))
-            return policy["scope:".Length..];
-
-        return null;
+        return policy is not null && policy.StartsWith("scope:", StringComparison.Ordinal) ? policy["scope:".Length..] : null;
     }
 }

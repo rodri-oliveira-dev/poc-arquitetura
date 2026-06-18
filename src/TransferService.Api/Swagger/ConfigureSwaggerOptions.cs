@@ -13,11 +13,15 @@ public sealed class ConfigureSwaggerOptions : IConfigureOptions<SwaggerGenOption
 
     public ConfigureSwaggerOptions(IApiVersionDescriptionProvider provider)
     {
+        ArgumentNullException.ThrowIfNull(provider);
+
         _provider = provider;
     }
 
     public void Configure(SwaggerGenOptions options)
     {
+        ArgumentNullException.ThrowIfNull(options);
+
         options.AddServer(new OpenApiServer
         {
             Url = "http://localhost:5230",

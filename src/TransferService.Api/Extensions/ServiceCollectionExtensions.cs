@@ -16,6 +16,8 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddApiSwagger(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         return services.AddApiSwaggerDefaults<ConfigureSwaggerOptions>(
             typeof(Program).Assembly,
             options =>
@@ -42,6 +44,9 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddApiObservability(this IServiceCollection services, IConfiguration configuration)
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
+
         services.AddOptions<OpenTelemetryOptions>()
             .Bind(configuration.GetSection(OpenTelemetryOptions.SectionName));
 
@@ -49,7 +54,9 @@ public static class ServiceCollectionExtensions
             ?? new OpenTelemetryOptions();
 
         if (!otelOptions.Enabled)
+        {
             return services;
+        }
 
         services.AddOpenTelemetry()
             .ConfigureResource(resource => resource.AddService(otelOptions.ServiceName))
@@ -62,10 +69,14 @@ public static class ServiceCollectionExtensions
                     .AddSource("TransferService.Application");
 
                 if (otelOptions.UseConsoleExporter)
+                {
                     tracing.AddConsoleExporter();
+                }
 
                 if (!string.IsNullOrWhiteSpace(otelOptions.OtlpEndpoint))
+                {
                     tracing.AddOtlpExporter(options => options.Endpoint = new Uri(otelOptions.OtlpEndpoint));
+                }
             })
             .WithMetrics(metrics =>
             {
@@ -75,10 +86,14 @@ public static class ServiceCollectionExtensions
                     .AddRuntimeInstrumentation();
 
                 if (otelOptions.UseConsoleExporter)
+                {
                     metrics.AddConsoleExporter();
+                }
 
                 if (!string.IsNullOrWhiteSpace(otelOptions.OtlpEndpoint))
+                {
                     metrics.AddOtlpExporter(options => options.Endpoint = new Uri(otelOptions.OtlpEndpoint));
+                }
             });
 
         return services;

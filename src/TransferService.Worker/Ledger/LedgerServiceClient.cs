@@ -1,8 +1,6 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 
-using TransferService.Worker.Options;
-
 namespace TransferService.Worker.Ledger;
 
 public sealed class LedgerServiceClient : ILedgerServiceClient
@@ -12,6 +10,8 @@ public sealed class LedgerServiceClient : ILedgerServiceClient
 
     public LedgerServiceClient(HttpClient httpClient)
     {
+        ArgumentNullException.ThrowIfNull(httpClient);
+
         _httpClient = httpClient;
     }
 
@@ -21,6 +21,9 @@ public sealed class LedgerServiceClient : ILedgerServiceClient
         string? correlationId,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(idempotencyKey);
+
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "api/v1/lancamentos")
         {
             Content = JsonContent.Create(new LedgerCreateLancamentoPayload(
@@ -35,18 +38,21 @@ public sealed class LedgerServiceClient : ILedgerServiceClient
 
         using var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
         if (!response.IsSuccessStatusCode)
+        {
             throw new LedgerServiceException(response.StatusCode, await response.Content.ReadAsStringAsync(cancellationToken));
+        }
 
         var body = await response.Content.ReadFromJsonAsync<LedgerLancamentoResponse>(JsonOptions, cancellationToken)
             ?? throw new LedgerServiceException(response.StatusCode, "LedgerService.Api retornou resposta vazia para criacao de lancamento.");
 
         if (body.LancamentoId is not null)
+        {
             return new LedgerLancamentoResult(body.LancamentoId.Value);
+        }
 
-        if (Guid.TryParse(body.Id, out var parsedId))
-            return new LedgerLancamentoResult(parsedId);
-
-        throw new LedgerServiceException(response.StatusCode, "LedgerService.Api nao retornou lancamentoId em formato UUID.");
+        return Guid.TryParse(body.Id, out var parsedId)
+            ? new LedgerLancamentoResult(parsedId)
+            : throw new LedgerServiceException(response.StatusCode, "LedgerService.Api nao retornou lancamentoId em formato UUID.");
     }
 
     public async Task<LedgerEstornoResult> SolicitarEstornoAsync(
@@ -56,6 +62,9 @@ public sealed class LedgerServiceClient : ILedgerServiceClient
         string? correlationId,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(idempotencyKey);
+
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, $"api/v1/lancamentos/{lancamentoId}/estornos")
         {
             Content = JsonContent.Create(request, options: JsonOptions)
@@ -65,7 +74,9 @@ public sealed class LedgerServiceClient : ILedgerServiceClient
 
         using var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
         if (!response.IsSuccessStatusCode)
+        {
             throw new LedgerServiceException(response.StatusCode, await response.Content.ReadAsStringAsync(cancellationToken));
+        }
 
         var body = await response.Content.ReadFromJsonAsync<LedgerEstornoResponse>(JsonOptions, cancellationToken)
             ?? throw new LedgerServiceException(response.StatusCode, "LedgerService.Api retornou resposta vazia para solicitacao de estorno.");
@@ -77,7 +88,9 @@ public sealed class LedgerServiceClient : ILedgerServiceClient
     {
         request.Headers.TryAddWithoutValidation("Idempotency-Key", idempotencyKey);
         if (!string.IsNullOrWhiteSpace(correlationId))
+        {
             request.Headers.TryAddWithoutValidation("X-Correlation-Id", correlationId);
+        }
     }
 
     private sealed record LedgerCreateLancamentoPayload(

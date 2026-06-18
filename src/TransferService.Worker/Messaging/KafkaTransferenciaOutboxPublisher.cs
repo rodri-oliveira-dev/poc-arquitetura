@@ -12,6 +12,12 @@ namespace TransferService.Worker.Messaging;
 
 public sealed class KafkaTransferenciaOutboxPublisher : ITransferenciaKafkaProducer, IDisposable
 {
+    private static readonly Action<ILogger, string, bool, Exception?> LogProducerError =
+        LoggerMessage.Define<string, bool>(
+            LogLevel.Warning,
+            new EventId(1, nameof(LogProducerError)),
+            "Kafka producer error: {Reason} (IsFatal={IsFatal})");
+
     private readonly IProducer<string, string> _producer;
     private readonly ILogger<KafkaTransferenciaOutboxPublisher> _logger;
 
@@ -27,6 +33,9 @@ public sealed class KafkaTransferenciaOutboxPublisher : ITransferenciaKafkaProdu
         ILogger<KafkaTransferenciaOutboxPublisher> logger,
         IProducer<string, string>? producer)
     {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(logger);
+
         _logger = logger;
         var kafka = options.Value.Kafka;
         var config = new ProducerConfig
@@ -39,19 +48,30 @@ public sealed class KafkaTransferenciaOutboxPublisher : ITransferenciaKafkaProdu
         };
 
         if (Enum.TryParse<SecurityProtocol>(kafka.SecurityProtocol, ignoreCase: true, out var securityProtocol))
+        {
             config.SecurityProtocol = securityProtocol;
+        }
 
         _producer = producer ?? new ProducerBuilder<string, string>(config)
             .SetErrorHandler((_, error) =>
-                _logger.LogWarning("Kafka producer error: {Reason} (IsFatal={IsFatal})", error.Reason, error.IsFatal))
+                LogProducerError(_logger, error.Reason, error.IsFatal, null))
             .Build();
     }
 
     public Task PublishAsync(TransferenciaOutboxMessage message, string topic, CancellationToken cancellationToken)
-        => ProduceAsync(message, topic, message.Payload, message.MessageKey, dlqReason: null, cancellationToken);
+    {
+        ArgumentNullException.ThrowIfNull(message);
+        ArgumentNullException.ThrowIfNull(topic);
+
+        return ProduceAsync(message, topic, message.Payload, message.MessageKey, dlqReason: null, cancellationToken);
+    }
 
     public Task PublishDlqAsync(TransferenciaOutboxMessage message, string reason, string dlqTopic, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(message);
+        ArgumentNullException.ThrowIfNull(reason);
+        ArgumentNullException.ThrowIfNull(dlqTopic);
+
         var originalPayload = JsonSerializer.Serialize(message.Payload);
         var payload = $$"""
         {
@@ -85,9 +105,14 @@ public sealed class KafkaTransferenciaOutboxPublisher : ITransferenciaKafkaProdu
         };
 
         if (!string.IsNullOrWhiteSpace(message.CorrelationId))
+        {
             headers.Add("correlation_id", Encoding.UTF8.GetBytes(message.CorrelationId));
+        }
+
         if (!string.IsNullOrWhiteSpace(dlqReason))
+        {
             headers.Add("dlq_reason", Encoding.UTF8.GetBytes(dlqReason));
+        }
 
         try
         {

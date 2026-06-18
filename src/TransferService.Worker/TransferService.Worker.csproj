@@ -18,4 +18,8 @@
     <UserSecretsId>poc-arquitetura-transfer-service-worker</UserSecretsId>
   </PropertyGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="TransferService.Worker.Tests" />
+  </ItemGroup>
+
 </Project>
