@@ -185,34 +185,35 @@ wait_http_endpoint() {
   exit 1
 }
 
-assert_local_pubsub_stack() {
+assert_local_kafka_stack() {
   local config
   local running_services
   config="$(docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" config)"
 
   for expected in \
-    "Messaging__Provider: PubSub" \
-    "PUBSUB_EMULATOR_HOST: pubsub-emulator:8085"
+    "Messaging__Provider: Kafka" \
+    "Kafka__Producer__BootstrapServers: kafka:9092" \
+    "Kafka__Consumer__BootstrapServers: kafka:9092"
   do
     if ! grep -Fq "$expected" <<<"$config"; then
-      echo "Stack k6 deve usar Pub/Sub emulator local. Configuracao ausente: $expected" >&2
+      echo "Stack k6 deve usar Kafka local. Configuracao ausente: $expected" >&2
       exit 1
     fi
   done
 
   running_services="$(docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" ps --status running --services)"
-  for service in pubsub-emulator ledger-worker balance-worker; do
+  for service in kafka ledger-worker balance-worker; do
     if ! grep -qx "$service" <<<"$running_services"; then
       echo "Servico obrigatorio para k6 local nao esta em execucao: $service. Suba ./scripts/start-local-stack.sh antes do teste." >&2
       exit 1
     fi
   done
 
-  local pubsub_init
-  pubsub_init="$(docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" ps -a pubsub-init --format json)"
-  if ! grep -q '"State":"exited"' <<<"$pubsub_init" ||
-    ! grep -q '"ExitCode":0' <<<"$pubsub_init"; then
-    echo "pubsub-init nao concluiu com sucesso. Confira: docker compose logs pubsub-init" >&2
+  local kafka_init
+  kafka_init="$(docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" ps -a kafka-init-topics --format json)"
+  if ! grep -q '"State":"exited"' <<<"$kafka_init" ||
+    ! grep -q '"ExitCode":0' <<<"$kafka_init"; then
+    echo "kafka-init-topics nao concluiu com sucesso. Confira: docker compose logs kafka-init-topics" >&2
     exit 1
   fi
 }
@@ -236,7 +237,7 @@ assert_local_transfer_kafka_stack() {
   running_services="$(docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_KAFKA_FILE" ps --status running --services)"
   for service in kafka ledger-service transfer-service transfer-worker; do
     if ! grep -qx "$service" <<<"$running_services"; then
-      echo "Servico obrigatorio para full-stack Kafka nao esta em execucao: $service. Suba ./scripts/start-local-stack-kafka.sh antes do teste." >&2
+      echo "Servico obrigatorio para full-stack Kafka nao esta em execucao: $service. Suba ./scripts/start-local-stack.sh antes do teste." >&2
       exit 1
     fi
   done
@@ -359,13 +360,13 @@ wait_async_flow_progress() {
   while (( SECONDS < deadline )); do
     read -r _ current_outbox current_balance < <(async_flow_counts)
     if (( current_outbox > before_outbox && current_balance > before_balance )); then
-      echo "OK. Smoke Pub/Sub publicou Outbox e projetou evento no Balance."
+      echo "OK. Smoke Kafka publicou Outbox e projetou evento no Balance."
       return 0
     fi
     sleep 2
   done
 
-  echo "Timeout aguardando publish/consume via Pub/Sub emulator apos smoke k6." >&2
+  echo "Timeout aguardando publish/consume via Kafka apos smoke k6." >&2
   exit 1
 }
 
@@ -402,7 +403,7 @@ if [[ "$MODE" == "transfer-smoke" || "$MODE" == "transfer-load" || "$MODE" == "t
 fi
 
 if [[ "$is_transfer_mode" != true ]]; then
-  assert_local_pubsub_stack
+  assert_local_kafka_stack
 fi
 
 # Aplica o override de carga nas APIs antes de executar o k6. O compose.k6.yaml

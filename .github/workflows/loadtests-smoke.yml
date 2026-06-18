@@ -76,9 +76,9 @@ jobs:
       - name: Run TransferService API smoke tests
         run: bash ./scripts/run-loadtests.sh transfer-smoke
 
-      - name: Start Kafka stack for TransferService full-stack smoke
+      - name: Ensure default Kafka stack for TransferService full-stack smoke
         if: ${{ inputs.include-transfer-fullstack-kafka == 'true' }}
-        run: bash ./scripts/start-local-stack-kafka.sh
+        run: bash ./scripts/start-local-stack.sh
 
       - name: Run TransferService full-stack Kafka smoke test
         if: ${{ inputs.include-transfer-fullstack-kafka == 'true' }}

@@ -230,7 +230,7 @@ Smoke full-stack Kafka:
 ./scripts/run-loadtests.sh transfer-fullstack-kafka
 ```
 
-O modo `transfer-fullstack-kafka` e manual e valida API + Worker + LedgerService + Outbox + Kafka. Ele usa o `compose.kafka.yaml`, garante que Kafka e `transfer-worker` estejam em execucao, executa uma transferencia, consulta o status com polling ate `Completed` e valida pelo runner que os topicos `transfer.transferencia.solicitada`, `transfer.transferencia.debito-criado`, `transfer.transferencia.credito-criado` e `transfer.transferencia.concluida` receberam novas mensagens. A DLQ `transfer.transferencia.dlq` nao pode crescer no fluxo feliz.
+O modo `transfer-fullstack-kafka` e manual e valida API + Worker + LedgerService + Outbox + Kafka. Ele usa o compose padrao com Kafka, garante que Kafka e `transfer-worker` estejam em execucao, executa uma transferencia, consulta o status com polling ate `Completed` e valida pelo runner que os topicos `transfer.transferencia.solicitada`, `transfer.transferencia.debito-criado`, `transfer.transferencia.credito-criado` e `transfer.transferencia.concluida` receberam novas mensagens. A DLQ `transfer.transferencia.dlq` nao pode crescer no fluxo feliz.
 
 Esse smoke nao usa Pub/Sub e nao depende de `BalanceService` para decidir a Saga. O `BalanceService` continua sendo uma projecao eventual fora da decisao de debito, credito e compensacao.
 

@@ -195,33 +195,34 @@ function Wait-HttpEndpoint([string]$Url, [int]$TimeoutSeconds = 120) {
   throw "Timeout aguardando endpoint HTTP: $Url"
 }
 
-function Assert-LocalPubSubStack {
+function Assert-LocalKafkaStack {
   $config = (& docker @(Get-ComposeArguments) config | Out-String)
-  if ($LASTEXITCODE -ne 0) { throw "docker compose config falhou ao validar Pub/Sub local." }
+  if ($LASTEXITCODE -ne 0) { throw "docker compose config falhou ao validar Kafka local." }
 
   foreach ($expected in @(
-    "Messaging__Provider: PubSub",
-    "PUBSUB_EMULATOR_HOST: pubsub-emulator:8085"
+    "Messaging__Provider: Kafka",
+    "Kafka__Producer__BootstrapServers: kafka:9092",
+    "Kafka__Consumer__BootstrapServers: kafka:9092"
   )) {
     if (-not $config.Contains($expected)) {
-      throw "Stack k6 deve usar Pub/Sub emulator local. Configuracao ausente: $expected"
+      throw "Stack k6 deve usar Kafka local. Configuracao ausente: $expected"
     }
   }
 
   $runningServices = @(& docker @(Get-ComposeArguments) ps --status running --services)
-  if ($LASTEXITCODE -ne 0) { throw "docker compose ps falhou ao validar Pub/Sub local." }
+  if ($LASTEXITCODE -ne 0) { throw "docker compose ps falhou ao validar Kafka local." }
 
-  foreach ($service in @("pubsub-emulator", "ledger-worker", "balance-worker")) {
+  foreach ($service in @("kafka", "ledger-worker", "balance-worker")) {
     if ($runningServices -notcontains $service) {
       throw "Servico obrigatorio para k6 local nao esta em execucao: $service. Suba ./scripts/start-local-stack.ps1 antes do teste."
     }
   }
 
-  $pubSubInitJson = & docker @(Get-ComposeArguments) ps -a pubsub-init --format json
-  if ($LASTEXITCODE -ne 0) { throw "docker compose ps falhou ao validar pubsub-init." }
-  $pubSubInit = $pubSubInitJson | ConvertFrom-Json
-  if ([string]$pubSubInit.State -ne "exited" -or [int]$pubSubInit.ExitCode -ne 0) {
-    throw "pubsub-init nao concluiu com sucesso. Confira: docker compose logs pubsub-init"
+  $kafkaInitJson = & docker @(Get-ComposeArguments) ps -a kafka-init-topics --format json
+  if ($LASTEXITCODE -ne 0) { throw "docker compose ps falhou ao validar kafka-init-topics." }
+  $kafkaInit = $kafkaInitJson | ConvertFrom-Json
+  if ([string]$kafkaInit.State -ne "exited" -or [int]$kafkaInit.ExitCode -ne 0) {
+    throw "kafka-init-topics nao concluiu com sucesso. Confira: docker compose logs kafka-init-topics"
   }
 }
 
@@ -244,7 +245,7 @@ function Assert-LocalTransferKafkaStack {
 
   foreach ($service in @("kafka", "ledger-service", "transfer-service", "transfer-worker")) {
     if ($runningServices -notcontains $service) {
-      throw "Servico obrigatorio para full-stack Kafka nao esta em execucao: $service. Suba ./scripts/start-local-stack-kafka.ps1 antes do teste."
+      throw "Servico obrigatorio para full-stack Kafka nao esta em execucao: $service. Suba ./scripts/start-local-stack.ps1 antes do teste."
     }
   }
 
@@ -343,14 +344,14 @@ function Wait-AsyncFlowProgress([hashtable]$Before, [int]$TimeoutSeconds = 90) {
   do {
     $current = Get-AsyncFlowCounts
     if ($current.OutboxProcessed -gt $Before.OutboxProcessed -and $current.BalanceProcessed -gt $Before.BalanceProcessed) {
-      Write-Output "OK. Smoke Pub/Sub publicou Outbox e projetou evento no Balance."
+      Write-Output "OK. Smoke Kafka publicou Outbox e projetou evento no Balance."
       return
     }
 
     Start-Sleep -Seconds 2
   } while ((Get-Date) -lt $deadline)
 
-  throw "Timeout aguardando publish/consume via Pub/Sub emulator apos smoke k6."
+  throw "Timeout aguardando publish/consume via Kafka apos smoke k6."
 }
 
 function Wait-AsyncFlowIdle([int]$TimeoutSeconds = 120) {
@@ -375,7 +376,7 @@ $isTransferFullStackKafka = $Mode -eq "transfer-fullstack-kafka"
 $isTransferMode = $Mode -in @("transfer-smoke", "transfer-load", "transfer-fullstack-kafka")
 
 if (-not $isTransferMode) {
-  Assert-LocalPubSubStack
+  Assert-LocalKafkaStack
 }
 
 # Aplica o override de carga nas APIs antes de executar o k6. O compose.k6.yaml
