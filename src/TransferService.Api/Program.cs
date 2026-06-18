@@ -3,9 +3,6 @@ using ApiDefaults.Extensions;
 using TransferService.Api.Extensions;
 using TransferService.Infrastructure.Persistence;
 
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.EntityFrameworkCore;
-
 var builder = WebApplication.CreateBuilder(args);
 
 builder.WebHost.ConfigureApiDefaults();
@@ -21,43 +18,10 @@ app.UseApiDefaults();
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapGet("/health", [AllowAnonymous] () => Results.Text("ok"))
-    .WithGroupName("v1")
-    .WithName("Health")
-    .WithSummary("Health check simples")
-    .WithDescription("Retorna 200 com body 'ok'. Endpoint publico para liveness simples.")
-    .Produces(StatusCodes.Status200OK, contentType: "text/plain")
-    .DisableRateLimiting();
-
-app.MapGet("/ready", [AllowAnonymous] async (
-    TransferServiceDbContext db,
-    CancellationToken cancellationToken) =>
-{
-    var checks = new Dictionary<string, string>
-    {
-        ["db"] = await db.Database.CanConnectAsync(cancellationToken) ? "ok" : "unavailable"
-    };
-
-    var ready = checks.Values.All(v => v is "ok");
-    return ready
-        ? Results.Ok(new
-        {
-            status = "ready",
-            checks
-        })
-        : Results.Json(new
-        {
-            status = "not_ready",
-            checks
-        }, statusCode: StatusCodes.Status503ServiceUnavailable);
-})
-    .WithGroupName("v1")
-    .WithName("Ready")
-    .WithSummary("Readiness check")
-    .WithDescription("Valida dependencias necessarias para aceitar trafego HTTP: banco.")
-    .Produces(StatusCodes.Status200OK)
-    .Produces(StatusCodes.Status503ServiceUnavailable)
-    .DisableRateLimiting();
+app.MapApiHealthEndpoints(
+    static (services, cancellationToken) =>
+        services.GetRequiredService<TransferServiceDbContext>().Database.CanConnectAsync(cancellationToken),
+    "Valida dependencias necessarias para aceitar trafego HTTP: banco.");
 
 app.MapControllers().RequireRateLimiting("fixed");
 
