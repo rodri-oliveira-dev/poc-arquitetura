@@ -58,6 +58,20 @@ No Linux/macOS:
 
 O script nao sobrescreve `.env.local` existente; use `-Force` no PowerShell ou `--force` no shell apenas quando quiser recriar conscientemente o arquivo local. O arquivo `.env.local` e ignorado pelo Git e nao deve ser versionado. Os scripts `start-local-stack.*` e `start-full-stack.*` tambem leem `.env.local` automaticamente; `.env` permanece aceito como fallback para compatibilidade com fluxos antigos.
 
+Comandos manuais de Compose devem usar `--env-file .env.local`, porque o Docker Compose nao carrega `.env.local` automaticamente. O comando sem `--env-file`, como `docker compose -f compose.yaml config --quiet`, carrega apenas variaveis exportadas no ambiente da sessao e o arquivo `.env` da raiz do repositorio. Se voce precisa usar esse formato curto, crie um `.env` local ignorado pelo Git a partir do exemplo versionado:
+
+```bash
+cp .env.example .env
+```
+
+No PowerShell:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Depois preencha os placeholders no `.env`. Nao copie valores reais para `.env.example` ou `.env.local.example`.
+
 Variaveis sensiveis obrigatorias para o compose principal:
 
 - `POSTGRES_PASSWORD`
@@ -313,9 +327,12 @@ OBSERVABILITY=true ./scripts/start-local-stack-pubsub.sh
 Para inspecionar a configuracao Compose efetiva sem subir containers:
 
 ```bash
+docker compose --env-file .env.local -f compose.yaml config --quiet
 docker compose --env-file .env.local -f compose.yaml config
 docker compose --env-file .env.local -f compose.yaml config --services
 ```
+
+Se a validacao retornar erro como `required variable LEDGER_DB_PASSWORD is missing a value`, falta uma fonte de variaveis para interpolacao. Use `--env-file .env.local`, exporte as variaveis na sessao ou crie `.env` local a partir de `.env.example` quando quiser rodar `docker compose -f compose.yaml config --quiet` sem argumentos extras.
 
 O socket Docker, mesmo montado como somente leitura, e uma superficie sensivel. Use o profile `observability` apenas em maquina local confiavel; nao use em ambiente compartilhado ou produtivo sem redesenhar a coleta de logs e revisar permissoes.
 
