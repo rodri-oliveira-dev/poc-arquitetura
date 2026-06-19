@@ -1,11 +1,12 @@
 using System.Diagnostics;
 using System.Globalization;
 
+using ApiDefaults.Middlewares;
+
 using Asp.Versioning;
 
 using BalanceService.Api.Contracts;
 using BalanceService.Api.Mappers;
-using ApiDefaults.Middlewares;
 using BalanceService.Api.Options;
 using BalanceService.Api.Security;
 
@@ -35,6 +36,8 @@ public sealed class ConsolidadosController : ControllerBase
         IMerchantAuthorizationService merchantAuthorizationService,
         IOptions<ApiLimitsOptions> apiLimitsOptions)
     {
+        ArgumentNullException.ThrowIfNull(apiLimitsOptions);
+
         _sender = sender;
         _merchantAuthorizationService = merchantAuthorizationService;
         _apiLimitsOptions = apiLimitsOptions.Value;

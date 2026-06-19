@@ -15,6 +15,8 @@ public static class WebApplicationExtensions
     /// </summary>
     public static WebApplication UseAuthApiPipeline(this WebApplication app)
     {
+        ArgumentNullException.ThrowIfNull(app);
+
         app.UseForwardedHeaders();
 
         if (!app.Environment.IsDevelopment())
@@ -66,6 +68,8 @@ public static class WebApplicationExtensions
     /// </summary>
     public static WebApplication MapAuthApiEndpoints(this WebApplication app)
     {
+        ArgumentNullException.ThrowIfNull(app);
+
         // --- Endpoints ---
 
         app.MapGet("/health", () => Results.Text("ok"))

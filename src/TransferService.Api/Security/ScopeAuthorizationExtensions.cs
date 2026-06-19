@@ -6,6 +6,8 @@ public static class ScopeAuthorizationExtensions
 {
     public static AuthorizationOptions AddScopePolicies(this AuthorizationOptions options)
     {
+        ArgumentNullException.ThrowIfNull(options);
+
         options.AddPolicy(ScopePolicies.TransferReadPolicy, policy =>
         {
             policy.RequireAuthenticatedUser();

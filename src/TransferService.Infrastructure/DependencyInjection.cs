@@ -1,7 +1,7 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.EntityFrameworkCore;
 
 using TransferService.Application.Abstractions.Messaging;
 using TransferService.Application.Abstractions.Persistence;
@@ -19,6 +19,10 @@ public static class DependencyInjection
         IConfiguration configuration,
         IHostEnvironment environment)
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
+        ArgumentNullException.ThrowIfNull(environment);
+
         services
             .AddTransferPersistence(configuration)
             .AddTransferRepositories()
@@ -31,6 +35,9 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
+
         var connectionString = configuration.GetConnectionString("DefaultConnection")
             ?? throw new InvalidOperationException("Connection string 'DefaultConnection' nao foi configurada.");
 
@@ -46,6 +53,8 @@ public static class DependencyInjection
 
     public static IServiceCollection AddTransferRepositories(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.AddScoped<ITransferenciaSagaRepository, TransferenciaSagaRepository>();
         services.AddScoped<ITransferenciaIdempotencyService, TransferenciaIdempotencyService>();
         services.AddScoped<ITransferenciaOutboxWriter, TransferenciaOutboxWriter>();
@@ -57,6 +66,9 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
+
         services.Configure<TransferenciaKafkaTopicOptions>(
             configuration.GetSection(TransferenciaKafkaTopicOptions.SectionName));
         services.AddSingleton<TransferenciaSagaKafkaMetadataMapper>();

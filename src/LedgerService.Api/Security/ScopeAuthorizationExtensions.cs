@@ -9,6 +9,8 @@ public static class ScopeAuthorizationExtensions
     /// </summary>
     public static AuthorizationOptions AddScopePolicies(this AuthorizationOptions options)
     {
+        ArgumentNullException.ThrowIfNull(options);
+
         options.AddPolicy(ScopePolicies.LedgerReadPolicy, policy =>
         {
             policy.RequireAuthenticatedUser();

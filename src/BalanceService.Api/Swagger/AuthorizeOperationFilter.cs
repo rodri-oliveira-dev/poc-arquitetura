@@ -14,6 +14,9 @@ public sealed class AuthorizeOperationFilter : IOperationFilter
 {
     public void Apply(OpenApiOperation operation, OperationFilterContext context)
     {
+        ArgumentNullException.ThrowIfNull(operation);
+        ArgumentNullException.ThrowIfNull(context);
+
         var hasAllowAnonymous = context.MethodInfo
             .GetCustomAttributes(true)
             .OfType<AllowAnonymousAttribute>()

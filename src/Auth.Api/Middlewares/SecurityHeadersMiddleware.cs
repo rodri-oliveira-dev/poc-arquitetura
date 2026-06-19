@@ -11,6 +11,8 @@ public sealed class SecurityHeadersMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
+        ArgumentNullException.ThrowIfNull(context);
+
         var headers = context.Response.Headers;
 
         headers.TryAdd("X-Content-Type-Options", "nosniff");

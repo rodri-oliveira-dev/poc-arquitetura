@@ -14,6 +14,9 @@ public sealed class AuthorizeOperationFilter : IOperationFilter
 {
     public void Apply(OpenApiOperation operation, OperationFilterContext context)
     {
+        ArgumentNullException.ThrowIfNull(operation);
+        ArgumentNullException.ThrowIfNull(context);
+
         // Se AllowAnonymous estiver presente, não aplicar autenticação.
         var hasAllowAnonymous = context.MethodInfo
             .GetCustomAttributes(true)

@@ -41,6 +41,8 @@ public sealed class TransferApiFactory : WebApplicationFactory<Program>, IDispos
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.UseEnvironment("Test");
         builder.ConfigureLogging(logging =>
         {

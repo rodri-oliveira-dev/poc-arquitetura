@@ -15,6 +15,8 @@ public sealed class AuthEndpointsTests : IClassFixture<AuthApiFactory>
 
     public AuthEndpointsTests(AuthApiFactory factory)
     {
+        ArgumentNullException.ThrowIfNull(factory);
+
         _client = factory.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false

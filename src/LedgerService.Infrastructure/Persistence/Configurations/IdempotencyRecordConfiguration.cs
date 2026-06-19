@@ -1,7 +1,7 @@
+using LedgerService.Domain.Entities;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-
-using LedgerService.Domain.Entities;
 
 namespace LedgerService.Infrastructure.Persistence.Configurations;
 
@@ -9,6 +9,8 @@ public sealed class IdempotencyRecordConfiguration : IEntityTypeConfiguration<Id
 {
     public void Configure(EntityTypeBuilder<IdempotencyRecord> builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.ToTable("idempotency_records");
 
         builder.HasKey(x => x.Id);

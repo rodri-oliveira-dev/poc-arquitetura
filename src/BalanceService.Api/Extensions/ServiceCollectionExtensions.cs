@@ -17,6 +17,8 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddApiSwagger(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         return services.AddApiSwaggerDefaults<ConfigureSwaggerOptions>(
             typeof(Program).Assembly,
             options =>
@@ -37,6 +39,9 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddApiObservability(this IServiceCollection services, IConfiguration configuration)
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
+
         services.AddOptions<OpenTelemetryOptions>()
             .Bind(configuration.GetSection(OpenTelemetryOptions.SectionName));
 

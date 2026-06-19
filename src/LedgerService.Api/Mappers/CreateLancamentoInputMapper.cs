@@ -1,7 +1,6 @@
 using System.Globalization;
 
 using LedgerService.Api.Contracts.Requests;
-using LedgerService.Api.Contracts.Responses;
 using LedgerService.Application.Lancamentos.Inputs.CreateLancamento;
 
 namespace LedgerService.Api.Mappers;
@@ -12,7 +11,10 @@ public static class CreateLancamentoInputMapper
         CreateLancamentoRequest request,
         string idempotencyKey,
         string correlationId)
-        => new(
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return new(
             request.MerchantId,
             (request.Type ?? string.Empty).Trim().ToUpperInvariant(),
             request.Amount.ToString(CultureInfo.InvariantCulture),
@@ -20,4 +22,5 @@ public static class CreateLancamentoInputMapper
             request.ExternalReference,
             idempotencyKey,
             correlationId);
+    }
 }

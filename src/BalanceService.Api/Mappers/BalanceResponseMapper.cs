@@ -8,7 +8,10 @@ namespace BalanceService.Api.Mappers;
 public static class BalanceResponseMapper
 {
     public static DailyBalanceResponse ToResponse(DailyBalanceReadModel model, DateTimeOffset calculatedAt)
-        => new()
+    {
+        ArgumentNullException.ThrowIfNull(model);
+
+        return new()
         {
             MerchantId = model.MerchantId,
             Date = model.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
@@ -19,9 +22,13 @@ public static class BalanceResponseMapper
             AsOf = ToIsoOrNull(model.AsOf),
             CalculatedAt = calculatedAt.ToString("o", CultureInfo.InvariantCulture)
         };
+    }
 
     public static PeriodBalanceResponse ToResponse(PeriodBalanceReadModel model, DateTimeOffset calculatedAt)
-        => new()
+    {
+        ArgumentNullException.ThrowIfNull(model);
+
+        return new()
         {
             MerchantId = model.MerchantId,
             From = model.From.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
@@ -35,6 +42,7 @@ public static class BalanceResponseMapper
                 .ToList(),
             CalculatedAt = calculatedAt.ToString("o", CultureInfo.InvariantCulture)
         };
+    }
 
     private static PeriodBalanceItemResponse ToItemResponse(DailyBalanceReadModel model)
         => new()

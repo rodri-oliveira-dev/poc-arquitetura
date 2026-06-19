@@ -9,6 +9,8 @@ public sealed class TransferenciaSagaConfiguration : IEntityTypeConfiguration<Tr
 {
     public void Configure(EntityTypeBuilder<TransferenciaSaga> builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.ToTable("transferencias_sagas");
 
         builder.HasKey(x => x.Id);

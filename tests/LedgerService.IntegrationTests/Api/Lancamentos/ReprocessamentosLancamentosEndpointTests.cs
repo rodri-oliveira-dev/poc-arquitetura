@@ -23,6 +23,8 @@ public sealed class ReprocessamentosLancamentosEndpointTests : IClassFixture<Led
 
     public ReprocessamentosLancamentosEndpointTests(LedgerApiFactory factory)
     {
+        ArgumentNullException.ThrowIfNull(factory);
+
         _factory = factory;
         _client = factory.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
         {

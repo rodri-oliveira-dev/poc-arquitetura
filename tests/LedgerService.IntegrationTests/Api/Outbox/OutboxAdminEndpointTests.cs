@@ -19,6 +19,8 @@ public sealed class OutboxAdminEndpointTests : IClassFixture<LedgerApiFactory>
 
     public OutboxAdminEndpointTests(LedgerApiFactory factory)
     {
+        ArgumentNullException.ThrowIfNull(factory);
+
         _factory = factory;
         _client = factory.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
         {

@@ -1,10 +1,10 @@
+using System.Text.Json.Nodes;
+
 using Auth.Api.Security;
 
 using Microsoft.OpenApi;
 
 using Swashbuckle.AspNetCore.SwaggerGen;
-
-using System.Text.Json.Nodes;
 
 namespace Auth.Api.Swagger;
 
@@ -17,6 +17,9 @@ public sealed class LoginOperationFilter : IOperationFilter
 {
     public void Apply(OpenApiOperation operation, OperationFilterContext context)
     {
+        ArgumentNullException.ThrowIfNull(operation);
+        ArgumentNullException.ThrowIfNull(context);
+
         var path = "/" + context.ApiDescription.RelativePath?.TrimStart('/');
         if (!string.Equals(path, "/auth/login", StringComparison.OrdinalIgnoreCase))
             return;

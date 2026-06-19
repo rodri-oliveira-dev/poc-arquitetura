@@ -1,3 +1,5 @@
+using System.Security.Claims;
+
 using Asp.Versioning;
 
 using LedgerService.Api.Contracts.Requests;
@@ -12,8 +14,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 using Swashbuckle.AspNetCore.Annotations;
-
-using System.Security.Claims;
 
 namespace LedgerService.Api.Controllers;
 
@@ -86,6 +86,8 @@ public sealed class OutboxAdminController : ControllerBase
         [FromBody] RequeueDeadLetterRequest request,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
+
         var result = await _sender.Send(
             new RequeueDeadLetterCommand(
                 id,

@@ -1,7 +1,7 @@
+using LedgerService.Domain.Entities;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-
-using LedgerService.Domain.Entities;
 
 namespace LedgerService.Infrastructure.Persistence.Configurations;
 
@@ -9,6 +9,8 @@ public sealed class LedgerEntryConfiguration : IEntityTypeConfiguration<LedgerEn
 {
     public void Configure(EntityTypeBuilder<LedgerEntry> builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.ToTable("ledger_entries", table =>
         {
             table.HasCheckConstraint(

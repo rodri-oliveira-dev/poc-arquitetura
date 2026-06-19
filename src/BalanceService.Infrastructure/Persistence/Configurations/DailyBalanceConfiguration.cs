@@ -9,6 +9,8 @@ public sealed class DailyBalanceConfiguration : IEntityTypeConfiguration<DailyBa
 {
     public void Configure(EntityTypeBuilder<DailyBalance> builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.ToTable("daily_balances");
 
         builder.HasKey(x => x.Id);

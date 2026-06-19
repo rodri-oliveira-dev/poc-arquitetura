@@ -27,6 +27,8 @@ public sealed class AuthApiFactory : WebApplicationFactory<Program>
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.UseEnvironment("Test");
         builder.ConfigureLogging(logging =>
         {

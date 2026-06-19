@@ -53,6 +53,8 @@ public sealed class TransferenciaIdempotencyService : ITransferenciaIdempotencyS
         DateTimeOffset expiresAt,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(response);
+
         var responseBody = JsonSerializer.Serialize(response, JsonOptions);
         var record = new TransferenciaIdempotencyRecord(
             sourceMerchantId,

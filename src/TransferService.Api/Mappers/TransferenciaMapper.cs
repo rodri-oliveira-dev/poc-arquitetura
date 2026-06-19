@@ -25,7 +25,10 @@ public static class TransferenciaMapper
     }
 
     public static SolicitarTransferenciaResponse ToResponse(SolicitarTransferenciaResult result)
-        => new(
+    {
+        ArgumentNullException.ThrowIfNull(result);
+
+        return new(
             result.TransferenciaId,
             result.Status,
             result.SourceMerchantId,
@@ -33,9 +36,13 @@ public static class TransferenciaMapper
             result.Amount,
             result.CreatedAt,
             $"/api/v1/transferencias/{result.TransferenciaId}");
+    }
 
     public static ObterStatusTransferenciaResponse ToResponse(ObterStatusTransferenciaResult result)
-        => new(
+    {
+        ArgumentNullException.ThrowIfNull(result);
+
+        return new(
             result.TransferenciaId,
             result.Status,
             result.SourceMerchantId,
@@ -43,4 +50,5 @@ public static class TransferenciaMapper
             result.Amount,
             result.CreatedAt,
             result.UpdatedAt);
+    }
 }

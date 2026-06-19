@@ -25,6 +25,8 @@ public sealed class LoginRateLimitMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
+        ArgumentNullException.ThrowIfNull(context);
+
         if (!HttpMethods.IsPost(context.Request.Method) ||
             !context.Request.Path.Equals("/auth/login", StringComparison.OrdinalIgnoreCase))
         {

@@ -14,6 +14,9 @@ public sealed class GlobalExceptionHandler : IExceptionHandler
 
     public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(httpContext);
+        ArgumentNullException.ThrowIfNull(exception);
+
         _logger.LogError(exception, "Erro nao tratado no Auth.Api. TraceId: {TraceId}", httpContext.TraceIdentifier);
 
         var problemDetails = new ProblemDetails

@@ -57,6 +57,7 @@ public sealed class TransferenciaIdempotencyRecord
         ArgumentException.ThrowIfNullOrWhiteSpace(sourceMerchantId);
         ArgumentException.ThrowIfNullOrWhiteSpace(idempotencyKey);
         ArgumentException.ThrowIfNullOrWhiteSpace(requestHash);
+        ArgumentNullException.ThrowIfNull(response);
         ArgumentException.ThrowIfNullOrWhiteSpace(responseBody);
 
         Id = Guid.NewGuid();

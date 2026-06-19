@@ -1,9 +1,9 @@
 using System.Globalization;
+using System.Text.Json.Nodes;
 
 using Microsoft.OpenApi;
 
 using Swashbuckle.AspNetCore.SwaggerGen;
-using System.Text.Json.Nodes;
 
 namespace BalanceService.Api.Swagger;
 
@@ -11,6 +11,9 @@ public sealed class ConsolidadosExamplesOperationFilter : IOperationFilter
 {
     public void Apply(OpenApiOperation operation, OperationFilterContext context)
     {
+        ArgumentNullException.ThrowIfNull(operation);
+        ArgumentNullException.ThrowIfNull(context);
+
         if (!string.Equals(context.MethodInfo.DeclaringType?.Name, "ConsolidadosController", StringComparison.Ordinal))
         {
             return;

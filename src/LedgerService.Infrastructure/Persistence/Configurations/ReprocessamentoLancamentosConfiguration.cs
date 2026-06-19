@@ -10,6 +10,8 @@ public sealed class ReprocessamentoLancamentosConfiguration
 {
     public void Configure(EntityTypeBuilder<ReprocessamentoLancamentos> builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.ToTable("reprocessamentos_lancamentos");
 
         builder.HasKey(x => x.Id);

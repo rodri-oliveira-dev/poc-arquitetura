@@ -1,10 +1,10 @@
 using ApiDefaults.Extensions;
 
+using BalanceService.Api.Contracts;
 using BalanceService.Api.Middlewares;
 using BalanceService.Api.Options;
 using BalanceService.Application;
 using BalanceService.Infrastructure;
-using BalanceService.Api.Contracts;
 
 namespace BalanceService.Api.Extensions;
 
@@ -15,6 +15,10 @@ public static class ApiCompositionExtensions
         IConfiguration configuration,
         IHostEnvironment environment)
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
+        ArgumentNullException.ThrowIfNull(environment);
+
         services
             .AddApiDefaults<GlobalExceptionHandler>(configuration, "balance.localhost", "localhost")
             .AddApiSwagger()

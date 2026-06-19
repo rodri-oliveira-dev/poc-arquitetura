@@ -1,6 +1,6 @@
-using Microsoft.Extensions.Primitives;
-
 using System.Diagnostics;
+
+using Microsoft.Extensions.Primitives;
 
 namespace Auth.Api.Middlewares;
 
@@ -24,6 +24,8 @@ public sealed class CorrelationIdMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
+        ArgumentNullException.ThrowIfNull(context);
+
         var correlationId = ResolveOrCreateCorrelationId(context);
 
         var activity = Activity.Current;
