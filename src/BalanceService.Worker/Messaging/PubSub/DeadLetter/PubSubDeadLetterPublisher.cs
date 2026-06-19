@@ -12,7 +12,7 @@ using Microsoft.Extensions.Options;
 
 namespace BalanceService.Worker.Messaging.PubSub.DeadLetter;
 
-public sealed class PubSubDeadLetterPublisher : IDeadLetterPublisher, IAsyncDisposable
+public sealed partial class PubSubDeadLetterPublisher : IDeadLetterPublisher, IAsyncDisposable
 {
     private const string DeadLetterReasonAttribute = "dlq_reason";
     private const string OriginalSourceAttribute = "original_source";
@@ -25,6 +25,12 @@ public sealed class PubSubDeadLetterPublisher : IDeadLetterPublisher, IAsyncDisp
     private readonly ILogger<PubSubDeadLetterPublisher> _logger;
     private readonly object _clientLock = new();
     private Task<IPubSubDeadLetterPublisherClient>? _clientTask;
+
+    [LoggerMessage(EventId = 1, Level = LogLevel.Debug, Message = "Cancelamento ao encerrar publisher Pub/Sub DLQ.")]
+    private static partial void LogPubSubDlqPublisherShutdownCanceled(ILogger logger, Exception exception);
+
+    [LoggerMessage(EventId = 2, Level = LogLevel.Debug, Message = "Falha ao encerrar publisher Pub/Sub DLQ.")]
+    private static partial void LogPubSubDlqPublisherShutdownFailure(ILogger logger, Exception exception);
 
     public PubSubDeadLetterPublisher(
         IOptions<PubSubConsumerOptions> options,
@@ -69,14 +75,14 @@ public sealed class PubSubDeadLetterPublisher : IDeadLetterPublisher, IAsyncDisp
         }
         catch (OperationCanceledException ex)
         {
-            _logger.LogDebug(ex, "Cancelamento ao encerrar publisher Pub/Sub DLQ.");
+            LogPubSubDlqPublisherShutdownCanceled(_logger, ex);
         }
 #pragma warning disable CA1031
         // Shutdown e best effort no disposal do worker; log em Debug evita mascarar diagnostico sem derrubar encerramento.
         catch (Exception ex)
 #pragma warning restore CA1031
         {
-            _logger.LogDebug(ex, "Falha ao encerrar publisher Pub/Sub DLQ.");
+            LogPubSubDlqPublisherShutdownFailure(_logger, ex);
         }
     }
 

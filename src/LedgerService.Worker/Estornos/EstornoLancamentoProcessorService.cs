@@ -3,18 +3,31 @@ using LedgerService.Domain.Repositories;
 
 using MediatR;
 
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace LedgerService.Worker.Estornos;
 
-public sealed class EstornoLancamentoProcessorService : BackgroundService
+public sealed partial class EstornoLancamentoProcessorService : BackgroundService
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly IOptions<EstornoProcessingOptions> _options;
     private readonly ILogger<EstornoLancamentoProcessorService> _logger;
+
+    [LoggerMessage(EventId = 1, Level = LogLevel.Information, Message = "Worker de estornos iniciado. pollingIntervalSeconds={PollingIntervalSeconds}")]
+    private static partial void LogWorkerStarted(ILogger logger, double pollingIntervalSeconds);
+
+    [LoggerMessage(EventId = 2, Level = LogLevel.Error, Message = "Falha no ciclo do worker de estornos.")]
+    private static partial void LogWorkerCycleFailure(ILogger logger, Exception exception);
+
+    [LoggerMessage(EventId = 3, Level = LogLevel.Information, Message = "Worker de estornos parado.")]
+    private static partial void LogWorkerStopped(ILogger logger);
+
+    [LoggerMessage(EventId = 4, Level = LogLevel.Error, Message = "Falha ao delegar processamento de estorno. estornoId={EstornoId} lancamentoOriginalId={LancamentoOriginalId}")]
+    private static partial void LogEstornoProcessingDelegationFailure(
+        ILogger logger,
+        Exception exception,
+        Guid estornoId,
+        Guid lancamentoOriginalId);
 
     public EstornoLancamentoProcessorService(
         IServiceProvider serviceProvider,
@@ -29,7 +42,7 @@ public sealed class EstornoLancamentoProcessorService : BackgroundService
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var interval = TimeSpan.FromSeconds(Math.Max(1, _options.Value.PollingIntervalSeconds));
-        _logger.LogInformation("Worker de estornos iniciado. pollingIntervalSeconds={PollingIntervalSeconds}", interval.TotalSeconds);
+        LogWorkerStarted(_logger, interval.TotalSeconds);
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -43,7 +56,7 @@ public sealed class EstornoLancamentoProcessorService : BackgroundService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Falha no ciclo do worker de estornos.");
+                LogWorkerCycleFailure(_logger, ex);
             }
 
             try
@@ -56,7 +69,7 @@ public sealed class EstornoLancamentoProcessorService : BackgroundService
             }
         }
 
-        _logger.LogInformation("Worker de estornos parado.");
+        LogWorkerStopped(_logger);
     }
 
     public async Task ProcessOnceAsync(CancellationToken cancellationToken)
@@ -83,9 +96,9 @@ public sealed class EstornoLancamentoProcessorService : BackgroundService
             }
             catch (Exception ex)
             {
-                _logger.LogError(
+                LogEstornoProcessingDelegationFailure(
+                    _logger,
                     ex,
-                    "Falha ao delegar processamento de estorno. estornoId={EstornoId} lancamentoOriginalId={LancamentoOriginalId}",
                     estorno.Id,
                     estorno.LancamentoOriginalId);
             }

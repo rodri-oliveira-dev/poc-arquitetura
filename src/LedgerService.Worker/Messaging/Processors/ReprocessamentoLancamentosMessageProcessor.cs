@@ -6,16 +6,32 @@ using LedgerService.Worker.Messaging.Abstractions;
 
 using MediatR;
 
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-
 namespace LedgerService.Worker.Messaging.Processors;
 
-public sealed class ReprocessamentoLancamentosMessageProcessor
+public sealed partial class ReprocessamentoLancamentosMessageProcessor
 {
     public const string SourceName = "ledger.lancamentos.reprocessamento.solicitado";
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
+    [LoggerMessage(EventId = 1, Level = LogLevel.Information, Message = "Mensagem de reprocessamento processada. reprocessamentoId={ReprocessamentoId} provider={TransportProvider} source={TransportSource} partition={TransportPartition} offset={TransportOffset}")]
+    private static partial void LogProcessedReprocessamentoMessage(
+        ILogger logger,
+        Guid reprocessamentoId,
+        string transportProvider,
+        string transportSource,
+        string? transportPartition,
+        string? transportOffset);
+
+    [LoggerMessage(EventId = 2, Level = LogLevel.Warning, Message = "Mensagem de reprocessamento invalida ignorada. provider={TransportProvider} source={TransportSource} partition={TransportPartition} offset={TransportOffset} reason={Reason}")]
+    private static partial void LogInvalidReprocessamentoMessage(
+        ILogger logger,
+        Exception exception,
+        string transportProvider,
+        string transportSource,
+        string? transportPartition,
+        string? transportOffset,
+        string reason);
 
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<ReprocessamentoLancamentosMessageProcessor> _logger;
@@ -98,8 +114,8 @@ public sealed class ReprocessamentoLancamentosMessageProcessor
         ReceivedMessage receivedMessage,
         ReprocessamentoLancamentosSolicitadoV1 message)
     {
-        _logger.LogInformation(
-            "Mensagem de reprocessamento processada. reprocessamentoId={ReprocessamentoId} provider={TransportProvider} source={TransportSource} partition={TransportPartition} offset={TransportOffset}",
+        LogProcessedReprocessamentoMessage(
+            _logger,
             message.ReprocessamentoId,
             receivedMessage.Transport.Provider,
             receivedMessage.Transport.Source,
@@ -112,9 +128,9 @@ public sealed class ReprocessamentoLancamentosMessageProcessor
         string reason,
         Exception exception)
     {
-        _logger.LogWarning(
+        LogInvalidReprocessamentoMessage(
+            _logger,
             exception,
-            "Mensagem de reprocessamento invalida ignorada. provider={TransportProvider} source={TransportSource} partition={TransportPartition} offset={TransportOffset} reason={Reason}",
             receivedMessage.Transport.Provider,
             receivedMessage.Transport.Source,
             receivedMessage.Transport.Partition,

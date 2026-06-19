@@ -16,9 +16,24 @@ using Microsoft.Extensions.Logging;
 
 namespace LedgerService.Application.Lancamentos.Commands;
 
-public sealed class ProcessarEstornoLancamentoHandler : IRequestHandler<ProcessarEstornoLancamentoCommand>
+public sealed partial class ProcessarEstornoLancamentoHandler : IRequestHandler<ProcessarEstornoLancamentoCommand>
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
+    [LoggerMessage(EventId = 1, Level = LogLevel.Error, Message = "Falha tecnica ao processar estorno {EstornoId}")]
+    private static partial void LogTechnicalFailure(ILogger logger, Exception exception, Guid estornoId);
+
+    [LoggerMessage(EventId = 2, Level = LogLevel.Information, Message = "Estorno processado. estornoId={EstornoId} lancamentoOriginalId={LancamentoOriginalId} lancamentoCompensatorioId={LancamentoCompensatorioId} statusAnterior={StatusAnterior} statusNovo={StatusNovo}")]
+    private static partial void LogEstornoProcessed(
+        ILogger logger,
+        Guid estornoId,
+        Guid lancamentoOriginalId,
+        Guid lancamentoCompensatorioId,
+        EstornoLancamentoStatus statusAnterior,
+        EstornoLancamentoStatus statusNovo);
+
+    [LoggerMessage(EventId = 3, Level = LogLevel.Warning, Message = "Estorno rejeitado. estornoId={EstornoId} motivo={Motivo}")]
+    private static partial void LogEstornoRejected(ILogger logger, Guid estornoId, string motivo);
 
     private readonly IEstornoLancamentoRepository _estornoRepository;
     private readonly ILedgerEntryRepository _ledgerEntryRepository;
@@ -71,7 +86,7 @@ public sealed class ProcessarEstornoLancamentoHandler : IRequestHandler<Processa
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             await MarkFailedAsync(request.EstornoId, "Falha tecnica ao processar estorno.", cancellationToken);
-            _logger.LogError(ex, "Falha tecnica ao processar estorno {EstornoId}", request.EstornoId);
+            LogTechnicalFailure(_logger, ex, request.EstornoId);
         }
     }
 
@@ -144,8 +159,8 @@ public sealed class ProcessarEstornoLancamentoHandler : IRequestHandler<Processa
 
         _metrics?.RecordReversalProcessed("completed");
 
-        _logger.LogInformation(
-            "Estorno processado. estornoId={EstornoId} lancamentoOriginalId={LancamentoOriginalId} lancamentoCompensatorioId={LancamentoCompensatorioId} statusAnterior={StatusAnterior} statusNovo={StatusNovo}",
+        LogEstornoProcessed(
+            _logger,
             estorno.Id,
             estorno.LancamentoOriginalId,
             compensatingEntry.Id,
@@ -165,7 +180,7 @@ public sealed class ProcessarEstornoLancamentoHandler : IRequestHandler<Processa
 
         await transaction.CommitAsync(cancellationToken);
         _metrics?.RecordReversalProcessed("rejected");
-        _logger.LogWarning("Estorno rejeitado. estornoId={EstornoId} motivo={Motivo}", estornoId, reason);
+        LogEstornoRejected(_logger, estornoId, reason);
     }
 
     private async Task MarkFailedAsync(Guid estornoId, string reason, CancellationToken cancellationToken)

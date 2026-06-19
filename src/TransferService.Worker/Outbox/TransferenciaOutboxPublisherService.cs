@@ -29,6 +29,11 @@ public sealed class TransferenciaOutboxPublisherService : BackgroundService
             LogLevel.Error,
             new EventId(1, nameof(_logUnhandledOutboxPublishingError)),
             "Erro nao tratado na publicacao da Outbox do TransferService.");
+    private static readonly Action<ILogger, Guid, Guid, string?, string, string, Exception?> _logOutboxPublished =
+        LoggerMessage.Define<Guid, Guid, string?, string, string>(
+            LogLevel.Information,
+            new EventId(2, nameof(_logOutboxPublished)),
+            "Outbox de transferencia publicada no Kafka. OutboxId={OutboxId} TransferenciaId={TransferenciaId} CorrelationId={CorrelationId} EventType={EventType} Topic={Topic}");
 
     public TransferenciaOutboxPublisherService(
         IServiceProvider serviceProvider,
@@ -128,13 +133,14 @@ public sealed class TransferenciaOutboxPublisherService : BackgroundService
             await producer.PublishAsync(message, message.Topic, cancellationToken);
             message.MarkPublished(_clock.UtcNow);
             await unitOfWork.SaveChangesAsync(cancellationToken);
-            _logger.LogInformation(
-                "Outbox de transferencia publicada no Kafka. OutboxId={OutboxId} TransferenciaId={TransferenciaId} CorrelationId={CorrelationId} EventType={EventType} Topic={Topic}",
+            _logOutboxPublished(
+                _logger,
                 message.Id,
                 message.AggregateId,
                 message.CorrelationId,
                 message.EventType,
-                message.Topic);
+                message.Topic,
+                null);
         }
         catch (JsonException ex)
         {

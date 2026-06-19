@@ -3,9 +3,12 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Auth.Api.Middlewares;
 
-public sealed class GlobalExceptionHandler : IExceptionHandler
+public sealed partial class GlobalExceptionHandler : IExceptionHandler
 {
     private readonly ILogger<GlobalExceptionHandler> _logger;
+
+    [LoggerMessage(EventId = 1, Level = LogLevel.Error, Message = "Erro nao tratado no Auth.Api. TraceId: {TraceId}")]
+    private static partial void LogUnhandledException(ILogger logger, Exception exception, string traceId);
 
     public GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger)
     {
@@ -17,7 +20,7 @@ public sealed class GlobalExceptionHandler : IExceptionHandler
         ArgumentNullException.ThrowIfNull(httpContext);
         ArgumentNullException.ThrowIfNull(exception);
 
-        _logger.LogError(exception, "Erro nao tratado no Auth.Api. TraceId: {TraceId}", httpContext.TraceIdentifier);
+        LogUnhandledException(_logger, exception, httpContext.TraceIdentifier);
 
         var problemDetails = new ProblemDetails
         {

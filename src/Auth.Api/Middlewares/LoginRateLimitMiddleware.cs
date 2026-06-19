@@ -6,12 +6,15 @@ using Microsoft.Extensions.Options;
 
 namespace Auth.Api.Middlewares;
 
-public sealed class LoginRateLimitMiddleware
+public sealed partial class LoginRateLimitMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly IOptions<AuthOptions> _authOptions;
     private readonly ILogger<LoginRateLimitMiddleware> _logger;
     private readonly ConcurrentDictionary<string, RateLimitState> _states = new(StringComparer.Ordinal);
+
+    [LoggerMessage(EventId = 1, Level = LogLevel.Warning, Message = "Rate limit excedido no login para remoteAddress={RemoteAddress}")]
+    private static partial void LogLoginRateLimitExceeded(ILogger logger, string remoteAddress);
 
     public LoginRateLimitMiddleware(
         RequestDelegate next,
@@ -50,7 +53,7 @@ public sealed class LoginRateLimitMiddleware
 
             if (state.Attempts.Count >= permitLimit)
             {
-                _logger.LogWarning("Rate limit excedido no login para remoteAddress={RemoteAddress}", remoteAddress);
+                LogLoginRateLimitExceeded(_logger, remoteAddress);
                 context.Response.StatusCode = StatusCodes.Status429TooManyRequests;
                 return;
             }

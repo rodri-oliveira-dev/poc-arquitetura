@@ -8,8 +8,20 @@ using Microsoft.Extensions.Options;
 
 namespace Auth.Api.Extensions;
 
-public static class WebApplicationExtensions
+public static partial class WebApplicationExtensions
 {
+    [LoggerMessage(EventId = 1, Level = LogLevel.Warning, Message = "Tentativa de login invalida (username/password vazios). username={Username}")]
+    private static partial void LogLoginMissingCredentials(ILogger logger, string? username);
+
+    [LoggerMessage(EventId = 2, Level = LogLevel.Warning, Message = "Tentativa de login invalida para username={Username}")]
+    private static partial void LogLoginInvalidCredentials(ILogger logger, string? username);
+
+    [LoggerMessage(EventId = 3, Level = LogLevel.Warning, Message = "Tentativa de login sem scope explicito para username={Username}")]
+    private static partial void LogLoginMissingScope(ILogger logger, string? username);
+
+    [LoggerMessage(EventId = 4, Level = LogLevel.Information, Message = "Login bem-sucedido para username={Username} scopes={Scopes}")]
+    private static partial void LogLoginSucceeded(ILogger logger, string username, string scopes);
+
     /// <summary>
     /// Pipeline padrão do Auth.Api.
     /// </summary>
@@ -113,7 +125,7 @@ public static class WebApplicationExtensions
                 // Validações mínimas
                 if (string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.Password))
                 {
-                    logger.LogWarning("Tentativa de login inválida (username/password vazios). username={Username}", request.Username);
+                    LogLoginMissingCredentials(logger, request.Username);
                     return Results.Json(new ErrorResponse
                     {
                         Error = "invalid_credentials",
@@ -129,7 +141,7 @@ public static class WebApplicationExtensions
                     !string.Equals(request.Password, validPass, StringComparison.Ordinal))
                 {
                     // Segurança: nunca logar senha
-                    logger.LogWarning("Tentativa de login inválida para username={Username}", request.Username);
+                    LogLoginInvalidCredentials(logger, request.Username);
                     return Results.Json(new ErrorResponse
                     {
                         Error = "invalid_credentials",
@@ -147,7 +159,7 @@ public static class WebApplicationExtensions
 
                 if (requested.Length == 0)
                 {
-                    logger.LogWarning("Tentativa de login sem scope explicito para username={Username}", request.Username);
+                    LogLoginMissingScope(logger, request.Username);
                     return Results.Json(new ErrorResponse
                     {
                         Error = "invalid_scope",
@@ -175,7 +187,7 @@ public static class WebApplicationExtensions
                     scopes: grantedScopes,
                     out var expiresAtUtc);
 
-                logger.LogInformation("Login bem-sucedido para username={Username} scopes={Scopes}", validUser, grantedScopes);
+                LogLoginSucceeded(logger, validUser!, grantedScopes);
 
                 // Requisito: expira em 10 minutos (600s) por padrão.
                 // Retornamos o tempo configurado, e não o delta calculado, para manter o contrato estável.
