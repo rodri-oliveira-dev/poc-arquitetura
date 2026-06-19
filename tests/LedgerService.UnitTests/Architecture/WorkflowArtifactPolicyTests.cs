@@ -114,8 +114,8 @@ public sealed partial class WorkflowArtifactPolicyTests
         var workflow = File.ReadAllText(Path.Combine(repositoryRoot.FullName, ".github/workflows/mutation-tests.yml"));
         Assert.Contains("tests/LedgerService.UnitTests/StrykerOutput/**/reports/mutation-report.html", workflow);
         Assert.Contains("tests/BalanceService.UnitTests/StrykerOutput/**/reports/mutation-report.html", workflow);
-        Assert.False(OldLedgerStrykerOutputPathRegex().IsMatch(workflow));
-        Assert.False(OldBalanceStrykerOutputPathRegex().IsMatch(workflow));
+        Assert.DoesNotMatch(OldLedgerStrykerOutputPathRegex(), workflow);
+        Assert.DoesNotMatch(OldBalanceStrykerOutputPathRegex(), workflow);
         Assert.True(RetentionDaysSevenRegex().Matches(workflow).Count >= 2);
     }
 
