@@ -4,7 +4,8 @@ Este runbook define o fluxo recomendado para inspecionar, classificar e
 reprocessar mensagens de DLQ ou replay sem bypassar contratos de evento,
 idempotencia ou semanticas de transporte.
 
-Pub/Sub e o provider principal. Kafka permanece como provider legado opcional.
+Kafka e o provider padrao dos workers principais. Pub/Sub permanece como
+provider explicito/legado.
 O contrato logico do evento e o mesmo nos dois providers: o payload JSON deve
 validar contra o JSON Schema da versao correta, enquanto attributes Pub/Sub ou
 headers Kafka carregam metadados tecnicos como `event_type`, `event_id`,
@@ -137,7 +138,7 @@ confirme que a falha de entrega foi corrigida.
 10. Verifique idempotencia no Balance pelo `payload.id` e use os headers
     `original_*` apenas para auditoria e rastreabilidade.
 
-O reprocessamento assincrono do Ledger ainda depende do modo Kafka legado para
+O reprocessamento assincrono do Ledger depende do caminho Kafka default para
 `ReprocessamentoLancamentosSolicitado.v1`. Esse fluxo valida fonte logica,
 `event_type` e payload antes de chamar o caso de uso, mas ele nao substitui um
 redrive generico de DLQ do Balance.

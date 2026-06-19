@@ -4,6 +4,8 @@ Este runbook descreve como selecionar, executar e diagnosticar o provider Pub/Su
 
 Pub/Sub e um provider explicito/legado. Kafka e o default local dos workers principais; preserve Outbox, idempotencia e a separacao entre DLQ de aplicacao e DLQ tecnica do transporte ao alternar providers.
 
+Nao use Pub/Sub para novos fluxos padrao deste repositorio sem decisao arquitetural nova. O modo Pub/Sub continua util para validar o adapter existente, estudar o emulator ou executar smoke manual contra recursos GCP dev ja provisionados.
+
 ## Escolher o provider
 
 Os workers aceitam os valores `Kafka` e `PubSub` em `Messaging:Provider`. Qualquer outro valor falha no startup.
@@ -374,4 +376,4 @@ Use esta ordem para reduzir diagnosticos ambiguos:
 - **DLQ de aplicacao sem publish:** confirme se a service account do `BalanceService.Worker` possui `roles/pubsub.publisher` somente no topic da DLQ de aplicacao e se `PubSub:Consumer:DeadLetterTopicId` aponta para `application_dlq_topic_name`.
 - **Mensagem duplicada:** trate como possibilidade esperada do fluxo at-least-once. Confirme a idempotencia do Balance pela identidade do evento antes de tentar republicar ou remover mensagens.
 
-Para detalhes complementares, consulte [Kafka, Outbox e DLQ](../development/kafka-outbox.md), [desenvolvimento local](../development/local-development.md#pubsub-emulator-local), [setup local Terraform e GCP](../development/terraform-gcp-local-setup.md) e [ADR-0078](../adrs/0078-pubsub-provider-principal-local-emulator.md).
+Para detalhes complementares, consulte [Kafka, Outbox e DLQ](../development/kafka-outbox.md), [desenvolvimento local](../development/local-development.md#pubsub-emulator-local), [setup local Terraform e GCP](../development/terraform-gcp-local-setup.md), [ADR-0088](../adrs/0088-kafka-default-ledger-balance-workers.md) e o historico substituido na [ADR-0078](../adrs/0078-pubsub-provider-principal-local-emulator.md).

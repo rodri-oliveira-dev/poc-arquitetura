@@ -1,8 +1,8 @@
 # Estrategia operacional de DLQ
 
 Este documento define a estrategia operacional para tratar mensagens em DLQ nos
-providers de mensageria do projeto. Pub/Sub e o provider principal. Kafka
-permanece como provider legado opcional. A estrategia nao cria endpoint, script,
+providers de mensageria do projeto. Kafka e o provider padrao dos workers
+principais. Pub/Sub permanece como provider explicito/legado. A estrategia nao cria endpoint, script,
 workflow ou mecanismo novo de replay.
 
 A DLQ existe para isolar mensagens que nao puderam ser processadas com
@@ -191,7 +191,7 @@ ultimo segmento como versao. Exemplo: `LedgerEntryCreated.v2` vira
 | Item | Uso |
 | --- | --- |
 | Topic principal | `ledger.ledgerentry.created` para `LedgerEntryCreated.v1` e `LedgerEntryCreated.v2`. |
-| Topico de DLQ | `ledger.ledgerentry.created.dlq`, quando o provider Kafka legado esta ativo. |
+| Topico de DLQ | `ledger.ledgerentry.created.dlq`, quando o provider Kafka default esta ativo. |
 | Message key | Chave de ordenacao ou particionamento. Na DLQ Kafka, a key atual pode usar `originalTopic:originalPartition:originalOffset`. |
 | Offset | Coordenada de consumo original. Serve para rastreabilidade e controle de commit, nao para idempotencia funcional. |
 | Commit | Confirmacao do offset pelo consumer. So deve ocorrer apos sucesso funcional, duplicidade idempotente ou publicacao bem sucedida na DLQ. |

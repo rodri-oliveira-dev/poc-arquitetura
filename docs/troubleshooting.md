@@ -323,7 +323,7 @@ Confirme a cadeia completa:
 5. `balance-worker` atualizou `daily_balances`;
 6. ausencia de mensagem inesperada na DLQ.
 
-O roteiro operacional completo fica em [validacao Keycloak -> Ledger -> Outbox -> Pub/Sub emulator -> Balance](observability.md#validacao-keycloak---ledger---outbox---pubsub-emulator---balance).
+O roteiro operacional completo fica em [validacao Keycloak -> Ledger -> Outbox -> Kafka -> Balance](observability.md#validacao-keycloak---ledger---outbox---kafka---balance).
 
 ## Token JWT e rejeitado
 

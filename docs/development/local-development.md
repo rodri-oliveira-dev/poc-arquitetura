@@ -486,7 +486,7 @@ Nesta etapa, `Auth.Api` continua funcional apenas como legado por overlay, mas a
 
 Use `start-full-stack.*` quando quiser um ambiente local completo para demonstracao ou validacao manual integrada:
 
-- core funcional com APIs, workers, bancos, Pub/Sub emulator e init de recursos locais;
+- core funcional com APIs, workers, bancos, Kafka e init de topicos locais;
 - migrations aplicadas pelo host, reaproveitando o fluxo de `start-local-stack.*`;
 - profile `observability` ativo com `OTEL_ENABLED=true`;
 - overlay `compose.nginx.yaml` com `nginx-edge`, `ledger-service-1` e `ledger-service-2`;
@@ -1023,7 +1023,7 @@ Endpoints operacionais:
 - `GET /health`: liveness simples, publico nesta POC, sem depender de DB ou Kafka.
 - `GET /ready`: readiness operacional, publico nesta POC. No `LedgerService.Api` e no `BalanceService.Api`, valida o banco necessario para aceitar trafego HTTP.
 
-O compose usa healthchecks nativos para PostgreSQL e Pub/Sub emulator. No modo legado, Kafka tambem possui healthcheck. As imagens runtime `mcr.microsoft.com/dotnet/aspnet:10.0` usadas pelas APIs nao trazem `curl`, `wget` ou `busybox`; por isso os healthchecks HTTP das APIs nao sao declarados no compose nesta etapa para evitar instalar dependencias apenas para sondas locais. Valide as APIs por `GET /health` no host ou pelos scripts/workflows que ja fazem essa chamada.
+O compose usa healthchecks nativos para PostgreSQL e Kafka no fluxo padrao. No modo Pub/Sub legado, o emulator tambem possui healthcheck. As imagens runtime `mcr.microsoft.com/dotnet/aspnet:10.0` usadas pelas APIs nao trazem `curl`, `wget` ou `busybox`; por isso os healthchecks HTTP das APIs nao sao declarados no compose nesta etapa para evitar instalar dependencias apenas para sondas locais. Valide as APIs por `GET /health` no host ou pelos scripts/workflows que ja fazem essa chamada.
 
 Detalhes de operacao ficam em [observabilidade e operacao minima](../observability.md).
 
@@ -1071,7 +1071,7 @@ Tasks uteis:
 
 As tasks de stack e k6 chamam os scripts versionados (`scripts/start-local-stack.*` e `scripts/run-loadtests.*`) para evitar duplicar logica. Elas nao executam teardown destrutivo nem migrations fora do fluxo ja definido pelos scripts.
 
-As configuracoes de debug rodam processos no host em `Development` para `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker`. O `Auth.Api` legado tambem possui configuracao propria, mas deve ser usado apenas quando o fluxo legado for explicitamente validado. Os nomes indicam que dependencias locais podem ser necessarias quando banco, Pub/Sub emulator ou JWKS forem usados. Se a stack completa do compose estiver em execucao, pare o container equivalente antes de depurar o mesmo processo no host para evitar conflito de porta ou processamento duplicado.
+As configuracoes de debug rodam processos no host em `Development` para `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker`. O `Auth.Api` legado tambem possui configuracao propria, mas deve ser usado apenas quando o fluxo legado for explicitamente validado. Os nomes indicam que dependencias locais podem ser necessarias quando banco, Kafka, Pub/Sub emulator legado ou JWKS forem usados. Se a stack completa do compose estiver em execucao, pare o container equivalente antes de depurar o mesmo processo no host para evitar conflito de porta ou processamento duplicado.
 
 O arquivo `src/LedgerService.Api/LedgerService.Api.http` pode ser usado com a extensao REST Client. Nao coloque segredos em `.vscode/rest-client.env.json`.
 

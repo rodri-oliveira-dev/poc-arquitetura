@@ -1,7 +1,7 @@
 # ADR-0078: Pub/Sub como provider principal com emulator local
 
 ## Status
-Substituido pela [ADR-0088](./0088-kafka-default-ledger-balance-workers.md) no ponto sobre provider principal/default dos workers `LedgerService` e `BalanceService`.
+Substituido pela [ADR-0088](./0088-kafka-default-ledger-balance-workers.md) no ponto sobre provider principal/default dos workers `LedgerService` e `BalanceService`. As secoes abaixo preservam a decisao historica de 2026-06-02 e nao representam o fluxo padrao atual.
 
 ## Data
 2026-06-02
@@ -47,7 +47,8 @@ continua fora do emulator local e pertence ao provisionamento real Terraform.
 
 ### Limitacoes conhecidas
 - O consumer Pub/Sub de reprocessamento do Ledger ainda nao existe. Para validar
-  o fluxo assincrono de reprocessamento ponta a ponta, use o modo Kafka legado.
+  o fluxo assincrono de reprocessamento ponta a ponta, use o modo Kafka default
+  definido pela ADR-0088.
 - O emulator nao reproduz integralmente limites, IAM, dead-letter policy nativa
   nem garantias do Pub/Sub real.
 

@@ -85,5 +85,5 @@ O mapeamento de `LedgerEntryCreated.v2` usa o mesmo destino fisico de `LedgerEnt
 
 - Produtores novos devem emitir `LedgerEntryCreated.v2`.
 - Consumidores devem aceitar `LedgerEntryCreated.v2` sem fallback de moeda.
-- Consumidores podem manter leitura de `LedgerEntryCreated.v1` enquanto houver mensagens antigas ou Kafka legado.
+- Consumidores podem manter leitura de `LedgerEntryCreated.v1` enquanto houver mensagens antigas, backlog historico ou necessidade operacional documentada.
 - `LedgerEntryCreated.v1` com propriedade `currency` e invalido, porque v1 nao define esse campo.

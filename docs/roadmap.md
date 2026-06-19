@@ -23,7 +23,7 @@ Um item deve sair de "Proximos passos" ou "Em andamento ou parcialmente atendido
 
 - Clean Architecture e DDD pragmaticos por microservico, com separacao entre `Api`, `Application`, `Domain`, `Infrastructure` e processos Worker.
 - `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker` separados operacionalmente, conforme [README](../README.md) e [boundaries](architecture/boundaries.md).
-- Pub/Sub definido como provider principal, com Kafka mantido como adapter legado opcional.
+- Kafka definido como provider padrao dos workers principais, com Pub/Sub mantido como adapter explicito/legado.
 - Keycloak consolidado como identidade principal local, com `Auth.Api` fora da stack principal.
 - Modelo LikeC4 versionado e publicado por workflow de Pages.
 
@@ -139,12 +139,12 @@ Um item deve sair de "Proximos passos" ou "Em andamento ou parcialmente atendido
 
 ### Em andamento ou parcialmente atendido
 
-- Fluxo Pub/Sub principal ainda nao possui o mesmo detalhamento de span de consumo documentado para Kafka legado.
-- Metricas customizadas existem, mas podem evoluir com novos sinais de Pub/Sub, DLQ, replay e rebuild.
+- O modo Pub/Sub legado ainda nao possui o mesmo detalhamento de span de consumo documentado para Kafka.
+- Metricas customizadas existem, mas podem evoluir com novos sinais de Kafka, Pub/Sub legado, DLQ, replay e rebuild.
 
 ### Proximos passos
 
-- Completar instrumentacao operacional do adapter Pub/Sub onde houver valor diagnostico claro.
+- Completar instrumentacao operacional do adapter Pub/Sub legado somente onde houver valor diagnostico claro.
 - Criar metricas de baixa cardinalidade para DLQ, replay/redrive, rebuild e backlog quando os fluxos forem operacionalizados.
 - Manter cardinalidade controlada em labels, preservando ids no conteudo de logs ou atributos apropriados.
 
@@ -159,7 +159,7 @@ Um item deve sair de "Proximos passos" ou "Em andamento ou parcialmente atendido
 ### Feito
 
 - Outbox transacional no Ledger e publicacao assincrona por worker.
-- Pub/Sub principal com emulator local, DLQ de aplicacao e Kafka legado opcional.
+- Kafka default com broker local, DLQ de aplicacao e Pub/Sub explicito/legado opcional.
 - Runbooks de DLQ, retry, replay, redrive, descarte e rebuild documentados.
 - Casos de uso internos para replay manual, replay filtrado, rebuild parcial e relatorio de divergencia.
 - Requeue operacional de Outbox exposto no Ledger para mensagens em dead letter.
@@ -251,7 +251,7 @@ Um item deve sair de "Proximos passos" ou "Em andamento ou parcialmente atendido
 ### Em andamento ou parcialmente atendido
 
 - Os testes atuais validam comportamento local/controlado, nao capacidade produtiva.
-- O smoke confirma fluxo ponta a ponta via Pub/Sub emulator, sem inspecionar internals de `ack`, `nack`, DLQ ou commit Kafka legado.
+- O smoke confirma fluxo ponta a ponta via Kafka, incluindo publicacao/consumo e ausencia de crescimento da DLQ no fluxo feliz.
 - Os thresholds de latencia ainda dependem de calibracao com novas linhas de base locais quando a stack, hardware ou carga mudarem.
 
 ### Proximos passos
@@ -301,23 +301,23 @@ Um item deve sair de "Proximos passos" ou "Em andamento ou parcialmente atendido
 
 - `Auth.Api` foi depreciado como emissor legado de POC e removido da stack principal.
 - Keycloak e o caminho principal local de autenticacao.
-- Kafka permanece disponivel apenas como provider legado opcional.
+- Pub/Sub permanece disponivel apenas como provider explicito/legado opcional.
 - `LedgerEntryCreated.v1` esta documentado como legado aceito para mensagens antigas.
 
 ### Em andamento ou parcialmente atendido
 
 - `Auth.Api` continua no repositorio com testes proprios enquanto existir.
-- Kafka legado opcional ainda e mantido para estudo e compatibilidade.
+- Pub/Sub explicito/legado ainda e mantido para estudo, GCP dev e compatibilidade.
 - Leitura de `LedgerEntryCreated.v1` continua necessaria para convivencia operacional.
 
 ### Proximos passos
 
 - Remover definitivamente `Auth.Api` quando nao houver mais necessidade de compatibilidade.
-- Remover ou reduzir Kafka legado somente com decisao explicita, evidencias de nao uso e atualizacao de docs, testes e ADRs.
+- Remover ou reduzir Pub/Sub legado somente com decisao explicita, evidencias de nao uso e atualizacao de docs, testes e ADRs.
 - Remover suporte a eventos legados apenas depois de avaliar backlog, producers antigos, retencao e replay esperado.
 
 ### Fora de escopo por enquanto
 
 - Remover `Auth.Api` nesta etapa.
-- Remover Kafka legado sem uma frente dedicada.
+- Remover Pub/Sub legado sem uma frente dedicada.
 - Apagar contratos legados ainda aceitos pelo consumidor.

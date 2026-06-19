@@ -2,9 +2,14 @@
 
 Data: 2026-06-06
 
+> Nota de atualizacao: este relatorio e historico. A decisao sobre provider
+> principal/default foi alterada posteriormente pela
+> [ADR-0088](../adrs/0088-kafka-default-ledger-balance-workers.md): Kafka e o
+> provider padrao dos workers principais e Pub/Sub permanece explicito/legado.
+
 ## Resumo executivo
 
-O fluxo atual entre `LedgerService` e `BalanceService` tem um contrato de integracao principal: `LedgerEntryCreated.v1`. Ele e criado no Ledger, persistido no Outbox como payload JSON, publicado pelo `LedgerService.Worker` em Pub/Sub por padrao ou Kafka no modo legado, consumido pelo `BalanceService.Worker` e aplicado na projecao de saldos.
+O fluxo entre `LedgerService` e `BalanceService` tem um contrato de integracao principal: `LedgerEntryCreated.v1` neste diagnostico historico. Ele e criado no Ledger, persistido no Outbox como payload JSON, publicado pelo `LedgerService.Worker`, consumido pelo `BalanceService.Worker` e aplicado na projecao de saldos. Conforme nota acima, a decisao atual usa Kafka como provider padrao e Pub/Sub como modo explicito/legado.
 
 Foram encontrados tambem dois eventos operacionais no Outbox do Ledger: `LancamentoEstornoSolicitado.v1` e `ReprocessamentoLancamentosSolicitado.v1`. Eles nao fazem parte do fluxo Ledger para Balance. O reprocessamento possui consumer Kafka dentro do proprio `LedgerService.Worker`; estorno e processado por polling no banco, embora sua solicitacao tambem seja registrada e publicada pelo Outbox quando o provider publica todos os eventos mapeados.
 
@@ -122,7 +127,7 @@ Ponto de atencao: `correlationId` aparece no payload e tambem no transporte. Iss
 
 | Item | Valor atual |
 | --- | --- |
-| Provider default | `Messaging:Provider=PubSub`. |
+| Provider default atual | `Messaging:Provider=Kafka` conforme ADR-0088. |
 | Topic principal local | `ledger.ledgerentry.created.local`. |
 | Topic GCP dev documentado | `ledger.ledgerentry.created.dev`. |
 | Topic de DLQ de aplicacao local | `ledger.ledgerentry.created.dlq.local`. |
@@ -167,7 +172,7 @@ DLQ Pub/Sub de aplicacao:
 
 | Item | Valor atual |
 | --- | --- |
-| Provider legado | `Messaging:Provider=Kafka` via `compose.kafka.yaml`. |
+| Provider alternativo/legado | `Messaging:Provider=PubSub` via `compose.pubsub.yaml`. |
 | Topic `LedgerEntryCreated.v1` | `ledger.ledgerentry.created`. |
 | Topic `LancamentoEstornoSolicitado.v1` | `ledger.lancamento.estorno.solicitado`. |
 | Topic `ReprocessamentoLancamentosSolicitado.v1` | `ledger.lancamentos.reprocessamento.solicitado`. |
@@ -241,7 +246,7 @@ O Outbox tenta publicar ate `MaxAttempts=10`, com `BaseBackoffSeconds=5`, backof
 3. `event_type` e obrigatorio no transporte, mas nao existe envelope logico no payload. Uma mensagem com payload valido e attribute/header ausente vai para DLQ.
 4. `correlationId` duplicado entre payload e transporte pode divergir sem validacao cruzada.
 5. `LancamentoEstornoSolicitado.v1` e publicado no Kafka, mas nao ha consumer de mensageria encontrado. O processamento real de estorno usa polling em banco.
-6. `ReprocessamentoLancamentosSolicitado.v1` tem consumer apenas Kafka. No modo Pub/Sub principal, nao ha adapter Pub/Sub equivalente para esse fluxo.
+6. `ReprocessamentoLancamentosSolicitado.v1` tem consumer apenas Kafka. No modo Pub/Sub explicito/legado, nao ha adapter Pub/Sub equivalente para esse fluxo.
 7. No Pub/Sub, o `TopicMap` versionado so mapeia `LedgerEntryCreated.v1`; eventos operacionais cairiam no `DefaultTopicId` se publicados nesse provider.
 8. `ProcessingErrorRetryDelay` do Pub/Sub esta configurado, mas nao foi encontrado uso efetivo no catch do consumer Pub/Sub.
 9. O consumer do Balance rejeita propriedades desconhecidas, entao adicionar campo opcional ao producer sem atualizar consumer e schema juntos pode quebrar consumo.
@@ -254,7 +259,7 @@ O Outbox tenta publicar ate `MaxAttempts=10`, com `BaseBackoffSeconds=5`, backof
 - Formalizar um envelope logico de evento ou uma convencao documentada para nome, versao, id logico, id tecnico e correlacao.
 - Decidir se `event_id` deve ser id tecnico de transporte, id logico de evento, ou ambos com nomes distintos.
 - Criar governanca para evolucao de `LedgerEntryCreated.v2`, especialmente para `currency`.
-- Alinhar fluxo de reprocessamento ao provider principal Pub/Sub ou documentar explicitamente que continua Kafka only.
+- Manter o fluxo de reprocessamento alinhado ao provider Kafka padrao ou documentar ADR nova se Pub/Sub precisar suportar esse evento.
 - Revisar o papel de `LancamentoEstornoSolicitado.v1`, pois hoje o evento e persistido e publicado, mas o processamento nao depende do consumo dele.
 - Diferenciar operacionalmente DLQ tecnica Pub/Sub e DLQ de aplicacao em todos os ambientes.
 - Adicionar validacao automatizada que compare schema, producer e consumer antes de mudancas de contrato.
@@ -266,7 +271,7 @@ O Outbox tenta publicar ate `MaxAttempts=10`, com `BaseBackoffSeconds=5`, backof
 2. Documentar uma matriz de compatibilidade para producer e consumer, incluindo ordem de rollout.
 3. Criar testes de contrato para `LedgerEntryCreated.v1` comparando payload produzido, schema existente e desserializacao do Balance.
 4. Planejar `LedgerEntryCreated.v2` somente quando houver suporte real a `currency` no HTTP, persistencia do Ledger, evento e consultas do Balance.
-5. Decidir se reprocessamento deve ter adapter Pub/Sub no provider principal ou se o fluxo deve ser removido do caminho de mensageria e tratado como job interno.
+5. Decidir se reprocessamento deve ganhar adapter Pub/Sub alternativo/legado ou se permanece Kafka-only.
 6. Decidir se `LancamentoEstornoSolicitado.v1` deve ser consumido por mensageria, permanecer apenas como fato operacional auditavel, ou deixar de ser publicado externamente em etapa futura.
 7. Padronizar os nomes dos metadados de DLQ entre providers sem perder detalhes nativos.
 

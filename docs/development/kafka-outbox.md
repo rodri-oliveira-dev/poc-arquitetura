@@ -285,7 +285,7 @@ Os workers de Ledger e Balance aceitam `Kafka` e `PubSub` em `Messaging:Provider
 
 Em falha do provider selecionado, as APIs HTTP nao devem cair por causa do processamento assincrono. O Worker registra erro, incrementa `retry_count` e agenda `next_retry_at` com backoff exponencial e jitter. Ao atingir `MaxAttempts`, a mensagem vira `DeadLetter` e sai do processamento automatico ate requeue administrativo.
 
-Para o roteiro operacional completo Keycloak -> Ledger -> Outbox -> Pub/Sub emulator -> Balance, incluindo `X-Correlation-Id`, logs, consultas SQL, Balance e Jaeger, use a secao [Validacao Keycloak -> Ledger -> Outbox -> Pub/Sub emulator -> Balance](../observability.md#validacao-keycloak---ledger---outbox---pubsub-emulator---balance). O script recomendado e:
+Para o roteiro operacional completo Keycloak -> Ledger -> Outbox -> Kafka -> Balance, incluindo `X-Correlation-Id`, logs, consultas SQL, Balance e Jaeger, use a secao [Validacao Keycloak -> Ledger -> Outbox -> Kafka -> Balance](../observability.md#validacao-keycloak---ledger---outbox---kafka---balance). O script recomendado e:
 
 ```powershell
 ./scripts/validate-auth-ledger-trace.ps1

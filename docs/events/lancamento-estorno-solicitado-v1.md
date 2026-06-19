@@ -130,7 +130,7 @@ Mudancas que exigem nova versao ou rollout coordenado:
 | Topic | Sem mapeamento versionado atual no `TopicMap` Pub/Sub do Ledger. |
 | Subscription | Nenhuma subscription especifica identificada. |
 | Payload | `PubsubMessage.Data` com JSON do payload logico, se publicado. |
-| DLQ | Sem DLQ especifica para este evento no provider principal atual. |
+| DLQ | Sem DLQ especifica para este evento no provider Pub/Sub legado. |
 
 Attributes esperados se publicado:
 
@@ -192,7 +192,7 @@ DLQ:
 
 1. O evento e publicado no Kafka, mas nao ha consumer de mensageria encontrado.
 2. O processamento real do estorno usa polling no banco, o que pode confundir a leitura do fluxo.
-3. No Pub/Sub principal, o evento nao tem mapeamento versionado no `TopicMap`.
+3. No Pub/Sub legado, o evento nao tem mapeamento versionado no `TopicMap`.
 4. Consumir este evento como fato financeiro causaria semantica incorreta no Balance.
 
 ## Dividas tecnicas

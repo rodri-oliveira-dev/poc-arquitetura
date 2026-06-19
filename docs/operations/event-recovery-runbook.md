@@ -4,7 +4,8 @@ Este runbook consolida a operacao de DLQ, retry, replay, reconstrucao de
 projecao e relatorio de divergencia no projeto. Ele serve como guia de estudo
 arquitetural e como checklist para revisao tecnica.
 
-Pub/Sub e o provider principal. Kafka permanece como provider legado opcional.
+Kafka e o provider padrao dos workers principais. Pub/Sub permanece como
+provider explicito/legado.
 Este documento nao cria endpoint, script, workflow ou comportamento novo. Para
 detalhes e contexto, use:
 
@@ -262,7 +263,7 @@ Registre sempre:
 - Nao ha redrive versionado implementado para DLQ de aplicacao Pub/Sub ou
   Kafka.
 - Pub/Sub local nao simula DLQ tecnica nativa.
-- Kafka e provider legado opcional.
+- Kafka e o provider padrao; Pub/Sub e alternativa explicita/legada.
 - Nao ha endpoint publico para replay, replay por filtro, rebuild parcial ou
   relatorio de divergencia.
 - A fonte concreta atual para replay por filtro e rebuild usa
@@ -284,8 +285,8 @@ Registre sempre:
 3. Persistir decisoes operacionais de descarte, redrive e replay.
 4. Padronizar nomenclatura entre `outbox_message_id`, id tecnico de transporte
    e `payload.id`.
-5. Avaliar consumer Pub/Sub para `ReprocessamentoLancamentosSolicitado.v1` ou
-   outro mecanismo alinhado ao provider principal.
+5. Manter `ReprocessamentoLancamentosSolicitado.v1` alinhado ao provider Kafka
+   padrao ou registrar ADR nova antes de introduzir outro mecanismo.
 6. Evoluir rebuild com auditoria persistente, criterios de rollback e estrategia
    explicita para volumes maiores.
 7. Criar adapters operacionais para ler DLQ Pub/Sub e Kafka como fontes de
