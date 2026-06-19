@@ -25,9 +25,14 @@ Adotar o padrão **Outbox** no `LedgerService`:
 Nota de evolucao em 2026-05-28: o nome atual do hosted service e `OutboxPublisherService`. A publicacao passa pela porta neutra `IOutboxMessagePublisher`, e Kafka permanece como adapter concreto atual (`KafkaOutboxMessagePublisher`). Pub/Sub nao esta implementado.
 
 Nota de evolucao em 2026-06-02: a [ADR-0078](0078-pubsub-provider-principal-local-emulator.md)
-promoveu Pub/Sub a provider principal, com emulator no fluxo local padrao e
-recursos reais provisionados por Terraform na GCP. Kafka permanece legado e
-opcional para compatibilidade e comparacao.
+promoveu Pub/Sub a provider principal naquela fase, com emulator no fluxo local
+padrao e recursos reais provisionados por Terraform na GCP. Naquele momento,
+Kafka ficou opcional para compatibilidade e comparacao.
+
+Nota de evolucao em 2026-06-18: a [ADR-0088](0088-kafka-default-ledger-balance-workers.md)
+substituiu a ADR-0078 no ponto sobre provider principal/default dos workers
+`LedgerService` e `BalanceService`. Kafka voltou a ser o provider padrao dos
+workers principais; Pub/Sub permanece como alternativa explicita/legada.
 - A entrega é **at-least-once** (podem existir duplicatas), e o pipeline trata falhas com retentativas/backoff.
 
 Detalhes relevantes (estado atual):

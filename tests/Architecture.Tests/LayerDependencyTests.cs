@@ -13,16 +13,16 @@ namespace Architecture.Tests;
 
 public sealed class LayerDependencyTests
 {
-    private static readonly string[] ServiceNames = ["LedgerService", "BalanceService", "TransferService"];
-    private static readonly string[] ServicesWithPersistence = ["LedgerService", "BalanceService"];
-    private static readonly string[] DomainForbiddenReferences =
+    private static readonly string[] _serviceNames = ["LedgerService", "BalanceService", "TransferService"];
+    private static readonly string[] _servicesWithPersistence = ["LedgerService", "BalanceService"];
+    private static readonly string[] _domainForbiddenReferences =
     [
         "Microsoft.AspNetCore",
         "Microsoft.EntityFrameworkCore",
         "Confluent.Kafka",
         "Google.Cloud.PubSub.V1"
     ];
-    private static readonly string[] ApplicationForbiddenReferences =
+    private static readonly string[] _applicationForbiddenReferences =
     [
         "Microsoft.AspNetCore.Http",
         "Microsoft.AspNetCore.Mvc",
@@ -32,15 +32,24 @@ public sealed class LayerDependencyTests
         "Confluent.Kafka",
         "Google.Cloud.PubSub.V1"
     ];
-    private static readonly string[] MessagingProviderNames = ["Kafka", "PubSub"];
-    private static readonly string[] WorkerForbiddenReferences =
+    private static readonly string[] _messagingProviderNames = ["Kafka", "PubSub"];
+    private static readonly string[] _concreteKafkaProducerConsumerNames =
+    [
+        "KafkaOutboxMessagePublisher",
+        "KafkaDeadLetterPublisher",
+        "KafkaTransferenciaOutboxPublisher",
+        "LedgerEventsConsumer",
+        "ReprocessamentoLancamentosConsumerService",
+        "ITransferenciaKafkaProducer"
+    ];
+    private static readonly string[] _workerForbiddenReferences =
     [
         "Microsoft.OpenApi",
         "Swashbuckle.AspNetCore"
     ];
-    private static readonly ReflectionAssembly[] ProductionAssemblies =
+    private static readonly ReflectionAssembly[] _productionAssemblies =
     [
-        .. ServiceNames.SelectMany(serviceName => new[]
+        .. _serviceNames.SelectMany(serviceName => new[]
         {
             LoadAssembly($"{serviceName}.Domain"),
             LoadAssembly($"{serviceName}.Application"),
@@ -49,18 +58,18 @@ public sealed class LayerDependencyTests
             LoadAssembly($"{serviceName}.Worker")
         })
     ];
-    private static readonly ArchArchitecture Architecture = new ArchLoader()
-        .LoadAssemblies(ProductionAssemblies)
+    private static readonly ArchArchitecture _architecture = new ArchLoader()
+        .LoadAssemblies(_productionAssemblies)
         .Build();
-    private static readonly DirectoryInfo RepositoryRoot = GetRepositoryRoot();
+    private static readonly DirectoryInfo _repositoryRoot = GetRepositoryRoot();
 
     [Theory]
     [MemberData(nameof(Services))]
     public void Domain_should_not_depend_on_web_ef_core_or_messaging_providers(string serviceName)
     {
         // Domain stays independent from framework and infrastructure concerns.
-        AssertNoForbiddenDependencies($"{serviceName}.Domain", DomainForbiddenReferences);
-        AssertProjectHasNoForbiddenReferences(serviceName, "Domain", DomainForbiddenReferences);
+        AssertNoForbiddenDependencies($"{serviceName}.Domain", _domainForbiddenReferences);
+        AssertProjectHasNoForbiddenReferences(serviceName, "Domain", _domainForbiddenReferences);
         AssertProjectHasNoForbiddenLayerReferences(
             serviceName,
             "Domain",
@@ -72,8 +81,8 @@ public sealed class LayerDependencyTests
     public void Application_should_not_depend_on_http_swagger_or_messaging_providers(string serviceName)
     {
         // Application orchestrates use cases without transport or messaging implementations.
-        AssertNoForbiddenDependencies($"{serviceName}.Application", ApplicationForbiddenReferences);
-        AssertProjectHasNoForbiddenReferences(serviceName, "Application", ApplicationForbiddenReferences);
+        AssertNoForbiddenDependencies($"{serviceName}.Application", _applicationForbiddenReferences);
+        AssertProjectHasNoForbiddenReferences(serviceName, "Application", _applicationForbiddenReferences);
         AssertProjectHasNoForbiddenLayerReferences(serviceName, "Application", ["Api", "Infrastructure", "Worker"]);
     }
 
@@ -95,7 +104,16 @@ public sealed class LayerDependencyTests
                 Types().That().ResideInNamespace($"{serviceName}.Infrastructure.Persistence.Repositories"))
             .Because($"{serviceName}.Api must not depend on concrete persistence repositories")
             .WithoutRequiringPositiveResults()
-            .Check(Architecture);
+            .Check(_architecture);
+    }
+
+    [Theory]
+    [MemberData(nameof(Services))]
+    public void Api_should_not_depend_on_concrete_kafka_producers_or_consumers(string serviceName)
+    {
+        // APIs may configure application/infrastructure composition, but Kafka adapters stay outside HTTP entry points.
+        AssertProjectHasNoForbiddenReferences(serviceName, "Api", ["Confluent.Kafka"]);
+        AssertSourceFilesDoNotContain(serviceName, "Api", _concreteKafkaProducerConsumerNames);
     }
 
     [Theory]
@@ -109,9 +127,9 @@ public sealed class LayerDependencyTests
                     .Or().ResideInNamespace($"{serviceName}.Api.Swagger"))
             .Because($"{serviceName}.Worker must not depend on controllers or Swagger types")
             .WithoutRequiringPositiveResults()
-            .Check(Architecture);
+            .Check(_architecture);
 
-        AssertNoForbiddenDependencies($"{serviceName}.Worker", WorkerForbiddenReferences);
+        AssertNoForbiddenDependencies($"{serviceName}.Worker", _workerForbiddenReferences);
         AssertProjectHasNoForbiddenLayerReferences(serviceName, "Worker", ["Api"]);
     }
 
@@ -132,6 +150,18 @@ public sealed class LayerDependencyTests
         {
             AssertProjectHasNoForbiddenReferences("TransferService", layerName, ["Google.Cloud.PubSub.V1"]);
             AssertSourceFilesDoNotContain("TransferService", layerName, ["PubSub", "Pub/Sub", "Google.Cloud.PubSub"]);
+        }
+    }
+
+    [Theory]
+    [InlineData("LedgerService")]
+    [InlineData("BalanceService")]
+    public void PubSub_should_remain_only_in_legacy_worker_adapters_for_ledger_and_balance(string serviceName)
+    {
+        foreach (string layerName in new[] { "Api", "Application", "Domain", "Infrastructure" })
+        {
+            AssertProjectHasNoForbiddenReferences(serviceName, layerName, ["Google.Cloud.PubSub.V1"]);
+            AssertSourceFilesDoNotContain(serviceName, layerName, ["PubSub", "Pub/Sub", "Google.Cloud.PubSub"]);
         }
     }
 
@@ -156,12 +186,11 @@ public sealed class LayerDependencyTests
         // Infrastructure owns EF Core and concrete adapters behind application or domain ports.
         AssertProjectReferencesPackage(serviceName, "Infrastructure", "Microsoft.EntityFrameworkCore");
 
-        ReflectionType[] repositoryTypes = LoadAssembly($"{serviceName}.Infrastructure")
+        ReflectionType[] repositoryTypes = [.. LoadAssembly($"{serviceName}.Infrastructure")
             .GetTypes()
             .Where(type => type is { IsClass: true, IsAbstract: false })
             .Where(type => !type.IsNested)
-            .Where(type => type.Namespace == $"{serviceName}.Infrastructure.Persistence.Repositories")
-            .ToArray();
+            .Where(type => type.Namespace == $"{serviceName}.Infrastructure.Persistence.Repositories")];
 
         Assert.NotEmpty(repositoryTypes);
 
@@ -177,7 +206,7 @@ public sealed class LayerDependencyTests
     {
         TheoryData<string> services = [];
 
-        foreach (string serviceName in ServiceNames)
+        foreach (string serviceName in _serviceNames)
         {
             services.Add(serviceName);
         }
@@ -189,7 +218,7 @@ public sealed class LayerDependencyTests
     {
         TheoryData<string> services = [];
 
-        foreach (string serviceName in ServicesWithPersistence)
+        foreach (string serviceName in _servicesWithPersistence)
         {
             services.Add(serviceName);
         }
@@ -199,16 +228,13 @@ public sealed class LayerDependencyTests
 
     private static void AssertNoForbiddenDependencies(string assemblyName, IEnumerable<string> forbiddenReferences)
     {
-        string[] referencedAssemblies = LoadAssembly(assemblyName)
+        string[] referencedAssemblies = [.. LoadAssembly(assemblyName)
             .GetReferencedAssemblies()
-            .Select(reference => reference.Name ?? string.Empty)
-            .ToArray();
+            .Select(reference => reference.Name ?? string.Empty)];
 
         foreach (string forbiddenReference in forbiddenReferences)
         {
-            string[] violations = referencedAssemblies
-                .Where(reference => reference.StartsWith(forbiddenReference, StringComparison.Ordinal))
-                .ToArray();
+            string[] violations = [.. referencedAssemblies.Where(reference => reference.StartsWith(forbiddenReference, StringComparison.Ordinal))];
 
             Assert.True(
                 violations.Length == 0,
@@ -221,17 +247,14 @@ public sealed class LayerDependencyTests
         string layerName,
         IEnumerable<string> forbiddenReferences)
     {
-        string[] directReferences = LoadProject(serviceName, layerName)
+        string[] directReferences = [.. LoadProject(serviceName, layerName)
             .Descendants()
             .Where(element => element.Name.LocalName is "PackageReference" or "FrameworkReference")
-            .Select(element => (string?)element.Attribute("Include") ?? string.Empty)
-            .ToArray();
+            .Select(element => (string?)element.Attribute("Include") ?? string.Empty)];
 
         foreach (string forbiddenReference in forbiddenReferences)
         {
-            string[] violations = directReferences
-                .Where(reference => reference.StartsWith(forbiddenReference, StringComparison.Ordinal))
-                .ToArray();
+            string[] violations = [.. directReferences.Where(reference => reference.StartsWith(forbiddenReference, StringComparison.Ordinal))];
 
             Assert.True(
                 violations.Length == 0,
@@ -245,19 +268,16 @@ public sealed class LayerDependencyTests
         string layerName,
         IEnumerable<string> forbiddenLayers)
     {
-        string[] projectReferences = LoadProject(serviceName, layerName)
+        string[] projectReferences = [.. LoadProject(serviceName, layerName)
             .Descendants("ProjectReference")
             .Select(GetProjectReferenceFileName)
             .Where(reference => reference is not null)
-            .Select(reference => reference!)
-            .ToArray();
+            .Select(reference => reference!)];
 
         foreach (string forbiddenLayer in forbiddenLayers)
         {
             string forbiddenProject = $"{serviceName}.{forbiddenLayer}.csproj";
-            string[] violations = projectReferences
-                .Where(reference => reference.EndsWith(forbiddenProject, StringComparison.OrdinalIgnoreCase))
-                .ToArray();
+            string[] violations = [.. projectReferences.Where(reference => reference.EndsWith(forbiddenProject, StringComparison.OrdinalIgnoreCase))];
 
             Assert.True(
                 violations.Length == 0,
@@ -271,18 +291,15 @@ public sealed class LayerDependencyTests
         string layerName,
         IEnumerable<string> allowedLayers)
     {
-        string[] allowedProjects = allowedLayers
-            .Select(allowedLayer => $"{serviceName}.{allowedLayer}.csproj")
-            .ToArray();
+        string[] allowedProjects = [.. allowedLayers.Select(allowedLayer => $"{serviceName}.{allowedLayer}.csproj")];
 
-        string[] internalProjectReferences = LoadProject(serviceName, layerName)
+        string[] internalProjectReferences = [.. LoadProject(serviceName, layerName)
             .Descendants("ProjectReference")
             .Select(GetProjectReferenceFileName)
             .Where(reference => reference is not null
                 && reference.StartsWith($"{serviceName}.", StringComparison.OrdinalIgnoreCase))
             .Select(reference => reference!)
-            .Order(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
+            .Order(StringComparer.OrdinalIgnoreCase)];
 
         Assert.Equal(
             allowedProjects.Order(StringComparer.OrdinalIgnoreCase),
@@ -291,10 +308,9 @@ public sealed class LayerDependencyTests
 
     private static void AssertProjectReferencesPackage(string serviceName, string layerName, string packageName)
     {
-        string[] packageReferences = LoadProject(serviceName, layerName)
+        string[] packageReferences = [.. LoadProject(serviceName, layerName)
             .Descendants("PackageReference")
-            .Select(element => (string?)element.Attribute("Include") ?? string.Empty)
-            .ToArray();
+            .Select(element => (string?)element.Attribute("Include") ?? string.Empty)];
 
         Assert.Contains(packageName, packageReferences);
     }
@@ -309,25 +325,23 @@ public sealed class LayerDependencyTests
     }
 
     private static void AssertSourceFilesDoNotContainProviderNames(string serviceName, string layerName)
-        => AssertSourceFilesDoNotContain(serviceName, layerName, MessagingProviderNames);
+        => AssertSourceFilesDoNotContain(serviceName, layerName, _messagingProviderNames);
 
     private static void AssertSourceFilesDoNotContain(
         string serviceName,
         string layerName,
         IEnumerable<string> forbiddenTerms)
     {
-        string sourceDirectory = Path.Combine(RepositoryRoot.FullName, "src", $"{serviceName}.{layerName}");
-        string[] sourceFiles = Directory.GetFiles(sourceDirectory, "*.cs", SearchOption.AllDirectories)
+        string sourceDirectory = Path.Combine(_repositoryRoot.FullName, "src", $"{serviceName}.{layerName}");
+        string[] sourceFiles = [.. Directory.GetFiles(sourceDirectory, "*.cs", SearchOption.AllDirectories)
             .Where(sourceFile => !sourceFile.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
-            .Where(sourceFile => !sourceFile.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
-            .ToArray();
+            .Where(sourceFile => !sourceFile.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))];
 
         foreach (string forbiddenTerm in forbiddenTerms)
         {
-            string[] violations = sourceFiles
+            string[] violations = [.. sourceFiles
                 .Where(sourceFile => File.ReadAllText(sourceFile).Contains(forbiddenTerm, StringComparison.OrdinalIgnoreCase))
-                .Select(sourceFile => Path.GetRelativePath(RepositoryRoot.FullName, sourceFile))
-                .ToArray();
+                .Select(sourceFile => Path.GetRelativePath(_repositoryRoot.FullName, sourceFile))];
 
             Assert.True(
                 violations.Length == 0,
@@ -339,7 +353,7 @@ public sealed class LayerDependencyTests
     private static XDocument LoadProject(string serviceName, string layerName)
     {
         string projectPath = Path.Combine(
-            RepositoryRoot.FullName,
+            _repositoryRoot.FullName,
             "src",
             $"{serviceName}.{layerName}",
             $"{serviceName}.{layerName}.csproj");
@@ -371,6 +385,6 @@ public sealed class LayerDependencyTests
         }
 
         Assert.NotNull(directory);
-        return directory!;
+        return directory;
     }
 }

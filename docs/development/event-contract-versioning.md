@@ -1,6 +1,6 @@
 # Politica de versionamento de contratos de eventos
 
-Esta politica orienta futuras mudancas nos contratos de eventos entre `LedgerService` e `BalanceService`. Ela vale para Pub/Sub, que e o provider principal, e para Kafka, que permanece como provider legado opcional.
+Esta politica orienta futuras mudancas nos contratos de eventos entre `LedgerService` e `BalanceService`. Ela vale para Kafka, que e o provider padrao dos workers principais, e para Pub/Sub, que permanece como provider explicito/legado.
 
 O objetivo e permitir evolucao incremental sem quebrar consumidores antigos, sem misturar semantica de negocio com detalhes de transporte e sem criar divergencia entre providers.
 
@@ -127,7 +127,7 @@ A nova versao deve manter o nome base quando representar a mesma familia de even
 
 ## Politica para v1 legado
 
-Versoes `v1` legadas podem conviver com versoes novas enquanto houver backlog, producers antigos, Kafka legado ou necessidade operacional documentada.
+Versoes `v1` legadas podem conviver com versoes novas enquanto houver backlog, producers antigos ou necessidade operacional documentada.
 
 Regras de convivencia:
 

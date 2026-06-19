@@ -18,6 +18,11 @@ emulator local e da integracao GCP. O diagnostico atual mostrou que, para os
 servicos principais da POC, o default operacional deve voltar a ser Kafka,
 mantendo Pub/Sub disponivel apenas por selecao explicita.
 
+Esta mudanca nao e uma recomendacao generica de "Kafka e melhor". Ela atende a
+um requisito explicito do projeto: a documentacao, a stack local, os workers, os
+smokes k6 e a Saga do `TransferService` devem convergir para Kafka como caminho
+padrao implementado e operavel hoje.
+
 ## Decisao
 Kafka passa a ser o default de mensageria dos workers principais:
 
@@ -46,6 +51,10 @@ Provider invalido continua falhando cedo na composition root com mensagem
 objetiva. Esta decisao nao altera contratos HTTP, contratos de eventos,
 migrations, regras de dominio nem acopla `Application` ou `Domain` a Kafka.
 
+A decisao e coerente com a [ADR-0087](./0087-saga-orquestrada-transfer-service-kafka.md):
+o `TransferService` usa Kafka explicitamente para os eventos da Saga e Pub/Sub
+permanece fora desse fluxo.
+
 ## Consequencias
 
 ### Beneficios
@@ -62,6 +71,28 @@ migrations, regras de dominio nem acopla `Application` ou `Domain` a Kafka.
 - O modo Pub/Sub passa a ser opt-in e nao sobe `TransferService.Worker`.
 - A stack local padrao consome mais recursos que o modo Pub/Sub legado porque
   inclui Kafka e o worker de Saga.
+
+### Impactos operacionais
+- `LedgerService.Worker`: publica Outbox em Kafka por default, processa estornos
+  e consome reprocessamento via Kafka; Pub/Sub pode publicar eventos financeiros
+  apenas quando selecionado explicitamente.
+- `BalanceService.Worker`: consome `ledger.ledgerentry.created` em Kafka por
+  default, preserva idempotencia e publica DLQ Kafka; Pub/Sub fica restrito ao
+  caminho legado/alternativo.
+- `TransferService.Worker`: permanece Kafka-only para processamento de Saga,
+  publicacao da Outbox e DLQ `transfer.transferencia.dlq`.
+- Compose local: `compose.yaml` e `scripts/start-local-stack.*` sobem Kafka,
+  `kafka-init-topics`, APIs e workers principais; `compose.pubsub.yaml` e
+  `scripts/start-local-stack-pubsub.*` documentam o modo Pub/Sub legado.
+- Testes: testes de composicao devem preservar Kafka como fallback quando
+  `Messaging:Provider` esta ausente e manter Pub/Sub apenas como selecao
+  explicita.
+- Smoke/load tests: os runners k6 oficiais usam Kafka (`smoke-kafka`,
+  `load-kafka`, `transfer-*-kafka`) e falham cedo para Pub/Sub porque nao ha
+  runner Pub/Sub versionado.
+- Operacao local: troubleshooting, observabilidade e validacao ponta a ponta
+  devem partir do fluxo `Ledger -> Outbox -> Kafka -> Balance`; Pub/Sub deve
+  ser descrito como validacao manual/legada.
 
 ## Substitui
 - ADR-0078 no ponto especifico sobre provider principal/default dos workers

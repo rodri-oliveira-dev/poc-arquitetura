@@ -32,7 +32,7 @@ public sealed class ProcessCompositionPolicyTests
     }
 
     [Fact]
-    public void BalanceServiceWorker_should_host_kafka_ledger_events_consumer_when_kafka_is_enabled()
+    public void BalanceServiceWorker_should_use_kafka_when_provider_is_explicitly_kafka()
     {
         var services = new ServiceCollection();
 
@@ -41,6 +41,8 @@ public sealed class ProcessCompositionPolicyTests
             ["Messaging:Provider"] = "Kafka"
         }), CreateEnvironment());
 
+        services.ContainSingleton<IDeadLetterPublisher, KafkaDeadLetterPublisher>();
+        services.NotContainSingleton<IDeadLetterPublisher, PubSubDeadLetterPublisher>();
         services.ContainHostedService<LedgerEventsConsumer>();
         services.NotContainHostedService<LedgerEventsPubSubConsumer>();
     }
@@ -60,7 +62,7 @@ public sealed class ProcessCompositionPolicyTests
     }
 
     [Fact]
-    public void BalanceServiceWorker_should_host_pubsub_ledger_events_consumer_when_pubsub_is_enabled()
+    public void BalanceServiceWorker_should_use_pubsub_legacy_when_provider_is_explicitly_pubsub()
     {
         var services = new ServiceCollection();
 
@@ -74,6 +76,7 @@ public sealed class ProcessCompositionPolicyTests
         }), CreateEnvironment());
 
         services.ContainSingleton<IDeadLetterPublisher, PubSubDeadLetterPublisher>();
+        services.NotContainSingleton<IDeadLetterPublisher, KafkaDeadLetterPublisher>();
         services.ContainHostedService<LedgerEventsPubSubConsumer>();
         services.NotContainHostedService<LedgerEventsConsumer>();
     }
@@ -86,6 +89,7 @@ public sealed class ProcessCompositionPolicyTests
         services.AddBalanceWorkerComposition(CreateConfiguration(), CreateEnvironment());
 
         services.ContainSingleton<IDeadLetterPublisher, KafkaDeadLetterPublisher>();
+        services.NotContainSingleton<IDeadLetterPublisher, PubSubDeadLetterPublisher>();
         services.ContainHostedService<LedgerEventsConsumer>();
         services.NotContainHostedService<LedgerEventsPubSubConsumer>();
     }
@@ -105,7 +109,7 @@ public sealed class ProcessCompositionPolicyTests
     }
 
     [Fact]
-    public void BalanceServiceWorker_should_reject_unsupported_messaging_provider()
+    public void BalanceServiceWorker_should_reject_unknown_messaging_provider()
     {
         var services = new ServiceCollection();
 
@@ -201,6 +205,14 @@ static file class HostedServiceAssertions
     public static void ContainSingleton<TService, TImplementation>(this IServiceCollection services)
     {
         Assert.Contains(services, d =>
+            d.ServiceType == typeof(TService) &&
+            d.ImplementationType == typeof(TImplementation) &&
+            d.Lifetime == ServiceLifetime.Singleton);
+    }
+
+    public static void NotContainSingleton<TService, TImplementation>(this IServiceCollection services)
+    {
+        Assert.DoesNotContain(services, d =>
             d.ServiceType == typeof(TService) &&
             d.ImplementationType == typeof(TImplementation) &&
             d.Lifetime == ServiceLifetime.Singleton);

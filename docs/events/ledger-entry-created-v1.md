@@ -20,7 +20,7 @@ O JSON Schema versionado valida somente o payload logico do evento. Metadados te
 
 ## Status de compatibilidade
 
-`LedgerEntryCreated.v1` e contrato legado. Ele permanece aceito pelo `BalanceService.Worker` para mensagens antigas e para o Kafka legado, mas nao e mais o contrato produzido pelos fluxos novos do Ledger.
+`LedgerEntryCreated.v1` e contrato legado. Ele permanece aceito pelo `BalanceService.Worker` para mensagens antigas em Kafka ou Pub/Sub, mas nao e mais o contrato produzido pelos fluxos novos do Ledger.
 
 Nao foi adicionado `currency` em v1 porque isso mudaria a semantica do contrato e quebraria consumidores que rejeitam propriedades desconhecidas. O contrato atual produzido e [`LedgerEntryCreated.v2`](ledger-entry-created-v2.md), com `currency` explicito e obrigatorio.
 

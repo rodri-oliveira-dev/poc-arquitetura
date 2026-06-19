@@ -7,6 +7,7 @@ Este documento descreve o fluxo atual de JWT Bearer via JWKS e as regras de auto
 - O Keycloak local emite tokens JWT assinados com RS256 no realm `poc`.
 - O Keycloak publica chaves publicas em `GET /realms/poc/protocol/openid-connect/certs`.
 - `LedgerService.Api` e `BalanceService.Api` validam tokens por JWT Bearer e JWKS.
+- `TransferService.Worker` obtem token por OAuth2 client credentials para chamar o `LedgerService.Api`.
 - As APIs nao fazem introspeccao por request; a configuracao de chaves usa cache e refresh.
 - `Auth.Api` esta depreciado como emissor legado de POC, fora da stack principal, e so deve ser iniciado pelo overlay legado quando houver necessidade explicita de compatibilidade.
 
@@ -217,6 +218,29 @@ Variaveis legadas preservadas para `TOKEN_PROVIDER=auth-api`:
 O contrato de resposta continua aceitando `access_token` como campo principal e `accessToken` como fallback temporario.
 
 Scripts operacionais que precisam de token devem chamar `scripts/get-token.*` em vez de duplicar login. Esse e o caso dos validadores locais (`validate-*.ps1`), dos runners k6 (`run-loadtests.*`) e do modo autenticado do OWASP ZAP (`run-owasp-zap.* -UseAuthentication` ou `--use-authentication`). Assim, Keycloak e o fallback temporario para `Auth.Api` seguem uma unica configuracao.
+
+## Autenticacao service-to-service do TransferService.Worker
+
+O `TransferService.Worker` chama o `LedgerService.Api` nos endpoints `POST /api/v1/lancamentos` e `POST /api/v1/lancamentos/{lancamentoId}/estornos`. Ambos exigem `ledger.write`, audience `ledger-api` e `merchant_id` compativel com o merchant da operacao.
+
+No compose local, o worker usa OAuth2 client credentials contra o token endpoint do Keycloak:
+
+| Configuracao | Valor local |
+| --- | --- |
+| `TransferService:Worker:Ledger:Auth:TokenEndpoint` | `http://keycloak:8080/realms/poc/protocol/openid-connect/token` |
+| `TransferService:Worker:Ledger:Auth:ClientId` | `${KEYCLOAK_CLIENT_ID:-poc-automation}` |
+| `TransferService:Worker:Ledger:Auth:ClientSecret` | `${KEYCLOAK_CLIENT_SECRET}` |
+| `TransferService:Worker:Ledger:Auth:Scope` | `${TRANSFER_WORKER_LEDGER_AUTH_SCOPE:-ledger.write}` |
+
+O client local `poc-automation` ja possui `ledger.write`, audience `ledger-api` e `merchant_id=tese m1 m2` pelo import `infra/keycloak/realm-poc.json`. O segredo continua fora do repositorio e deve vir de `.env.local` ou do ambiente.
+
+Se o smoke `transfer-fullstack-kafka` terminar a Saga como `Failed` por `401 Unauthorized`, valide:
+
+- `KEYCLOAK_CLIENT_SECRET` no `.env.local` e no container `transfer-worker`;
+- `TransferService__Worker__Ledger__Auth__TokenEndpoint` apontando para `http://keycloak:8080/...` dentro do compose;
+- token emitido com `iss=http://localhost:8081/realms/poc`, `aud` contendo `ledger-api`, `scope` contendo `ledger.write` e `merchant_id` contendo `m1` e `m2`;
+- `Jwt__Issuer`, `Jwt__Audience=ledger-api` e `Jwt__JwksUrl` efetivos no `ledger-service`;
+- logs do `transfer-worker` para status HTTP do Ledger, `CorrelationId` e idempotency key da etapa.
 
 ### Keycloak local
 

@@ -7,7 +7,7 @@ Aceito
 2026-06-17
 
 ## Contexto
-O projeto possui `LedgerService` como dono das regras de lancamento, `BalanceService` como projecao eventual dos eventos do Ledger e mensageria com Outbox, DLQ, Pub/Sub principal e Kafka legado opcional em fluxos existentes.
+O projeto possui `LedgerService` como dono das regras de lancamento, `BalanceService` como projecao eventual dos eventos do Ledger e mensageria com Outbox, DLQ, Kafka como provider padrao dos workers principais e Pub/Sub explicito/legado em fluxos existentes.
 
 Para estudar consistencia distribuida entre microservicos sem mover regras de lancamento para fora do Ledger, sera criado um novo bounded context chamado `TransferService`. O caso de uso planejado e transferir valor de um merchant origem para um merchant destino.
 
@@ -191,7 +191,7 @@ O `TransferService` deve propagar correlation id nas chamadas HTTP para o `Ledge
 ### Trade-offs / custos
 - O `TransferService` passa a conhecer o fluxo de coordenacao e as chamadas HTTP necessarias ao Ledger.
 - A Saga Orquestrada cria um ponto central de decisao que precisa de persistencia, retry, timeout e operacao cuidadosa.
-- Kafka volta a aparecer como transporte principal em um estudo especifico, mesmo com Pub/Sub sendo o provider principal da POC para os fluxos atuais.
+- Kafka permanece como transporte principal do estudo e fica alinhado ao default dos workers principais definido posteriormente pela ADR-0088.
 - Contratos HTTP do Ledger podem precisar evoluir para suportar comandos explicitos de debito, credito e compensacao com idempotencia adequada.
 
 ### Riscos

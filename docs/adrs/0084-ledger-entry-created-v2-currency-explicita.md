@@ -22,6 +22,6 @@ Adicionar `currency` diretamente em v1 seria semanticamente relevante e poderia 
 
 ## Consequencias
 - Novos eventos do Ledger passam a ser publicados como `LedgerEntryCreated.v2`.
-- Mensagens antigas v1 continuam consumiveis durante a convivencia com Kafka legado ou backlog historico.
+- Mensagens antigas v1 continuam consumiveis durante a convivencia com backlog historico ou necessidade operacional documentada.
 - O contrato v2 torna explicita a moeda usada pela POC atual.
 - Suporte a multiplas moedas no contrato HTTP e na persistencia do Ledger continua fora desta decisao.

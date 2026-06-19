@@ -2,9 +2,14 @@
 
 Data: 2026-06-07
 
+> Nota de atualizacao: este relatorio e historico. A decisao sobre provider
+> principal/default foi alterada posteriormente pela
+> [ADR-0088](../adrs/0088-kafka-default-ledger-balance-workers.md): Kafka e o
+> provider padrao dos workers principais e Pub/Sub permanece explicito/legado.
+
 ## Resumo executivo
 
-O projeto ja possui uma base operacional importante: Outbox transacional no Ledger, publicacao por `LedgerService.Worker`, consumo idempotente no Balance, DLQ de aplicacao para mensagens rejeitadas pelo `BalanceService.Worker` e requeue administrativo da DLQ em banco da Outbox. Pub/Sub e o provider principal e Kafka permanece como provider legado opcional.
+O projeto ja possui uma base operacional importante: Outbox transacional no Ledger, publicacao por `LedgerService.Worker`, consumo idempotente no Balance, DLQ de aplicacao para mensagens rejeitadas pelo `BalanceService.Worker` e requeue administrativo da DLQ em banco da Outbox. No momento do diagnostico, Pub/Sub era tratado como default; conforme nota acima, a decisao atual e Kafka como provider padrao e Pub/Sub explicito/legado.
 
 O estado atual ainda nao equivale a uma operacao completa de replay, redrive e reconstrucao de projecao. Existe replay de fatos financeiros persistidos no Ledger para o fluxo de reprocessamento de lancamentos, mas esse fluxo hoje depende do consumer Kafka de `ReprocessamentoLancamentosSolicitado.v1` e nao e um redrive generico de DLQ. Nao foi encontrado redrive versionado de DLQ Pub/Sub ou Kafka. Tambem nao foi encontrada reconstrucao completa da projecao `daily_balances`; o replay atual corrige eventos ausentes, mas nao recalcula saldos ja materializados com regra historica incorreta.
 
@@ -17,7 +22,7 @@ O maior ponto positivo e a idempotencia do Balance: `ApplyLedgerEntryCreatedHand
 3. `OutboxMessage` nasce como `Pending` e carrega `AggregateType`, `AggregateId`, `EventType`, `Payload`, `OccurredAt`, `CorrelationId`, contexto W3C e campos de retry.
 4. `LedgerService.Worker` hospeda `OutboxPublisherService`.
 5. O worker reclama mensagens elegiveis com lock temporario, marca como `Processing`, salva o claim e publica em paralelo usando `IOutboxMessagePublisher`.
-6. O adapter concreto e escolhido por `Messaging:Provider`, com `PubSub` como default. Kafka e ativado explicitamente como legado.
+6. O adapter concreto e escolhido por `Messaging:Provider`; na decisao atual, Kafka e o default e Pub/Sub e ativado explicitamente como modo legado/alternativo.
 7. Em sucesso de publish, a mensagem vira `Processed`.
 8. Em falha de publish, o worker incrementa `RetryCount`, registra `LastError`, calcula `NextRetryAt` por backoff exponencial com jitter e devolve para `Pending`.
 9. Ao atingir `Outbox:Publisher:MaxAttempts`, a mensagem vira `DeadLetter` no banco e sai do processamento automatico.
@@ -53,7 +58,7 @@ Nao foi encontrado redrive implementado para mensagens publicadas na DLQ de apli
 
 ## Estado atual de DLQ no Kafka
 
-O Kafka legado possui DLQ de aplicacao no `BalanceService.Worker` por `KafkaDeadLetterPublisher`.
+O caminho Kafka possui DLQ de aplicacao no `BalanceService.Worker` por `KafkaDeadLetterPublisher`.
 
 O publisher de DLQ:
 
@@ -91,7 +96,7 @@ Existe replay funcional de fatos financeiros persistidos no Ledger no fluxo de r
 
 Esse replay e limitado. Ele corrige eventos ausentes na projecao quando o `payload.id` ainda nao existe em `processed_events`. Ele nao recalcula saldos ja aplicados com o mesmo `payload.id`.
 
-No provider principal Pub/Sub, nao foi encontrado consumer equivalente para `ReprocessamentoLancamentosSolicitado.v1`.
+No provider Pub/Sub explicito/legado, nao foi encontrado consumer equivalente para `ReprocessamentoLancamentosSolicitado.v1`.
 
 ## Estado atual de redrive de DLQ
 
@@ -194,7 +199,7 @@ Lacunas:
 
 1. Nao existe redrive versionado de DLQ Pub/Sub ou Kafka, apenas runbook.
 2. Nao existe reconstrucao completa de `daily_balances`.
-3. O replay atual depende do Kafka para a solicitacao de reprocessamento, enquanto Pub/Sub e o provider principal.
+3. O replay atual depende do Kafka para a solicitacao de reprocessamento, alinhado ao provider padrao definido pela ADR-0088.
 4. Requeue da Outbox pode ser confundido com redrive de DLQ do Balance, mas atua em momentos diferentes do fluxo.
 5. `event_id` de transporte representa `OutboxMessage.Id`, enquanto a idempotencia real do Balance usa `payload.id`.
 6. Redrive manual que altere `payload.id` pode duplicar saldo.
@@ -217,7 +222,7 @@ Lacunas:
 
 ## Dividas tecnicas
 
-- Implementar consumer Pub/Sub para `ReprocessamentoLancamentosSolicitado.v1` ou decidir outro mecanismo para replay no provider principal.
+- Implementar consumer Pub/Sub para `ReprocessamentoLancamentosSolicitado.v1` somente se uma decisao futura exigir esse suporte no modo legado/alternativo.
 - Criar ferramenta versionada de redrive de DLQ de aplicacao para Pub/Sub e Kafka.
 - Definir uma estrategia de rebuild de projecao, com auditoria, dry-run e isolamento transacional.
 - Persistir decisoes operacionais de DLQ, como discard, redrive, operador, motivo e resultado.
@@ -245,7 +250,7 @@ Lacunas:
 ## Proximos passos recomendados
 
 1. Separar formalmente tres operacoes: requeue da Outbox, redrive de DLQ de aplicacao e rebuild de projecao.
-2. Implementar ou decidir o destino do consumer Pub/Sub de reprocessamento, ja que Pub/Sub e o provider principal.
+2. Manter o reprocessamento no provider Kafka padrao ou decidir explicitamente o destino do consumer Pub/Sub de reprocessamento.
 3. Desenhar redrive com validacao de schema, dry-run, limite de lote, preservacao de `payload.id`, auditoria e metricas.
 4. Definir rebuild de projecao com fonte de verdade, janela, isolamento, tratamento de `processed_events` e estrategia de rollback.
 5. Criar uma matriz operacional de causas: falha transitoria, contrato invalido, payload poison, duplicidade esperada e regra nao recuperavel.

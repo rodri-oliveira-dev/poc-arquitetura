@@ -11,7 +11,7 @@
 | Consumidor | `BalanceService.Worker` |
 | Topic Pub/Sub local principal | `ledger.ledgerentry.created.local` |
 | Topic Pub/Sub GCP dev | `ledger.ledgerentry.created.dev` |
-| Topico Kafka legado | `ledger.ledgerentry.created` |
+| Topico Kafka | `ledger.ledgerentry.created` |
 | Schema | [`LedgerEntryCreated.v1.schema.json`](LedgerEntryCreated.v1.schema.json) |
 | Exemplo valido | [`LedgerEntryCreated.v1.example.json`](LedgerEntryCreated.v1.example.json) |
 

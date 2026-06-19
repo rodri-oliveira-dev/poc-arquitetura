@@ -33,7 +33,7 @@ public sealed class ProcessCompositionPolicyTests
     }
 
     [Fact]
-    public void LedgerServiceWorker_should_host_expected_services_when_flags_are_enabled()
+    public void LedgerServiceWorker_should_use_kafka_when_provider_is_explicitly_kafka()
     {
         var services = new ServiceCollection();
 
@@ -43,6 +43,7 @@ public sealed class ProcessCompositionPolicyTests
         }), CreateEnvironment());
 
         services.ContainSingleton<IOutboxMessagePublisher, KafkaOutboxMessagePublisher>();
+        services.NotContainSingleton<IOutboxMessagePublisher, PubSubOutboxMessagePublisher>();
         services.ContainHostedService<OutboxPublisherService>();
         services.ContainHostedService<EstornoLancamentoProcessorService>();
         services.ContainHostedService<ReprocessamentoLancamentosConsumerService>();
@@ -65,7 +66,7 @@ public sealed class ProcessCompositionPolicyTests
     }
 
     [Fact]
-    public void LedgerServiceWorker_should_host_pubsub_outbox_publisher_when_pubsub_is_enabled()
+    public void LedgerServiceWorker_should_use_pubsub_legacy_when_provider_is_explicitly_pubsub()
     {
         var services = new ServiceCollection();
 
@@ -78,6 +79,7 @@ public sealed class ProcessCompositionPolicyTests
         }), CreateEnvironment());
 
         services.ContainSingleton<IOutboxMessagePublisher, PubSubOutboxMessagePublisher>();
+        services.NotContainSingleton<IOutboxMessagePublisher, KafkaOutboxMessagePublisher>();
         services.ContainHostedService<OutboxPublisherService>();
         services.NotContainHostedService<ReprocessamentoLancamentosConsumerService>();
     }
@@ -90,6 +92,7 @@ public sealed class ProcessCompositionPolicyTests
         services.AddLedgerWorkerComposition(CreateConfiguration(), CreateEnvironment());
 
         services.ContainSingleton<IOutboxMessagePublisher, KafkaOutboxMessagePublisher>();
+        services.NotContainSingleton<IOutboxMessagePublisher, PubSubOutboxMessagePublisher>();
         services.ContainHostedService<OutboxPublisherService>();
         services.ContainHostedService<ReprocessamentoLancamentosConsumerService>();
     }
@@ -110,7 +113,7 @@ public sealed class ProcessCompositionPolicyTests
     }
 
     [Fact]
-    public void LedgerServiceWorker_should_reject_unsupported_messaging_provider()
+    public void LedgerServiceWorker_should_reject_unknown_messaging_provider()
     {
         var services = new ServiceCollection();
 
@@ -271,6 +274,14 @@ static file class HostedServiceAssertions
     public static void ContainSingleton<TService, TImplementation>(this IServiceCollection services)
     {
         Assert.Contains(services, d =>
+            d.ServiceType == typeof(TService) &&
+            d.ImplementationType == typeof(TImplementation) &&
+            d.Lifetime == ServiceLifetime.Singleton);
+    }
+
+    public static void NotContainSingleton<TService, TImplementation>(this IServiceCollection services)
+    {
+        Assert.DoesNotContain(services, d =>
             d.ServiceType == typeof(TService) &&
             d.ImplementationType == typeof(TImplementation) &&
             d.Lifetime == ServiceLifetime.Singleton);

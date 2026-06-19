@@ -43,19 +43,21 @@ views {
   }
 
   view distributedFlow {
-    title "Fluxo distribuido principal - Keycloak, Ledger, Outbox, Pub/Sub e Balance"
+    title "Fluxo distribuido principal - Keycloak, Ledger, Outbox, Kafka e Balance"
     include customer
     include identity.keycloak
     include ledger.ledgerApi
     include ledger.ledgerDb
     include ledger.ledgerWorker
     include ledger.ledgerOutbox
-    include pubsubLocal.ledgerTopic
-    include pubsubLocal.balanceSubscription
+    include ledger.ledgerKafkaOutboxPublisher
+    include kafka.ledgerTopic
+    include kafka.ledgerDlq
     include balance.balanceWorker
-    include balance.balancePubSubConsumer
-    include balance.balancePubSubReceivedMessageMapper
+    include balance.balanceConsumer
+    include balance.balanceReceivedMessageMapper
     include balance.balanceMessageProcessor
+    include balance.balanceDeadLetterPort
     include balance.balanceDb
     include balance.balanceApi
     include observability.collector
@@ -63,11 +65,15 @@ views {
     autoLayout LeftRight
   }
 
-  view gcpPubSubFlow {
-    title "Fluxo Pub/Sub real em GCP - Terraform, DLQ de aplicacao e DLQ tecnica"
+  view pubSubLegacyFlow {
+    title "Fluxo alternativo/legado - Pub/Sub emulator/GCP"
     include ledger.ledgerWorker
     include ledger.ledgerOutbox
     include ledger.ledgerPubSubOutboxPublisher
+    include pubsubLocal.ledgerTopic
+    include pubsubLocal.balanceSubscription
+    include pubsubLocal.applicationDlqTopic
+    include pubsubLocal.applicationDlqSubscription
     include pubsubGcp.ledgerTopic
     include pubsubGcp.balanceSubscription
     include pubsubGcp.applicationDlqTopic
@@ -81,8 +87,8 @@ views {
     autoLayout LeftRight
   }
 
-  view legacyKafkaFlow {
-    title "Fluxo legado opcional - Kafka"
+  view kafkaFlow {
+    title "Fluxo Kafka default - Ledger, Balance e reprocessamento"
     include ledger.ledgerWorker
     include ledger.ledgerKafkaOutboxPublisher
     include ledger.ledgerReprocessamentoConsumer

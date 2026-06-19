@@ -208,7 +208,7 @@ O workflow aplica migrations dos bancos antes de iniciar as APIs e aguarda `/hea
 - `http://localhost:5226/health`;
 - `http://localhost:5228/health`.
 
-Workers, Pub/Sub emulator, Kafka legado, Nginx local e `Auth.Api` legado ficam fora do escopo padrao porque o baseline atual analisa a superficie HTTP descrita por `/swagger/v1/swagger.json` das APIs principais. Se uma evolucao futura passar a validar endpoints autenticados, fluxos assincronos ponta a ponta, Nginx ou o emissor legado, o workflow deve ser ajustado junto com o criterio de falha e a documentacao.
+Workers, Kafka, Pub/Sub emulator legado, Nginx local e `Auth.Api` legado ficam fora do escopo padrao porque o baseline atual analisa a superficie HTTP descrita por `/swagger/v1/swagger.json` das APIs principais. Se uma evolucao futura passar a validar endpoints autenticados, fluxos assincronos ponta a ponta, Nginx ou o emissor legado, o workflow deve ser ajustado junto com o criterio de falha e a documentacao.
 
 Depois do scan, o workflow publica o artifact `owasp-zap-baseline-reports` com retencao de 7 dias. O artifact inclui, quando gerados pelo ZAP:
 

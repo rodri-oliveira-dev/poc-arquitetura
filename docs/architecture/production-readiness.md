@@ -6,7 +6,7 @@ Ele e uma referencia arquitetural. Nao significa que o projeto esta pronto para 
 
 ## Escopo
 
-Este baseline cobre requisitos para evolucao produtiva de seguranca, identidade de workload, trafego, Pub/Sub real, Cloud SQL, containers, borda, observabilidade, operacao, compliance e governanca.
+Este baseline cobre requisitos para evolucao produtiva de seguranca, identidade de workload, trafego, Kafka como broker padrao, Pub/Sub real como alternativa explicita se escolhida por decisao futura, Cloud SQL, containers, borda, observabilidade, operacao, compliance e governanca.
 
 Fora do escopo desta etapa:
 
@@ -23,8 +23,9 @@ Fora do escopo desta etapa:
 | Tema | Status | Evidencia atual | Direcao recomendada |
 | --- | --- | --- | --- |
 | Stack local de servicos | Ja existe no projeto | `compose.yaml`, `docs/development/local-development.md` | Manter como laboratorio local, sem tratar como ambiente produtivo. |
+| Kafka local | Ja existe no projeto | `compose.yaml`, `docs/development/kafka-outbox.md`, ADR-0088 | Tratar Kafka como broker padrao dos workers principais e definir seguranca/operacao antes de qualquer ambiente compartilhado. |
 | Pub/Sub emulator | Existe apenas localmente | `docs/operations/pubsub.md` | Usar somente para desenvolvimento e testes locais. |
-| Pub/Sub real dev | Documentado, mas nao automatizado como producao | `infra/terraform/environments/dev`, `docs/development/pubsub-infra-app-contract.md` | Separar configuracao produtiva futura com IAM, DLQ, retry, retencao e observabilidade revisados. |
+| Pub/Sub real dev | Documentado, mas nao automatizado como producao | `infra/terraform/environments/dev`, `docs/development/pubsub-infra-app-contract.md` | Usar apenas como alternativa explicita/legada ou estudo GCP; separar configuracao produtiva futura se uma ADR escolher Pub/Sub para algum fluxo. |
 | Cloud SQL dev e Auth Proxy local | Documentado, mas nao automatizado como producao | `docs/development/cloudsql-postgres-local-setup.md`, modulo Terraform Cloud SQL | Definir conectividade, usuarios, backups, retention, migrations e pooling por ambiente. |
 | Secrets produtivos | Pendente | ADR-0020 e guias locais proibem secrets versionados | Adotar Secret Manager ou equivalente, rotacao e acesso minimo por workload. |
 | Identidade de workload | Parcialmente documentado | IAM minimo Pub/Sub dev e sugestao de impersonation local | Adotar service accounts por aplicacao ou funcao, Workload Identity ou equivalente, sem chaves long-lived. |
@@ -70,7 +71,20 @@ Baseline recomendado:
 - conceder permissoes de observabilidade somente para exportar logs, metricas e traces necessarios;
 - revisar periodicamente bindings, membros humanos, service accounts inativas e permissoes temporarias.
 
-O contrato atual de Pub/Sub dev ja modela IAM minimo para publisher, subscriber, DLQ de aplicacao e Pub/Sub service agent. Um ambiente produtivo futuro deve reavaliar nomes, fronteiras, retencao, residencia, impersonation e auditoria antes de reutilizar o desenho.
+O contrato atual de Pub/Sub dev modela IAM minimo para publisher, subscriber, DLQ de aplicacao e Pub/Sub service agent no modo alternativo/legado. Um ambiente produtivo futuro deve definir primeiro se usara Kafka, Pub/Sub ou ambos por decisao arquitetural e entao reavaliar nomes, fronteiras, retencao, residencia, impersonation e auditoria antes de reutilizar qualquer desenho.
+
+## Kafka produtivo futuro
+
+Baseline recomendado:
+
+- definir cluster, topicos, particionamento, retencao, replication factor e ownership por ambiente;
+- configurar TLS/SASL ou mecanismo equivalente aprovado, sem `Plaintext` fora do local;
+- conceder ACLs minimas por producer, consumer group e topico;
+- definir DLQ de aplicacao, politica de retry, commit e redrive operacional;
+- monitorar lag de consumer, idade de mensagens, erro de publish, erro de commit, DLQ e backlog de Outbox;
+- documentar estrategia de schema/compatibilidade antes de novos consumidores.
+
+O Kafka local em KRaft e laboratorio de desenvolvimento. Ele nao substitui decisao produtiva sobre broker gerenciado, operacao, seguranca, multi-AZ, backups de configuracao, capacidade, alertas ou runbooks.
 
 ## TLS e trafego
 
@@ -86,7 +100,7 @@ Baseline recomendado:
 
 O Nginx local com HTTPS simula borda para desenvolvimento e testes. Ele nao representa por si so uma arquitetura produtiva de gateway, WAF, certificado, balanceamento global ou protecao contra abuso.
 
-## Pub/Sub real
+## Pub/Sub real alternativo
 
 Baseline recomendado:
 

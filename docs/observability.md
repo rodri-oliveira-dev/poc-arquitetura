@@ -2,13 +2,13 @@
 
 Este documento define o inventario operacional minimo da POC para Keycloak, `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker`.
 
-OpenTelemetry fica desabilitado por padrao. A correlacao via `X-Correlation-Id` permanece sempre ativa nas APIs e e usada para conectar logs, respostas HTTP e mensagens do provider selecionado. O core funcional local usa `compose.yaml` para PostgreSQL, Pub/Sub emulator, Keycloak, APIs e workers; OpenTelemetry Collector, Jaeger, Prometheus, Loki, Grafana Alloy, Alertmanager e Grafana ficam no overlay `compose.observability.yaml` com profile `observability`, conforme documentado em [desenvolvimento local](development/local-development.md).
+OpenTelemetry fica desabilitado por padrao. A correlacao via `X-Correlation-Id` permanece sempre ativa nas APIs e e usada para conectar logs, respostas HTTP e mensagens do provider selecionado. O core funcional local usa `compose.yaml` para PostgreSQL, Kafka, Keycloak, APIs e workers; Pub/Sub emulator fica restrito ao modo explicito/legado. OpenTelemetry Collector, Jaeger, Prometheus, Loki, Grafana Alloy, Alertmanager e Grafana ficam no overlay `compose.observability.yaml` com profile `observability`, conforme documentado em [desenvolvimento local](development/local-development.md).
 
 ## Como navegar
 
 - Para estado operacional rapido, leia [Baseline](#baseline), [Endpoints operacionais](#endpoints-operacionais) e [Validacao rapida](#validacao-rapida).
 - Para setup local de observabilidade, leia [Configuracao local](#configuracao-local), [Dashboards Grafana provisionados](#dashboards-grafana-provisionados) e [Alertas tecnicos Prometheus](#alertas-tecnicos-prometheus).
-- Para diagnostico ponta a ponta principal, leia [Validacao Keycloak -> Ledger -> Outbox -> Pub/Sub emulator -> Balance](#validacao-keycloak---ledger---outbox---pubsub-emulator---balance). Para o adapter legado, use [Diagnostico de propagacao Kafka](#diagnostico-de-propagacao-kafka).
+- Para diagnostico ponta a ponta principal, leia [Validacao Keycloak -> Ledger -> Outbox -> Kafka -> Balance](#validacao-keycloak---ledger---outbox---kafka---balance). Para o modo Pub/Sub explicito/legado, use [Operacao do Pub/Sub](operations/pubsub.md).
 - Para instrumentacao, leia [Logs](#logs), [Traces](#traces), [Metricas](#metricas), [Kafka](#kafka), [DLQ](#dlq) e [Outbox](#outbox).
 
 ## Baseline
@@ -21,7 +21,7 @@ OpenTelemetry fica desabilitado por padrao. A correlacao via `X-Correlation-Id` 
 - Health: `GET /health` em `LedgerService.Api` e `BalanceService.Api`.
 - Keycloak expoe health/readiness propria no compose local.
 - Readiness: `GET /ready` em `LedgerService.Api` e `BalanceService.Api`.
-- Mensageria: Pub/Sub emulator local com topic principal `ledger.ledgerentry.created.local` e DLQ de aplicacao `ledger.ledgerentry.created.dlq.local`; Kafka permanece como provider legado opcional.
+- Mensageria: Kafka local com topic principal `ledger.ledgerentry.created`, topicos operacionais do Ledger e DLQ de aplicacao `ledger.ledgerentry.created.dlq`; Pub/Sub emulator permanece como provider explicito/legado.
 - Outbox: publicacao assincrona do Ledger com polling, lock, tentativas e backoff configuraveis.
 
 ## Endpoints operacionais
@@ -39,7 +39,7 @@ OpenTelemetry fica desabilitado por padrao. A correlacao via `X-Correlation-Id` 
 
 Keycloak expoe health/readiness propria no container local e e a origem principal de tokens/JWKS. O `Auth.Api` legado possui `GET /health`, `POST /auth/login` e `GET /.well-known/jwks.json`, mas fica fora da stack principal e so entra em validacoes quando `compose.auth-legacy.yaml` for usado explicitamente.
 
-No compose local, PostgreSQL e Pub/Sub emulator possuem healthchecks nativos e sao usados por `depends_on.condition`. No modo legado, Kafka tambem possui healthcheck. As APIs nao recebem healthcheck HTTP no compose porque a imagem runtime .NET usada nesta POC nao inclui `curl`, `wget` ou `busybox`; a sonda HTTP continua disponivel pelo host em `GET /health` e pelos workflows/scripts de validacao.
+No compose local, PostgreSQL e Kafka possuem healthchecks nativos e sao usados por `depends_on.condition`. No modo Pub/Sub legado, o emulator tambem possui healthcheck. As APIs nao recebem healthcheck HTTP no compose porque a imagem runtime .NET usada nesta POC nao inclui `curl`, `wget` ou `busybox`; a sonda HTTP continua disponivel pelo host em `GET /health` e pelos workflows/scripts de validacao.
 
 ### Readiness
 
@@ -151,8 +151,8 @@ Logs relevantes para operacao:
 - pipeline HTTP, status codes e excecoes via handlers/middlewares das APIs;
 - `OutboxPublisherService` no Ledger, incluindo polling, publicacao, falhas e retentativas;
 - publisher Outbox do Ledger pelo provider selecionado;
-- consumer Pub/Sub principal do Balance, incluindo processamento, `ack`/`nack`, retries e envio para DLQ de aplicacao;
-- no modo legado, producer e consumer Kafka, incluindo topico, particao, offset e commits;
+- producer e consumer Kafka do fluxo principal, incluindo topico, particao, offset, commits e envio para DLQ de aplicacao;
+- no modo Pub/Sub legado, consumer do Balance, incluindo processamento, `ack`/`nack`, retries e envio para DLQ de aplicacao;
 - erros de DLQ no Balance, especialmente quando a publicacao na DLQ de aplicacao falhar.
 
 ### Logs centralizados com Loki e Alloy
@@ -246,7 +246,7 @@ Caminho a partir de um `TraceId`:
 
 2. Abra uma linha que contenha `TraceId=<trace-id>`.
 3. Clique em `Abrir trace no Jaeger`.
-4. No trace, confira os spans HTTP, `outbox.publish` e `balance.apply` quando existirem; no modo Kafka legado, confira tambem `kafka.consume`.
+4. No trace, confira os spans HTTP, `outbox.publish`, `kafka.consume` e `balance.apply` quando existirem.
 
 Caminho a partir de um `CorrelationId`:
 
@@ -283,15 +283,15 @@ Quando `Observability:OpenTelemetry:Enabled=true`, as APIs registram:
 - spans de entrada HTTP via instrumentacao ASP.NET Core;
 - spans de saida HTTP via instrumentacao `HttpClient`.
 
-Quando `Observability:OpenTelemetry:Enabled=true`, os workers registram `Activity` em trechos instrumentados de Outbox e do adapter Kafka legado:
+Quando `Observability:OpenTelemetry:Enabled=true`, os workers registram `Activity` em trechos instrumentados de Outbox e do adapter Kafka:
 
 - `LedgerService.OutboxPublisher`, para publicacao da Outbox pelo provider selecionado;
 - `BalanceService.MessageProcessor`, para o processor neutro que aplica mensagens recebidas depois do mapeamento do adapter;
-- `BalanceService.KafkaConsumer`, somente no adapter Kafka legado.
+- `BalanceService.KafkaConsumer`, no adapter Kafka default.
 
 As APIs registram spans HTTP e `HttpClient`; o `BalanceService.Api` tambem registra `BalanceService.Application` para consultas de consolidado.
 
-Quando ha `Activity` ativa no request HTTP, o Ledger persiste `traceparent`, `tracestate` e `baggage` em colunas opcionais da `outbox_messages`. O publisher restaura esse contexto antes de criar o span `outbox.publish`. No adapter Kafka legado, ele publica os mesmos headers W3C; o `BalanceService.Worker` usa `traceparent`/`tracestate` como parent do span `kafka.consume` e reidrata o header `baggage` como baggage da `Activity` quando possivel. O adapter Pub/Sub preserva attributes de correlacao e tracing nas mensagens, mas ainda nao possui span de consumo equivalente a `kafka.consume`.
+Quando ha `Activity` ativa no request HTTP, o Ledger persiste `traceparent`, `tracestate` e `baggage` em colunas opcionais da `outbox_messages`. O publisher restaura esse contexto antes de criar o span `outbox.publish`. No adapter Kafka default, ele publica os mesmos headers W3C; o `BalanceService.Worker` usa `traceparent`/`tracestate` como parent do span `kafka.consume` e reidrata o header `baggage` como baggage da `Activity` quando possivel. O adapter Pub/Sub preserva attributes de correlacao e tracing nas mensagens, mas ainda nao possui span de consumo equivalente a `kafka.consume`.
 
 O `CorrelationId` continua sendo um identificador operacional separado do `TraceId`. Mensagens antigas, ou criadas sem `Activity`, ficam sem os campos W3C e seguem pelo fallback atual: o processamento continua, e spans Kafka podem nascer como raiz quando houver listener OpenTelemetry.
 
@@ -347,7 +347,7 @@ Labels proibidas por alta cardinalidade:
 - payloads;
 - valores unicos por requisicao.
 
-A primeira metrica customizada foi `ledger.outbox.publish.attempts`, registrada pelo `Meter` `LedgerService.Outbox`. A instrumentacao operacional atual cobre Outbox e metricas herdadas do adapter Kafka legado usando `System.Diagnostics.Metrics`; o fluxo Pub/Sub principal ainda nao possui o mesmo detalhamento por adapter.
+A primeira metrica customizada foi `ledger.outbox.publish.attempts`, registrada pelo `Meter` `LedgerService.Outbox`. A instrumentacao operacional atual cobre Outbox e metricas do adapter Kafka default usando `System.Diagnostics.Metrics`; o modo Pub/Sub legado ainda nao possui o mesmo detalhamento por adapter.
 
 Meters customizados registrados no OpenTelemetry Metrics quando `Observability:OpenTelemetry:Enabled=true` no processo host:
 
@@ -360,7 +360,7 @@ Com OpenTelemetry desabilitado, os instrumentos continuam sendo chamados pela ap
 
 ### Metricas de dominio
 
-Metricas tecnicas medem comportamento da plataforma ou runtime, como HTTP, `HttpClient` e runtime .NET. Metricas operacionais medem componentes de entrega e confiabilidade, como Outbox e adapters de mensageria; as metricas detalhadas de producer, consumer e DLQ ainda pertencem ao caminho Kafka legado. Metricas de dominio medem fatos de negocio observaveis pelos casos de uso, como lancamentos criados, estornos processados, reprocessamentos e atualizacao de projecoes de saldo.
+Metricas tecnicas medem comportamento da plataforma ou runtime, como HTTP, `HttpClient` e runtime .NET. Metricas operacionais medem componentes de entrega e confiabilidade, como Outbox e adapters de mensageria; as metricas detalhadas de producer, consumer e DLQ pertencem ao caminho Kafka default. Metricas de dominio medem fatos de negocio observaveis pelos casos de uso, como lancamentos criados, estornos processados, reprocessamentos e atualizacao de projecoes de saldo.
 
 As metricas de dominio sao emitidas em pontos de orquestracao da camada de aplicacao ou no processamento de mensagens que chama casos de uso. Elas nao fazem parte do dominio puro: entidades, value objects e regras de dominio nao dependem de `System.Diagnostics.Metrics`, OpenTelemetry, exporters ou infraestrutura de observabilidade.
 
@@ -692,9 +692,9 @@ No Alloy, acesse `http://localhost:12345` para diagnostico local do agente quand
 
 No Grafana, acesse `http://localhost:3000` com usuario `admin` e senha local definida por `GRAFANA_ADMIN_PASSWORD`. Em `Connections` ou `Data sources`, confirme os datasources `Prometheus` apontando para `http://prometheus:9090`, `Loki` apontando para `http://loki:3100` e `Jaeger` apontando para `http://jaeger:16686`. Em `Dashboards`, abra a pasta `Observability` e confirme que os dashboards `APIs - Visao Geral` e `Runtime .NET - Visao Geral` foram carregados automaticamente. Para validar metricas, use Explore com uma das metricas tecnicas listadas acima. Para validar logs, use Explore com o datasource `Loki` e queries por processo, por exemplo `{service="ledger-service"}` para HTTP e `{service="ledger-worker"}` para Outbox e publicacao pelo provider selecionado. Para validar o link log -> trace, abra uma linha com `TraceId=<valor>` e clique em `Abrir trace no Jaeger`.
 
-### Validacao Keycloak -> Ledger -> Outbox -> Pub/Sub emulator -> Balance
+### Validacao Keycloak -> Ledger -> Outbox -> Kafka -> Balance
 
-Para validar o fluxo distribuido principal com chamada autenticada, Outbox, Pub/Sub emulator, Balance, logs e Jaeger, use `scripts/get-token.ps1` para obter um JWT RS256 do Keycloak local e chame o endpoint protegido `POST /api/v1/lancamentos` no `LedgerService.Api`.
+Para validar o fluxo distribuido principal com chamada autenticada, Outbox, Kafka, Balance, logs e Jaeger, use `scripts/get-token.ps1` para obter um JWT RS256 do Keycloak local e chame o endpoint protegido `POST /api/v1/lancamentos` no `LedgerService.Api`.
 
 Esse endpoint foi escolhido porque:
 
@@ -710,7 +710,7 @@ Pre-requisitos:
 
 - Docker-compatible API disponivel;
 - stack local com migrations aplicadas;
-- portas do compose livres: `8081`, `5226`, `5228`, `15432`, `8085` e, com profile `observability`, `16686`, `4317`, `4318`, `9090`, `3100`, `12345`, `9093` e `3000`;
+- portas do compose livres: `8081`, `5226`, `5228`, `15432`, `19092` e, com profile `observability`, `16686`, `4317`, `4318`, `9090`, `3100`, `12345`, `9093` e `3000`;
 - profile `observability` ativo e `OTEL_ENABLED=true` quando a validacao incluir traces no Jaeger.
 
 Suba a stack local completa. O script aplica migrations antes de iniciar Ledger e Balance:
@@ -908,7 +908,7 @@ Resultado esperado:
 Na UI do Jaeger:
 
 1. selecione `LedgerService.Api` e procure `POST /api/v1/lancamentos`;
-2. selecione `LedgerService.Worker` para spans `outbox.publish`; no modo Kafka legado, selecione `BalanceService.Worker` para spans `kafka.consume`; para consulta HTTP, selecione `BalanceService.Api` e procure `GET /api/v1/consolidados/diario/{date}`;
+2. selecione `LedgerService.Worker` para spans `outbox.publish`; selecione `BalanceService.Worker` para spans `kafka.consume`; para consulta HTTP, selecione `BalanceService.Api` e procure `GET /api/v1/consolidados/diario/{date}`;
 3. use o `TraceID` para analise temporal e o `CorrelationId` nos logs/SQL para conectar a operacao de negocio.
 
 Trace distribuido no fluxo autenticado:
@@ -917,7 +917,7 @@ Trace distribuido no fluxo autenticado:
 - O Ledger persiste `correlation_id`, `traceparent`, `tracestate` e `baggage` na tabela `outbox_messages`.
 - O trace HTTP do `POST /api/v1/lancamentos` pode aparecer como a mesma arvore do processamento assincrono Outbox/provider/Balance quando OpenTelemetry esta habilitado e existe `Activity` ativa no request.
 - O span `outbox.publish` usa o contexto salvo na Outbox como parent e o publisher propaga o contexto W3C pelo provider selecionado.
-- No adapter Kafka legado, o consumer do Balance usa esse parent quando `traceparent` esta presente; se o contexto W3C estiver ausente ou invalido, o consumo continua com fallback operacional. No adapter Pub/Sub principal, os attributes sao preservados, mas o consumer ainda nao cria span equivalente.
+- No adapter Kafka default, o consumer do Balance usa esse parent quando `traceparent` esta presente; se o contexto W3C estiver ausente ou invalido, o consumo continua com fallback operacional. No adapter Pub/Sub legado, os attributes sao preservados, mas o consumer ainda nao cria span equivalente.
 
 ### Diagnostico de propagacao Kafka
 
@@ -967,17 +967,17 @@ Se o Collector ou o Jaeger ficar temporariamente indisponivel depois que a aplic
 
 ### Host
 
-Para execucao fora de container no fluxo principal, configure PostgreSQL e Pub/Sub emulator locais e use as configuracoes dos `appsettings.json` como baseline. Use variaveis de ambiente para sobrescrever valores por ambiente:
+Para execucao fora de container no fluxo principal, configure PostgreSQL e Kafka locais e use as configuracoes dos `appsettings.json` como baseline. Use variaveis de ambiente para sobrescrever valores por ambiente:
 
 ```powershell
 $env:ConnectionStrings__DefaultConnection = "Host=127.0.0.1;Port=15432;Database=appdb;Username=ledger_app_user;Password=<LEDGER_DB_PASSWORD>"
-$env:PUBSUB_EMULATOR_HOST = "127.0.0.1:8085"
-$env:PubSub__Producer__ProjectId = "poc-local"
+$env:Messaging__Provider = "Kafka"
+$env:Kafka__Producer__BootstrapServers = "127.0.0.1:19092"
 $env:Observability__OpenTelemetry__Enabled = "true"
 $env:Observability__OpenTelemetry__UseConsoleExporter = "true"
 ```
 
-Nao versionar segredos. Remova `PUBSUB_EMULATOR_HOST` antes de apontar para GCP real. Em ambientes compartilhados ou produtivos, Kafka legado `Plaintext` e JWKS via HTTP nao devem ser usados; configure transporte seguro por variaveis de ambiente ou secret/config store.
+Nao versionar segredos. Para Pub/Sub legado fora do emulator, remova `PUBSUB_EMULATOR_HOST` antes de apontar para GCP real. Em ambientes compartilhados ou produtivos, Kafka `Plaintext` e JWKS via HTTP nao devem ser usados; configure transporte seguro por variaveis de ambiente ou secret/config store.
 
 ## Correlation id
 
@@ -1003,7 +1003,7 @@ Quando a chamada entra pela borda local `compose.nginx.yaml`, o Nginx preserva `
    - logs com `CorrelationId`;
    - spans e metricas no console, quando `UseConsoleExporter=true`;
    - chegada de traces no Collector e visualizacao no Jaeger, quando `OtlpEndpoint` estiver configurado.
-6. No fluxo principal, crie um lancamento e confirme publicacao Outbox, consumo Pub/Sub pelo Balance e ausencia de mensagens inesperadas na DLQ de aplicacao. Para Kafka legado, execute a mesma verificacao no modo explicito desse provider.
+6. No fluxo principal, crie um lancamento e confirme publicacao Outbox, consumo Kafka pelo Balance e ausencia de mensagens inesperadas na DLQ de aplicacao. Para Pub/Sub legado, execute a mesma verificacao no modo explicito desse provider.
 
 ## Governanca
 

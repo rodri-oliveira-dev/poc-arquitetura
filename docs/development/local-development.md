@@ -78,6 +78,8 @@ Variaveis nao sensiveis ou identificadores locais continuam com defaults no comp
 
 As variaveis `AUTH_POC_USERNAME`, `AUTH_POC_PASSWORD` e `AUTH_POC_SCOPE` continuam aceitas apenas pelo overlay legado `compose.auth-legacy.yaml`.
 
+O mesmo `KEYCLOAK_CLIENT_SECRET` alimenta o client local `poc-automation` usado pelos scripts e pelo `TransferService.Worker` quando ele chama o `LedgerService.Api`. O scope service-to-service do worker fica em `TRANSFER_WORKER_LEDGER_AUTH_SCOPE`, com default `ledger.write`.
+
 O PostgreSQL local roda em um unico container `postgres-db`, com volume `postgres-data`, database `appdb`, schemas `ledger`, `balance` e `transfer`, e usuarios separados por servico/responsabilidade. A inicializacao fica nos scripts versionados em `infra/postgres/init`. As connection strings dos servicos runtime no compose usam `postgres-db:5432/appdb`; as variaveis `LEDGER_DB_*`, `BALANCE_DB_*` e `TRANSFER_DB_*` configuram as senhas locais usadas pelo init do container e pelas connection strings do compose. Em volumes PostgreSQL existentes, alterar `.env.local` ou `compose.yaml` nao altera automaticamente roles, grants ou senhas ja gravadas no banco; para reaplicar o init, recrie conscientemente o volume local ou execute o SQL manualmente.
 
 Topologia local de banco:
@@ -275,7 +277,7 @@ Kafka e o default de mensageria dos workers principais quando `Messaging:Provide
 ./scripts/start-local-stack-kafka.sh
 ```
 
-O fluxo padrao tambem sobe o `TransferService.Worker`, porque a Saga orquestrada do TransferService usa Kafka como transporte explicito dos eventos da Saga e nao configura Pub/Sub. Com isso, transferencias criadas localmente podem ser processadas automaticamente pelo worker.
+O fluxo padrao tambem sobe o `TransferService.Worker`, porque a Saga orquestrada do TransferService usa Kafka como transporte explicito dos eventos da Saga e nao configura Pub/Sub. Com isso, transferencias criadas localmente podem ser processadas automaticamente pelo worker. O worker chama o `LedgerService.Api` autenticado via OAuth2 client credentials, usando `TransferService__Worker__Ledger__Auth__TokenEndpoint=http://keycloak:8080/realms/poc/protocol/openid-connect/token`, `KEYCLOAK_CLIENT_ID`, `KEYCLOAK_CLIENT_SECRET` e scope `ledger.write`.
 
 O compose cria os topicos Kafka abaixo de forma idempotente pelo container `kafka-init-topics`:
 
@@ -484,7 +486,7 @@ Nesta etapa, `Auth.Api` continua funcional apenas como legado por overlay, mas a
 
 Use `start-full-stack.*` quando quiser um ambiente local completo para demonstracao ou validacao manual integrada:
 
-- core funcional com APIs, workers, bancos, Pub/Sub emulator e init de recursos locais;
+- core funcional com APIs, workers, bancos, Kafka e init de topicos locais;
 - migrations aplicadas pelo host, reaproveitando o fluxo de `start-local-stack.*`;
 - profile `observability` ativo com `OTEL_ENABLED=true`;
 - overlay `compose.nginx.yaml` com `nginx-edge`, `ledger-service-1` e `ledger-service-2`;
@@ -1021,7 +1023,7 @@ Endpoints operacionais:
 - `GET /health`: liveness simples, publico nesta POC, sem depender de DB ou Kafka.
 - `GET /ready`: readiness operacional, publico nesta POC. No `LedgerService.Api` e no `BalanceService.Api`, valida o banco necessario para aceitar trafego HTTP.
 
-O compose usa healthchecks nativos para PostgreSQL e Pub/Sub emulator. No modo legado, Kafka tambem possui healthcheck. As imagens runtime `mcr.microsoft.com/dotnet/aspnet:10.0` usadas pelas APIs nao trazem `curl`, `wget` ou `busybox`; por isso os healthchecks HTTP das APIs nao sao declarados no compose nesta etapa para evitar instalar dependencias apenas para sondas locais. Valide as APIs por `GET /health` no host ou pelos scripts/workflows que ja fazem essa chamada.
+O compose usa healthchecks nativos para PostgreSQL e Kafka no fluxo padrao. No modo Pub/Sub legado, o emulator tambem possui healthcheck. As imagens runtime `mcr.microsoft.com/dotnet/aspnet:10.0` usadas pelas APIs nao trazem `curl`, `wget` ou `busybox`; por isso os healthchecks HTTP das APIs nao sao declarados no compose nesta etapa para evitar instalar dependencias apenas para sondas locais. Valide as APIs por `GET /health` no host ou pelos scripts/workflows que ja fazem essa chamada.
 
 Detalhes de operacao ficam em [observabilidade e operacao minima](../observability.md).
 
@@ -1069,7 +1071,7 @@ Tasks uteis:
 
 As tasks de stack e k6 chamam os scripts versionados (`scripts/start-local-stack.*` e `scripts/run-loadtests.*`) para evitar duplicar logica. Elas nao executam teardown destrutivo nem migrations fora do fluxo ja definido pelos scripts.
 
-As configuracoes de debug rodam processos no host em `Development` para `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker`. O `Auth.Api` legado tambem possui configuracao propria, mas deve ser usado apenas quando o fluxo legado for explicitamente validado. Os nomes indicam que dependencias locais podem ser necessarias quando banco, Pub/Sub emulator ou JWKS forem usados. Se a stack completa do compose estiver em execucao, pare o container equivalente antes de depurar o mesmo processo no host para evitar conflito de porta ou processamento duplicado.
+As configuracoes de debug rodam processos no host em `Development` para `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker`. O `Auth.Api` legado tambem possui configuracao propria, mas deve ser usado apenas quando o fluxo legado for explicitamente validado. Os nomes indicam que dependencias locais podem ser necessarias quando banco, Kafka, Pub/Sub emulator legado ou JWKS forem usados. Se a stack completa do compose estiver em execucao, pare o container equivalente antes de depurar o mesmo processo no host para evitar conflito de porta ou processamento duplicado.
 
 O arquivo `src/LedgerService.Api/LedgerService.Api.http` pode ser usado com a extensao REST Client. Nao coloque segredos em `.vscode/rest-client.env.json`.
 
@@ -1085,34 +1087,34 @@ Pre-requisitos:
 Windows:
 
 ```powershell
-./scripts/run-loadtests.ps1 -Mode smoke
-./scripts/run-loadtests.ps1 -Mode transfer-smoke
+./scripts/run-loadtests.ps1 -Mode smoke-kafka
+./scripts/run-loadtests.ps1 -Mode transfer-smoke-kafka
 ./scripts/run-loadtests.ps1 -Mode transfer-fullstack-kafka
-./scripts/run-loadtests.ps1 -Mode balance50
-./scripts/run-loadtests.ps1 -Mode resilience
-./scripts/run-loadtests.ps1 -Mode transfer-load
+./scripts/run-loadtests.ps1 -Mode load-kafka
+./scripts/run-loadtests.ps1 -Mode ledger-load-kafka
+./scripts/run-loadtests.ps1 -Mode transfer-load-kafka
 ```
 
 Linux/macOS:
 
 ```bash
-./scripts/run-loadtests.sh smoke
-./scripts/run-loadtests.sh transfer-smoke
+./scripts/run-loadtests.sh smoke-kafka
+./scripts/run-loadtests.sh transfer-smoke-kafka
 ./scripts/run-loadtests.sh transfer-fullstack-kafka
-./scripts/run-loadtests.sh balance50
-./scripts/run-loadtests.sh resilience
-./scripts/run-loadtests.sh transfer-load
+./scripts/run-loadtests.sh load-kafka
+./scripts/run-loadtests.sh ledger-load-kafka
+./scripts/run-loadtests.sh transfer-load-kafka
 ```
 
 Arquivos gerados em `artifacts/k6` e `.env.k6.auto` nao sao versionados.
 
 Os cenarios k6 possuem thresholds locais iniciais para `checks`, `http_req_failed`, `dropped_iterations` e `http_req_duration` p95/p99. Eles sao guardrails de baseline local, nao SLO produtivo. Os valores e overrides por ambiente estao documentados em `loadtests/k6/README.md`.
 
-Os runners aplicam `compose.k6.yaml` e recriam os containers HTTP alvo antes do k6 para manter os testes apontando para as APIs e garantir que overrides de ambiente entrem em vigor. Os workers continuam sem endpoint HTTP nos cenarios de carga. Antes de obter token e executar o k6, os runners exigem `kafka`, `kafka-init-topics`, `ledger-worker` e `balance-worker` ativos, confirmam `Messaging__Provider=Kafka`, `Kafka__Producer__BootstrapServers=kafka:9092` e `Kafka__Consumer__BootstrapServers=kafka:9092`, e validam uma conexao real no PostgreSQL usando o usuario runtime de escrita do Balance (`balance_write_user`) e `BALANCE_DB_WRITE_PASSWORD`; se a senha do volume local divergir da configuracao, o fluxo falha cedo com diagnostico e nenhuma acao destrutiva. No modo `smoke`, o runner tambem aguarda incremento de Outbox processada e de `processed_events` para confirmar publish/consume via Kafka. Cloud SQL e Pub/Sub nao fazem parte do caminho k6 padrao; use os overlays e scripts explicitos quando precisar desses modos.
+Os runners aplicam `compose.k6.yaml` e recriam os containers HTTP alvo antes do k6 para manter os testes apontando para as APIs e garantir que overrides de ambiente entrem em vigor. Os workers continuam sem endpoint HTTP nos cenarios de carga. Antes de obter token e executar o k6, os runners exigem `kafka`, `kafka-init-topics`, `ledger-worker` e `balance-worker` ativos, confirmam `Messaging__Provider=Kafka`, `Kafka__Producer__BootstrapServers=kafka:9092` e `Kafka__Consumer__BootstrapServers=kafka:9092`, e validam uma conexao real no PostgreSQL usando o usuario runtime de escrita do Balance (`balance_write_user`) e `BALANCE_DB_WRITE_PASSWORD`; se a senha do volume local divergir da configuracao, o fluxo falha cedo com diagnostico e nenhuma acao destrutiva. No modo `smoke-kafka`, o runner tambem aguarda incremento de Outbox processada e de `processed_events` para confirmar publish/consume via Kafka e valida que a DLQ Kafka do Balance nao cresceu. Cloud SQL e Pub/Sub nao fazem parte do caminho k6 padrao; use os overlays e scripts explicitos quando precisar desses modos.
 
-Os modos `transfer-smoke` e `transfer-load` usam a mesma infraestrutura k6, mas exigem apenas Keycloak, PostgreSQL e `TransferService.Api` disponiveis na stack local. Eles nao sobem nem exigem Kafka ou `TransferService.Worker`: o objetivo e validar `POST /api/v1/transferencias`, `GET /api/v1/transferencias/{transferenciaId}`, autenticacao, validacao, idempotencia e comportamento basico sob concorrencia sem aguardar a Saga finalizar.
+Os modos `transfer-smoke-kafka` e `transfer-load-kafka` usam a mesma infraestrutura k6, mas exigem apenas Keycloak, PostgreSQL e `TransferService.Api` disponiveis na stack local. Eles nao exigem conclusao full-stack da Saga em todas as iteracoes: o objetivo e validar `POST /api/v1/transferencias`, `GET /api/v1/transferencias/{transferenciaId}`, autenticacao, validacao, idempotencia e comportamento basico sob concorrencia sem aguardar a Saga finalizar.
 
-O modo `transfer-fullstack-kafka` e o smoke manual da Saga completa. Ele usa o compose padrao com Kafka, sobe ou recria `kafka`, `kafka-init-topics`, `ledger-service`, `transfer-service` e `transfer-worker`, aguarda a transferencia chegar a `Completed` com polling controlado e valida pelos offsets do Kafka que os eventos principais foram publicados. A DLQ `transfer.transferencia.dlq` nao pode crescer no fluxo feliz. Esse modo nao usa Pub/Sub para o TransferService.
+O modo `transfer-fullstack-kafka` e o smoke manual da Saga completa. Ele usa o compose padrao com Kafka, sobe ou recria `kafka`, `kafka-init-topics`, `ledger-service`, `transfer-service` e `transfer-worker`, aguarda a transferencia chegar a `Completed` com polling controlado e valida pelos offsets e pela amostra Kafka que os eventos principais foram publicados com `message key = transferenciaId` e `correlationId` esperado. A DLQ `transfer.transferencia.dlq` nao pode crescer no fluxo feliz. Esse modo nao usa Pub/Sub para o TransferService. Se a Saga ficar `Failed` por `401 Unauthorized`, valide a configuracao `TransferService__Worker__Ledger__Auth__*`, o segredo local do Keycloak, audience `ledger-api`, scope `ledger.write` e `merchant_id` do token do worker.
 
 O token usado nos cenarios k6 e obtido pelos runners com `scripts/get-token.*`. O fluxo oficial local e `TOKEN_PROVIDER=keycloak`, usando `KEYCLOAK_CLIENT_ID`, `KEYCLOAK_CLIENT_SECRET`, `KEYCLOAK_REALM` e `KEYCLOAK_BASE_URL`/`KEYCLOAK_HOST_PORT`. Para usar temporariamente o fallback `Auth.Api`, suba `compose.auth-legacy.yaml` e configure tambem as APIs de negocio com `JWT_ISSUER=https://auth-api`, `JWT_JWKS_URL=http://auth-api:8080/.well-known/jwks.json` e `TOKEN_PROVIDER=auth-api`, conforme [autenticacao e autorizacao](authentication.md).
 

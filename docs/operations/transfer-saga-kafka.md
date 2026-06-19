@@ -87,10 +87,7 @@ O retry da Saga e controlado pelo proprio estado persistido, nao por retry HTTP 
 - nunca altere Sagas `Completed`;
 - para falhas antes do debito, prefira corrigir a causa e deixar `NextRetryAt` expirar;
 - para falhas apos debito, verifique `debitLancamentoId` e `compensationEstornoId` antes de mexer no estado;
-- qualquer alteracao manual deve preservar idempotency keys deterministicas:
-  - `transferencia:{transferenciaId}:debit`;
-  - `transferencia:{transferenciaId}:credit`;
-  - `transferencia:{transferenciaId}:compensate-debit`.
+- qualquer alteracao manual deve preservar as idempotency keys UUID deterministicas derivadas de `transferenciaId` e da etapa logica `debit`, `credit` ou `compensate-debit`.
 
 ## Evidencias esperadas
 

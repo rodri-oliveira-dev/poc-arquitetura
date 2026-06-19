@@ -127,6 +127,10 @@ O `TransferService.Worker` possui duas responsabilidades separadas:
 
 O fluxo usa Kafka como transporte explicito dos eventos da Saga. Pub/Sub nao e configurado nem usado pelo TransferService.
 
+As chamadas do Worker ao `LedgerService.Api` sao autenticadas por OAuth2 client credentials. No compose local, o `TransferService.Worker` solicita token ao Keycloak com o client `poc-automation`, segredo vindo de `KEYCLOAK_CLIENT_SECRET` e scope `ledger.write` configurado por `TRANSFER_WORKER_LEDGER_AUTH_SCOPE`. O token e enviado como `Authorization: Bearer <token>` em todas as chamadas ao Ledger, mantendo `Idempotency-Key` e `X-Correlation-Id` por etapa da Saga.
+
+O `Idempotency-Key` enviado ao Ledger e um UUID deterministico derivado de `transferenciaId` e da etapa logica (`debit`, `credit` ou `compensate-debit`). Assim o Worker preserva replay por etapa e respeita o contrato HTTP do Ledger, que exige UUID no header.
+
 Fluxo feliz:
 
 1. A API grava a Saga como `Pending` e o evento `TransferenciaSolicitada.v1`.
@@ -135,20 +139,20 @@ Fluxo feliz:
    - `merchantId = sourceMerchantId`;
    - `type = DEBIT`;
    - `amount` negativo;
-   - `Idempotency-Key = transferencia:{transferenciaId}:debit`.
+   - `Idempotency-Key`: UUID deterministico da etapa `debit`.
 4. Ao confirmar o debito, salva `debitLancamentoId`, marca `DebitCreated` e grava `TransferenciaDebitoCriado.v1`.
 5. O Worker chama o `LedgerService.Api` para criar o credito:
    - `merchantId = destinationMerchantId`;
    - `type = CREDIT`;
    - `amount` positivo;
-   - `Idempotency-Key = transferencia:{transferenciaId}:credit`.
+   - `Idempotency-Key`: UUID deterministico da etapa `credit`.
 6. Ao confirmar o credito, salva `creditLancamentoId`, marca `Completed` e grava `TransferenciaCreditoCriado.v1` e `TransferenciaConcluida.v1`.
 7. O publisher da Outbox publica cada evento no topico Kafka correspondente usando `transferenciaId` como message key.
 
 Falha compensavel:
 
 1. Se o credito falhar depois do debito criado, o Worker solicita estorno do debito no `LedgerService.Api`.
-2. A compensacao usa `Idempotency-Key = transferencia:{transferenciaId}:compensate-debit`.
+2. A compensacao usa UUID deterministico para a etapa `compensate-debit`.
 3. Quando a solicitacao de estorno e registrada com sucesso, a Saga fica `CompensationRequested`, salva `compensationEstornoId` e grava `TransferenciaCompensacaoSolicitada.v1`.
 4. O modelo atual considera sucesso a solicitacao/registro do estorno no Ledger; confirmacao assincrona posterior pode evoluir para `Compensated` sem mudar o contrato HTTP.
 
@@ -175,14 +179,14 @@ Os smoke tests e testes de carga do `TransferService.Api` seguem o padrao k6 do 
 Smoke local:
 
 ```powershell
-./scripts/run-loadtests.ps1 -Mode transfer-smoke
+./scripts/run-loadtests.ps1 -Mode transfer-smoke-kafka
 ```
 
 ```bash
-./scripts/run-loadtests.sh transfer-smoke
+./scripts/run-loadtests.sh transfer-smoke-kafka
 ```
 
-O modo `transfer-smoke` valida:
+O modo `transfer-smoke-kafka` valida:
 
 - obtencao de token pelo fluxo local padrao de `scripts/get-token.*`;
 - `POST /api/v1/transferencias` com `Idempotency-Key` e `X-Correlation-Id`;
@@ -198,14 +202,14 @@ O modo `transfer-smoke` valida:
 Carga moderada local:
 
 ```powershell
-./scripts/run-loadtests.ps1 -Mode transfer-load
+./scripts/run-loadtests.ps1 -Mode transfer-load-kafka
 ```
 
 ```bash
-./scripts/run-loadtests.sh transfer-load
+./scripts/run-loadtests.sh transfer-load-kafka
 ```
 
-O modo `transfer-load` executa POST/GET com ramping ate 10 VUs por padrao, gerando `Idempotency-Key`, `X-Correlation-Id` e `externalReference` unicos por iteracao. Os thresholds iniciais sao `http_req_failed{service:transfer} < 2%`, `checks >= 99%`, `transfer_post_success >= 99%`, `transfer_get_success >= 99%`, `dropped_iterations == 0`, p95 menor que 1000ms e p99 menor que 2000ms para as operacoes de criacao e consulta.
+O modo `transfer-load-kafka` executa POST/GET com ramping ate 10 VUs por padrao, gerando `Idempotency-Key`, `X-Correlation-Id` e `externalReference` unicos por iteracao. Ele nao exige conclusao full-stack em 100% das iteracoes para evitar instabilidade artificial em teste de carga HTTP. Os thresholds iniciais sao `http_req_failed{service:transfer} < 2%`, `checks >= 99%`, `transfer_post_success >= 99%`, `transfer_get_success >= 99%`, `dropped_iterations == 0`, p95 menor que 1000ms e p99 menor que 2000ms para as operacoes de criacao e consulta.
 
 Variaveis uteis:
 
@@ -230,8 +234,10 @@ Smoke full-stack Kafka:
 ./scripts/run-loadtests.sh transfer-fullstack-kafka
 ```
 
-O modo `transfer-fullstack-kafka` e manual e valida API + Worker + LedgerService + Outbox + Kafka. Ele usa o compose padrao com Kafka, garante que Kafka e `transfer-worker` estejam em execucao, executa uma transferencia, consulta o status com polling ate `Completed` e valida pelo runner que os topicos `transfer.transferencia.solicitada`, `transfer.transferencia.debito-criado`, `transfer.transferencia.credito-criado` e `transfer.transferencia.concluida` receberam novas mensagens. A DLQ `transfer.transferencia.dlq` nao pode crescer no fluxo feliz.
+O modo `transfer-fullstack-kafka` e manual e valida API + Worker + LedgerService + Outbox + Kafka. Ele usa o compose padrao com Kafka, garante que Kafka e `transfer-worker` estejam em execucao, executa uma transferencia com `TRANSFER_CORRELATION_ID` controlado, consulta o status com polling ate `Completed` e valida pelo runner que os topicos `transfer.transferencia.solicitada`, `transfer.transferencia.debito-criado`, `transfer.transferencia.credito-criado` e `transfer.transferencia.concluida` receberam novas mensagens. A amostra Kafka do fluxo precisa ter `message key = transferenciaId`, payload com o `correlationId` esperado e a DLQ `transfer.transferencia.dlq` nao pode crescer no fluxo feliz.
 
 Esse smoke nao usa Pub/Sub e nao depende de `BalanceService` para decidir a Saga. O `BalanceService` continua sendo uma projecao eventual fora da decisao de debito, credito e compensacao.
+
+Se o status final for `Failed` com `401 Unauthorized`, a falha deve ser tratada como erro real do fluxo service-to-service. Verifique `KEYCLOAK_CLIENT_SECRET`, `TransferService:Worker:Ledger:Auth:*`, audience `ledger-api`, scope `ledger.write`, `merchant_id` do token e os logs do `transfer-worker` com `CorrelationId` e a idempotency key UUID da etapa. O runner nao deve aceitar `Failed` como sucesso no fluxo feliz.
 
 Use o provider padrao `TOKEN_PROVIDER=keycloak` ou informe `TOKEN` manualmente com `transfer.write`, `transfer.read`, audience `transfer-api` e `merchant_id` contendo os merchants testados. O `Auth.Api` legado nao e o caminho recomendado para esses modos porque seu catalogo historico nao cobre os scopes do TransferService.

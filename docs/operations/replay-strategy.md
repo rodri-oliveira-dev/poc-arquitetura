@@ -5,7 +5,8 @@ replay e uma acao intencional, auditada e limitada, executada para reprocessar
 mensagens ou fatos depois de investigacao. Ele nao cria endpoint, script,
 workflow, contrato novo ou mecanismo automatico.
 
-Pub/Sub e o provider principal. Kafka permanece como provider legado opcional.
+Kafka e o provider padrao dos workers principais. Pub/Sub permanece como
+provider explicito/legado.
 O payload logico do evento deve continuar identico entre providers; a diferenca
 fica nos metadados de transporte, como attributes, headers, ordering key,
 message key, ack, nack, commit, partition e offset.
@@ -526,7 +527,7 @@ Para uma mensagem unica vinda do topico de DLQ Kafka:
 6. commite ou marque a mensagem da DLQ como resolvida somente depois de
    registrar o resultado operacional.
 
-O replay manual nao remove Kafka nem altera o consumer legado. Kafka continua
+O replay manual nao remove Kafka nem altera o consumer default. Kafka continua
 podendo fornecer a mensagem candidata e seus headers, mas a protecao de
 contrato e idempotencia permanece no caso de uso de Application.
 

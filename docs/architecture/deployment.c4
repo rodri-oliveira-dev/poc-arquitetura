@@ -88,7 +88,7 @@ deployment {
 
         worker = instanceOf balance.balanceWorker {
           title "poc-balance-worker"
-          description "Worker local do BalanceService para consumo Pub/Sub por padrao e atualizacao da projecao."
+          description "Worker local do BalanceService para consumo Kafka por padrao e atualizacao da projecao."
         }
       }
 

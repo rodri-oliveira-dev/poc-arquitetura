@@ -137,7 +137,7 @@ Mudancas que exigem nova versao ou rollout coordenado:
 | Topic | Sem mapeamento versionado atual no `TopicMap` Pub/Sub do Ledger. |
 | Subscription | Nenhuma subscription especifica identificada. |
 | Payload | `PubsubMessage.Data` com JSON do payload logico, se publicado. |
-| DLQ | Sem DLQ especifica para este evento no provider principal atual. |
+| DLQ | Sem DLQ especifica para este evento no provider Pub/Sub legado. |
 
 Attributes esperados se publicado:
 
@@ -162,7 +162,7 @@ Ack e nack:
 DLQ:
 
 - Nao ha DLQ de aplicacao especifica para este evento no Pub/Sub atual.
-- No modo Pub/Sub principal, nao ha adapter de consumer equivalente ao consumer Kafka atual.
+- No modo Pub/Sub legado, nao ha adapter de consumer equivalente ao consumer Kafka atual.
 
 ## Transporte Kafka
 
@@ -202,13 +202,13 @@ DLQ:
 ## Riscos conhecidos
 
 1. O consumer existe apenas no adapter Kafka do `LedgerService.Worker`.
-2. No modo Pub/Sub principal, nao ha adapter equivalente para este fluxo.
+2. No modo Pub/Sub legado, nao ha adapter equivalente para este fluxo.
 3. O evento nao e um fato financeiro final e nao deve ser consumido pelo Balance.
-4. No Pub/Sub principal, o evento nao tem mapeamento versionado no `TopicMap`.
+4. No Pub/Sub legado, o evento nao tem mapeamento versionado no `TopicMap`.
 
 ## Dividas tecnicas
 
-- Decidir se reprocessamento deve ser suportado no provider principal Pub/Sub ou permanecer Kafka only.
+- Manter reprocessamento no provider Kafka default ou registrar ADR nova antes de adicionar suporte Pub/Sub.
 - Documentar explicitamente o modo operacional quando `Messaging:Provider=PubSub`.
 - Manter a deduplicacao financeira no `LedgerEntryCreated.v2` republicado.
 - Avaliar DLQ de aplicacao especifica para o consumer de reprocessamento se o fluxo continuar por mensageria.

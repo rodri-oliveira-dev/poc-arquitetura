@@ -236,7 +236,7 @@ model {
       }
 
       balanceDeadLetterPort = component "IDeadLetterPublisher" {
-        description "Porta neutra de DLQ usada pelo processor; PubSubDeadLetterPublisher e a implementacao principal."
+        description "Porta neutra de DLQ usada pelo processor; KafkaDeadLetterPublisher e a implementacao default, com PubSubDeadLetterPublisher apenas no modo explicito/legado."
       }
     }
 
@@ -320,7 +320,7 @@ model {
   }
 
   pubsubLocal = softwareSystem "Pub/Sub emulator local" {
-    description "Provider principal no desenvolvimento local. Executa no compose.yaml, fora do Terraform, sem reproduzir integralmente limites, IAM ou dead-letter policy nativa do Pub/Sub real."
+    description "Provider explicito/legado no desenvolvimento local. Executa via compose.pubsub.yaml/profile legacy-pubsub, fora do Terraform, sem reproduzir integralmente limites, IAM ou dead-letter policy nativa do Pub/Sub real."
 
     ledgerTopic = container "ledger.ledgerentry.created.local" {
       technology "Pub/Sub topic"
@@ -344,7 +344,7 @@ model {
   }
 
   pubsubGcp = softwareSystem "Google Cloud Pub/Sub real" {
-    description "Provider principal em GCP quando configurado explicitamente pelos outputs Terraform e sem PUBSUB_EMULATOR_HOST."
+    description "Provider alternativo/legado em GCP quando configurado explicitamente pelos outputs Terraform e sem PUBSUB_EMULATOR_HOST."
 
     ledgerTopic = container "ledger.ledgerentry.created.dev" {
       technology "Pub/Sub topic"
@@ -398,13 +398,13 @@ model {
   ledger.ledgerWorker.ledgerEstornoProcessor -> ledger.ledgerWorker.ledgerWorkerApplication "Envia ProcessarEstornoLancamentoCommand" "MediatR"
   ledger.ledgerWorker.ledgerOutbox -> ledger.ledgerDb "Le e atualiza outbox_messages" "EF Core / SQL"
   ledger.ledgerWorker.ledgerOutbox -> ledger.ledgerWorker.ledgerOutboxPublisherPort "Publica mensagens pendentes" "porta"
-  ledger.ledgerWorker.ledgerOutboxPublisherPort -> ledger.ledgerWorker.ledgerPubSubOutboxPublisher "Adapter principal" "DI"
-  ledger.ledgerWorker.ledgerPubSubOutboxPublisher -> pubsubLocal.ledgerTopic "Publica LedgerEntryCreated.v2 no desenvolvimento local" "Pub/Sub emulator"
-  ledger.ledgerWorker.ledgerPubSubOutboxPublisher -> pubsubGcp.ledgerTopic "Publica LedgerEntryCreated.v2 quando configurado para GCP" "Pub/Sub"
-  ledger.ledgerWorker.ledgerOutboxPublisherPort -> ledger.ledgerWorker.ledgerKafkaOutboxPublisher "Adapter legado" "DI"
+  ledger.ledgerWorker.ledgerOutboxPublisherPort -> ledger.ledgerWorker.ledgerKafkaOutboxPublisher "Adapter default" "DI"
   ledger.ledgerWorker.ledgerKafkaOutboxPublisher -> kafka.ledgerTopic "Publica LedgerEntryCreated.v2" "Kafka"
   ledger.ledgerWorker.ledgerKafkaOutboxPublisher -> kafka.ledgerEstornoTopic "Publica LancamentoEstornoSolicitado.v1" "Kafka"
   ledger.ledgerWorker.ledgerKafkaOutboxPublisher -> kafka.ledgerReprocessamentoTopic "Publica ReprocessamentoLancamentosSolicitado.v1" "Kafka"
+  ledger.ledgerWorker.ledgerOutboxPublisherPort -> ledger.ledgerWorker.ledgerPubSubOutboxPublisher "Adapter explicito/legado" "DI"
+  ledger.ledgerWorker.ledgerPubSubOutboxPublisher -> pubsubLocal.ledgerTopic "Publica LedgerEntryCreated.v2 quando Messaging:Provider=PubSub no local" "Pub/Sub emulator"
+  ledger.ledgerWorker.ledgerPubSubOutboxPublisher -> pubsubGcp.ledgerTopic "Publica LedgerEntryCreated.v2 quando configurado explicitamente para GCP" "Pub/Sub"
   ledger.ledgerWorker.ledgerReprocessamentoConsumer -> kafka.ledgerReprocessamentoTopic "Consome ReprocessamentoLancamentosSolicitado.v1" "Kafka"
   ledger.ledgerWorker.ledgerReprocessamentoConsumer -> ledger.ledgerWorker.ledgerReprocessamentoReceivedMessageMapper "Mapeia transporte Kafka para ReceivedMessage" "mapper"
   ledger.ledgerWorker.ledgerReprocessamentoReceivedMessageMapper -> ledger.ledgerWorker.ledgerReprocessamentoMessageProcessor "Entrega modelo neutro" "ReceivedMessage"

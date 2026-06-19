@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-Este repositorio e uma POC de microservicos em .NET com Clean Architecture, DDD, PostgreSQL, Pub/Sub principal, Kafka legado opcional, Outbox, JWT/JWKS, observabilidade e testes automatizados. O trabalho do Codex deve ser pequeno, correto, reproduzivel e coerente com a arquitetura existente.
+Este repositorio e uma POC de microservicos em .NET com Clean Architecture, DDD, PostgreSQL, Kafka como provider padrao dos servicos principais, Pub/Sub explicito/legado, Outbox, JWT/JWKS, observabilidade e testes automatizados. O trabalho do Codex deve ser pequeno, correto, reproduzivel e coerente com a arquitetura existente.
 
 Responda em portugues, salvo pedido explicito em outro idioma.
 
@@ -82,7 +82,9 @@ Exemplo: workers nao precisam necessariamente expor `/health` ou `/ready` se nao
 - `Api`: entrada/saida HTTP, autenticacao, autorizacao, Swagger, health/readiness, middlewares e DI.
 - `Application`: casos de uso, handlers, services, validacao de entrada e orquestracao.
 - `Domain`: entidades, invariantes e modelos de dominio sem dependencia de infraestrutura.
-- `Infrastructure`: EF Core, PostgreSQL, Pub/Sub, Kafka legado, Outbox, DLQ, hosted services, integracoes e detalhes tecnicos.
+- `Infrastructure`: EF Core, PostgreSQL, Kafka, Pub/Sub explicito/legado, Outbox, DLQ, hosted services, integracoes e detalhes tecnicos.
+
+Kafka e o provider padrao de mensageria dos fluxos principais de `LedgerService.Worker`, `BalanceService.Worker` e `TransferService.Worker`. Pub/Sub permanece apenas como alternativa explicita/legada para Ledger/Balance quando `Messaging:Provider=PubSub`; nao use Pub/Sub em novos fluxos padrao sem ADR nova. `TransferService` permanece Kafka-only conforme ADR-0087. `Domain` e `Application` nao devem referenciar Kafka, Pub/Sub, topics, subscriptions, partitions, offsets, commits, ack/nack ou clients de transporte; esses detalhes pertencem a adapters e composition roots de Worker/Infrastructure.
 
 Ao alterar endpoints protegidos, revise issuer, audience, scopes, policies e autorizacao por merchant. Ao alterar eventos, preserve correlacao, headers, idempotencia e contrato entre produtor e consumidor.
 

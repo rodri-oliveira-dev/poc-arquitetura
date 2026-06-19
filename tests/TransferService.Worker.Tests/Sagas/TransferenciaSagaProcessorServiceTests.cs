@@ -25,29 +25,30 @@ namespace TransferService.Worker.Tests.Sagas;
 public sealed class TransferenciaSagaProcessorServiceTests
 {
     [Fact]
-    public async Task ProcessOnceAsync_should_complete_saga_and_write_outbox_events()
+    public async Task ProcessOnceAsync_should_complete_saga_and_write_outbox_events_Async()
     {
         var fixture = new WorkerFixture();
         var saga = fixture.AddSaga();
         fixture.Ledger.EnqueueLancamento(Guid.NewGuid());
         fixture.Ledger.EnqueueLancamento(Guid.NewGuid());
 
-        await fixture.SagaProcessor.ProcessOnceAsync(CancellationToken.None);
+        await fixture.SagaProcessor.ProcessOnceAsync(TestContext.Current.CancellationToken);
 
         fixture.Db.ChangeTracker.Clear();
-        var stored = await fixture.Db.TransferenciasSagas.SingleAsync();
+        var stored = await fixture.Db.TransferenciasSagas.SingleAsync(TestContext.Current.CancellationToken);
         Assert.Equal(TransferenciaSagaStatus.Completed, stored.Status);
         Assert.True(stored.DebitCreated);
         Assert.True(stored.CreditCreated);
         Assert.Contains(fixture.Db.OutboxMessages, x => x.EventType == TransferenciaDebitoCriadoV1.Type);
         Assert.Contains(fixture.Db.OutboxMessages, x => x.EventType == TransferenciaCreditoCriadoV1.Type);
         Assert.Contains(fixture.Db.OutboxMessages, x => x.EventType == TransferenciaConcluidaV1.Type);
-        Assert.Contains(fixture.Ledger.IdempotencyKeys, x => x == $"transferencia:{saga.Id}:debit");
-        Assert.Contains(fixture.Ledger.IdempotencyKeys, x => x == $"transferencia:{saga.Id}:credit");
+        Assert.Equal(2, fixture.Ledger.IdempotencyKeys.Count);
+        Assert.All(fixture.Ledger.IdempotencyKeys, AssertValidUuidIdempotencyKey);
+        Assert.NotEqual(fixture.Ledger.IdempotencyKeys[0], fixture.Ledger.IdempotencyKeys[1]);
     }
 
     [Fact]
-    public async Task ProcessOnceAsync_should_request_compensation_when_credit_fails_after_debit()
+    public async Task ProcessOnceAsync_should_request_compensation_when_credit_fails_after_debit_Async()
     {
         var fixture = new WorkerFixture();
         var saga = fixture.AddSaga();
@@ -56,35 +57,37 @@ public sealed class TransferenciaSagaProcessorServiceTests
         fixture.Ledger.FailNextLancamento(new LedgerServiceException(System.Net.HttpStatusCode.BadRequest, "credito invalido"));
         fixture.Ledger.EnqueueEstorno(Guid.NewGuid());
 
-        await fixture.SagaProcessor.ProcessOnceAsync(CancellationToken.None);
+        await fixture.SagaProcessor.ProcessOnceAsync(TestContext.Current.CancellationToken);
 
         fixture.Db.ChangeTracker.Clear();
-        var stored = await fixture.Db.TransferenciasSagas.SingleAsync();
+        var stored = await fixture.Db.TransferenciasSagas.SingleAsync(TestContext.Current.CancellationToken);
         Assert.Equal(TransferenciaSagaStatus.CompensationRequested, stored.Status);
         Assert.Equal(debitId, stored.DebitLancamentoId);
         Assert.NotNull(stored.CompensationEstornoId);
         Assert.Contains(fixture.Db.OutboxMessages, x => x.EventType == TransferenciaCompensacaoSolicitadaV1.Type);
-        Assert.Contains(fixture.Ledger.IdempotencyKeys, x => x == $"transferencia:{saga.Id}:compensate-debit");
+        Assert.Equal(3, fixture.Ledger.IdempotencyKeys.Count);
+        Assert.All(fixture.Ledger.IdempotencyKeys, AssertValidUuidIdempotencyKey);
+        Assert.Equal(3, fixture.Ledger.IdempotencyKeys.Distinct(StringComparer.Ordinal).Count());
     }
 
     [Fact]
-    public async Task ProcessOnceAsync_should_schedule_retry_before_debit_on_transient_failure()
+    public async Task ProcessOnceAsync_should_schedule_retry_before_debit_on_transient_failure_Async()
     {
         var fixture = new WorkerFixture();
         fixture.AddSaga();
         fixture.Ledger.FailNextLancamento(new LedgerServiceException(System.Net.HttpStatusCode.ServiceUnavailable, "temporario"));
 
-        await fixture.SagaProcessor.ProcessOnceAsync(CancellationToken.None);
+        await fixture.SagaProcessor.ProcessOnceAsync(TestContext.Current.CancellationToken);
 
         fixture.Db.ChangeTracker.Clear();
-        var stored = await fixture.Db.TransferenciasSagas.SingleAsync();
+        var stored = await fixture.Db.TransferenciasSagas.SingleAsync(TestContext.Current.CancellationToken);
         Assert.NotEqual(TransferenciaSagaStatus.Failed, stored.Status);
         Assert.Equal(1, stored.RetryCount);
         Assert.NotNull(stored.NextRetryAt);
     }
 
     [Fact]
-    public async Task ProcessOnceAsync_should_not_duplicate_debit_when_retrying_after_debit_created()
+    public async Task ProcessOnceAsync_should_not_duplicate_debit_when_retrying_after_debit_created_Async()
     {
         var fixture = new WorkerFixture();
         var saga = fixture.AddSaga();
@@ -92,10 +95,10 @@ public sealed class TransferenciaSagaProcessorServiceTests
         saga.MarkDebitCreating(fixture.Clock.UtcNow);
         saga.MarkDebitCreated(fixture.Clock.UtcNow, Guid.NewGuid());
         saga.ScheduleRetry(fixture.Clock.UtcNow.AddSeconds(-1), "retry credito", fixture.Clock.UtcNow);
-        await fixture.Db.SaveChangesAsync();
+        await fixture.Db.SaveChangesAsync(TestContext.Current.CancellationToken);
         fixture.Ledger.EnqueueLancamento(Guid.NewGuid());
 
-        await fixture.SagaProcessor.ProcessOnceAsync(CancellationToken.None);
+        await fixture.SagaProcessor.ProcessOnceAsync(TestContext.Current.CancellationToken);
 
         fixture.Db.ChangeTracker.Clear();
         Assert.Single(fixture.Ledger.CreateLancamentoRequests);
@@ -103,7 +106,7 @@ public sealed class TransferenciaSagaProcessorServiceTests
     }
 
     [Fact]
-    public async Task ProcessOnceAsync_should_ignore_completed_saga()
+    public async Task ProcessOnceAsync_should_ignore_completed_saga_Async()
     {
         var fixture = new WorkerFixture();
         var saga = fixture.AddSaga();
@@ -112,34 +115,34 @@ public sealed class TransferenciaSagaProcessorServiceTests
         saga.MarkDebitCreated(fixture.Clock.UtcNow, Guid.NewGuid());
         saga.MarkCreditCreating(fixture.Clock.UtcNow);
         saga.MarkCompleted(fixture.Clock.UtcNow, Guid.NewGuid());
-        await fixture.Db.SaveChangesAsync();
+        await fixture.Db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        await fixture.SagaProcessor.ProcessOnceAsync(CancellationToken.None);
+        await fixture.SagaProcessor.ProcessOnceAsync(TestContext.Current.CancellationToken);
 
         Assert.Empty(fixture.Ledger.CreateLancamentoRequests);
     }
 
     [Fact]
-    public async Task PublishOnceAsync_should_publish_pending_outbox_with_transferencia_key_and_topic()
+    public async Task PublishOnceAsync_should_publish_pending_outbox_with_transferencia_key_and_topic_Async()
     {
         var fixture = new WorkerFixture();
         var saga = fixture.AddSaga();
         await fixture.OutboxWriter.WriteAsync(
             TransferenciaSagaEventFactory.TransferenciaDebitoCriado(saga, saga.CorrelationId, fixture.Clock.UtcNow),
-            CancellationToken.None);
-        await fixture.Db.SaveChangesAsync();
+            TestContext.Current.CancellationToken);
+        await fixture.Db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        await fixture.OutboxPublisher.PublishOnceAsync(CancellationToken.None);
+        await fixture.OutboxPublisher.PublishOnceAsync(TestContext.Current.CancellationToken);
 
         fixture.Db.ChangeTracker.Clear();
-        var published = Assert.Single(fixture.Kafka.Published);
-        Assert.Equal(saga.Id.ToString(), published.Message.MessageKey);
-        Assert.Equal("transfer.transferencia.debito-criado", published.Topic);
+        var (Message, Topic) = Assert.Single(fixture.Kafka.Published);
+        Assert.Equal(saga.Id.ToString(), Message.MessageKey);
+        Assert.Equal("transfer.transferencia.debito-criado", Topic);
         Assert.Equal(TransferenciaOutboxStatus.Published, fixture.Db.OutboxMessages.Single().Status);
     }
 
     [Fact]
-    public async Task PublishOnceAsync_should_not_republish_published_message()
+    public async Task PublishOnceAsync_should_not_republish_published_message_Async()
     {
         var fixture = new WorkerFixture();
         var message = new TransferenciaOutboxMessage(
@@ -153,22 +156,22 @@ public sealed class TransferenciaSagaProcessorServiceTests
             fixture.Clock.UtcNow,
             fixture.Clock.UtcNow);
         message.MarkPublished(fixture.Clock.UtcNow);
-        await fixture.Db.OutboxMessages.AddAsync(message);
-        await fixture.Db.SaveChangesAsync();
+        await fixture.Db.OutboxMessages.AddAsync(message, TestContext.Current.CancellationToken);
+        await fixture.Db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        await fixture.OutboxPublisher.PublishOnceAsync(CancellationToken.None);
+        await fixture.OutboxPublisher.PublishOnceAsync(TestContext.Current.CancellationToken);
 
         Assert.Empty(fixture.Kafka.Published);
     }
 
     [Fact]
-    public async Task PublishOnceAsync_should_keep_message_pending_on_transient_kafka_error()
+    public async Task PublishOnceAsync_should_keep_message_pending_on_transient_kafka_error_Async()
     {
         var fixture = new WorkerFixture();
         await fixture.AddOutboxMessageAsync();
         fixture.Kafka.PublishException = new TransferenciaKafkaPublishException("temporario", isTransient: true);
 
-        await fixture.OutboxPublisher.PublishOnceAsync(CancellationToken.None);
+        await fixture.OutboxPublisher.PublishOnceAsync(TestContext.Current.CancellationToken);
 
         fixture.Db.ChangeTracker.Clear();
         var message = fixture.Db.OutboxMessages.Single();
@@ -177,13 +180,13 @@ public sealed class TransferenciaSagaProcessorServiceTests
     }
 
     [Fact]
-    public async Task PublishOnceAsync_should_send_to_dlq_on_definitive_kafka_error()
+    public async Task PublishOnceAsync_should_send_to_dlq_on_definitive_kafka_error_Async()
     {
         var fixture = new WorkerFixture();
         await fixture.AddOutboxMessageAsync();
         fixture.Kafka.PublishException = new TransferenciaKafkaPublishException("definitivo", isTransient: false);
 
-        await fixture.OutboxPublisher.PublishOnceAsync(CancellationToken.None);
+        await fixture.OutboxPublisher.PublishOnceAsync(TestContext.Current.CancellationToken);
 
         fixture.Db.ChangeTracker.Clear();
         Assert.Single(fixture.Kafka.Dlq);
@@ -192,7 +195,7 @@ public sealed class TransferenciaSagaProcessorServiceTests
     }
 
     [Fact]
-    public async Task PublishOnceAsync_should_send_invalid_payload_to_dlq()
+    public async Task PublishOnceAsync_should_send_invalid_payload_to_dlq_Async()
     {
         var fixture = new WorkerFixture();
         var message = new TransferenciaOutboxMessage(
@@ -205,10 +208,10 @@ public sealed class TransferenciaSagaProcessorServiceTests
             null,
             fixture.Clock.UtcNow,
             fixture.Clock.UtcNow);
-        await fixture.Db.OutboxMessages.AddAsync(message);
-        await fixture.Db.SaveChangesAsync();
+        await fixture.Db.OutboxMessages.AddAsync(message, TestContext.Current.CancellationToken);
+        await fixture.Db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        await fixture.OutboxPublisher.PublishOnceAsync(CancellationToken.None);
+        await fixture.OutboxPublisher.PublishOnceAsync(TestContext.Current.CancellationToken);
 
         fixture.Db.ChangeTracker.Clear();
         Assert.Single(fixture.Kafka.Dlq);
@@ -217,7 +220,7 @@ public sealed class TransferenciaSagaProcessorServiceTests
 
 
     [Fact]
-    public async Task PublishOnceAsync_should_respect_cancelled_token()
+    public async Task PublishOnceAsync_should_respect_cancelled_token_Async()
     {
         var fixture = new WorkerFixture();
         using var cts = new CancellationTokenSource();
@@ -308,10 +311,13 @@ public sealed class TransferenciaSagaProcessorServiceTests
             var saga = AddSaga();
             await OutboxWriter.WriteAsync(
                 TransferenciaSagaEventFactory.TransferenciaConcluida(saga, saga.CorrelationId, Clock.UtcNow),
-                CancellationToken.None);
-            await Db.SaveChangesAsync();
+                TestContext.Current.CancellationToken);
+            await Db.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
     }
+
+    private static void AssertValidUuidIdempotencyKey(string value)
+        => Assert.True(Guid.TryParse(value, out _), $"Idempotency-Key '{value}' deve ser UUID valido.");
 
     private sealed class FakeClock : IClock
     {
@@ -340,9 +346,7 @@ public sealed class TransferenciaSagaProcessorServiceTests
             CreateLancamentoRequests.Add(request);
             IdempotencyKeys.Add(idempotencyKey);
             var next = _lancamentos.Dequeue();
-            if (next is Exception exception)
-                throw exception;
-            return Task.FromResult(new LedgerLancamentoResult((Guid)next));
+            return next is Exception exception ? throw exception : Task.FromResult(new LedgerLancamentoResult((Guid)next));
         }
 
         public Task<LedgerEstornoResult> SolicitarEstornoAsync(
@@ -371,7 +375,10 @@ public sealed class TransferenciaSagaProcessorServiceTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (PublishException is not null)
+            {
                 throw PublishException;
+            }
+
             Published.Add((message, topic));
             return Task.CompletedTask;
         }

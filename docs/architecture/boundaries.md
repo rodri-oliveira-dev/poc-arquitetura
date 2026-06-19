@@ -189,7 +189,7 @@ Pontos de atencao:
 A arquitetura ideal para este projeto deve ser minimalista e pragmatica, com robustez seletiva:
 
 - manter quatro camadas para LedgerService e BalanceService;
-- manter o TransferService como bounded context separado, com Saga e Outbox Kafka isolados do fluxo Pub/Sub de Ledger/Balance;
+- manter o TransferService como bounded context separado, com Saga e Outbox Kafka alinhados ao broker padrao, sem misturar Pub/Sub no fluxo da Saga;
 - manter APIs e workers como processos separados, com composition root e `ServiceName` explicitos por processo;
 - manter Auth.Api legado em projeto unico enquanto ele existir;
 - reforcar boundaries onde ha risco real: contratos de eventos, tempo/clock, outbox e idempotencia;
