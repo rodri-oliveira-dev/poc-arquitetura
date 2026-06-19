@@ -9,6 +9,8 @@ public static class ScopeAuthorizationExtensions
     /// </summary>
     public static AuthorizationOptions AddScopePolicies(this AuthorizationOptions options)
     {
+        ArgumentNullException.ThrowIfNull(options);
+
         options.AddPolicy(ScopePolicies.BalanceReadPolicy, policy =>
         {
             policy.RequireAuthenticatedUser();

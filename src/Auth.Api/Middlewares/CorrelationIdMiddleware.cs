@@ -1,6 +1,6 @@
-using Microsoft.Extensions.Primitives;
-
 using System.Diagnostics;
+
+using Microsoft.Extensions.Primitives;
 
 namespace Auth.Api.Middlewares;
 
@@ -13,6 +13,10 @@ public sealed class CorrelationIdMiddleware
     public const string HeaderName = "X-Correlation-Id";
     public const string ScopeKey = "CorrelationId";
 
+    private static readonly Func<ILogger, string, string, string?, string?, IDisposable?> _correlationScope =
+        LoggerMessage.DefineScope<string, string, string?, string?>(
+            "{CorrelationIdKey}={CorrelationId} TraceId={TraceId} SpanId={SpanId}");
+
     private readonly RequestDelegate _next;
     private readonly ILogger<CorrelationIdMiddleware> _logger;
 
@@ -24,6 +28,8 @@ public sealed class CorrelationIdMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
+        ArgumentNullException.ThrowIfNull(context);
+
         var correlationId = ResolveOrCreateCorrelationId(context);
 
         var activity = Activity.Current;
@@ -38,12 +44,7 @@ public sealed class CorrelationIdMiddleware
             return Task.CompletedTask;
         });
 
-        using (_logger.BeginScope(
-            "{CorrelationIdKey}={CorrelationId} TraceId={TraceId} SpanId={SpanId}",
-            ScopeKey,
-            correlationId,
-            traceId,
-            spanId))
+        using (_correlationScope(_logger, ScopeKey, correlationId, traceId, spanId))
         {
             await _next(context);
         }

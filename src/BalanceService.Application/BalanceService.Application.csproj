@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <ProjectReference Include="..\Shared\ApplicationDefaults\ApplicationDefaults.csproj" />
     <ProjectReference Include="..\BalanceService.Domain\BalanceService.Domain.csproj" />
   </ItemGroup>
 

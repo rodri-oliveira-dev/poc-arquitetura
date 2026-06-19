@@ -19,6 +19,21 @@ public sealed class TransferenciaOutboxPublisherService : BackgroundService
     private readonly IClock _clock;
     private readonly ILogger<TransferenciaOutboxPublisherService> _logger;
     private readonly string _lockOwner;
+    private static readonly System.Diagnostics.Metrics.Meter _workerMeter = new("TransferService.Worker");
+    private static readonly System.Diagnostics.Metrics.Counter<long> _outboxPublishingErrors = _workerMeter.CreateCounter<long>(
+        "transfer.worker.outbox.publishing.errors",
+        unit: "1",
+        description: "Total de erros no loop de publicacao da Outbox de transferencia por classificacao.");
+    private static readonly Action<ILogger, Exception?> _logUnhandledOutboxPublishingError =
+        LoggerMessage.Define(
+            LogLevel.Error,
+            new EventId(1, nameof(_logUnhandledOutboxPublishingError)),
+            "Erro nao tratado na publicacao da Outbox do TransferService.");
+    private static readonly Action<ILogger, Guid, Guid, string?, string, string, Exception?> _logOutboxPublished =
+        LoggerMessage.Define<Guid, Guid, string?, string, string>(
+            LogLevel.Information,
+            new EventId(2, nameof(_logOutboxPublished)),
+            "Outbox de transferencia publicada no Kafka. OutboxId={OutboxId} TransferenciaId={TransferenciaId} CorrelationId={CorrelationId} EventType={EventType} Topic={Topic}");
 
     public TransferenciaOutboxPublisherService(
         IServiceProvider serviceProvider,
@@ -45,9 +60,13 @@ public sealed class TransferenciaOutboxPublisherService : BackgroundService
             {
                 break;
             }
+#pragma warning disable CA1031
+            // Captura desconhecida intencional: protege o loop do publisher; falhas por mensagem ja sao tratadas em PublishMessageAsync.
             catch (Exception ex)
+#pragma warning restore CA1031
             {
-                _logger.LogError(ex, "Erro nao tratado na publicacao da Outbox do TransferService.");
+                RecordOutboxPublishingError("unknown_loop_failure");
+                _logUnhandledOutboxPublishingError(_logger, ex);
             }
 
             await Task.Delay(_options.Value.PollingInterval, stoppingToken);
@@ -114,13 +133,14 @@ public sealed class TransferenciaOutboxPublisherService : BackgroundService
             await producer.PublishAsync(message, message.Topic, cancellationToken);
             message.MarkPublished(_clock.UtcNow);
             await unitOfWork.SaveChangesAsync(cancellationToken);
-            _logger.LogInformation(
-                "Outbox de transferencia publicada no Kafka. OutboxId={OutboxId} TransferenciaId={TransferenciaId} CorrelationId={CorrelationId} EventType={EventType} Topic={Topic}",
+            _logOutboxPublished(
+                _logger,
                 message.Id,
                 message.AggregateId,
                 message.CorrelationId,
                 message.EventType,
-                message.Topic);
+                message.Topic,
+                null);
         }
         catch (JsonException ex)
         {
@@ -161,4 +181,9 @@ public sealed class TransferenciaOutboxPublisherService : BackgroundService
     {
         using var _ = JsonDocument.Parse(message.Payload);
     }
+
+    private static void RecordOutboxPublishingError(string classification)
+        => _outboxPublishingErrors.Add(
+            1,
+            new KeyValuePair<string, object?>("classification", classification));
 }

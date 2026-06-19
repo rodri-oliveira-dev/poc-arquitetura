@@ -13,6 +13,8 @@ public sealed class BalanceAuthorizationTests : IClassFixture<BalanceApiFactory>
 
     public BalanceAuthorizationTests(BalanceApiFactory factory)
     {
+        ArgumentNullException.ThrowIfNull(factory);
+
         _client = factory.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false

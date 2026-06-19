@@ -42,7 +42,7 @@ public sealed class ConfigureSwaggerOptionsTests
     }
 
     [Fact]
-    public void AddApiSwagger_should_configure_bearer_jwt_and_idempotency_schemes()
+    public void AddApiSwagger_should_configure_bearer_jwt_security_scheme()
     {
         var services = new ServiceCollection();
         services.AddSingleton<IApiVersionDescriptionProvider>(new FakeApiVersionDescriptionProvider(
@@ -59,7 +59,7 @@ public sealed class ConfigureSwaggerOptionsTests
         Assert.Equal(SecuritySchemeType.Http, schemes["Bearer"].Type);
         Assert.Equal("bearer", schemes["Bearer"].Scheme);
         Assert.Equal("JWT", schemes["Bearer"].BearerFormat);
-        Assert.Equal(SecuritySchemeType.ApiKey, schemes["Idempotency-Key"].Type);
+        Assert.DoesNotContain("Idempotency-Key", schemes.Keys);
         Assert.Contains(options.OperationFilterDescriptors, descriptor => descriptor.Type == typeof(AuthorizeOperationFilter));
     }
 

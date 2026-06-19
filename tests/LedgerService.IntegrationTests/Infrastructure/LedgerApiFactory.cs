@@ -24,6 +24,8 @@ public sealed class LedgerApiFactory : WebApplicationFactory<Program>
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.UseEnvironment("Test");
         builder.ConfigureLogging(logging =>
         {

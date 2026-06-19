@@ -12,9 +12,15 @@ using Microsoft.Extensions.Logging;
 
 namespace BalanceService.Application.Balances.Commands;
 
-public sealed class ApplyLedgerEntryCreatedHandler : IRequestHandler<ApplyLedgerEntryCreatedCommand, ApplyLedgerEntryCreatedResult>
+public sealed partial class ApplyLedgerEntryCreatedHandler : IRequestHandler<ApplyLedgerEntryCreatedCommand, ApplyLedgerEntryCreatedResult>
 {
     private static readonly ActivitySource _activitySource = new("BalanceService.Application");
+
+    [LoggerMessage(EventId = 1, Level = LogLevel.Debug, Message = "Evento ja processado (idempotencia). Nenhuma alteracao aplicada.")]
+    private static partial void LogDuplicateEvent(ILogger logger);
+
+    [LoggerMessage(EventId = 2, Level = LogLevel.Debug, Message = "Saldo diario consolidado atualizado (credits={TotalCredits}, debits={TotalDebits}, net={Net})")]
+    private static partial void LogDailyBalanceUpdated(ILogger logger, decimal totalCredits, decimal totalDebits, decimal net);
 
     private readonly IDailyBalanceRepository _dailyBalanceRepository;
     private readonly IProcessedEventRepository _processedEventRepository;
@@ -100,7 +106,7 @@ public sealed class ApplyLedgerEntryCreatedHandler : IRequestHandler<ApplyLedger
 
             if (!inserted)
             {
-                _logger.LogDebug("Evento ja processado (idempotencia). Nenhuma alteracao aplicada.");
+                LogDuplicateEvent(_logger);
                 await transaction.CommitAsync(cancellationToken);
                 RecordApplyMetrics(startedAt, command.EventType, "duplicate", projectionUpdated: false, currency);
                 return ApplyLedgerEntryCreatedResult.IgnoredDuplicate;
@@ -131,8 +137,8 @@ public sealed class ApplyLedgerEntryCreatedHandler : IRequestHandler<ApplyLedger
 
             RecordApplyMetrics(startedAt, command.EventType, "success", projectionUpdated: true, currency);
 
-            _logger.LogDebug(
-                "Saldo diario consolidado atualizado (credits={TotalCredits}, debits={TotalDebits}, net={Net})",
+            LogDailyBalanceUpdated(
+                _logger,
                 dailyBalance.TotalCredits,
                 dailyBalance.TotalDebits,
                 dailyBalance.NetBalance);

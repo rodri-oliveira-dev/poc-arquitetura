@@ -1,33 +1,41 @@
 using BalanceService.Worker.Messaging.Processors;
 using BalanceService.Worker.Messaging.PubSub.Configuration;
+using BalanceService.Worker.Observability;
 
 using Google.Api.Gax;
 using Google.Cloud.PubSub.V1;
 
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 using NeutralReceivedMessage = BalanceService.Worker.Messaging.Abstractions.ReceivedMessage;
 
 namespace BalanceService.Worker.Messaging.PubSub.Consumers;
 
-public sealed class LedgerEventsPubSubConsumer : BackgroundService
+public sealed partial class LedgerEventsPubSubConsumer : BackgroundService
 {
     private readonly PubSubConsumerOptions _options;
     private readonly Func<NeutralReceivedMessage, CancellationToken, Task<bool>> _processMessageAsync;
     private readonly IPubSubSubscriberClientFactory _clientFactory;
     private readonly ILogger<LedgerEventsPubSubConsumer> _logger;
+    private readonly MessagingMetrics _metrics;
+
+    [LoggerMessage(EventId = 1, Level = LogLevel.Warning, Message = "Falha ao encerrar consumer Pub/Sub.")]
+    private static partial void LogPubSubConsumerShutdownFailure(ILogger logger, Exception exception);
+
+    [LoggerMessage(EventId = 2, Level = LogLevel.Warning, Message = "Falha recuperavel ao processar mensagem Pub/Sub. subscription={SubscriptionId} messageId={MessageId}")]
+    private static partial void LogRecoverablePubSubMessageFailure(ILogger logger, Exception exception, string subscriptionId, string messageId);
 
     public LedgerEventsPubSubConsumer(
         IOptions<PubSubConsumerOptions> options,
         LedgerEntryCreatedMessageProcessor messageProcessor,
-        ILogger<LedgerEventsPubSubConsumer> logger)
+        ILogger<LedgerEventsPubSubConsumer> logger,
+        MessagingMetrics metrics)
         : this(
             options,
             messageProcessor.ProcessAsync,
             new GooglePubSubSubscriberClientFactory(),
-            logger)
+            logger,
+            metrics)
     {
     }
 
@@ -35,12 +43,14 @@ public sealed class LedgerEventsPubSubConsumer : BackgroundService
         IOptions<PubSubConsumerOptions> options,
         Func<NeutralReceivedMessage, CancellationToken, Task<bool>> processMessageAsync,
         IPubSubSubscriberClientFactory clientFactory,
-        ILogger<LedgerEventsPubSubConsumer> logger)
+        ILogger<LedgerEventsPubSubConsumer> logger,
+        MessagingMetrics metrics)
     {
         _options = options.Value;
         _processMessageAsync = processMessageAsync;
         _clientFactory = clientFactory;
         _logger = logger;
+        _metrics = metrics;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -73,9 +83,12 @@ public sealed class LedgerEventsPubSubConsumer : BackgroundService
             {
                 await client.StopAsync(CancellationToken.None);
             }
+#pragma warning disable CA1031
+            // Encerramento do subscriber e best effort; falha fica em log estruturado e nao deve bloquear shutdown do host.
             catch (Exception ex)
+#pragma warning restore CA1031
             {
-                _logger.LogWarning(ex, "Falha ao encerrar consumer Pub/Sub.");
+                LogPubSubConsumerShutdownFailure(_logger, ex);
             }
         }
     }
@@ -107,13 +120,13 @@ public sealed class LedgerEventsPubSubConsumer : BackgroundService
         {
             return SubscriberClient.Reply.Nack;
         }
+#pragma warning disable CA1031
+        // Captura desconhecida intencional por mensagem: Nack preserva retry/DLQ do Pub/Sub e mantem o consumer ativo.
         catch (Exception ex)
+#pragma warning restore CA1031
         {
-            _logger.LogWarning(
-                ex,
-                "Falha recuperavel ao processar mensagem Pub/Sub. subscription={SubscriptionId} messageId={MessageId}",
-                _options.SubscriptionId,
-                message.MessageId);
+            _metrics.RecordConsumerError(_options.SubscriptionId, "unknown", "unexpected");
+            LogRecoverablePubSubMessageFailure(_logger, ex, _options.SubscriptionId, message.MessageId);
 
             return SubscriberClient.Reply.Nack;
         }

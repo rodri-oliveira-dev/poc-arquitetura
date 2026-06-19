@@ -3,6 +3,7 @@ using System.Threading.RateLimiting;
 
 using ApiDefaults.Middlewares;
 using ApiDefaults.Options;
+using ApiDefaults.Swagger;
 
 using Asp.Versioning;
 
@@ -10,7 +11,6 @@ using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
-using Microsoft.OpenApi;
 
 using Swashbuckle.AspNetCore.SwaggerGen;
 
@@ -80,6 +80,7 @@ public static class ApiDefaultsServiceCollectionExtensions
         services.AddSwaggerGen(options =>
         {
             options.EnableAnnotations();
+            options.DocumentFilter<OpenApiContractQualityDocumentFilter>();
             options.DocInclusionPredicate((docName, apiDescription) =>
                 string.Equals(apiDescription.GroupName, docName, StringComparison.OrdinalIgnoreCase));
 
@@ -88,14 +89,6 @@ public static class ApiDefaultsServiceCollectionExtensions
             {
                 options.IncludeXmlComments(xmlPath, includeControllerXmlComments: false);
             }
-
-            options.AddSecurityDefinition(CorrelationIdMiddleware.HeaderName, new OpenApiSecurityScheme
-            {
-                Name = CorrelationIdMiddleware.HeaderName,
-                Type = SecuritySchemeType.ApiKey,
-                In = ParameterLocation.Header,
-                Description = "Identificador de correlacao (UUID). Se nao for enviado, a API gera um novo e o retorna no header de response."
-            });
 
             configureSpecificDefaults(options);
         });

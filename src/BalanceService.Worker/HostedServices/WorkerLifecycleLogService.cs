@@ -1,9 +1,15 @@
 namespace BalanceService.Worker.HostedServices;
 
-public sealed class WorkerLifecycleLogService : IHostedService
+public sealed partial class WorkerLifecycleLogService : IHostedService
 {
     private readonly string _serviceName;
     private readonly ILogger<WorkerLifecycleLogService> _logger;
+
+    [LoggerMessage(EventId = 1, Level = LogLevel.Information, Message = "Processo worker iniciado. serviceName={ServiceName}")]
+    private static partial void LogWorkerStarted(ILogger logger, string serviceName);
+
+    [LoggerMessage(EventId = 2, Level = LogLevel.Information, Message = "Processo worker parado. serviceName={ServiceName}")]
+    private static partial void LogWorkerStopped(ILogger logger, string serviceName);
 
     public WorkerLifecycleLogService(string serviceName, ILogger<WorkerLifecycleLogService> logger)
     {
@@ -13,13 +19,13 @@ public sealed class WorkerLifecycleLogService : IHostedService
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
-        _logger.LogInformation("Processo worker iniciado. serviceName={ServiceName}", _serviceName);
+        LogWorkerStarted(_logger, _serviceName);
         return Task.CompletedTask;
     }
 
     public Task StopAsync(CancellationToken cancellationToken)
     {
-        _logger.LogInformation("Processo worker parado. serviceName={ServiceName}", _serviceName);
+        LogWorkerStopped(_logger, _serviceName);
         return Task.CompletedTask;
     }
 }

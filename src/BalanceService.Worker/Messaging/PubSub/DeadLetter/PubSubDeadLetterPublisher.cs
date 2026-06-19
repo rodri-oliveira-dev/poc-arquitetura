@@ -7,11 +7,12 @@ using Google.Api.Gax;
 using Google.Cloud.PubSub.V1;
 using Google.Protobuf;
 
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace BalanceService.Worker.Messaging.PubSub.DeadLetter;
 
-public sealed class PubSubDeadLetterPublisher : IDeadLetterPublisher, IAsyncDisposable
+public sealed partial class PubSubDeadLetterPublisher : IDeadLetterPublisher, IAsyncDisposable
 {
     private const string DeadLetterReasonAttribute = "dlq_reason";
     private const string OriginalSourceAttribute = "original_source";
@@ -21,20 +22,31 @@ public sealed class PubSubDeadLetterPublisher : IDeadLetterPublisher, IAsyncDisp
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly PubSubConsumerOptions _options;
     private readonly IPubSubDeadLetterPublisherClientFactory _clientFactory;
+    private readonly ILogger<PubSubDeadLetterPublisher> _logger;
     private readonly object _clientLock = new();
     private Task<IPubSubDeadLetterPublisherClient>? _clientTask;
 
-    public PubSubDeadLetterPublisher(IOptions<PubSubConsumerOptions> options)
-        : this(options, new GooglePubSubDeadLetterPublisherClientFactory())
+    [LoggerMessage(EventId = 1, Level = LogLevel.Debug, Message = "Cancelamento ao encerrar publisher Pub/Sub DLQ.")]
+    private static partial void LogPubSubDlqPublisherShutdownCanceled(ILogger logger, Exception exception);
+
+    [LoggerMessage(EventId = 2, Level = LogLevel.Debug, Message = "Falha ao encerrar publisher Pub/Sub DLQ.")]
+    private static partial void LogPubSubDlqPublisherShutdownFailure(ILogger logger, Exception exception);
+
+    public PubSubDeadLetterPublisher(
+        IOptions<PubSubConsumerOptions> options,
+        ILogger<PubSubDeadLetterPublisher>? logger = null)
+        : this(options, new GooglePubSubDeadLetterPublisherClientFactory(), logger)
     {
     }
 
     internal PubSubDeadLetterPublisher(
         IOptions<PubSubConsumerOptions> options,
-        IPubSubDeadLetterPublisherClientFactory clientFactory)
+        IPubSubDeadLetterPublisherClientFactory clientFactory,
+        ILogger<PubSubDeadLetterPublisher>? logger = null)
     {
         _options = options.Value;
         _clientFactory = clientFactory;
+        _logger = logger ?? NullLogger<PubSubDeadLetterPublisher>.Instance;
     }
 
     public async Task PublishAsync(DeadLetterMessage message, CancellationToken cancellationToken)
@@ -61,9 +73,16 @@ public sealed class PubSubDeadLetterPublisher : IDeadLetterPublisher, IAsyncDisp
             IPubSubDeadLetterPublisherClient client = await clientTask;
             await client.ShutdownAsync(TimeSpan.FromSeconds(5));
         }
-        catch (Exception)
+        catch (OperationCanceledException ex)
         {
-            // Shutdown is best effort during worker disposal.
+            LogPubSubDlqPublisherShutdownCanceled(_logger, ex);
+        }
+#pragma warning disable CA1031
+        // Shutdown e best effort no disposal do worker; log em Debug evita mascarar diagnostico sem derrubar encerramento.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            LogPubSubDlqPublisherShutdownFailure(_logger, ex);
         }
     }
 

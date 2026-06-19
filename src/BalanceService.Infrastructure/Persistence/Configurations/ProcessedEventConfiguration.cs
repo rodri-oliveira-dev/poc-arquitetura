@@ -9,6 +9,8 @@ public sealed class ProcessedEventConfiguration : IEntityTypeConfiguration<Proce
 {
     public void Configure(EntityTypeBuilder<ProcessedEvent> builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.ToTable("processed_events");
 
         builder.HasKey(x => x.Id);

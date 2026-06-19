@@ -1,3 +1,5 @@
+using System.Security.Claims;
+
 using Asp.Versioning;
 
 using LedgerService.Api.Contracts.Requests;
@@ -13,27 +15,21 @@ using Microsoft.AspNetCore.Mvc;
 
 using Swashbuckle.AspNetCore.Annotations;
 
-using System.Security.Claims;
-
 namespace LedgerService.Api.Controllers;
 
 [ApiController]
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/outbox")]
-public sealed class OutboxAdminController : ControllerBase
+public sealed class OutboxAdminController(ISender sender) : ControllerBase
 {
     private const int DefaultPage = 1;
     private const int DefaultPageSize = 50;
-    private readonly ISender _sender;
-
-    public OutboxAdminController(ISender sender)
-    {
-        _sender = sender;
-    }
+    private readonly ISender _sender = sender;
 
     [HttpGet("dead-letters")]
     [Authorize(Policy = ScopePolicies.OutboxAdminPolicy)]
     [SwaggerOperation(
+        OperationId = "GetOutboxDeadLetters",
         Summary = "Lista mensagens Outbox em Dead Letter.",
         Description = "Fluxo administrativo protegido para inspeção paginada de mensagens Outbox que excederam o limite de retries.")]
     [SwaggerResponse(StatusCodes.Status200OK, "Mensagens DeadLetter retornadas.", typeof(GetDeadLettersResponse))]
@@ -55,7 +51,7 @@ public sealed class OutboxAdminController : ControllerBase
             Page = result.Page,
             PageSize = result.PageSize,
             TotalCount = result.TotalCount,
-            Items = result.Items.Select(x => new DeadLetterOutboxMessageResponse
+            Items = [.. result.Items.Select(x => new DeadLetterOutboxMessageResponse
             {
                 Id = x.Id,
                 AggregateType = x.AggregateType,
@@ -66,13 +62,14 @@ public sealed class OutboxAdminController : ControllerBase
                 LastError = x.LastError,
                 CorrelationId = x.CorrelationId,
                 TraceParent = x.TraceParent
-            }).ToArray()
+            })]
         });
     }
 
     [HttpPost("dead-letters/{id:guid}/requeue")]
     [Authorize(Policy = ScopePolicies.OutboxAdminPolicy)]
     [SwaggerOperation(
+        OperationId = "RequeueOutboxDeadLetter",
         Summary = "Recoloca uma mensagem Outbox DeadLetter na fila de publicacao.",
         Description = "Fluxo administrativo protegido para recuperar uma mensagem Outbox envenenada. Apenas mensagens DeadLetter sao alteradas.")]
     [SwaggerResponse(StatusCodes.Status200OK, "Mensagem recolocada como Pending ou ignorada por nao estar em DeadLetter.", typeof(RequeueDeadLetterResponse))]
@@ -86,6 +83,8 @@ public sealed class OutboxAdminController : ControllerBase
         [FromBody] RequeueDeadLetterRequest request,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
+
         var result = await _sender.Send(
             new RequeueDeadLetterCommand(
                 id,

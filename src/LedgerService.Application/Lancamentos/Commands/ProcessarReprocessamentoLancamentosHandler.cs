@@ -17,10 +17,29 @@ using Microsoft.Extensions.Logging;
 
 namespace LedgerService.Application.Lancamentos.Commands;
 
-public sealed class ProcessarReprocessamentoLancamentosHandler
+public sealed partial class ProcessarReprocessamentoLancamentosHandler
     : IRequestHandler<ProcessarReprocessamentoLancamentosCommand>
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
+    [LoggerMessage(EventId = 1, Level = LogLevel.Error, Message = "Falha tecnica ao processar reprocessamento {ReprocessamentoId}")]
+    private static partial void LogTechnicalFailure(ILogger logger, Exception exception, Guid reprocessamentoId);
+
+    [LoggerMessage(EventId = 2, Level = LogLevel.Information, Message = "Reprocessamento processado. reprocessamentoId={ReprocessamentoId} merchantId={MerchantId} dataInicial={DataInicial} dataFinal={DataFinal} statusAnterior={StatusAnterior} statusNovo={StatusNovo} registrosEncontrados={RegistrosEncontrados} registrosReprocessados={RegistrosReprocessados} duracaoMs={DuracaoMs}")]
+    private static partial void LogReprocessamentoProcessed(
+        ILogger logger,
+        Guid reprocessamentoId,
+        string merchantId,
+        string dataInicial,
+        string dataFinal,
+        ReprocessamentoLancamentosStatus statusAnterior,
+        ReprocessamentoLancamentosStatus statusNovo,
+        int registrosEncontrados,
+        int registrosReprocessados,
+        long duracaoMs);
+
+    [LoggerMessage(EventId = 3, Level = LogLevel.Warning, Message = "Reprocessamento rejeitado. reprocessamentoId={ReprocessamentoId} motivo={Motivo}")]
+    private static partial void LogReprocessamentoRejected(ILogger logger, Guid reprocessamentoId, string motivo);
 
     private readonly IReprocessamentoLancamentosRepository _reprocessamentoRepository;
     private readonly ILedgerEntryRepository _ledgerEntryRepository;
@@ -76,10 +95,7 @@ public sealed class ProcessarReprocessamentoLancamentosHandler
                 request.ReprocessamentoId,
                 "Falha tecnica ao processar reprocessamento.",
                 cancellationToken);
-            _logger.LogError(
-                ex,
-                "Falha tecnica ao processar reprocessamento {ReprocessamentoId}",
-                request.ReprocessamentoId);
+            LogTechnicalFailure(_logger, ex, request.ReprocessamentoId);
         }
     }
 
@@ -150,17 +166,23 @@ public sealed class ProcessarReprocessamentoLancamentosHandler
         _metrics?.RecordReprocessRequestProcessed(ToMetricResult(reprocessamento.Status));
 
         stopwatch.Stop();
-        _logger.LogInformation(
-            "Reprocessamento processado. reprocessamentoId={ReprocessamentoId} merchantId={MerchantId} dataInicial={DataInicial} dataFinal={DataFinal} statusAnterior={StatusAnterior} statusNovo={StatusNovo} registrosEncontrados={RegistrosEncontrados} registrosReprocessados={RegistrosReprocessados} duracaoMs={DuracaoMs}",
-            reprocessamento.Id,
-            reprocessamento.MerchantId,
-            reprocessamento.DataInicial.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-            reprocessamento.DataFinal.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-            previousStatus,
-            reprocessamento.Status,
-            entries.Count,
-            entries.Count,
-            stopwatch.ElapsedMilliseconds);
+        if (_logger.IsEnabled(LogLevel.Information))
+        {
+            var dataInicial = reprocessamento.DataInicial.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+            var dataFinal = reprocessamento.DataFinal.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+            LogReprocessamentoProcessed(
+                _logger,
+                reprocessamento.Id,
+                reprocessamento.MerchantId,
+                dataInicial,
+                dataFinal,
+                previousStatus,
+                reprocessamento.Status,
+                entries.Count,
+                entries.Count,
+                stopwatch.ElapsedMilliseconds);
+        }
     }
 
     private async Task MarkRejectedAsync(Guid reprocessamentoId, string reason, CancellationToken cancellationToken)
@@ -177,10 +199,7 @@ public sealed class ProcessarReprocessamentoLancamentosHandler
 
         await transaction.CommitAsync(cancellationToken);
         _metrics?.RecordReprocessRequestProcessed("rejected");
-        _logger.LogWarning(
-            "Reprocessamento rejeitado. reprocessamentoId={ReprocessamentoId} motivo={Motivo}",
-            reprocessamentoId,
-            reason);
+        LogReprocessamentoRejected(_logger, reprocessamentoId, reason);
     }
 
     private async Task MarkFailedAsync(Guid reprocessamentoId, string reason, CancellationToken cancellationToken)

@@ -87,6 +87,39 @@ public sealed class TransferenciaSagaProcessorServiceTests
     }
 
     [Fact]
+    public async Task ProcessOnceAsync_should_continue_with_next_saga_after_unexpected_failure_Async()
+    {
+        var fixture = new WorkerFixture();
+        var failedSaga = fixture.AddSaga();
+        var completedSaga = fixture.AddSaga();
+        fixture.Ledger.FailNextLancamento(new InvalidOperationException("Unexpected persistence or dependency failure."));
+        fixture.Ledger.EnqueueLancamento(Guid.NewGuid());
+        fixture.Ledger.EnqueueLancamento(Guid.NewGuid());
+
+        await fixture.SagaProcessor.ProcessOnceAsync(TestContext.Current.CancellationToken);
+
+        fixture.Db.ChangeTracker.Clear();
+        var storedFailedSaga = await fixture.Db.TransferenciasSagas.SingleAsync(
+            x => x.Id == failedSaga.Id,
+            TestContext.Current.CancellationToken);
+        var storedCompletedSaga = await fixture.Db.TransferenciasSagas.SingleAsync(
+            x => x.Id == completedSaga.Id,
+            TestContext.Current.CancellationToken);
+        Assert.Equal(TransferenciaSagaStatus.DebitCreating, storedFailedSaga.Status);
+        Assert.Equal(TransferenciaSagaStatus.Completed, storedCompletedSaga.Status);
+    }
+
+    [Fact]
+    public async Task ProcessOnceAsync_should_respect_cancelled_token_Async()
+    {
+        var fixture = new WorkerFixture();
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => fixture.SagaProcessor.ProcessOnceAsync(cts.Token));
+    }
+
+    [Fact]
     public async Task ProcessOnceAsync_should_not_duplicate_debit_when_retrying_after_debit_created_Async()
     {
         var fixture = new WorkerFixture();

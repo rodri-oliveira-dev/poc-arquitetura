@@ -1,9 +1,5 @@
-using System.Text.Json;
+using ApiDefaults.Middlewares;
 
-using FluentValidation;
-
-using Microsoft.AspNetCore.Diagnostics;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 using Npgsql;
@@ -14,96 +10,23 @@ using TransferService.Domain.Exceptions;
 
 namespace TransferService.Api.Middlewares;
 
-public sealed class GlobalExceptionHandler : IExceptionHandler
+public sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger)
+    : GlobalExceptionHandlerBase<GlobalExceptionHandler, ValidationErrorResponse>(
+        logger,
+        ValidationErrorResponseFactory.Create,
+        ValidationErrorResponseFactory.Create)
 {
-    private static readonly Action<ILogger, string, Exception?> LogHandled =
-        LoggerMessage.Define<string>(
-            LogLevel.Warning,
-            new EventId(1, nameof(LogHandled)),
-            "Excecao tratada. TraceId: {TraceId}");
+    protected override bool IsHandledException(Exception exception)
+        => exception is FluentValidation.ValidationException or ForbiddenException or ConflictException or NotFoundException or DomainException
+            || IsTransferUniqueViolation(exception);
 
-    private static readonly Action<ILogger, string, Exception?> LogUnhandled =
-        LoggerMessage.Define<string>(
-            LogLevel.Error,
-            new EventId(2, nameof(LogUnhandled)),
-            "Erro nao tratado. TraceId: {TraceId}");
-
-    private readonly ILogger<GlobalExceptionHandler> _logger;
-
-    public GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger)
+    protected override (int statusCode, string title, string detail) MapException(Exception exception)
     {
-        ArgumentNullException.ThrowIfNull(logger);
-
-        _logger = logger;
-    }
-
-    public async ValueTask<bool> TryHandleAsync(
-        HttpContext httpContext,
-        Exception exception,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(httpContext);
         ArgumentNullException.ThrowIfNull(exception);
 
-        LogHandledException(exception, httpContext.TraceIdentifier);
-
-        var (statusCode, title, detail) = MapException(exception);
-
-        if (exception is ValidationException validationException)
-        {
-            var validationResponse = ValidationErrorResponseFactory.Create(httpContext, validationException);
-
-            httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
-            await httpContext.Response.WriteAsJsonAsync(validationResponse, cancellationToken);
-            return true;
-        }
-
-        if (IsJsonRequestException(exception))
-        {
-            var validationResponse = ValidationErrorResponseFactory.Create(
-                httpContext,
-                "$",
-                "Request body must be valid JSON.");
-
-            httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
-            await httpContext.Response.WriteAsJsonAsync(validationResponse, cancellationToken);
-            return true;
-        }
-
-        var problemDetails = new ProblemDetails
-        {
-            Title = title,
-            Detail = detail,
-            Status = statusCode,
-            Type = $"https://httpstatuses.com/{statusCode}",
-            Instance = httpContext.Request.Path
-        };
-
-        problemDetails.Extensions["traceId"] = httpContext.TraceIdentifier;
-
-        httpContext.Response.StatusCode = statusCode;
-        await httpContext.Response.WriteAsJsonAsync(problemDetails, cancellationToken);
-
-        return true;
-    }
-
-    private void LogHandledException(Exception exception, string traceId)
-    {
-        if (exception is ValidationException or ForbiddenException or ConflictException or NotFoundException or DomainException
-            || IsTransferUniqueViolation(exception))
-        {
-            LogHandled(_logger, traceId, exception);
-            return;
-        }
-
-        LogUnhandled(_logger, traceId, exception);
-    }
-
-    private static (int statusCode, string title, string detail) MapException(Exception exception)
-    {
         return exception switch
         {
-            ValidationException => (StatusCodes.Status400BadRequest, "Invalid request", "One or more validation errors occurred."),
+            FluentValidation.ValidationException => (StatusCodes.Status400BadRequest, "Invalid request", "One or more validation errors occurred."),
             ForbiddenException => (StatusCodes.Status403Forbidden, "Forbidden", exception.Message),
             ConflictException => (StatusCodes.Status409Conflict, "Conflict", exception.Message),
             _ when IsTransferUniqueViolation(exception) => (
@@ -123,8 +46,4 @@ public sealed class GlobalExceptionHandler : IExceptionHandler
                 postgresException.ConstraintName,
                 "ux_transfer_idempotency_source_key",
                 StringComparison.Ordinal);
-
-    private static bool IsJsonRequestException(Exception exception)
-        => exception is JsonException or BadHttpRequestException ||
-            (exception.InnerException is not null && IsJsonRequestException(exception.InnerException));
 }

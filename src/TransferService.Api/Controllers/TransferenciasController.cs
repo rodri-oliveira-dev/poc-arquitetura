@@ -1,6 +1,6 @@
-using Asp.Versioning;
-
 using ApiDefaults.Middlewares;
+
+using Asp.Versioning;
 
 using MediatR;
 
@@ -21,22 +21,17 @@ namespace TransferService.Api.Controllers;
 [ApiController]
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/transferencias")]
-public sealed class TransferenciasController : ControllerBase
+public sealed class TransferenciasController(
+    IMerchantAuthorizationService merchantAuthorizationService,
+    ISender sender) : ControllerBase
 {
-    private readonly IMerchantAuthorizationService _merchantAuthorizationService;
-    private readonly ISender _sender;
-
-    public TransferenciasController(
-        IMerchantAuthorizationService merchantAuthorizationService,
-        ISender sender)
-    {
-        _merchantAuthorizationService = merchantAuthorizationService;
-        _sender = sender;
-    }
+    private readonly IMerchantAuthorizationService _merchantAuthorizationService = merchantAuthorizationService;
+    private readonly ISender _sender = sender;
 
     [HttpPost]
     [Authorize(Policy = ScopePolicies.TransferWritePolicy)]
     [SwaggerOperation(
+        OperationId = "SolicitarTransferencia",
         Summary = "Solicita uma transferencia entre merchants.",
         Description = "Registra uma saga de transferencia com status Pending e grava a intencao no Outbox para processamento assincrono posterior. O endpoint exige Idempotency-Key e retorna 202 Accepted.")]
     [SwaggerResponse(StatusCodes.Status202Accepted, "Solicitacao aceita para processamento assincrono. Retorna Location com a URI de status.", typeof(SolicitarTransferenciaResponse))]
@@ -74,6 +69,7 @@ public sealed class TransferenciasController : ControllerBase
     [HttpGet("{transferenciaId:guid}")]
     [Authorize(Policy = ScopePolicies.TransferReadPolicy)]
     [SwaggerOperation(
+        OperationId = "ObterStatusTransferencia",
         Summary = "Consulta status de uma transferencia.",
         Description = "Retorna o estado atual da saga de transferencia registrada previamente. O processamento da transferencia e assincrono e pode evoluir apos a resposta do endpoint de criacao.")]
     [SwaggerResponse(StatusCodes.Status200OK, "Status da transferencia.", typeof(ObterStatusTransferenciaResponse))]

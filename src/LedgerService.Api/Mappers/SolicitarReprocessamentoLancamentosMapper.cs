@@ -11,7 +11,10 @@ public static class SolicitarReprocessamentoLancamentosMapper
         string idempotencyKey,
         string correlationId,
         IReadOnlyCollection<string> authorizedMerchantIds)
-        => new(
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return new(
             request.MerchantId,
             request.DataInicial,
             request.DataFinal,
@@ -19,14 +22,19 @@ public static class SolicitarReprocessamentoLancamentosMapper
             idempotencyKey,
             correlationId,
             authorizedMerchantIds);
+    }
 
     public static SolicitarReprocessamentoLancamentosResponse ToResponse(
         SolicitarReprocessamentoLancamentosResult result)
-        => new(
+    {
+        ArgumentNullException.ThrowIfNull(result);
+
+        return new(
             result.ReprocessamentoId,
             result.MerchantId,
             result.DataInicial,
             result.DataFinal,
             result.Status,
             result.StatusUrl);
+    }
 }

@@ -14,6 +14,9 @@ public sealed class AuthorizeOperationFilter : IOperationFilter
 {
     public void Apply(OpenApiOperation operation, OperationFilterContext context)
     {
+        ArgumentNullException.ThrowIfNull(operation);
+        ArgumentNullException.ThrowIfNull(context);
+
         // Se AllowAnonymous estiver presente, não aplicar autenticação.
         var hasAllowAnonymous = context.MethodInfo
             .GetCustomAttributes(true)
@@ -36,7 +39,7 @@ public sealed class AuthorizeOperationFilter : IOperationFilter
         operation.Security ??= [];
         operation.Security.Add(new OpenApiSecurityRequirement
         {
-            [new OpenApiSecuritySchemeReference("Bearer", null!)] = []
+            [new OpenApiSecuritySchemeReference("Bearer", context.Document)] = []
         });
 
         // Documenta policy/scope esperado
@@ -68,9 +71,6 @@ public sealed class AuthorizeOperationFilter : IOperationFilter
     private static string? MapPolicyToScope(string policy)
     {
         // Padrão adotado no projeto: "scope:{scopeName}"
-        if (policy.StartsWith("scope:", StringComparison.Ordinal))
-            return policy["scope:".Length..];
-
-        return null;
+        return policy.StartsWith("scope:", StringComparison.Ordinal) ? policy["scope:".Length..] : null;
     }
 }

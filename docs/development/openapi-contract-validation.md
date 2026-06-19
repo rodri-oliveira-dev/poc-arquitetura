@@ -8,6 +8,7 @@ Os contratos ficam em:
 
 - `docs/openapi/ledger.v1.json`
 - `docs/openapi/balance.v1.json`
+- `docs/openapi/transfer.v1.json`
 
 Eles sao gerados a partir dos assemblies Release das APIs, usando o documento Swagger `v1`. A geracao nao sobe Docker, nao chama endpoints HTTP e usa valores sinteticos de ambiente apenas para inicializar os hosts em modo OpenAPI.
 
@@ -36,6 +37,13 @@ npm run openapi:lint
 ```
 
 As APIs lintadas sao declaradas em `redocly.yaml`. Algumas regras continuam como warning para evitar transformar todos os avisos em bloqueios. O objetivo do lint e manter qualidade estrutural e legibilidade do contrato sem substituir testes ou revisao de compatibilidade.
+
+Algumas regras do preset recomendado ficam desabilitadas por decisao explicita da POC:
+
+- `info-license`: o repositorio nao declara uma licenca publica; o contrato nao deve inventar uma.
+- `no-server-example.com`: os contratos versionados documentam os endpoints locais diretos usados pelos scripts e pela stack de desenvolvimento.
+- `no-ambiguous-paths`: o Ledger usa constraints `guid` em rotas ASP.NET Core; essas constraints removem a ambiguidade em runtime, mas nao sao expressaveis no path OpenAPI.
+- `operation-4xx-response`: endpoints de negocio devem declarar respostas 4xx relevantes; `/health` e `/ready` sao endpoints operacionais publicos e leves, sem 4xx artificial apenas para satisfazer lint.
 
 ## Diff contra a main
 

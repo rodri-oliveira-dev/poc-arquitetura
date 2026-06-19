@@ -12,6 +12,8 @@ public sealed class HealthEndpointTests : IClassFixture<BalanceApiFactory>
 
     public HealthEndpointTests(BalanceApiFactory factory)
     {
+        ArgumentNullException.ThrowIfNull(factory);
+
         _factory = factory;
         _client = factory.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
         {

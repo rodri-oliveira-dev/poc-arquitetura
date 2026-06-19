@@ -9,6 +9,8 @@ public sealed class EstornoLancamentoConfiguration : IEntityTypeConfiguration<Es
 {
     public void Configure(EntityTypeBuilder<EstornoLancamento> builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.ToTable("estornos_lancamentos");
 
         builder.HasKey(x => x.Id);

@@ -12,39 +12,6 @@
     }
   ],
   "paths": {
-    "/health": {
-      "get": {
-        "tags": [
-          "BalanceService.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
-        ],
-        "summary": "Health check simples",
-        "description": "Retorna 200 com body 'ok'. Endpoint publico para liveness simples.",
-        "operationId": "Health",
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/ready": {
-      "get": {
-        "tags": [
-          "BalanceService.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
-        ],
-        "summary": "Readiness check",
-        "description": "Valida dependencias necessarias para aceitar trafego HTTP: banco.",
-        "operationId": "Ready",
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "503": {
-            "description": "Service Unavailable"
-          }
-        }
-      }
-    },
     "/api/v1/consolidados/diario/{date}": {
       "get": {
         "tags": [
@@ -52,6 +19,7 @@
         ],
         "summary": "Consulta o consolidado diário.",
         "description": "Retorna o consolidado diário derivado de `daily_balances` para um `merchantId` e uma data. Quando não há dados, a API responde `200` com totais zerados.\n\n<b>Autorização</b>: requer scope(s): <c>balance.read</c>. (claim <c>scope</c> do JWT)",
+        "operationId": "GetDailyBalance",
         "parameters": [
           {
             "name": "date",
@@ -170,7 +138,9 @@
           }
         },
         "security": [
-          { }
+          {
+            "Bearer": [ ]
+          }
         ]
       }
     },
@@ -181,6 +151,7 @@
         ],
         "summary": "Consulta o consolidado por período.",
         "description": "Retorna o agregado do período e os itens diários derivados de `daily_balances`. O intervalo máximo padrão é 31 dias, configurável por `ApiLimits:MaxBalancePeriodDays`. Quando não há dados, a API responde `200` com totais zerados e lista vazia.\n\n<b>Autorização</b>: requer scope(s): <c>balance.read</c>. (claim <c>scope</c> do JWT)",
+        "operationId": "GetPeriodBalance",
         "parameters": [
           {
             "name": "from",
@@ -322,8 +293,45 @@
           }
         },
         "security": [
-          { }
+          {
+            "Bearer": [ ]
+          }
         ]
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "Operacional"
+        ],
+        "summary": "Health check simples",
+        "description": "Retorna 200 com body 'ok'. Endpoint publico para liveness simples.",
+        "operationId": "Health",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [ ]
+      }
+    },
+    "/ready": {
+      "get": {
+        "tags": [
+          "Operacional"
+        ],
+        "summary": "Readiness check",
+        "description": "Valida dependencias necessarias para aceitar trafego HTTP: banco.",
+        "operationId": "Ready",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "503": {
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [ ]
       }
     }
   },
@@ -561,12 +569,6 @@
       }
     },
     "securitySchemes": {
-      "X-Correlation-Id": {
-        "type": "apiKey",
-        "description": "Identificador de correlacao (UUID). Se nao for enviado, a API gera um novo e o retorna no header de response.",
-        "name": "X-Correlation-Id",
-        "in": "header"
-      },
       "Bearer": {
         "type": "http",
         "description": "Autenticacao via JWT Bearer. Obtenha um token no Keycloak local e informe: Bearer {token}.\n\nScopes relevantes nesta API: balance.read (leitura) / balance.write (escrita - TODO se/when existirem endpoints de escrita).",
@@ -577,10 +579,12 @@
   },
   "tags": [
     {
-      "name": "BalanceService.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
+      "name": "Consolidados",
+      "description": "Consultas protegidas de saldo consolidado diario e por periodo."
     },
     {
-      "name": "Consolidados"
+      "name": "Operacional",
+      "description": "Endpoints operacionais publicos de liveness e readiness."
     }
   ]
 }

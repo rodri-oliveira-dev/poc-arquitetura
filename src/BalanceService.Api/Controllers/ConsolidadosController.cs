@@ -1,11 +1,12 @@
 using System.Diagnostics;
 using System.Globalization;
 
+using ApiDefaults.Middlewares;
+
 using Asp.Versioning;
 
 using BalanceService.Api.Contracts;
 using BalanceService.Api.Mappers;
-using ApiDefaults.Middlewares;
 using BalanceService.Api.Options;
 using BalanceService.Api.Security;
 
@@ -35,6 +36,8 @@ public sealed class ConsolidadosController : ControllerBase
         IMerchantAuthorizationService merchantAuthorizationService,
         IOptions<ApiLimitsOptions> apiLimitsOptions)
     {
+        ArgumentNullException.ThrowIfNull(apiLimitsOptions);
+
         _sender = sender;
         _merchantAuthorizationService = merchantAuthorizationService;
         _apiLimitsOptions = apiLimitsOptions.Value;
@@ -43,6 +46,7 @@ public sealed class ConsolidadosController : ControllerBase
     [HttpGet("diario/{date}")]
     [Authorize(Policy = ScopePolicies.BalanceReadPolicy)]
     [SwaggerOperation(
+        OperationId = "GetDailyBalance",
         Summary = "Consulta o consolidado diário.",
         Description = "Retorna o consolidado diário derivado de `daily_balances` para um `merchantId` e uma data. Quando não há dados, a API responde `200` com totais zerados.")]
     [SwaggerResponse(StatusCodes.Status200OK, "Consolidado diário encontrado.", typeof(DailyBalanceResponse))]
@@ -75,6 +79,7 @@ public sealed class ConsolidadosController : ControllerBase
     [HttpGet("periodo")]
     [Authorize(Policy = ScopePolicies.BalanceReadPolicy)]
     [SwaggerOperation(
+        OperationId = "GetPeriodBalance",
         Summary = "Consulta o consolidado por período.",
         Description = "Retorna o agregado do período e os itens diários derivados de `daily_balances`. O intervalo máximo padrão é 31 dias, configurável por `ApiLimits:MaxBalancePeriodDays`. Quando não há dados, a API responde `200` com totais zerados e lista vazia.")]
     [SwaggerResponse(StatusCodes.Status200OK, "Consolidado por período encontrado.", typeof(PeriodBalanceResponse))]

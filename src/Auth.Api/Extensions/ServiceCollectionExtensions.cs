@@ -1,8 +1,8 @@
+using Auth.Api.Middlewares;
 using Auth.Api.Observability;
 using Auth.Api.Options;
 using Auth.Api.Security;
 using Auth.Api.Swagger;
-using Auth.Api.Middlewares;
 
 using Microsoft.AspNetCore.HttpOverrides;
 
@@ -19,6 +19,9 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddAuthApiServices(this IServiceCollection services, IConfiguration configuration)
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
+
         services
             .AddAuthApiHardening()
             .AddAuthApiOptions(configuration)
@@ -31,6 +34,8 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddAuthApiHardening(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.AddExceptionHandler<GlobalExceptionHandler>();
         services.AddProblemDetails();
         services.Configure<ForwardedHeadersOptions>(options =>
@@ -53,6 +58,9 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddAuthApiOptions(this IServiceCollection services, IConfiguration configuration)
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
+
         services.AddOptions<AuthOptions>()
             .Bind(configuration.GetSection(AuthOptions.SectionName))
             .Validate(options => !string.IsNullOrWhiteSpace(options.DevelopmentUser.Username), "Auth:DevelopmentUser:Username deve ser configurado.")
@@ -64,6 +72,8 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddAuthApiSecurity(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.AddSingleton<IRsaKeyProvider, FileBackedRsaKeyProvider>();
         services.AddSingleton<IJwtIssuer, JwtIssuer>();
 
@@ -75,6 +85,9 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddAuthApiObservability(this IServiceCollection services, IConfiguration configuration)
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
+
         services.AddOptions<OpenTelemetryOptions>()
             .Bind(configuration.GetSection(OpenTelemetryOptions.SectionName));
 

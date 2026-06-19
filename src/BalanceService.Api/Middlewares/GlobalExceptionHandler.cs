@@ -1,97 +1,31 @@
-using FluentValidation;
+using ApiDefaults.Middlewares;
 
 using BalanceService.Api.Contracts;
 using BalanceService.Application.Common.Exceptions;
 using BalanceService.Domain.Exceptions;
 
-using Microsoft.AspNetCore.Diagnostics;
-using Microsoft.AspNetCore.Mvc;
-
-using System.Text.Json;
-
 namespace BalanceService.Api.Middlewares;
 
-public sealed class GlobalExceptionHandler : IExceptionHandler
+public sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger)
+    : GlobalExceptionHandlerBase<GlobalExceptionHandler, ValidationErrorResponse>(
+        logger,
+        ValidationErrorResponseFactory.Create,
+        ValidationErrorResponseFactory.Create)
 {
-    private readonly ILogger<GlobalExceptionHandler> _logger;
+    protected override bool IsHandledException(Exception exception)
+        => exception is FluentValidation.ValidationException or ConflictException or NotFoundException or DomainException;
 
-    public GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger)
+    protected override (int statusCode, string title, string detail) MapException(Exception exception)
     {
-        _logger = logger;
-    }
-
-    public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(httpContext);
         ArgumentNullException.ThrowIfNull(exception);
 
-        LogHandledException(exception, httpContext.TraceIdentifier);
-
-        var (statusCode, title, detail) = MapException(exception);
-
-        if (exception is ValidationException validationException)
-        {
-            var validationResponse = ValidationErrorResponseFactory.Create(httpContext, validationException);
-
-            httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
-            await httpContext.Response.WriteAsJsonAsync(validationResponse, cancellationToken);
-            return true;
-        }
-
-        if (IsJsonRequestException(exception))
-        {
-            var validationResponse = ValidationErrorResponseFactory.Create(
-                httpContext,
-                "$",
-                "Request body must be valid JSON.");
-
-            httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
-            await httpContext.Response.WriteAsJsonAsync(validationResponse, cancellationToken);
-            return true;
-        }
-
-        var problemDetails = new ProblemDetails
-        {
-            Title = title,
-            Detail = detail,
-            Status = statusCode,
-            Type = $"https://httpstatuses.com/{statusCode}",
-            Instance = httpContext.Request.Path
-        };
-
-        problemDetails.Extensions["traceId"] = httpContext.TraceIdentifier;
-
-        httpContext.Response.StatusCode = statusCode;
-        await httpContext.Response.WriteAsJsonAsync(problemDetails, cancellationToken);
-
-        return true;
-    }
-
-    private void LogHandledException(Exception exception, string traceId)
-    {
-        if (exception is ValidationException or ConflictException or NotFoundException or DomainException)
-        {
-            _logger.LogWarning(exception, "Exceção tratada. TraceId: {TraceId}", traceId);
-            return;
-        }
-
-        _logger.LogError(exception, "Erro não tratado. TraceId: {TraceId}", traceId);
-    }
-
-    private static (int statusCode, string title, string detail) MapException(Exception exception)
-    {
         return exception switch
         {
-            ValidationException => (StatusCodes.Status400BadRequest, "Invalid request", "One or more validation errors occurred."),
+            FluentValidation.ValidationException => (StatusCodes.Status400BadRequest, "Invalid request", "One or more validation errors occurred."),
             ConflictException => (StatusCodes.Status409Conflict, "Conflict", exception.Message),
             NotFoundException => (StatusCodes.Status404NotFound, "Recurso não encontrado", exception.Message),
             DomainException => (StatusCodes.Status422UnprocessableEntity, "Violação de regra de domínio", exception.Message),
             _ => (StatusCodes.Status500InternalServerError, "Erro interno", "Ocorreu um erro inesperado.")
         };
     }
-
-    private static bool IsJsonRequestException(Exception exception)
-        => exception is JsonException or BadHttpRequestException ||
-            exception.InnerException is not null && IsJsonRequestException(exception.InnerException);
-
 }

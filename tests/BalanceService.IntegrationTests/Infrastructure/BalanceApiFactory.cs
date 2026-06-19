@@ -1,4 +1,6 @@
 using BalanceService.Infrastructure.Persistence;
+using BalanceService.IntegrationTests.Infrastructure.Security;
+
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -8,7 +10,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
-using BalanceService.IntegrationTests.Infrastructure.Security;
 
 namespace BalanceService.IntegrationTests.Infrastructure;
 
@@ -22,6 +23,8 @@ public sealed class BalanceApiFactory : WebApplicationFactory<Program>
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.UseEnvironment("Test");
         builder.ConfigureLogging(logging =>
         {

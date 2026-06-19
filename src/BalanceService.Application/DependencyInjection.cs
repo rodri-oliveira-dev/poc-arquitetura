@@ -1,14 +1,13 @@
-using FluentValidation;
-
-using MediatR;
-
-using Microsoft.Extensions.DependencyInjection;
+using ApplicationDefaults.Behaviors;
 
 using BalanceService.Application.Abstractions.Time;
 using BalanceService.Application.Balances.Replay;
-using BalanceService.Application.Common.Behaviors;
 using BalanceService.Application.Common.Observability;
 using BalanceService.Application.Contracts.Events;
+
+using FluentValidation;
+
+using Microsoft.Extensions.DependencyInjection;
 
 namespace BalanceService.Application;
 

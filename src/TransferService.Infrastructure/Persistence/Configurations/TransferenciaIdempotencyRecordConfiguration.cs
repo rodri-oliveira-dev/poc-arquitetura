@@ -7,6 +7,8 @@ public sealed class TransferenciaIdempotencyRecordConfiguration : IEntityTypeCon
 {
     public void Configure(EntityTypeBuilder<TransferenciaIdempotencyRecord> builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.ToTable("idempotency_records");
 
         builder.HasKey(x => x.Id);

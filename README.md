@@ -91,6 +91,18 @@ dotnet build ./LedgerService.slnx --configuration Release --no-restore
 dotnet test ./LedgerService.slnx --configuration Release --no-build --settings ./coverlet.runsettings
 ```
 
+Crie primeiro as variaveis locais descartaveis:
+
+```powershell
+./scripts/init-env-local.ps1
+```
+
+No Linux/macOS:
+
+```bash
+./scripts/init-env-local.sh
+```
+
 Suba o core funcional local no Windows:
 
 ```powershell

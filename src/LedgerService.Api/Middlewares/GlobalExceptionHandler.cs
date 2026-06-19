@@ -1,93 +1,32 @@
-using FluentValidation;
+using ApiDefaults.Middlewares;
 
-using LedgerService.Api.Contracts.Requests;
 using LedgerService.Api.Contracts.Responses;
 using LedgerService.Application.Common.Exceptions;
 using LedgerService.Domain.Exceptions;
 
-using Microsoft.AspNetCore.Diagnostics;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 using Npgsql;
 
-using System.Text.Json;
-
 namespace LedgerService.Api.Middlewares;
 
-public sealed class GlobalExceptionHandler : IExceptionHandler
+public sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger)
+    : GlobalExceptionHandlerBase<GlobalExceptionHandler, ValidationErrorResponse>(
+        logger,
+        ValidationErrorResponseFactory.Create,
+        ValidationErrorResponseFactory.Create)
 {
-    private readonly ILogger<GlobalExceptionHandler> _logger;
+    protected override bool IsHandledException(Exception exception)
+        => exception is FluentValidation.ValidationException or ForbiddenException or ConflictException or NotFoundException or DomainException
+            || IsEstornoActiveUniqueViolation(exception);
 
-    public GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger)
+    protected override (int statusCode, string title, string detail) MapException(Exception exception)
     {
-        _logger = logger;
-    }
-
-    public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(httpContext);
         ArgumentNullException.ThrowIfNull(exception);
 
-        LogHandledException(exception, httpContext.TraceIdentifier);
-
-        var (statusCode, title, detail) = MapException(exception);
-
-        if (exception is ValidationException validationException)
-        {
-            var validationResponse = ValidationErrorResponseFactory.Create(httpContext, validationException);
-
-            httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
-            await httpContext.Response.WriteAsJsonAsync(validationResponse, cancellationToken);
-            return true;
-        }
-
-        if (IsJsonRequestException(exception))
-        {
-            var validationResponse = ValidationErrorResponseFactory.Create(
-                httpContext,
-                "$",
-                "Request body must be valid JSON.");
-
-            httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
-            await httpContext.Response.WriteAsJsonAsync(validationResponse, cancellationToken);
-            return true;
-        }
-
-        var problemDetails = new ProblemDetails
-        {
-            Title = title,
-            Detail = detail,
-            Status = statusCode,
-            Type = $"https://httpstatuses.com/{statusCode}",
-            Instance = httpContext.Request.Path
-        };
-
-        problemDetails.Extensions["traceId"] = httpContext.TraceIdentifier;
-
-        httpContext.Response.StatusCode = statusCode;
-        await httpContext.Response.WriteAsJsonAsync(problemDetails, cancellationToken);
-
-        return true;
-    }
-
-    private void LogHandledException(Exception exception, string traceId)
-    {
-        if (exception is ValidationException or ForbiddenException or ConflictException or NotFoundException or DomainException
-            || IsEstornoActiveUniqueViolation(exception))
-        {
-            _logger.LogWarning(exception, "Excecao tratada. TraceId: {TraceId}", traceId);
-            return;
-        }
-
-        _logger.LogError(exception, "Erro nao tratado. TraceId: {TraceId}", traceId);
-    }
-
-    private static (int statusCode, string title, string detail) MapException(Exception exception)
-    {
         return exception switch
         {
-            ValidationException => (StatusCodes.Status400BadRequest, "Invalid request", "One or more validation errors occurred."),
+            FluentValidation.ValidationException => (StatusCodes.Status400BadRequest, "Invalid request", "One or more validation errors occurred."),
             ForbiddenException => (StatusCodes.Status403Forbidden, "Forbidden", exception.Message),
             ConflictException => (StatusCodes.Status409Conflict, "Conflict", exception.Message),
             _ when IsEstornoActiveUniqueViolation(exception) => (
@@ -107,9 +46,4 @@ public sealed class GlobalExceptionHandler : IExceptionHandler
                 postgresException.ConstraintName,
                 "ux_estornos_lancamentos_original_active",
                 StringComparison.Ordinal);
-
-    private static bool IsJsonRequestException(Exception exception)
-        => exception is JsonException or BadHttpRequestException ||
-            exception.InnerException is not null && IsJsonRequestException(exception.InnerException);
-
 }

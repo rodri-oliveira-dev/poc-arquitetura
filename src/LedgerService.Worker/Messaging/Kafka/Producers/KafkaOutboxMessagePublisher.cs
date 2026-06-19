@@ -9,17 +9,27 @@ using LedgerService.Worker.Messaging.Abstractions;
 using LedgerService.Worker.Messaging.Kafka.Configuration;
 using LedgerService.Worker.Messaging.Kafka.Tracing;
 
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace LedgerService.Worker.Messaging.Kafka.Producers;
 
-public sealed class KafkaOutboxMessagePublisher : IOutboxMessagePublisher, IDisposable
+public sealed partial class KafkaOutboxMessagePublisher : IOutboxMessagePublisher, IDisposable
 {
     private readonly KafkaProducerOptions _options;
     private readonly ILogger<KafkaOutboxMessagePublisher> _logger;
     private readonly OutboxMetrics _metrics;
     private readonly IProducer<string, string> _producer;
+
+    [LoggerMessage(EventId = 1, Level = LogLevel.Warning, Message = "Kafka producer error: {Reason} (IsFatal={IsFatal})")]
+    private static partial void LogKafkaProducerError(ILogger logger, string reason, bool isFatal);
+
+    [LoggerMessage(EventId = 2, Level = LogLevel.Debug, Message = "Kafka published outbox message {OutboxId} to {Topic} [partition={Partition}, offset={Offset}]")]
+    private static partial void LogKafkaOutboxMessagePublished(
+        ILogger logger,
+        Guid outboxId,
+        string topic,
+        int partition,
+        long offset);
 
     public KafkaOutboxMessagePublisher(
         IOptions<KafkaProducerOptions> options,
@@ -52,7 +62,7 @@ public sealed class KafkaOutboxMessagePublisher : IOutboxMessagePublisher, IDisp
         _producer = producer ?? new ProducerBuilder<string, string>(config)
             .SetErrorHandler((_, e) =>
             {
-                _logger.LogWarning("Kafka producer error: {Reason} (IsFatal={IsFatal})", e.Reason, e.IsFatal);
+                LogKafkaProducerError(_logger, e.Reason, e.IsFatal);
             })
             .Build();
     }
@@ -92,8 +102,8 @@ public sealed class KafkaOutboxMessagePublisher : IOutboxMessagePublisher, IDisp
             _metrics.RecordKafkaProducerMessagePublished(topic, message.EventType, "success");
             _metrics.RecordKafkaProducerPublishDuration(elapsedMilliseconds, topic, message.EventType, "success");
 
-            _logger.LogDebug(
-                "Kafka published outbox message {OutboxId} to {Topic} [partition={Partition}, offset={Offset}]",
+            LogKafkaOutboxMessagePublished(
+                _logger,
                 message.Id,
                 topic,
                 result.Partition.Value,

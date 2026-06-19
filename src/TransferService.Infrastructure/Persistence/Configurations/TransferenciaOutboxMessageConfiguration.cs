@@ -9,6 +9,8 @@ public sealed class TransferenciaOutboxMessageConfiguration : IEntityTypeConfigu
 {
     public void Configure(EntityTypeBuilder<TransferenciaOutboxMessage> builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.ToTable("outbox_messages");
 
         builder.HasKey(x => x.Id);

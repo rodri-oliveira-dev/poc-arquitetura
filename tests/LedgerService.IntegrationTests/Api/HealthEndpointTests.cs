@@ -12,6 +12,8 @@ public sealed class HealthEndpointTests : IClassFixture<LedgerApiFactory>
 
     public HealthEndpointTests(LedgerApiFactory factory)
     {
+        ArgumentNullException.ThrowIfNull(factory);
+
         _factory = factory;
         _client = factory.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
         {

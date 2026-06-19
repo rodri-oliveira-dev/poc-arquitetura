@@ -7,16 +7,14 @@ using BalanceService.Application.Common.Observability;
 
 using Microsoft.OpenApi;
 
-using OpenTelemetry.Metrics;
-using OpenTelemetry.Resources;
-using OpenTelemetry.Trace;
-
 namespace BalanceService.Api.Extensions;
 
 public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddApiSwagger(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         return services.AddApiSwaggerDefaults<ConfigureSwaggerOptions>(
             typeof(Program).Assembly,
             options =>
@@ -37,54 +35,19 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddApiObservability(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddOptions<OpenTelemetryOptions>()
-            .Bind(configuration.GetSection(OpenTelemetryOptions.SectionName));
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
 
-        OpenTelemetryOptions otelOptions = configuration.GetSection(OpenTelemetryOptions.SectionName).Get<OpenTelemetryOptions>()
-            ?? new OpenTelemetryOptions();
-
-        if (otelOptions.Enabled)
-        {
-            services.AddOpenTelemetry()
-                .ConfigureResource(resource => resource.AddService(otelOptions.ServiceName))
-                .WithTracing(tracing =>
-                {
-                    tracing
-                        .AddAspNetCoreInstrumentation()
-                        .AddHttpClientInstrumentation()
-                        .AddSource("BalanceService.Api")
-                        .AddSource("BalanceService.Application");
-
-                    if (otelOptions.UseConsoleExporter)
-                    {
-                        tracing.AddConsoleExporter();
-                    }
-
-                    if (!string.IsNullOrWhiteSpace(otelOptions.OtlpEndpoint))
-                    {
-                        tracing.AddOtlpExporter(options => options.Endpoint = new Uri(otelOptions.OtlpEndpoint));
-                    }
-                })
-                .WithMetrics(metrics =>
-                {
-                    metrics
-                        .AddAspNetCoreInstrumentation()
-                        .AddHttpClientInstrumentation()
-                        .AddRuntimeInstrumentation()
-                        .AddMeter(BalanceDomainMetrics.MeterName);
-
-                    if (otelOptions.UseConsoleExporter)
-                    {
-                        metrics.AddConsoleExporter();
-                    }
-
-                    if (!string.IsNullOrWhiteSpace(otelOptions.OtlpEndpoint))
-                    {
-                        metrics.AddOtlpExporter(options => options.Endpoint = new Uri(otelOptions.OtlpEndpoint));
-                    }
-                });
-        }
-
-        return services;
+        return services.AddConfiguredApiOpenTelemetryDefaults<OpenTelemetryOptions>(
+            configuration,
+            OpenTelemetryOptions.SectionName,
+            options => options.Enabled,
+            options => options.ServiceName,
+            options => options.UseConsoleExporter,
+            options => options.OtlpEndpoint,
+            tracing => tracing
+                .AddSource("BalanceService.Api")
+                .AddSource("BalanceService.Application"),
+            metrics => metrics.AddMeter(BalanceDomainMetrics.MeterName));
     }
 }

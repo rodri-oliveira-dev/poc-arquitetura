@@ -21,6 +21,8 @@ public sealed class ObterStatusReprocessamentoLancamentosHandler
         ObterStatusReprocessamentoLancamentosQuery request,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
+
         var reprocessamento = await _reprocessamentoRepository.GetByIdAsync(
             request.ReprocessamentoId,
             cancellationToken);

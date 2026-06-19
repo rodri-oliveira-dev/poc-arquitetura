@@ -13,9 +13,6 @@ using BalanceService.Worker.Observability;
 
 using MediatR;
 
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-
 namespace BalanceService.Worker.Messaging.Processors;
 
 public sealed partial class LedgerEntryCreatedMessageProcessor
@@ -29,6 +26,16 @@ public sealed partial class LedgerEntryCreatedMessageProcessor
     {
         UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow
     };
+
+    [LoggerMessage(EventId = 1, Level = LogLevel.Warning, Message = "Mensagem enviada para DLQ. provider={Provider} source={Source} partition={Partition} offset={Offset} reason={Reason}")]
+    private static partial void LogMessageSentToDlq(
+        ILogger logger,
+        Exception exception,
+        string provider,
+        string source,
+        string? partition,
+        string? offset,
+        string reason);
 
     private readonly IServiceProvider _serviceProvider;
     private readonly IDeadLetterPublisher _deadLetterPublisher;
@@ -164,9 +171,9 @@ public sealed partial class LedgerEntryCreatedMessageProcessor
 
         await _deadLetterPublisher.PublishAsync(message, cancellationToken);
 
-        _logger.LogWarning(
+        LogMessageSentToDlq(
+            _logger,
             exception,
-            "Mensagem enviada para DLQ. provider={Provider} source={Source} partition={Partition} offset={Offset} reason={Reason}",
             receivedMessage.Transport.Provider,
             receivedMessage.Transport.Source,
             receivedMessage.Transport.Partition,

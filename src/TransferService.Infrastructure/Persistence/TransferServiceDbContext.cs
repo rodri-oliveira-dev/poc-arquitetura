@@ -19,6 +19,8 @@ public sealed class TransferServiceDbContext : DbContext, IUnitOfWork
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        ArgumentNullException.ThrowIfNull(modelBuilder);
+
         modelBuilder.HasDefaultSchema("transfer");
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(TransferServiceDbContext).Assembly);
         base.OnModelCreating(modelBuilder);

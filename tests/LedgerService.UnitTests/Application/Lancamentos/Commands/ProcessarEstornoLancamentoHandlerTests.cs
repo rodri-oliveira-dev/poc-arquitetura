@@ -68,7 +68,7 @@ public sealed class ProcessarEstornoLancamentoHandlerTests
         await sut.Handle(new ProcessarEstornoLancamentoCommand(estorno.Id), CancellationToken.None);
         await sut.Handle(new ProcessarEstornoLancamentoCommand(estorno.Id), CancellationToken.None);
 
-        var compensatingEntry = Assert.Single(state.LedgerEntries.Where(x => x.ExternalReference == $"estorno:{original.Id:N}"));
+        var compensatingEntry = Assert.Single(state.LedgerEntries, x => x.ExternalReference == $"estorno:{original.Id:N}");
         Assert.Equal(50m, compensatingEntry.Amount);
         Assert.Single(state.OutboxMessages);
         Assert.Equal(EstornoLancamentoStatus.Completed, estorno.Status);

@@ -12,17 +12,25 @@ public static class SolicitarEstornoLancamentoMapper
         string idempotencyKey,
         string correlationId,
         IReadOnlyCollection<string> authorizedMerchantIds)
-        => new(
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return new(
             lancamentoId,
             request.Motivo,
             idempotencyKey,
             correlationId,
             authorizedMerchantIds);
+    }
 
     public static SolicitarEstornoLancamentoResponse ToResponse(SolicitarEstornoLancamentoResult result)
-        => new(
+    {
+        ArgumentNullException.ThrowIfNull(result);
+
+        return new(
             result.EstornoId,
             result.LancamentoOriginalId,
             result.Status,
             result.StatusUrl);
+    }
 }

@@ -1,7 +1,7 @@
-using Microsoft.EntityFrameworkCore;
-
 using LedgerService.Domain.Entities;
 using LedgerService.Domain.Repositories;
+
+using Microsoft.EntityFrameworkCore;
 
 namespace LedgerService.Infrastructure.Persistence;
 
@@ -19,6 +19,8 @@ public sealed class AppDbContext : DbContext, IUnitOfWork
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        ArgumentNullException.ThrowIfNull(modelBuilder);
+
         modelBuilder.HasDefaultSchema("ledger");
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
         base.OnModelCreating(modelBuilder);

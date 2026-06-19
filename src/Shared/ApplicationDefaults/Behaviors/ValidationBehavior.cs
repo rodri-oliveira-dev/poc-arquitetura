@@ -2,7 +2,7 @@ using FluentValidation;
 
 using MediatR;
 
-namespace TransferService.Application.Common.Behaviors;
+namespace ApplicationDefaults.Behaviors;
 
 public sealed class ValidationBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
     where TRequest : notnull
@@ -11,6 +11,8 @@ public sealed class ValidationBehavior<TRequest, TResponse> : IPipelineBehavior<
 
     public ValidationBehavior(IEnumerable<IValidator<TRequest>> validators)
     {
+        ArgumentNullException.ThrowIfNull(validators);
+
         _validators = validators;
     }
 
@@ -19,10 +21,13 @@ public sealed class ValidationBehavior<TRequest, TResponse> : IPipelineBehavior<
         RequestHandlerDelegate<TResponse> next,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(next);
 
         if (!_validators.Any())
+        {
             return await next(cancellationToken);
+        }
 
         var context = new ValidationContext<TRequest>(request);
         var validationResults = await Task.WhenAll(
@@ -33,9 +38,6 @@ public sealed class ValidationBehavior<TRequest, TResponse> : IPipelineBehavior<
             .Where(failure => failure is not null)
             .ToList();
 
-        if (failures.Count != 0)
-            throw new ValidationException(failures);
-
-        return await next(cancellationToken);
+        return failures.Count != 0 ? throw new ValidationException(failures) : await next(cancellationToken);
     }
 }

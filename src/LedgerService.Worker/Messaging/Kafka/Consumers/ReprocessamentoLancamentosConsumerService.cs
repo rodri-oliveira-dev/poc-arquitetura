@@ -3,17 +3,36 @@ using Confluent.Kafka;
 using LedgerService.Worker.Messaging.Kafka.Configuration;
 using LedgerService.Worker.Messaging.Processors;
 
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace LedgerService.Worker.Messaging.Kafka.Consumers;
 
-public sealed class ReprocessamentoLancamentosConsumerService : BackgroundService
+public sealed partial class ReprocessamentoLancamentosConsumerService : BackgroundService
 {
     private readonly ReprocessamentoLancamentosConsumerOptions _options;
     private readonly ReprocessamentoLancamentosMessageProcessor _messageProcessor;
     private readonly ILogger<ReprocessamentoLancamentosConsumerService> _logger;
+
+    [LoggerMessage(EventId = 1, Level = LogLevel.Warning, Message = "Kafka consumer de reprocessamento reportou erro: {Reason} (IsFatal={IsFatal})")]
+    private static partial void LogKafkaConsumerError(ILogger logger, string reason, bool isFatal);
+
+    [LoggerMessage(EventId = 2, Level = LogLevel.Information, Message = "Consumer de reprocessamento iniciado. groupId={GroupId} clientId={ClientId} topic={Topic}")]
+    private static partial void LogConsumerStarted(ILogger logger, string groupId, string clientId, string topic);
+
+    [LoggerMessage(EventId = 3, Level = LogLevel.Error, Message = "Falha ao consumir mensagem de reprocessamento.")]
+    private static partial void LogConsumeFailure(ILogger logger, Exception exception);
+
+    [LoggerMessage(EventId = 4, Level = LogLevel.Error, Message = "Falha ao processar mensagem de reprocessamento. provider={TransportProvider} source={TransportSource} partition={TransportPartition} offset={TransportOffset}")]
+    private static partial void LogKafkaProcessingFailure(ILogger logger, Exception exception, string transportProvider, string? transportSource, int? transportPartition, long? transportOffset);
+
+    [LoggerMessage(EventId = 5, Level = LogLevel.Error, Message = "Timeout ao processar mensagem de reprocessamento. provider={TransportProvider} source={TransportSource} partition={TransportPartition} offset={TransportOffset}")]
+    private static partial void LogKafkaProcessingTimeout(ILogger logger, Exception exception, string transportProvider, string? transportSource, int? transportPartition, long? transportOffset);
+
+    [LoggerMessage(EventId = 6, Level = LogLevel.Error, Message = "Falha inesperada ao processar mensagem de reprocessamento. provider={TransportProvider} source={TransportSource} partition={TransportPartition} offset={TransportOffset}")]
+    private static partial void LogUnexpectedKafkaProcessingFailure(ILogger logger, Exception exception, string transportProvider, string? transportSource, int? transportPartition, long? transportOffset);
+
+    [LoggerMessage(EventId = 7, Level = LogLevel.Information, Message = "Consumer de reprocessamento parado.")]
+    private static partial void LogConsumerStopped(ILogger logger);
 
     public ReprocessamentoLancamentosConsumerService(
         IOptions<ReprocessamentoLancamentosConsumerOptions> options,
@@ -44,19 +63,12 @@ public sealed class ReprocessamentoLancamentosConsumerService : BackgroundServic
         using var consumer = new ConsumerBuilder<string, string>(config)
             .SetErrorHandler((_, e) =>
             {
-                _logger.LogWarning(
-                    "Kafka consumer de reprocessamento reportou erro: {Reason} (IsFatal={IsFatal})",
-                    e.Reason,
-                    e.IsFatal);
+                LogKafkaConsumerError(_logger, e.Reason, e.IsFatal);
             })
             .Build();
 
         consumer.Subscribe(_options.Topic);
-        _logger.LogInformation(
-            "Consumer de reprocessamento iniciado. groupId={GroupId} clientId={ClientId} topic={Topic}",
-            _options.GroupId,
-            _options.ClientId,
-            _options.Topic);
+        LogConsumerStarted(_logger, _options.GroupId, _options.ClientId, _options.Topic);
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -73,7 +85,7 @@ public sealed class ReprocessamentoLancamentosConsumerService : BackgroundServic
             }
             catch (ConsumeException ex)
             {
-                _logger.LogError(ex, "Falha ao consumir mensagem de reprocessamento.");
+                LogConsumeFailure(_logger, ex);
                 await Task.Delay(_options.ConsumeErrorRetryDelay, stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -82,9 +94,9 @@ public sealed class ReprocessamentoLancamentosConsumerService : BackgroundServic
             }
             catch (KafkaException ex)
             {
-                _logger.LogError(
+                LogKafkaProcessingFailure(
+                    _logger,
                     ex,
-                    "Falha ao processar mensagem de reprocessamento. provider={TransportProvider} source={TransportSource} partition={TransportPartition} offset={TransportOffset}",
                     "kafka",
                     result?.Topic,
                     result?.Partition.Value,
@@ -93,9 +105,9 @@ public sealed class ReprocessamentoLancamentosConsumerService : BackgroundServic
             }
             catch (TimeoutException ex)
             {
-                _logger.LogError(
+                LogKafkaProcessingTimeout(
+                    _logger,
                     ex,
-                    "Timeout ao processar mensagem de reprocessamento. provider={TransportProvider} source={TransportSource} partition={TransportPartition} offset={TransportOffset}",
                     "kafka",
                     result?.Topic,
                     result?.Partition.Value,
@@ -104,9 +116,9 @@ public sealed class ReprocessamentoLancamentosConsumerService : BackgroundServic
             }
             catch (Exception ex)
             {
-                _logger.LogError(
+                LogUnexpectedKafkaProcessingFailure(
+                    _logger,
                     ex,
-                    "Falha inesperada ao processar mensagem de reprocessamento. provider={TransportProvider} source={TransportSource} partition={TransportPartition} offset={TransportOffset}",
                     "kafka",
                     result?.Topic,
                     result?.Partition.Value,
@@ -124,7 +136,7 @@ public sealed class ReprocessamentoLancamentosConsumerService : BackgroundServic
             // ignore shutdown errors
         }
 
-        _logger.LogInformation("Consumer de reprocessamento parado.");
+        LogConsumerStopped(_logger);
     }
 
     internal static void ValidateOptions(ReprocessamentoLancamentosConsumerOptions options)

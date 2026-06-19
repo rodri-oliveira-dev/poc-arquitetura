@@ -16,12 +16,26 @@ namespace Auth.Api.Security;
 /// - Se não existir: gera e salva.
 /// - O kid é estável e derivado do fingerprint SHA-256 do (modulus||exponent) da chave pública.
 /// </summary>
-public sealed class FileBackedRsaKeyProvider : IRsaKeyProvider, IDisposable
+public sealed partial class FileBackedRsaKeyProvider : IRsaKeyProvider, IDisposable
 {
+    private static readonly JsonSerializerOptions PersistJsonOptions = new()
+    {
+        WriteIndented = true
+    };
+
     private readonly ILogger<FileBackedRsaKeyProvider> _logger;
     private readonly AuthOptions _options;
 
     private readonly Lazy<State> _state;
+
+    [LoggerMessage(EventId = 1, Level = LogLevel.Information, Message = "Chave RSA carregada de {KeyPath}. kid={Kid}")]
+    private static partial void LogRsaKeyLoaded(ILogger logger, string keyPath, string kid);
+
+    [LoggerMessage(EventId = 2, Level = LogLevel.Error, Message = "Falha ao carregar chave RSA de {KeyPath}.")]
+    private static partial void LogRsaKeyLoadFailure(ILogger logger, Exception exception, string keyPath);
+
+    [LoggerMessage(EventId = 3, Level = LogLevel.Information, Message = "Nova chave RSA gerada e salva em {KeyPath}. kid={Kid}")]
+    private static partial void LogRsaKeyGenerated(ILogger logger, string keyPath, string kid);
 
     public FileBackedRsaKeyProvider(IOptions<AuthOptions> options, ILogger<FileBackedRsaKeyProvider> logger)
     {
@@ -77,7 +91,7 @@ public sealed class FileBackedRsaKeyProvider : IRsaKeyProvider, IDisposable
 
                 var kid = ComputeKid(publicKey);
 
-                _logger.LogInformation("Chave RSA carregada de {KeyPath}. kid={Kid}", keyPath, kid);
+                LogRsaKeyLoaded(_logger, keyPath, kid);
 
                 return new State(privateKey, publicKey, kid);
             }
@@ -85,7 +99,7 @@ public sealed class FileBackedRsaKeyProvider : IRsaKeyProvider, IDisposable
             {
                 // NÃO tentamos gerar uma chave nova silenciosamente para não quebrar tokens antigos.
                 // A falha deve ser explícita.
-                _logger.LogError(ex, "Falha ao carregar chave RSA de {KeyPath}.", keyPath);
+                LogRsaKeyLoadFailure(_logger, ex, keyPath);
                 throw;
             }
         }
@@ -96,7 +110,7 @@ public sealed class FileBackedRsaKeyProvider : IRsaKeyProvider, IDisposable
         var parameters = rsa.ExportParameters(includePrivateParameters: true);
         var toPersist = RsaKeyMaterial.FromParameters(parameters);
 
-        var persistJson = JsonSerializer.Serialize(toPersist, new JsonSerializerOptions { WriteIndented = true });
+        var persistJson = JsonSerializer.Serialize(toPersist, PersistJsonOptions);
         File.WriteAllText(keyPath, persistJson, Encoding.UTF8);
 
         // CA2000: as instâncias são mantidas vivas pelo provider (singleton) e
@@ -110,7 +124,7 @@ public sealed class FileBackedRsaKeyProvider : IRsaKeyProvider, IDisposable
 #pragma warning restore CA2000
 
         var newKid = ComputeKid(publicRsa);
-        _logger.LogInformation("Nova chave RSA gerada e salva em {KeyPath}. kid={Kid}", keyPath, newKid);
+        LogRsaKeyGenerated(_logger, keyPath, newKid);
 
         return new State(privateRsa, publicRsa, newKid);
     }
