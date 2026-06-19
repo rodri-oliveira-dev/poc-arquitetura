@@ -10,10 +10,10 @@ namespace ApiDefaults.Extensions;
 
 public static class JwtAuthenticationServiceCollectionExtensions
 {
-    private static readonly Action<ILogger, PathString, Exception?> LogAuthenticationFailed =
+    private static readonly Action<ILogger, PathString, Exception?> _logAuthenticationFailed =
         LoggerMessage.Define<PathString>(
             LogLevel.Warning,
-            new EventId(1, nameof(LogAuthenticationFailed)),
+            new EventId(1, "LogAuthenticationFailed"),
             "JWT authentication failed. path={Path}");
 
     public static IServiceCollection AddApiJwtBearerAuthentication(
@@ -119,7 +119,7 @@ public static class JwtAuthenticationServiceCollectionExtensions
                     .GetRequiredService<ILoggerFactory>()
                     .CreateLogger("Auth");
 
-                LogAuthenticationFailed(logger, context.HttpContext.Request.Path, context.Exception);
+                _logAuthenticationFailed(logger, context.HttpContext.Request.Path, context.Exception);
 
                 return Task.CompletedTask;
             }
@@ -193,23 +193,23 @@ public static class JwtAuthenticationServiceCollectionExtensions
         }
     }
 
-    private sealed class RetryableJwksDocumentRetriever(ApiJwtAuthenticationOptions options) : IDocumentRetriever
+    internal sealed class RetryableJwksDocumentRetriever(ApiJwtAuthenticationOptions options) : IDocumentRetriever
     {
-        private static readonly HttpClient Client = new();
+        private static readonly HttpClient _client = new();
         private readonly TimeSpan _baseDelay = TimeSpan.FromMilliseconds(Math.Max(1, options.JwksRetryBaseDelayMilliseconds));
         private readonly int _retryCount = Math.Max(0, options.JwksRetryCount);
         private readonly TimeSpan _timeout = TimeSpan.FromSeconds(Math.Max(1, options.JwksTimeoutSeconds));
 
         public async Task<string> GetDocumentAsync(string address, CancellationToken cancel)
         {
-            for (int attempt = 0; ; attempt++)
+            for (int attempt = 0; attempt <= _retryCount; attempt++)
             {
                 try
                 {
                     using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(cancel);
                     timeout.CancelAfter(_timeout);
 
-                    using HttpResponseMessage response = await Client.GetAsync(address, timeout.Token);
+                    using HttpResponseMessage response = await _client.GetAsync(address, timeout.Token);
                     response.EnsureSuccessStatusCode();
                     return await response.Content.ReadAsStringAsync(timeout.Token);
                 }
@@ -225,6 +225,8 @@ public static class JwtAuthenticationServiceCollectionExtensions
                     await Task.Delay(TimeSpan.FromMilliseconds(backoff), cancel);
                 }
             }
+
+            throw new InvalidOperationException("JWKS fetch retry loop completed without returning a document.");
         }
 
         private bool ShouldRetry(Exception exception, int attempt, CancellationToken cancellationToken)

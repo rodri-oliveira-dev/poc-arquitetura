@@ -5,6 +5,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="TransferService.IntegrationTests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Asp.Versioning.Mvc" />
     <PackageReference Include="Asp.Versioning.Mvc.ApiExplorer" />
     <PackageReference Include="FluentValidation" />
