@@ -18,7 +18,7 @@ public sealed class DependencyPolicyTests
             .Descendants("PackageVersion")
             .SingleOrDefault(element => (string?)element.Attribute("Include") == CryptographyXmlPackage);
         Assert.NotNull(packageVersion);
-        Assert.Equal("10.0.8", packageVersion!.Attribute("Version")!.Value);
+        Assert.Equal("10.0.9", packageVersion!.Attribute("Version")!.Value);
     }
 
     [Fact]
@@ -31,7 +31,7 @@ public sealed class DependencyPolicyTests
             .Descendants("PackageVersion")
             .SingleOrDefault(element => (string?)element.Attribute("Include") == OpenTelemetryApiPackage);
         Assert.NotNull(packageVersion);
-        Assert.Equal("1.15.3", packageVersion!.Attribute("Version")!.Value);
+        Assert.Equal("1.16.0", packageVersion!.Attribute("Version")!.Value);
     }
 
     [Fact]
@@ -44,7 +44,7 @@ public sealed class DependencyPolicyTests
             .Descendants("PackageVersion")
             .SingleOrDefault(element => (string?)element.Attribute("Include") == OpenTelemetryOtlpExporterPackage);
         Assert.NotNull(packageVersion);
-        Assert.NotNull(packageVersion!.Attribute("Version"));
+        Assert.NotNull(packageVersion.Attribute("Version"));
     }
 
     [Fact]
@@ -92,7 +92,7 @@ public sealed class DependencyPolicyTests
             .Descendants("PackageReference")
             .SingleOrDefault(element => (string?)element.Attribute("Include") == OpenTelemetryOtlpExporterPackage);
         Assert.NotNull(packageReference);
-        Assert.Null(packageReference!.Attribute("Version"));
+        Assert.Null(packageReference.Attribute("Version"));
     }
 
     private static DirectoryInfo GetRepositoryRoot()
@@ -100,8 +100,11 @@ public sealed class DependencyPolicyTests
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
 
         while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "LedgerService.slnx")))
+        {
             directory = directory.Parent;
+        }
+
         Assert.NotNull(directory);
-        return directory!;
+        return directory;
     }
 }
