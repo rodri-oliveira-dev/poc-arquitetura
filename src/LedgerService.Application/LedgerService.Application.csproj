@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <ProjectReference Include="..\Shared\ApplicationDefaults\ApplicationDefaults.csproj" />
     <ProjectReference Include="..\LedgerService.Domain\LedgerService.Domain.csproj" />
   </ItemGroup>
 
