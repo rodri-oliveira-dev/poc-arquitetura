@@ -37,7 +37,7 @@ public sealed class AuthorizeOperationFilter : IOperationFilter
         operation.Security ??= [];
         operation.Security.Add(new OpenApiSecurityRequirement
         {
-            [new OpenApiSecuritySchemeReference("Bearer", null!)] = []
+            [new OpenApiSecuritySchemeReference("Bearer", context.Document)] = []
         });
 
         var policies = authorizeAttributes
@@ -67,9 +67,6 @@ public sealed class AuthorizeOperationFilter : IOperationFilter
 
     private static string? MapPolicyToScope(string policy)
     {
-        if (policy.StartsWith("scope:", StringComparison.Ordinal))
-            return policy["scope:".Length..];
-
-        return null;
+        return policy.StartsWith("scope:", StringComparison.Ordinal) ? policy["scope:".Length..] : null;
     }
 }

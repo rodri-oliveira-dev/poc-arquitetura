@@ -1,16 +1,21 @@
+using ApiDefaults.Middlewares;
+
 using Asp.Versioning;
+
 using LedgerService.Api.Contracts.Requests;
 using LedgerService.Api.Contracts.Responses;
 using LedgerService.Api.Controllers.Binds;
 using LedgerService.Api.Mappers;
-using ApiDefaults.Middlewares;
 using LedgerService.Api.Security;
 using LedgerService.Application.Common.Models;
 using LedgerService.Application.Lancamentos.Commands;
 using LedgerService.Application.Lancamentos.Queries;
+
 using MediatR;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+
 using Swashbuckle.AspNetCore.Annotations;
 
 namespace LedgerService.Api.Controllers;
@@ -18,22 +23,17 @@ namespace LedgerService.Api.Controllers;
 [ApiController]
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/lancamentos")]
-public sealed class LancamentosController : ControllerBase
+public sealed class LancamentosController(
+    IMerchantAuthorizationService merchantAuthorizationService,
+    ISender sender) : ControllerBase
 {
-    private readonly IMerchantAuthorizationService _merchantAuthorizationService;
-    private readonly ISender _sender;
-
-    public LancamentosController(
-        IMerchantAuthorizationService merchantAuthorizationService,
-        ISender sender)
-    {
-        _merchantAuthorizationService = merchantAuthorizationService;
-        _sender = sender;
-    }
+    private readonly IMerchantAuthorizationService _merchantAuthorizationService = merchantAuthorizationService;
+    private readonly ISender _sender = sender;
 
     [HttpPost]
     [Authorize(Policy = ScopePolicies.LedgerWritePolicy)]
     [SwaggerOperation(
+        OperationId = "CreateLancamento",
         Summary = "Cria um lançamento no ledger.",
         Description = "Registra um lançamento CREDIT ou DEBIT. O endpoint exige `Idempotency-Key`, aceita `X-Correlation-Id` opcional, aplica limite de body configurável por `ApiLimits:MaxRequestBodySizeBytes` e retorna `409` quando a mesma chave de idempotência é reutilizada com payload diferente.")]
     [SwaggerResponse(StatusCodes.Status201Created, "Lançamento criado com sucesso. Retorna Location com a URI canônica do recurso.", typeof(LancamentoDto))]
@@ -72,6 +72,7 @@ public sealed class LancamentosController : ControllerBase
     [HttpPost("{lancamentoId:guid}/estornos")]
     [Authorize(Policy = ScopePolicies.LedgerWritePolicy)]
     [SwaggerOperation(
+        OperationId = "SolicitarEstornoLancamento",
         Summary = "Solicita estorno de um lancamento.",
         Description = "Registra uma solicitacao de estorno com status Pending e grava a intencao no Outbox para processamento assincrono posterior. O endpoint nao processa o estorno financeiro no request HTTP.")]
     [SwaggerResponse(StatusCodes.Status202Accepted, "Solicitacao aceita para processamento assincrono. Retorna Location com a URI futura de status.", typeof(SolicitarEstornoLancamentoResponse))]
@@ -114,6 +115,7 @@ public sealed class LancamentosController : ControllerBase
     [HttpPost("reprocessar")]
     [Authorize(Policy = ScopePolicies.LedgerWritePolicy)]
     [SwaggerOperation(
+        OperationId = "SolicitarReprocessamentoLancamentos",
         Summary = "Solicita reprocessamento de lancamentos.",
         Description = "Registra uma solicitacao de reprocessamento por merchant e periodo, com status Pending, e grava a intencao no Outbox para processamento assincrono posterior. O endpoint nao executa o reprocessamento no request HTTP.")]
     [SwaggerResponse(StatusCodes.Status202Accepted, "Solicitacao aceita para processamento assincrono. Retorna Location com a URI de status.", typeof(SolicitarReprocessamentoLancamentosResponse))]
@@ -152,6 +154,7 @@ public sealed class LancamentosController : ControllerBase
     [HttpGet("estornos/{estornoId:guid}")]
     [Authorize(Policy = ScopePolicies.LedgerReadPolicy)]
     [SwaggerOperation(
+        OperationId = "ObterStatusEstornoLancamento",
         Summary = "Consulta status de uma solicitacao de estorno.",
         Description = "Retorna o estado atual de uma solicitacao de estorno registrada previamente. O processamento do estorno e assincrono e pode evoluir apos a resposta do endpoint de criacao.")]
     [SwaggerResponse(StatusCodes.Status200OK, "Status da solicitacao de estorno.", typeof(ObterStatusEstornoLancamentoResponse))]
@@ -181,6 +184,7 @@ public sealed class LancamentosController : ControllerBase
     [HttpGet("reprocessamentos/{reprocessamentoId:guid}")]
     [Authorize(Policy = ScopePolicies.LedgerReadPolicy)]
     [SwaggerOperation(
+        OperationId = "ObterStatusReprocessamentoLancamentos",
         Summary = "Consulta status de uma solicitacao de reprocessamento.",
         Description = "Retorna o estado atual de uma solicitacao de reprocessamento registrada previamente. O processamento efetivo e assincrono e sera executado por fluxo de worker/background.")]
     [SwaggerResponse(StatusCodes.Status200OK, "Status da solicitacao de reprocessamento.", typeof(ObterStatusReprocessamentoLancamentosResponse))]

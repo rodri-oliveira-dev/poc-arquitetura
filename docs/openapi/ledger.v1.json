@@ -19,6 +19,7 @@
         ],
         "summary": "Cria um lançamento no ledger.",
         "description": "Registra um lançamento CREDIT ou DEBIT. O endpoint exige `Idempotency-Key`, aceita `X-Correlation-Id` opcional, aplica limite de body configurável por `ApiLimits:MaxRequestBodySizeBytes` e retorna `409` quando a mesma chave de idempotência é reutilizada com payload diferente.\n\n<b>Autorização</b>: requer scope(s): <c>ledger.write</c>. (claim <c>scope</c> do JWT)",
+        "operationId": "CreateLancamento",
         "parameters": [
           {
             "name": "Idempotency-Key",
@@ -218,7 +219,9 @@
           }
         },
         "security": [
-          { }
+          {
+            "Bearer": [ ]
+          }
         ]
       }
     },
@@ -229,6 +232,7 @@
         ],
         "summary": "Solicita estorno de um lancamento.",
         "description": "Registra uma solicitacao de estorno com status Pending e grava a intencao no Outbox para processamento assincrono posterior. O endpoint nao processa o estorno financeiro no request HTTP.\n\n<b>Autorização</b>: requer scope(s): <c>ledger.write</c>. (claim <c>scope</c> do JWT)",
+        "operationId": "SolicitarEstornoLancamento",
         "parameters": [
           {
             "name": "lancamentoId",
@@ -408,7 +412,9 @@
           }
         },
         "security": [
-          { }
+          {
+            "Bearer": [ ]
+          }
         ]
       }
     },
@@ -419,6 +425,7 @@
         ],
         "summary": "Solicita reprocessamento de lancamentos.",
         "description": "Registra uma solicitacao de reprocessamento por merchant e periodo, com status Pending, e grava a intencao no Outbox para processamento assincrono posterior. O endpoint nao executa o reprocessamento no request HTTP.\n\n<b>Autorização</b>: requer scope(s): <c>ledger.write</c>. (claim <c>scope</c> do JWT)",
+        "operationId": "SolicitarReprocessamentoLancamentos",
         "parameters": [
           {
             "name": "Idempotency-Key",
@@ -568,7 +575,9 @@
           }
         },
         "security": [
-          { }
+          {
+            "Bearer": [ ]
+          }
         ]
       }
     },
@@ -579,6 +588,7 @@
         ],
         "summary": "Consulta status de uma solicitacao de estorno.",
         "description": "Retorna o estado atual de uma solicitacao de estorno registrada previamente. O processamento do estorno e assincrono e pode evoluir apos a resposta do endpoint de criacao.\n\n<b>Autorização</b>: requer scope(s): <c>ledger.read</c>. (claim <c>scope</c> do JWT)",
+        "operationId": "ObterStatusEstornoLancamento",
         "parameters": [
           {
             "name": "estornoId",
@@ -663,7 +673,9 @@
           }
         },
         "security": [
-          { }
+          {
+            "Bearer": [ ]
+          }
         ]
       }
     },
@@ -674,6 +686,7 @@
         ],
         "summary": "Consulta status de uma solicitacao de reprocessamento.",
         "description": "Retorna o estado atual de uma solicitacao de reprocessamento registrada previamente. O processamento efetivo e assincrono e sera executado por fluxo de worker/background.\n\n<b>Autorização</b>: requer scope(s): <c>ledger.read</c>. (claim <c>scope</c> do JWT)",
+        "operationId": "ObterStatusReprocessamentoLancamentos",
         "parameters": [
           {
             "name": "reprocessamentoId",
@@ -758,14 +771,16 @@
           }
         },
         "security": [
-          { }
+          {
+            "Bearer": [ ]
+          }
         ]
       }
     },
     "/health": {
       "get": {
         "tags": [
-          "LedgerService.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
+          "Operacional"
         ],
         "summary": "Health check simples",
         "description": "Retorna 200 com body 'ok'. Endpoint publico para liveness simples.",
@@ -774,13 +789,14 @@
           "200": {
             "description": "OK"
           }
-        }
+        },
+        "security": [ ]
       }
     },
     "/ready": {
       "get": {
         "tags": [
-          "LedgerService.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
+          "Operacional"
         ],
         "summary": "Readiness check",
         "description": "Valida dependencias necessarias para aceitar trafego HTTP: banco.",
@@ -792,7 +808,8 @@
           "503": {
             "description": "Service Unavailable"
           }
-        }
+        },
+        "security": [ ]
       }
     },
     "/api/v1/outbox/dead-letters": {
@@ -802,6 +819,7 @@
         ],
         "summary": "Lista mensagens Outbox em Dead Letter.",
         "description": "Fluxo administrativo protegido para inspeção paginada de mensagens Outbox que excederam o limite de retries.\n\n<b>Autorização</b>: requer scope(s): <c>outbox.admin</c>. (claim <c>scope</c> do JWT)",
+        "operationId": "GetOutboxDeadLetters",
         "parameters": [
           {
             "name": "page",
@@ -872,7 +890,9 @@
           }
         },
         "security": [
-          { }
+          {
+            "Bearer": [ ]
+          }
         ]
       }
     },
@@ -883,6 +903,7 @@
         ],
         "summary": "Recoloca uma mensagem Outbox DeadLetter na fila de publicacao.",
         "description": "Fluxo administrativo protegido para recuperar uma mensagem Outbox envenenada. Apenas mensagens DeadLetter sao alteradas.\n\n<b>Autorização</b>: requer scope(s): <c>outbox.admin</c>. (claim <c>scope</c> do JWT)",
+        "operationId": "RequeueOutboxDeadLetter",
         "parameters": [
           {
             "name": "id",
@@ -985,7 +1006,9 @@
           }
         },
         "security": [
-          { }
+          {
+            "Bearer": [ ]
+          }
         ]
       }
     }
@@ -1406,18 +1429,6 @@
       }
     },
     "securitySchemes": {
-      "X-Correlation-Id": {
-        "type": "apiKey",
-        "description": "Identificador de correlacao (UUID). Se nao for enviado, a API gera um novo e o retorna no header de response.",
-        "name": "X-Correlation-Id",
-        "in": "header"
-      },
-      "Idempotency-Key": {
-        "type": "apiKey",
-        "description": "Chave de idempotencia (UUID). Requisicoes com a mesma chave e mesmo payload podem ser reprocessadas com replay da resposta. Se a mesma chave for usada com payload diferente, a API retorna 409.",
-        "name": "Idempotency-Key",
-        "in": "header"
-      },
       "Bearer": {
         "type": "http",
         "description": "Autenticacao via JWT Bearer. Obtenha um token no Keycloak local e informe: Bearer {token}.\n\nScopes relevantes nesta API: ledger.write (escrita) / ledger.read (leitura) / outbox.admin (administracao da DLQ do Outbox).",
@@ -1428,13 +1439,16 @@
   },
   "tags": [
     {
-      "name": "Lancamentos"
+      "name": "Lancamentos",
+      "description": "Operacoes de escrita, estorno, reprocessamento e consulta de status do ledger."
     },
     {
-      "name": "LedgerService.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
+      "name": "Operacional",
+      "description": "Endpoints operacionais publicos de liveness e readiness."
     },
     {
-      "name": "OutboxAdmin"
+      "name": "OutboxAdmin",
+      "description": "Operacoes administrativas protegidas para inspecao e recuperacao da DLQ do Outbox."
     }
   ]
 }

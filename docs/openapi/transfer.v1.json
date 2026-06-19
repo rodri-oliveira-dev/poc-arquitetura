@@ -12,6 +12,41 @@
     }
   ],
   "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "Operacional"
+        ],
+        "summary": "Health check simples",
+        "description": "Retorna 200 com body 'ok'. Endpoint publico para liveness simples.",
+        "operationId": "Health",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [ ]
+      }
+    },
+    "/ready": {
+      "get": {
+        "tags": [
+          "Operacional"
+        ],
+        "summary": "Readiness check",
+        "description": "Valida dependencias necessarias para aceitar trafego HTTP: banco.",
+        "operationId": "Ready",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "503": {
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [ ]
+      }
+    },
     "/api/v1/transferencias": {
       "post": {
         "tags": [
@@ -19,6 +54,7 @@
         ],
         "summary": "Solicita uma transferencia entre merchants.",
         "description": "Registra uma saga de transferencia com status Pending e grava a intencao no Outbox para processamento assincrono posterior. O endpoint exige Idempotency-Key e retorna 202 Accepted.\n\n<b>Autorizacao</b>: requer scope(s): <c>transfer.write</c>. (claim <c>scope</c> do JWT)",
+        "operationId": "SolicitarTransferencia",
         "parameters": [
           {
             "name": "Idempotency-Key",
@@ -188,7 +224,9 @@
           }
         },
         "security": [
-          { }
+          {
+            "Bearer": [ ]
+          }
         ]
       }
     },
@@ -199,6 +237,7 @@
         ],
         "summary": "Consulta status de uma transferencia.",
         "description": "Retorna o estado atual da saga de transferencia registrada previamente. O processamento da transferencia e assincrono e pode evoluir apos a resposta do endpoint de criacao.\n\n<b>Autorizacao</b>: requer scope(s): <c>transfer.read</c>. (claim <c>scope</c> do JWT)",
+        "operationId": "ObterStatusTransferencia",
         "parameters": [
           {
             "name": "transferenciaId",
@@ -283,41 +322,10 @@
           }
         },
         "security": [
-          { }
+          {
+            "Bearer": [ ]
+          }
         ]
-      }
-    },
-    "/health": {
-      "get": {
-        "tags": [
-          "TransferService.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
-        ],
-        "summary": "Health check simples",
-        "description": "Retorna 200 com body 'ok'. Endpoint publico para liveness simples.",
-        "operationId": "Health",
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/ready": {
-      "get": {
-        "tags": [
-          "TransferService.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
-        ],
-        "summary": "Readiness check",
-        "description": "Valida dependencias necessarias para aceitar trafego HTTP: banco.",
-        "operationId": "Ready",
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "503": {
-            "description": "Service Unavailable"
-          }
-        }
       }
     }
   },
@@ -483,18 +491,6 @@
       }
     },
     "securitySchemes": {
-      "X-Correlation-Id": {
-        "type": "apiKey",
-        "description": "Identificador de correlacao (UUID). Se nao for enviado, a API gera um novo e o retorna no header de response.",
-        "name": "X-Correlation-Id",
-        "in": "header"
-      },
-      "Idempotency-Key": {
-        "type": "apiKey",
-        "description": "Chave de idempotencia (UUID). Requisicoes com a mesma chave e mesmo payload retornam replay da resposta. Se a mesma chave for usada com payload diferente, a API retorna 409.",
-        "name": "Idempotency-Key",
-        "in": "header"
-      },
       "Bearer": {
         "type": "http",
         "description": "Autenticacao via JWT Bearer. Scopes relevantes nesta API: transfer.write (escrita) / transfer.read (leitura).",
@@ -505,10 +501,12 @@
   },
   "tags": [
     {
-      "name": "Transferencias"
+      "name": "Operacional",
+      "description": "Endpoints operacionais publicos de liveness e readiness."
     },
     {
-      "name": "TransferService.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
+      "name": "Transferencias",
+      "description": "Operacoes protegidas para solicitar transferencias e consultar o status da saga."
     }
   ]
 }

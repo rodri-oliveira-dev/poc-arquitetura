@@ -20,13 +20,6 @@ public static class ServiceCollectionExtensions
             options =>
             {
                 options.OperationFilter<LancamentosExamplesOperationFilter>();
-                options.AddSecurityDefinition("Idempotency-Key", new OpenApiSecurityScheme
-                {
-                    Name = "Idempotency-Key",
-                    Type = SecuritySchemeType.ApiKey,
-                    In = ParameterLocation.Header,
-                    Description = "Chave de idempotencia (UUID). Requisicoes com a mesma chave e mesmo payload podem ser reprocessadas com replay da resposta. Se a mesma chave for usada com payload diferente, a API retorna 409."
-                });
                 options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
                 {
                     Name = "Authorization",

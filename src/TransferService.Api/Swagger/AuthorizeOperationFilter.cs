@@ -36,7 +36,7 @@ public sealed class AuthorizeOperationFilter : IOperationFilter
         operation.Security ??= [];
         operation.Security.Add(new OpenApiSecurityRequirement
         {
-            [new OpenApiSecuritySchemeReference("Bearer", null!)] = []
+            [new OpenApiSecuritySchemeReference("Bearer", context.Document)] = []
         });
 
         var policies = authorizeAttributes

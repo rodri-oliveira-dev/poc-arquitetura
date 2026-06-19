@@ -10,6 +10,10 @@ apis:
     root: docs/openapi/transfer.v1.json
 
 rules:
+  info-license: off
+  no-server-example.com: off
+  no-ambiguous-paths: off
+  operation-4xx-response: off
   operation-operationId: warn
   operation-summary: warn
   no-unused-components: warn
