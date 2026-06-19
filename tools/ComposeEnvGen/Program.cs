@@ -1,5 +1,6 @@
 using System.Globalization;
 
+using YamlDotNet.Core;
 using YamlDotNet.RepresentationModel;
 
 namespace ComposeEnvGen;
@@ -35,7 +36,22 @@ internal static class Program
         {
             composeContent = File.ReadAllText(composePath);
         }
-        catch (Exception ex)
+        catch (IOException ex)
+        {
+            Console.Error.WriteLine($"[ComposeEnvGen] Falha ao ler '{composePath}': {ex.Message}");
+            return ExitCodes.ComposeReadFailed;
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            Console.Error.WriteLine($"[ComposeEnvGen] Falha ao ler '{composePath}': {ex.Message}");
+            return ExitCodes.ComposeReadFailed;
+        }
+        catch (ArgumentException ex)
+        {
+            Console.Error.WriteLine($"[ComposeEnvGen] Falha ao ler '{composePath}': {ex.Message}");
+            return ExitCodes.ComposeReadFailed;
+        }
+        catch (NotSupportedException ex)
         {
             Console.Error.WriteLine($"[ComposeEnvGen] Falha ao ler '{composePath}': {ex.Message}");
             return ExitCodes.ComposeReadFailed;
@@ -47,7 +63,7 @@ internal static class Program
             yaml = new YamlStream();
             yaml.Load(new StringReader(composeContent));
         }
-        catch (Exception ex)
+        catch (YamlException ex)
         {
             Console.Error.WriteLine($"[ComposeEnvGen] Falha ao parsear YAML: {ex.Message}");
             return ExitCodes.ComposeParseFailed;
@@ -155,7 +171,22 @@ internal static class Program
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outPath)) ?? ".");
             File.WriteAllLines(outPath, envLines.Select(l => EnvFile.EscapeValue(l)));
         }
-        catch (Exception ex)
+        catch (IOException ex)
+        {
+            Console.Error.WriteLine($"[ComposeEnvGen] Falha ao escrever '{outPath}': {ex.Message}");
+            return ExitCodes.OutputWriteFailed;
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            Console.Error.WriteLine($"[ComposeEnvGen] Falha ao escrever '{outPath}': {ex.Message}");
+            return ExitCodes.OutputWriteFailed;
+        }
+        catch (ArgumentException ex)
+        {
+            Console.Error.WriteLine($"[ComposeEnvGen] Falha ao escrever '{outPath}': {ex.Message}");
+            return ExitCodes.OutputWriteFailed;
+        }
+        catch (NotSupportedException ex)
         {
             Console.Error.WriteLine($"[ComposeEnvGen] Falha ao escrever '{outPath}': {ex.Message}");
             return ExitCodes.OutputWriteFailed;

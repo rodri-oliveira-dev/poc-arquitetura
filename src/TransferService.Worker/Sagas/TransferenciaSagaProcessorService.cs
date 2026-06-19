@@ -25,6 +25,11 @@ public sealed class TransferenciaSagaProcessorService(
     private readonly IClock _clock = clock;
     private readonly ILogger<TransferenciaSagaProcessorService> _logger = logger;
     private readonly string _lockOwner = $"{Environment.MachineName}:{Guid.NewGuid():N}";
+    private static readonly System.Diagnostics.Metrics.Meter _workerMeter = new("TransferService.Worker");
+    private static readonly System.Diagnostics.Metrics.Counter<long> _sagaProcessingErrors = _workerMeter.CreateCounter<long>(
+        "transfer.worker.saga.processing.errors",
+        unit: "1",
+        description: "Total de erros no processamento de Sagas de transferencia por classificacao.");
 
     private static readonly Action<ILogger, Exception?> _logUnhandledSagaProcessingError =
         LoggerMessage.Define(
@@ -57,10 +62,11 @@ public sealed class TransferenciaSagaProcessorService(
                 break;
             }
 #pragma warning disable CA1031
-            // Mantem o BackgroundService vivo; falhas especificas da Saga sao registradas e reprocessadas pelo proximo ciclo.
+            // Captura desconhecida intencional: protege o loop do BackgroundService; log e metrica preservam rastreabilidade operacional.
             catch (Exception ex)
 #pragma warning restore CA1031
             {
+                RecordSagaProcessingError("unknown_loop_failure");
                 _logUnhandledSagaProcessingError(_logger, ex);
             }
 
@@ -112,10 +118,11 @@ public sealed class TransferenciaSagaProcessorService(
             throw;
         }
 #pragma warning disable CA1031
-        // Isola uma Saga com falha inesperada para as demais continuarem no mesmo ciclo do worker.
+        // Captura desconhecida intencional: isola uma Saga com falha inesperada para as demais continuarem no mesmo ciclo.
         catch (Exception ex)
 #pragma warning restore CA1031
         {
+            RecordSagaProcessingError("unknown_saga_failure");
             _logHandledSagaProcessingError(_logger, sagaId, ex);
         }
     }
@@ -278,7 +285,15 @@ public sealed class TransferenciaSagaProcessorService(
             await outbox.WriteAsync(TransferenciaSagaEventFactory.TransferenciaCompensacaoSolicitada(saga, saga.CorrelationId, now), cancellationToken);
             await unitOfWork.SaveChangesAsync(cancellationToken);
         }
-        catch (Exception ex) when (ex is LedgerServiceException or HttpRequestException or TimeoutException)
+        catch (LedgerServiceException ex)
+        {
+            await RegisterRecoverableOrFinalFailureAsync(saga, outbox, unitOfWork, true, ex.ToString(), cancellationToken);
+        }
+        catch (HttpRequestException ex)
+        {
+            await RegisterRecoverableOrFinalFailureAsync(saga, outbox, unitOfWork, true, ex.ToString(), cancellationToken);
+        }
+        catch (TimeoutException ex)
         {
             await RegisterRecoverableOrFinalFailureAsync(saga, outbox, unitOfWork, true, ex.ToString(), cancellationToken);
         }
@@ -318,4 +333,9 @@ public sealed class TransferenciaSagaProcessorService(
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes($"transferencia:{sagaId:N}:{step}"));
         return new Guid(hash.AsSpan(0, 16)).ToString();
     }
+
+    private static void RecordSagaProcessingError(string classification)
+        => _sagaProcessingErrors.Add(
+            1,
+            new KeyValuePair<string, object?>("classification", classification));
 }

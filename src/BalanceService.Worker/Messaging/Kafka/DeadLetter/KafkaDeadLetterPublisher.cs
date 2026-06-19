@@ -8,7 +8,6 @@ using BalanceService.Worker.Observability;
 
 using Confluent.Kafka;
 
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace BalanceService.Worker.Messaging.Kafka.DeadLetter;
@@ -99,13 +98,24 @@ public sealed class KafkaDeadLetterPublisher : IDeadLetterPublisher, IDisposable
                 originalPartition,
                 originalOffset);
         }
-        catch (Exception ex) when (ex is ProduceException<string, string> or KafkaException or TimeoutException or InvalidOperationException)
+        catch (ProduceException<string, string> ex)
         {
-            _metrics.RecordDlqPublishError(
-                originalTopic,
-                ResolveEventType(message.Attributes),
-                ex.GetType().Name);
-
+            RecordDlqPublishError(message, originalTopic, ex);
+            throw;
+        }
+        catch (KafkaException ex)
+        {
+            RecordDlqPublishError(message, originalTopic, ex);
+            throw;
+        }
+        catch (TimeoutException ex)
+        {
+            RecordDlqPublishError(message, originalTopic, ex);
+            throw;
+        }
+        catch (InvalidOperationException ex)
+        {
+            RecordDlqPublishError(message, originalTopic, ex);
             throw;
         }
     }
@@ -137,6 +147,12 @@ public sealed class KafkaDeadLetterPublisher : IDeadLetterPublisher, IDisposable
         => message.TransportMetadata.TryGetValue(name, out var value) && !string.IsNullOrWhiteSpace(value)
             ? value
             : fallback;
+
+    private void RecordDlqPublishError(DeadLetterMessage message, string originalTopic, Exception exception)
+        => _metrics.RecordDlqPublishError(
+            originalTopic,
+            ResolveEventType(message.Attributes),
+            exception.GetType().Name);
 
     public void Dispose()
     {

@@ -70,6 +70,21 @@ public sealed class PubSubDeadLetterPublisherTests
         Assert.Equal(0, factory.CreateCalls);
     }
 
+    [Fact]
+    public async Task DisposeAsync_should_ignore_shutdown_failure_after_client_creation()
+    {
+        FakePubSubDeadLetterPublisherClient client = new()
+        {
+            ShutdownException = new InvalidOperationException("Shutdown failure.")
+        };
+        await using PubSubDeadLetterPublisher sut = CreateSut(client);
+
+        await sut.PublishAsync(CreateMessage(), CancellationToken.None);
+
+        await sut.DisposeAsync();
+        Assert.Equal(1, client.ShutdownCalls);
+    }
+
     private static PubSubDeadLetterPublisher CreateSut(
         FakePubSubDeadLetterPublisherClient client,
         string deadLetterTopicId = "ledger-events-dlq")
@@ -134,6 +149,14 @@ public sealed class PubSubDeadLetterPublisherTests
     private sealed class FakePubSubDeadLetterPublisherClient : IPubSubDeadLetterPublisherClient
     {
         public List<PubsubMessage> PublishedMessages { get; } = new();
+        public Exception? ShutdownException
+        {
+            get; set;
+        }
+        public int ShutdownCalls
+        {
+            get; private set;
+        }
 
         public Task<string> PublishAsync(PubsubMessage message, CancellationToken cancellationToken)
         {
@@ -141,6 +164,10 @@ public sealed class PubSubDeadLetterPublisherTests
             return Task.FromResult("dlq-message-id");
         }
 
-        public Task ShutdownAsync(TimeSpan timeout) => Task.CompletedTask;
+        public Task ShutdownAsync(TimeSpan timeout)
+        {
+            ShutdownCalls++;
+            return ShutdownException is null ? Task.CompletedTask : throw ShutdownException;
+        }
     }
 }

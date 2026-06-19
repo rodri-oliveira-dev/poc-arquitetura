@@ -28,6 +28,43 @@ public sealed class ComposeEnvGenYamlTests
         }
     }
 
+    [Fact]
+    public void Compose_env_gen_should_return_read_failure_for_missing_compose_file()
+    {
+        var composePath = Path.Combine(Path.GetTempPath(), $"missing-compose-{Guid.NewGuid():N}.yaml");
+        var outputPath = Path.Combine(Path.GetTempPath(), $"compose-env-{Guid.NewGuid():N}.env");
+
+        var exitCode = ComposeEnvGen.Program.Main(["--compose", composePath, "--out", outputPath]);
+
+        Assert.Equal(ComposeEnvGen.ExitCodes.ComposeReadFailed, exitCode);
+        Assert.False(File.Exists(outputPath));
+    }
+
+    [Fact]
+    public void Compose_env_gen_should_return_parse_failure_for_invalid_yaml()
+    {
+        var composePath = Path.Combine(Path.GetTempPath(), $"invalid-compose-{Guid.NewGuid():N}.yaml");
+        var outputPath = Path.Combine(Path.GetTempPath(), $"compose-env-{Guid.NewGuid():N}.env");
+
+        try
+        {
+            File.WriteAllText(composePath, "services: [");
+
+            var exitCode = ComposeEnvGen.Program.Main(["--compose", composePath, "--out", outputPath]);
+
+            Assert.Equal(ComposeEnvGen.ExitCodes.ComposeParseFailed, exitCode);
+            Assert.False(File.Exists(outputPath));
+        }
+        finally
+        {
+            if (File.Exists(composePath))
+                File.Delete(composePath);
+
+            if (File.Exists(outputPath))
+                File.Delete(outputPath);
+        }
+    }
+
     private static DirectoryInfo GetRepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
