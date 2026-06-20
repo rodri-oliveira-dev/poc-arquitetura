@@ -11,8 +11,8 @@ on:
       - "package.json"
       - "package-lock.json"
       - "redocly.yaml"
-      - "scripts/generate-openapi.*"
-      - "scripts/check-openapi-breaking-changes.sh"
+      - "scripts/contracts/openapi/generate.*"
+      - "scripts/contracts/openapi/check-breaking-changes.sh"
       - "docs/openapi/**"
       - ".github/actions/setup-dotnet/**"
       - ".github/actions/setup-node/**"
@@ -27,8 +27,8 @@ on:
       - "package.json"
       - "package-lock.json"
       - "redocly.yaml"
-      - "scripts/generate-openapi.*"
-      - "scripts/check-openapi-breaking-changes.sh"
+      - "scripts/contracts/openapi/generate.*"
+      - "scripts/contracts/openapi/check-breaking-changes.sh"
       - "docs/openapi/**"
       - ".github/actions/setup-dotnet/**"
       - ".github/actions/setup-node/**"
@@ -75,7 +75,7 @@ jobs:
         run: dotnet build $SOLUTION_PATH --configuration $BUILD_CONFIGURATION --no-restore
 
       - name: Generate OpenAPI contracts
-        run: ./scripts/generate-openapi.sh
+        run: ./scripts/contracts/openapi/generate.sh
 
       - name: Lint OpenAPI contracts
         run: npm run openapi:lint
@@ -164,7 +164,7 @@ jobs:
               exit 0
             fi
 
-            echo "::error::OpenAPI contracts are out of date. Run ./scripts/generate-openapi.sh and commit the updated files in docs/openapi."
+            echo "::error::OpenAPI contracts are out of date. Run ./scripts/contracts/openapi/generate.sh and commit the updated files in docs/openapi."
             exit 1
           fi
 

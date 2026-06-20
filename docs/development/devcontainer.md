@@ -16,11 +16,11 @@ dotnet test ./LedgerService.slnx --configuration Release --no-build --settings .
 Os scripts existentes continuam sendo a fonte principal para execucao local:
 
 ```powershell
-./scripts/start-local-stack.ps1
+./scripts/local/start-stack.ps1
 ```
 
 ```bash
-./scripts/start-local-stack.sh
+./scripts/local/start-stack.sh
 ```
 
 ## Como abrir com Dev Container
@@ -59,11 +59,11 @@ O Dev Container nao sobe a stack local, nao aplica migrations, nao executa teste
 Para subir a stack local, use os scripts existentes:
 
 ```powershell
-./scripts/start-local-stack.ps1
+./scripts/local/start-stack.ps1
 ```
 
 ```bash
-./scripts/start-local-stack.sh
+./scripts/local/start-stack.sh
 ```
 
 Para observabilidade, migrations e testes de carga, siga os guias especificos em [desenvolvimento local](local-development.md), [observabilidade](../observability.md) e [k6 load tests](../../loadtests/k6/README.md).

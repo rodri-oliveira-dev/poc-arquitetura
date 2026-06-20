@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
   [string]$AuthBaseUrl = "http://localhost:5030",
   [string]$LedgerBaseUrl = "http://localhost:5226",
@@ -18,7 +18,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-. (Join-Path $scriptDir "common-validation.ps1")
+. (Join-Path $scriptDir "..\lib\common-validation.ps1")
 
 if ($Type -eq "CREDIT" -and $Amount -le 0) {
   throw "Para CREDIT, Amount deve ser maior que zero."
@@ -163,3 +163,6 @@ Assert-RecentLogsContainCorrelationId "ledger-service" $correlationId
 Assert-RecentLogsContainCorrelationId "balance-service" $correlationId
 
 Write-Host "Fluxo de reprocessamento validado com sucesso."
+
+
+

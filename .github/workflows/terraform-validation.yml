@@ -8,6 +8,7 @@ on:
       - "**/Dockerfile"
       - "Dockerfile"
       - "compose*.yaml"
+      - "scripts/quality/terraform/validate.*"
       - ".github/actions/trivy-repository-scan/**"
       - ".github/workflows/terraform-validation.yml"
   pull_request:
@@ -16,6 +17,7 @@ on:
       - "**/Dockerfile"
       - "Dockerfile"
       - "compose*.yaml"
+      - "scripts/quality/terraform/validate.*"
       - ".github/actions/trivy-repository-scan/**"
       - ".github/workflows/terraform-validation.yml"
   workflow_dispatch:
@@ -59,4 +61,4 @@ jobs:
           tflint_version: ${{ env.TFLINT_VERSION }}
 
       - name: Validate Terraform and run TFLint
-        run: ./scripts/validate-terraform.sh
+        run: ./scripts/quality/terraform/validate.sh

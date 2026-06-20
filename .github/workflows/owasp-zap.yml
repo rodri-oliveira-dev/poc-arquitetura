@@ -118,7 +118,7 @@ jobs:
             args+=(--fail-on-alerts)
           fi
 
-          bash ./scripts/run-owasp-zap.sh "${args[@]}"
+          bash ./scripts/security/run-owasp-zap.sh "${args[@]}"
 
       - name: Write ZAP summary
         if: ${{ always() }}

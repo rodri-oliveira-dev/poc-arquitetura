@@ -51,13 +51,13 @@ O emulator e descartavel, nao usa credenciais GCP e fica fora do Terraform. Ele 
 Use os scripts explicitos de Pub/Sub. No Windows:
 
 ```powershell
-./scripts/start-local-stack-pubsub.ps1
+./scripts/local/start-stack-pubsub.ps1
 ```
 
 No Linux/macOS:
 
 ```bash
-./scripts/start-local-stack-pubsub.sh
+./scripts/local/start-stack-pubsub.sh
 ```
 
 Os scripts usam `compose.yaml` com `compose.pubsub.yaml`, executam migrations e iniciam APIs e workers de Ledger/Balance. O compose:
@@ -142,14 +142,14 @@ Remova `PUBSUB_EMULATOR_HOST` do processo antes de apontar para GCP real.
 Para iniciar Kafka no local:
 
 ```powershell
-./scripts/start-local-stack-kafka.ps1
+./scripts/local/start-stack-kafka.ps1
 ```
 
 ```bash
-./scripts/start-local-stack-kafka.sh
+./scripts/local/start-stack-kafka.sh
 ```
 
-Esse fluxo chama o compose principal com `Messaging__Provider=Kafka`. Os scripts existem por compatibilidade; `./scripts/start-local-stack.ps1` e `./scripts/start-local-stack.sh` ja usam Kafka por padrao.
+Esse fluxo chama o compose principal com `Messaging__Provider=Kafka`, mas `./scripts/local/start-stack.ps1` e `./scripts/local/start-stack.sh` ja usam Kafka por padrao.
 
 ## Aplicar Terraform em dev
 

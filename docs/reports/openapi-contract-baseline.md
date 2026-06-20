@@ -5,7 +5,7 @@
 - `docs/openapi/ledger.v1.json`
 - `docs/openapi/balance.v1.json`
 
-Os contratos foram gerados com `scripts/generate-openapi.sh` a partir dos assemblies Release de `LedgerService.Api` e `BalanceService.Api`, usando o documento Swagger `v1`.
+Os contratos foram gerados com `scripts/contracts/openapi/generate.sh` a partir dos assemblies Release de `LedgerService.Api` e `BalanceService.Api`, usando o documento Swagger `v1`.
 
 ## Resumo por API
 
@@ -58,7 +58,7 @@ A geracao depende de:
 - .NET SDK compativel com `global.json`.
 - Ferramentas restauradas por `dotnet tool restore`, incluindo `swashbuckle.aspnetcore.cli`.
 - Build previo dos assemblies em `Release` para `net10.0`.
-- Bash para executar `scripts/generate-openapi.sh`. Neste Windows, o comando `bash ./scripts/generate-openapi.sh` via WindowsApps/WSL falhou por ausencia de `/bin/bash`; a execucao validada usou `C:/Program Files/Git/bin/bash.exe`.
+- Bash para executar `scripts/contracts/openapi/generate.sh`. Neste Windows, o comando `bash ./scripts/contracts/openapi/generate.sh` via WindowsApps/WSL falhou por ausencia de `/bin/bash`; a execucao validada usou `C:/Program Files/Git/bin/bash.exe`.
 
 O script define valores sinteticos para ambiente OpenAPI, JWT e connection string apenas para inicializar os assemblies durante a geracao. Esses valores nao aparecem como secrets nos contratos gerados.
 

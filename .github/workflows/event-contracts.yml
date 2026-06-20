@@ -9,7 +9,7 @@ on:
       - "docs/development/event-contract-versioning.md"
       - "package.json"
       - "package-lock.json"
-      - "scripts/validate-event-contracts.mjs"
+      - "scripts/contracts/events/validate.mjs"
       - ".github/actions/setup-node/**"
       - ".github/workflows/event-contracts.yml"
   push:
@@ -20,7 +20,7 @@ on:
       - "docs/development/event-contract-versioning.md"
       - "package.json"
       - "package-lock.json"
-      - "scripts/validate-event-contracts.mjs"
+      - "scripts/contracts/events/validate.mjs"
       - ".github/actions/setup-node/**"
       - ".github/workflows/event-contracts.yml"
   workflow_dispatch:

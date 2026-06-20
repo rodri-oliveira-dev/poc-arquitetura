@@ -39,7 +39,7 @@ export SONAR_HOST_URL="http://localhost:9000"
 ## Executar a analise
 
 ```bash
-bash scripts/sonar-analyze.sh
+./scripts/quality/sonar-analyze.sh
 ```
 
 O script restaura as tools locais, inicia o SonarScanner for .NET, compila `LedgerService.slnx`, executa os testes com `coverlet.runsettings` e finaliza o envio para o SonarQube.

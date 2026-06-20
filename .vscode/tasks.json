@@ -123,9 +123,9 @@
     {
       "label": "local stack: start",
       "type": "shell",
-      "command": "./scripts/start-local-stack.sh",
+      "command": "./scripts/local/start-stack.sh",
       "windows": {
-        "command": "./scripts/start-local-stack.ps1",
+        "command": "./scripts/local/start-stack.ps1",
         "options": {
           "shell": {
             "executable": "powershell.exe",
@@ -149,9 +149,9 @@
     {
       "label": "local stack: start with observability",
       "type": "shell",
-      "command": "OBSERVABILITY=true ./scripts/start-local-stack.sh",
+      "command": "OBSERVABILITY=true ./scripts/local/start-stack.sh",
       "windows": {
-        "command": "./scripts/start-local-stack.ps1 -Observability",
+        "command": "./scripts/local/start-stack.ps1 -Observability",
         "options": {
           "shell": {
             "executable": "powershell.exe",
@@ -202,9 +202,9 @@
     {
       "label": "test: load smoke",
       "type": "shell",
-      "command": "./scripts/run-loadtests.sh smoke",
+      "command": "./scripts/performance/run-loadtests.sh smoke",
       "windows": {
-        "command": "./scripts/run-loadtests.ps1 -Mode smoke",
+        "command": "./scripts/performance/run-loadtests.ps1 -Mode smoke",
         "options": {
           "shell": {
             "executable": "powershell.exe",
@@ -229,9 +229,9 @@
     {
       "label": "test: mutation LedgerService.Application",
       "type": "shell",
-      "command": "./scripts/run-mutation-tests-ledger-application.sh",
+      "command": "./scripts/quality/mutation-ledger-application.sh",
       "windows": {
-        "command": "./scripts/run-mutation-tests-ledger-application.ps1",
+        "command": "./scripts/quality/mutation-ledger-application.ps1",
         "options": {
           "shell": {
             "executable": "powershell.exe",
@@ -256,9 +256,9 @@
     {
       "label": "test: mutation BalanceService.Application",
       "type": "shell",
-      "command": "./scripts/run-mutation-tests-balance-application.sh",
+      "command": "./scripts/quality/mutation-balance-application.sh",
       "windows": {
-        "command": "./scripts/run-mutation-tests-balance-application.ps1",
+        "command": "./scripts/quality/mutation-balance-application.ps1",
         "options": {
           "shell": {
             "executable": "powershell.exe",

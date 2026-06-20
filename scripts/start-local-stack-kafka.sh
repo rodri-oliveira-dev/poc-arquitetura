@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-
-MESSAGING_PROVIDER=Kafka "$ROOT_DIR/scripts/start-local-stack.sh"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec bash "$SCRIPT_DIR/local/start-stack-kafka.sh" "$@"

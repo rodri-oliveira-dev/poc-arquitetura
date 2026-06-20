@@ -1,55 +1,23 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param()
 
 $ErrorActionPreference = "Stop"
 
 $script:ValidationScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$script:RootDir = (Resolve-Path (Join-Path $script:ValidationScriptDir ".."))
-$script:GetTokenScript = Join-Path $script:ValidationScriptDir "get-token.ps1"
-
-function Get-LocalEnvValue([string]$Name) {
-  $envPath = Join-Path $script:RootDir ".env"
-  if (-not (Test-Path $envPath)) {
-    return ""
-  }
-
-  foreach ($line in Get-Content -Path $envPath) {
-    $trimmed = $line.Trim()
-    if ([string]::IsNullOrWhiteSpace($trimmed) -or $trimmed.StartsWith("#")) {
-      continue
-    }
-
-    $separatorIndex = $trimmed.IndexOf("=")
-    if ($separatorIndex -le 0) {
-      continue
-    }
-
-    $key = $trimmed.Substring(0, $separatorIndex).Trim()
-    if ($key -eq $Name) {
-      return $trimmed.Substring($separatorIndex + 1).Trim().Trim('"').Trim("'")
-    }
-  }
-
-  return ""
+$script:ValidationLibDir = Join-Path $script:ValidationScriptDir "lib"
+if (-not (Test-Path -LiteralPath (Join-Path $script:ValidationLibDir "common.ps1") -PathType Leaf)) {
+  $script:ValidationLibDir = Join-Path $script:ValidationScriptDir "..\lib"
 }
+. (Join-Path $script:ValidationLibDir "common.ps1")
 
-function Get-LocalConfigValue([string]$Name, [string]$DefaultValue) {
-  $value = [System.Environment]::GetEnvironmentVariable($Name, "Process")
-  if ([string]::IsNullOrWhiteSpace($value)) {
-    $value = Get-LocalEnvValue $Name
-  }
-  if ([string]::IsNullOrWhiteSpace($value)) {
-    return $DefaultValue
-  }
-
-  return $value
-}
+$script:RootDir = Resolve-RepositoryRoot -StartPath $script:ValidationScriptDir
+$script:GetTokenScript = Join-Path $script:RootDir "scripts\validation\get-token.ps1"
 
 $script:PostgresService = "postgres-db"
-$script:LedgerDbUser = Get-LocalConfigValue "LEDGER_DB_USER" "ledger_app_user"
-$script:LedgerDbName = Get-LocalConfigValue "LEDGER_DB_NAME" "appdb"
-$script:BalanceDbUser = Get-LocalConfigValue "BALANCE_DB_USER" "balance_read_user"
-$script:BalanceDbName = Get-LocalConfigValue "BALANCE_DB_NAME" "appdb"
+$script:LedgerDbUser = Get-LocalConfigValue -Name "LEDGER_DB_USER" -DefaultValue "ledger_app_user"
+$script:LedgerDbName = Get-LocalConfigValue -Name "LEDGER_DB_NAME" -DefaultValue "appdb"
+$script:BalanceDbUser = Get-LocalConfigValue -Name "BALANCE_DB_USER" -DefaultValue "balance_read_user"
+$script:BalanceDbName = Get-LocalConfigValue -Name "BALANCE_DB_NAME" -DefaultValue "appdb"
 
 function Invoke-WithEnv([hashtable]$Values, [scriptblock]$Script) {
   $previous = @{}
@@ -421,3 +389,6 @@ function Assert-RecentLogsContainCorrelationId([string]$Service, [string]$Correl
     Write-Warning "Nao foi possivel consultar logs do $Service via docker compose: $($_.Exception.Message)"
   }
 }
+
+
+

@@ -153,8 +153,8 @@ Data: 2026-05-25
 
 ### Scripts criados
 
-- `scripts/run-owasp-zap.ps1`
-- `scripts/run-owasp-zap.sh`
+- `scripts/security/run-owasp-zap.ps1`
+- `scripts/security/run-owasp-zap.sh`
 
 ### Documentacao alterada
 

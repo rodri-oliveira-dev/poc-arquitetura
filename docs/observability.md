@@ -694,7 +694,7 @@ No Grafana, acesse `http://localhost:3000` com usuario `admin` e senha local def
 
 ### Validacao Keycloak -> Ledger -> Outbox -> Kafka -> Balance
 
-Para validar o fluxo distribuido principal com chamada autenticada, Outbox, Kafka, Balance, logs e Jaeger, use `scripts/get-token.ps1` para obter um JWT RS256 do Keycloak local e chame o endpoint protegido `POST /api/v1/lancamentos` no `LedgerService.Api`.
+Para validar o fluxo distribuido principal com chamada autenticada, Outbox, Kafka, Balance, logs e Jaeger, use `scripts/validation/get-token.ps1` para obter um JWT RS256 do Keycloak local e chame o endpoint protegido `POST /api/v1/lancamentos` no `LedgerService.Api`.
 
 Esse endpoint foi escolhido porque:
 
@@ -716,7 +716,7 @@ Pre-requisitos:
 Suba a stack local completa. O script aplica migrations antes de iniciar Ledger e Balance:
 
 ```powershell
-./scripts/start-local-stack.ps1
+./scripts/local/start-stack.ps1
 ```
 
 Se preferir validar apenas a sintaxe efetiva do compose:
@@ -730,12 +730,12 @@ O realm Keycloak local autoriza os merchants `tese` e `m1` pela claim `merchant_
 No Windows/PowerShell, o fluxo completo pode ser executado com:
 
 ```powershell
-./scripts/validate-auth-ledger-trace.ps1
+./scripts/validation/validate-auth-ledger-trace.ps1
 ```
 
 O script:
 
-1. chama `scripts/get-token.ps1`, que usa Keycloak por padrao;
+1. chama `scripts/validation/get-token.ps1`, que usa Keycloak por padrao;
 2. extrai o token retornado;
 3. chama `POST /api/v1/lancamentos` em `http://localhost:5226`;
 4. envia `Authorization`, `Idempotency-Key` e `X-Correlation-Id` explicito;
@@ -753,26 +753,26 @@ O script usa polling curto configuravel por `-PollingTimeoutSeconds` e `-Polling
 Fluxos assincronos derivados do Ledger possuem scripts dedicados para validacao operacional local:
 
 ```powershell
-./scripts/validate-ledger-reversal-flow.ps1
-./scripts/validate-ledger-reprocess-flow.ps1
+./scripts/validation/validate-ledger-reversal-flow.ps1
+./scripts/validation/validate-ledger-reprocess-flow.ps1
 ```
 
 Se a politica local do PowerShell bloquear a execucao direta de scripts, execute de forma pontual com:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/validate-ledger-reversal-flow.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/validate-ledger-reprocess-flow.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/validation/validate-ledger-reversal-flow.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/validation/validate-ledger-reprocess-flow.ps1
 ```
 
 Pre-requisitos:
 
-- stack local iniciada com `./scripts/start-local-stack.ps1`; para validar reprocessamento ponta a ponta, use `./scripts/start-local-stack-kafka.ps1`;
+- stack local iniciada com `./scripts/local/start-stack.ps1`; para validar reprocessamento ponta a ponta, use `./scripts/local/start-stack-kafka.ps1`;
 - migrations aplicadas pelo startup local;
 - Docker-compatible API disponivel para `docker compose exec -T ... psql`;
 - portas do compose livres e acessiveis: `8081`, `5226`, `5228` e, com profile `observability`, `16686`, `9090`, `3100`, `12345`, `9093` e `3000`;
 - profile `observability` ativo e `OTEL_ENABLED=true` para consulta de traces no Jaeger.
 
-Os dois scripts usam `scripts/get-token.ps1`, enviam `Authorization`, `Idempotency-Key` e `X-Correlation-Id` explicito, fazem polling curto configuravel e falham com erro quando um estado esperado nao aparece.
+Os dois scripts usam `scripts/validation/get-token.ps1`, enviam `Authorization`, `Idempotency-Key` e `X-Correlation-Id` explicito, fazem polling curto configuravel e falham com erro quando um estado esperado nao aparece.
 
 `validate-ledger-reversal-flow.ps1` valida:
 
@@ -812,7 +812,7 @@ Limitacoes conhecidas:
 Tambem e possivel executar manualmente com `curl`:
 
 ```bash
-TOKEN="$(./scripts/get-token.sh)"
+TOKEN="$(./scripts/validation/get-token.sh)"
 
 CORRELATION_ID="11111111-1111-4111-8111-111111111111"
 IDEMPOTENCY_KEY="$(uuidgen)"
@@ -892,7 +892,7 @@ Para buscar pelo `TraceId`, copie o valor da UI/API do Jaeger ou do logging scop
 
 Resultado esperado:
 
-- `scripts/get-token.*` retorna um token Keycloak valido;
+- `scripts/validation/get-token.*` retorna um token Keycloak valido;
 - `POST /api/v1/lancamentos` retorna `201 Created`;
 - o header `X-Correlation-Id` do response preserva o UUID enviado;
 - a tabela `outbox_messages` contem `LedgerEntryCreated.v1` com o mesmo `correlation_id` e status final `Processed`;

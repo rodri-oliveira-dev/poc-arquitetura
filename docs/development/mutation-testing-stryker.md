@@ -83,11 +83,11 @@ O arquivo `tests/LedgerService.UnitTests/stryker-config.json` e carregado automa
 Scripts opcionais:
 
 ```powershell
-./scripts/run-mutation-tests-ledger-application.ps1
+./scripts/quality/mutation-ledger-application.ps1
 ```
 
 ```bash
-./scripts/run-mutation-tests-ledger-application.sh
+./scripts/quality/mutation-ledger-application.sh
 ```
 
 ### BalanceService.Application
@@ -109,11 +109,11 @@ dotnet stryker --config-file stryker-config.json
 Scripts opcionais:
 
 ```powershell
-./scripts/run-mutation-tests-balance-application.ps1
+./scripts/quality/mutation-balance-application.ps1
 ```
 
 ```bash
-./scripts/run-mutation-tests-balance-application.sh
+./scripts/quality/mutation-balance-application.sh
 ```
 
 Esses comandos apenas restauram as ferramentas locais e executam `dotnet stryker` no diretorio do projeto de testes. Eles nao fazem parte do fluxo normal de build, teste, push ou pull request.

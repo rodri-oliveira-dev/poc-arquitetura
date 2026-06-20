@@ -95,25 +95,25 @@ dotnet test ./LedgerService.slnx --configuration Release --no-build --settings .
 Crie primeiro as variaveis locais descartaveis:
 
 ```powershell
-./scripts/init-env-local.ps1
+./scripts/local/init-env.ps1
 ```
 
 No Linux/macOS:
 
 ```bash
-./scripts/init-env-local.sh
+./scripts/local/init-env.sh
 ```
 
 Suba o core funcional local no Windows:
 
 ```powershell
-./scripts/start-local-stack.ps1
+./scripts/local/start-stack.ps1
 ```
 
 No Linux/macOS:
 
 ```bash
-./scripts/start-local-stack.sh
+./scripts/local/start-stack.sh
 ```
 
 Esse script sobe o core funcional local: PostgreSQL persistente unico com schemas `ledger`, `balance` e `transfer`, Kafka, Keycloak, APIs e workers, incluindo `TransferService.Worker`. Ele aplica migrations pelo host e inicia as APIs depois do schema estar pronto. O passo a passo manual fica em [desenvolvimento local](docs/development/local-development.md).
@@ -121,13 +121,13 @@ Esse script sobe o core funcional local: PostgreSQL persistente unico com schema
 Para incluir observabilidade local completa:
 
 ```powershell
-./scripts/start-local-stack.ps1 -Observability
+./scripts/local/start-stack.ps1 -Observability
 ```
 
 No Linux/macOS:
 
 ```bash
-OBSERVABILITY=true ./scripts/start-local-stack.sh
+OBSERVABILITY=true ./scripts/local/start-stack.sh
 ```
 
 A observabilidade fica no overlay `compose.observability.yaml`. O modo padrao de desenvolvimento nao sobe Jaeger, Collector, Prometheus, Loki, Alloy, Alertmanager nem Grafana, mas continua subindo `ledger-worker` e `balance-worker` para preservar o fluxo ponta a ponta.
@@ -135,32 +135,32 @@ A observabilidade fica no overlay `compose.observability.yaml`. O modo padrao de
 Pub/Sub permanece disponivel como caminho explicito/legado:
 
 ```powershell
-./scripts/start-local-stack-pubsub.ps1
+./scripts/local/start-stack-pubsub.ps1
 ```
 
 No Linux/macOS:
 
 ```bash
-./scripts/start-local-stack-pubsub.sh
+./scripts/local/start-stack-pubsub.sh
 ```
 
-Esse fluxo usa `compose.pubsub.yaml`, habilita o profile `legacy-pubsub`, cria topic principal, topic de DLQ, subscription do Balance e subscription de inspecao da DLQ de aplicacao de forma idempotente e inicia os workers de Ledger/Balance com `Messaging:Provider=PubSub`. Kafka nao e iniciado nesse modo. Os scripts `start-local-stack-kafka.*` continuam como aliases compativeis do fluxo padrao. Detalhes ficam em [desenvolvimento local](docs/development/local-development.md#pubsub-emulator-local) e no runbook de [operacao do Pub/Sub](docs/operations/pubsub.md).
+Esse fluxo usa `compose.pubsub.yaml`, habilita o profile `legacy-pubsub`, cria topic principal, topic de DLQ, subscription do Balance e subscription de inspecao da DLQ de aplicacao de forma idempotente e inicia os workers de Ledger/Balance com `Messaging:Provider=PubSub`. Kafka nao e iniciado nesse modo. Detalhes ficam em [desenvolvimento local](docs/development/local-development.md#pubsub-emulator-local) e no runbook de [operacao do Pub/Sub](docs/operations/pubsub.md).
 
 A Saga orquestrada do `TransferService` usa Kafka explicitamente. Como Kafka e o default local, o `TransferService.Worker` sobe no fluxo padrao e pode processar Sagas automaticamente. Consulte [TransferService API](docs/development/transfer-api.md) e [desenvolvimento local](docs/development/local-development.md#kafka-local-e-saga-do-transferservice).
 
 Para subir a stack completa com observabilidade e Nginx HTTPS local, gere antes os certificados em `infra/nginx/certs/` conforme [desenvolvimento local](docs/development/local-development.md#borda-local-https-com-nginx):
 
 ```powershell
-./scripts/start-full-stack.ps1
+./scripts/local/start-full-stack.ps1
 ```
 
 No Linux/macOS:
 
 ```bash
-./scripts/start-full-stack.sh
+./scripts/local/start-full-stack.sh
 ```
 
-Se houver containers antigos ou rede local presa do proprio projeto, o script pergunta se pode liberar esses recursos com limpeza nao destrutiva, sem remover volumes. Em automacao local, use `./scripts/start-full-stack.ps1 -Cleanup` ou `./scripts/start-full-stack.sh --cleanup`.
+Se houver containers antigos ou rede local presa do proprio projeto, o script pergunta se pode liberar esses recursos com limpeza nao destrutiva, sem remover volumes. Em automacao local, use `./scripts/local/start-full-stack.ps1 -Cleanup` ou `./scripts/local/start-full-stack.sh --cleanup`.
 
 ## Comandos principais
 
@@ -171,23 +171,27 @@ Se houver containers antigos ou rede local presa do proprio projeto, o script pe
 | Build Release | `dotnet build ./LedgerService.slnx --configuration Release --no-restore` |
 | Testes sem rebuild | `dotnet test ./LedgerService.slnx --configuration Release --no-build --settings ./coverlet.runsettings` |
 | Testes com cobertura e gate | `./test.ps1` ou `./test.sh` |
-| Criar `.env.local` de onboarding | `./scripts/init-env-local.ps1` ou `./scripts/init-env-local.sh` |
+| Criar `.env.local` de onboarding | `./scripts/local/init-env.ps1` ou `./scripts/local/init-env.sh` |
 | SonarQube local | `docker compose --env-file .env.local -f compose.sonar.yaml --profile quality up -d` |
-| Analise SonarQube local | `bash scripts/sonar-analyze.sh` |
-| Stack local minima | `./scripts/start-local-stack.ps1` ou `./scripts/start-local-stack.sh` |
-| Stack com observabilidade | `./scripts/start-local-stack.ps1 -Observability` ou `OBSERVABILITY=true ./scripts/start-local-stack.sh` |
-| Stack local com Pub/Sub emulator | `./scripts/start-local-stack-pubsub.ps1` ou `./scripts/start-local-stack-pubsub.sh` |
+| Analise SonarQube local | `./scripts/quality/sonar-analyze.sh` |
+| Stack local minima | `./scripts/local/start-stack.ps1` ou `./scripts/local/start-stack.sh` |
+| Stack com observabilidade | `./scripts/local/start-stack.ps1 -Observability` ou `OBSERVABILITY=true ./scripts/local/start-stack.sh` |
+| Stack local com Pub/Sub emulator | `./scripts/local/start-stack-pubsub.ps1` ou `./scripts/local/start-stack-pubsub.sh` |
 | Dependencias Kafka para debug | `docker compose --env-file .env.local -f compose.yaml up -d postgres-db kafka kafka-init-topics keycloak` |
-| Stack local com Kafka | `./scripts/start-local-stack-kafka.ps1` ou `./scripts/start-local-stack-kafka.sh` |
-| Stack completa com Nginx | `./scripts/start-full-stack.ps1` ou `./scripts/start-full-stack.sh` |
-| Parar stack completa | `./scripts/stop-full-stack.ps1` ou `./scripts/stop-full-stack.sh` |
-| Diagnosticar disco Docker | `./scripts/docker-disk-report.ps1` ou `./scripts/docker-disk-report.sh` |
-| Limpeza segura Docker | `./scripts/docker-clean-safe.ps1` ou `./scripts/docker-clean-safe.sh` |
-| Load test smoke Kafka | `./scripts/run-loadtests.ps1 -Mode smoke-kafka` ou `./scripts/run-loadtests.sh smoke-kafka` |
-| Load test Kafka leve | `./scripts/run-loadtests.ps1 -Mode load-kafka` ou `./scripts/run-loadtests.sh load-kafka` |
-| TransferService smoke Kafka | `./scripts/run-loadtests.ps1 -Mode transfer-smoke-kafka` ou `./scripts/run-loadtests.sh transfer-smoke-kafka` |
-| TransferService full-stack Kafka | `./scripts/run-loadtests.ps1 -Mode transfer-fullstack-kafka` ou `./scripts/run-loadtests.sh transfer-fullstack-kafka` |
-| OWASP ZAP local | `./scripts/run-owasp-zap.ps1` ou `./scripts/run-owasp-zap.sh` |
+| Stack local com Kafka | `./scripts/local/start-stack-kafka.ps1` ou `./scripts/local/start-stack-kafka.sh` |
+| Stack completa com Nginx | `./scripts/local/start-full-stack.ps1` ou `./scripts/local/start-full-stack.sh` |
+| Parar stack completa | `./scripts/local/stop-full-stack.ps1` ou `./scripts/local/stop-full-stack.sh` |
+| Diagnosticar disco Docker | `./scripts/docker/disk-report.ps1` ou `./scripts/docker/disk-report.sh` |
+| Limpeza segura Docker | `./scripts/docker/clean-safe.ps1` ou `./scripts/docker/clean-safe.sh` |
+| Load test smoke Kafka | `./scripts/performance/run-loadtests.ps1 -Mode smoke-kafka` ou `./scripts/performance/run-loadtests.sh smoke-kafka` |
+| Load test Kafka leve | `./scripts/performance/run-loadtests.ps1 -Mode load-kafka` ou `./scripts/performance/run-loadtests.sh load-kafka` |
+| TransferService smoke Kafka | `./scripts/performance/run-loadtests.ps1 -Mode transfer-smoke-kafka` ou `./scripts/performance/run-loadtests.sh transfer-smoke-kafka` |
+| TransferService full-stack Kafka | `./scripts/performance/run-loadtests.ps1 -Mode transfer-fullstack-kafka` ou `./scripts/performance/run-loadtests.sh transfer-fullstack-kafka` |
+| OWASP ZAP local | `./scripts/security/run-owasp-zap.ps1` ou `./scripts/security/run-owasp-zap.sh` |
+
+## Organizacao dos scripts
+
+Os comandos principais ficam organizados por finalidade em subpastas de `scripts/`. Use os caminhos novos em comandos e documentacao nova; a politica de wrappers antigos fica em [docs/development/scripts.md](docs/development/scripts.md).
 
 ## Testes
 
@@ -248,7 +252,7 @@ Microservicos .NET com separacao de escrita/leitura, Clean Architecture/DDD, Out
 
 **Como executo localmente?**
 
-Use `./scripts/start-local-stack.ps1` no Windows ou `./scripts/start-local-stack.sh` no Linux/macOS. O guia completo fica em [desenvolvimento local](docs/development/local-development.md).
+Use `./scripts/local/start-stack.ps1` no Windows ou `./scripts/local/start-stack.sh` no Linux/macOS. O guia completo fica em [desenvolvimento local](docs/development/local-development.md).
 
 **Onde encontro as decisoes arquiteturais?**
 

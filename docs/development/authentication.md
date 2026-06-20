@@ -98,7 +98,7 @@ curl -s -X POST http://localhost:8081/realms/poc/protocol/openid-connect/token \
   -d "password=<KEYCLOAK_LOCAL_ADMIN_USER_PASSWORD>"
 ```
 
-Nao use esses usuarios em ambiente compartilhado, homologacao ou producao. Para automacoes locais, load tests, validadores e scanners, continue usando `scripts/get-token.*`, que permanecem no fluxo `client_credentials` com o client `poc-automation`.
+Nao use esses usuarios em ambiente compartilhado, homologacao ou producao. Para automacoes locais, load tests, validadores e scanners, continue usando `scripts/validation/get-token.*`, que permanecem no fluxo `client_credentials` com o client `poc-automation`.
 
 ## Claims e validacoes
 
@@ -185,7 +185,7 @@ Configuracoes de resiliencia do fetch de JWKS:
 
 ## Scripts de token locais
 
-Os scripts `scripts/get-token.ps1` e `scripts/get-token.sh` imprimem somente o token em `stdout`. Mensagens de erro vao para `stderr` e nao exibem segredo de client nem senha.
+Os scripts `scripts/validation/get-token.ps1` e `scripts/validation/get-token.sh` imprimem somente o token em `stdout`. Mensagens de erro vao para `stderr` e nao exibem segredo de client nem senha.
 
 Precedencia:
 
@@ -217,7 +217,7 @@ Variaveis legadas preservadas para `TOKEN_PROVIDER=auth-api`:
 
 O contrato de resposta continua aceitando `access_token` como campo principal e `accessToken` como fallback temporario.
 
-Scripts operacionais que precisam de token devem chamar `scripts/get-token.*` em vez de duplicar login. Esse e o caso dos validadores locais (`validate-*.ps1`), dos runners k6 (`run-loadtests.*`) e do modo autenticado do OWASP ZAP (`run-owasp-zap.* -UseAuthentication` ou `--use-authentication`). Assim, Keycloak e o fallback temporario para `Auth.Api` seguem uma unica configuracao.
+Scripts operacionais que precisam de token devem chamar `scripts/validation/get-token.*` em vez de duplicar login. Esse e o caso dos validadores locais (`validate-*.ps1`), dos runners k6 (`run-loadtests.*`) e do modo autenticado do OWASP ZAP (`run-owasp-zap.* -UseAuthentication` ou `--use-authentication`). Assim, Keycloak e o fallback temporario para `Auth.Api` seguem uma unica configuracao.
 
 ## Autenticacao service-to-service do TransferService.Worker
 
@@ -253,13 +253,13 @@ docker compose up -d keycloak
 Obtenha o token:
 
 ```bash
-./scripts/get-token.sh
+./scripts/validation/get-token.sh
 ```
 
 No Windows:
 
 ```powershell
-./scripts/get-token.ps1
+./scripts/validation/get-token.ps1
 ```
 
 O fluxo usa `client_credentials` contra o token endpoint do realm:
@@ -284,7 +284,7 @@ Suba o `Auth.Api` pelo overlay legado ou via `dotnet run` e solicite um token pe
 
 ```bash
 docker compose -f compose.yaml -f compose.auth-legacy.yaml --profile legacy-auth up -d --build auth-api
-TOKEN_PROVIDER=auth-api ./scripts/get-token.sh
+TOKEN_PROVIDER=auth-api ./scripts/validation/get-token.sh
 ```
 
 No Windows:
@@ -292,7 +292,7 @@ No Windows:
 ```powershell
 docker compose -f compose.yaml -f compose.auth-legacy.yaml --profile legacy-auth up -d --build auth-api
 $env:TOKEN_PROVIDER = "auth-api"
-./scripts/get-token.ps1
+./scripts/validation/get-token.ps1
 ```
 
 Chamada equivalente:

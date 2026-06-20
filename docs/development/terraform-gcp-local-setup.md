@@ -49,13 +49,13 @@ As tasks `init` e `validate` apontam para o root module de desenvolvimento em `i
 Para validar todos os diretorios Terraform versionados no Windows:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/validate-terraform.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/quality/terraform/validate.ps1
 ```
 
 No Git Bash, Linux ou macOS:
 
 ```bash
-./scripts/validate-terraform.sh
+./scripts/quality/terraform/validate.sh
 ```
 
 Os scripts executam apenas validacoes locais e nao destrutivas:
@@ -154,7 +154,7 @@ terraform fmt -check -recursive ./infra/terraform
 tflint --chdir=./infra/terraform --recursive
 ```
 
-Internamente, o workflow usa `scripts/validate-terraform.sh`, portanto tambem executa `terraform init -backend=false -input=false` e `terraform validate` em cada diretorio versionado que contem arquivos `*.tf`, incluindo o root module de desenvolvimento e modulos reutilizaveis. Esse `init` sem backend e intencional para validacao sem credenciais; como o workflow nao executa `plan`, ele nao contorna locking de uma operacao remota.
+Internamente, o workflow usa `scripts/quality/terraform/validate.sh`, portanto tambem executa `terraform init -backend=false -input=false` e `terraform validate` em cada diretorio versionado que contem arquivos `*.tf`, incluindo o root module de desenvolvimento e modulos reutilizaveis. Esse `init` sem backend e intencional para validacao sem credenciais; como o workflow nao executa `plan`, ele nao contorna locking de uma operacao remota.
 
 O CI instala Terraform e TFLint no runner, entao nao depende das ferramentas instaladas na maquina do desenvolvedor. O Trivy tambem roda por action propria no CI. Esses checks sao bloqueantes para achados `HIGH` e `CRITICAL` do Trivy e para falhas de formatacao, inicializacao sem backend, validacao Terraform ou TFLint.
 

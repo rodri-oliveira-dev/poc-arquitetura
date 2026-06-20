@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
   [string]$AuthBaseUrl = "http://localhost:5030",
   [string]$LedgerBaseUrl = "http://localhost:5226",
@@ -18,7 +18,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-. (Join-Path $scriptDir "common-validation.ps1")
+. (Join-Path $scriptDir "..\lib\common-validation.ps1")
 
 Write-Host "Obtendo token pelo provider local configurado..."
 $token = Get-ValidationToken $AuthBaseUrl $Username $Password $Scope
@@ -212,3 +212,6 @@ try {
 catch {
   Write-Warning "Nao foi possivel consultar logs do Balance via docker compose: $($_.Exception.Message)"
 }
+
+
+

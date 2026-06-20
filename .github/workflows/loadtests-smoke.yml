@@ -48,7 +48,7 @@ jobs:
         run: dotnet build $SOLUTION_PATH --configuration $BUILD_CONFIGURATION --no-restore
 
       - name: Start local stack and apply migrations
-        run: bash ./scripts/start-local-stack.sh
+        run: bash ./scripts/local/start-stack.sh
 
       - name: Wait for APIs
         shell: bash
@@ -71,18 +71,18 @@ jobs:
           done
 
       - name: Run k6 smoke load tests
-        run: bash ./scripts/run-loadtests.sh smoke
+        run: bash ./scripts/performance/run-loadtests.sh smoke
 
       - name: Run TransferService API smoke tests
-        run: bash ./scripts/run-loadtests.sh transfer-smoke
+        run: bash ./scripts/performance/run-loadtests.sh transfer-smoke
 
       - name: Ensure default Kafka stack for TransferService full-stack smoke
         if: ${{ inputs.include-transfer-fullstack-kafka == 'true' }}
-        run: bash ./scripts/start-local-stack.sh
+        run: bash ./scripts/local/start-stack.sh
 
       - name: Run TransferService full-stack Kafka smoke test
         if: ${{ inputs.include-transfer-fullstack-kafka == 'true' }}
-        run: bash ./scripts/run-loadtests.sh transfer-fullstack-kafka
+        run: bash ./scripts/performance/run-loadtests.sh transfer-fullstack-kafka
 
       - name: List k6 summaries
         if: ${{ always() }}

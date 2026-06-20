@@ -19,7 +19,7 @@ Pub/Sub passa a ser o provider principal da POC:
 - os `appsettings.json` dos workers usam `Messaging:Provider=PubSub` e
   `PubSub:Enabled=true`;
 - `compose.yaml` inclui o emulator e os recursos locais por padrao;
-- `scripts/start-local-stack.*` usa somente `compose.yaml` no fluxo Pub/Sub;
+- `scripts/local/start-stack.*` usa somente `compose.yaml` no fluxo Pub/Sub;
 - o desenvolvimento local usa Pub/Sub emulator com projeto `poc-local`, topic
   principal `ledger.ledgerentry.created.local`, subscription
   `balance-service-ledger-events-local` e DLQ de aplicacao
@@ -29,7 +29,7 @@ Pub/Sub passa a ser o provider principal da POC:
   `127.0.0.1:8085`;
 - Kafka permanece disponivel como opcao legada explicita por
   `Messaging:Provider=Kafka`, `compose.kafka.yaml`, profile `legacy-kafka` e
-  scripts `scripts/start-local-stack-kafka.*`;
+  scripts `scripts/local/start-stack-kafka.*`;
 - Pub/Sub real exige configuracao explicita pelos outputs Terraform e ausencia
   de `PUBSUB_EMULATOR_HOST`.
 

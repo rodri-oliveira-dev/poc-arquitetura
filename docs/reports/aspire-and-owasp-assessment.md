@@ -40,7 +40,7 @@ Esta secao registra o estado documental em 2026-05-25 com base em leitura estati
 
 | Achado historico | Status atual | Observacao |
 | --- | --- | --- |
-| DAST OWASP/ZAP ou pentest recente | Parcialmente mitigado operacionalmente. | Ha relatorio historico e scripts locais versionados (`scripts/run-owasp-zap.ps1` e `scripts/run-owasp-zap.sh`) para executar baseline ZAP e salvar relatorios em `zap-reports/<timestamp>/`. Ainda nao ha gate em CI nem nova execucao registrada neste relatorio. |
+| DAST OWASP/ZAP ou pentest recente | Parcialmente mitigado operacionalmente. | Ha relatorio historico e scripts locais versionados (`scripts/security/run-owasp-zap.ps1` e `scripts/security/run-owasp-zap.sh`) para executar baseline ZAP e salvar relatorios em `zap-reports/<timestamp>/`. Ainda nao ha gate em CI nem nova execucao registrada neste relatorio. |
 | Promocao para ambiente compartilhado/produtivo | Pendente por desenho. | Secrets, TLS interno, Kafka autenticado, bancos gerenciados, WAF/rate limits por identidade, scans de imagem e operacao produtiva exigem decisoes fora da POC local. |
 
 ### Achados historicos que nao representam mais o estado atual
