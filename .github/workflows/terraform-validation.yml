@@ -61,4 +61,4 @@ jobs:
           tflint_version: ${{ env.TFLINT_VERSION }}
 
       - name: Validate Terraform and run TFLint
-        run: ./scripts/quality/terraform/validate.sh
+        run: bash ./scripts/quality/terraform/validate.sh

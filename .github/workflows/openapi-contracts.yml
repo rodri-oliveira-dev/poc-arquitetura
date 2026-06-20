@@ -75,7 +75,7 @@ jobs:
         run: dotnet build $SOLUTION_PATH --configuration $BUILD_CONFIGURATION --no-restore
 
       - name: Generate OpenAPI contracts
-        run: ./scripts/contracts/openapi/generate.sh
+        run: bash ./scripts/contracts/openapi/generate.sh
 
       - name: Lint OpenAPI contracts
         run: npm run openapi:lint
@@ -164,7 +164,7 @@ jobs:
               exit 0
             fi
 
-            echo "::error::OpenAPI contracts are out of date. Run ./scripts/contracts/openapi/generate.sh and commit the updated files in docs/openapi."
+            echo "::error::OpenAPI contracts are out of date. Run bash ./scripts/contracts/openapi/generate.sh and commit the updated files in docs/openapi."
             exit 1
           fi
 
