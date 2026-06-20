@@ -4,9 +4,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPTS_LIB_DIR="$SCRIPT_DIR/lib"
 if [[ ! -f "$SCRIPTS_LIB_DIR/common.sh" ]]; then
-  SCRIPTS_LIB_DIR="$SCRIPT_DIR/../lib"
+  SCRIPTS_LIB_DIR="$SCRIPT_DIR/../../lib"
 fi
-# shellcheck source=lib/common.sh
+# shellcheck source=../../lib/common.sh
 . "$SCRIPTS_LIB_DIR/common.sh"
 
 ROOT_DIR="$(resolve_repo_root "$SCRIPT_DIR")"
