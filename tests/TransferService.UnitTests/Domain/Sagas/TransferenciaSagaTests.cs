@@ -26,13 +26,16 @@ public sealed class TransferenciaSagaTests
     [Fact]
     public void Constructor_should_reject_same_merchants()
     {
-        var act = () => new TransferenciaSaga(
-            new MerchantId("same"),
-            new MerchantId("same"),
-            new TransferAmount(100m),
-            Now);
+        static TransferenciaSaga Act()
+        {
+            return new TransferenciaSaga(
+                new MerchantId("same"),
+                new MerchantId("same"),
+                new TransferAmount(100m),
+                Now);
+        }
 
-        var exception = Assert.Throws<DomainException>(act);
+        var exception = Assert.Throws<DomainException>(Act);
         Assert.Contains("nao pode ser igual", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -41,7 +44,10 @@ public sealed class TransferenciaSagaTests
     [InlineData(" ")]
     public void MerchantId_should_reject_empty_value(string value)
     {
-        void Act() => _ = new MerchantId(value);
+        void Act()
+        {
+            _ = new MerchantId(value);
+        }
 
         var exception = Assert.Throws<DomainException>(Act);
         Assert.Contains("obrigatorio", exception.Message, StringComparison.OrdinalIgnoreCase);
@@ -52,7 +58,10 @@ public sealed class TransferenciaSagaTests
     [InlineData(-1)]
     public void Amount_should_reject_non_positive_value(decimal value)
     {
-        void Act() => _ = new TransferAmount(value);
+        void Act()
+        {
+            _ = new TransferAmount(value);
+        }
 
         var exception = Assert.Throws<DomainException>(Act);
         Assert.Contains("maior que zero", exception.Message, StringComparison.OrdinalIgnoreCase);
@@ -195,6 +204,31 @@ public sealed class TransferenciaSagaTests
 
         Assert.Equal(TransferenciaSagaStatus.Failed, saga.Status);
         Assert.Equal(TransferenciaSagaStep.Failed, saga.Step);
+    }
+
+    [Fact]
+    public void MarkFailed_should_truncate_long_failure_reason()
+    {
+        var saga = CreateSaga();
+        saga.StartProcessing(Now.AddMinutes(1));
+        var reason = new string('x', TransferenciaSaga.FailureReasonMaxLength + 50);
+
+        saga.MarkFailed(Now.AddMinutes(2), reason);
+
+        Assert.Equal(TransferenciaSaga.FailureReasonMaxLength, saga.FailureReason?.Length);
+    }
+
+    [Fact]
+    public void ScheduleRetry_should_truncate_long_failure_reason()
+    {
+        var saga = CreateSaga();
+        saga.StartProcessing(Now.AddMinutes(1));
+        var reason = new string('x', TransferenciaSaga.FailureReasonMaxLength + 50);
+
+        saga.ScheduleRetry(Now.AddMinutes(2), reason, Now.AddMinutes(1));
+
+        Assert.Equal(TransferenciaSaga.FailureReasonMaxLength, saga.FailureReason?.Length);
+        Assert.Equal(Now.AddMinutes(2), saga.NextRetryAt);
     }
 
     private static TransferenciaSaga CreateSaga() =>

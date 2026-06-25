@@ -80,7 +80,7 @@ public sealed class TransferenciaSagaConfiguration : IEntityTypeConfiguration<Tr
 
         builder.Property(x => x.FailureReason)
             .HasColumnName("failure_reason")
-            .HasMaxLength(1000);
+            .HasMaxLength(TransferenciaSaga.FailureReasonMaxLength);
 
         builder.Property(x => x.RetryCount)
             .HasColumnName("retry_count")

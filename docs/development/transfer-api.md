@@ -131,6 +131,8 @@ As chamadas do Worker ao `LedgerService.Api` sao autenticadas por OAuth2 client 
 
 O `Idempotency-Key` enviado ao Ledger e um UUID deterministico derivado de `transferenciaId` e da etapa logica (`debit`, `credit` ou `compensate-debit`). Assim o Worker preserva replay por etapa e respeita o contrato HTTP do Ledger, que exige UUID no header.
 
+O client HTTP do Ledger usa a politica compartilhada `HttpResilience:Clients:Ledger`, com timeout total, timeout por tentativa, retry para falhas transitorias e circuit breaker. O retry e habilitado para `POST` porque as etapas usam `Idempotency-Key` deterministico; respostas esperadas de negocio, como `400`, `401`, `403` e `404`, nao sao tratadas como transitorias pela politica. Quando o circuito abre, novas chamadas falham rapido e a Saga continua usando o retry persistido configurado em `TransferService:Worker:RetryBackoff`.
+
 Fluxo feliz:
 
 1. A API grava a Saga como `Pending` e o evento `TransferenciaSolicitada.v1`.

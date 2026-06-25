@@ -1,11 +1,36 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Http.Resilience;
+using Microsoft.Extensions.Logging;
 
 namespace HttpResilienceDefaults;
 
 public static class HttpClientResilienceBuilderExtensions
 {
+    private static readonly Action<ILogger, string, int, TimeSpan, Exception?> _logHttpRetry =
+        LoggerMessage.Define<string, int, TimeSpan>(
+            LogLevel.Warning,
+            new EventId(1, nameof(_logHttpRetry)),
+            "Retry HTTP resiliente agendado. Client={ClientName} Attempt={AttemptNumber} RetryDelay={RetryDelay}");
+
+    private static readonly Action<ILogger, string, TimeSpan, Exception?> _logCircuitOpened =
+        LoggerMessage.Define<string, TimeSpan>(
+            LogLevel.Warning,
+            new EventId(2, nameof(_logCircuitOpened)),
+            "Circuit breaker HTTP aberto. Client={ClientName} BreakDuration={BreakDuration}");
+
+    private static readonly Action<ILogger, string, Exception?> _logCircuitHalfOpened =
+        LoggerMessage.Define<string>(
+            LogLevel.Information,
+            new EventId(3, nameof(_logCircuitHalfOpened)),
+            "Circuit breaker HTTP em half-open. Client={ClientName}");
+
+    private static readonly Action<ILogger, string, Exception?> _logCircuitClosed =
+        LoggerMessage.Define<string>(
+            LogLevel.Information,
+            new EventId(4, nameof(_logCircuitClosed)),
+            "Circuit breaker HTTP fechado. Client={ClientName}");
+
     public static IHttpClientBuilder AddConfiguredHttpResilience(
         this IHttpClientBuilder builder,
         IConfiguration configuration,
@@ -25,12 +50,22 @@ public static class HttpClientResilienceBuilderExtensions
 
         builder
             .ConfigureHttpClient(static client => client.Timeout = Timeout.InfiniteTimeSpan)
-            .AddStandardResilienceHandler(resilience =>
+            .AddStandardResilienceHandler()
+            .Configure((resilience, serviceProvider) =>
             {
+                var logger = serviceProvider
+                    .GetRequiredService<ILoggerFactory>()
+                    .CreateLogger("HttpResilienceDefaults.HttpClient");
+
                 resilience.TotalRequestTimeout.Timeout = options.TotalTimeout;
                 resilience.AttemptTimeout.Timeout = options.AttemptTimeout;
                 resilience.Retry.MaxRetryAttempts = options.RetryCount;
                 resilience.Retry.Delay = options.RetryDelay;
+                resilience.Retry.OnRetry = args =>
+                {
+                    _logHttpRetry(logger, clientName, args.AttemptNumber + 1, args.RetryDelay, args.Outcome.Exception);
+                    return default;
+                };
 
                 if (!options.RetryUnsafeHttpMethods)
                 {
@@ -41,6 +76,21 @@ public static class HttpClientResilienceBuilderExtensions
                 resilience.CircuitBreaker.MinimumThroughput = options.CircuitBreakerMinimumThroughput;
                 resilience.CircuitBreaker.SamplingDuration = options.CircuitBreakerSamplingDuration;
                 resilience.CircuitBreaker.BreakDuration = options.CircuitBreakerBreakDuration;
+                resilience.CircuitBreaker.OnOpened = args =>
+                {
+                    _logCircuitOpened(logger, clientName, args.BreakDuration, args.Outcome.Exception);
+                    return default;
+                };
+                resilience.CircuitBreaker.OnHalfOpened = _ =>
+                {
+                    _logCircuitHalfOpened(logger, clientName, null);
+                    return default;
+                };
+                resilience.CircuitBreaker.OnClosed = _ =>
+                {
+                    _logCircuitClosed(logger, clientName, null);
+                    return default;
+                };
             });
 
         return builder;

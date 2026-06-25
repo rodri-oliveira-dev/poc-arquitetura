@@ -34,10 +34,10 @@ public sealed class HttpClientResilienceOptions
                 $"{SectionName}:Clients:{clientName}:{nameof(AttemptTimeout)} deve ser menor ou igual a {nameof(TotalTimeout)}.");
         }
 
-        if (RetryCount < 0)
+        if (RetryCount <= 0)
         {
             throw new InvalidOperationException(
-                $"{SectionName}:Clients:{clientName}:{nameof(RetryCount)} deve ser maior ou igual a zero.");
+                $"{SectionName}:Clients:{clientName}:{nameof(RetryCount)} deve ser maior que zero.");
         }
 
         if (CircuitBreakerFailureRatio is <= 0 or > 1)
