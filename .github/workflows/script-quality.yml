@@ -127,17 +127,10 @@ jobs:
               Write-Host "::error file=$($result.ScriptPath),line=$($result.Line),col=$($result.Column)::$($result.RuleName): $($result.Message)"
             }
 
-            throw "PSScriptAnalyzer found $($errorResults.Count) error issue(s)."
+            throw "PSScriptAnalyzer found $($errorResults.Count) critical issue(s)."
           }
 
-          $warningResults = @(Invoke-ScriptAnalyzer -Path scripts -Recurse -Severity Warning)
-          foreach ($result in $warningResults) {
-            Write-Host "::warning file=$($result.ScriptPath),line=$($result.Line),col=$($result.Column)::$($result.RuleName): $($result.Message)"
-          }
-
-          if ($warningResults.Count -gt 0) {
-            Write-Host "::notice::PSScriptAnalyzer found $($warningResults.Count) warning issue(s). Warnings are reported but do not fail this job."
-          }
+          Write-Host 'No critical PowerShell issues found.'
 
       - name: Validate Node scripts
         shell: bash
