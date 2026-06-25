@@ -21,7 +21,8 @@ $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 . (Join-Path $scriptDir "..\lib\common-validation.ps1")
 
 Write-Host "Obtendo token pelo provider local configurado..."
-$token = Get-ValidationToken $AuthBaseUrl $Username $Password $Scope
+$credential = [pscredential]::new($Username, (ConvertTo-LocalSecureString $Password))
+$token = Get-ValidationToken $AuthBaseUrl $credential $Scope
 
 $correlationId = [Guid]::NewGuid().ToString()
 $idempotencyKey = [Guid]::NewGuid().ToString()

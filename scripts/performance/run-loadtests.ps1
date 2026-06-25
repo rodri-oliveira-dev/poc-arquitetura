@@ -392,9 +392,30 @@ function Assert-TransferKafkaEventsPublished([hashtable]$Before, [hashtable]$Aft
   Write-Output "OK. Full-stack Kafka publicou eventos da Saga com key=transferenciaId, correlationId esperado e DLQ sem crescimento."
 }
 
-function Get-PostgresCount([string]$Service, [string]$User, [string]$Database, [string]$Sql, [string]$Password) {
+function ConvertFrom-SecureStringToPlainText([securestring]$SecureString) {
+  $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecureString)
+  try {
+    return [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
+  }
+  finally {
+    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+  }
+}
+
+function ConvertTo-LocalSecureString([string]$Value) {
+  $secureString = [securestring]::new()
+  foreach ($character in $Value.ToCharArray()) {
+    $secureString.AppendChar($character)
+  }
+
+  $secureString.MakeReadOnly()
+  return $secureString
+}
+
+function Get-PostgresCount([string]$Service, [string]$User, [string]$Database, [string]$Sql, [securestring]$Password) {
+  $plainPassword = ConvertFrom-SecureStringToPlainText $Password
   $value = & docker @(Get-ComposeArguments) exec -T `
-    -e "PGPASSWORD=$Password" `
+    -e "PGPASSWORD=$plainPassword" `
     $Service `
     psql -h $Service -U $User -d $Database -t -A -c $Sql
   if ($LASTEXITCODE -ne 0) { throw "Falha ao consultar $Service durante validacao do smoke Pub/Sub." }
@@ -404,10 +425,10 @@ function Get-PostgresCount([string]$Service, [string]$User, [string]$Database, [
 function Get-AsyncFlowCounts {
   $ledgerUser = Get-LocalConfigValue "LEDGER_DB_USER" "ledger_app_user"
   $ledgerDatabase = Get-LocalConfigValue "LEDGER_DB_NAME" "appdb"
-  $ledgerPassword = Get-RequiredLocalConfigValue "LEDGER_DB_PASSWORD"
+  $ledgerPassword = ConvertTo-LocalSecureString (Get-RequiredLocalConfigValue "LEDGER_DB_PASSWORD")
   $balanceUser = Get-LocalConfigValue "BALANCE_DB_READ_USER" (Get-LocalConfigValue "BALANCE_DB_USER" "balance_read_user")
   $balanceDatabase = Get-LocalConfigValue "BALANCE_DB_NAME" "appdb"
-  $balancePassword = Get-RequiredLocalConfigValue "BALANCE_DB_READ_PASSWORD"
+  $balancePassword = ConvertTo-LocalSecureString (Get-RequiredLocalConfigValue "BALANCE_DB_READ_PASSWORD")
   return @{
     OutboxTotal = (Get-PostgresCount "postgres-db" $ledgerUser $ledgerDatabase "SELECT COUNT(*) FROM outbox_messages WHERE event_type IN ('LedgerEntryCreated.v1', 'LedgerEntryCreated.v2');" $ledgerPassword)
     OutboxProcessed = (Get-PostgresCount "postgres-db" $ledgerUser $ledgerDatabase "SELECT COUNT(*) FROM outbox_messages WHERE event_type IN ('LedgerEntryCreated.v1', 'LedgerEntryCreated.v2') AND status = 'Processed';" $ledgerPassword)

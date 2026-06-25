@@ -37,17 +37,37 @@ function Invoke-WithEnv([hashtable]$Values, [scriptblock]$Script) {
   }
 }
 
+function ConvertFrom-SecureStringToPlainText([securestring]$SecureString) {
+  $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecureString)
+  try {
+    return [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
+  }
+  finally {
+    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+  }
+}
+
+function ConvertTo-LocalSecureString([string]$Value) {
+  $secureString = [securestring]::new()
+  foreach ($character in $Value.ToCharArray()) {
+    $secureString.AppendChar($character)
+  }
+
+  $secureString.MakeReadOnly()
+  return $secureString
+}
+
 function Get-ValidationToken(
   [string]$AuthBaseUrl,
-  [string]$Username,
-  [string]$Password,
+  [pscredential]$Credential,
   [string]$Scope
 ) {
   Write-Host "Obtendo token pelo provider local configurado..."
+  $password = ConvertFrom-SecureStringToPlainText $Credential.Password
   $token = Invoke-WithEnv @{
     AUTH_BASE_URL = $AuthBaseUrl
-    USERNAME = $Username
-    PASSWORD = $Password
+    USERNAME = $Credential.UserName
+    PASSWORD = $password
     SCOPE = $Scope
   } {
     & $script:GetTokenScript

@@ -28,7 +28,8 @@ if ($Type -eq "DEBIT" -and $Amount -ge 0) {
   throw "Para DEBIT, Amount deve ser menor que zero."
 }
 
-$token = Get-ValidationToken $AuthBaseUrl $Username $Password $Scope
+$credential = [pscredential]::new($Username, (ConvertTo-LocalSecureString $Password))
+$token = Get-ValidationToken $AuthBaseUrl $credential $Scope
 
 $correlationId = [Guid]::NewGuid().ToString()
 $createIdempotencyKey = [Guid]::NewGuid().ToString()

@@ -84,13 +84,34 @@ function Wait-Database([string]$Service, [string]$User, [string]$Database) {
   throw "Banco indisponivel apos timeout: $Service"
 }
 
-function Assert-DatabaseAuthentication([string]$User, [string]$Password) {
+function ConvertFrom-SecureStringToPlainText([securestring]$SecureString) {
+  $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecureString)
+  try {
+    return [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
+  }
+  finally {
+    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+  }
+}
+
+function ConvertTo-LocalSecureString([string]$Value) {
+  $secureString = [securestring]::new()
+  foreach ($character in $Value.ToCharArray()) {
+    $secureString.AppendChar($character)
+  }
+
+  $secureString.MakeReadOnly()
+  return $secureString
+}
+
+function Assert-DatabaseAuthentication([string]$User, [securestring]$Password) {
   $composeArguments = @(Get-ComposeArguments)
+  $plainPassword = ConvertFrom-SecureStringToPlainText $Password
   $previousErrorActionPreference = $ErrorActionPreference
   try {
     $ErrorActionPreference = "Continue"
     & docker @composeArguments exec -T `
-      -e "PGPASSWORD=$Password" `
+      -e "PGPASSWORD=$plainPassword" `
       "postgres-db" `
       psql -h postgres-db -U $User -d $postgresDatabase -v "ON_ERROR_STOP=1" -c "select 1;" 1>$null 2>$null
     $exitCode = $LASTEXITCODE
@@ -181,13 +202,13 @@ try {
   Invoke-DockerCompose $infraArgs
 
   Wait-Database "postgres-db" "postgres_admin" $postgresDatabase
-  Assert-DatabaseAuthentication "ledger_app_user" $ledgerRuntimePassword
-  Assert-DatabaseAuthentication "ledger_migrator_user" $ledgerMigratorPassword
-  Assert-DatabaseAuthentication "balance_read_user" $balanceReadPassword
-  Assert-DatabaseAuthentication "balance_write_user" $balanceWritePassword
-  Assert-DatabaseAuthentication "balance_migrator_user" $balanceMigratorPassword
-  Assert-DatabaseAuthentication "transfer_app_user" $transferRuntimePassword
-  Assert-DatabaseAuthentication "transfer_migrator_user" $transferMigratorPassword
+  Assert-DatabaseAuthentication "ledger_app_user" (ConvertTo-LocalSecureString $ledgerRuntimePassword)
+  Assert-DatabaseAuthentication "ledger_migrator_user" (ConvertTo-LocalSecureString $ledgerMigratorPassword)
+  Assert-DatabaseAuthentication "balance_read_user" (ConvertTo-LocalSecureString $balanceReadPassword)
+  Assert-DatabaseAuthentication "balance_write_user" (ConvertTo-LocalSecureString $balanceWritePassword)
+  Assert-DatabaseAuthentication "balance_migrator_user" (ConvertTo-LocalSecureString $balanceMigratorPassword)
+  Assert-DatabaseAuthentication "transfer_app_user" (ConvertTo-LocalSecureString $transferRuntimePassword)
+  Assert-DatabaseAuthentication "transfer_migrator_user" (ConvertTo-LocalSecureString $transferMigratorPassword)
 
   Invoke-Migration `
     "Host=127.0.0.1;Port=$postgresHostPort;Database=$postgresDatabase;Username=ledger_migrator_user;Password=$ledgerMigratorPassword" `
