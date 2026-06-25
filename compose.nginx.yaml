@@ -66,6 +66,19 @@ services:
     networks:
       - poc-net
 
+  transfer-worker:
+    depends_on: !reset
+      postgres-db:
+        condition: service_healthy
+      kafka-init-topics:
+        condition: service_completed_successfully
+      ledger-service-1:
+        condition: service_started
+      keycloak:
+        condition: service_healthy
+    environment:
+      TransferService__Worker__Ledger__BaseAddress: "http://ledger-service-1:8080"
+
   nginx-certs-init:
     image: alpine:3.22
     container_name: poc-nginx-certs-init
@@ -122,3 +135,9 @@ services:
 
 volumes:
   nginx-certs:
+    labels:
+      auto-prune: "true"
+      retention: "7d"
+      environment: "local"
+      owner: "docker-compose"
+      description: "Recreated local Nginx certificate cache copied from infra/nginx/certs"

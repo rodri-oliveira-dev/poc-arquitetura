@@ -376,6 +376,8 @@ Para limpeza segura sem apagar bancos ou outros volumes:
 
 Esses scripts usam `docker compose down --remove-orphans` sem `-v` e oferecem `docker builder prune`/`docker image prune` com confirmacao.
 
+Volumes persistentes e descartaveis estao rotulados no Compose. A classificacao completa, os comandos para limitar cache de build a 5GB e o prune dry-run de volumes com `auto-prune=true` ficam em [manutencao Docker local](docker-maintenance.md).
+
 Reset destrutivo do PostgreSQL local:
 
 ```bash

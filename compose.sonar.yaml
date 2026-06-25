@@ -12,8 +12,26 @@ networks:
 
 volumes:
   sonar-postgres-data:
+    labels:
+      persistent: "true"
+      auto-prune: "false"
+      environment: "local"
+      owner: "docker-compose"
+      description: "Local SonarQube PostgreSQL data"
   sonarqube-data:
+    labels:
+      persistent: "true"
+      auto-prune: "false"
+      environment: "local"
+      owner: "docker-compose"
+      description: "Local SonarQube application data"
   sonarqube-extensions:
+    labels:
+      persistent: "true"
+      auto-prune: "false"
+      environment: "local"
+      owner: "docker-compose"
+      description: "Local SonarQube plugins and extensions"
 
 services:
   sonar-db:

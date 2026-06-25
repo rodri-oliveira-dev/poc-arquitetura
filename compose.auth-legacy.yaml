@@ -6,6 +6,12 @@ x-logging: &default-logging
 
 volumes:
   auth-api-data:
+    labels:
+      persistent: "true"
+      auto-prune: "false"
+      environment: "local"
+      owner: "docker-compose"
+      description: "Legacy Auth.Api RSA key data"
 
 services:
   auth-api:

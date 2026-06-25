@@ -12,6 +12,12 @@ networks:
 
 volumes:
   postgres-data:
+    labels:
+      persistent: "true"
+      auto-prune: "false"
+      environment: "local"
+      owner: "docker-compose"
+      description: "PostgreSQL local database data for Ledger, Balance and Transfer schemas"
 
 
 services:
