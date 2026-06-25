@@ -24,7 +24,7 @@ read_env_value() {
     return 0
   fi
 
-  sed -nE "s/^[[:space:]]*$key[[:space:]]*=[[:space:]]*(.*)[[:space:]]*$/\1/p" "$file" |
+  sed -nE "s/^[[:space:]]*${key}[[:space:]]*=[[:space:]]*(.*)[[:space:]]*$/\1/p" "$file" |
     tail -n 1 |
     sed -E "s/^[[:space:]]+//; s/[[:space:]]+$//; s/^['\"]//; s/['\"]$//"
 }

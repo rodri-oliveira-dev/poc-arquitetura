@@ -63,7 +63,7 @@ jobs:
           printf 'Bash scripts found:\n'
           printf ' - %s\n' "${bash_files[@]}"
 
-          shellcheck --format=gcc "${bash_files[@]}"
+          shellcheck -x --format=gcc "${bash_files[@]}"
 
           for file in "${bash_files[@]}"; do
             echo "Checking Bash syntax: ${file}"
