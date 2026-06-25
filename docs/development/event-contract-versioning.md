@@ -240,6 +240,12 @@ npm ci
 npm run events:validate
 ```
 
+Para chamar o validador diretamente:
+
+```bash
+node ./scripts/contracts/events/validate.mjs
+```
+
 A validacao confere:
 
 - todos os arquivos `.schema.json` sao JSON validos e compilam como JSON Schema;

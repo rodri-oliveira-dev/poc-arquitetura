@@ -174,21 +174,21 @@ A DLQ de aplicacao e `transfer.transferencia.dlq`. Mensagens publicadas nao sao 
 
 ## Smoke tests e carga local
 
-Os smoke tests e testes de carga do `TransferService.Api` seguem o padrao k6 do repositorio em `loadtests/k6` e sao executados pelos runners `scripts/run-loadtests.*`. Nao ha collection Postman/Newman versionada para este bounded context porque o repositorio ja centraliza smoke/load HTTP em k6.
+Os smoke tests e testes de carga do `TransferService.Api` seguem o padrao k6 do repositorio em `loadtests/k6` e sao executados pelos runners `scripts/performance/run-loadtests.*`. Nao ha collection Postman/Newman versionada para este bounded context porque o repositorio ja centraliza smoke/load HTTP em k6.
 
 Smoke local:
 
 ```powershell
-./scripts/run-loadtests.ps1 -Mode transfer-smoke-kafka
+./scripts/performance/run-loadtests.ps1 -Mode transfer-smoke-kafka
 ```
 
 ```bash
-./scripts/run-loadtests.sh transfer-smoke-kafka
+./scripts/performance/run-loadtests.sh transfer-smoke-kafka
 ```
 
 O modo `transfer-smoke-kafka` valida:
 
-- obtencao de token pelo fluxo local padrao de `scripts/get-token.*`;
+- obtencao de token pelo fluxo local padrao de `scripts/validation/get-token.*`;
 - `POST /api/v1/transferencias` com `Idempotency-Key` e `X-Correlation-Id`;
 - resposta `202 Accepted`, body com `transferenciaId`, status `Pending`, `statusUrl` e header `Location`;
 - `GET /api/v1/transferencias/{transferenciaId}` com `200 OK`;
@@ -202,11 +202,11 @@ O modo `transfer-smoke-kafka` valida:
 Carga moderada local:
 
 ```powershell
-./scripts/run-loadtests.ps1 -Mode transfer-load-kafka
+./scripts/performance/run-loadtests.ps1 -Mode transfer-load-kafka
 ```
 
 ```bash
-./scripts/run-loadtests.sh transfer-load-kafka
+./scripts/performance/run-loadtests.sh transfer-load-kafka
 ```
 
 O modo `transfer-load-kafka` executa POST/GET com ramping ate 10 VUs por padrao, gerando `Idempotency-Key`, `X-Correlation-Id` e `externalReference` unicos por iteracao. Ele nao exige conclusao full-stack em 100% das iteracoes para evitar instabilidade artificial em teste de carga HTTP. Os thresholds iniciais sao `http_req_failed{service:transfer} < 2%`, `checks >= 99%`, `transfer_post_success >= 99%`, `transfer_get_success >= 99%`, `dropped_iterations == 0`, p95 menor que 1000ms e p99 menor que 2000ms para as operacoes de criacao e consulta.
@@ -227,11 +227,11 @@ Esses testes nao validam a conclusao da Saga, chamadas ao Ledger, publicacao Kaf
 Smoke full-stack Kafka:
 
 ```powershell
-./scripts/run-loadtests.ps1 -Mode transfer-fullstack-kafka
+./scripts/performance/run-loadtests.ps1 -Mode transfer-fullstack-kafka
 ```
 
 ```bash
-./scripts/run-loadtests.sh transfer-fullstack-kafka
+./scripts/performance/run-loadtests.sh transfer-fullstack-kafka
 ```
 
 O modo `transfer-fullstack-kafka` e manual e valida API + Worker + LedgerService + Outbox + Kafka. Ele usa o compose padrao com Kafka, garante que Kafka e `transfer-worker` estejam em execucao, executa uma transferencia com `TRANSFER_CORRELATION_ID` controlado, consulta o status com polling ate `Completed` e valida pelo runner que os topicos `transfer.transferencia.solicitada`, `transfer.transferencia.debito-criado`, `transfer.transferencia.credito-criado` e `transfer.transferencia.concluida` receberam novas mensagens. A amostra Kafka do fluxo precisa ter `message key = transferenciaId`, payload com o `correlationId` esperado e a DLQ `transfer.transferencia.dlq` nao pode crescer no fluxo feliz.

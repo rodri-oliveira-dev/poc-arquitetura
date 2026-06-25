@@ -1,0 +1,151 @@
+name: script-quality
+
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "scripts/**"
+      - ".github/workflows/script-quality.yml"
+      - ".github/workflows/**"
+      - "package.json"
+      - "package-lock.json"
+  push:
+    branches: ["main"]
+    paths:
+      - "scripts/**"
+      - ".github/workflows/script-quality.yml"
+      - ".github/workflows/**"
+      - "package.json"
+      - "package-lock.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: true
+  PSSCRIPTANALYZER_VERSION: "1.24.0"
+
+jobs:
+  validate:
+    name: Validate scripts
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup Node.js
+        uses: ./.github/actions/setup-node
+
+      - name: Install ShellCheck
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends shellcheck
+          shellcheck --version
+
+      - name: Validate Bash scripts
+        shell: bash
+        run: |
+          mapfile -d '' bash_files < <(find scripts -type f -name '*.sh' -print0 | sort -z)
+
+          if [ "${#bash_files[@]}" -eq 0 ]; then
+            echo "::notice::No Bash scripts found under scripts/."
+            exit 0
+          fi
+
+          printf 'Bash scripts found:\n'
+          printf ' - %s\n' "${bash_files[@]}"
+
+          shellcheck -x -P SCRIPTDIR --format=gcc "${bash_files[@]}"
+
+          for file in "${bash_files[@]}"; do
+            echo "Checking Bash syntax: ${file}"
+            bash -n "${file}"
+          done
+
+      - name: Install PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+          Install-Module -Name PSScriptAnalyzer -RequiredVersion $env:PSSCRIPTANALYZER_VERSION -Repository PSGallery -Scope CurrentUser -Force
+          Import-Module PSScriptAnalyzer -RequiredVersion $env:PSSCRIPTANALYZER_VERSION
+          Get-Module PSScriptAnalyzer | Format-Table Name, Version, Path
+
+      - name: Validate PowerShell scripts
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $psFiles = Get-ChildItem -Path scripts -Recurse -File -Filter '*.ps1' | Sort-Object FullName
+
+          if (-not $psFiles) {
+            Write-Host 'No PowerShell scripts found under scripts/.'
+            exit 0
+          }
+
+          Write-Host 'PowerShell scripts found:'
+          foreach ($file in $psFiles) {
+            Write-Host " - $($file.FullName)"
+          }
+
+          $parseErrors = @()
+          foreach ($file in $psFiles) {
+            Write-Host "Checking PowerShell syntax: $($file.FullName)"
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($file.FullName, [ref] $tokens, [ref] $errors) | Out-Null
+
+            foreach ($errorRecord in $errors) {
+              $parseErrors += [pscustomobject]@{
+                Path = $file.FullName
+                Line = $errorRecord.Extent.StartLineNumber
+                Column = $errorRecord.Extent.StartColumnNumber
+                Message = $errorRecord.Message
+              }
+            }
+          }
+
+          if ($parseErrors.Count -gt 0) {
+            foreach ($errorRecord in $parseErrors) {
+              Write-Host "::error file=$($errorRecord.Path),line=$($errorRecord.Line),col=$($errorRecord.Column)::$($errorRecord.Message)"
+            }
+
+            throw "PowerShell syntax validation failed for $($parseErrors.Count) issue(s)."
+          }
+
+          Import-Module PSScriptAnalyzer -RequiredVersion $env:PSSCRIPTANALYZER_VERSION
+          $errorResults = @(Invoke-ScriptAnalyzer -Path scripts -Recurse -Severity Error)
+          if ($errorResults.Count -gt 0) {
+            foreach ($result in $errorResults) {
+              Write-Host "::error file=$($result.ScriptPath),line=$($result.Line),col=$($result.Column)::$($result.RuleName): $($result.Message)"
+            }
+
+            throw "PSScriptAnalyzer found $($errorResults.Count) critical issue(s)."
+          }
+
+          Write-Host 'No critical PowerShell issues found.'
+
+      - name: Validate Node scripts
+        shell: bash
+        run: |
+          mapfile -d '' node_files < <(find scripts -type f -name '*.mjs' -print0 | sort -z)
+
+          if [ "${#node_files[@]}" -eq 0 ]; then
+            echo "::notice::No Node .mjs scripts found under scripts/."
+            exit 0
+          fi
+
+          printf 'Node scripts found:\n'
+          printf ' - %s\n' "${node_files[@]}"
+
+          for file in "${node_files[@]}"; do
+            echo "Checking Node syntax: ${file}"
+            node --check "${file}"
+          done

@@ -50,7 +50,7 @@ Componentes principais:
 - Nao introduza segredos no repositorio.
 - Nao invente URLs, portas, contratos, comandos ou arquitetura.
 - Quando mudar contrato, fluxo arquitetural, setup local ou comportamento relevante, atualize a documentacao correspondente.
-- Quando adicionar endpoint ou alterar contrato HTTP, payload, status code, autenticacao, autorizacao, header, Swagger/OpenAPI ou comportamento exposto por API, gere novamente os contratos OpenAPI com `./scripts/generate-openapi.sh` ou `./scripts/generate-openapi.ps1` e versione as alteracoes em `docs/openapi`.
+- Quando adicionar endpoint ou alterar contrato HTTP, payload, status code, autenticacao, autorizacao, header, Swagger/OpenAPI ou comportamento exposto por API, gere novamente os contratos OpenAPI com `./scripts/contracts/openapi/generate.sh` ou `./scripts/contracts/openapi/generate.ps1` e versione as alteracoes em `docs/openapi`.
 - Nao altere testes apenas para faze-los passar.
 - Nao faca push.
 - Nao crie branch sem solicitacao explicita.
@@ -106,6 +106,10 @@ Mudancas de persistencia com impacto estrutural, transacional, relacional ou com
 - Atualize `docs/architecture/` e LikeC4 quando mudar componente, relacao arquitetural, servico, banco, fila, topico, observabilidade ou integracao relevante.
 - Crie ou atualize ADR quando houver decisao arquitetural, contrato entre servicos, estrategia de persistencia, mensageria, observabilidade, seguranca, resiliencia, integracao externa, estrutura de projeto ou mudanca relevante de comportamento.
 - Nao reescreva ADR historica como se fosse documentacao atual; preserve a decisao original.
+
+## Organizacao dos scripts
+
+Use os caminhos em subpastas de `scripts/` como padrao em documentacao, automacoes e instrucoes novas. Nao use wrappers antigos diretamente em `scripts/` em CI, `package.json` ou tasks do VS Code, e nao recomende remocao deles sem tarefa explicita. A politica principal fica em `docs/development/scripts.md`.
 
 ## Skills do Codex
 

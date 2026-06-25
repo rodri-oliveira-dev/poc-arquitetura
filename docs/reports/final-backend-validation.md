@@ -34,7 +34,7 @@ docker compose -f compose.yaml -f compose.observability.yaml --profile observabi
 docker compose -f compose.yaml -f compose.k6.yaml --profile k6 config --quiet
 docker compose -f compose.yaml up -d --build
 dotnet ef database update --project src/LedgerService.Infrastructure --startup-project src/LedgerService.Api --context AppDbContext --connection "Host=127.0.0.1;Port=15432;Database=appdb;Username=appuser;Password=local_dev_password"
-powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/run-loadtests.ps1 -Mode smoke
+powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/performance/run-loadtests.ps1 -Mode smoke
 docker compose -f compose.yaml down --remove-orphans
 ```
 

@@ -14,13 +14,13 @@ Nao versione certificados, chaves privadas, senhas ou material sensivel. A pasta
 Opcao recomendada via script do repositorio:
 
 ```powershell
-./scripts/generate-local-certs.ps1
+./scripts/local/generate-certs.ps1
 ```
 
 No Linux/macOS:
 
 ```bash
-./scripts/generate-local-certs.sh
+./scripts/local/generate-certs.sh
 ```
 
 Opcao recomendada com `mkcert`:
@@ -53,25 +53,25 @@ docker compose -f compose.yaml -f compose.nginx.yaml up -d --build nginx-edge
 Para subir a stack completa da POC com observabilidade, migrations pelo host e este overlay Nginx, use:
 
 ```powershell
-./scripts/start-full-stack.ps1
+./scripts/local/start-full-stack.ps1
 ```
 
 No Linux/macOS:
 
 ```bash
-./scripts/start-full-stack.sh
+./scripts/local/start-full-stack.sh
 ```
 
 Para parar esse fluxo completo sem remover volumes ou certificados:
 
 ```powershell
-./scripts/stop-full-stack.ps1
+./scripts/local/stop-full-stack.ps1
 ```
 
 No Linux/macOS:
 
 ```bash
-./scripts/stop-full-stack.sh
+./scripts/local/stop-full-stack.sh
 ```
 
 Se containers antigos do overlay ou a rede local do projeto ficarem presos, `start-full-stack.*` detecta o estado antes da subida e pergunta se pode executar uma limpeza nao destrutiva sem `-v`. Use `-Cleanup` no PowerShell ou `--cleanup` no shell para autorizar essa limpeza sem prompt.

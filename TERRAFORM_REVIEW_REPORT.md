@@ -112,8 +112,8 @@ state e inicializacao.
 
 - Severidade: Medio
 - Arquivo e linha aproximada: `.github/workflows/terraform-validation.yml:37`
-- Descricao: os scripts locais (`scripts/validate-terraform.ps1` e
-  `scripts/validate-terraform.sh`) executam `tflint --recursive`, mas o workflow
+- Descricao: os scripts locais (`scripts/quality/terraform/validate.ps1` e
+  `scripts/quality/terraform/validate.sh`) executam `tflint --recursive`, mas o workflow
   `terraform-validation` nao executa TFLint.
 - Impacto pratico: um PR pode passar no GitHub Actions mesmo com problema que
   seria detectado pelo hook/pre-push local.
@@ -217,7 +217,7 @@ Comandos executados:
 | `terraform "-chdir=./infra/terraform/environments/dev" init -backend=false -input=false` | Passou. Providers `hashicorp/google` e `hashicorp/google-beta` reutilizados em `7.34.0`. |
 | `terraform "-chdir=./infra/terraform/environments/dev" validate` | Passou. Configuracao valida. |
 | `tflint --recursive` | Passou sem achados. |
-| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/validate-terraform.ps1` | Passou. Executou `fmt`, `init -backend=false`, `validate` para root e modulo, e `tflint --recursive`. |
+| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/quality/terraform/validate.ps1` | Passou. Executou `fmt`, `init -backend=false`, `validate` para root e modulo, e `tflint --recursive`. |
 | `checkov --version` | Nao executado: ferramenta nao instalada no ambiente. |
 | `tfsec --version` | Nao executado: ferramenta nao instalada no ambiente. |
 | `terrascan version` | Nao executado: ferramenta nao instalada no ambiente. |
@@ -283,7 +283,7 @@ Foram analisados:
 - Arquivos `*.tf`, `*.tfvars`, `*.tfvars.example`, `*.hcl` e lockfiles em
   `infra/terraform`.
 - Workflow `.github/workflows/terraform-validation.yml`.
-- Scripts `scripts/validate-terraform.ps1` e `scripts/validate-terraform.sh`.
+- Scripts `scripts/quality/terraform/validate.ps1` e `scripts/quality/terraform/validate.sh`.
 - Documentacao relacionada em `infra/terraform/**/README.md`,
   `docs/development/terraform-gcp-local-setup.md`,
   `docs/development/pubsub-infra-app-contract.md`,

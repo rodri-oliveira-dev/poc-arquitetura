@@ -22,16 +22,16 @@ Arquivos analisados:
 - `infra/nginx/nginx.conf`
 - `infra/nginx/security-headers.conf`
 - `infra/nginx/README.md`
-- `scripts/start-local-stack.ps1`
-- `scripts/start-local-stack.sh`
-- `scripts/start-full-stack.ps1`
-- `scripts/start-full-stack.sh`
-- `scripts/stop-full-stack.ps1`
-- `scripts/stop-full-stack.sh`
-- `scripts/run-loadtests.ps1`
-- `scripts/run-loadtests.sh`
-- `scripts/compose-env.ps1`
-- `scripts/compose-env.sh`
+- `scripts/local/start-stack.ps1`
+- `scripts/local/start-stack.sh`
+- `scripts/local/start-full-stack.ps1`
+- `scripts/local/start-full-stack.sh`
+- `scripts/local/stop-full-stack.ps1`
+- `scripts/local/stop-full-stack.sh`
+- `scripts/performance/run-loadtests.ps1`
+- `scripts/performance/run-loadtests.sh`
+- `scripts/lib/compose-env.ps1`
+- `scripts/lib/compose-env.sh`
 - `docs/development/local-development.md`
 - `docs/quality/sonarqube.md`
 - ADRs relacionadas a Compose, Docker-compatible API, containers, observabilidade local, Nginx e Keycloak.
@@ -121,7 +121,7 @@ Validacoes executadas nesta atualizacao incremental:
 - `docker compose -f compose.sonar.yaml --profile quality config`
 - `docker compose -f compose.yaml -f compose.auth-legacy.yaml --profile legacy-auth config`
 - `docker run --rm -v <loki-config>:/etc/loki/loki-config.yaml:ro docker.io/grafana/loki:3.7.0 "-config.file=/etc/loki/loki-config.yaml" "-verify-config"`
-- `powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/docker-disk-report.ps1`
+- `powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/docker/disk-report.ps1`
 - `dotnet restore`
 - `dotnet build ./LedgerService.slnx --configuration Release --no-restore`
 - `dotnet test ./LedgerService.slnx --configuration Release --no-build --settings ./coverlet.runsettings`
@@ -160,7 +160,7 @@ docker volume ls
 docker volume inspect <volume>
 docker image ls
 docker builder du
-./scripts/docker-disk-report.sh
+./scripts/docker/disk-report.sh
 ```
 
 Comandos de limpeza geralmente seguros, mas ainda revisaveis:
@@ -169,7 +169,7 @@ Comandos de limpeza geralmente seguros, mas ainda revisaveis:
 docker builder prune
 docker image prune
 docker compose down --remove-orphans
-./scripts/docker-clean-safe.sh
+./scripts/docker/clean-safe.sh
 ```
 
 `docker builder prune` remove cache de build. `docker image prune` remove imagens sem tag/nao usadas. `docker compose down --remove-orphans` remove containers e rede do projeto, mas preserva volumes quando usado sem `-v`.

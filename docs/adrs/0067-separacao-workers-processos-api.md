@@ -66,13 +66,13 @@ Em observabilidade, dashboards, logs e alertas devem filtrar por `ServiceName` p
 Para subir a stack local completa com APIs e workers separados:
 
 ```powershell
-./scripts/start-local-stack.ps1
+./scripts/local/start-stack.ps1
 ```
 
 No Linux/macOS:
 
 ```bash
-./scripts/start-local-stack.sh
+./scripts/local/start-stack.sh
 ```
 
 Para execucao manual no host, suba a infraestrutura local e execute os processos separadamente:

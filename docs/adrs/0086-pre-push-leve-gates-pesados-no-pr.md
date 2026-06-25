@@ -40,7 +40,7 @@ O Pull Request permanece como gate forte:
 
 ### Trade-offs / custos
 - Alguns problemas passam a ser descobertos no PR em vez de no push local.
-- Desenvolvedores que quiserem feedback completo antes do PR precisam executar `./test.sh`, `./test.ps1`, Trivy ou `scripts/validate-terraform.sh` manualmente.
+- Desenvolvedores que quiserem feedback completo antes do PR precisam executar `./test.sh`, `./test.ps1`, Trivy ou `scripts/quality/terraform/validate.sh` manualmente.
 - A categorizacao de testes precisa ser mantida sempre que novos testes de integracao, contrato ou container forem criados.
 
 ### Riscos

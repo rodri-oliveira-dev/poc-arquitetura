@@ -45,7 +45,7 @@ Kafka passa a ser o default de mensageria dos workers principais:
 - Pub/Sub permanece implementado e suportado somente quando configurado
   explicitamente com `Messaging:Provider=PubSub`, incluindo os arquivos
   `appsettings.PubSub.json`, `compose.pubsub.yaml`, profile `legacy-pubsub` e
-  scripts `start-local-stack-pubsub.*`.
+  scripts `scripts/local/start-stack-pubsub.*`.
 
 Provider invalido continua falhando cedo na composition root com mensagem
 objetiva. Esta decisao nao altera contratos HTTP, contratos de eventos,
@@ -81,9 +81,9 @@ permanece fora desse fluxo.
   caminho legado/alternativo.
 - `TransferService.Worker`: permanece Kafka-only para processamento de Saga,
   publicacao da Outbox e DLQ `transfer.transferencia.dlq`.
-- Compose local: `compose.yaml` e `scripts/start-local-stack.*` sobem Kafka,
+- Compose local: `compose.yaml` e `scripts/local/start-stack.*` sobem Kafka,
   `kafka-init-topics`, APIs e workers principais; `compose.pubsub.yaml` e
-  `scripts/start-local-stack-pubsub.*` documentam o modo Pub/Sub legado.
+  `scripts/local/start-stack-pubsub.*` documentam o modo Pub/Sub legado.
 - Testes: testes de composicao devem preservar Kafka como fallback quando
   `Messaging:Provider` esta ausente e manter Pub/Sub apenas como selecao
   explicita.

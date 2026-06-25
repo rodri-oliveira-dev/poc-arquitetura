@@ -1,16 +1,16 @@
 # k6 load tests
 
-Este diretorio contem scripts k6 usados pelos runners em `./scripts/run-loadtests.*`.
+Este diretorio contem scripts k6 usados pelos runners em `./scripts/performance/run-loadtests.*`.
 
 ## Configuracao
 
 A configuracao efetiva usa esta precedencia, da menor para a maior:
 
 1. Defaults para execucao local via `localhost`
-2. Arquivo `.env.k6.auto`, gerado por `scripts/compose-env.*`
+2. Arquivo `.env.k6.auto`, gerado por `scripts/lib/compose-env.*`
 3. Variaveis de ambiente do k6, via `__ENV`
 
-Os runners oficiais obtem `TOKEN` chamando `scripts/get-token.*`; por padrao, o provider e o Keycloak local via `client_credentials`. Os cenarios tambem aceitam `ALLOW_ANON=true`, mas esse caminho nao e usado no fluxo oficial.
+Os runners oficiais obtem `TOKEN` chamando `scripts/validation/get-token.*`; por padrao, o provider e o Keycloak local via `client_credentials`. Os cenarios tambem aceitam `ALLOW_ANON=true`, mas esse caminho nao e usado no fluxo oficial.
 
 Variaveis padrao relevantes:
 
@@ -41,17 +41,17 @@ Os nomes antigos entre parenteses continuam aceitos por compatibilidade. Para no
 ## Exemplos
 
 ```powershell
-./scripts/start-local-stack.ps1
-./scripts/run-loadtests.ps1 -Mode smoke-kafka
-./scripts/run-loadtests.ps1 -Mode load-kafka
-./scripts/run-loadtests.ps1 -Mode transfer-fullstack-kafka
+./scripts/local/start-stack.ps1
+./scripts/performance/run-loadtests.ps1 -Mode smoke-kafka
+./scripts/performance/run-loadtests.ps1 -Mode load-kafka
+./scripts/performance/run-loadtests.ps1 -Mode transfer-fullstack-kafka
 ```
 
 ```bash
-./scripts/start-local-stack.sh
-./scripts/run-loadtests.sh smoke-kafka
-./scripts/run-loadtests.sh load-kafka
-./scripts/run-loadtests.sh transfer-fullstack-kafka
+./scripts/local/start-stack.sh
+./scripts/performance/run-loadtests.sh smoke-kafka
+./scripts/performance/run-loadtests.sh load-kafka
+./scripts/performance/run-loadtests.sh transfer-fullstack-kafka
 ```
 
 Pub/Sub nao e usado no caminho padrao. Se alguem tentar `--provider PubSub` ou `-Provider PubSub`, o runner falha cedo com mensagem clara e aponta para a stack legada manual.
@@ -76,11 +76,11 @@ Para sobrescrever limites sem alterar codigo:
 ```powershell
 $env:BALANCE_HTTP_REQ_DURATION_P95_MS='1500'
 $env:BALANCE_HTTP_REQ_DURATION_P99_MS='3500'
-./scripts/run-loadtests.ps1 -Mode load-kafka
+./scripts/performance/run-loadtests.ps1 -Mode load-kafka
 ```
 
 ```bash
-BALANCE_HTTP_REQ_DURATION_P95_MS=1500 BALANCE_HTTP_REQ_DURATION_P99_MS=3500 ./scripts/run-loadtests.sh load-kafka
+BALANCE_HTTP_REQ_DURATION_P95_MS=1500 BALANCE_HTTP_REQ_DURATION_P99_MS=3500 ./scripts/performance/run-loadtests.sh load-kafka
 ```
 
 Tambem existe override global para os dois cenarios quando o prefixo especifico nao for informado: `K6_HTTP_REQ_DURATION_P95_MS` e `K6_HTTP_REQ_DURATION_P99_MS`.

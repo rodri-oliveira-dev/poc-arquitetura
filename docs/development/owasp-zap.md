@@ -10,14 +10,14 @@ Tambem existe o workflow manual `.github/workflows/owasp-zap.yml` para executar 
 
 - Docker-compatible API acessivel.
 - CLI `docker` com suporte a `docker compose`.
-- Stack local ja iniciada com `./scripts/start-local-stack.*` ou stack completa com Nginx iniciada com `./scripts/start-full-stack.*`.
+- Stack local ja iniciada com `./scripts/local/start-stack.*` ou stack completa com Nginx iniciada com `./scripts/local/start-full-stack.*`.
 - Para Linux/macOS, `curl` e `python3` disponiveis no host.
 
 Os scripts nao sobem a stack principal automaticamente, nao executam build, testes .NET nem k6, e nao removem containers da aplicacao. Eles criam/removem apenas o container temporario `poc-arquitetura-zap`.
 
-Quando quiser um comando unico para ambiente local ainda parado, use `-StartStack` ou `--start-stack`. Esse modo chama os scripts oficiais `start-local-stack.*` antes dos health checks. Ele e explicito porque pode restaurar ferramentas, aplicar migrations e subir containers da POC.
+Quando quiser um comando unico para ambiente local ainda parado, use `-StartStack` ou `--start-stack`. Esse modo chama os scripts oficiais `scripts/local/start-stack.*` antes dos health checks. Ele e explicito porque pode restaurar ferramentas, aplicar migrations e subir containers da POC.
 
-Por padrao o scan importa OpenAPI sem autenticacao. Quando quiser exercitar endpoints protegidos com Bearer token, use `-UseAuthentication` ou `--use-authentication`; o runner chama `scripts/get-token.*`, que usa Keycloak local por padrao e preserva o fallback `TOKEN_PROVIDER=auth-api` somente quando a stack tambem estiver configurada para o emissor legado.
+Por padrao o scan importa OpenAPI sem autenticacao. Quando quiser exercitar endpoints protegidos com Bearer token, use `-UseAuthentication` ou `--use-authentication`; o runner chama `scripts/validation/get-token.*`, que usa Keycloak local por padrao e preserva o fallback `TOKEN_PROVIDER=auth-api` somente quando a stack tambem estiver configurada para o emissor legado.
 
 ## Alvos
 
@@ -43,11 +43,11 @@ Depois do health check, o alvo analisado pelo ZAP e o documento OpenAPI de cada 
 Por padrao, o runner aguarda ate 90 segundos por API, com tentativas a cada 3 segundos. Ajuste esse comportamento quando a maquina local estiver mais lenta:
 
 ```powershell
-./scripts/run-owasp-zap.ps1 -StartStack -HealthTimeoutSeconds 180
+./scripts/security/run-owasp-zap.ps1 -StartStack -HealthTimeoutSeconds 180
 ```
 
 ```bash
-./scripts/run-owasp-zap.sh --start-stack --health-timeout 180
+./scripts/security/run-owasp-zap.sh --start-stack --health-timeout 180
 ```
 
 ## PowerShell
@@ -55,31 +55,31 @@ Por padrao, o runner aguarda ate 90 segundos por API, com tentativas a cada 3 se
 URLs diretas:
 
 ```powershell
-./scripts/run-owasp-zap.ps1
+./scripts/security/run-owasp-zap.ps1
 ```
 
 Subindo a stack local antes do scan:
 
 ```powershell
-./scripts/run-owasp-zap.ps1 -StartStack
+./scripts/security/run-owasp-zap.ps1 -StartStack
 ```
 
 Sem rebuild de imagens ao subir a stack:
 
 ```powershell
-./scripts/run-owasp-zap.ps1 -StartStack -NoBuild
+./scripts/security/run-owasp-zap.ps1 -StartStack -NoBuild
 ```
 
 Via Nginx local:
 
 ```powershell
-./scripts/run-owasp-zap.ps1 -UseNginx
+./scripts/security/run-owasp-zap.ps1 -UseNginx
 ```
 
 Sobrescrevendo URLs ou imagem:
 
 ```powershell
-./scripts/run-owasp-zap.ps1 `
+./scripts/security/run-owasp-zap.ps1 `
   -AuthUrl http://localhost:5030 `
   -LedgerUrl http://localhost:5226 `
   -BalanceUrl http://localhost:5228 `
@@ -89,26 +89,26 @@ Sobrescrevendo URLs ou imagem:
 Sobrescrevendo o caminho do documento OpenAPI:
 
 ```powershell
-./scripts/run-owasp-zap.ps1 -SwaggerPath /swagger/v1/swagger.json
+./scripts/security/run-owasp-zap.ps1 -SwaggerPath /swagger/v1/swagger.json
 ```
 
 Com token Bearer obtido pelo provider local configurado:
 
 ```powershell
-./scripts/run-owasp-zap.ps1 -UseAuthentication
+./scripts/security/run-owasp-zap.ps1 -UseAuthentication
 ```
 
 Incluindo o Auth.Api legado:
 
 ```powershell
 docker compose -f compose.yaml -f compose.auth-legacy.yaml --profile legacy-auth up -d --build auth-api
-./scripts/run-owasp-zap.ps1 -IncludeLegacyAuth
+./scripts/security/run-owasp-zap.ps1 -IncludeLegacyAuth
 ```
 
 Com token manual, quando voce ja obteve um JWT valido:
 
 ```powershell
-./scripts/run-owasp-zap.ps1 -UseAuthentication -Token "<TOKEN>"
+./scripts/security/run-owasp-zap.ps1 -UseAuthentication -Token "<TOKEN>"
 ```
 
 ## Bash
@@ -116,31 +116,31 @@ Com token manual, quando voce ja obteve um JWT valido:
 URLs diretas:
 
 ```bash
-./scripts/run-owasp-zap.sh
+./scripts/security/run-owasp-zap.sh
 ```
 
 Subindo a stack local antes do scan:
 
 ```bash
-./scripts/run-owasp-zap.sh --start-stack
+./scripts/security/run-owasp-zap.sh --start-stack
 ```
 
 Sem rebuild de imagens ao subir a stack:
 
 ```bash
-./scripts/run-owasp-zap.sh --start-stack --no-build
+./scripts/security/run-owasp-zap.sh --start-stack --no-build
 ```
 
 Via Nginx local:
 
 ```bash
-./scripts/run-owasp-zap.sh --use-nginx
+./scripts/security/run-owasp-zap.sh --use-nginx
 ```
 
 Sobrescrevendo URLs ou imagem:
 
 ```bash
-./scripts/run-owasp-zap.sh \
+./scripts/security/run-owasp-zap.sh \
   --auth-url http://localhost:5030 \
   --ledger-url http://localhost:5226 \
   --balance-url http://localhost:5228 \
@@ -150,26 +150,26 @@ Sobrescrevendo URLs ou imagem:
 Sobrescrevendo o caminho do documento OpenAPI:
 
 ```bash
-./scripts/run-owasp-zap.sh --swagger-path /swagger/v1/swagger.json
+./scripts/security/run-owasp-zap.sh --swagger-path /swagger/v1/swagger.json
 ```
 
 Com token Bearer obtido pelo provider local configurado:
 
 ```bash
-./scripts/run-owasp-zap.sh --use-authentication
+./scripts/security/run-owasp-zap.sh --use-authentication
 ```
 
 Incluindo o Auth.Api legado:
 
 ```bash
 docker compose -f compose.yaml -f compose.auth-legacy.yaml --profile legacy-auth up -d --build auth-api
-./scripts/run-owasp-zap.sh --include-legacy-auth
+./scripts/security/run-owasp-zap.sh --include-legacy-auth
 ```
 
 Com token manual, quando voce ja obteve um JWT valido:
 
 ```bash
-./scripts/run-owasp-zap.sh --use-authentication --token "<TOKEN>"
+./scripts/security/run-owasp-zap.sh --use-authentication --token "<TOKEN>"
 ```
 
 ## Relatorios
@@ -228,11 +228,11 @@ O padrao e `zap-api-scan.py -f openapi -S`, que importa o contrato Swagger/OpenA
 Active scan fica disponivel apenas por parametro explicito:
 
 ```powershell
-./scripts/run-owasp-zap.ps1 -ActiveScan
+./scripts/security/run-owasp-zap.ps1 -ActiveScan
 ```
 
 ```bash
-./scripts/run-owasp-zap.sh --active-scan
+./scripts/security/run-owasp-zap.sh --active-scan
 ```
 
 Use active scan somente em ambiente local descartavel e autorizado. Ele pode gerar trafego mais invasivo que o baseline.
@@ -244,11 +244,11 @@ Por padrao, o script conclui e salva relatorios mesmo quando o ZAP encontra aler
 Para propagar alertas como falha:
 
 ```powershell
-./scripts/run-owasp-zap.ps1 -FailOnAlerts
+./scripts/security/run-owasp-zap.ps1 -FailOnAlerts
 ```
 
 ```bash
-./scripts/run-owasp-zap.sh --fail-on-alerts
+./scripts/security/run-owasp-zap.sh --fail-on-alerts
 ```
 
 ## TLS local

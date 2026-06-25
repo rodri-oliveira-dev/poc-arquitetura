@@ -15,13 +15,13 @@ O projeto resolve, em formato de POC, o fluxo de registrar lancamentos financeir
 Use o script da stack local:
 
 ```powershell
-./scripts/start-local-stack.ps1
+./scripts/local/start-stack.ps1
 ```
 
 No Linux/macOS:
 
 ```bash
-./scripts/start-local-stack.sh
+./scripts/local/start-stack.sh
 ```
 
 O guia completo, incluindo portas, migrations, execucao no host e Testcontainers, fica em [desenvolvimento local](development/local-development.md).

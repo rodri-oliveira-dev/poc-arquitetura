@@ -239,6 +239,6 @@ No CI, a validacao executa independentemente da instalacao local do desenvolvedo
 
 O scan local serve apenas como feedback antecipado manual antes do PR; o CI continua sendo a linha de defesa obrigatoria. Por isso, a ausencia local do Trivy nunca bloqueia o `git push`, mas a mesma classe de achado bloqueia o pull request quando detectada pelo workflow.
 
-O workflow tambem executa Terraform e TFLint por meio de `scripts/validate-terraform.sh`. Essa etapa instala as ferramentas no runner, nao usa credenciais cloud e nao executa `terraform plan`, `terraform apply` ou `terraform destroy`.
+O workflow tambem executa Terraform e TFLint por meio de `scripts/quality/terraform/validate.sh`. Essa etapa instala as ferramentas no runner, nao usa credenciais cloud e nao executa `terraform plan`, `terraform apply` ou `terraform destroy`.
 
 Se os argumentos comuns do Trivy mudarem no CI, atualize a composite action `.github/actions/trivy-repository-scan` e confira se os exemplos deste documento continuam equivalentes.

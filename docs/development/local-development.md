@@ -47,16 +47,16 @@ Copy-Item .env.local.example .env.local
 O caminho mais rapido para onboarding e gerar valores locais descartaveis:
 
 ```powershell
-./scripts/init-env-local.ps1
+./scripts/local/init-env.ps1
 ```
 
 No Linux/macOS:
 
 ```bash
-./scripts/init-env-local.sh
+./scripts/local/init-env.sh
 ```
 
-O script nao sobrescreve `.env.local` existente; use `-Force` no PowerShell ou `--force` no shell apenas quando quiser recriar conscientemente o arquivo local. O arquivo `.env.local` e ignorado pelo Git e nao deve ser versionado. Os scripts `start-local-stack.*` e `start-full-stack.*` tambem leem `.env.local` automaticamente; `.env` permanece aceito como fallback para compatibilidade com fluxos antigos.
+O script nao sobrescreve `.env.local` existente; use `-Force` no PowerShell ou `--force` no shell apenas quando quiser recriar conscientemente o arquivo local. O arquivo `.env.local` e ignorado pelo Git e nao deve ser versionado. Os scripts `scripts/local/start-stack.*` e `scripts/local/start-full-stack.*` tambem leem `.env.local` automaticamente; `.env` permanece aceito como fallback para compatibilidade com fluxos antigos.
 
 Comandos manuais de Compose devem usar `--env-file .env.local`, porque o Docker Compose nao carrega `.env.local` automaticamente. O comando sem `--env-file`, como `docker compose -f compose.yaml config --quiet`, carrega apenas variaveis exportadas no ambiente da sessao e o arquivo `.env` da raiz do repositorio. Se voce precisa usar esse formato curto, crie um `.env` local ignorado pelo Git a partir do exemplo versionado:
 
@@ -71,6 +71,10 @@ Copy-Item .env.example .env
 ```
 
 Depois preencha os placeholders no `.env`. Nao copie valores reais para `.env.example` ou `.env.local.example`.
+
+## Organizacao dos scripts
+
+Os scripts locais ficam em subpastas de `scripts/` por finalidade. Use os caminhos novos neste guia; a politica de wrappers antigos fica em [scripts.md](scripts.md).
 
 Variaveis sensiveis obrigatorias para o compose principal:
 
@@ -114,7 +118,7 @@ Nao reutilize esses valores fora da maquina local. Em ambientes compartilhados o
 
 ## Stack local com compose
 
-Os scripts `start-local-stack.*` sobem por padrao o core funcional de desenvolvimento com `compose.yaml`, que deve continuar sendo reaproveitado como fonte de verdade do ambiente local:
+Os scripts `scripts/local/start-stack.*` sobem por padrao o core funcional de desenvolvimento com `compose.yaml`, que deve continuar sendo reaproveitado como fonte de verdade do ambiente local:
 
 - Keycloak;
 - `LedgerService.Api`;
@@ -156,29 +160,29 @@ A observabilidade completa inclui:
 Subir o core funcional com migrations:
 
 ```powershell
-./scripts/start-local-stack.ps1
+./scripts/local/start-stack.ps1
 ```
 
 No Linux/macOS:
 
 ```bash
-./scripts/start-local-stack.sh
+./scripts/local/start-stack.sh
 ```
 
 Esse fluxo sobe banco, Kafka e Keycloak, aplica migrations pelo host e depois inicia `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api`, `BalanceService.Worker`, `TransferService.Api` e `TransferService.Worker`.
 
-Os scripts `start-local-stack.*` usam Docker Compose, restauram tools .NET, aplicam migrations pelo host e nao removem volumes. Eles nao executam testes automatizados, k6 nem scanners.
+Os scripts `scripts/local/start-stack.*` usam Docker Compose, restauram tools .NET, aplicam migrations pelo host e nao removem volumes. Eles nao executam testes automatizados, k6 nem scanners.
 
 Para subir tambem observabilidade e habilitar exportacao OTLP nas aplicacoes:
 
 ```powershell
-./scripts/start-local-stack.ps1 -Observability
+./scripts/local/start-stack.ps1 -Observability
 ```
 
 No Linux/macOS:
 
 ```bash
-OBSERVABILITY=true ./scripts/start-local-stack.sh
+OBSERVABILITY=true ./scripts/local/start-stack.sh
 ```
 
 Para subir somente o core funcional pelo compose, sem aplicar migrations:
@@ -248,16 +252,16 @@ Detalhes de credenciais, variaveis e validacao ficam em
 
 ### Pub/Sub emulator local
 
-Pub/Sub permanece disponivel como provider explicito/legado. Use este modo quando quiser validar o adapter Pub/Sub, o emulator local ou cenarios GCP relacionados. Os aliases abaixo deixam essa escolha explicita:
+Pub/Sub permanece disponivel como provider explicito/legado. Use este modo quando quiser validar o adapter Pub/Sub, o emulator local ou cenarios GCP relacionados. Os comandos abaixo deixam essa escolha explicita:
 
 ```powershell
-./scripts/start-local-stack-pubsub.ps1
+./scripts/local/start-stack-pubsub.ps1
 ```
 
 No Linux/macOS:
 
 ```bash
-./scripts/start-local-stack-pubsub.sh
+./scripts/local/start-stack-pubsub.sh
 ```
 
 Os scripts reaproveitam o fluxo de migrations e APIs, mas trocam a mensageria de Ledger/Balance para Pub/Sub e nao sobem Kafka nem `TransferService.Worker`. O overlay adiciona:
@@ -281,14 +285,14 @@ O emulator e descartavel, nao usa credenciais GCP e fica fora do Terraform. Ele 
 
 ### Kafka local e Saga do TransferService
 
-Kafka e o default de mensageria dos workers principais quando `Messaging:Provider` esta ausente. No compose local, ele ja faz parte do `compose.yaml`; os aliases abaixo continuam existindo apenas para compatibilidade e para deixar a intencao explicita:
+Kafka e o default de mensageria dos workers principais quando `Messaging:Provider` esta ausente. No compose local, ele ja faz parte do `compose.yaml`; os comandos abaixo deixam essa intencao explicita:
 
 ```powershell
-./scripts/start-local-stack-kafka.ps1
+./scripts/local/start-stack-kafka.ps1
 ```
 
 ```bash
-./scripts/start-local-stack-kafka.sh
+./scripts/local/start-stack-kafka.sh
 ```
 
 O fluxo padrao tambem sobe o `TransferService.Worker`, porque a Saga orquestrada do TransferService usa Kafka como transporte explicito dos eventos da Saga e nao configura Pub/Sub. Com isso, transferencias criadas localmente podem ser processadas automaticamente pelo worker. O worker chama o `LedgerService.Api` autenticado via OAuth2 client credentials, usando `TransferService__Worker__Ledger__Auth__TokenEndpoint=http://keycloak:8080/realms/poc/protocol/openid-connect/token`, `KEYCLOAK_CLIENT_ID`, `KEYCLOAK_CLIENT_SECRET` e scope `ledger.write`.
@@ -317,11 +321,11 @@ No host, a API de transferencias fica em `http://localhost:${TRANSFER_SERVICE_HO
 Para combinar Pub/Sub emulator e observabilidade:
 
 ```powershell
-./scripts/start-local-stack-pubsub.ps1 -Observability
+./scripts/local/start-stack-pubsub.ps1 -Observability
 ```
 
 ```bash
-OBSERVABILITY=true ./scripts/start-local-stack-pubsub.sh
+OBSERVABILITY=true ./scripts/local/start-stack-pubsub.sh
 ```
 
 Para inspecionar a configuracao Compose efetiva sem subir containers:
@@ -353,21 +357,21 @@ Todos os Compose principais configuram rotacao do driver Docker `json-file` com 
 Para diagnosticar consumo de disco:
 
 ```powershell
-./scripts/docker-disk-report.ps1
+./scripts/docker/disk-report.ps1
 ```
 
 ```bash
-./scripts/docker-disk-report.sh
+./scripts/docker/disk-report.sh
 ```
 
 Para limpeza segura sem apagar bancos ou outros volumes:
 
 ```powershell
-./scripts/docker-clean-safe.ps1
+./scripts/docker/clean-safe.ps1
 ```
 
 ```bash
-./scripts/docker-clean-safe.sh
+./scripts/docker/clean-safe.sh
 ```
 
 Esses scripts usam `docker compose down --remove-orphans` sem `-v` e oferecem `docker builder prune`/`docker image prune` com confirmacao.
@@ -380,7 +384,7 @@ docker compose rm -f postgres-db
 docker volume rm poc-arquitetura_postgres-data
 ```
 
-Esse reset apaga todos os dados locais do database `appdb`, incluindo os schemas `ledger` e `balance`, roles, grants e historico de migrations gravados no volume. Use apenas quando os dados locais forem descartaveis e suba novamente `postgres-db` ou execute `./scripts/start-local-stack.*` para recriar a topologia pelo bootstrap em `infra/postgres/init`.
+Esse reset apaga todos os dados locais do database `appdb`, incluindo os schemas `ledger` e `balance`, roles, grants e historico de migrations gravados no volume. Use apenas quando os dados locais forem descartaveis e suba novamente `postgres-db` ou execute `./scripts/local/start-stack.*` para recriar a topologia pelo bootstrap em `infra/postgres/init`.
 
 ### Keycloak local
 
@@ -429,13 +433,13 @@ O segredo do client `poc-automation` vem de `KEYCLOAK_CLIENT_SECRET` no ambiente
 Para obter um token Keycloak local, use os scripts versionados. Eles imprimem somente o token em `stdout`:
 
 ```bash
-./scripts/get-token.sh
+./scripts/validation/get-token.sh
 ```
 
 No Windows:
 
 ```powershell
-./scripts/get-token.ps1
+./scripts/validation/get-token.ps1
 ```
 
 Por padrao, `TOKEN_PROVIDER=keycloak` usa `client_credentials` com `KEYCLOAK_CLIENT_ID=poc-automation` e `KEYCLOAK_CLIENT_SECRET` definido localmente. A chamada equivalente e:
@@ -478,7 +482,7 @@ Para usar temporariamente tokens emitidos pelo `Auth.Api`, suba o overlay legado
 ```bash
 JWT_ISSUER=https://auth-api \
 JWT_JWKS_URL=http://auth-api:8080/.well-known/jwks.json \
-TOKEN_PROVIDER=auth-api ./scripts/get-token.sh
+TOKEN_PROVIDER=auth-api ./scripts/validation/get-token.sh
 ```
 
 No Windows:
@@ -487,7 +491,7 @@ No Windows:
 $env:TOKEN_PROVIDER = "auth-api"
 $env:JWT_ISSUER = "https://auth-api"
 $env:JWT_JWKS_URL = "http://auth-api:8080/.well-known/jwks.json"
-./scripts/get-token.ps1
+./scripts/validation/get-token.ps1
 ```
 
 Para validar discovery e JWKS:
@@ -501,10 +505,10 @@ Nesta etapa, `Auth.Api` continua funcional apenas como legado por overlay, mas a
 
 ### Stack completa com observabilidade e Nginx
 
-Use `start-full-stack.*` quando quiser um ambiente local completo para demonstracao ou validacao manual integrada:
+Use `scripts/local/start-full-stack.*` quando quiser um ambiente local completo para demonstracao ou validacao manual integrada:
 
 - core funcional com APIs, workers, bancos, Kafka e init de topicos locais;
-- migrations aplicadas pelo host, reaproveitando o fluxo de `start-local-stack.*`;
+- migrations aplicadas pelo host, reaproveitando o fluxo de `scripts/local/start-stack.*`;
 - profile `observability` ativo com `OTEL_ENABLED=true`;
 - overlay `compose.nginx.yaml` com `nginx-edge`, `ledger-service-1` e `ledger-service-2`;
 - validacoes leves de `docker compose ps`, `/health` direto e via Nginx, Grafana, Jaeger, Prometheus e Alertmanager.
@@ -518,33 +522,33 @@ Pre-requisitos adicionais:
 No Windows:
 
 ```powershell
-./scripts/start-full-stack.ps1
+./scripts/local/start-full-stack.ps1
 ```
 
 No Linux/macOS:
 
 ```bash
-./scripts/start-full-stack.sh
+./scripts/local/start-full-stack.sh
 ```
 
 Para evitar rebuild de imagens:
 
 ```powershell
-./scripts/start-full-stack.ps1 -NoBuild
+./scripts/local/start-full-stack.ps1 -NoBuild
 ```
 
 ```bash
-./scripts/start-full-stack.sh --no-build
+./scripts/local/start-full-stack.sh --no-build
 ```
 
 Para pular apenas as chamadas HTTP de verificacao pos-subida:
 
 ```powershell
-./scripts/start-full-stack.ps1 -SkipHealthChecks
+./scripts/local/start-full-stack.ps1 -SkipHealthChecks
 ```
 
 ```bash
-./scripts/start-full-stack.sh --skip-health-checks
+./scripts/local/start-full-stack.sh --skip-health-checks
 ```
 
 Antes de subir, o script valida portas usadas pela stack completa e verifica se ha containers do overlay Nginx ou rede local do projeto em estado anterior. Quando encontra recursos locais do proprio projeto que podem prender a subida, ele pergunta se pode executar uma limpeza nao destrutiva com `docker compose down --remove-orphans`, sem `-v`. Essa limpeza para/remove containers e redes locais do projeto, mas preserva volumes, bancos locais, imagens e certificados.
@@ -552,11 +556,11 @@ Antes de subir, o script valida portas usadas pela stack completa e verifica se 
 Para autorizar essa limpeza previamente em fluxo nao interativo:
 
 ```powershell
-./scripts/start-full-stack.ps1 -Cleanup
+./scripts/local/start-full-stack.ps1 -Cleanup
 ```
 
 ```bash
-./scripts/start-full-stack.sh --cleanup
+./scripts/local/start-full-stack.sh --cleanup
 ```
 
 Se uma porta estiver ocupada por processo externo ou por container que nao pertence ao projeto, o script para e informa a porta/servico afetado. Nesse caso, libere o recurso manualmente antes de tentar novamente.
@@ -566,11 +570,11 @@ O script para com mensagem clara se os certificados do Nginx nao existirem e nao
 Para parar a stack completa sem remover containers, redes, volumes, bancos locais, imagens ou certificados:
 
 ```powershell
-./scripts/stop-full-stack.ps1
+./scripts/local/stop-full-stack.ps1
 ```
 
 ```bash
-./scripts/stop-full-stack.sh
+./scripts/local/stop-full-stack.sh
 ```
 
 Esse fluxo para primeiro `nginx-edge`, `ledger-service-1` e `ledger-service-2` pelos overlays locais, e depois para o core funcional com `compose.yaml` e `compose.observability.yaml`.
@@ -587,13 +591,13 @@ Antes de subir o overlay, gere ou disponibilize um certificado local em:
 Esses arquivos nao devem ser versionados. A opcao recomendada para certificado confiavel no host e `mkcert`:
 
 ```powershell
-./scripts/generate-local-certs.ps1
+./scripts/local/generate-certs.ps1
 ```
 
 No Linux/macOS:
 
 ```bash
-./scripts/generate-local-certs.sh
+./scripts/local/generate-certs.sh
 ```
 
 O script usa `mkcert` quando disponivel e faz fallback para OpenSSL. Para executar manualmente com `mkcert`:
@@ -771,14 +775,14 @@ Parar a stack:
 docker compose down
 ```
 
-Para a stack completa iniciada por `start-full-stack.*`, prefira:
+Para a stack completa iniciada por `scripts/local/start-full-stack.*`, prefira:
 
 ```powershell
-./scripts/stop-full-stack.ps1
+./scripts/local/stop-full-stack.ps1
 ```
 
 ```bash
-./scripts/stop-full-stack.sh
+./scripts/local/stop-full-stack.sh
 ```
 
 Use `docker compose down` apenas quando quiser remover containers e redes do core funcional manualmente. Nao use `docker compose down -v` salvo quando a intencao for remover volumes e descartar dados locais.
@@ -1086,7 +1090,7 @@ Tasks uteis:
 - `local stack: start with observability`;
 - `test: load smoke`.
 
-As tasks de stack e k6 chamam os scripts versionados (`scripts/start-local-stack.*` e `scripts/run-loadtests.*`) para evitar duplicar logica. Elas nao executam teardown destrutivo nem migrations fora do fluxo ja definido pelos scripts.
+As tasks de stack e k6 chamam os scripts versionados (`scripts/local/start-stack.*` e `scripts/performance/run-loadtests.*`) para evitar duplicar logica. Elas nao executam teardown destrutivo nem migrations fora do fluxo ja definido pelos scripts.
 
 As configuracoes de debug rodam processos no host em `Development` para `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker`. O `Auth.Api` legado tambem possui configuracao propria, mas deve ser usado apenas quando o fluxo legado for explicitamente validado. Os nomes indicam que dependencias locais podem ser necessarias quando banco, Kafka, Pub/Sub emulator legado ou JWKS forem usados. Se a stack completa do compose estiver em execucao, pare o container equivalente antes de depurar o mesmo processo no host para evitar conflito de porta ou processamento duplicado.
 
@@ -1098,29 +1102,29 @@ Os testes de carga ficam em `loadtests/k6` e rodam dentro da rede do compose.
 
 Pre-requisitos:
 
-1. Suba a stack local com `./scripts/start-local-stack.ps1` ou `./scripts/start-local-stack.sh`.
+1. Suba a stack local com `./scripts/local/start-stack.ps1` ou `./scripts/local/start-stack.sh`.
 2. Mantenha `LedgerService.Api`, `BalanceService.Api`, `LedgerService.Worker` e `BalanceService.Worker` em execucao quando validar cenarios que dependem de efeitos assincronos. O token padrao vem do Keycloak.
 
 Windows:
 
 ```powershell
-./scripts/run-loadtests.ps1 -Mode smoke-kafka
-./scripts/run-loadtests.ps1 -Mode transfer-smoke-kafka
-./scripts/run-loadtests.ps1 -Mode transfer-fullstack-kafka
-./scripts/run-loadtests.ps1 -Mode load-kafka
-./scripts/run-loadtests.ps1 -Mode ledger-load-kafka
-./scripts/run-loadtests.ps1 -Mode transfer-load-kafka
+./scripts/performance/run-loadtests.ps1 -Mode smoke-kafka
+./scripts/performance/run-loadtests.ps1 -Mode transfer-smoke-kafka
+./scripts/performance/run-loadtests.ps1 -Mode transfer-fullstack-kafka
+./scripts/performance/run-loadtests.ps1 -Mode load-kafka
+./scripts/performance/run-loadtests.ps1 -Mode ledger-load-kafka
+./scripts/performance/run-loadtests.ps1 -Mode transfer-load-kafka
 ```
 
 Linux/macOS:
 
 ```bash
-./scripts/run-loadtests.sh smoke-kafka
-./scripts/run-loadtests.sh transfer-smoke-kafka
-./scripts/run-loadtests.sh transfer-fullstack-kafka
-./scripts/run-loadtests.sh load-kafka
-./scripts/run-loadtests.sh ledger-load-kafka
-./scripts/run-loadtests.sh transfer-load-kafka
+./scripts/performance/run-loadtests.sh smoke-kafka
+./scripts/performance/run-loadtests.sh transfer-smoke-kafka
+./scripts/performance/run-loadtests.sh transfer-fullstack-kafka
+./scripts/performance/run-loadtests.sh load-kafka
+./scripts/performance/run-loadtests.sh ledger-load-kafka
+./scripts/performance/run-loadtests.sh transfer-load-kafka
 ```
 
 Arquivos gerados em `artifacts/k6` e `.env.k6.auto` nao sao versionados.
@@ -1133,7 +1137,7 @@ Os modos `transfer-smoke-kafka` e `transfer-load-kafka` usam a mesma infraestrut
 
 O modo `transfer-fullstack-kafka` e o smoke manual da Saga completa. Ele usa o compose padrao com Kafka, sobe ou recria `kafka`, `kafka-init-topics`, `ledger-service`, `transfer-service` e `transfer-worker`, aguarda a transferencia chegar a `Completed` com polling controlado e valida pelos offsets e pela amostra Kafka que os eventos principais foram publicados com `message key = transferenciaId` e `correlationId` esperado. A DLQ `transfer.transferencia.dlq` nao pode crescer no fluxo feliz. Esse modo nao usa Pub/Sub para o TransferService. Se a Saga ficar `Failed` por `401 Unauthorized`, valide a configuracao `TransferService__Worker__Ledger__Auth__*`, o segredo local do Keycloak, audience `ledger-api`, scope `ledger.write` e `merchant_id` do token do worker.
 
-O token usado nos cenarios k6 e obtido pelos runners com `scripts/get-token.*`. O fluxo oficial local e `TOKEN_PROVIDER=keycloak`, usando `KEYCLOAK_CLIENT_ID`, `KEYCLOAK_CLIENT_SECRET`, `KEYCLOAK_REALM` e `KEYCLOAK_BASE_URL`/`KEYCLOAK_HOST_PORT`. Para usar temporariamente o fallback `Auth.Api`, suba `compose.auth-legacy.yaml` e configure tambem as APIs de negocio com `JWT_ISSUER=https://auth-api`, `JWT_JWKS_URL=http://auth-api:8080/.well-known/jwks.json` e `TOKEN_PROVIDER=auth-api`, conforme [autenticacao e autorizacao](authentication.md).
+O token usado nos cenarios k6 e obtido pelos runners com `scripts/validation/get-token.*`. O fluxo oficial local e `TOKEN_PROVIDER=keycloak`, usando `KEYCLOAK_CLIENT_ID`, `KEYCLOAK_CLIENT_SECRET`, `KEYCLOAK_REALM` e `KEYCLOAK_BASE_URL`/`KEYCLOAK_HOST_PORT`. Para usar temporariamente o fallback `Auth.Api`, suba `compose.auth-legacy.yaml` e configure tambem as APIs de negocio com `JWT_ISSUER=https://auth-api`, `JWT_JWKS_URL=http://auth-api:8080/.well-known/jwks.json` e `TOKEN_PROVIDER=auth-api`, conforme [autenticacao e autorizacao](authentication.md).
 
 Para validar manualmente a configuracao efetiva do k6:
 
@@ -1149,41 +1153,41 @@ Os scripts versionados de ZAP executam DAST local em container contra `LedgerSer
 URLs diretas:
 
 ```powershell
-./scripts/run-owasp-zap.ps1
+./scripts/security/run-owasp-zap.ps1
 ```
 
 ```bash
-./scripts/run-owasp-zap.sh
+./scripts/security/run-owasp-zap.sh
 ```
 
 Para subir a stack local direta antes do scan, use:
 
 ```powershell
-./scripts/run-owasp-zap.ps1 -StartStack
+./scripts/security/run-owasp-zap.ps1 -StartStack
 ```
 
 ```bash
-./scripts/run-owasp-zap.sh --start-stack
+./scripts/security/run-owasp-zap.sh --start-stack
 ```
 
 Via Nginx local:
 
 ```powershell
-./scripts/run-owasp-zap.ps1 -UseNginx
+./scripts/security/run-owasp-zap.ps1 -UseNginx
 ```
 
 ```bash
-./scripts/run-owasp-zap.sh --use-nginx
+./scripts/security/run-owasp-zap.sh --use-nginx
 ```
 
-Por padrao o ZAP importa os documentos OpenAPI sem injetar token. Para executar o scan com `Authorization: Bearer <token>`, use o fluxo autenticado; o token e obtido por `scripts/get-token.*`, portanto segue o mesmo padrao Keycloak e o mesmo fallback documentado para `Auth.Api`:
+Por padrao o ZAP importa os documentos OpenAPI sem injetar token. Para executar o scan com `Authorization: Bearer <token>`, use o fluxo autenticado; o token e obtido por `scripts/validation/get-token.*`, portanto segue o mesmo padrao Keycloak e o mesmo fallback documentado para `Auth.Api`:
 
 ```powershell
-./scripts/run-owasp-zap.ps1 -UseAuthentication
+./scripts/security/run-owasp-zap.ps1 -UseAuthentication
 ```
 
 ```bash
-./scripts/run-owasp-zap.sh --use-authentication
+./scripts/security/run-owasp-zap.sh --use-authentication
 ```
 
 O modo padrao usa `zap-api-scan.py -f openapi -S` e nao falha a execucao apenas por encontrar alertas. Active scan e falha por alertas exigem parametros explicitos. Detalhes ficam em [OWASP ZAP local](owasp-zap.md).

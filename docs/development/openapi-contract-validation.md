@@ -16,10 +16,10 @@ Fluxo local:
 
 ```bash
 dotnet build ./LedgerService.slnx --configuration Release --no-restore
-./scripts/generate-openapi.sh
+./scripts/contracts/openapi/generate.sh
 ```
 
-No Windows, tambem existe `./scripts/generate-openapi.ps1`.
+No Windows, tambem existe `./scripts/contracts/openapi/generate.ps1`.
 
 ## Drift versus breaking change
 
@@ -59,7 +59,11 @@ Em pull requests para `main`, o workflow `openapi-contract-validation` executa e
 8. Executa `npm run openapi:diff` apenas quando todos os contratos esperados existem na `main`.
 9. Valida drift nos contratos gerados.
 
-O script `scripts/check-openapi-breaking-changes.sh` compara os contratos da `main` com os contratos gerados na branch usando `oasdiff breaking --fail-on ERR`. Esse modo falha apenas para mudancas classificadas como erro, que representam breaking changes mais claros. Warnings continuam visiveis na saida, mas nao bloqueiam a etapa inicial.
+O script `scripts/contracts/openapi/check-breaking-changes.sh` compara os contratos da `main` com os contratos gerados na branch usando `oasdiff breaking --fail-on ERR`. Esse modo falha apenas para mudancas classificadas como erro, que representam breaking changes mais claros. Warnings continuam visiveis na saida, mas nao bloqueiam a etapa inicial.
+
+```bash
+./scripts/contracts/openapi/check-breaking-changes.sh
+```
 
 Quando a `main` ainda nao possui um dos contratos versionados esperados, como no PR que introduz o baseline inicial, o workflow registra um notice e pula a comparacao de breaking changes. Se a geracao tambem produzir drift em `docs/openapi/`, o workflow registra warning e summary, mas nao bloqueia esse primeiro baseline. A geracao e o lint continuam obrigatorios. Depois que o baseline entrar na `main`, pull requests seguintes voltam a comparar contra a base normalmente e drift volta a ser bloqueante.
 

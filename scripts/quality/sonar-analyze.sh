@@ -15,7 +15,7 @@ TEST_RESULTS_DIR="${TEST_RESULTS_DIR:-$DEFAULT_TEST_RESULTS_DIR}"
 SONAR_PLACEHOLDER_SECRET_LINE_REGEX='.*(PASSWORD|[Pp]assword|PWD|PGPASSWORD|CLIENT_SECRET|[Cc]lient[_-]?[Ss]ecret|SECRET|[Ss]ecret|TOKEN|[Tt]oken|API[_-]?KEY|[Aa]pi[_-]?[Kk]ey).*<[A-Z0-9_]*(PASSWORD|SECRET|TOKEN|API_KEY)[A-Z0-9_]*>.*'
 
 if [[ -z "${SONAR_TOKEN:-}" ]]; then
-  echo "SONAR_TOKEN nao esta definido. Execute com SONAR_TOKEN=<token> bash scripts/sonar-analyze.sh" >&2
+  echo "SONAR_TOKEN nao esta definido. Execute com SONAR_TOKEN=<token> bash scripts/quality/sonar-analyze.sh" >&2
   exit 1
 fi
 

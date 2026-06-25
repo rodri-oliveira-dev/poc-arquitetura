@@ -61,8 +61,8 @@ docker compose -f compose.yaml -f compose.nginx.yaml logs nginx-edge
 
 Erros comuns:
 
-- `cannot load certificate`: gere `infra/nginx/certs/localhost.crt` com `./scripts/generate-local-certs.ps1` ou `./scripts/generate-local-certs.sh`;
-- `cannot load certificate key`: gere `infra/nginx/certs/localhost.key` com `./scripts/generate-local-certs.ps1` ou `./scripts/generate-local-certs.sh`;
+- `cannot load certificate`: gere `infra/nginx/certs/localhost.crt` com `./scripts/local/generate-certs.ps1` ou `./scripts/local/generate-certs.sh`;
+- `cannot load certificate key`: gere `infra/nginx/certs/localhost.key` com `./scripts/local/generate-certs.ps1` ou `./scripts/local/generate-certs.sh`;
 - alerta de certificado no navegador: confie o certificado local ou use `mkcert -install`;
 - `connection refused` ao abrir Swagger via Nginx: confirme se `ledger-service-1`, `ledger-service-2` e `balance-service` estao em execucao e saudaveis.
 
@@ -70,7 +70,7 @@ O Nginx nao altera as portas HTTP diretas. Se precisar isolar o problema, valide
 
 ## Stack completa nao sobe por recurso em uso
 
-Se `./scripts/start-full-stack.ps1` ou `./scripts/start-full-stack.sh` encontrar containers antigos do overlay Nginx, rede local presa ou portas ocupadas, ele para antes de subir a stack completa e informa o recurso afetado.
+Se `./scripts/local/start-full-stack.ps1` ou `./scripts/local/start-full-stack.sh` encontrar containers antigos do overlay Nginx, rede local presa ou portas ocupadas, ele para antes de subir a stack completa e informa o recurso afetado.
 
 Quando o recurso pertence ao proprio projeto, o script pergunta se pode executar uma limpeza nao destrutiva equivalente a:
 
@@ -81,11 +81,11 @@ docker compose -f compose.yaml -f compose.observability.yaml -f compose.nginx.ya
 Esse comando nao usa `-v`: ele para/remove containers e redes locais do projeto, mas preserva volumes, bancos locais, imagens e certificados. Para autorizar essa limpeza sem prompt:
 
 ```powershell
-./scripts/start-full-stack.ps1 -Cleanup
+./scripts/local/start-full-stack.ps1 -Cleanup
 ```
 
 ```bash
-./scripts/start-full-stack.sh --cleanup
+./scripts/local/start-full-stack.sh --cleanup
 ```
 
 Se a porta estiver ocupada por processo externo ou container que nao pertence ao projeto, libere manualmente o processo/container indicado antes de executar o script de novo. A limpeza automatica nao para recursos externos ao projeto.
@@ -298,8 +298,8 @@ docker compose --env-file .env.local exec -T -e PGPASSWORD=<BALANCE_DB_WRITE_PAS
 Use o nome real mostrado por `docker volume ls` caso o projeto Compose tenha outro nome. Nao use `docker compose down -v`, porque isso remove volumes de outros servicos. Depois de recriar o banco, aplique as migrations pelo fluxo local documentado e reexecute o smoke de carga:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/start-local-stack.ps1 -NoBuild
-powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/run-loadtests.ps1 -Mode smoke-kafka
+powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/local/start-stack.ps1 -NoBuild
+powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/performance/run-loadtests.ps1 -Mode smoke-kafka
 ```
 
 Nenhum script do repositorio remove volumes automaticamente.
@@ -341,13 +341,13 @@ Veja [autenticacao e autorizacao](development/authentication.md).
 Esses componentes ficam no overlay `compose.observability.yaml` com profile `observability` e nao sobem no core funcional. Confirme se a stack local foi iniciada com observabilidade e se as portas estao livres:
 
 ```powershell
-./scripts/start-local-stack.ps1 -Observability
+./scripts/local/start-stack.ps1 -Observability
 ```
 
 No Linux/macOS:
 
 ```bash
-OBSERVABILITY=true ./scripts/start-local-stack.sh
+OBSERVABILITY=true ./scripts/local/start-stack.sh
 ```
 
 Ou diretamente pelo compose:
@@ -379,13 +379,13 @@ Quando o log contem `TraceId=<valor>`, o datasource Loki mostra o link `Abrir tr
 Os testes k6 rodam em container dentro da rede do compose e exigem a stack local ativa. Comece pelo modo smoke:
 
 ```powershell
-./scripts/run-loadtests.ps1 -Mode smoke-kafka
+./scripts/performance/run-loadtests.ps1 -Mode smoke-kafka
 ```
 
 No Linux/macOS:
 
 ```bash
-./scripts/run-loadtests.sh smoke-kafka
+./scripts/performance/run-loadtests.sh smoke-kafka
 ```
 
 Detalhes ficam em [load tests com k6](development/local-development.md#load-tests-com-k6) e [loadtests/k6](../loadtests/k6/README.md).
@@ -395,33 +395,33 @@ Detalhes ficam em [load tests com k6](development/local-development.md#load-test
 Os scripts ZAP exigem Docker, `docker compose` e a stack da POC ja iniciada. Antes do scan, eles validam `GET /health` em Ledger e Balance por padrao; o `Auth.Api` legado so entra nessa validacao quando `-IncludeLegacyAuth` ou `--include-legacy-auth` for usado. Se a falha mencionar uma URL direta, suba o core funcional:
 
 ```powershell
-./scripts/start-local-stack.ps1
+./scripts/local/start-stack.ps1
 ```
 
 ```bash
-./scripts/start-local-stack.sh
+./scripts/local/start-stack.sh
 ```
 
 Ou deixe o proprio runner ZAP chamar esse fluxo explicitamente:
 
 ```powershell
-./scripts/run-owasp-zap.ps1 -StartStack
+./scripts/security/run-owasp-zap.ps1 -StartStack
 ```
 
 ```bash
-./scripts/run-owasp-zap.sh --start-stack
+./scripts/security/run-owasp-zap.sh --start-stack
 ```
 
 Se a falha mencionar `https://*.localhost:7443`, suba a stack completa com Nginx e confirme os certificados locais:
 
 ```powershell
-./scripts/start-full-stack.ps1
-./scripts/run-owasp-zap.ps1 -UseNginx
+./scripts/local/start-full-stack.ps1
+./scripts/security/run-owasp-zap.ps1 -UseNginx
 ```
 
 ```bash
-./scripts/start-full-stack.sh
-./scripts/run-owasp-zap.sh --use-nginx
+./scripts/local/start-full-stack.sh
+./scripts/security/run-owasp-zap.sh --use-nginx
 ```
 
 O ZAP roda em container e acessa o host por `host.docker.internal` ou por hosts `.localhost` mapeados para `host-gateway`. Se o Docker local nao suportar `host-gateway`, use URLs acessiveis a partir de containers e sobrescreva os alvos com `-AuthUrl`, `-LedgerUrl`, `-BalanceUrl` ou `--auth-url`, `--ledger-url`, `--balance-url`.

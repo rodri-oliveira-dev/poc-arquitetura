@@ -20,9 +20,9 @@ Configuracao neutra:
 
 Para a publicacao Pub/Sub do Ledger e o consumo Pub/Sub do Balance, use `Messaging:Provider=PubSub` explicitamente. A configuracao `PubSub:Enabled=false` desliga os hosted services relacionados a Pub/Sub de forma equivalente ao flag Kafka.
 
-Para executar esse provider localmente com Pub/Sub emulator, use `./scripts/start-local-stack-pubsub.ps1` no Windows ou `./scripts/start-local-stack-pubsub.sh` no Linux/macOS. O `compose.pubsub.yaml` habilita o profile `legacy-pubsub`, define `PUBSUB_EMULATOR_HOST`, configura `PUBSUB_PROJECT_ID` e cria topic principal, topic de DLQ, subscription do Balance e subscription de inspecao da DLQ de aplicacao de forma idempotente. O setup detalhado fica em [desenvolvimento local](local-development.md#pubsub-emulator-local).
+Para executar esse provider localmente com Pub/Sub emulator, use `./scripts/local/start-stack-pubsub.ps1` no Windows ou `./scripts/local/start-stack-pubsub.sh` no Linux/macOS. O `compose.pubsub.yaml` habilita o profile `legacy-pubsub`, define `PUBSUB_EMULATOR_HOST`, configura `PUBSUB_PROJECT_ID` e cria topic principal, topic de DLQ, subscription do Balance e subscription de inspecao da DLQ de aplicacao de forma idempotente. O setup detalhado fica em [desenvolvimento local](local-development.md#pubsub-emulator-local).
 
-Para executar Kafka via compose local, use `./scripts/start-local-stack.ps1` ou `./scripts/start-local-stack.sh`. Os aliases `start-local-stack-kafka.*` continuam disponiveis por compatibilidade, mas Kafka ja e o default do compose principal.
+Para executar Kafka via compose local, use `./scripts/local/start-stack.ps1` ou `./scripts/local/start-stack.sh`. Kafka ja e o default do compose principal.
 
 Para executar os workers diretamente no host contra um emulator ja iniciado, use o perfil de exemplo `PubSub`:
 
@@ -288,14 +288,14 @@ Em falha do provider selecionado, as APIs HTTP nao devem cair por causa do proce
 Para o roteiro operacional completo Keycloak -> Ledger -> Outbox -> Kafka -> Balance, incluindo `X-Correlation-Id`, logs, consultas SQL, Balance e Jaeger, use a secao [Validacao Keycloak -> Ledger -> Outbox -> Kafka -> Balance](../observability.md#validacao-keycloak---ledger---outbox---kafka---balance). O script recomendado e:
 
 ```powershell
-./scripts/validate-auth-ledger-trace.ps1
+./scripts/validation/validate-auth-ledger-trace.ps1
 ```
 
 Para validar os fluxos derivados de estorno e reprocessamento com os mesmos componentes operacionais, use a secao [Validacao local de estorno e reprocessamento](../observability.md#validacao-local-de-estorno-e-reprocessamento). Os scripts dedicados sao:
 
 ```powershell
-./scripts/validate-ledger-reversal-flow.ps1
-./scripts/validate-ledger-reprocess-flow.ps1
+./scripts/validation/validate-ledger-reversal-flow.ps1
+./scripts/validation/validate-ledger-reprocess-flow.ps1
 ```
 
 ## Processamento de estornos

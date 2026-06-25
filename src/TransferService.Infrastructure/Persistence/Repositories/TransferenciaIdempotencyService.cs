@@ -3,27 +3,24 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 
 using TransferService.Application.Abstractions.Persistence;
+using TransferService.Application.Abstractions.Time;
 using TransferService.Application.Transferencias.Commands;
 
 namespace TransferService.Infrastructure.Persistence.Repositories;
 
-public sealed class TransferenciaIdempotencyService : ITransferenciaIdempotencyService
+public sealed class TransferenciaIdempotencyService(TransferServiceDbContext context, IClock clock) : ITransferenciaIdempotencyService
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    private readonly TransferServiceDbContext _context;
-
-    public TransferenciaIdempotencyService(TransferServiceDbContext context)
-    {
-        _context = context;
-    }
+    private readonly TransferServiceDbContext _context = context;
+    private readonly IClock _clock = clock;
 
     public async Task<TransferenciaIdempotencyEntry?> GetAsync(
         string sourceMerchantId,
         string idempotencyKey,
         CancellationToken cancellationToken)
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = _clock.UtcNow;
         var record = await _context.IdempotencyRecords
             .AsNoTracking()
             .Where(x =>
@@ -37,10 +34,7 @@ public sealed class TransferenciaIdempotencyService : ITransferenciaIdempotencyS
 
         var response = JsonSerializer.Deserialize<SolicitarTransferenciaResult>(
             record.ResponseBody,
-            JsonOptions);
-
-        if (response is null)
-            throw new InvalidOperationException("Registro de idempotencia do TransferService possui response_body invalido.");
+            JsonOptions) ?? throw new InvalidOperationException("Registro de idempotencia do TransferService possui response_body invalido.");
 
         return new TransferenciaIdempotencyEntry(record.RequestHash, response);
     }

@@ -47,6 +47,10 @@ Esse comando usa o `package-lock.json` e instala as versoes pinadas em `node_mod
 | Redocly CLI | Lint dos contratos OpenAPI versionados em `docs/openapi/`. | `npm run openapi:lint` |
 | LikeC4 | Build da documentacao arquitetural em `docs/architecture/`. | `npm run architecture:build` |
 
+## Organizacao dos scripts
+
+Use os caminhos em subpastas de `scripts/` como padrao. A organizacao e a politica de wrappers antigos ficam em [scripts.md](scripts.md).
+
 ## Tools .NET do projeto
 
 Restaure as tools .NET locais com:
@@ -74,13 +78,13 @@ dotnet build ./LedgerService.slnx --configuration Release
 No Linux/macOS ou em shell Bash no Windows:
 
 ```bash
-./scripts/generate-openapi.sh
+./scripts/contracts/openapi/generate.sh
 ```
 
 No PowerShell:
 
 ```powershell
-./scripts/generate-openapi.ps1
+./scripts/contracts/openapi/generate.ps1
 ```
 
 Os scripts geram:
@@ -110,6 +114,40 @@ npm run architecture:build
 
 Esse script executa o LikeC4 versionado pelo projeto e gera a saida estatica em `dist/architecture`. O diretorio `dist/` e ignorado pelo Git.
 
+## Qualidade estatica de scripts
+
+O workflow `script-quality` valida scripts em `scripts/` sem executar fluxos operacionais. Ele nao cobre `.agents/` nem `.githooks/`.
+
+Para validar Bash localmente, instale o ShellCheck pelo gerenciador do seu sistema e rode:
+
+```bash
+find scripts -type f -name '*.sh' -print0 | xargs -0 shellcheck --format=gcc
+find scripts -type f -name '*.sh' -print0 | xargs -0 -I {} bash -n "{}"
+```
+
+Para validar PowerShell localmente:
+
+```powershell
+Install-Module -Name PSScriptAnalyzer -RequiredVersion 1.24.0 -Scope CurrentUser
+Invoke-ScriptAnalyzer -Path scripts -Recurse -Severity Error,Warning
+$parseErrors = @()
+Get-ChildItem -Path scripts -Recurse -File -Filter '*.ps1' | ForEach-Object {
+  $tokens = $null
+  $errors = $null
+  [System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref] $tokens, [ref] $errors) | Out-Null
+  $errors | ForEach-Object {
+    $parseErrors += "{0}:{1}:{2}: {3}" -f $_.Extent.File, $_.Extent.StartLineNumber, $_.Extent.StartColumnNumber, $_.Message
+  }
+}
+if ($parseErrors) { $parseErrors; throw 'PowerShell parse failed.' }
+```
+
+Para validar scripts Node em formato `.mjs`:
+
+```bash
+find scripts -type f -name '*.mjs' -print0 | xargs -0 -I {} node --check "{}"
+```
+
 ## Fluxo local recomendado
 
 Para validar ferramentas auxiliares, contratos OpenAPI e documentacao arquitetural:
@@ -118,7 +156,7 @@ Para validar ferramentas auxiliares, contratos OpenAPI e documentacao arquitetur
 dotnet tool restore
 npm ci
 dotnet build ./LedgerService.slnx --configuration Release
-./scripts/generate-openapi.sh
+./scripts/contracts/openapi/generate.sh
 npm run openapi:lint
 npm run architecture:build
 ```
@@ -126,5 +164,5 @@ npm run architecture:build
 No PowerShell, troque a geracao por:
 
 ```powershell
-./scripts/generate-openapi.ps1
+./scripts/contracts/openapi/generate.ps1
 ```
