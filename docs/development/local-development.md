@@ -1060,6 +1060,8 @@ Detalhes de operacao ficam em [observabilidade e operacao minima](../observabili
 
 Em variaveis de ambiente, use `ApiLimits__MaxRequestBodySizeBytes`, `ApiLimits__MaxBalancePeriodDays` e os demais nomes equivalentes.
 
+Clientes HTTP externos podem usar a base compartilhada `HttpResilience:Clients:<NomeDoCliente>` para configurar timeout, retry e circuit breaker via `Microsoft.Extensions.Http.Resilience`. A configuracao aceita valores por cliente, como `Ledger`, `Keycloak` e `JWKS`, com defaults seguros quando uma chave nao e informada. Valores de timeout, delay, janela de amostragem e duracao de abertura do circuit breaker devem ser maiores que zero; configuracoes invalidas falham no startup do consumidor.
+
 ## VS Code
 
 O repositorio inclui:

@@ -54,6 +54,22 @@ public sealed class TransferWorkerCompositionTests
         Assert.Contains(exception.Failures, failure => failure.Contains("ClientSecret", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void AddTransferWorkerComposition_should_reject_invalid_http_resilience_timeout()
+    {
+        ServiceCollection services = [];
+        HostApplicationBuilder builder = CreateBuilderWithRequiredWorkerConfiguration(clientSecret: "local-secret");
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["HttpResilience:Clients:Ledger:TotalTimeout"] = "00:00:00"
+        });
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => services.AddTransferWorkerComposition(builder.Configuration, builder.Environment));
+
+        Assert.Contains("HttpResilience:Clients:Ledger:TotalTimeout", exception.Message, StringComparison.Ordinal);
+    }
+
     private static HostApplicationBuilder CreateBuilderWithRequiredWorkerConfiguration(string clientSecret)
     {
         HostApplicationBuilder builder = Host.CreateApplicationBuilder();

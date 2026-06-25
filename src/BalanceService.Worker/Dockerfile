@@ -7,6 +7,7 @@ WORKDIR /src
 COPY LedgerService.slnx ./
 COPY Directory.Packages.props ./
 COPY Directory.Build.props ./
+COPY src/Shared/ApplicationDefaults/ApplicationDefaults.csproj src/Shared/ApplicationDefaults/
 COPY src/BalanceService.Worker/BalanceService.Worker.csproj src/BalanceService.Worker/
 COPY src/BalanceService.Application/BalanceService.Application.csproj src/BalanceService.Application/
 COPY src/BalanceService.Domain/BalanceService.Domain.csproj src/BalanceService.Domain/
@@ -18,6 +19,7 @@ RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages,sharing=locked \
     || dotnet restore src/BalanceService.Worker/BalanceService.Worker.csproj --disable-parallel
 
 # Agora copia o restante
+COPY src/Shared/ApplicationDefaults/ ./src/Shared/ApplicationDefaults/
 COPY src/BalanceService.Worker/ ./src/BalanceService.Worker/
 COPY src/BalanceService.Application/ ./src/BalanceService.Application/
 COPY src/BalanceService.Domain/ ./src/BalanceService.Domain/

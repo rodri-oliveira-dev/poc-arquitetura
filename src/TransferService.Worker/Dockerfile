@@ -7,6 +7,8 @@ WORKDIR /src
 COPY LedgerService.slnx ./
 COPY Directory.Packages.props ./
 COPY Directory.Build.props ./
+COPY src/Shared/ApplicationDefaults/ApplicationDefaults.csproj src/Shared/ApplicationDefaults/
+COPY src/Shared/HttpResilienceDefaults/HttpResilienceDefaults.csproj src/Shared/HttpResilienceDefaults/
 COPY src/TransferService.Worker/TransferService.Worker.csproj src/TransferService.Worker/
 COPY src/TransferService.Application/TransferService.Application.csproj src/TransferService.Application/
 COPY src/TransferService.Domain/TransferService.Domain.csproj src/TransferService.Domain/
@@ -18,6 +20,8 @@ RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages,sharing=locked \
     || dotnet restore src/TransferService.Worker/TransferService.Worker.csproj --disable-parallel
 
 # Agora copia o restante
+COPY src/Shared/ApplicationDefaults/ ./src/Shared/ApplicationDefaults/
+COPY src/Shared/HttpResilienceDefaults/ ./src/Shared/HttpResilienceDefaults/
 COPY src/TransferService.Worker/ ./src/TransferService.Worker/
 COPY src/TransferService.Application/ ./src/TransferService.Application/
 COPY src/TransferService.Domain/ ./src/TransferService.Domain/
