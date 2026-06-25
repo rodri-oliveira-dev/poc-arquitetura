@@ -183,6 +183,8 @@ Configuracoes de resiliencia do fetch de JWKS:
 - `Jwt:JwksRetryCount`;
 - `Jwt:JwksRetryBaseDelayMilliseconds`.
 
+Esses valores alimentam os defaults do cliente HTTP resiliente `HttpResilience:Clients:JWKS`, que usa `HttpClientFactory` com timeout por tentativa, retry e circuit breaker. Quando necessario, `HttpResilience:Clients:JWKS` pode sobrescrever os parametros da politica compartilhada sem alterar o contrato de autenticacao das APIs.
+
 ## Scripts de token locais
 
 Os scripts `scripts/validation/get-token.ps1` e `scripts/validation/get-token.sh` imprimem somente o token em `stdout`. Mensagens de erro vao para `stderr` e nao exibem segredo de client nem senha.

@@ -5,6 +5,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\HttpResilienceDefaults\HttpResilienceDefaults.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <InternalsVisibleTo Include="TransferService.IntegrationTests" />
   </ItemGroup>
 
