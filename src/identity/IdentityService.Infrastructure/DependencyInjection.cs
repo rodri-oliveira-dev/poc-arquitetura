@@ -1,4 +1,5 @@
 using IdentityService.Application.Users.Ports;
+using IdentityService.Infrastructure.IdentityProvider;
 using IdentityService.Infrastructure.Persistence;
 using IdentityService.Infrastructure.Persistence.Repositories;
 
@@ -19,7 +20,8 @@ public static class DependencyInjection
 
         services
             .AddIdentityPersistence(configuration)
-            .AddIdentityRepositories();
+            .AddIdentityRepositories()
+            .AddIdentityProvider(configuration);
 
         return services;
     }
@@ -47,6 +49,31 @@ public static class DependencyInjection
         ArgumentNullException.ThrowIfNull(services);
 
         services.AddScoped<IUserRepository, UserRepository>();
+
+        return services;
+    }
+
+    public static IServiceCollection AddIdentityProvider(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        services.Configure<KeycloakAdminOptions>(
+            configuration.GetSection(KeycloakAdminOptions.SectionName));
+
+        services.AddHttpClient<IIdentityProviderUserService, KeycloakAdminClient>((provider, httpClient) =>
+        {
+            var options = provider
+                .GetRequiredService<Microsoft.Extensions.Options.IOptions<KeycloakAdminOptions>>()
+                .Value;
+
+            if (!string.IsNullOrWhiteSpace(options.BaseUrl))
+                httpClient.BaseAddress = new Uri(options.BaseUrl, UriKind.Absolute);
+
+            httpClient.Timeout = options.Timeout;
+        });
 
         return services;
     }
