@@ -249,7 +249,7 @@ try {
     $apiArgs += "--build"
   }
 
-  $apiArgs += @("ledger-service", "ledger-worker", "balance-service", "balance-worker", "transfer-service")
+  $apiArgs += @("ledger-service", "ledger-worker", "balance-service", "balance-worker", "transfer-service", "identity-service", "mailpit")
   if ($MessagingProvider -eq "Kafka") {
     $apiArgs += "transfer-worker"
   }

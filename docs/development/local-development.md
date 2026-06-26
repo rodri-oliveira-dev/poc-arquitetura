@@ -100,7 +100,7 @@ As variaveis `AUTH_POC_USERNAME`, `AUTH_POC_PASSWORD` e `AUTH_POC_SCOPE` continu
 
 O mesmo `KEYCLOAK_CLIENT_SECRET` alimenta o client local `poc-automation` usado pelos scripts e pelo `TransferService.Worker` quando ele chama o `LedgerService.Api`. O scope service-to-service do worker fica em `TRANSFER_WORKER_LEDGER_AUTH_SCOPE`, com default `ledger.write`.
 
-O PostgreSQL local roda em um unico container `postgres-db`, com volume `postgres-data`, database `appdb`, schemas `ledger`, `balance` e `transfer`, e usuarios separados por servico/responsabilidade. A inicializacao fica nos scripts versionados em `infra/postgres/init`. As connection strings dos servicos runtime no compose usam `postgres-db:5432/appdb`; as variaveis `LEDGER_DB_*`, `BALANCE_DB_*` e `TRANSFER_DB_*` configuram as senhas locais usadas pelo init do container e pelas connection strings do compose. Em volumes PostgreSQL existentes, alterar `.env.local` ou `compose.yaml` nao altera automaticamente roles, grants ou senhas ja gravadas no banco; para reaplicar o init, recrie conscientemente o volume local ou execute o SQL manualmente.
+O PostgreSQL local roda em um unico container `postgres-db`, com volume `postgres-data`, database `appdb`, schemas `ledger`, `balance`, `transfer` e `identity`, e usuarios separados por servico/responsabilidade. A inicializacao fica nos scripts versionados em `infra/postgres/init`. As connection strings dos servicos runtime no compose usam `postgres-db:5432/appdb`; as variaveis `LEDGER_DB_*`, `BALANCE_DB_*`, `TRANSFER_DB_*` e `IDENTITY_DB_*` configuram as senhas locais usadas pelo init do container e pelas connection strings do compose. Em volumes PostgreSQL existentes, alterar `.env.local` ou `compose.yaml` nao altera automaticamente roles, grants ou senhas ja gravadas no banco; para reaplicar o init, recrie conscientemente o volume local ou execute o SQL manualmente.
 
 Topologia local de banco:
 
@@ -113,6 +113,8 @@ Topologia local de banco:
 | Migrations do BalanceService | `appdb.balance` | `balance_migrator_user` |
 | Runtime do TransferService.Api e TransferService.Worker | `appdb.transfer` | `transfer_app_user` |
 | Migrations do TransferService | `appdb.transfer` | `transfer_migrator_user` |
+| Runtime do IdentityService.Api | `appdb.identity` | `identity_app_user` |
+| Migrations do IdentityService | `appdb.identity` | `identity_migrator_user` |
 
 O `BalanceService.Api` deve permanecer read-only no banco: ele consulta a projecao `balance`, mas nao aplica eventos nem executa INSERT/UPDATE/DELETE. A escrita da projecao pertence ao `BalanceService.Worker` com `balance_write_user`. A reducao para um unico container e apenas local; o isolamento logico entre servicos continua sendo preservado por schemas, migrations separadas e grants por role.
 
@@ -129,9 +131,11 @@ Os scripts `scripts/local/start-stack.*` sobem por padrao o core funcional de de
 - `BalanceService.Worker`;
 - `TransferService.Api`;
 - `TransferService.Worker`;
-- PostgreSQL unico (`postgres-db`) com schemas `ledger`, `balance` e `transfer`;
+- `IdentityService.Api`;
+- PostgreSQL unico (`postgres-db`) com schemas `ledger`, `balance`, `transfer` e `identity`;
 - Kafka local;
 - job idempotente de inicializacao dos topicos Kafka de Ledger, Balance e Transfer.
+- Mailpit para capturar e-mails locais sem envio real.
 
 Esse modo tambem pode ser chamado de Dev Lite quando o foco for reduzir consumo local: ele significa core funcional sem observabilidade, SonarQube, k6, Nginx overlay e `Auth.Api` legado. Dev Lite nao significa "sem workers"; `LedgerService.Worker`, `BalanceService.Worker` e `TransferService.Worker` continuam no fluxo padrao porque validam Outbox, Kafka, projecao e processamento de Saga ponta a ponta.
 
@@ -171,7 +175,13 @@ No Linux/macOS:
 ./scripts/local/start-stack.sh
 ```
 
-Esse fluxo sobe banco, Kafka e Keycloak, aplica migrations pelo host e depois inicia `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api`, `BalanceService.Worker`, `TransferService.Api` e `TransferService.Worker`.
+Esse fluxo sobe banco, Kafka, Keycloak e Mailpit, aplica migrations pelo host e depois inicia `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api`, `BalanceService.Worker`, `TransferService.Api`, `TransferService.Worker` e `IdentityService.Api`.
+
+## Mailpit local para IdentityService
+
+O `IdentityService.Api` usa `Email:Provider=Mailpit` no compose local. O Mailpit expõe SMTP em `localhost:1025` e UI em <http://localhost:8025>. Dentro da rede Docker, o host SMTP configurado para a API e `mailpit:1025`.
+
+Para alternar para Resend em ambiente real, configure `Email:Provider=Resend` e forneça `Resend:ApiKey` por secret store ou variavel de ambiente. Nao versione a chave e nao use Resend em testes automatizados. Testes unitarios e de integracao do IdentityService devem substituir `IEmailSender` por fake quando o envio real nao for o comportamento sob teste.
 
 Os scripts `scripts/local/start-stack.*` usam Docker Compose, restauram tools .NET, aplicam migrations pelo host e nao removem volumes. Eles nao executam testes automatizados, k6 nem scanners.
 

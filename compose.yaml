@@ -232,6 +232,23 @@ services:
           --topic transfer.transferencia.dlq --partitions 1 --replication-factor 1;
         echo "[kafka-init-topics] OK.";
 
+  # --- Local email capture ---
+  mailpit:
+    image: axllent/mailpit
+    container_name: poc-mailpit
+    logging: *default-logging
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128m
+          pids: 128
+    networks:
+      - poc-net
+
   # --- Microservices ---
   ledger-service:
     build:
@@ -476,6 +493,56 @@ services:
       Observability__OpenTelemetry__UseConsoleExporter: "false"
       Observability__OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"
       Observability__OpenTelemetry__ServiceName: "TransferService.Worker"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512m
+          pids: 256
+    networks:
+      - poc-net
+
+  identity-service:
+    build:
+      context: .
+      dockerfile: src/identity/IdentityService.Api/Dockerfile
+    container_name: poc-identity-service
+    logging: *default-logging
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    environment:
+      ASPNETCORE_URLS: "http://+:8080"
+      ASPNETCORE_ENVIRONMENT: "Local"
+
+      Jwt__Issuer: "${JWT_ISSUER:-http://localhost:8081/realms/poc}"
+      Jwt__Audience: "identity-api"
+      Jwt__JwksUrl: "${JWT_JWKS_URL:-http://keycloak:8080/realms/poc/protocol/openid-connect/certs}"
+      Jwt__RequireHttpsMetadata: "${JWT_REQUIRE_HTTPS_METADATA:-false}"
+
+      ConnectionStrings__DefaultConnection: "Host=postgres-db;Port=5432;Database=appdb;Username=identity_app_user;Password=${IDENTITY_DB_PASSWORD:?Defina IDENTITY_DB_PASSWORD no ambiente ou em .env.local}"
+      IdentityProvider__Keycloak__BaseUrl: "http://keycloak:8080"
+      IdentityProvider__Keycloak__Realm: "poc"
+      IdentityProvider__Keycloak__TokenEndpoint: "/realms/poc/protocol/openid-connect/token"
+      IdentityProvider__Keycloak__ClientId: "${KEYCLOAK_IDENTITY_ADMIN_CLIENT_ID:-identity-service-admin}"
+      IdentityProvider__Keycloak__ClientSecret: "${KEYCLOAK_CLIENT_SECRET:?Defina KEYCLOAK_CLIENT_SECRET no ambiente ou em .env.local}"
+      Email__Provider: "Mailpit"
+      Email__AuthenticationUrl: "http://localhost:${KEYCLOAK_HOST_PORT:-8081}/realms/poc/account"
+      Mailpit__Host: "mailpit"
+      Mailpit__Port: "1025"
+      Mailpit__EnableSsl: "false"
+      Mailpit__From: "noreply@poc-arquitetura.local"
+      Mailpit__FromName: "POC Arquitetura"
+      Observability__OpenTelemetry__Enabled: "${OTEL_ENABLED:-false}"
+      Observability__OpenTelemetry__UseConsoleExporter: "false"
+      Observability__OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"
+      Observability__OpenTelemetry__ServiceName: "IdentityService.Api"
+    ports:
+      - "${IDENTITY_SERVICE_HOST_PORT:-5232}:8080"
     deploy:
       resources:
         limits:

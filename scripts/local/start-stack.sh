@@ -184,9 +184,9 @@ if [[ "$NO_BUILD" != "true" ]]; then
 fi
 
 if [[ "$MESSAGING_PROVIDER" == "Kafka" ]]; then
-  "${api_up[@]}" ledger-service ledger-worker balance-service balance-worker transfer-service transfer-worker
+  "${api_up[@]}" ledger-service ledger-worker balance-service balance-worker transfer-service transfer-worker identity-service mailpit
 else
-  "${api_up[@]}" ledger-service ledger-worker balance-service balance-worker transfer-service
+  "${api_up[@]}" ledger-service ledger-worker balance-service balance-worker transfer-service identity-service mailpit
 fi
 
 echo "OK. Stack local pronta."

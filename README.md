@@ -148,11 +148,41 @@ Esse fluxo usa `compose.pubsub.yaml`, habilita o profile `legacy-pubsub`, cria t
 
 A Saga orquestrada do `TransferService` usa Kafka explicitamente. Como Kafka e o default local, o `TransferService.Worker` sobe no fluxo padrao e pode processar Sagas automaticamente. Consulte [TransferService API](docs/development/transfer-api.md) e [desenvolvimento local](docs/development/local-development.md#kafka-local-e-saga-do-transferservice).
 
-### E-mails do IdentityService com Resend
+### E-mails do IdentityService com Mailpit e Resend
 
-O `IdentityService` envia o e-mail de boas-vindas por Domain Event depois do cadastro. A camada `Application` conhece apenas a porta `IEmailSender`; o SDK oficial do Resend fica encapsulado em `IdentityService.Infrastructure` por `ResendClientFactory` e `ResendEmailSender`.
+O `IdentityService` envia o e-mail de boas-vindas por Domain Event depois do cadastro. A camada `Application` conhece apenas a porta `IEmailSender`; Resend e Mailpit ficam encapsulados em `IdentityService.Infrastructure`. O ambiente local usa `Email:Provider=Mailpit` para capturar e-mails sem envio real. A UI local do Mailpit fica em <http://localhost:8025> e o SMTP local escuta na porta `1025`.
 
-A chave da API nao deve ser versionada. Para desenvolvimento local no host, configure User Secrets no projeto da API:
+Para subir o Mailpit com a stack local:
+
+```powershell
+./scripts/local/start-stack.ps1
+```
+
+No Linux/macOS:
+
+```bash
+./scripts/local/start-stack.sh
+```
+
+Para rodar o `IdentityService.Api` no host usando Mailpit, configure:
+
+```powershell
+$env:Email__Provider="Mailpit"
+$env:Mailpit__Host="localhost"
+$env:Mailpit__Port="1025"
+$env:Mailpit__EnableSsl="false"
+```
+
+No Linux/macOS:
+
+```bash
+export Email__Provider="Mailpit"
+export Mailpit__Host="localhost"
+export Mailpit__Port="1025"
+export Mailpit__EnableSsl="false"
+```
+
+Resend continua disponivel para ambientes reais por `Email:Provider=Resend`. A chave da API nao deve ser versionada. Configure por User Secrets no projeto da API:
 
 ```powershell
 dotnet user-secrets set "Resend:ApiKey" "<sua-api-key>" --project ./src/identity/IdentityService.Api/IdentityService.Api.csproj
@@ -171,7 +201,7 @@ No Linux/macOS:
 export Resend__ApiKey="<sua-api-key>"
 ```
 
-As demais configuracoes ficam em `src/identity/IdentityService.Api/appsettings.json`: `Resend:From`, `Resend:FromName`, `Resend:ReplyTo`, `Email:TemplatePath` e `Email:AuthenticationUrl`. Para trocar futuramente o provedor de e-mail, mantenha `IEmailSender` na Application e substitua apenas a implementacao registrada na Infrastructure, preservando o handler de `UserRegisteredDomainEvent`.
+As demais configuracoes ficam em `src/identity/IdentityService.Api/appsettings.json` e `appsettings.Development.json`: `Email:Provider`, `Email:TemplatePath`, `Email:AuthenticationUrl`, `Mailpit:*` e `Resend:*`. Testes automatizados devem usar fake de `IEmailSender` ou Mailpit controlado; nao use Resend em testes automatizados.
 
 Para subir a stack completa com observabilidade e Nginx HTTPS local, gere antes os certificados em `infra/nginx/certs/` conforme [desenvolvimento local](docs/development/local-development.md#borda-local-https-com-nginx):
 
