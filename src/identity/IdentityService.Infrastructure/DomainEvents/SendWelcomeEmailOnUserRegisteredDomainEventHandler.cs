@@ -11,7 +11,7 @@ namespace IdentityService.Infrastructure.DomainEvents;
 public sealed partial class SendWelcomeEmailOnUserRegisteredDomainEventHandler(
     IEmailTemplateRenderer templateRenderer,
     IEmailSender emailSender,
-    IOptions<SmtpEmailOptions> options,
+    IOptions<WelcomeEmailOptions> options,
     ILogger<SendWelcomeEmailOnUserRegisteredDomainEventHandler> logger) : IDomainEventHandler<UserRegisteredDomainEvent>
 {
     private const string Subject = "Bem-vindo";
@@ -24,12 +24,12 @@ public sealed partial class SendWelcomeEmailOnUserRegisteredDomainEventHandler(
         {
             var currentOptions = options.Value;
             var htmlBody = await templateRenderer.RenderAsync(
-                Required(currentOptions.TemplatePath, "Email:Smtp:TemplatePath"),
+                Required(currentOptions.TemplatePath, "Email:TemplatePath"),
                 new Dictionary<string, string>
                 {
                     ["UserName"] = domainEvent.Username.Value,
                     ["MerchantId"] = domainEvent.MerchantId.Value,
-                    ["AuthenticationLink"] = Required(currentOptions.AuthenticationUrl, "Email:Smtp:AuthenticationUrl")
+                    ["AuthenticationLink"] = Required(currentOptions.AuthenticationUrl, "Email:AuthenticationUrl")
                 },
                 cancellationToken);
 

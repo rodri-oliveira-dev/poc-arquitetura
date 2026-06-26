@@ -90,11 +90,15 @@ public static class DependencyInjection
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
 
-        services.Configure<SmtpEmailOptions>(
-            configuration.GetSection(SmtpEmailOptions.SectionName));
+        services.AddOptions<WelcomeEmailOptions>()
+            .Bind(configuration.GetSection(WelcomeEmailOptions.SectionName));
+
+        services.AddOptions<ResendOptions>()
+            .Bind(configuration.GetSection(ResendOptions.SectionName));
 
         services.AddSingleton<IEmailTemplateRenderer, FileEmailTemplateRenderer>();
-        services.AddScoped<IEmailSender, SmtpEmailSender>();
+        services.AddHttpClient<IResendClientFactory, ResendClientFactory>();
+        services.AddScoped<IEmailSender, ResendEmailSender>();
 
         return services;
     }

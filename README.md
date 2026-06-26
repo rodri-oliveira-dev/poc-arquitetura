@@ -148,6 +148,31 @@ Esse fluxo usa `compose.pubsub.yaml`, habilita o profile `legacy-pubsub`, cria t
 
 A Saga orquestrada do `TransferService` usa Kafka explicitamente. Como Kafka e o default local, o `TransferService.Worker` sobe no fluxo padrao e pode processar Sagas automaticamente. Consulte [TransferService API](docs/development/transfer-api.md) e [desenvolvimento local](docs/development/local-development.md#kafka-local-e-saga-do-transferservice).
 
+### E-mails do IdentityService com Resend
+
+O `IdentityService` envia o e-mail de boas-vindas por Domain Event depois do cadastro. A camada `Application` conhece apenas a porta `IEmailSender`; o SDK oficial do Resend fica encapsulado em `IdentityService.Infrastructure` por `ResendClientFactory` e `ResendEmailSender`.
+
+A chave da API nao deve ser versionada. Para desenvolvimento local no host, configure User Secrets no projeto da API:
+
+```powershell
+dotnet user-secrets set "Resend:ApiKey" "<sua-api-key>" --project ./src/identity/IdentityService.Api/IdentityService.Api.csproj
+dotnet user-secrets set "Email:AuthenticationUrl" "http://localhost:8081/realms/poc/account" --project ./src/identity/IdentityService.Api/IdentityService.Api.csproj
+```
+
+Tambem e possivel sobrescrever por variavel de ambiente:
+
+```powershell
+$env:Resend__ApiKey="<sua-api-key>"
+```
+
+No Linux/macOS:
+
+```bash
+export Resend__ApiKey="<sua-api-key>"
+```
+
+As demais configuracoes ficam em `src/identity/IdentityService.Api/appsettings.json`: `Resend:From`, `Resend:FromName`, `Resend:ReplyTo`, `Email:TemplatePath` e `Email:AuthenticationUrl`. Para trocar futuramente o provedor de e-mail, mantenha `IEmailSender` na Application e substitua apenas a implementacao registrada na Infrastructure, preservando o handler de `UserRegisteredDomainEvent`.
+
 Para subir a stack completa com observabilidade e Nginx HTTPS local, gere antes os certificados em `infra/nginx/certs/` conforme [desenvolvimento local](docs/development/local-development.md#borda-local-https-com-nginx):
 
 ```powershell

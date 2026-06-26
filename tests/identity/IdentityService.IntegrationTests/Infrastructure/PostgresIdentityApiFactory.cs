@@ -33,7 +33,8 @@ public sealed class PostgresIdentityApiFactory(string connectionString) : WebApp
                 ["Jwt:Issuer"] = TestJwtTokenFactory.KeycloakIssuer,
                 ["Jwt:Audience"] = TestJwtTokenFactory.IdentityAudience,
                 ["Jwt:JwksUrl"] = "https://localhost/jwks.json",
-                ["ConnectionStrings:DefaultConnection"] = connectionString
+                ["ConnectionStrings:DefaultConnection"] = connectionString,
+                ["Email:AuthenticationUrl"] = "https://auth.localhost/login"
             });
         });
 
@@ -42,13 +43,15 @@ public sealed class PostgresIdentityApiFactory(string connectionString) : WebApp
             RemoveService<IdentityDbContext>(services);
             RemoveService<DbContextOptions<IdentityDbContext>>(services);
             RemoveAll<IIdentityProviderUserService>(services);
+            RemoveAll<IEmailSender>(services);
 
             services.AddDbContext<IdentityDbContext>(options =>
                 options.UseNpgsql(
                     connectionString,
                     npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "identity")));
 
-            services.AddSingleton<IIdentityProviderUserService, FakeIdentityProviderUserService>();
+            services.AddSingleton<IIdentityProviderUserService>(IdentityProvider);
+            services.AddSingleton<IEmailSender>(EmailSender);
 
             services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
             {
@@ -62,6 +65,16 @@ public sealed class PostgresIdentityApiFactory(string connectionString) : WebApp
             });
         });
     }
+
+    public RecordingIdentityProviderUserService IdentityProvider
+    {
+        get;
+    } = new();
+
+    public RecordingEmailSender EmailSender
+    {
+        get;
+    } = new();
 
     private static void RemoveService<TService>(IServiceCollection services)
     {
@@ -80,18 +93,38 @@ public sealed class PostgresIdentityApiFactory(string connectionString) : WebApp
         }
     }
 
-    private sealed class FakeIdentityProviderUserService : IIdentityProviderUserService
+    public sealed class RecordingIdentityProviderUserService : IIdentityProviderUserService
     {
+        public List<CreateIdentityProviderUserRequest> CreateRequests
+        {
+            get;
+        } = [];
+
         public Task<CreateIdentityProviderUserResult> CreateUserAsync(
             CreateIdentityProviderUserRequest request,
             CancellationToken cancellationToken = default)
         {
             ArgumentNullException.ThrowIfNull(request);
+            CreateRequests.Add(request);
 
             return Task.FromResult(new CreateIdentityProviderUserResult($"kc-{Guid.NewGuid():N}"));
         }
 
         public Task DeleteUserAsync(string keycloakUserId, CancellationToken cancellationToken = default)
             => Task.CompletedTask;
+    }
+
+    public sealed class RecordingEmailSender : IEmailSender
+    {
+        public List<EmailMessage> Messages
+        {
+            get;
+        } = [];
+
+        public Task SendAsync(EmailMessage message, CancellationToken cancellationToken = default)
+        {
+            Messages.Add(message);
+            return Task.CompletedTask;
+        }
     }
 }

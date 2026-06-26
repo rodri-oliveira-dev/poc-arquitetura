@@ -50,7 +50,7 @@ public sealed class SendWelcomeEmailOnUserRegisteredDomainEventHandlerTests
         => new(
             renderer,
             sender,
-            Options.Create(new SmtpEmailOptions
+            Options.Create(new WelcomeEmailOptions
             {
                 TemplatePath = "Email/Templates/WelcomeEmail.html",
                 AuthenticationUrl = "https://auth.localhost/login"

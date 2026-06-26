@@ -6,6 +6,8 @@ using System.Text.Json;
 using IdentityService.IntegrationTests.Infrastructure;
 using IdentityService.IntegrationTests.Infrastructure.Security;
 
+using Microsoft.EntityFrameworkCore;
+
 namespace IdentityService.IntegrationTests.Api.Users;
 
 [Trait("Category", "Container")]
@@ -53,6 +55,27 @@ public sealed class UserEndpointsTests(PostgresIdentityFixture fixture) : IAsync
         Assert.False(string.IsNullOrWhiteSpace(root.GetProperty("merchantId").GetString()));
         Assert.Equal("ana.identity", root.GetProperty("username").GetString());
         Assert.Equal("ana.identity@example.com", root.GetProperty("email").GetString());
+
+        var emailMessage = Assert.Single(factory.EmailSender.Messages);
+        Assert.Equal("ana.identity@example.com", emailMessage.ToAddress);
+        Assert.Equal("ana.identity", emailMessage.ToName);
+        Assert.Equal("Bem-vindo", emailMessage.Subject);
+        Assert.Contains("Bem-vindo, ana.identity", emailMessage.HtmlBody, StringComparison.Ordinal);
+
+        var identityProviderRequest = Assert.Single(factory.IdentityProvider.CreateRequests);
+        Assert.Equal("Ana Identity", identityProviderRequest.Name);
+        Assert.Equal("ana.identity@example.com", identityProviderRequest.Email);
+        Assert.Equal("ana.identity", identityProviderRequest.Username);
+
+        await using var db = _fixture.CreateDbContext();
+        var persistedUsers = await db.Users.ToListAsync(TestContext.Current.CancellationToken);
+        var persisted = Assert.Single(
+            persistedUsers,
+            user => user.Email.Value == "ana.identity@example.com");
+
+        Assert.Equal("ana.identity", persisted.Username.Value);
+        Assert.Equal(root.GetProperty("merchantId").GetString(), persisted.MerchantId.Value);
+        Assert.Equal(root.GetProperty("keycloakUserId").GetString(), persisted.KeycloakUserId);
     }
 
     [Fact]
