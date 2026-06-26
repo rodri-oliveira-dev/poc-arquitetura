@@ -21,8 +21,4 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\..\src\TransferService.Worker\TransferService.Worker.csproj" />
-  </ItemGroup>
-
 </Project>
