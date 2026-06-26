@@ -108,14 +108,14 @@ tests/identity/
 O caminho recomendado e subir a stack local padrao:
 
 ```powershell
-./scripts/local/init-env.ps1
+./scripts/local/create-env-local.ps1
 ./scripts/local/start-stack.ps1
 ```
 
 No Linux/macOS:
 
 ```bash
-./scripts/local/init-env.sh
+./scripts/local/create-env-local.sh
 ./scripts/local/start-stack.sh
 ```
 
@@ -147,7 +147,7 @@ dotnet run --project ./src/identity/IdentityService.Api/IdentityService.Api.cspr
 No compose local, o realm `poc` e importado pelo Keycloak e o job
 `keycloak-identity-admin-init` atribui as roles administrativas ao client
 `identity-service-admin`. O segredo local vem de `KEYCLOAK_CLIENT_SECRET` em
-`.env.local`, gerado por `scripts/local/init-env.*`.
+`.env.local`, gerado por `scripts/local/create-env-local.*`.
 
 Configuracoes principais:
 
@@ -336,13 +336,13 @@ dotnet test ./LedgerService.slnx --configuration Release --no-build --settings .
 Crie primeiro as variaveis locais descartaveis:
 
 ```powershell
-./scripts/local/init-env.ps1
+./scripts/local/create-env-local.ps1
 ```
 
 No Linux/macOS:
 
 ```bash
-./scripts/local/init-env.sh
+./scripts/local/create-env-local.sh
 ```
 
 Suba o core funcional local no Windows:
@@ -412,7 +412,7 @@ Se houver containers antigos ou rede local presa do proprio projeto, o script pe
 | Build Release | `dotnet build ./LedgerService.slnx --configuration Release --no-restore` |
 | Testes sem rebuild | `dotnet test ./LedgerService.slnx --configuration Release --no-build --settings ./coverlet.runsettings` |
 | Testes com cobertura e gate | `./test.ps1` ou `./test.sh` |
-| Criar `.env.local` de onboarding | `./scripts/local/init-env.ps1` ou `./scripts/local/init-env.sh` |
+| Criar `.env.local` de onboarding | `./scripts/local/create-env-local.ps1` ou `./scripts/local/create-env-local.sh` |
 | SonarQube local | `docker compose --env-file .env.local -f compose.sonar.yaml --profile quality up -d` |
 | Analise SonarQube local | `./scripts/quality/sonar-analyze.sh` |
 | Stack local minima | `./scripts/local/start-stack.ps1` ou `./scripts/local/start-stack.sh` |

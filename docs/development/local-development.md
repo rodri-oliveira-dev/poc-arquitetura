@@ -47,16 +47,16 @@ Copy-Item .env.local.example .env.local
 O caminho mais rapido para onboarding e gerar valores locais descartaveis:
 
 ```powershell
-./scripts/local/init-env.ps1
+./scripts/local/create-env-local.ps1
 ```
 
 No Linux/macOS:
 
 ```bash
-./scripts/local/init-env.sh
+./scripts/local/create-env-local.sh
 ```
 
-O script nao sobrescreve `.env.local` existente; use `-Force` no PowerShell ou `--force` no shell apenas quando quiser recriar conscientemente o arquivo local. O arquivo `.env.local` e ignorado pelo Git e nao deve ser versionado. Os scripts `scripts/local/start-stack.*` e `scripts/local/start-full-stack.*` tambem leem `.env.local` automaticamente; `.env` permanece aceito como fallback para compatibilidade com fluxos antigos.
+O script nao sobrescreve `.env.local` existente; use `-Force` no PowerShell ou `--force` no shell apenas quando quiser recriar conscientemente o arquivo local. Os wrappers antigos `scripts/local/init-env.*` continuam disponiveis para compatibilidade. O arquivo `.env.local` e ignorado pelo Git e nao deve ser versionado. Os scripts `scripts/local/start-stack.*` e `scripts/local/start-full-stack.*` tambem leem `.env.local` automaticamente; `.env` permanece aceito como fallback para compatibilidade com fluxos antigos.
 
 Comandos manuais de Compose devem usar `--env-file .env.local`, porque o Docker Compose nao carrega `.env.local` automaticamente. O comando sem `--env-file`, como `docker compose -f compose.yaml config --quiet`, carrega apenas variaveis exportadas no ambiente da sessao e o arquivo `.env` da raiz do repositorio. Se voce precisa usar esse formato curto, crie um `.env` local ignorado pelo Git a partir do exemplo versionado:
 
@@ -95,6 +95,8 @@ Variaveis sensiveis obrigatorias para o compose principal:
 - `KEYCLOAK_LOCAL_ADMIN_USER_PASSWORD`
 
 Variaveis nao sensiveis ou identificadores locais continuam com defaults no compose ou exemplos em `.env.local.example`, como `POSTGRES_HOST_PORT=15432`, `PUBSUB_EMULATOR_HOST_PORT=8085`, `PUBSUB_PROJECT_ID=poc-local` e os nomes locais de topics/subscriptions: `PUBSUB_LEDGER_EVENTS_TOPIC_ID`, `PUBSUB_LEDGER_EVENTS_DLQ_TOPIC_ID`, `PUBSUB_BALANCE_SUBSCRIPTION_ID` e `PUBSUB_LEDGER_EVENTS_DLQ_INSPECTION_SUBSCRIPTION_ID`.
+
+O Docker Compose roda os containers com ambiente `Local` e usa hostnames internos da rede Docker, como `postgres-db:5432`, `kafka:9092`, `keycloak:8080` e `mailpit:1025`. Debug ou `dotnet run` no host usa ambiente `Development` e deve apontar para as portas publicadas no host: `127.0.0.1:15432`, `127.0.0.1:19092`, `http://localhost:8081` e `localhost:1025`.
 
 As variaveis `AUTH_POC_USERNAME`, `AUTH_POC_PASSWORD` e `AUTH_POC_SCOPE` continuam aceitas apenas pelo overlay legado `compose.auth-legacy.yaml`.
 
