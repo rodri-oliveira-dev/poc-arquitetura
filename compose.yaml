@@ -31,6 +31,8 @@ services:
       BALANCE_DB_MIGRATOR_PASSWORD: "${BALANCE_DB_MIGRATOR_PASSWORD:?Defina BALANCE_DB_MIGRATOR_PASSWORD no ambiente ou em .env.local}"
       TRANSFER_DB_PASSWORD: "${TRANSFER_DB_PASSWORD:?Defina TRANSFER_DB_PASSWORD no ambiente ou em .env.local}"
       TRANSFER_DB_MIGRATOR_PASSWORD: "${TRANSFER_DB_MIGRATOR_PASSWORD:?Defina TRANSFER_DB_MIGRATOR_PASSWORD no ambiente ou em .env.local}"
+      IDENTITY_DB_PASSWORD: "${IDENTITY_DB_PASSWORD:?Defina IDENTITY_DB_PASSWORD no ambiente ou em .env.local}"
+      IDENTITY_DB_MIGRATOR_PASSWORD: "${IDENTITY_DB_MIGRATOR_PASSWORD:?Defina IDENTITY_DB_MIGRATOR_PASSWORD no ambiente ou em .env.local}"
     ports:
       # Porta exposta para uso local (psql, migrations, etc.)
       # Obs: pode conflitar com um Postgres já rodando no host.

@@ -34,6 +34,8 @@ BALANCE_DB_WRITE_PASSWORD="$(get_required_local_config_value BALANCE_DB_WRITE_PA
 BALANCE_DB_MIGRATOR_PASSWORD="$(get_required_local_config_value BALANCE_DB_MIGRATOR_PASSWORD)"
 TRANSFER_DB_PASSWORD="$(get_required_local_config_value TRANSFER_DB_PASSWORD)"
 TRANSFER_DB_MIGRATOR_PASSWORD="$(get_required_local_config_value TRANSFER_DB_MIGRATOR_PASSWORD)"
+IDENTITY_DB_PASSWORD="$(get_required_local_config_value IDENTITY_DB_PASSWORD)"
+IDENTITY_DB_MIGRATOR_PASSWORD="$(get_required_local_config_value IDENTITY_DB_MIGRATOR_PASSWORD)"
 
 compose_files=()
 if [[ -n "$COMPOSE_ENV_FILE" ]]; then
@@ -143,6 +145,8 @@ assert_database_authentication balance_write_user "$BALANCE_DB_WRITE_PASSWORD"
 assert_database_authentication balance_migrator_user "$BALANCE_DB_MIGRATOR_PASSWORD"
 assert_database_authentication transfer_app_user "$TRANSFER_DB_PASSWORD"
 assert_database_authentication transfer_migrator_user "$TRANSFER_DB_MIGRATOR_PASSWORD"
+assert_database_authentication identity_app_user "$IDENTITY_DB_PASSWORD"
+assert_database_authentication identity_migrator_user "$IDENTITY_DB_MIGRATOR_PASSWORD"
 
 run_migration \
   "Host=127.0.0.1;Port=$POSTGRES_HOST_PORT;Database=$POSTGRES_DATABASE;Username=ledger_migrator_user;Password=$LEDGER_DB_MIGRATOR_PASSWORD" \
@@ -162,6 +166,13 @@ run_migration \
   "src/TransferService.Api/TransferService.Api.csproj" \
   "TransferServiceDbContext" \
   "TRANSFER_SERVICE_CONNECTION_STRING"
+
+run_migration \
+  "Host=127.0.0.1;Port=$POSTGRES_HOST_PORT;Database=$POSTGRES_DATABASE;Username=identity_migrator_user;Password=$IDENTITY_DB_MIGRATOR_PASSWORD" \
+  "src/identity/IdentityService.Infrastructure/IdentityService.Infrastructure.csproj" \
+  "src/identity/IdentityService.Infrastructure/IdentityService.Infrastructure.csproj" \
+  "IdentityDbContext" \
+  "IDENTITY_SERVICE_CONNECTION_STRING"
 
 api_up=(docker compose "${compose_files[@]}" up -d)
 if [[ "$OBSERVABILITY" == "true" ]]; then

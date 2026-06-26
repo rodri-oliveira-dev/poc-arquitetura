@@ -31,6 +31,8 @@ $balanceWritePassword = Get-RequiredLocalConfigValue "BALANCE_DB_WRITE_PASSWORD"
 $balanceMigratorPassword = Get-RequiredLocalConfigValue "BALANCE_DB_MIGRATOR_PASSWORD"
 $transferRuntimePassword = Get-RequiredLocalConfigValue "TRANSFER_DB_PASSWORD"
 $transferMigratorPassword = Get-RequiredLocalConfigValue "TRANSFER_DB_MIGRATOR_PASSWORD"
+$identityRuntimePassword = Get-RequiredLocalConfigValue "IDENTITY_DB_PASSWORD"
+$identityMigratorPassword = Get-RequiredLocalConfigValue "IDENTITY_DB_MIGRATOR_PASSWORD"
 
 if ([string]::IsNullOrWhiteSpace($ComposeFile)) {
   $ComposeFile = (Join-Path $root "compose.yaml")
@@ -209,6 +211,8 @@ try {
   Assert-DatabaseAuthentication "balance_migrator_user" (ConvertTo-LocalSecureString $balanceMigratorPassword)
   Assert-DatabaseAuthentication "transfer_app_user" (ConvertTo-LocalSecureString $transferRuntimePassword)
   Assert-DatabaseAuthentication "transfer_migrator_user" (ConvertTo-LocalSecureString $transferMigratorPassword)
+  Assert-DatabaseAuthentication "identity_app_user" (ConvertTo-LocalSecureString $identityRuntimePassword)
+  Assert-DatabaseAuthentication "identity_migrator_user" (ConvertTo-LocalSecureString $identityMigratorPassword)
 
   Invoke-Migration `
     "Host=127.0.0.1;Port=$postgresHostPort;Database=$postgresDatabase;Username=ledger_migrator_user;Password=$ledgerMigratorPassword" `
@@ -228,6 +232,13 @@ try {
     "src/TransferService.Api/TransferService.Api.csproj" `
     "TransferServiceDbContext" `
     "TRANSFER_SERVICE_CONNECTION_STRING"
+
+  Invoke-Migration `
+    "Host=127.0.0.1;Port=$postgresHostPort;Database=$postgresDatabase;Username=identity_migrator_user;Password=$identityMigratorPassword" `
+    "src/identity/IdentityService.Infrastructure/IdentityService.Infrastructure.csproj" `
+    "src/identity/IdentityService.Infrastructure/IdentityService.Infrastructure.csproj" `
+    "IdentityDbContext" `
+    "IDENTITY_SERVICE_CONNECTION_STRING"
 
   $apiArgs = @(Get-ComposeArguments) + @("up", "-d")
   if ($Observability) {
