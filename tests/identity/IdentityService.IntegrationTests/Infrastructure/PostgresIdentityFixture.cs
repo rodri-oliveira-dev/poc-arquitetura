@@ -1,8 +1,8 @@
-using IdentityService.Application.Users.Ports;
+using IdentityService.Infrastructure;
 using IdentityService.Infrastructure.Persistence;
-using IdentityService.Infrastructure.Persistence.Repositories;
 
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 using Npgsql;
@@ -47,15 +47,18 @@ public sealed class PostgresIdentityFixture : IAsyncLifetime
     public IdentityDbContext CreateDbContext()
         => CreateDbContext(RuntimeConnectionString);
 
-    public ServiceProvider CreateServiceProvider()
+    public ServiceProvider CreateServiceProvider(Action<IServiceCollection>? configureServices = null)
     {
         var services = new ServiceCollection();
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:DefaultConnection"] = RuntimeConnectionString
+            })
+            .Build();
 
-        services.AddDbContext<IdentityDbContext>(options =>
-            options.UseNpgsql(
-                RuntimeConnectionString,
-                npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "identity")));
-        services.AddScoped<IUserRepository, UserRepository>();
+        services.AddIdentityInfrastructure(configuration);
+        configureServices?.Invoke(services);
 
         return services.BuildServiceProvider(validateScopes: true);
     }

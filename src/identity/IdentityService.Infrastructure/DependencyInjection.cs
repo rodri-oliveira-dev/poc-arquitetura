@@ -1,4 +1,5 @@
 using IdentityService.Application.Users.Ports;
+using IdentityService.Infrastructure.DomainEvents;
 using IdentityService.Infrastructure.IdentityProvider;
 using IdentityService.Infrastructure.Persistence;
 using IdentityService.Infrastructure.Persistence.Repositories;
@@ -19,6 +20,7 @@ public static class DependencyInjection
         ArgumentNullException.ThrowIfNull(configuration);
 
         services
+            .AddIdentityDomainEvents()
             .AddIdentityPersistence(configuration)
             .AddIdentityRepositories()
             .AddIdentityProvider(configuration);

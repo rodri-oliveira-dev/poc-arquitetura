@@ -1,9 +1,11 @@
+using IdentityService.Application.Common.DomainEvents;
 using IdentityService.Domain.Users;
 using IdentityService.Infrastructure.Persistence;
 using IdentityService.IntegrationTests.Infrastructure;
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 using Npgsql;
 
@@ -103,6 +105,95 @@ public sealed class IdentityPersistenceTests(PostgresIdentityFixture fixture) : 
             db.Model.FindEntityType(typeof(User))?.GetSchema());
     }
 
+    [Fact]
+    public async Task SaveChanges_should_dispatch_domain_event_after_commit()
+    {
+        var recorder = new DomainEventRecorder();
+        await using var provider = _fixture.CreateServiceProvider(services =>
+        {
+            services.AddSingleton(recorder);
+            services.AddScoped<IDomainEventHandler<UserRegisteredDomainEvent>, RecordingUserRegisteredHandler>();
+        });
+        await using var scope = provider.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        var user = CreateUser(email: "dispatch-after-commit@example.com", keycloakUserId: "kc-dispatch-after-commit");
+
+        db.Users.Add(user);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        Assert.Empty(user.DomainEvents);
+        Assert.Equal(["recording"], recorder.HandlerNames);
+        Assert.Contains(
+            await db.Users.AsNoTracking().ToListAsync(TestContext.Current.CancellationToken),
+            persisted => persisted.Id == user.Id);
+    }
+
+    [Fact]
+    public async Task SaveChanges_should_not_dispatch_domain_event_when_commit_fails()
+    {
+        var recorder = new DomainEventRecorder();
+        await using var provider = _fixture.CreateServiceProvider(services =>
+        {
+            services.AddSingleton(recorder);
+            services.AddScoped<IDomainEventHandler<UserRegisteredDomainEvent>, RecordingUserRegisteredHandler>();
+        });
+        await using var scope = provider.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+
+        db.Users.Add(CreateUser(email: "failed-dispatch@example.com", keycloakUserId: "kc-failed-dispatch-1"));
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        recorder.Clear();
+
+        db.Users.Add(CreateUser(email: "failed-dispatch@example.com", keycloakUserId: "kc-failed-dispatch-2"));
+
+        await Assert.ThrowsAsync<DbUpdateException>(
+            () => db.SaveChangesAsync(TestContext.Current.CancellationToken));
+
+        Assert.Empty(recorder.HandlerNames);
+    }
+
+    [Fact]
+    public async Task SaveChanges_should_dispatch_same_domain_event_to_two_handlers_in_registration_order()
+    {
+        var recorder = new DomainEventRecorder();
+        await using var provider = _fixture.CreateServiceProvider(services =>
+        {
+            services.AddSingleton(recorder);
+            services.AddScoped<IDomainEventHandler<UserRegisteredDomainEvent>, FirstUserRegisteredHandler>();
+            services.AddScoped<IDomainEventHandler<UserRegisteredDomainEvent>, SecondUserRegisteredHandler>();
+        });
+        await using var scope = provider.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+
+        db.Users.Add(CreateUser(email: "two-handlers@example.com", keycloakUserId: "kc-two-handlers"));
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(["first", "second"], recorder.HandlerNames);
+    }
+
+    [Fact]
+    public async Task SaveChanges_should_log_handler_failure_without_rolling_back_commit()
+    {
+        var logSink = new TestLogSink();
+        await using var provider = _fixture.CreateServiceProvider(services =>
+        {
+            services.AddLogging(builder => builder.AddProvider(new TestLoggerProvider(logSink)));
+            services.AddScoped<IDomainEventHandler<UserRegisteredDomainEvent>, ThrowingUserRegisteredHandler>();
+        });
+        await using var scope = provider.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        var user = CreateUser(email: "handler-failure@example.com", keycloakUserId: "kc-handler-failure");
+
+        db.Users.Add(user);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(
+            await db.Users.AsNoTracking().AnyAsync(x => x.Id == user.Id, TestContext.Current.CancellationToken));
+        Assert.Contains(logSink.Entries, entry =>
+            entry.LogLevel == LogLevel.Error &&
+            entry.Message.Contains("Domain event handler", StringComparison.Ordinal));
+    }
+
     private static User CreateUser(string email, string keycloakUserId)
         => User.Register(
             UserId.New(),
@@ -111,4 +202,90 @@ public sealed class IdentityPersistenceTests(PostgresIdentityFixture fixture) : 
             new MerchantId("merchant-shared"),
             keycloakUserId,
             new DateTime(2026, 06, 26, 12, 0, 0, DateTimeKind.Utc));
+
+    private sealed class DomainEventRecorder
+    {
+        public List<string> HandlerNames
+        {
+            get;
+        } = [];
+
+        public void Record(string handlerName) => HandlerNames.Add(handlerName);
+
+        public void Clear() => HandlerNames.Clear();
+    }
+
+    private sealed class RecordingUserRegisteredHandler(DomainEventRecorder recorder)
+        : IDomainEventHandler<UserRegisteredDomainEvent>
+    {
+        public Task HandleAsync(UserRegisteredDomainEvent domainEvent, CancellationToken cancellationToken = default)
+        {
+            recorder.Record("recording");
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FirstUserRegisteredHandler(DomainEventRecorder recorder)
+        : IDomainEventHandler<UserRegisteredDomainEvent>
+    {
+        public Task HandleAsync(UserRegisteredDomainEvent domainEvent, CancellationToken cancellationToken = default)
+        {
+            recorder.Record("first");
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class SecondUserRegisteredHandler(DomainEventRecorder recorder)
+        : IDomainEventHandler<UserRegisteredDomainEvent>
+    {
+        public Task HandleAsync(UserRegisteredDomainEvent domainEvent, CancellationToken cancellationToken = default)
+        {
+            recorder.Record("second");
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class ThrowingUserRegisteredHandler : IDomainEventHandler<UserRegisteredDomainEvent>
+    {
+        public Task HandleAsync(UserRegisteredDomainEvent domainEvent, CancellationToken cancellationToken = default)
+            => throw new InvalidOperationException("handler failed");
+    }
+
+    private sealed class TestLogSink
+    {
+        public List<TestLogEntry> Entries
+        {
+            get;
+        } = [];
+    }
+
+    private sealed record TestLogEntry(LogLevel LogLevel, string Message);
+
+    private sealed class TestLoggerProvider(TestLogSink sink) : ILoggerProvider
+    {
+        public ILogger CreateLogger(string categoryName) => new TestLogger(sink);
+
+        public void Dispose()
+        {
+        }
+    }
+
+    private sealed class TestLogger(TestLogSink sink) : ILogger
+    {
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull
+            => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            sink.Entries.Add(new TestLogEntry(logLevel, formatter(state, exception)));
+        }
+    }
 }
