@@ -118,6 +118,45 @@ public sealed class KeycloakAdminClientTests
         Assert.Contains("Timeout", exception.Message, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData(
+        "http://keycloak.local",
+        "/realms/poc/protocol/openid-connect/token",
+        "http://keycloak.local/realms/poc/protocol/openid-connect/token")]
+    [InlineData(
+        "http://keycloak.local/",
+        "/realms/poc/protocol/openid-connect/token",
+        "http://keycloak.local/realms/poc/protocol/openid-connect/token")]
+    [InlineData(
+        "http://keycloak.local",
+        "realms/poc/protocol/openid-connect/token",
+        "http://keycloak.local/realms/poc/protocol/openid-connect/token")]
+    [InlineData(
+        "http://keycloak.local/",
+        "realms/poc/protocol/openid-connect/token",
+        "http://keycloak.local/realms/poc/protocol/openid-connect/token")]
+    [InlineData(
+        "http://keycloak.local",
+        "https://identity.example/realms/poc/protocol/openid-connect/token",
+        "https://identity.example/realms/poc/protocol/openid-connect/token")]
+    public async Task CreateUserAsync_should_build_token_uri_from_supported_endpoint_formats_Async(
+        string baseUrl,
+        string tokenEndpoint,
+        string expectedTokenUri)
+    {
+        using var fixture = new KeycloakAdminClientFixture(baseUrl, tokenEndpoint);
+        fixture.Handler.EnqueueJson(HttpStatusCode.OK, /*lang=json,strict*/ """{ "access_token": "admin-token" }""");
+        fixture.Handler.Enqueue(HttpStatusCode.Created, string.Empty, "/admin/realms/poc/users/keycloak-user-1");
+        fixture.Handler.Enqueue(HttpStatusCode.NoContent, string.Empty);
+
+        await fixture.Client.CreateUserAsync(
+            new CreateIdentityProviderUserRequest("User Name", "user@example.com", "user-name", "N3ver-log-me!"),
+            CancellationToken.None);
+
+        Assert.Equal(expectedTokenUri, fixture.Handler.Requests[0].RequestUri?.AbsoluteUri);
+        Assert.NotEqual(Uri.UriSchemeFile, fixture.Handler.Requests[0].RequestUri?.Scheme);
+    }
+
     [Fact]
     public async Task DeleteUserAsync_should_call_keycloak_delete_for_compensation_Async()
     {
@@ -136,22 +175,24 @@ public sealed class KeycloakAdminClientTests
     {
         private readonly HttpClient _httpClient;
 
-        public KeycloakAdminClientFixture()
+        public KeycloakAdminClientFixture(
+            string baseUrl = "http://keycloak.local",
+            string tokenEndpoint = "/realms/poc/protocol/openid-connect/token")
         {
             Handler = new FakeHttpMessageHandler();
             Logger = new CapturingLogger<KeycloakAdminClient>();
             _httpClient = new HttpClient(Handler)
             {
-                BaseAddress = new Uri("http://keycloak.local")
+                BaseAddress = new Uri(baseUrl, UriKind.Absolute)
             };
 
             Client = new KeycloakAdminClient(
                 _httpClient,
                 new StaticOptions<KeycloakAdminOptions>(new KeycloakAdminOptions
                 {
-                    BaseUrl = "http://keycloak.local",
+                    BaseUrl = baseUrl,
                     Realm = "poc",
-                    TokenEndpoint = "/realms/poc/protocol/openid-connect/token",
+                    TokenEndpoint = tokenEndpoint,
                     ClientId = "identity-service-admin",
                     ClientSecret = "admin-secret",
                     Timeout = TimeSpan.FromSeconds(10)

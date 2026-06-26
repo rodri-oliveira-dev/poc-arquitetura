@@ -238,8 +238,8 @@ services:
     container_name: poc-mailpit
     logging: *default-logging
     ports:
-      - "1025:1025"
-      - "8025:8025"
+      - "${MAILPIT_SMTP_HOST_PORT:-1025}:1025"
+      - "${MAILPIT_UI_HOST_PORT:-8025}:8025"
     deploy:
       resources:
         limits:
@@ -565,9 +565,11 @@ services:
       Jwt__RequireHttpsMetadata: "${JWT_REQUIRE_HTTPS_METADATA:-false}"
 
       ConnectionStrings__DefaultConnection: "Host=postgres-db;Port=5432;Database=appdb;Username=identity_app_user;Password=${IDENTITY_DB_PASSWORD:?Defina IDENTITY_DB_PASSWORD no ambiente ou em .env.local}"
-      IdentityProvider__Keycloak__BaseUrl: "http://keycloak:8080"
+      # BaseUrl deve ser a URL HTTP/HTTPS acessivel dentro da rede Docker.
+      IdentityProvider__Keycloak__BaseUrl: "${KEYCLOAK_INTERNAL_BASE_URL:-http://keycloak:8080}"
       IdentityProvider__Keycloak__Realm: "poc"
-      IdentityProvider__Keycloak__TokenEndpoint: "/realms/poc/protocol/openid-connect/token"
+      # TokenEndpoint aceita URL HTTP/HTTPS absoluta ou caminho relativo combinado com BaseUrl.
+      IdentityProvider__Keycloak__TokenEndpoint: "${KEYCLOAK_TOKEN_ENDPOINT:-/realms/poc/protocol/openid-connect/token}"
       IdentityProvider__Keycloak__ClientId: "${KEYCLOAK_IDENTITY_ADMIN_CLIENT_ID:-identity-service-admin}"
       IdentityProvider__Keycloak__ClientSecret: "${KEYCLOAK_CLIENT_SECRET:?Defina KEYCLOAK_CLIENT_SECRET no ambiente ou em .env.local}"
       Email__Provider: "Mailpit"

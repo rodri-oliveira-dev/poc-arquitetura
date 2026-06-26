@@ -232,11 +232,38 @@ public sealed partial class KeycloakAdminClient(
 
     private static Uri BuildTokenUri(KeycloakAdminOptions currentOptions)
     {
-        if (Uri.TryCreate(currentOptions.TokenEndpoint, UriKind.Absolute, out var absoluteUri))
-            return absoluteUri;
+        var tokenEndpoint = currentOptions.TokenEndpoint!.Trim();
+        return IsRootRelativePath(tokenEndpoint)
+            ? BuildRelativeTokenUri(currentOptions.BaseUrl!, tokenEndpoint)
+            : BuildAbsoluteOrRelativeTokenUri(currentOptions.BaseUrl!, tokenEndpoint);
+    }
 
-        var baseUri = new Uri(currentOptions.BaseUrl!, UriKind.Absolute);
-        return new Uri(baseUri, currentOptions.TokenEndpoint);
+    private static Uri BuildAbsoluteOrRelativeTokenUri(string baseUrl, string tokenEndpoint)
+    {
+        return Uri.TryCreate(tokenEndpoint, UriKind.Absolute, out var absoluteUri)
+            ? IsHttpUri(absoluteUri)
+                ? absoluteUri
+                : throw new InvalidOperationException(
+                    "IdentityProvider:Keycloak:TokenEndpoint deve ser uma URL HTTP/HTTPS absoluta ou um caminho relativo.")
+            : BuildRelativeTokenUri(baseUrl, tokenEndpoint);
+    }
+
+    private static Uri BuildRelativeTokenUri(string baseUrl, string tokenEndpoint)
+    {
+        var baseUri = new Uri($"{baseUrl.TrimEnd('/')}/", UriKind.Absolute);
+        return new Uri(baseUri, tokenEndpoint.TrimStart('/'));
+    }
+
+    private static bool IsRootRelativePath(string value)
+    {
+        return value.Length > 0
+            && (value[0] == '/' || value[0] == '\\');
+    }
+
+    private static bool IsHttpUri(Uri uri)
+    {
+        return string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase);
     }
 
     private static HttpRequestMessage CreateAuthorizedRequest(

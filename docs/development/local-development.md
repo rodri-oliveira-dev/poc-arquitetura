@@ -428,6 +428,8 @@ Credenciais locais descartaveis:
 
 Para sobrescrever porta, credenciais administrativas ou credenciais dos clients locais, copie `.env.local.example` para `.env.local` e ajuste `KEYCLOAK_HOST_PORT`, `KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME`, `KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD`, `KEYCLOAK_CLIENT_ID`, `KEYCLOAK_IDENTITY_ADMIN_CLIENT_ID`, `KEYCLOAK_CLIENT_SECRET` e as senhas dos usuarios locais de debug. Esses valores sao apenas para desenvolvimento local e nao devem ser usados em ambientes compartilhados ou produtivos.
 
+No compose, o `IdentityService.Api` fala com o Keycloak pela rede Docker usando `KEYCLOAK_INTERNAL_BASE_URL=http://keycloak:8080`. O `IdentityProvider:Keycloak:TokenEndpoint` aceita URL HTTP/HTTPS absoluta ou caminho relativo, com ou sem `/` inicial; quando for relativo, ele e combinado com `IdentityProvider:Keycloak:BaseUrl`. O valor local padrao e `/realms/poc/protocol/openid-connect/token`.
+
 O container usa `start-dev --import-realm`, healthcheck nativo em `/health/ready` na porta de gerenciamento interna `9000` e importa o realm versionado de `infra/keycloak/realm-poc.json`. O compose monta esse arquivo em `/opt/keycloak/data/import/realm-poc.json` como somente leitura.
 
 O realm local importado se chama `poc` e expoe:

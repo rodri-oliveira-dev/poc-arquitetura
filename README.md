@@ -157,6 +157,7 @@ Configuracoes principais:
 | `Jwt:Audience` | Audience esperada pela API, `identity-api`. |
 | `Jwt:JwksUrl` | JWKS do realm; no compose usa `http://keycloak:8080/realms/poc/protocol/openid-connect/certs`. |
 | `IdentityProvider:Keycloak:BaseUrl` | URL da Admin API; no compose usa `http://keycloak:8080`. |
+| `IdentityProvider:Keycloak:TokenEndpoint` | URL HTTP/HTTPS absoluta ou caminho relativo combinado com `BaseUrl`; no compose usa `/realms/poc/protocol/openid-connect/token`. |
 | `IdentityProvider:Keycloak:ClientId` | Client administrativo, default `identity-service-admin`. |
 | `IdentityProvider:Keycloak:ClientSecret` | Segredo do client, nunca versionado. |
 

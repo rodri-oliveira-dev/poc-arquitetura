@@ -8,6 +8,7 @@ COPY LedgerService.slnx ./
 COPY Directory.Packages.props ./
 COPY Directory.Build.props ./
 COPY src/Shared/ApiDefaults/ApiDefaults.csproj src/Shared/ApiDefaults/
+COPY src/Shared/ApplicationDefaults/ApplicationDefaults.csproj src/Shared/ApplicationDefaults/
 COPY src/LedgerService.Api/LedgerService.Api.csproj src/LedgerService.Api/
 COPY src/LedgerService.Application/LedgerService.Application.csproj src/LedgerService.Application/
 COPY src/LedgerService.Domain/LedgerService.Domain.csproj src/LedgerService.Domain/
@@ -20,6 +21,7 @@ RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages,sharing=locked \
 
 # Agora copia o restante
 COPY src/Shared/ApiDefaults/ ./src/Shared/ApiDefaults/
+COPY src/Shared/ApplicationDefaults/ ./src/Shared/ApplicationDefaults/
 COPY src/LedgerService.Api/ ./src/LedgerService.Api/
 COPY src/LedgerService.Application/ ./src/LedgerService.Application/
 COPY src/LedgerService.Domain/ ./src/LedgerService.Domain/
