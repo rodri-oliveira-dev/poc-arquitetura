@@ -9,6 +9,7 @@ Os contratos ficam em:
 - `docs/openapi/ledger.v1.json`
 - `docs/openapi/balance.v1.json`
 - `docs/openapi/transfer.v1.json`
+- `docs/openapi/identity.v1.json`
 
 Eles sao gerados a partir dos assemblies Release das APIs, usando o documento Swagger `v1`. A geracao nao sobe Docker, nao chama endpoints HTTP e usa valores sinteticos de ambiente apenas para inicializar os hosts em modo OpenAPI.
 
@@ -55,7 +56,7 @@ Em pull requests para `main`, o workflow `openapi-contract-validation` executa e
 4. Gera os contratos atuais em `docs/openapi/`.
 5. Executa o lint com Redocly.
 6. Busca a referencia base da `main`.
-7. Extrai `docs/openapi/ledger.v1.json` e `docs/openapi/balance.v1.json` da `main` para `.openapi-main/`, quando os contratos ja existem na branch base.
+7. Extrai os contratos em `docs/openapi/*.v1.json` da `main` para `.openapi-main/`, quando os contratos ja existem na branch base.
 8. Executa `npm run openapi:diff` apenas quando todos os contratos esperados existem na `main`.
 9. Valida drift nos contratos gerados.
 

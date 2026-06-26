@@ -11,7 +11,7 @@ $ErrorActionPreference = "Stop"
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $libDir = Join-Path $scriptDir "lib"
 if (-not (Test-Path -LiteralPath (Join-Path $libDir "common.ps1") -PathType Leaf)) {
-  $libDir = Join-Path $scriptDir "..\lib"
+  $libDir = Join-Path $scriptDir "..\..\lib"
 }
 . (Join-Path $libDir "common.ps1")
 $script:RootDir = Resolve-RepositoryRoot -StartPath $scriptDir
@@ -125,6 +125,7 @@ try {
   Invoke-OpenApiGeneration "LedgerService.Api" "LedgerService.Api" "ledger.v1.json"
   Invoke-OpenApiGeneration "BalanceService.Api" "BalanceService.Api" "balance.v1.json"
   Invoke-OpenApiGeneration "TransferService.Api" "TransferService.Api" "transfer.v1.json"
+  Invoke-OpenApiGeneration "identity\IdentityService.Api" "IdentityService.Api" "identity.v1.json"
 }
 finally {
   [System.Environment]::SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", $previousAspNetCoreEnvironment, "Process")

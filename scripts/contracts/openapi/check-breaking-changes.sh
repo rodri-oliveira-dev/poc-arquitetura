@@ -19,6 +19,7 @@ contracts=(
   "ledger.v1.json"
   "balance.v1.json"
   "transfer.v1.json"
+  "identity.v1.json"
 )
 
 if ! command -v oasdiff >/dev/null 2>&1; then
