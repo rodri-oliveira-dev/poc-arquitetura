@@ -1,5 +1,6 @@
 using IdentityService.Application.Users.Ports;
 using IdentityService.Infrastructure.DomainEvents;
+using IdentityService.Infrastructure.Email;
 using IdentityService.Infrastructure.IdentityProvider;
 using IdentityService.Infrastructure.Persistence;
 using IdentityService.Infrastructure.Persistence.Repositories;
@@ -23,7 +24,8 @@ public static class DependencyInjection
             .AddIdentityDomainEvents()
             .AddIdentityPersistence(configuration)
             .AddIdentityRepositories()
-            .AddIdentityProvider(configuration);
+            .AddIdentityProvider(configuration)
+            .AddIdentityEmail(configuration);
 
         return services;
     }
@@ -77,6 +79,22 @@ public static class DependencyInjection
 
             httpClient.Timeout = options.Timeout;
         });
+
+        return services;
+    }
+
+    public static IServiceCollection AddIdentityEmail(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        services.Configure<SmtpEmailOptions>(
+            configuration.GetSection(SmtpEmailOptions.SectionName));
+
+        services.AddSingleton<IEmailTemplateRenderer, FileEmailTemplateRenderer>();
+        services.AddScoped<IEmailSender, SmtpEmailSender>();
 
         return services;
     }

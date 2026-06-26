@@ -3,6 +3,8 @@ using IdentityService.Domain.Users;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
+using DomainEmail = IdentityService.Domain.Users.Email;
+
 namespace IdentityService.Infrastructure.Persistence.Configurations;
 
 public sealed class UserConfiguration : IEntityTypeConfiguration<User>
@@ -41,7 +43,7 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
 
         builder.Property(x => x.Email)
             .HasColumnName("email")
-            .HasConversion(email => email.Value, value => new Email(value))
+            .HasConversion(email => email.Value, value => new DomainEmail(value))
             .HasMaxLength(320)
             .IsRequired();
 

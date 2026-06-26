@@ -56,6 +56,27 @@ public sealed class UserEndpointsTests(PostgresIdentityFixture fixture) : IAsync
     }
 
     [Fact]
+    public async Task Post_users_should_keep_registration_valid_when_welcome_email_is_not_sent()
+    {
+        using var factory = new PostgresIdentityApiFactory(_fixture.RuntimeConnectionString);
+        using var client = CreateAuthenticatedClient(factory, scopes: "identity.write");
+
+        using var response = await client.PostAsJsonAsync(
+            "/api/v1/users",
+            new
+            {
+                username = "email.failure",
+                name = "Email Failure",
+                email = "email.failure@example.com",
+                password = "StrongPassword123!",
+                document = "12345678900"
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Post_users_should_return_400_for_invalid_request()
     {
         using var factory = new PostgresIdentityApiFactory(_fixture.RuntimeConnectionString);

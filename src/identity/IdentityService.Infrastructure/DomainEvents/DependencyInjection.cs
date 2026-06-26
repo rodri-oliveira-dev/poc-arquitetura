@@ -13,6 +13,7 @@ internal static class DependencyInjection
 
         services.AddScoped<IDomainEventDispatcher, DomainEventDispatcher>();
         services.AddScoped<IDomainEventHandler<UserRegisteredDomainEvent>, LogUserRegisteredDomainEventHandler>();
+        services.AddScoped<IDomainEventHandler<UserRegisteredDomainEvent>, SendWelcomeEmailOnUserRegisteredDomainEventHandler>();
 
         return services;
     }
