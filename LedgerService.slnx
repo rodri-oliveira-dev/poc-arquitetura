@@ -7,6 +7,12 @@
   <Folder Name="/src/Auth/">
     <Project Path="src/Auth.Api/Auth.Api.csproj" />
   </Folder>
+  <Folder Name="/src/Identity/">
+    <Project Path="src/identity/IdentityService.Api/IdentityService.Api.csproj" />
+    <Project Path="src/identity/IdentityService.Application/IdentityService.Application.csproj" />
+    <Project Path="src/identity/IdentityService.Domain/IdentityService.Domain.csproj" />
+    <Project Path="src/identity/IdentityService.Infrastructure/IdentityService.Infrastructure.csproj" />
+  </Folder>
   <Folder Name="/src/Balance/">
     <Project Path="src/BalanceService.Api/BalanceService.Api.csproj" />
     <Project Path="src/BalanceService.Application/BalanceService.Application.csproj" />
@@ -41,5 +47,9 @@
     <Project Path="tests/Auth.UnitTests/Auth.UnitTests.csproj" />
     <Project Path="tests/Auth.IntegrationTests/Auth.IntegrationTests.csproj" />
     <Project Path="tests/Architecture.Tests/Architecture.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tests/Identity/">
+    <Project Path="tests/identity/IdentityService.UnitTests/IdentityService.UnitTests.csproj" />
+    <Project Path="tests/identity/IdentityService.IntegrationTests/IdentityService.IntegrationTests.csproj" />
   </Folder>
 </Solution>
