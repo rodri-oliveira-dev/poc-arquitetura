@@ -162,6 +162,7 @@ public sealed partial class KeycloakAdminClient(
             $"admin/realms/{Escape(currentOptions.Realm!)}/users",
             accessToken);
         request.Content = JsonContent.Create(new KeycloakCreateUserRequest(
+            input.Name,
             input.Username,
             input.Email,
             Enabled: true,
@@ -301,6 +302,7 @@ public sealed partial class KeycloakAdminClient(
         [property: JsonPropertyName("access_token")] string? AccessToken);
 
     private sealed record KeycloakCreateUserRequest(
+        [property: JsonPropertyName("firstName")] string Name,
         [property: JsonPropertyName("username")] string Username,
         [property: JsonPropertyName("email")] string Email,
         [property: JsonPropertyName("enabled")] bool Enabled,

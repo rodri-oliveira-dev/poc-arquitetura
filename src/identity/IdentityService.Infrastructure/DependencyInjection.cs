@@ -48,6 +48,7 @@ public static class DependencyInjection
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        services.AddSingleton<IMerchantIdGenerator, SequentialMerchantIdGenerator>();
         services.AddScoped<IUserRepository, UserRepository>();
 
         return services;

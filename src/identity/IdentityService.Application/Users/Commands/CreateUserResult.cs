@@ -1,8 +1,8 @@
 namespace IdentityService.Application.Users.Commands;
 
 public sealed record CreateUserResult(
-    Guid UserId,
-    string Email,
-    string Username,
+    Guid Id,
+    string KeycloakUserId,
     string MerchantId,
-    string KeycloakUserId);
+    string Username,
+    string Email);

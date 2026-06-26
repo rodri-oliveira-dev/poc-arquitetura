@@ -5,4 +5,6 @@ namespace IdentityService.Application.Users.Ports;
 public interface IUserRepository
 {
     Task AddAsync(User user, CancellationToken cancellationToken = default);
+
+    Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

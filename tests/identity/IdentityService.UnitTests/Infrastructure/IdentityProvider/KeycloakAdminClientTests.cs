@@ -21,7 +21,7 @@ public sealed class KeycloakAdminClientTests
         fixture.Handler.Enqueue(HttpStatusCode.NoContent, string.Empty);
 
         var result = await fixture.Client.CreateUserAsync(
-            new CreateIdentityProviderUserRequest("user@example.com", "user-name", "N3ver-log-me!"),
+            new CreateIdentityProviderUserRequest("User Name", "user@example.com", "user-name", "N3ver-log-me!"),
             CancellationToken.None);
 
         Assert.Equal("keycloak-user-1", result.KeycloakUserId);
@@ -35,6 +35,7 @@ public sealed class KeycloakAdminClientTests
         Assert.Equal("/admin/realms/poc/users", fixture.Handler.Requests[1].RequestUri?.PathAndQuery);
         Assert.Equal("Bearer", fixture.Handler.Requests[1].Headers.Authorization?.Scheme);
         Assert.Equal("admin-token", fixture.Handler.Requests[1].Headers.Authorization?.Parameter);
+        Assert.Contains("\"firstName\":\"User Name\"", fixture.Handler.RequestBodies[1], StringComparison.Ordinal);
         Assert.Contains("\"username\":\"user-name\"", fixture.Handler.RequestBodies[1], StringComparison.Ordinal);
         Assert.Contains("\"email\":\"user@example.com\"", fixture.Handler.RequestBodies[1], StringComparison.Ordinal);
 
@@ -53,7 +54,7 @@ public sealed class KeycloakAdminClientTests
 
         var exception = await Assert.ThrowsAsync<IdentityProviderException>(() =>
             fixture.Client.CreateUserAsync(
-                new CreateIdentityProviderUserRequest("user@example.com", "user-name", "N3ver-log-me!"),
+                new CreateIdentityProviderUserRequest("User Name", "user@example.com", "user-name", "N3ver-log-me!"),
                 CancellationToken.None));
 
         Assert.Equal(IdentityProviderErrorKind.Unexpected, exception.Kind);
@@ -76,7 +77,7 @@ public sealed class KeycloakAdminClientTests
 
         var exception = await Assert.ThrowsAsync<IdentityProviderException>(() =>
             fixture.Client.CreateUserAsync(
-                new CreateIdentityProviderUserRequest("user@example.com", "user-name", "N3ver-log-me!"),
+                new CreateIdentityProviderUserRequest("User Name", "user@example.com", "user-name", "N3ver-log-me!"),
                 CancellationToken.None));
 
         Assert.Equal(expectedKind, exception.Kind);
@@ -94,7 +95,7 @@ public sealed class KeycloakAdminClientTests
 
         var exception = await Assert.ThrowsAsync<IdentityProviderException>(() =>
             fixture.Client.CreateUserAsync(
-                new CreateIdentityProviderUserRequest("user@example.com", "user-name", password),
+                new CreateIdentityProviderUserRequest("User Name", "user@example.com", "user-name", password),
                 CancellationToken.None));
 
         Assert.DoesNotContain(password, exception.Message, StringComparison.Ordinal);
@@ -110,7 +111,7 @@ public sealed class KeycloakAdminClientTests
 
         var exception = await Assert.ThrowsAsync<IdentityProviderException>(() =>
             fixture.Client.CreateUserAsync(
-                new CreateIdentityProviderUserRequest("user@example.com", "user-name", "N3ver-log-me!"),
+                new CreateIdentityProviderUserRequest("User Name", "user@example.com", "user-name", "N3ver-log-me!"),
                 CancellationToken.None));
 
         Assert.Equal(IdentityProviderErrorKind.Timeout, exception.Kind);

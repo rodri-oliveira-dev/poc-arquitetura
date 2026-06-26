@@ -11,4 +11,7 @@ public sealed class UserRepository(IdentityDbContext context) : IUserRepository
 
         await context.Users.AddAsync(user, cancellationToken);
     }
+
+    public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        => context.SaveChangesAsync(cancellationToken);
 }
