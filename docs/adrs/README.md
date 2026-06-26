@@ -15,6 +15,13 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 
 | ADR                                                                   | Status      | Resumo                                                                                           |
 | --------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------ |
+| [ADR-0095](./0095-evolucao-futura-email-identity-service.md) | Proposto | Registra evolucao futura do envio de e-mails do IdentityService com Outbox, mensageria, retry, DLQ e worker dedicado. |
+| [ADR-0094](./0094-mailpit-local-identity-service.md) | Aceito | Define Mailpit como captura local de e-mails do IdentityService, sem alterar a Application. |
+| [ADR-0093](./0093-resend-email-provider-identity-service.md) | Aceito | Define Resend como provider real de e-mail encapsulado na Infrastructure e acessado via IEmailSender. |
+| [ADR-0092](./0092-envio-email-identity-service.md) | Aceito | Define envio de e-mail de boas-vindas por UserRegisteredDomainEvent, handler, template HTML e IEmailSender. |
+| [ADR-0091](./0091-domain-event-dispatcher-identity-service.md) | Aceito | Define Domain Events no IdentityService com Aggregate Root, dispatch after commit, dispatcher e side effects em handlers. |
+| [ADR-0090](./0090-cadastro-usuarios-identity-service.md) | Aceito | Define cadastro de usuarios com Keycloak, persistencia local, MerchantId automatico e senha somente no provider. |
+| [ADR-0089](./0089-bounded-context-identity-service.md) | Aceito | Define o IdentityService como novo bounded context independente em src/identity, com testes em tests/identity e Auth.Api legado. |
 | [ADR-0088](./0088-kafka-default-ledger-balance-workers.md) | Aceito | Define Kafka como default dos workers principais Ledger/Balance e mantem Pub/Sub apenas por selecao explicita. |
 | [ADR-0087](./0087-saga-orquestrada-transfer-service-kafka.md) | Proposto | Define estudo de Saga Orquestrada no `TransferService` para transferencias entre merchants usando Kafka, Outbox transacional, worker assincrono, idempotencia por etapa e DLQ de aplicacao. |
 | [ADR-0086](./0086-pre-push-leve-gates-pesados-no-pr.md) | Aceito | Mantem o pre-push leve e desloca validacoes pesadas como cobertura, Trivy, Terraform validate e testes de container para o Pull Request. |

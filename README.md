@@ -44,6 +44,246 @@ Documentacao arquitetural publicada:
 
 <https://rodri-oliveira-dev.github.io/poc-arquitetura/>
 
+## IdentityService
+
+O `IdentityService` e o bounded context de identidade da POC. Ele fica em
+`src/identity`, possui testes em `tests/identity`, integra com Keycloak para
+criar usuarios, persiste o vinculo local no schema PostgreSQL `identity`, gera
+automaticamente o `MerchantId` e envia e-mail de boas-vindas por Domain Event
+apos o commit local. O `Auth.Api` permanece legado e nao faz parte desse fluxo.
+
+Leitura das decisoes:
+
+- [ADR-0089: Novo bounded context IdentityService](docs/adrs/0089-bounded-context-identity-service.md)
+- [ADR-0090: Cadastro de usuarios no IdentityService](docs/adrs/0090-cadastro-usuarios-identity-service.md)
+- [ADR-0091: Domain Event Dispatcher no IdentityService](docs/adrs/0091-domain-event-dispatcher-identity-service.md)
+- [ADR-0092: Envio de e-mail no IdentityService](docs/adrs/0092-envio-email-identity-service.md)
+- [ADR-0093: Resend como provider de e-mail do IdentityService](docs/adrs/0093-resend-email-provider-identity-service.md)
+- [ADR-0094: Mailpit local para e-mails do IdentityService](docs/adrs/0094-mailpit-local-identity-service.md)
+- [ADR-0095: Evolucao futura do envio de e-mails do IdentityService](docs/adrs/0095-evolucao-futura-email-identity-service.md)
+
+### Arquitetura
+
+O modulo segue Clean Architecture por camada:
+
+- `IdentityService.Api`: endpoints HTTP, JWT/JWKS, autorizacao por scope,
+  Swagger, health/readiness e DI;
+- `IdentityService.Application`: caso de uso de cadastro, portas para Keycloak,
+  persistencia, geracao de `MerchantId`, templates e envio de e-mail;
+- `IdentityService.Domain`: aggregate `User`, value objects, invariantes e
+  `UserRegisteredDomainEvent`;
+- `IdentityService.Infrastructure`: EF Core/PostgreSQL, migrations, Keycloak
+  Admin API, Domain Event Dispatcher, template HTML, Mailpit e Resend.
+
+O cadastro atual usa `POST /api/v1/users` e exige token com scope
+`identity.write`. A senha e enviada somente ao Keycloak; o banco local persiste
+`UserId`, `Email`, `Username`, `MerchantId` e `KeycloakUserId`.
+
+### Estrutura das pastas
+
+```text
+src/identity/
+  IdentityService.Api/
+  IdentityService.Application/
+  IdentityService.Domain/
+  IdentityService.Infrastructure/
+tests/identity/
+  IdentityService.UnitTests/
+  IdentityService.IntegrationTests/
+```
+
+### Dependencias
+
+- .NET SDK conforme `global.json`;
+- PostgreSQL local em `localhost:15432` quando usado via compose;
+- Keycloak local em `http://localhost:8081`;
+- client Keycloak `identity-service-admin` com roles
+  `realm-management:manage-users` e `realm-management:view-users`;
+- Mailpit local para desenvolvimento, com SMTP em `localhost:1025` e UI em
+  `http://localhost:8025`;
+- Resend apenas quando houver envio real de e-mail.
+
+### Como executar
+
+O caminho recomendado e subir a stack local padrao:
+
+```powershell
+./scripts/local/init-env.ps1
+./scripts/local/start-stack.ps1
+```
+
+No Linux/macOS:
+
+```bash
+./scripts/local/init-env.sh
+./scripts/local/start-stack.sh
+```
+
+Esse fluxo sobe PostgreSQL, Kafka, Keycloak, o job
+`keycloak-identity-admin-init`, Mailpit e `IdentityService.Api`, alem dos demais
+servicos principais. A API fica em
+`http://localhost:${IDENTITY_SERVICE_HOST_PORT:-5232}`.
+
+Para executar a API no host contra as dependencias locais, configure as
+variaveis necessarias e rode:
+
+```powershell
+$env:ASPNETCORE_URLS = "http://localhost:5232"
+$env:ConnectionStrings__DefaultConnection = "Host=127.0.0.1;Port=15432;Database=appdb;Username=identity_app_user;Password=<IDENTITY_DB_PASSWORD>"
+$env:IdentityProvider__Keycloak__BaseUrl = "http://localhost:8081"
+$env:IdentityProvider__Keycloak__Realm = "poc"
+$env:IdentityProvider__Keycloak__TokenEndpoint = "/realms/poc/protocol/openid-connect/token"
+$env:IdentityProvider__Keycloak__ClientId = "identity-service-admin"
+$env:IdentityProvider__Keycloak__ClientSecret = "<KEYCLOAK_CLIENT_SECRET>"
+$env:Email__Provider = "Mailpit"
+$env:Mailpit__Host = "localhost"
+$env:Mailpit__Port = "1025"
+$env:Mailpit__EnableSsl = "false"
+dotnet run --project ./src/identity/IdentityService.Api/IdentityService.Api.csproj
+```
+
+### Como configurar Keycloak
+
+No compose local, o realm `poc` e importado pelo Keycloak e o job
+`keycloak-identity-admin-init` atribui as roles administrativas ao client
+`identity-service-admin`. O segredo local vem de `KEYCLOAK_CLIENT_SECRET` em
+`.env.local`, gerado por `scripts/local/init-env.*`.
+
+Configuracoes principais:
+
+| Chave | Uso |
+| --- | --- |
+| `Jwt:Issuer` | Issuer publico validado nos tokens, default `http://localhost:8081/realms/poc`. |
+| `Jwt:Audience` | Audience esperada pela API, `identity-api`. |
+| `Jwt:JwksUrl` | JWKS do realm; no compose usa `http://keycloak:8080/realms/poc/protocol/openid-connect/certs`. |
+| `IdentityProvider:Keycloak:BaseUrl` | URL da Admin API; no compose usa `http://keycloak:8080`. |
+| `IdentityProvider:Keycloak:ClientId` | Client administrativo, default `identity-service-admin`. |
+| `IdentityProvider:Keycloak:ClientSecret` | Segredo do client, nunca versionado. |
+
+### Como configurar PostgreSQL
+
+O `IdentityService` usa o database local `appdb`, schema `identity`, usuario de
+runtime `identity_app_user` e usuario de migrations `identity_migrator_user`.
+As senhas ficam em `.env.local`:
+
+- `IDENTITY_DB_PASSWORD`;
+- `IDENTITY_DB_MIGRATOR_PASSWORD`.
+
+O compose inicializa schema, roles e grants por `infra/postgres/init`. Em volume
+PostgreSQL ja existente, mudar `.env.local` nao altera senhas ja gravadas; nesse
+caso, recrie conscientemente o volume local ou ajuste o banco manualmente.
+
+### Como configurar Resend
+
+Use Resend somente quando o envio real for desejado:
+
+```powershell
+dotnet user-secrets set "Email:Provider" "Resend" --project ./src/identity/IdentityService.Api/IdentityService.Api.csproj
+dotnet user-secrets set "Resend:ApiKey" "<sua-api-key>" --project ./src/identity/IdentityService.Api/IdentityService.Api.csproj
+dotnet user-secrets set "Resend:From" "onboarding@seudominio.example" --project ./src/identity/IdentityService.Api/IdentityService.Api.csproj
+dotnet user-secrets set "Email:AuthenticationUrl" "http://localhost:8081/realms/poc/account" --project ./src/identity/IdentityService.Api/IdentityService.Api.csproj
+```
+
+Ou por variaveis de ambiente:
+
+```powershell
+$env:Email__Provider = "Resend"
+$env:Resend__ApiKey = "<sua-api-key>"
+$env:Resend__From = "onboarding@seudominio.example"
+```
+
+Nao use Resend em testes automatizados e nao versione a API key.
+
+### Como configurar Mailpit
+
+Mailpit e o provider local padrao em `appsettings.Development.json` e no compose:
+
+```powershell
+$env:Email__Provider = "Mailpit"
+$env:Mailpit__Host = "localhost"
+$env:Mailpit__Port = "1025"
+$env:Mailpit__EnableSsl = "false"
+```
+
+No compose, a API usa `Mailpit:Host=mailpit` dentro da rede Docker. A interface
+web fica em <http://localhost:8025>.
+
+### Como executar migrations
+
+Os scripts `scripts/local/start-stack.*` aplicam as migrations pelo host antes
+de iniciar as APIs. Para aplicar manualmente apenas o `IdentityService`:
+
+```powershell
+$env:IDENTITY_SERVICE_CONNECTION_STRING = "Host=127.0.0.1;Port=15432;Database=appdb;Username=identity_migrator_user;Password=<IDENTITY_DB_MIGRATOR_PASSWORD>"
+dotnet tool restore
+dotnet tool run dotnet-ef -- database update `
+  -p src\identity\IdentityService.Infrastructure\IdentityService.Infrastructure.csproj `
+  -s src\identity\IdentityService.Api\IdentityService.Api.csproj `
+  -c IdentityDbContext
+```
+
+No Linux/macOS:
+
+```bash
+IDENTITY_SERVICE_CONNECTION_STRING="Host=127.0.0.1;Port=15432;Database=appdb;Username=identity_migrator_user;Password=<IDENTITY_DB_MIGRATOR_PASSWORD>" \
+dotnet tool run dotnet-ef -- database update \
+  -p src/identity/IdentityService.Infrastructure/IdentityService.Infrastructure.csproj \
+  -s src/identity/IdentityService.Api/IdentityService.Api.csproj \
+  -c IdentityDbContext
+```
+
+### Como cadastrar usuario
+
+Obtenha um token Keycloak com scope `identity.write` e chame:
+
+```bash
+curl -i -X POST "http://localhost:5232/api/v1/users" \
+  -H "Authorization: Bearer <ACCESS_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "local.identity.user",
+    "name": "Local Identity User",
+    "email": "local.identity.user@example.com",
+    "password": "SenhaLocal123!",
+    "document": "12345678900"
+  }'
+```
+
+Resposta esperada: `201 Created`, com `id`, `keycloakUserId`, `merchantId`,
+`username` e `email`. A senha nao aparece na resposta nem e persistida no banco
+local do `IdentityService`.
+
+### Swagger e e-mails
+
+Swagger local:
+
+- `http://localhost:5232/swagger`;
+- contrato versionado: [docs/openapi/identity.v1.json](docs/openapi/identity.v1.json).
+
+Para validar e-mail localmente:
+
+1. Suba a stack com `./scripts/local/start-stack.ps1` ou
+   `./scripts/local/start-stack.sh`.
+2. Cadastre um usuario pelo endpoint `POST /api/v1/users`.
+3. Abra <http://localhost:8025>.
+4. Confirme o e-mail de boas-vindas renderizado pelo template HTML.
+
+### Limitacoes atuais
+
+- O envio de e-mail e side effect pos-commit, sem Outbox, retry duravel ou DLQ.
+- Nao ha worker dedicado para notificacoes.
+- A integracao com Keycloak Admin API e chamada sincronamente no cadastro.
+- O `IdentityService` ainda nao emite tokens; Keycloak continua sendo o emissor.
+- `Auth.Api` permanece legado apenas para compatibilidade historica.
+
+### Proximos passos
+
+- Avaliar Outbox para eventos de identidade e envio de e-mails.
+- Definir provider de mensageria apenas quando houver necessidade concreta.
+- Criar retry, DLQ e reprocessamento operacional para notificacoes.
+- Separar envio em worker dedicado se o fluxo se tornar critico.
+- Evoluir contratos e testes conforme novos casos de uso de identidade.
+
 ## Mensageria: Kafka e Pub/Sub
 
 Kafka e Pub/Sub coexistem como adapters do boundary de mensageria dos workers. Kafka e o default para Ledger/Balance, selecionado quando `Messaging:Provider` esta ausente ou configurado como `Kafka`. Pub/Sub permanece suportado como opcao explicita/legada para Ledger/Balance, selecionada com `Messaging:Provider=PubSub`, sem tentar esconder as diferencas semanticas entre providers. O fluxo de Saga do `TransferService` tambem usa Kafka como transporte explicito dos eventos da Saga e nao usa Pub/Sub.
@@ -147,61 +387,6 @@ No Linux/macOS:
 Esse fluxo usa `compose.pubsub.yaml`, habilita o profile `legacy-pubsub`, cria topic principal, topic de DLQ, subscription do Balance e subscription de inspecao da DLQ de aplicacao de forma idempotente e inicia os workers de Ledger/Balance com `Messaging:Provider=PubSub`. Kafka nao e iniciado nesse modo. Detalhes ficam em [desenvolvimento local](docs/development/local-development.md#pubsub-emulator-local) e no runbook de [operacao do Pub/Sub](docs/operations/pubsub.md).
 
 A Saga orquestrada do `TransferService` usa Kafka explicitamente. Como Kafka e o default local, o `TransferService.Worker` sobe no fluxo padrao e pode processar Sagas automaticamente. Consulte [TransferService API](docs/development/transfer-api.md) e [desenvolvimento local](docs/development/local-development.md#kafka-local-e-saga-do-transferservice).
-
-### E-mails do IdentityService com Mailpit e Resend
-
-O `IdentityService` envia o e-mail de boas-vindas por Domain Event depois do cadastro. A camada `Application` conhece apenas a porta `IEmailSender`; Resend e Mailpit ficam encapsulados em `IdentityService.Infrastructure`. O ambiente local usa `Email:Provider=Mailpit` para capturar e-mails sem envio real. A UI local do Mailpit fica em <http://localhost:8025> e o SMTP local escuta na porta `1025`.
-
-Para subir o Mailpit com a stack local:
-
-```powershell
-./scripts/local/start-stack.ps1
-```
-
-No Linux/macOS:
-
-```bash
-./scripts/local/start-stack.sh
-```
-
-Para rodar o `IdentityService.Api` no host usando Mailpit, configure:
-
-```powershell
-$env:Email__Provider="Mailpit"
-$env:Mailpit__Host="localhost"
-$env:Mailpit__Port="1025"
-$env:Mailpit__EnableSsl="false"
-```
-
-No Linux/macOS:
-
-```bash
-export Email__Provider="Mailpit"
-export Mailpit__Host="localhost"
-export Mailpit__Port="1025"
-export Mailpit__EnableSsl="false"
-```
-
-Resend continua disponivel para ambientes reais por `Email:Provider=Resend`. A chave da API nao deve ser versionada. Configure por User Secrets no projeto da API:
-
-```powershell
-dotnet user-secrets set "Resend:ApiKey" "<sua-api-key>" --project ./src/identity/IdentityService.Api/IdentityService.Api.csproj
-dotnet user-secrets set "Email:AuthenticationUrl" "http://localhost:8081/realms/poc/account" --project ./src/identity/IdentityService.Api/IdentityService.Api.csproj
-```
-
-Tambem e possivel sobrescrever por variavel de ambiente:
-
-```powershell
-$env:Resend__ApiKey="<sua-api-key>"
-```
-
-No Linux/macOS:
-
-```bash
-export Resend__ApiKey="<sua-api-key>"
-```
-
-As demais configuracoes ficam em `src/identity/IdentityService.Api/appsettings.json` e `appsettings.Development.json`: `Email:Provider`, `Email:TemplatePath`, `Email:AuthenticationUrl`, `Mailpit:*` e `Resend:*`. Testes automatizados devem usar fake de `IEmailSender` ou Mailpit controlado; nao use Resend em testes automatizados.
 
 Para subir a stack completa com observabilidade e Nginx HTTPS local, gere antes os certificados em `infra/nginx/certs/` conforme [desenvolvimento local](docs/development/local-development.md#borda-local-https-com-nginx):
 
