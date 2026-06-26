@@ -183,7 +183,9 @@ Configuracoes de resiliencia do fetch de JWKS:
 - `Jwt:JwksRetryCount`;
 - `Jwt:JwksRetryBaseDelayMilliseconds`.
 
-Esses valores alimentam os defaults do cliente HTTP resiliente `HttpResilience:Clients:JWKS`, que usa `HttpClientFactory` com timeout por tentativa, retry e circuit breaker. Quando necessario, `HttpResilience:Clients:JWKS` pode sobrescrever os parametros da politica compartilhada sem alterar o contrato de autenticacao das APIs.
+Esses valores alimentam os defaults do cliente HTTP resiliente `HttpResilience:Clients:JWKS`, que usa `HttpClientFactory` com `Microsoft.Extensions.Http.Resilience`, timeout por tentativa, retry e circuit breaker. Com os valores versionados em `LedgerService.Api` e `BalanceService.Api`, o fetch de JWKS usa timeout por tentativa de `5s`, `2` retries, delay constante de `200ms` e timeout total derivado de `15.4s`. O circuit breaker usa os defaults globais da politica compartilhada, salvo override explicito em `HttpResilience:Clients:JWKS:*`.
+
+Quando necessario, `HttpResilience:Clients:JWKS` pode sobrescrever os parametros da politica compartilhada sem alterar o contrato de autenticacao das APIs. Falhas transitorias incluem timeout, `HttpRequestException`, `408`, `429` e `5xx`. Respostas como `400`, `401`, `403` e `404` nao devem gerar retry nem abrir circuito.
 
 Quando OpenTelemetry esta habilitado no processo host, o cliente `JWKS` emite metricas pelo meter `HttpResilienceDefaults`, incluindo retries, timeouts, transicoes do circuit breaker e chamadas rejeitadas por circuito aberto. Os logs da politica nao incluem token, segredo, payload ou URL completa.
 

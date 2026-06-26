@@ -135,6 +135,15 @@ O client HTTP do Ledger usa a politica compartilhada `HttpResilience:Clients:Led
 
 A obtencao de token no Keycloak usa uma politica separada, `HttpResilience:Clients:Keycloak`, aplicada ao `HttpClient` do `ClientCredentialsLedgerAccessTokenProvider`. Essa politica possui timeout, retry e circuit breaker proprios para proteger o token endpoint contra indisponibilidade temporaria, timeout, `408`, `429`, `5xx` e `HttpRequestException`. Erros de credencial ou autorizacao negada, como `401` e `403`, nao sao tratados como transitorios: nao geram retry e nao contam para abrir o circuito.
 
+Defaults versionados no `TransferService.Worker`:
+
+| Cliente | Timeout total | Timeout por tentativa | Retries | Delay/backoff | Failure ratio | Minimum throughput | Sampling duration | Break duration |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `Ledger` | `30s` | `10s` | `3` | `2s`, constante | `0.1` | `4` | `30s` | `5s` |
+| `Keycloak` | `15s` | `5s` | `2` | `1s`, constante | `0.1` | `20` | `30s` | `5s` |
+
+O wrapper compartilhado nao configura jitter. Para validar localmente sem depender do fluxo completo, rode os testes `HttpClient*` em `tests/TransferService.Worker.Tests`; para validar o caminho funcional, use o cenario k6 `transfer-fullstack-kafka` com a stack local.
+
 Fluxo feliz:
 
 1. A API grava a Saga como `Pending` e o evento `TransferenciaSolicitada.v1`.
