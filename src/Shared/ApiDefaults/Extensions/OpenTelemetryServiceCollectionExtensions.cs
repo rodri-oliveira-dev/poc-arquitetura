@@ -1,3 +1,5 @@
+using HttpResilienceDefaults;
+
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
@@ -69,7 +71,8 @@ public static class OpenTelemetryServiceCollectionExtensions
                 metrics
                     .AddAspNetCoreInstrumentation()
                     .AddHttpClientInstrumentation()
-                    .AddRuntimeInstrumentation();
+                    .AddRuntimeInstrumentation()
+                    .AddMeter(HttpResilienceMetrics.MeterName);
 
                 configureMetrics?.Invoke(metrics);
                 AddMetricExporters(metrics, useConsoleExporter, otlpEndpoint);

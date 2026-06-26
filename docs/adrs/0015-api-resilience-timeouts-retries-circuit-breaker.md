@@ -57,8 +57,34 @@ Padronizar resiliência em dois níveis:
    - Prós: fácil.
    - Contras: piora latência e aumenta fila de threads sob falha.
 
+## Historico de implementacao
+
+Em 2026-06-25, a politica compartilhada em `HttpResilienceDefaults` passou a emitir logs e metricas de resiliencia HTTP com `System.Diagnostics.Metrics`.
+
+Sinais emitidos:
+
+- retries por cliente;
+- timeouts por cliente;
+- circuit breaker open, half-open e closed;
+- chamadas rejeitadas por circuito aberto;
+- duracao das chamadas HTTP resilientes.
+
+Tags de baixa cardinalidade:
+
+- `client`;
+- `dependency`;
+- `operation`, quando disponivel;
+- `outcome`;
+- `exception_type`, quando aplicavel.
+
+Clientes cobertos:
+
+- `JWKS`, usado pelas APIs para validacao JWT;
+- `Keycloak`, usado pelo token provider client credentials do `TransferService.Worker`;
+- `Ledger`, usado pelo `TransferService.Worker` para chamar o `LedgerService.Api`.
+
+Os logs preservam o escopo de correlacao existente quando disponivel e nao registram segredo, token, client secret, URL completa nem payload sensivel.
+
 ## Próximos passos (não implementados)
 
 - TODO: escolher abordagem: Polly vs `Microsoft.Extensions.Resilience` (dependendo do target do .NET 10).
-- TODO: aplicar ao cliente de JWKS (Auth.Api) e documentar valores padrão (timeouts, retries).
-- TODO: expor métricas de resiliência (counters) via OpenTelemetry quando habilitado (ADR-0005).

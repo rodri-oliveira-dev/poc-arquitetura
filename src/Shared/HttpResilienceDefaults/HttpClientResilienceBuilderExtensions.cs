@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Logging;
 
@@ -23,7 +24,7 @@ public static class HttpClientResilienceBuilderExtensions
         LoggerMessage.Define<string>(
             LogLevel.Information,
             new EventId(3, nameof(_logCircuitHalfOpened)),
-            "Circuit breaker HTTP em half-open. Client={ClientName}");
+            "Tentativa HTTP em half-open liberada pelo circuit breaker. Client={ClientName}");
 
     private static readonly Action<ILogger, string, Exception?> _logCircuitClosed =
         LoggerMessage.Define<string>(
@@ -48,7 +49,20 @@ public static class HttpClientResilienceBuilderExtensions
             return builder;
         }
 
+        builder.Services.TryAddSingleton<HttpResilienceMetrics>();
+
         builder
+            .AddHttpMessageHandler(serviceProvider =>
+            {
+                var logger = serviceProvider
+                    .GetRequiredService<ILoggerFactory>()
+                    .CreateLogger("HttpResilienceDefaults.HttpClient");
+
+                return new HttpResilienceMetricsHandler(
+                    clientName,
+                    serviceProvider.GetRequiredService<HttpResilienceMetrics>(),
+                    logger);
+            })
             .ConfigureHttpClient(static client => client.Timeout = Timeout.InfiniteTimeSpan)
             .AddStandardResilienceHandler()
             .Configure((resilience, serviceProvider) =>
@@ -56,14 +70,26 @@ public static class HttpClientResilienceBuilderExtensions
                 var logger = serviceProvider
                     .GetRequiredService<ILoggerFactory>()
                     .CreateLogger("HttpResilienceDefaults.HttpClient");
+                var metrics = serviceProvider.GetRequiredService<HttpResilienceMetrics>();
 
                 resilience.TotalRequestTimeout.Timeout = options.TotalTimeout;
+                resilience.TotalRequestTimeout.OnTimeout = args =>
+                {
+                    metrics.RecordTimeout(clientName, "unknown");
+                    return default;
+                };
                 resilience.AttemptTimeout.Timeout = options.AttemptTimeout;
+                resilience.AttemptTimeout.OnTimeout = args =>
+                {
+                    metrics.RecordTimeout(clientName, "unknown");
+                    return default;
+                };
                 resilience.Retry.MaxRetryAttempts = options.RetryCount;
                 resilience.Retry.Delay = options.RetryDelay;
                 resilience.Retry.OnRetry = args =>
                 {
                     _logHttpRetry(logger, clientName, args.AttemptNumber + 1, args.RetryDelay, args.Outcome.Exception);
+                    metrics.RecordRetry(clientName, "unknown", args.Outcome.Exception);
                     return default;
                 };
 
@@ -79,16 +105,19 @@ public static class HttpClientResilienceBuilderExtensions
                 resilience.CircuitBreaker.OnOpened = args =>
                 {
                     _logCircuitOpened(logger, clientName, args.BreakDuration, args.Outcome.Exception);
+                    metrics.RecordCircuitOpened(clientName, "unknown", args.Outcome.Exception);
                     return default;
                 };
                 resilience.CircuitBreaker.OnHalfOpened = _ =>
                 {
                     _logCircuitHalfOpened(logger, clientName, null);
+                    metrics.RecordCircuitHalfOpened(clientName, "unknown");
                     return default;
                 };
                 resilience.CircuitBreaker.OnClosed = _ =>
                 {
                     _logCircuitClosed(logger, clientName, null);
+                    metrics.RecordCircuitClosed(clientName, "unknown");
                     return default;
                 };
             });

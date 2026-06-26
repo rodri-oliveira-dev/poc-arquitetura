@@ -23,6 +23,7 @@ public static class WorkerCompositionExtensions
 
         services.AddTransferApplication();
         services.AddTransferInfrastructure(configuration, environment);
+        services.AddWorkerObservability(configuration);
         services.AddTransferWorkerRuntime(configuration);
 
         return services;
