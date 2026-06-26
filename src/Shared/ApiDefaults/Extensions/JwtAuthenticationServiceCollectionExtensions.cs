@@ -1,4 +1,8 @@
+using System.Globalization;
+
 using ApiDefaults.Authentication;
+
+using HttpResilienceDefaults;
 
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -10,6 +14,8 @@ namespace ApiDefaults.Extensions;
 
 public static class JwtAuthenticationServiceCollectionExtensions
 {
+    internal const string JwksHttpClientName = "JWKS";
+
     private static readonly Action<ILogger, PathString, Exception?> _logAuthenticationFailed =
         LoggerMessage.Define<PathString>(
             LogLevel.Warning,
@@ -20,7 +26,8 @@ public static class JwtAuthenticationServiceCollectionExtensions
         this IServiceCollection services,
         ApiJwtAuthenticationOptions jwtOptions,
         IHostEnvironment environment,
-        Action<AuthorizationOptions> configureAuthorization)
+        Action<AuthorizationOptions> configureAuthorization,
+        IConfiguration? configuration = null)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(jwtOptions);
@@ -32,20 +39,27 @@ public static class JwtAuthenticationServiceCollectionExtensions
         ValidateRequired(jwtOptions.SectionName, nameof(jwtOptions.JwksUrl), jwtOptions.JwksUrl);
         ValidateTransport(jwtOptions, environment);
 
-        IConfigurationManager<OpenIdConnectConfiguration> configurationManager =
-            new ConfigurationManager<OpenIdConnectConfiguration>(
-                jwtOptions.JwksUrl,
-                new JwksConfigurationRetriever(),
-                new RetryableJwksDocumentRetriever(jwtOptions));
+        IConfiguration jwksResilienceConfiguration = BuildJwksResilienceConfiguration(jwtOptions, configuration);
+        services
+            .AddHttpClient(JwksHttpClientName)
+            .AddConfiguredHttpResilience(jwksResilienceConfiguration, JwksHttpClientName);
 
         services
             .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(options =>
             {
                 options.RequireHttpsMetadata = jwtOptions.RequireHttpsMetadata;
-                options.ConfigurationManager = configurationManager;
                 options.TokenValidationParameters = BuildTokenValidationParameters(jwtOptions);
                 options.Events = BuildJwtBearerEvents();
+            });
+
+        services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
+            .Configure<IHttpClientFactory>((options, httpClientFactory) =>
+            {
+                options.ConfigurationManager = new ConfigurationManager<OpenIdConnectConfiguration>(
+                    jwtOptions.JwksUrl,
+                    new JwksConfigurationRetriever(),
+                    new JwksHttpClientDocumentRetriever(httpClientFactory, JwksHttpClientName));
             });
 
         services.AddAuthorization(configureAuthorization);
@@ -71,7 +85,8 @@ public static class JwtAuthenticationServiceCollectionExtensions
         return services.AddApiJwtBearerAuthentication(
             ReadOptions(configuration.GetSection(sectionName), sectionName),
             environment,
-            configureAuthorization);
+            configureAuthorization,
+            configuration);
     }
 
     public static AuthorizationOptions RequireAuthenticatedUserByDefault(this AuthorizationOptions options)
@@ -124,6 +139,35 @@ public static class JwtAuthenticationServiceCollectionExtensions
                 return Task.CompletedTask;
             }
         };
+
+    private static IConfiguration BuildJwksResilienceConfiguration(
+        ApiJwtAuthenticationOptions jwtOptions,
+        IConfiguration? configuration)
+    {
+        int retryCount = Math.Max(1, jwtOptions.JwksRetryCount);
+        TimeSpan attemptTimeout = TimeSpan.FromSeconds(Math.Max(1, jwtOptions.JwksTimeoutSeconds));
+        TimeSpan retryDelay = TimeSpan.FromMilliseconds(Math.Max(1, jwtOptions.JwksRetryBaseDelayMilliseconds));
+        TimeSpan totalTimeout = TimeSpan.FromTicks(
+            (attemptTimeout.Ticks * (retryCount + 1)) + (retryDelay.Ticks * retryCount));
+
+        Dictionary<string, string?> defaults = new(StringComparer.OrdinalIgnoreCase)
+        {
+            [$"{HttpClientResilienceOptions.SectionName}:Clients:{JwksHttpClientName}:TotalTimeout"] = totalTimeout.ToString("c"),
+            [$"{HttpClientResilienceOptions.SectionName}:Clients:{JwksHttpClientName}:AttemptTimeout"] = attemptTimeout.ToString("c"),
+            [$"{HttpClientResilienceOptions.SectionName}:Clients:{JwksHttpClientName}:RetryCount"] = retryCount.ToString(CultureInfo.InvariantCulture),
+            [$"{HttpClientResilienceOptions.SectionName}:Clients:{JwksHttpClientName}:RetryDelay"] = retryDelay.ToString("c")
+        };
+
+        IConfigurationBuilder builder = new ConfigurationBuilder()
+            .AddInMemoryCollection(defaults);
+
+        if (configuration is not null)
+        {
+            builder.AddConfiguration(configuration);
+        }
+
+        return builder.Build();
+    }
 
     private static bool ContainsAudience(IEnumerable<string>? audiences, string expectedAudience)
     {
@@ -193,45 +237,21 @@ public static class JwtAuthenticationServiceCollectionExtensions
         }
     }
 
-    internal sealed class RetryableJwksDocumentRetriever(ApiJwtAuthenticationOptions options) : IDocumentRetriever
+    internal sealed class JwksHttpClientDocumentRetriever(
+        IHttpClientFactory httpClientFactory,
+        string clientName) : IDocumentRetriever
     {
-        private static readonly HttpClient _client = new();
-        private readonly TimeSpan _baseDelay = TimeSpan.FromMilliseconds(Math.Max(1, options.JwksRetryBaseDelayMilliseconds));
-        private readonly int _retryCount = Math.Max(0, options.JwksRetryCount);
-        private readonly TimeSpan _timeout = TimeSpan.FromSeconds(Math.Max(1, options.JwksTimeoutSeconds));
-
         public async Task<string> GetDocumentAsync(string address, CancellationToken cancel)
         {
-            for (int attempt = 0; attempt <= _retryCount; attempt++)
-            {
-                try
-                {
-                    using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(cancel);
-                    timeout.CancelAfter(_timeout);
+            HttpClient client = httpClientFactory.CreateClient(clientName);
+            using HttpRequestMessage request = new(HttpMethod.Get, address);
+            using HttpResponseMessage response = await client.SendAsync(
+                request,
+                HttpCompletionOption.ResponseHeadersRead,
+                cancel);
 
-                    using HttpResponseMessage response = await _client.GetAsync(address, timeout.Token);
-                    response.EnsureSuccessStatusCode();
-                    return await response.Content.ReadAsStringAsync(timeout.Token);
-                }
-                catch (Exception ex) when (ShouldRetry(ex, attempt, cancel))
-                {
-                    System.Diagnostics.Trace.TraceWarning(
-                        "JWKS fetch failed. Retrying attempt {0}/{1}. Error: {2}",
-                        attempt + 1,
-                        _retryCount + 1,
-                        ex.Message);
-
-                    double backoff = _baseDelay.TotalMilliseconds * Math.Pow(2, attempt);
-                    await Task.Delay(TimeSpan.FromMilliseconds(backoff), cancel);
-                }
-            }
-
-            throw new InvalidOperationException("JWKS fetch retry loop completed without returning a document.");
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadAsStringAsync(cancel);
         }
-
-        private bool ShouldRetry(Exception exception, int attempt, CancellationToken cancellationToken)
-            => !cancellationToken.IsCancellationRequested
-                && attempt < _retryCount
-                && exception is HttpRequestException or TaskCanceledException;
     }
 }

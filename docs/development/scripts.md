@@ -9,7 +9,7 @@ Alguns wrappers serão mantidos indefinidamente. Outros são elegíveis para rem
 ## Caminhos atuais
 
 - `scripts/local/`: onboarding, certificados locais, stack local, Kafka/Pub/Sub, full stack e stop.
-- `scripts/docker/`: diagnóstico e limpeza segura Docker.
+- `scripts/docker/`: diagnostico, limpeza segura Docker e prune dry-run de volumes locais por labels de retencao.
 - `scripts/quality/`: Sonar, mutation testing e validações de qualidade.
 - `scripts/quality/terraform/`: validação Terraform.
 - `scripts/security/`: OWASP ZAP.

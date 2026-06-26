@@ -183,6 +183,12 @@ Configuracoes de resiliencia do fetch de JWKS:
 - `Jwt:JwksRetryCount`;
 - `Jwt:JwksRetryBaseDelayMilliseconds`.
 
+Esses valores alimentam os defaults do cliente HTTP resiliente `HttpResilience:Clients:JWKS`, que usa `HttpClientFactory` com `Microsoft.Extensions.Http.Resilience`, timeout por tentativa, retry e circuit breaker. Com os valores versionados em `LedgerService.Api` e `BalanceService.Api`, o fetch de JWKS usa timeout por tentativa de `5s`, `2` retries, delay constante de `200ms` e timeout total derivado de `15.4s`. O circuit breaker usa os defaults globais da politica compartilhada, salvo override explicito em `HttpResilience:Clients:JWKS:*`.
+
+Quando necessario, `HttpResilience:Clients:JWKS` pode sobrescrever os parametros da politica compartilhada sem alterar o contrato de autenticacao das APIs. Falhas transitorias incluem timeout, `HttpRequestException`, `408`, `429` e `5xx`. Respostas como `400`, `401`, `403` e `404` nao devem gerar retry nem abrir circuito.
+
+Quando OpenTelemetry esta habilitado no processo host, o cliente `JWKS` emite metricas pelo meter `HttpResilienceDefaults`, incluindo retries, timeouts, transicoes do circuit breaker e chamadas rejeitadas por circuito aberto. Os logs da politica nao incluem token, segredo, payload ou URL completa.
+
 ## Scripts de token locais
 
 Os scripts `scripts/validation/get-token.ps1` e `scripts/validation/get-token.sh` imprimem somente o token em `stdout`. Mensagens de erro vao para `stderr` e nao exibem segredo de client nem senha.
@@ -233,6 +239,8 @@ No compose local, o worker usa OAuth2 client credentials contra o token endpoint
 | `TransferService:Worker:Ledger:Auth:Scope` | `${TRANSFER_WORKER_LEDGER_AUTH_SCOPE:-ledger.write}` |
 
 O client local `poc-automation` ja possui `ledger.write`, audience `ledger-api` e `merchant_id=tese m1 m2` pelo import `infra/keycloak/realm-poc.json`. O segredo continua fora do repositorio e deve vir de `.env.local` ou do ambiente.
+
+O `TransferService.Worker` usa a mesma politica HTTP resiliente compartilhada para os clientes `Keycloak` e `Ledger`. Com `Observability:OpenTelemetry:Enabled=true`, o worker registra o meter `HttpResilienceDefaults` e exporta metricas de retries, timeouts, circuit breaker open/half-open/closed, rejeicoes por circuito aberto e duracao das chamadas resilientes. Os logs operacionais indicam retry, abertura, tentativa half-open, fechamento e rejeicao por circuito aberto sem registrar `client_secret`, access token ou payload.
 
 Se o smoke `transfer-fullstack-kafka` terminar a Saga como `Failed` por `401 Unauthorized`, valide:
 

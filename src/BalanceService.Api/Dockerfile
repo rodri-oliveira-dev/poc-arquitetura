@@ -8,6 +8,7 @@ COPY LedgerService.slnx ./
 COPY Directory.Packages.props ./
 COPY Directory.Build.props ./
 COPY src/Shared/ApiDefaults/ApiDefaults.csproj src/Shared/ApiDefaults/
+COPY src/Shared/ApplicationDefaults/ApplicationDefaults.csproj src/Shared/ApplicationDefaults/
 COPY src/BalanceService.Api/BalanceService.Api.csproj src/BalanceService.Api/
 COPY src/BalanceService.Application/BalanceService.Application.csproj src/BalanceService.Application/
 COPY src/BalanceService.Domain/BalanceService.Domain.csproj src/BalanceService.Domain/
@@ -20,6 +21,7 @@ RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages,sharing=locked \
 
 # Agora copia o restante
 COPY src/Shared/ApiDefaults/ ./src/Shared/ApiDefaults/
+COPY src/Shared/ApplicationDefaults/ ./src/Shared/ApplicationDefaults/
 COPY src/BalanceService.Api/ ./src/BalanceService.Api/
 COPY src/BalanceService.Application/ ./src/BalanceService.Application/
 COPY src/BalanceService.Domain/ ./src/BalanceService.Domain/

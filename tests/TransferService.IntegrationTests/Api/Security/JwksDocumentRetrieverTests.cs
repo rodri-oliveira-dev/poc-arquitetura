@@ -1,15 +1,20 @@
 using System.Collections.Concurrent;
-using System.Diagnostics;
+using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
 
-using ApiDefaults.Authentication;
 using ApiDefaults.Extensions;
+
+using HttpResilienceDefaults;
+
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+
+using Polly.CircuitBreaker;
 
 namespace TransferService.IntegrationTests.Api.Security;
 
-[Collection("JWKS document retriever trace")]
 public sealed class JwksDocumentRetrieverTests
 {
     private const string EmptyJwksDocument = "{" + "\"keys\":[]" + "}";
@@ -20,32 +25,29 @@ public sealed class JwksDocumentRetrieverTests
         using var server = await TestHttpServer.StartAsync([
             new HttpResponse(HttpStatusCode.OK, EmptyJwksDocument)
         ]);
-        using var trace = TraceCapture.Start();
-        var sut = CreateRetriever(retryCount: 2);
+        using ServiceProvider provider = CreateProvider(retryCount: 2);
+        var sut = CreateRetriever(provider);
 
         string document = await sut.GetDocumentAsync(server.Address, CancellationToken.None);
 
         Assert.Equal(EmptyJwksDocument, document);
         Assert.Equal(1, server.RequestCount);
-        Assert.Empty(trace.Messages);
     }
 
     [Fact]
-    public async Task GetDocumentAsync_should_retry_expected_failure_and_log_warning_Async()
+    public async Task GetDocumentAsync_should_retry_expected_failure_Async()
     {
         using var server = await TestHttpServer.StartAsync([
             new HttpResponse(HttpStatusCode.InternalServerError, "failure"),
             new HttpResponse(HttpStatusCode.OK, EmptyJwksDocument)
         ]);
-        using var trace = TraceCapture.Start();
-        var sut = CreateRetriever(retryCount: 2);
+        using ServiceProvider provider = CreateProvider(retryCount: 2);
+        var sut = CreateRetriever(provider);
 
         string document = await sut.GetDocumentAsync(server.Address, CancellationToken.None);
 
         Assert.Equal(EmptyJwksDocument, document);
         Assert.Equal(2, server.RequestCount);
-        string message = Assert.Single(trace.JwksWarnings);
-        Assert.Contains("JWKS fetch failed. Retrying attempt 1/3.", message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -57,31 +59,177 @@ public sealed class JwksDocumentRetrieverTests
             new HttpResponse(HttpStatusCode.InternalServerError, "failure"),
             new HttpResponse(HttpStatusCode.OK, EmptyJwksDocument)
         ]);
-        using var trace = TraceCapture.Start();
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        var sut = CreateRetriever(retryCount: 2);
+        using ServiceProvider provider = CreateProvider(retryCount: 2);
+        var sut = CreateRetriever(provider);
 
         await Assert.ThrowsAsync<HttpRequestException>(() => sut.GetDocumentAsync(server.Address, timeout.Token));
 
         Assert.Equal(3, server.RequestCount);
-        Assert.Equal(2, trace.JwksWarnings.Length);
-        Assert.Contains(trace.JwksWarnings, message => message.Contains("Retrying attempt 1/3.", StringComparison.Ordinal));
-        Assert.Contains(trace.JwksWarnings, message => message.Contains("Retrying attempt 2/3.", StringComparison.Ordinal));
     }
 
-    private static JwtAuthenticationServiceCollectionExtensions.RetryableJwksDocumentRetriever CreateRetriever(
-        int retryCount)
-        => new(new ApiJwtAuthenticationOptions(
-            "Jwt",
-            "https://auth-api",
-            "transfer-api",
-            "https://auth-api/jwks.json",
-            RequireHttpsMetadata: true,
-            JwksTimeoutSeconds: 1,
-            JwksRetryCount: retryCount,
-            JwksRetryBaseDelayMilliseconds: 1));
+    [Fact]
+    public async Task GetDocumentAsync_should_open_circuit_after_persistent_failures_Async()
+    {
+        using var server = await TestHttpServer.StartAsync([
+            new HttpResponse(HttpStatusCode.InternalServerError, "failure"),
+            new HttpResponse(HttpStatusCode.InternalServerError, "failure"),
+            new HttpResponse(HttpStatusCode.OK, EmptyJwksDocument)
+        ]);
+        using ServiceProvider provider = CreateProvider(
+            retryCount: 1,
+            new Dictionary<string, string?>
+            {
+                ["HttpResilience:Clients:JWKS:CircuitBreakerFailureRatio"] = "0.5",
+                ["HttpResilience:Clients:JWKS:CircuitBreakerMinimumThroughput"] = "2",
+                ["HttpResilience:Clients:JWKS:CircuitBreakerSamplingDuration"] = "00:00:05",
+                ["HttpResilience:Clients:JWKS:CircuitBreakerBreakDuration"] = "00:00:05"
+            });
+        var sut = CreateRetriever(provider);
 
-    private sealed record HttpResponse(HttpStatusCode StatusCode, string Body);
+        await Assert.ThrowsAsync<HttpRequestException>(() => sut.GetDocumentAsync(server.Address, CancellationToken.None));
+        int requestsBeforeOpenCircuit = server.RequestCount;
+
+        await Assert.ThrowsAsync<BrokenCircuitException>(() => sut.GetDocumentAsync(server.Address, CancellationToken.None));
+
+        Assert.Equal(2, requestsBeforeOpenCircuit);
+        Assert.Equal(requestsBeforeOpenCircuit, server.RequestCount);
+    }
+
+    [Fact]
+    public async Task GetDocumentAsync_should_allow_recovery_after_break_duration_and_close_circuit_after_success_Async()
+    {
+        using var server = await TestHttpServer.StartAsync([
+            new HttpResponse(HttpStatusCode.InternalServerError, "failure"),
+            new HttpResponse(HttpStatusCode.InternalServerError, "failure"),
+            new HttpResponse(HttpStatusCode.OK, EmptyJwksDocument),
+            new HttpResponse(HttpStatusCode.OK, EmptyJwksDocument)
+        ]);
+        using ServiceProvider provider = CreateProvider(
+            retryCount: 1,
+            CreateFastCircuitBreakerOverrides());
+        var sut = CreateRetriever(provider);
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => sut.GetDocumentAsync(server.Address, CancellationToken.None));
+        int requestsBeforeOpenCircuit = server.RequestCount;
+
+        await Assert.ThrowsAsync<BrokenCircuitException>(() => sut.GetDocumentAsync(server.Address, CancellationToken.None));
+        int requestsAfterFastFailure = server.RequestCount;
+
+        await Task.Delay(TimeSpan.FromMilliseconds(600), TestContext.Current.CancellationToken);
+        string recoveredDocument = await sut.GetDocumentAsync(server.Address, TestContext.Current.CancellationToken);
+        string closedCircuitDocument = await sut.GetDocumentAsync(server.Address, TestContext.Current.CancellationToken);
+
+        Assert.Equal(2, requestsBeforeOpenCircuit);
+        Assert.Equal(requestsBeforeOpenCircuit, requestsAfterFastFailure);
+        Assert.Equal(EmptyJwksDocument, recoveredDocument);
+        Assert.Equal(EmptyJwksDocument, closedCircuitDocument);
+        Assert.Equal(4, server.RequestCount);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.BadRequest)]
+    [InlineData(HttpStatusCode.Unauthorized)]
+    [InlineData(HttpStatusCode.Forbidden)]
+    [InlineData(HttpStatusCode.NotFound)]
+    public async Task GetDocumentAsync_should_not_retry_or_open_circuit_for_business_errors_Async(HttpStatusCode statusCode)
+    {
+        using var server = await TestHttpServer.StartAsync([
+            new HttpResponse(statusCode, "business failure"),
+            new HttpResponse(statusCode, "business failure"),
+            new HttpResponse(HttpStatusCode.OK, EmptyJwksDocument)
+        ]);
+        using ServiceProvider provider = CreateProvider(
+            retryCount: 1,
+            CreateFastCircuitBreakerOverrides());
+        var sut = CreateRetriever(provider);
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => sut.GetDocumentAsync(server.Address, CancellationToken.None));
+        await Assert.ThrowsAsync<HttpRequestException>(() => sut.GetDocumentAsync(server.Address, CancellationToken.None));
+        string document = await sut.GetDocumentAsync(server.Address, TestContext.Current.CancellationToken);
+
+        Assert.Equal(EmptyJwksDocument, document);
+        Assert.Equal(3, server.RequestCount);
+    }
+
+    [Fact]
+    public async Task GetDocumentAsync_should_treat_timeout_as_transient_failure_Async()
+    {
+        using var server = await TestHttpServer.StartAsync([
+            new HttpResponse(HttpStatusCode.OK, EmptyJwksDocument, TimeSpan.FromMilliseconds(200)),
+            new HttpResponse(HttpStatusCode.OK, EmptyJwksDocument)
+        ]);
+        using ServiceProvider provider = CreateProvider(
+            retryCount: 1,
+            new Dictionary<string, string?>
+            {
+                ["HttpResilience:Clients:JWKS:AttemptTimeout"] = "00:00:00.050",
+                ["HttpResilience:Clients:JWKS:TotalTimeout"] = "00:00:01"
+            });
+        var sut = CreateRetriever(provider);
+
+        string document = await sut.GetDocumentAsync(server.Address, TestContext.Current.CancellationToken);
+
+        Assert.Equal(EmptyJwksDocument, document);
+        Assert.Equal(2, server.RequestCount);
+    }
+
+    private static ServiceProvider CreateProvider(
+        int retryCount,
+        Dictionary<string, string?>? overrides = null)
+    {
+        Dictionary<string, string?> settings = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["HttpResilience:Clients:JWKS:TotalTimeout"] = "00:00:05",
+            ["HttpResilience:Clients:JWKS:AttemptTimeout"] = "00:00:01",
+            ["HttpResilience:Clients:JWKS:RetryCount"] = retryCount.ToString(CultureInfo.InvariantCulture),
+            ["HttpResilience:Clients:JWKS:RetryDelay"] = "00:00:00.001",
+            ["HttpResilience:Clients:JWKS:CircuitBreakerFailureRatio"] = "1",
+            ["HttpResilience:Clients:JWKS:CircuitBreakerMinimumThroughput"] = "100",
+            ["HttpResilience:Clients:JWKS:CircuitBreakerSamplingDuration"] = "00:00:30",
+            ["HttpResilience:Clients:JWKS:CircuitBreakerBreakDuration"] = "00:00:05"
+        };
+
+        if (overrides is not null)
+        {
+            foreach (KeyValuePair<string, string?> option in overrides)
+            {
+                settings[option.Key] = option.Value;
+            }
+        }
+
+        IConfiguration configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(settings)
+            .Build();
+
+        ServiceCollection services = new();
+        services.AddLogging();
+        services
+            .AddHttpClient(JwtAuthenticationServiceCollectionExtensions.JwksHttpClientName)
+            .AddConfiguredHttpResilience(configuration, JwtAuthenticationServiceCollectionExtensions.JwksHttpClientName);
+
+        return services.BuildServiceProvider();
+    }
+
+    private static JwtAuthenticationServiceCollectionExtensions.JwksHttpClientDocumentRetriever CreateRetriever(
+        IServiceProvider provider)
+        => new(
+            provider.GetRequiredService<IHttpClientFactory>(),
+            JwtAuthenticationServiceCollectionExtensions.JwksHttpClientName);
+
+    private static Dictionary<string, string?> CreateFastCircuitBreakerOverrides()
+        => new()
+        {
+            ["HttpResilience:Clients:JWKS:CircuitBreakerFailureRatio"] = "0.5",
+            ["HttpResilience:Clients:JWKS:CircuitBreakerMinimumThroughput"] = "2",
+            ["HttpResilience:Clients:JWKS:CircuitBreakerSamplingDuration"] = "00:00:05",
+            ["HttpResilience:Clients:JWKS:CircuitBreakerBreakDuration"] = "00:00:00.500"
+        };
+
+    private sealed record HttpResponse(
+        HttpStatusCode StatusCode,
+        string Body,
+        TimeSpan? DelayBeforeResponse = null);
 
     private sealed class TestHttpServer : IDisposable
     {
@@ -142,9 +290,26 @@ public sealed class JwksDocumentRetrieverTests
         {
             while (!_stopping.IsCancellationRequested)
             {
-                using TcpClient client = await _listener.AcceptTcpClientAsync(_stopping.Token);
+                TcpClient client = await _listener.AcceptTcpClientAsync(_stopping.Token);
                 Interlocked.Increment(ref _requestCount);
-                await WriteResponseAsync(client, _stopping.Token);
+                _ = Task.Run(() => WriteResponseAndDisposeAsync(client, _stopping.Token), _stopping.Token);
+            }
+        }
+
+        private async Task WriteResponseAndDisposeAsync(TcpClient client, CancellationToken cancellationToken)
+        {
+            using (client)
+            {
+                try
+                {
+                    await WriteResponseAsync(client, cancellationToken);
+                }
+                catch (IOException) when (cancellationToken.IsCancellationRequested)
+                {
+                }
+                catch (ObjectDisposedException) when (cancellationToken.IsCancellationRequested)
+                {
+                }
             }
         }
 
@@ -156,6 +321,11 @@ public sealed class JwksDocumentRetrieverTests
             if (!_responses.TryDequeue(out HttpResponse? response))
             {
                 response = new HttpResponse(HttpStatusCode.InternalServerError, "No response configured.");
+            }
+
+            if (response.DelayBeforeResponse is { } delay)
+            {
+                await Task.Delay(delay, cancellationToken);
             }
 
             byte[] body = Encoding.UTF8.GetBytes(response.Body);
@@ -190,54 +360,4 @@ public sealed class JwksDocumentRetrieverTests
         }
     }
 
-    private sealed class TraceCapture : TraceListener, IDisposable
-    {
-        private readonly ConcurrentQueue<string> _messages = [];
-
-        private TraceCapture()
-        {
-        }
-
-        public string[] Messages => [.. _messages];
-
-        public string[] JwksWarnings => [.. _messages
-            .Where(message => message.Contains("JWKS fetch failed.", StringComparison.Ordinal))
-        ];
-
-        public static TraceCapture Start()
-        {
-            var listener = new TraceCapture();
-            Trace.Listeners.Add(listener);
-            return listener;
-        }
-
-        public override void Write(string? message)
-        {
-            if (!string.IsNullOrWhiteSpace(message))
-            {
-                _messages.Enqueue(message);
-            }
-        }
-
-        public override void WriteLine(string? message)
-        {
-            if (!string.IsNullOrWhiteSpace(message))
-            {
-                _messages.Enqueue(message);
-            }
-        }
-
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing)
-            {
-                Trace.Listeners.Remove(this);
-            }
-
-            base.Dispose(disposing);
-        }
-    }
 }
-
-[CollectionDefinition("JWKS document retriever trace", DisableParallelization = true)]
-public sealed class JwksDocumentRetrieverTraceCollection;

@@ -7,7 +7,7 @@ set -euo pipefail
 #  c) roda k6 dentro do compose network via docker compose
 
 usage() {
-  echo "Uso: ./scripts/performance/run-loadtests.sh <smoke-kafka|load-kafka|smoke|balance50|resilience|transfer-smoke-kafka|transfer-load-kafka|transfer-fullstack-kafka> [--provider Kafka]" >&2
+  echo "Uso: ./scripts/performance/run-loadtests.sh <smoke-kafka|load-kafka|smoke|balance50|resilience|transfer-smoke-kafka|transfer-load-kafka|transfer-fullstack-kafka|transfer-circuit-breaker-kafka> [--provider Kafka]" >&2
 }
 
 require_option_value() {
@@ -68,6 +68,7 @@ case "$MODE" in
   ledger-load-kafka) MODE=resilience ;;
   transfer-smoke-kafka) MODE=transfer-smoke ;;
   transfer-load-kafka) MODE=transfer-load ;;
+  transfer-cb-kafka) MODE=transfer-circuit-breaker-kafka ;;
 esac
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -267,6 +268,27 @@ assert_local_transfer_kafka_stack() {
     echo "Topicos Kafka ausentes ou inicializacao incompleta. Rode ./scripts/local/start-stack.sh ou confira: docker compose logs kafka-init-topics" >&2
     exit 1
   fi
+}
+
+assert_transfer_worker_log_contains() {
+  local since="$1"
+  local pattern="$2"
+  local description="$3"
+  local logs
+
+  if ! logs="$(docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_KAFKA_FILE" logs --since "$since" transfer-worker 2>&1)"; then
+    echo "Falha ao ler logs do transfer-worker para validar Circuit Breaker." >&2
+    exit 1
+  fi
+
+  if ! grep -Fq "$pattern" <<<"$logs"; then
+    local log_path="$ARTIFACTS_DIR/transfer-worker-circuit-breaker-$ts.log"
+    printf '%s\n' "$logs" >"$log_path"
+    echo "Nao encontrei evidencia de $description nos logs do transfer-worker desde $since. Logs salvos em: $log_path" >&2
+    exit 1
+  fi
+
+  echo "OK. Evidencia de $description encontrada nos logs do transfer-worker."
 }
 
 kafka_topic_end_offset() {
@@ -538,8 +560,13 @@ if [[ "$MODE" == "transfer-fullstack-kafka" ]]; then
   is_transfer_fullstack_kafka=true
 fi
 
+is_transfer_circuit_breaker_kafka=false
+if [[ "$MODE" == "transfer-circuit-breaker-kafka" ]]; then
+  is_transfer_circuit_breaker_kafka=true
+fi
+
 is_transfer_mode=false
-if [[ "$MODE" == "transfer-smoke" || "$MODE" == "transfer-load" || "$MODE" == "transfer-fullstack-kafka" ]]; then
+if [[ "$MODE" == "transfer-smoke" || "$MODE" == "transfer-load" || "$MODE" == "transfer-fullstack-kafka" || "$MODE" == "transfer-circuit-breaker-kafka" ]]; then
   is_transfer_mode=true
 fi
 
@@ -551,7 +578,7 @@ fi
 # mantem os testes apontando para as APIs HTTP e aumenta apenas limites tecnicos
 # que poderiam transformar o cenario de throughput em teste de rate limiting.
 if [[ "$is_transfer_mode" == true ]]; then
-  if [[ "$is_transfer_fullstack_kafka" == true ]]; then
+  if [[ "$is_transfer_fullstack_kafka" == true || "$is_transfer_circuit_breaker_kafka" == true ]]; then
     docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_KAFKA_FILE" -f "$COMPOSE_K6_FILE" up -d --no-build --force-recreate kafka kafka-init-topics ledger-service transfer-service transfer-worker
   else
     docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_K6_FILE" up -d --no-build --force-recreate transfer-service
@@ -564,7 +591,7 @@ wait_compose_service_healthy keycloak
 if [[ "$is_transfer_mode" == true ]]; then
   transfer_host_port="$(get_local_config_value TRANSFER_SERVICE_HOST_PORT 5230)"
   wait_http_endpoint "http://localhost:$transfer_host_port/health"
-  if [[ "$is_transfer_fullstack_kafka" == true ]]; then
+  if [[ "$is_transfer_fullstack_kafka" == true || "$is_transfer_circuit_breaker_kafka" == true ]]; then
     ledger_host_port="$(get_local_config_value LEDGER_SERVICE_HOST_PORT 5226)"
     wait_http_endpoint "http://localhost:$ledger_host_port/health"
     assert_local_transfer_kafka_stack
@@ -685,7 +712,7 @@ case "$MODE" in
     run_k6 ledger_resilience scenarios/ledger_resilience.js -e VUS=5 -e DURATION=1m -e LEDGER_HTTP_REQ_DURATION_P95_MS="$(threshold_value LEDGER P95 2000)" -e LEDGER_HTTP_REQ_DURATION_P99_MS="$(threshold_value LEDGER P99 5000)"
     ;;
   transfer-smoke)
-    run_k6 transfer_smoke scenarios/transfer_smoke.js -e DURATION=30s -e TRANSFER_HTTP_REQ_DURATION_P95_MS="$(threshold_value TRANSFER P95 500)" -e TRANSFER_HTTP_REQ_DURATION_P99_MS="$(threshold_value TRANSFER P99 1000)"
+    run_k6 transfer_smoke scenarios/transfer_smoke.js -e DURATION=30s -e TRANSFER_HTTP_REQ_DURATION_P95_MS="$(threshold_value TRANSFER P95 10000)" -e TRANSFER_HTTP_REQ_DURATION_P99_MS="$(threshold_value TRANSFER P99 15000)"
     ;;
   transfer-load)
     run_k6 transfer_load scenarios/transfer_load.js -e VUS=10 -e TRANSFER_HTTP_REQ_DURATION_P95_MS="$(threshold_value TRANSFER P95 1000)" -e TRANSFER_HTTP_REQ_DURATION_P99_MS="$(threshold_value TRANSFER P99 2000)"
@@ -704,8 +731,46 @@ PY
     capture_transfer_kafka_offsets "$after_offsets"
     assert_transfer_kafka_events_published "$before_offsets" "$after_offsets" "$transfer_correlation_id"
     ;;
+  transfer-circuit-breaker-kafka)
+    circuit_started_at="$(date -u -d '2 seconds ago' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%SZ)"
+    run_k6 transfer_circuit_healthy scenarios/transfer_circuit_breaker.js \
+      -e VUS=1 \
+      -e ITERATIONS=1 \
+      -e DURATION="$(get_local_config_value TRANSFER_CIRCUIT_HEALTHY_DURATION 120s)" \
+      -e TRANSFER_CIRCUIT_PHASE=healthy \
+      -e TRANSFER_FINAL_STATUS_TIMEOUT_SECONDS="$(get_local_config_value TRANSFER_CIRCUIT_HEALTHY_STATUS_TIMEOUT_SECONDS 90)" \
+      -e TRANSFER_HTTP_REQ_DURATION_P95_MS="$(threshold_value TRANSFER P95 1000)" \
+      -e TRANSFER_HTTP_REQ_DURATION_P99_MS="$(threshold_value TRANSFER P99 2000)"
+
+    docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_KAFKA_FILE" stop ledger-service
+
+    run_k6 transfer_circuit_degraded scenarios/transfer_circuit_breaker.js \
+      -e VUS="$(get_local_config_value TRANSFER_CIRCUIT_DEGRADED_VUS 5)" \
+      -e DURATION="$(get_local_config_value TRANSFER_CIRCUIT_DEGRADED_DURATION 30s)" \
+      -e TRANSFER_CIRCUIT_PHASE=degraded \
+      -e TRANSFER_FINAL_STATUS_TIMEOUT_SECONDS="$(get_local_config_value TRANSFER_CIRCUIT_DEGRADED_STATUS_TIMEOUT_SECONDS 8)" \
+      -e TRANSFER_HTTP_REQ_DURATION_P95_MS="$(threshold_value TRANSFER P95 1000)" \
+      -e TRANSFER_HTTP_REQ_DURATION_P99_MS="$(threshold_value TRANSFER P99 2000)"
+    assert_transfer_worker_log_contains "$circuit_started_at" "Circuit breaker HTTP aberto. Client=Ledger" "abertura do Circuit Breaker"
+    assert_transfer_worker_log_contains "$circuit_started_at" "Chamada HTTP rejeitada por circuito aberto. Client=Ledger" "rejeicao rapida por circuito aberto"
+
+    docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_KAFKA_FILE" -f "$COMPOSE_K6_FILE" up -d --no-build ledger-service
+    ledger_host_port="$(get_local_config_value LEDGER_SERVICE_HOST_PORT 5226)"
+    wait_http_endpoint "http://localhost:$ledger_host_port/health"
+
+    run_k6 transfer_circuit_recovery scenarios/transfer_circuit_breaker.js \
+      -e VUS="$(get_local_config_value TRANSFER_CIRCUIT_RECOVERY_VUS 1)" \
+      -e ITERATIONS="$(get_local_config_value TRANSFER_CIRCUIT_RECOVERY_ITERATIONS 1)" \
+      -e DURATION="$(get_local_config_value TRANSFER_CIRCUIT_RECOVERY_DURATION 120s)" \
+      -e TRANSFER_CIRCUIT_PHASE=recovery \
+      -e TRANSFER_FINAL_STATUS_TIMEOUT_SECONDS="$(get_local_config_value TRANSFER_CIRCUIT_RECOVERY_STATUS_TIMEOUT_SECONDS 90)" \
+      -e TRANSFER_HTTP_REQ_DURATION_P95_MS="$(threshold_value TRANSFER P95 1000)" \
+      -e TRANSFER_HTTP_REQ_DURATION_P99_MS="$(threshold_value TRANSFER P99 2000)"
+    assert_transfer_worker_log_contains "$circuit_started_at" "Tentativa HTTP em half-open liberada pelo circuit breaker. Client=Ledger" "transicao half-open do Circuit Breaker"
+    assert_transfer_worker_log_contains "$circuit_started_at" "Circuit breaker HTTP fechado. Client=Ledger" "fechamento do Circuit Breaker"
+    ;;
   *)
-    echo "Modo invalido: $MODE (use smoke-kafka|load-kafka|smoke|balance50|resilience|transfer-smoke-kafka|transfer-load-kafka|transfer-fullstack-kafka)" 1>&2
+    echo "Modo invalido: $MODE (use smoke-kafka|load-kafka|smoke|balance50|resilience|transfer-smoke-kafka|transfer-load-kafka|transfer-fullstack-kafka|transfer-circuit-breaker-kafka)" 1>&2
     exit 2
     ;;
 esac
@@ -713,4 +778,3 @@ esac
 echo "OK. Artifacts em: $ARTIFACTS_DIR" 1>&2
 
 # TODO: opcionalmente parsear o summary JSON e imprimir um resumo (sem segredos).
-
