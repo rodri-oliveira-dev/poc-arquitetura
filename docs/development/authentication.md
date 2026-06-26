@@ -25,10 +25,13 @@ Configuracao versionada do realm local:
 - discovery OIDC: `http://localhost:8081/realms/poc/.well-known/openid-configuration`;
 - JWKS: `http://localhost:8081/realms/poc/protocol/openid-connect/certs`;
 - client de automacao local: `poc-automation`;
+- client administrativo local do IdentityService: `identity-service-admin`;
 - clients de debug manual local: `poc-local-ledger-debug`, `poc-local-balance-debug` e `poc-local-admin-debug`;
 - fluxo preferencial para scripts: `client_credentials`.
 
-O client `poc-automation` usa um segredo local descartavel fornecido por `KEYCLOAK_CLIENT_SECRET` no ambiente do container. O import do realm usa placeholder resolvido pelo Keycloak no startup para manter o valor real fora do repositorio.
+Os clients `poc-automation` e `identity-service-admin` usam um segredo local descartavel fornecido por `KEYCLOAK_CLIENT_SECRET` no ambiente do container. O import do realm usa placeholder resolvido pelo Keycloak no startup para manter o valor real fora do repositorio.
+
+No compose local, o job `keycloak-identity-admin-init` atribui de forma idempotente as roles `realm-management:manage-users` e `realm-management:view-users` a service account do `identity-service-admin`, permitindo que o `IdentityService.Api` crie usuarios no realm `poc`.
 
 Os clients `poc-local-*-debug` sao publicos, habilitam Direct Grant apenas para facilitar debug manual local e nao possuem segredo. Eles nao substituem o fluxo `client_credentials` dos scripts automatizados.
 

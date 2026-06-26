@@ -98,7 +98,9 @@ Variaveis nao sensiveis ou identificadores locais continuam com defaults no comp
 
 As variaveis `AUTH_POC_USERNAME`, `AUTH_POC_PASSWORD` e `AUTH_POC_SCOPE` continuam aceitas apenas pelo overlay legado `compose.auth-legacy.yaml`.
 
-O mesmo `KEYCLOAK_CLIENT_SECRET` alimenta o client local `poc-automation` usado pelos scripts e pelo `TransferService.Worker` quando ele chama o `LedgerService.Api`. O scope service-to-service do worker fica em `TRANSFER_WORKER_LEDGER_AUTH_SCOPE`, com default `ledger.write`.
+O mesmo `KEYCLOAK_CLIENT_SECRET` alimenta o client local `poc-automation` usado pelos scripts e pelo `TransferService.Worker` quando ele chama o `LedgerService.Api`, e o client local `identity-service-admin` usado pelo `IdentityService.Api` para administrar usuarios no realm `poc`. O scope service-to-service do worker fica em `TRANSFER_WORKER_LEDGER_AUTH_SCOPE`, com default `ledger.write`.
+
+O compose executa o job idempotente `keycloak-identity-admin-init` depois que o Keycloak fica healthy. Esse job usa `kcadm.sh` para atribuir `realm-management:manage-users` e `realm-management:view-users` a service account do client `identity-service-admin`; ele deve terminar com sucesso antes do `IdentityService.Api` iniciar.
 
 O PostgreSQL local roda em um unico container `postgres-db`, com volume `postgres-data`, database `appdb`, schemas `ledger`, `balance`, `transfer` e `identity`, e usuarios separados por servico/responsabilidade. A inicializacao fica nos scripts versionados em `infra/postgres/init`. As connection strings dos servicos runtime no compose usam `postgres-db:5432/appdb`; as variaveis `LEDGER_DB_*`, `BALANCE_DB_*`, `TRANSFER_DB_*` e `IDENTITY_DB_*` configuram as senhas locais usadas pelo init do container e pelas connection strings do compose. Em volumes PostgreSQL existentes, alterar `.env.local` ou `compose.yaml` nao altera automaticamente roles, grants ou senhas ja gravadas no banco; para reaplicar o init, recrie conscientemente o volume local ou execute o SQL manualmente.
 
@@ -132,6 +134,7 @@ Os scripts `scripts/local/start-stack.*` sobem por padrao o core funcional de de
 - `TransferService.Api`;
 - `TransferService.Worker`;
 - `IdentityService.Api`;
+- job idempotente `keycloak-identity-admin-init` para permissao administrativa local do IdentityService no Keycloak;
 - PostgreSQL unico (`postgres-db`) com schemas `ledger`, `balance`, `transfer` e `identity`;
 - Kafka local;
 - job idempotente de inicializacao dos topicos Kafka de Ledger, Balance e Transfer.
@@ -423,7 +426,7 @@ Credenciais locais descartaveis:
 - usuario: `local_admin`
 - senha: valor local de `KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD`
 
-Para sobrescrever porta, credenciais administrativas ou credenciais do client de automacao local, copie `.env.local.example` para `.env.local` e ajuste `KEYCLOAK_HOST_PORT`, `KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME`, `KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD`, `KEYCLOAK_CLIENT_ID`, `KEYCLOAK_CLIENT_SECRET` e as senhas dos usuarios locais de debug. Esses valores sao apenas para desenvolvimento local e nao devem ser usados em ambientes compartilhados ou produtivos.
+Para sobrescrever porta, credenciais administrativas ou credenciais dos clients locais, copie `.env.local.example` para `.env.local` e ajuste `KEYCLOAK_HOST_PORT`, `KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME`, `KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD`, `KEYCLOAK_CLIENT_ID`, `KEYCLOAK_IDENTITY_ADMIN_CLIENT_ID`, `KEYCLOAK_CLIENT_SECRET` e as senhas dos usuarios locais de debug. Esses valores sao apenas para desenvolvimento local e nao devem ser usados em ambientes compartilhados ou produtivos.
 
 O container usa `start-dev --import-realm`, healthcheck nativo em `/health/ready` na porta de gerenciamento interna `9000` e importa o realm versionado de `infra/keycloak/realm-poc.json`. O compose monta esse arquivo em `/opt/keycloak/data/import/realm-poc.json` como somente leitura.
 
@@ -432,6 +435,7 @@ O realm local importado se chama `poc` e expoe:
 - discovery OIDC: `http://localhost:8081/realms/poc/.well-known/openid-configuration`;
 - JWKS: `http://localhost:8081/realms/poc/protocol/openid-connect/certs`;
 - client local de automacao: `poc-automation`;
+- client administrativo local do IdentityService: `identity-service-admin`;
 - clients locais de debug manual: `poc-local-ledger-debug`, `poc-local-balance-debug` e `poc-local-admin-debug`;
 - fluxo preferencial para scripts: `client_credentials`;
 - audiences: `ledger-api`, `balance-api` e `transfer-api`;
@@ -440,7 +444,7 @@ O realm local importado se chama `poc` e expoe:
 
 As APIs continuam usando `Jwt:JwksUrl` direto, sem introspeccao por request e sem consumir discovery metadata nesta etapa. No compose, `JWT_ISSUER` deve corresponder ao `iss` publico do token (`http://localhost:8081/realms/poc`) e `JWT_JWKS_URL` deve apontar para o endpoint de certificados acessivel pela rede interna (`http://keycloak:8080/realms/poc/protocol/openid-connect/certs`). Para voltar temporariamente ao emissor legado, suba `compose.auth-legacy.yaml` e configure `JWT_ISSUER=https://auth-api`, `JWT_JWKS_URL=http://auth-api:8080/.well-known/jwks.json` e `TOKEN_PROVIDER=auth-api`.
 
-O segredo do client `poc-automation` vem de `KEYCLOAK_CLIENT_SECRET` no ambiente do container. O arquivo de realm usa placeholder resolvido pelo Keycloak durante `start-dev --import-realm`, mantendo o valor real fora do repositorio.
+O segredo dos clients `poc-automation` e `identity-service-admin` vem de `KEYCLOAK_CLIENT_SECRET` no ambiente do container. O arquivo de realm usa placeholder resolvido pelo Keycloak durante `start-dev --import-realm`, mantendo o valor real fora do repositorio.
 
 Para obter um token Keycloak local, use os scripts versionados. Eles imprimem somente o token em `stdout`:
 
@@ -464,7 +468,7 @@ curl -s -X POST http://localhost:8081/realms/poc/protocol/openid-connect/token \
   -d "client_secret=<KEYCLOAK_CLIENT_SECRET>"
 ```
 
-Para confirmar que o realm foi importado, acesse o Admin Console em `http://localhost:8081/` com `local_admin` e o valor local de `KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD`, selecione o realm `poc` no seletor de realms e confira `Clients` e `Users`. Em uma stack recem-criada, devem existir os clients `poc-automation`, `poc-local-ledger-debug`, `poc-local-balance-debug` e `poc-local-admin-debug`, alem dos usuarios locais abaixo.
+Para confirmar que o realm foi importado, acesse o Admin Console em `http://localhost:8081/` com `local_admin` e o valor local de `KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD`, selecione o realm `poc` no seletor de realms e confira `Clients` e `Users`. Em uma stack recem-criada, devem existir os clients `poc-automation`, `identity-service-admin`, `poc-local-ledger-debug`, `poc-local-balance-debug` e `poc-local-admin-debug`, alem dos usuarios locais abaixo.
 
 Usuarios locais de debug importados no realm:
 

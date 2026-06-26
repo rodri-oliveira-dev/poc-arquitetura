@@ -90,7 +90,7 @@ model {
       }
 
       realmConfig = component "Realm poc" {
-        description "Configuracao versionada em infra/keycloak/realm-poc.json com client poc-automation, audiences ledger-api/balance-api, scopes e merchant_id."
+        description "Configuracao versionada em infra/keycloak/realm-poc.json com clients poc-automation e identity-service-admin, audiences das APIs, scopes e merchant_id."
       }
 
     }

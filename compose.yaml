@@ -502,6 +502,44 @@ services:
     networks:
       - poc-net
 
+  keycloak-identity-admin-init:
+    image: quay.io/keycloak/keycloak:26.6.2
+    container_name: poc-keycloak-identity-admin-init
+    logging: *default-logging
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    environment:
+      KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME: "${KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME:-local_admin}"
+      KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD: "${KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD:?Defina KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD no ambiente ou em .env.local}"
+      KEYCLOAK_IDENTITY_ADMIN_CLIENT_ID: "${KEYCLOAK_IDENTITY_ADMIN_CLIENT_ID:-identity-service-admin}"
+    entrypoint:
+      - /bin/bash
+      - -ec
+      - |
+        echo "[keycloak-identity-admin-init] Configurando roles administrativas do IdentityService...";
+        /opt/keycloak/bin/kcadm.sh config credentials \
+          --server http://keycloak:8080 \
+          --realm master \
+          --user "$$KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME" \
+          --password "$$KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD" \
+          1>/dev/null;
+        /opt/keycloak/bin/kcadm.sh add-roles \
+          -r poc \
+          --uusername "service-account-$$KEYCLOAK_IDENTITY_ADMIN_CLIENT_ID" \
+          --cclientid realm-management \
+          --rolename manage-users \
+          --rolename view-users;
+        echo "[keycloak-identity-admin-init] OK.";
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256m
+          pids: 128
+    networks:
+      - poc-net
+
   identity-service:
     build:
       context: .
@@ -513,8 +551,10 @@ services:
         condition: service_healthy
       keycloak:
         condition: service_healthy
+      keycloak-identity-admin-init:
+        condition: service_completed_successfully
       mailpit:
-        condition: service_started
+        condition: service_healthy
     environment:
       ASPNETCORE_URLS: "http://+:8080"
       ASPNETCORE_ENVIRONMENT: "Local"
