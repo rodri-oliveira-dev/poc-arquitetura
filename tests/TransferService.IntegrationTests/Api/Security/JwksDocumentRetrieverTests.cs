@@ -96,6 +96,84 @@ public sealed class JwksDocumentRetrieverTests
         Assert.Equal(requestsBeforeOpenCircuit, server.RequestCount);
     }
 
+    [Fact]
+    public async Task GetDocumentAsync_should_allow_recovery_after_break_duration_and_close_circuit_after_success_Async()
+    {
+        using var server = await TestHttpServer.StartAsync([
+            new HttpResponse(HttpStatusCode.InternalServerError, "failure"),
+            new HttpResponse(HttpStatusCode.InternalServerError, "failure"),
+            new HttpResponse(HttpStatusCode.OK, EmptyJwksDocument),
+            new HttpResponse(HttpStatusCode.OK, EmptyJwksDocument)
+        ]);
+        using ServiceProvider provider = CreateProvider(
+            retryCount: 1,
+            CreateFastCircuitBreakerOverrides());
+        var sut = CreateRetriever(provider);
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => sut.GetDocumentAsync(server.Address, CancellationToken.None));
+        int requestsBeforeOpenCircuit = server.RequestCount;
+
+        await Assert.ThrowsAsync<BrokenCircuitException>(() => sut.GetDocumentAsync(server.Address, CancellationToken.None));
+        int requestsAfterFastFailure = server.RequestCount;
+
+        await Task.Delay(TimeSpan.FromMilliseconds(600), TestContext.Current.CancellationToken);
+        string recoveredDocument = await sut.GetDocumentAsync(server.Address, TestContext.Current.CancellationToken);
+        string closedCircuitDocument = await sut.GetDocumentAsync(server.Address, TestContext.Current.CancellationToken);
+
+        Assert.Equal(2, requestsBeforeOpenCircuit);
+        Assert.Equal(requestsBeforeOpenCircuit, requestsAfterFastFailure);
+        Assert.Equal(EmptyJwksDocument, recoveredDocument);
+        Assert.Equal(EmptyJwksDocument, closedCircuitDocument);
+        Assert.Equal(4, server.RequestCount);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.BadRequest)]
+    [InlineData(HttpStatusCode.Unauthorized)]
+    [InlineData(HttpStatusCode.Forbidden)]
+    [InlineData(HttpStatusCode.NotFound)]
+    public async Task GetDocumentAsync_should_not_retry_or_open_circuit_for_business_errors_Async(HttpStatusCode statusCode)
+    {
+        using var server = await TestHttpServer.StartAsync([
+            new HttpResponse(statusCode, "business failure"),
+            new HttpResponse(statusCode, "business failure"),
+            new HttpResponse(HttpStatusCode.OK, EmptyJwksDocument)
+        ]);
+        using ServiceProvider provider = CreateProvider(
+            retryCount: 1,
+            CreateFastCircuitBreakerOverrides());
+        var sut = CreateRetriever(provider);
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => sut.GetDocumentAsync(server.Address, CancellationToken.None));
+        await Assert.ThrowsAsync<HttpRequestException>(() => sut.GetDocumentAsync(server.Address, CancellationToken.None));
+        string document = await sut.GetDocumentAsync(server.Address, TestContext.Current.CancellationToken);
+
+        Assert.Equal(EmptyJwksDocument, document);
+        Assert.Equal(3, server.RequestCount);
+    }
+
+    [Fact]
+    public async Task GetDocumentAsync_should_treat_timeout_as_transient_failure_Async()
+    {
+        using var server = await TestHttpServer.StartAsync([
+            new HttpResponse(HttpStatusCode.OK, EmptyJwksDocument, TimeSpan.FromMilliseconds(200)),
+            new HttpResponse(HttpStatusCode.OK, EmptyJwksDocument)
+        ]);
+        using ServiceProvider provider = CreateProvider(
+            retryCount: 1,
+            new Dictionary<string, string?>
+            {
+                ["HttpResilience:Clients:JWKS:AttemptTimeout"] = "00:00:00.050",
+                ["HttpResilience:Clients:JWKS:TotalTimeout"] = "00:00:01"
+            });
+        var sut = CreateRetriever(provider);
+
+        string document = await sut.GetDocumentAsync(server.Address, TestContext.Current.CancellationToken);
+
+        Assert.Equal(EmptyJwksDocument, document);
+        Assert.Equal(2, server.RequestCount);
+    }
+
     private static ServiceProvider CreateProvider(
         int retryCount,
         Dictionary<string, string?>? overrides = null)
@@ -139,7 +217,19 @@ public sealed class JwksDocumentRetrieverTests
             provider.GetRequiredService<IHttpClientFactory>(),
             JwtAuthenticationServiceCollectionExtensions.JwksHttpClientName);
 
-    private sealed record HttpResponse(HttpStatusCode StatusCode, string Body);
+    private static Dictionary<string, string?> CreateFastCircuitBreakerOverrides()
+        => new()
+        {
+            ["HttpResilience:Clients:JWKS:CircuitBreakerFailureRatio"] = "0.5",
+            ["HttpResilience:Clients:JWKS:CircuitBreakerMinimumThroughput"] = "2",
+            ["HttpResilience:Clients:JWKS:CircuitBreakerSamplingDuration"] = "00:00:05",
+            ["HttpResilience:Clients:JWKS:CircuitBreakerBreakDuration"] = "00:00:00.500"
+        };
+
+    private sealed record HttpResponse(
+        HttpStatusCode StatusCode,
+        string Body,
+        TimeSpan? DelayBeforeResponse = null);
 
     private sealed class TestHttpServer : IDisposable
     {
@@ -200,9 +290,26 @@ public sealed class JwksDocumentRetrieverTests
         {
             while (!_stopping.IsCancellationRequested)
             {
-                using TcpClient client = await _listener.AcceptTcpClientAsync(_stopping.Token);
+                TcpClient client = await _listener.AcceptTcpClientAsync(_stopping.Token);
                 Interlocked.Increment(ref _requestCount);
-                await WriteResponseAsync(client, _stopping.Token);
+                _ = Task.Run(() => WriteResponseAndDisposeAsync(client, _stopping.Token), _stopping.Token);
+            }
+        }
+
+        private async Task WriteResponseAndDisposeAsync(TcpClient client, CancellationToken cancellationToken)
+        {
+            using (client)
+            {
+                try
+                {
+                    await WriteResponseAsync(client, cancellationToken);
+                }
+                catch (IOException) when (cancellationToken.IsCancellationRequested)
+                {
+                }
+                catch (ObjectDisposedException) when (cancellationToken.IsCancellationRequested)
+                {
+                }
             }
         }
 
@@ -214,6 +321,11 @@ public sealed class JwksDocumentRetrieverTests
             if (!_responses.TryDequeue(out HttpResponse? response))
             {
                 response = new HttpResponse(HttpStatusCode.InternalServerError, "No response configured.");
+            }
+
+            if (response.DelayBeforeResponse is { } delay)
+            {
+                await Task.Delay(delay, cancellationToken);
             }
 
             byte[] body = Encoding.UTF8.GetBytes(response.Body);
