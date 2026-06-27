@@ -22,6 +22,41 @@ deployment {
         }
       }
 
+      composeService keycloakIdentityAdminInit "keycloak-identity-admin-init" {
+        technology "Keycloak kcadm.sh / init container"
+        description "Job idempotente que concede as roles realm-management:manage-users e view-users a service account identity-service-admin antes do IdentityService.Api iniciar."
+      }
+
+      composeService identityApi "identity-service" {
+        technology "Docker container / ASP.NET Core"
+        description "Servico Docker Compose que executa a IdentityService.Api."
+
+        api = instanceOf identityService.identityApi {
+          title "poc-identity-service"
+          description "Container local da IdentityService.Api exposto na porta 5232 do host e 8080 no container, usando Keycloak, PostgreSQL schema identity e Mailpit no ambiente Local."
+        }
+      }
+
+      composeService authApiLegacy "auth-api" {
+        technology "Docker container / ASP.NET Core"
+        description "Servico legado opcional definido em compose.auth-legacy.yaml e habilitado apenas pelo profile legacy-auth."
+
+        api = instanceOf legacyAuth.authApi {
+          title "poc-auth-api"
+          description "Container local legado exposto na porta 5030 do host quando o overlay/profile legacy-auth e usado; fora da stack principal."
+        }
+      }
+
+      composeService mailpit "mailpit" {
+        technology "Mailpit"
+        description "Servico Docker Compose local para capturar e-mails enviados pelo IdentityService.Api."
+
+        mailpit = instanceOf email.mailpit {
+          title "poc-mailpit"
+          description "Container local do Mailpit com SMTP em 1025 e UI em 8025 no host."
+        }
+      }
+
       composeService nginxEdge "nginx-edge" {
         technology "Nginx / HTTPS"
         description "Servico Docker Compose opcional definido em compose.nginx.yaml para borda local HTTPS, portal, headers de seguranca, limites defensivos de requisicao, reducao de fingerprinting com modulo headers-more, proxy por subdominios .localhost e load balance local do LedgerService.Api."
@@ -114,7 +149,7 @@ deployment {
 
       composeService postgresDb "postgres-db" {
         technology "PostgreSQL 16"
-        description "Servico Docker Compose que executa o PostgreSQL local unico com database appdb, schemas ledger, balance e transfer, e roles separadas por responsabilidade."
+        description "Servico Docker Compose que executa o PostgreSQL local unico com database appdb, schemas ledger, balance, transfer e identity, e roles separadas por responsabilidade."
 
         ledgerSchema = instanceOf ledger.ledgerDb {
           title "poc-postgres-db / schema ledger"
@@ -129,6 +164,11 @@ deployment {
         transferSchema = instanceOf transfer.transferDb {
           title "poc-postgres-db / schema transfer"
           description "Schema local do Transfer no PostgreSQL unico, acessado por transfer_app_user em runtime e transfer_migrator_user para migrations."
+        }
+
+        identitySchema = instanceOf identityService.identityDb {
+          title "poc-postgres-db / schema identity"
+          description "Schema local do IdentityService no PostgreSQL unico, acessado por identity_app_user em runtime e identity_migrator_user para migrations."
         }
       }
 

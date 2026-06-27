@@ -4,15 +4,47 @@ Esta pasta registra a leitura arquitetural atual da POC e o modelo LikeC4 usado 
 
 Arquivos principais:
 
-- `model.c4`: modelo estrutural do ecossistema, containers e componentes reais, distinguindo Kafka default, Pub/Sub emulator local e Pub/Sub real explicito/legado na GCP.
+- `model.c4`: modelo estrutural do ecossistema, containers e componentes reais, incluindo IdentityService, Keycloak, Auth.Api legado, PostgreSQL por schemas, Kafka default, Pub/Sub explicito/legado, Mailpit, Resend e observabilidade.
 - `deployment.c4`: modelo de deployment local que associa servicos do `compose.yaml` e overlays locais aos elementos logicos com `instanceOf`, alimentando a aba `Deployments` do LikeC4.
-- `views.c4`: views LikeC4 para landscape, containers, fluxo Kafka, Pub/Sub real explicito/legado na GCP, observabilidade local e componentes por processo.
+- `views.c4`: views LikeC4 para contexto, containers, fluxo de cadastro no IdentityService, fluxo Kafka, Pub/Sub explicito/legado, observabilidade local e componentes por processo.
 - `boundaries.md`: regras de fronteira entre camadas, responsabilidades e anti-patterns.
 - `decisions.md`: avaliacao critica, riscos e roadmap pragmatico de evolucao.
 - `production-readiness.md`: baseline recomendado para uma evolucao futura em GCP mais proxima de producao, sem declarar prontidao produtiva nem implementar infraestrutura nova.
 - [`../README.md`](../README.md): indice geral da documentacao.
 
-Classificacao atual: arquitetura hibrida, com predominancia de Clean Architecture/DDD em LedgerService e BalanceService, TransferService com Saga orquestrada, API HTTP, Worker dedicado e Outbox Kafka explicita, elementos hexagonais por portas de persistencia/mensageria onde ja existem adapters, camada HTTP tradicional, workers dedicados para processamento assincrono e CQRS/projecao assincrona entre escrita e leitura.
+Classificacao atual: arquitetura hibrida, com predominancia de Clean Architecture/DDD nos bounded contexts principais. `IdentityService` isola cadastro de usuarios, `MerchantId`, vinculo local com Keycloak e envio de e-mail de boas-vindas; `LedgerService` escreve fatos financeiros e Outbox; `BalanceService` mantem projecao de leitura; `TransferService` orquestra Saga com Worker e Outbox Kafka; `Auth.Api` permanece legado e fora da stack principal.
+
+## Leitura rapida
+
+- O sistema e uma POC de microservicos .NET para identidade, ledger, saldos e transferencias.
+- Clientes obtem tokens no Keycloak e chamam APIs HTTP protegidas por JWT, audience, scopes e autorizacao por merchant quando aplicavel.
+- O PostgreSQL local e unico, mas os servicos usam schemas e roles separados: `identity`, `ledger`, `balance` e `transfer`.
+- Kafka e o provider padrao dos fluxos principais de mensageria. Pub/Sub continua explicito/legado para Ledger/Balance quando configurado.
+- O `IdentityService.Api` cria usuarios no Keycloak, persiste o vinculo local no schema `identity`, despacha domain events depois do commit e envia e-mail por Mailpit no local ou Resend em ambiente real configurado.
+- O `Auth.Api` legado nao deve receber novos fluxos de identidade; use apenas cenarios compativeis antigos por overlay/profile explicito.
+
+## Estado atual e evolucao futura
+
+Estado atual:
+
+- `IdentityService.Api` e API HTTP sincrona; nao ha Worker de identidade, Outbox de e-mail, fila de e-mail ou DLQ de identidade implementados.
+- O e-mail de boas-vindas e side effect intra-processo apos commit local. Falha de e-mail e logada e nao invalida o cadastro.
+- Mailpit e ferramenta local; Resend e provider externo real selecionado por configuracao e secret.
+
+Evolucao futura documentada:
+
+- ADR-0095 registra a possibilidade de evoluir e-mail do IdentityService para Outbox, mensageria, retry, DLQ e worker dedicado. Isso nao esta implementado.
+
+## ADRs relacionadas
+
+- [ADR-0074: Keycloak como identidade principal e Auth.Api legado](../adrs/0074-keycloak-como-identidade-principal.md)
+- [ADR-0089: Novo bounded context IdentityService](../adrs/0089-bounded-context-identity-service.md)
+- [ADR-0090: Cadastro de usuarios no IdentityService](../adrs/0090-cadastro-usuarios-identity-service.md)
+- [ADR-0091: Domain Event Dispatcher no IdentityService](../adrs/0091-domain-event-dispatcher-identity-service.md)
+- [ADR-0092: Envio de e-mail no IdentityService](../adrs/0092-envio-email-identity-service.md)
+- [ADR-0093: Resend como provider de e-mail do IdentityService](../adrs/0093-resend-email-provider-identity-service.md)
+- [ADR-0094: Mailpit local para e-mails do IdentityService](../adrs/0094-mailpit-local-identity-service.md)
+- [ADR-0095: Evolucao futura do envio de e-mails do IdentityService](../adrs/0095-evolucao-futura-email-identity-service.md)
 
 ## Visualizacao
 

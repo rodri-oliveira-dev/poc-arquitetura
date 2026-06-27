@@ -2,7 +2,7 @@
 
 ## Resumo executivo
 
-A arquitetura atual esta mais proxima de Clean Architecture/DDD por microservico, mas nao e pura. Na pratica, e uma arquitetura hibrida e coerente com um projeto de estudos arquiteturais que nasceu como POC: camadas internas nos servicos com dominio relevante, APIs HTTP e workers separados por processo, Outbox com Kafka default e Pub/Sub explicito/legado para consistencia eventual, e Keycloak como provedor principal de identidade local.
+A arquitetura atual esta mais proxima de Clean Architecture/DDD por bounded context, mas nao e pura. Na pratica, e uma arquitetura hibrida e coerente com um projeto de estudos arquiteturais que nasceu como POC: camadas internas nos servicos com dominio relevante, APIs HTTP e workers separados por processo, Outbox com Kafka default e Pub/Sub explicito/legado para consistencia eventual, Keycloak como IdP principal e IdentityService como bounded context de cadastro/vinculo local de usuarios.
 
 A recomendacao e nao aumentar o numero de camadas agora. O melhor caminho e preservar a estrutura atual, corrigir assimetrias pontuais e fortalecer contratos/eventos/documentacao antes de qualquer reestruturacao.
 
@@ -46,18 +46,20 @@ Simplificacoes recomendadas:
 
 ### Identidade
 
-Keycloak e o caminho principal.
+Keycloak e o IdP principal; IdentityService e o bounded context de usuarios.
 
-Keycloak emite JWT RS256 por OIDC e publica JWKS para validacao offline pelas APIs de negocio. O `Auth.Api` foi depreciado e permanece apenas como legado por overlay explicito. Enquanto o projeto legado existir, manter seus testes e o projeto unico e mais simples do que introduzir camadas artificiais.
+Keycloak emite JWT RS256 por OIDC e publica JWKS para validacao offline pelas APIs. O `IdentityService.Api` cria usuarios no Keycloak via Admin API, define senha no provider, gera `MerchantId`, persiste o vinculo local no schema `identity` e envia e-mail de boas-vindas por domain event depois do commit. O `Auth.Api` foi depreciado e permanece apenas como legado por overlay explicito. Enquanto o projeto legado existir, manter seus testes e o projeto unico e mais simples do que introduzir camadas artificiais.
 
 Excessos ou sinais de atencao:
 
 - o fallback `Auth.Api` nao deve voltar para a stack principal sem nova decisao;
-- qualquer evolucao de identidade deve acontecer no Keycloak ou em outro IdP OIDC real.
+- o IdentityService nao deve virar emissor de tokens nem absorver regras de autorizacao dos servicos financeiros;
+- o envio atual de e-mail nao tem Outbox, retry duravel ou DLQ; ADR-0095 registra essa evolucao apenas como futura.
 
 Simplificacoes recomendadas:
 
 - manter Keycloak como provedor principal;
+- manter IdentityService focado em cadastro, MerchantId, vinculo com Keycloak e e-mail de boas-vindas;
 - manter `Auth.Api` pequeno, testado e fora do compose principal enquanto houver necessidade de compatibilidade;
 - remover completamente `Auth.Api` apenas em etapa futura dedicada.
 
@@ -93,6 +95,8 @@ Simplificacoes recomendadas:
 - Duplicidade de padroes entre Ledger e Balance pode confundir contribuidores.
 - Acoplamento operacional no `Program.cs` pode virar composicao dificil de testar.
 - Auth.Api legado pode ser confundido com caminho operacional se voltar a aparecer na stack principal.
+- IdentityService pode ser confundido com IdP se a documentacao nao deixar claro que tokens continuam sendo emitidos pelo Keycloak.
+- E-mail de boas-vindas no IdentityService e side effect pos-commit sem garantia duravel; isso e aceitavel para a POC, mas deve ser reavaliado se virar requisito critico.
 - Outbox/DLQ exigem operacao cuidadosa de reprocessamento; ja existem runbooks e casos de uso internos, mas ainda nao ha automacao operacional completa para todos os cenarios produtivos.
 - Baseline produtivo GCP/seguranca foi consolidado como referencia arquitetural em [production-readiness.md](production-readiness.md), mas ainda precisa virar decisoes e automacoes especificas antes de tratar o projeto como referencia operacional fora do laboratorio local.
 - DAST/ZAP segue sem workflow ou gate automatizado.
@@ -109,6 +113,7 @@ O roadmap consolidado por areas de maturidade fica em [docs/roadmap.md](../roadm
 - Manter documentada a diferenca entre `LedgerEntryCreated.v2` atual e fallback `BRL` apenas para v1 legado.
 - Padronizar onde ficam portas de persistencia nos proximos servicos; nao mover agora sem refactor dedicado.
 - Manter OpenAPI automatizado como parte da validacao de contrato HTTP: geracao, lint, drift e diff de breaking changes.
+- Manter os diagramas do IdentityService sincronizados com as ADRs 0089-0095 e com o contrato `docs/openapi/identity.v1.json`.
 
 ### Medio prazo
 
@@ -123,6 +128,7 @@ O roadmap consolidado por areas de maturidade fica em [docs/roadmap.md](../roadm
 ### Longo prazo
 
 - Remover o projeto Auth.Api legado quando nao houver mais necessidade de compatibilidade.
+- Evoluir e-mail do IdentityService para Outbox/worker/DLQ apenas se houver necessidade concreta de entrega duravel ou reprocessamento operacional.
 - Evoluir replay/redrive de DLQ e reconstrucao de projecoes de runbooks e casos de uso internos para operacao mais automatizada quando houver necessidade real.
 - Avaliar .NET Aspire apenas se a operacao local/orquestracao se tornar gargalo real.
 - Evoluir orquestracao/deploy para tratar APIs e workers como unidades operacionais independentes, incluindo rollout sem duplicidade de HostedServices.
@@ -132,6 +138,7 @@ O roadmap consolidado por areas de maturidade fica em [docs/roadmap.md](../roadm
 Adotar arquitetura minimalista e pragmatica, robusta onde a complexidade e real:
 
 - LedgerService e BalanceService continuam com camadas `Api`, `Application`, `Domain` e `Infrastructure`.
+- IdentityService continua com camadas `Api`, `Application`, `Domain` e `Infrastructure`, sem Worker ou mensageria nesta etapa.
 - `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker` sao processos separados, com composition roots explicitos e `ServiceName` proprio.
 - Auth.Api legado continua como projeto simples fora da stack principal enquanto existir.
 - Boundaries devem ser reforcados por documentacao, testes de contrato e revisao de dependencias, nao por novas camadas preventivas.
