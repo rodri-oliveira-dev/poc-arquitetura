@@ -47,16 +47,22 @@ Copy-Item .env.local.example .env.local
 O caminho mais rapido para onboarding e gerar valores locais descartaveis:
 
 ```powershell
-./scripts/local/init-env.ps1
+./scripts/local/create-env-local.ps1
+```
+
+Se a politica local do PowerShell bloquear scripts, execute a mesma geracao sem alterar a politica persistente da maquina:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/local/create-env-local.ps1
 ```
 
 No Linux/macOS:
 
 ```bash
-./scripts/local/init-env.sh
+./scripts/local/create-env-local.sh
 ```
 
-O script nao sobrescreve `.env.local` existente; use `-Force` no PowerShell ou `--force` no shell apenas quando quiser recriar conscientemente o arquivo local. O arquivo `.env.local` e ignorado pelo Git e nao deve ser versionado. Os scripts `scripts/local/start-stack.*` e `scripts/local/start-full-stack.*` tambem leem `.env.local` automaticamente; `.env` permanece aceito como fallback para compatibilidade com fluxos antigos.
+O script nao sobrescreve `.env.local` existente; use `-Force` no PowerShell ou `--force` no shell apenas quando quiser recriar conscientemente o arquivo local. Os wrappers antigos `scripts/local/init-env.*` continuam disponiveis para compatibilidade. O arquivo `.env.local` e ignorado pelo Git e nao deve ser versionado. Os scripts `scripts/local/start-stack.*` e `scripts/local/start-full-stack.*` tambem leem `.env.local` automaticamente; `.env` permanece aceito como fallback para compatibilidade com fluxos antigos.
 
 Comandos manuais de Compose devem usar `--env-file .env.local`, porque o Docker Compose nao carrega `.env.local` automaticamente. O comando sem `--env-file`, como `docker compose -f compose.yaml config --quiet`, carrega apenas variaveis exportadas no ambiente da sessao e o arquivo `.env` da raiz do repositorio. Se voce precisa usar esse formato curto, crie um `.env` local ignorado pelo Git a partir do exemplo versionado:
 
@@ -72,6 +78,17 @@ Copy-Item .env.example .env
 
 Depois preencha os placeholders no `.env`. Nao copie valores reais para `.env.example` ou `.env.local.example`.
 
+Resumo dos arquivos de ambiente:
+
+| Arquivo | Versionado | Uso |
+| --- | --- | --- |
+| `.env.example` | Sim | Exemplo generico e compatibilidade com fluxos que dependem do arquivo `.env`. Deve conter apenas placeholders ou valores locais descartaveis. |
+| `.env.local.example` | Sim | Exemplo principal para a stack local atual, incluindo Identity, JWT, Kafka, Mailpit, Resend vazio e observabilidade. Deve conter apenas placeholders ou valores locais descartaveis. |
+| `.env.local` | Nao | Arquivo sensivel da maquina do desenvolvedor, usado por Compose e scripts locais. Gere com `scripts/local/create-env-local.*` ou preencha manualmente. |
+| `.env` | Nao | Fallback local sensivel para compatibilidade com comandos Compose sem `--env-file`. Prefira `.env.local` nos fluxos novos. |
+
+`.env` e `.env.local` sao ignorados pelo Git e devem ser tratados como secrets locais. Nao copie valores reais deles para exemplos, documentacao, issues, logs compartilhados ou commits.
+
 ## Organizacao dos scripts
 
 Os scripts locais ficam em subpastas de `scripts/` por finalidade. Use os caminhos novos neste guia; a politica de wrappers antigos fica em [scripts.md](scripts.md).
@@ -86,6 +103,8 @@ Variaveis sensiveis obrigatorias para o compose principal:
 - `BALANCE_DB_MIGRATOR_PASSWORD`
 - `TRANSFER_DB_PASSWORD`
 - `TRANSFER_DB_MIGRATOR_PASSWORD`
+- `IDENTITY_DB_PASSWORD`
+- `IDENTITY_DB_MIGRATOR_PASSWORD`
 - `KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD`
 - `KEYCLOAK_CLIENT_SECRET`
 - `KEYCLOAK_LOCAL_LEDGER_USER_PASSWORD`
@@ -94,11 +113,15 @@ Variaveis sensiveis obrigatorias para o compose principal:
 
 Variaveis nao sensiveis ou identificadores locais continuam com defaults no compose ou exemplos em `.env.local.example`, como `POSTGRES_HOST_PORT=15432`, `PUBSUB_EMULATOR_HOST_PORT=8085`, `PUBSUB_PROJECT_ID=poc-local` e os nomes locais de topics/subscriptions: `PUBSUB_LEDGER_EVENTS_TOPIC_ID`, `PUBSUB_LEDGER_EVENTS_DLQ_TOPIC_ID`, `PUBSUB_BALANCE_SUBSCRIPTION_ID` e `PUBSUB_LEDGER_EVENTS_DLQ_INSPECTION_SUBSCRIPTION_ID`.
 
+O Docker Compose roda os containers com ambiente `Local` e usa hostnames internos da rede Docker, como `postgres-db:5432`, `kafka:9092`, `keycloak:8080` e `mailpit:1025`. Debug ou `dotnet run` no host usa ambiente `Development` e deve apontar para as portas publicadas no host: `127.0.0.1:15432`, `127.0.0.1:19092`, `http://localhost:8081` e `localhost:1025`.
+
 As variaveis `AUTH_POC_USERNAME`, `AUTH_POC_PASSWORD` e `AUTH_POC_SCOPE` continuam aceitas apenas pelo overlay legado `compose.auth-legacy.yaml`.
 
-O mesmo `KEYCLOAK_CLIENT_SECRET` alimenta o client local `poc-automation` usado pelos scripts e pelo `TransferService.Worker` quando ele chama o `LedgerService.Api`. O scope service-to-service do worker fica em `TRANSFER_WORKER_LEDGER_AUTH_SCOPE`, com default `ledger.write`.
+O mesmo `KEYCLOAK_CLIENT_SECRET` alimenta o client local `poc-automation` usado pelos scripts e pelo `TransferService.Worker` quando ele chama o `LedgerService.Api`, e o client local `identity-service-admin` usado pelo `IdentityService.Api` para administrar usuarios no realm `poc`. O scope service-to-service do worker fica em `TRANSFER_WORKER_LEDGER_AUTH_SCOPE`, com default `ledger.write`.
 
-O PostgreSQL local roda em um unico container `postgres-db`, com volume `postgres-data`, database `appdb`, schemas `ledger`, `balance` e `transfer`, e usuarios separados por servico/responsabilidade. A inicializacao fica nos scripts versionados em `infra/postgres/init`. As connection strings dos servicos runtime no compose usam `postgres-db:5432/appdb`; as variaveis `LEDGER_DB_*`, `BALANCE_DB_*` e `TRANSFER_DB_*` configuram as senhas locais usadas pelo init do container e pelas connection strings do compose. Em volumes PostgreSQL existentes, alterar `.env.local` ou `compose.yaml` nao altera automaticamente roles, grants ou senhas ja gravadas no banco; para reaplicar o init, recrie conscientemente o volume local ou execute o SQL manualmente.
+O compose executa o job idempotente `keycloak-identity-admin-init` depois que o Keycloak fica healthy. Esse job usa `kcadm.sh` para atribuir `realm-management:manage-users` e `realm-management:view-users` a service account do client `identity-service-admin`; ele deve terminar com sucesso antes do `IdentityService.Api` iniciar.
+
+O PostgreSQL local roda em um unico container `postgres-db`, com volume `postgres-data`, database `appdb`, schemas `ledger`, `balance`, `transfer` e `identity`, e usuarios separados por servico/responsabilidade. A inicializacao fica nos scripts versionados em `infra/postgres/init`. As connection strings dos servicos runtime no compose usam `postgres-db:5432/appdb`; as variaveis `LEDGER_DB_*`, `BALANCE_DB_*`, `TRANSFER_DB_*` e `IDENTITY_DB_*` configuram as senhas locais usadas pelo init do container e pelas connection strings do compose. Em volumes PostgreSQL existentes, alterar `.env.local` ou `compose.yaml` nao altera automaticamente roles, grants ou senhas ja gravadas no banco; para reaplicar o init, recrie conscientemente o volume local ou execute o SQL manualmente.
 
 Topologia local de banco:
 
@@ -111,6 +134,8 @@ Topologia local de banco:
 | Migrations do BalanceService | `appdb.balance` | `balance_migrator_user` |
 | Runtime do TransferService.Api e TransferService.Worker | `appdb.transfer` | `transfer_app_user` |
 | Migrations do TransferService | `appdb.transfer` | `transfer_migrator_user` |
+| Runtime do IdentityService.Api | `appdb.identity` | `identity_app_user` |
+| Migrations do IdentityService | `appdb.identity` | `identity_migrator_user` |
 
 O `BalanceService.Api` deve permanecer read-only no banco: ele consulta a projecao `balance`, mas nao aplica eventos nem executa INSERT/UPDATE/DELETE. A escrita da projecao pertence ao `BalanceService.Worker` com `balance_write_user`. A reducao para um unico container e apenas local; o isolamento logico entre servicos continua sendo preservado por schemas, migrations separadas e grants por role.
 
@@ -127,9 +152,12 @@ Os scripts `scripts/local/start-stack.*` sobem por padrao o core funcional de de
 - `BalanceService.Worker`;
 - `TransferService.Api`;
 - `TransferService.Worker`;
-- PostgreSQL unico (`postgres-db`) com schemas `ledger`, `balance` e `transfer`;
+- `IdentityService.Api`;
+- job idempotente `keycloak-identity-admin-init` para permissao administrativa local do IdentityService no Keycloak;
+- PostgreSQL unico (`postgres-db`) com schemas `ledger`, `balance`, `transfer` e `identity`;
 - Kafka local;
 - job idempotente de inicializacao dos topicos Kafka de Ledger, Balance e Transfer.
+- Mailpit para capturar e-mails locais sem envio real.
 
 Esse modo tambem pode ser chamado de Dev Lite quando o foco for reduzir consumo local: ele significa core funcional sem observabilidade, SonarQube, k6, Nginx overlay e `Auth.Api` legado. Dev Lite nao significa "sem workers"; `LedgerService.Worker`, `BalanceService.Worker` e `TransferService.Worker` continuam no fluxo padrao porque validam Outbox, Kafka, projecao e processamento de Saga ponta a ponta.
 
@@ -169,7 +197,35 @@ No Linux/macOS:
 ./scripts/local/start-stack.sh
 ```
 
-Esse fluxo sobe banco, Kafka e Keycloak, aplica migrations pelo host e depois inicia `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api`, `BalanceService.Worker`, `TransferService.Api` e `TransferService.Worker`.
+Esse fluxo sobe banco, Kafka, Keycloak e Mailpit, aplica migrations pelo host e depois inicia `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api`, `BalanceService.Worker`, `TransferService.Api`, `TransferService.Worker` e `IdentityService.Api`.
+
+Para validar somente as dependencias do `IdentityService.Api` via Compose, use a stack minima:
+
+```powershell
+./scripts/local/create-env-local.ps1
+docker compose --env-file .env.local -f compose.yaml up -d --build postgres-db keycloak mailpit identity-service
+```
+
+No Linux/macOS:
+
+```bash
+./scripts/local/create-env-local.sh
+docker compose --env-file .env.local -f compose.yaml up -d --build postgres-db keycloak mailpit identity-service
+```
+
+O `identity-service` depende do job `keycloak-identity-admin-init`; em maquinas lentas, o container pode ficar em `Created` ate esse job concluir. Valide depois com:
+
+```powershell
+docker compose --env-file .env.local -f compose.yaml ps postgres-db keycloak mailpit keycloak-identity-admin-init identity-service
+Invoke-WebRequest http://localhost:5232/health -UseBasicParsing
+Invoke-WebRequest http://localhost:5232/ready -UseBasicParsing
+```
+
+## Mailpit local para IdentityService
+
+O `IdentityService.Api` usa `Email:Provider=Mailpit` no compose local. O Mailpit expõe SMTP em `localhost:1025` e UI em <http://localhost:8025>. Dentro da rede Docker, o host SMTP configurado para a API e `mailpit:1025`.
+
+Para alternar para Resend em ambiente real, configure `Email:Provider=Resend` e forneça `Resend:ApiKey` por secret store ou variavel de ambiente. Nao versione a chave e nao use Resend em testes automatizados. Testes unitarios e de integracao do IdentityService devem substituir `IEmailSender` por fake quando o envio real nao for o comportamento sob teste.
 
 Os scripts `scripts/local/start-stack.*` usam Docker Compose, restauram tools .NET, aplicam migrations pelo host e nao removem volumes. Eles nao executam testes automatizados, k6 nem scanners.
 
@@ -336,7 +392,7 @@ docker compose --env-file .env.local -f compose.yaml config
 docker compose --env-file .env.local -f compose.yaml config --services
 ```
 
-Se a validacao retornar erro como `required variable LEDGER_DB_PASSWORD is missing a value`, falta uma fonte de variaveis para interpolacao. Use `--env-file .env.local`, exporte as variaveis na sessao ou crie `.env` local a partir de `.env.example` quando quiser rodar `docker compose -f compose.yaml config --quiet` sem argumentos extras.
+Se a validacao retornar erro como `required variable LEDGER_DB_PASSWORD is missing a value`, falta uma fonte de variaveis para interpolacao ou o `.env.local` ficou defasado em relacao ao `compose.yaml`. Use `--env-file .env.local`, regenere conscientemente o arquivo com `scripts/local/create-env-local.* -Force`/`--force`, exporte as variaveis ausentes na sessao ou crie `.env` local a partir de `.env.example` quando quiser rodar `docker compose -f compose.yaml config --quiet` sem argumentos extras.
 
 O socket Docker, mesmo montado como somente leitura, e uma superficie sensivel. Use o profile `observability` apenas em maquina local confiavel; nao use em ambiente compartilhado ou produtivo sem redesenhar a coleta de logs e revisar permissoes.
 
@@ -413,7 +469,9 @@ Credenciais locais descartaveis:
 - usuario: `local_admin`
 - senha: valor local de `KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD`
 
-Para sobrescrever porta, credenciais administrativas ou credenciais do client de automacao local, copie `.env.local.example` para `.env.local` e ajuste `KEYCLOAK_HOST_PORT`, `KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME`, `KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD`, `KEYCLOAK_CLIENT_ID`, `KEYCLOAK_CLIENT_SECRET` e as senhas dos usuarios locais de debug. Esses valores sao apenas para desenvolvimento local e nao devem ser usados em ambientes compartilhados ou produtivos.
+Para sobrescrever porta, credenciais administrativas ou credenciais dos clients locais, copie `.env.local.example` para `.env.local` e ajuste `KEYCLOAK_HOST_PORT`, `KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME`, `KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD`, `KEYCLOAK_CLIENT_ID`, `KEYCLOAK_IDENTITY_ADMIN_CLIENT_ID`, `KEYCLOAK_CLIENT_SECRET` e as senhas dos usuarios locais de debug. Esses valores sao apenas para desenvolvimento local e nao devem ser usados em ambientes compartilhados ou produtivos.
+
+No compose, o `IdentityService.Api` fala com o Keycloak pela rede Docker usando `KEYCLOAK_INTERNAL_BASE_URL=http://keycloak:8080`. O `IdentityProvider:Keycloak:TokenEndpoint` aceita URL HTTP/HTTPS absoluta ou caminho relativo, com ou sem `/` inicial; quando for relativo, ele e combinado com `IdentityProvider:Keycloak:BaseUrl`. O valor local padrao e `/realms/poc/protocol/openid-connect/token`.
 
 O container usa `start-dev --import-realm`, healthcheck nativo em `/health/ready` na porta de gerenciamento interna `9000` e importa o realm versionado de `infra/keycloak/realm-poc.json`. O compose monta esse arquivo em `/opt/keycloak/data/import/realm-poc.json` como somente leitura.
 
@@ -422,6 +480,7 @@ O realm local importado se chama `poc` e expoe:
 - discovery OIDC: `http://localhost:8081/realms/poc/.well-known/openid-configuration`;
 - JWKS: `http://localhost:8081/realms/poc/protocol/openid-connect/certs`;
 - client local de automacao: `poc-automation`;
+- client administrativo local do IdentityService: `identity-service-admin`;
 - clients locais de debug manual: `poc-local-ledger-debug`, `poc-local-balance-debug` e `poc-local-admin-debug`;
 - fluxo preferencial para scripts: `client_credentials`;
 - audiences: `ledger-api`, `balance-api` e `transfer-api`;
@@ -430,7 +489,7 @@ O realm local importado se chama `poc` e expoe:
 
 As APIs continuam usando `Jwt:JwksUrl` direto, sem introspeccao por request e sem consumir discovery metadata nesta etapa. No compose, `JWT_ISSUER` deve corresponder ao `iss` publico do token (`http://localhost:8081/realms/poc`) e `JWT_JWKS_URL` deve apontar para o endpoint de certificados acessivel pela rede interna (`http://keycloak:8080/realms/poc/protocol/openid-connect/certs`). Para voltar temporariamente ao emissor legado, suba `compose.auth-legacy.yaml` e configure `JWT_ISSUER=https://auth-api`, `JWT_JWKS_URL=http://auth-api:8080/.well-known/jwks.json` e `TOKEN_PROVIDER=auth-api`.
 
-O segredo do client `poc-automation` vem de `KEYCLOAK_CLIENT_SECRET` no ambiente do container. O arquivo de realm usa placeholder resolvido pelo Keycloak durante `start-dev --import-realm`, mantendo o valor real fora do repositorio.
+O segredo dos clients `poc-automation` e `identity-service-admin` vem de `KEYCLOAK_CLIENT_SECRET` no ambiente do container. O arquivo de realm usa placeholder resolvido pelo Keycloak durante `start-dev --import-realm`, mantendo o valor real fora do repositorio.
 
 Para obter um token Keycloak local, use os scripts versionados. Eles imprimem somente o token em `stdout`:
 
@@ -454,7 +513,7 @@ curl -s -X POST http://localhost:8081/realms/poc/protocol/openid-connect/token \
   -d "client_secret=<KEYCLOAK_CLIENT_SECRET>"
 ```
 
-Para confirmar que o realm foi importado, acesse o Admin Console em `http://localhost:8081/` com `local_admin` e o valor local de `KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD`, selecione o realm `poc` no seletor de realms e confira `Clients` e `Users`. Em uma stack recem-criada, devem existir os clients `poc-automation`, `poc-local-ledger-debug`, `poc-local-balance-debug` e `poc-local-admin-debug`, alem dos usuarios locais abaixo.
+Para confirmar que o realm foi importado, acesse o Admin Console em `http://localhost:8081/` com `local_admin` e o valor local de `KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD`, selecione o realm `poc` no seletor de realms e confira `Clients` e `Users`. Em uma stack recem-criada, devem existir os clients `poc-automation`, `identity-service-admin`, `poc-local-ledger-debug`, `poc-local-balance-debug` e `poc-local-admin-debug`, alem dos usuarios locais abaixo.
 
 Usuarios locais de debug importados no realm:
 
@@ -898,23 +957,29 @@ dotnet tool run dotnet-ef -- database update `
 
 ## Execucao no host
 
-Use este modo quando PostgreSQL e o provider de mensageria escolhido ja estiverem disponiveis e voce quiser rodar ou depurar os processos no host. Para execucao local fora do container, use `DOTNET_ENVIRONMENT=Local`. Os profiles de debug dos workers ja configuram `DOTNET_ENVIRONMENT=Local`. Para Pub/Sub, configure `Messaging__Provider=PubSub` e `PUBSUB_EMULATOR_HOST=127.0.0.1:8085`; para Kafka, use os bootstrap servers locais em `127.0.0.1:19092`.
+Use este modo quando PostgreSQL, Kafka, Keycloak e Mailpit ja estiverem disponiveis pelo Compose e voce quiser rodar ou depurar processos no host. Fora do container, APIs usam `ASPNETCORE_ENVIRONMENT=Development` e workers usam `DOTNET_ENVIRONMENT=Development`; assim os processos carregam `appsettings.Development.json` e usam hosts publicados em `localhost` ou `127.0.0.1`.
 
-Para usar configuracao por arquivo no host, copie os exemplos `appsettings.Local.example.json` para `appsettings.Local.json` quando o projeto possuir esse arquivo de exemplo:
+Nao use `Local` para debug no host. `Local` e o ambiente dos containers do Compose e depende de hostnames internos da rede Docker, como `postgres-db`, `kafka`, `keycloak` e `mailpit`.
+
+Antes do debug, suba as dependencias:
 
 ```powershell
-Copy-Item src\LedgerService.Worker\appsettings.Local.example.json src\LedgerService.Worker\appsettings.Local.json
-Copy-Item src\BalanceService.Worker\appsettings.Local.example.json src\BalanceService.Worker\appsettings.Local.json
+docker compose --env-file .env.local -f compose.yaml up -d postgres-db kafka kafka-init-topics keycloak mailpit
 ```
 
-No Linux/macOS:
+Portas locais padrao:
 
-```bash
-cp src/LedgerService.Worker/appsettings.Local.example.json src/LedgerService.Worker/appsettings.Local.json
-cp src/BalanceService.Worker/appsettings.Local.example.json src/BalanceService.Worker/appsettings.Local.json
-```
-
-Substitua os placeholders de senha pelos valores locais e mantenha `PUBSUB_EMULATOR_HOST` como variavel de ambiente do processo, por exemplo `$env:PUBSUB_EMULATOR_HOST = "127.0.0.1:8085"` para o emulator local. Os arquivos `appsettings.Local.json` reais sao locais, ignorados pelo Git e nao devem ser versionados.
+| Recurso | Host local |
+| --- | --- |
+| PostgreSQL | `127.0.0.1:15432` |
+| Kafka | `127.0.0.1:19092` |
+| Keycloak | `http://localhost:8081` |
+| Mailpit SMTP | `localhost:1025` |
+| Mailpit UI | `http://localhost:8025` |
+| LedgerService.Api | `http://localhost:5226` |
+| BalanceService.Api | `http://localhost:5228` |
+| TransferService.Api | `http://localhost:${TRANSFER_SERVICE_HOST_PORT:-5230}` |
+| IdentityService.Api | `http://localhost:${IDENTITY_SERVICE_HOST_PORT:-5232}` |
 
 Restaure as ferramentas:
 
@@ -922,23 +987,42 @@ Restaure as ferramentas:
 dotnet tool restore
 ```
 
-Suba as APIs:
+Execute APIs no host:
 
-```bash
+```powershell
 dotnet run --project src\LedgerService.Api\LedgerService.Api.csproj
-dotnet run --project src\LedgerService.Worker\LedgerService.Worker.csproj
 dotnet run --project src\BalanceService.Api\BalanceService.Api.csproj
-dotnet run --project src\BalanceService.Worker\BalanceService.Worker.csproj
+dotnet run --project src\TransferService.Api\TransferService.Api.csproj
+dotnet run --project src\identity\IdentityService.Api\IdentityService.Api.csproj
 ```
 
-As portas padrao sao:
+Os `launchSettings.json` das APIs configuram `ASPNETCORE_ENVIRONMENT=Development`. Para o `IdentityService.Api`, informe o segredo administrativo do Keycloak por variavel de ambiente local ou User Secrets, sem versionar:
 
-- LedgerService.Api: `http://localhost:5226/`;
-- BalanceService.Api: `http://localhost:5228/`.
+```powershell
+$env:IdentityProvider__Keycloak__ClientSecret = "<KEYCLOAK_CLIENT_SECRET>"
+dotnet run --project src\identity\IdentityService.Api\IdentityService.Api.csproj
+```
 
-`LedgerService.Worker` e `BalanceService.Worker` nao expoem porta HTTP; acompanhe pelo console ou logs dos containers.
+O `IdentityService.Api` em `Development` usa `PostgreSQL` em `127.0.0.1:15432`, Keycloak em `http://localhost:8081` e Mailpit em `localhost:1025`. Valide com:
 
-Quando APIs ou workers rodam no host contra o PostgreSQL iniciado pelo compose, use a porta publicada no host: `15432`.
+```powershell
+Invoke-WebRequest http://localhost:5232/health -UseBasicParsing
+Invoke-WebRequest http://localhost:5232/ready -UseBasicParsing
+```
+
+O `TransferService.Api` em `Development` usa JWT/JWKS do Keycloak local (`http://localhost:8081/realms/poc`) e banco em `127.0.0.1:15432`.
+
+Execute workers no host:
+
+```powershell
+dotnet run --project src\LedgerService.Worker\LedgerService.Worker.csproj
+dotnet run --project src\BalanceService.Worker\BalanceService.Worker.csproj
+dotnet run --project src\TransferService.Worker\TransferService.Worker.csproj
+```
+
+Os `launchSettings.json` dos workers configuram `DOTNET_ENVIRONMENT=Development`. `LedgerService.Worker` e `BalanceService.Worker` usam Kafka em `127.0.0.1:19092` pelos `appsettings.Development.json`. `TransferService.Worker` usa Kafka em `127.0.0.1:19092`, Ledger em `http://localhost:5226` e token endpoint em `http://localhost:8081/realms/poc/protocol/openid-connect/token`; informe `TransferService__Worker__Ledger__Auth__ClientSecret` por variavel local ou User Secrets.
+
+Workers nao expoem porta HTTP; acompanhe pelo console, logs e topicos Kafka locais. Evite rodar workers contra uma stack compartilhada ou contra topicos com dados que voce nao queira processar.
 
 ## Configuracao
 
@@ -955,6 +1039,24 @@ Nao versione segredos. Arquivos versionados de configuracao devem conter apenas 
 Essa separacao mantem a experiencia local simples e tambem reduz ruido de ferramentas como SonarQube e Trivy: os scanners continuam analisando os arquivos versionados sem encontrar credenciais descartaveis hard-coded, enquanto cada desenvolvedor ainda consegue preencher os valores reais somente na propria maquina.
 
 Em ambientes compartilhados ou produtivos, remova `PUBSUB_EMULATOR_HOST`, use identidade de workload quando Pub/Sub real for selecionado explicitamente e configure transporte seguro para o provider escolhido. JWKS via HTTP e Kafka `Plaintext` nao devem ser usados fora do local.
+
+### Troubleshooting - configuracao local
+
+| Sintoma | Causa comum | Como corrigir |
+| --- | --- | --- |
+| `required variable ... is missing a value` no `docker compose config` | `.env.local` nao existe, esta incompleto, ficou defasado apos mudanca no compose ou o comando nao usou `--env-file .env.local`. | Rode `./scripts/local/create-env-local.ps1` ou `./scripts/local/create-env-local.sh`; depois use `docker compose --env-file .env.local -f compose.yaml config --quiet`. Se o arquivo ja existir, compare apenas os nomes das variaveis com `.env.local.example`, sem expor valores reais, ou recrie conscientemente com `-Force`/`--force` quando os valores locais forem descartaveis. |
+| `.env.local ja existe` ao rodar o script | O script protege o arquivo local por padrao. | Use o arquivo existente, ou recrie conscientemente com `-Force`/`--force` apenas se os valores locais forem descartaveis. |
+| PowerShell bloqueia `scripts/local/create-env-local.ps1` por `ExecutionPolicy` | Politica local do Windows impede execucao direta de scripts `.ps1`. | Use `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/local/create-env-local.ps1` somente para esse processo, ou ajuste a politica local conforme regra da sua maquina. |
+| `.env.local` foi gerado mas nao aparece no `git status` | Comportamento esperado: o arquivo e ignorado. | Valide com `git status --ignored .env.local`; o resultado deve mostrar `!! .env.local`. |
+| `appsettings.Development.json` nao parece carregar | Ambiente incorreto no processo. | APIs devem usar `ASPNETCORE_ENVIRONMENT=Development`; workers devem usar `DOTNET_ENVIRONMENT=Development`. No Compose, o ambiente correto continua sendo `Local`. |
+| Processo no host tenta resolver `postgres-db`, `kafka`, `keycloak` ou `mailpit` | Configuracao de container (`Local`) vazou para debug no host. | Use `Development` no host e aponte para `127.0.0.1:15432`, `127.0.0.1:19092`, `http://localhost:8081` e `localhost:1025`. |
+| `/ready` retorna 503 com `password authentication failed` no Postgres | Volume PostgreSQL antigo preserva senhas de roles criadas em outra geracao do `.env.local`. | Reuse as senhas antigas no `.env.local`, atualize a senha da role manualmente, ou recrie conscientemente o volume local descartavel. Nao altere migrations para corrigir senha local. |
+| Migration falha com senha invalida de role | Senha do usuario migrator no banco nao corresponde ao `.env.local`. | Sincronize `*_DB_MIGRATOR_PASSWORD` com a role existente ou recrie o volume local quando os dados forem descartaveis. |
+| Keycloak indisponivel em `localhost:8081` | Container ainda inicializando, porta em conflito ou healthcheck ainda nao ficou healthy. | Confira `docker compose --env-file .env.local -f compose.yaml ps keycloak` e `docker compose --env-file .env.local -f compose.yaml logs keycloak`. O primeiro start pode levar alguns minutos. |
+| `invalid_client_credentials` ou token endpoint incorreto | `KEYCLOAK_CLIENT_SECRET`, client id ou endpoint nao batem com o realm local. | Use `KEYCLOAK_TOKEN_ENDPOINT=/realms/poc/protocol/openid-connect/token`, `KEYCLOAK_CLIENT_ID=poc-automation` para automacao/worker e `KEYCLOAK_IDENTITY_ADMIN_CLIENT_ID=identity-service-admin` para o IdentityService. Nao versionar o secret. |
+| Kafka indisponivel no host | `kafka` nao subiu, `kafka-init-topics` nao concluiu ou o processo usa `kafka:9092` fora do container. | Suba `postgres-db kafka kafka-init-topics keycloak mailpit`; no host use `127.0.0.1:19092`. Dentro do Compose, use `kafka:9092`. |
+| E-mail nao chega no Mailpit | Provider de e-mail nao esta `Mailpit`, host SMTP incorreto ou IdentityService esta rodando com configuracao de container no host. | Em `Development`, use `Email__Provider=Mailpit`, `Mailpit__Host=localhost`, `Mailpit__Port=1025`; abra a UI em `http://localhost:8025`. |
+| Resend retorna erro de autenticacao | `Resend__ApiKey` vazio ou invalido. | Configure `Email__Provider=Resend` e `Resend__ApiKey` apenas por secret store, User Secrets ou variavel de ambiente local. Nunca coloque a API key em arquivo versionado. |
 
 ## Politica local de imagens
 

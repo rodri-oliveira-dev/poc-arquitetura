@@ -37,6 +37,8 @@ services:
       BALANCE_DB_MIGRATOR_PASSWORD: "${BALANCE_DB_MIGRATOR_PASSWORD:?Defina BALANCE_DB_MIGRATOR_PASSWORD no ambiente ou em .env.local}"
       TRANSFER_DB_PASSWORD: "${TRANSFER_DB_PASSWORD:?Defina TRANSFER_DB_PASSWORD no ambiente ou em .env.local}"
       TRANSFER_DB_MIGRATOR_PASSWORD: "${TRANSFER_DB_MIGRATOR_PASSWORD:?Defina TRANSFER_DB_MIGRATOR_PASSWORD no ambiente ou em .env.local}"
+      IDENTITY_DB_PASSWORD: "${IDENTITY_DB_PASSWORD:?Defina IDENTITY_DB_PASSWORD no ambiente ou em .env.local}"
+      IDENTITY_DB_MIGRATOR_PASSWORD: "${IDENTITY_DB_MIGRATOR_PASSWORD:?Defina IDENTITY_DB_MIGRATOR_PASSWORD no ambiente ou em .env.local}"
     ports:
       # Porta exposta para uso local (psql, migrations, etc.)
       # Obs: pode conflitar com um Postgres já rodando no host.
@@ -235,6 +237,23 @@ services:
         /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists \
           --topic transfer.transferencia.dlq --partitions 1 --replication-factor 1;
         echo "[kafka-init-topics] OK.";
+
+  # --- Local email capture ---
+  mailpit:
+    image: axllent/mailpit
+    container_name: poc-mailpit
+    logging: *default-logging
+    ports:
+      - "${MAILPIT_SMTP_HOST_PORT:-1025}:1025"
+      - "${MAILPIT_UI_HOST_PORT:-8025}:8025"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128m
+          pids: 128
+    networks:
+      - poc-net
 
   # --- Microservices ---
   ledger-service:
@@ -480,6 +499,98 @@ services:
       Observability__OpenTelemetry__UseConsoleExporter: "false"
       Observability__OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"
       Observability__OpenTelemetry__ServiceName: "TransferService.Worker"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512m
+          pids: 256
+    networks:
+      - poc-net
+
+  keycloak-identity-admin-init:
+    image: quay.io/keycloak/keycloak:26.6.2
+    container_name: poc-keycloak-identity-admin-init
+    logging: *default-logging
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    environment:
+      KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME: "${KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME:-local_admin}"
+      KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD: "${KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD:?Defina KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD no ambiente ou em .env.local}"
+      KEYCLOAK_IDENTITY_ADMIN_CLIENT_ID: "${KEYCLOAK_IDENTITY_ADMIN_CLIENT_ID:-identity-service-admin}"
+    entrypoint:
+      - /bin/bash
+      - -ec
+      - |
+        echo "[keycloak-identity-admin-init] Configurando roles administrativas do IdentityService...";
+        /opt/keycloak/bin/kcadm.sh config credentials \
+          --server http://keycloak:8080 \
+          --realm master \
+          --user "$$KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME" \
+          --password "$$KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD" \
+          1>/dev/null;
+        /opt/keycloak/bin/kcadm.sh add-roles \
+          -r poc \
+          --uusername "service-account-$$KEYCLOAK_IDENTITY_ADMIN_CLIENT_ID" \
+          --cclientid realm-management \
+          --rolename manage-users \
+          --rolename view-users;
+        echo "[keycloak-identity-admin-init] OK.";
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256m
+          pids: 128
+    networks:
+      - poc-net
+
+  identity-service:
+    build:
+      context: .
+      dockerfile: src/identity/IdentityService.Api/Dockerfile
+    container_name: poc-identity-service
+    logging: *default-logging
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+      keycloak-identity-admin-init:
+        condition: service_completed_successfully
+      mailpit:
+        condition: service_started
+    environment:
+      ASPNETCORE_URLS: "http://+:8080"
+      ASPNETCORE_ENVIRONMENT: "Local"
+
+      Jwt__Issuer: "${JWT_ISSUER:-http://localhost:8081/realms/poc}"
+      Jwt__Audience: "identity-api"
+      Jwt__JwksUrl: "${JWT_JWKS_URL:-http://keycloak:8080/realms/poc/protocol/openid-connect/certs}"
+      Jwt__RequireHttpsMetadata: "${JWT_REQUIRE_HTTPS_METADATA:-false}"
+
+      ConnectionStrings__DefaultConnection: "Host=postgres-db;Port=5432;Database=appdb;Username=identity_app_user;Password=${IDENTITY_DB_PASSWORD:?Defina IDENTITY_DB_PASSWORD no ambiente ou em .env.local}"
+      # BaseUrl deve ser a URL HTTP/HTTPS acessivel dentro da rede Docker.
+      IdentityProvider__Keycloak__BaseUrl: "${KEYCLOAK_INTERNAL_BASE_URL:-http://keycloak:8080}"
+      IdentityProvider__Keycloak__Realm: "poc"
+      # TokenEndpoint aceita URL HTTP/HTTPS absoluta ou caminho relativo combinado com BaseUrl.
+      IdentityProvider__Keycloak__TokenEndpoint: "${KEYCLOAK_TOKEN_ENDPOINT:-/realms/poc/protocol/openid-connect/token}"
+      IdentityProvider__Keycloak__ClientId: "${KEYCLOAK_IDENTITY_ADMIN_CLIENT_ID:-identity-service-admin}"
+      IdentityProvider__Keycloak__ClientSecret: "${KEYCLOAK_CLIENT_SECRET:?Defina KEYCLOAK_CLIENT_SECRET no ambiente ou em .env.local}"
+      Email__Provider: "Mailpit"
+      Email__AuthenticationUrl: "http://localhost:${KEYCLOAK_HOST_PORT:-8081}/realms/poc/account"
+      Mailpit__Host: "mailpit"
+      Mailpit__Port: "1025"
+      Mailpit__EnableSsl: "false"
+      Mailpit__From: "noreply@poc-arquitetura.local"
+      Mailpit__FromName: "POC Arquitetura"
+      Observability__OpenTelemetry__Enabled: "${OTEL_ENABLED:-false}"
+      Observability__OpenTelemetry__UseConsoleExporter: "false"
+      Observability__OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"
+      Observability__OpenTelemetry__ServiceName: "IdentityService.Api"
+    ports:
+      - "${IDENTITY_SERVICE_HOST_PORT:-5232}:8080"
     deploy:
       resources:
         limits:

@@ -49,6 +49,24 @@ public sealed class KeycloakRealmContractTests
         Assert.DoesNotContain("*", merchantClaimValue);
     }
 
+    [Fact]
+    public void Identity_service_admin_client_should_be_able_to_manage_users()
+    {
+        using var document = JsonDocument.Parse(File.ReadAllText(FindRealmPath()));
+        var root = document.RootElement;
+
+        var client = FindByName(root.GetProperty("clients"), "clientId", "identity-service-admin");
+        Assert.False(client.GetProperty("publicClient").GetBoolean());
+        Assert.True(client.GetProperty("serviceAccountsEnabled").GetBoolean());
+        Assert.True(client.GetProperty("fullScopeAllowed").GetBoolean());
+
+        var roleMapper = FindByName(client.GetProperty("protocolMappers"), "name", "realm-management-client-roles");
+        var roleMapperConfig = roleMapper.GetProperty("config");
+        Assert.Equal("realm-management", roleMapperConfig.GetProperty("usermodel.clientRoleMapping.clientId").GetString());
+        Assert.Equal("resource_access.realm-management.roles", roleMapperConfig.GetProperty("claim.name").GetString());
+        Assert.Equal("true", roleMapperConfig.GetProperty("access.token.claim").GetString());
+    }
+
     private static void AssertClientScopeIsIncludedInTokenScope(JsonElement root, string scopeName)
     {
         var scope = FindByName(root.GetProperty("clientScopes"), "name", scopeName);

@@ -47,6 +47,18 @@
       "authorizationServicesEnabled": false
     },
     {
+      "clientId": "identity-api",
+      "name": "IdentityService.Api audience",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "authorizationServicesEnabled": false
+    },
+    {
       "clientId": "poc-automation",
       "name": "POC local automation",
       "description": "Client local descartavel para obter tokens via client_credentials.",
@@ -67,10 +79,47 @@
         "balance.read",
         "transfer.write",
         "transfer.read",
+        "identity.write",
+        "identity.read",
         "outbox.admin",
         "poc-api-audience",
         "poc-merchants"
       ],
+      "optionalClientScopes": []
+    },
+    {
+      "clientId": "identity-service-admin",
+      "name": "IdentityService local administration",
+      "description": "Client local descartavel usado pelo IdentityService.Api para administrar usuarios no realm poc.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "${KEYCLOAK_CLIENT_SECRET}",
+      "clientAuthenticatorType": "client-secret",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "authorizationServicesEnabled": false,
+      "fullScopeAllowed": true,
+      "protocolMappers": [
+        {
+          "name": "realm-management-client-roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-client-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "usermodel.clientRoleMapping.clientId": "realm-management",
+            "claim.name": "resource_access.realm-management.roles",
+            "jsonType.label": "String",
+            "multivalued": "true",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false"
+          }
+        }
+      ],
+      "defaultClientScopes": [],
       "optionalClientScopes": []
     },
     {
@@ -133,6 +182,8 @@
         "transfer.write",
         "transfer.read",
         "balance.read",
+        "identity.write",
+        "identity.read",
         "outbox.admin",
         "poc-api-audience",
         "poc-merchants"
@@ -196,6 +247,24 @@
       }
     },
     {
+      "name": "identity.write",
+      "description": "Permite cadastrar usuarios no IdentityService.",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      }
+    },
+    {
+      "name": "identity.read",
+      "description": "Permite consultar usuarios no IdentityService.",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      }
+    },
+    {
       "name": "poc-api-audience",
       "description": "Adiciona audiences das APIs da POC ao access token.",
       "protocol": "openid-connect",
@@ -233,6 +302,17 @@
           "consentRequired": false,
           "config": {
             "included.client.audience": "transfer-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        },
+        {
+          "name": "identity-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "identity-api",
             "id.token.claim": "false",
             "access.token.claim": "true"
           }
@@ -342,7 +422,7 @@
           "Facilitar debug local completo das APIs de negocio."
         ],
         "expected_scopes": [
-          "ledger.write ledger.read balance.read outbox.admin"
+          "ledger.write ledger.read balance.read identity.write identity.read outbox.admin"
         ],
         "expected_merchant_id": [
           "tese m1"

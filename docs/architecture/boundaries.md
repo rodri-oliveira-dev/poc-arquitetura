@@ -5,12 +5,14 @@
 A solucao atual e uma arquitetura hibrida:
 
 - Clean Architecture/DDD em LedgerService e BalanceService, com projetos `Api`, `Application`, `Domain` e `Infrastructure`.
-- Esqueleto inicial de Clean Architecture para TransferService, com projetos `Api`, `Application`, `Domain`, `Infrastructure` e `Worker`, ainda sem regra de negocio, persistencia ou endpoints funcionais.
+- Clean Architecture/DDD em IdentityService, com projetos `Api`, `Application`, `Domain` e `Infrastructure` em `src/identity`.
+- Clean Architecture/DDD em TransferService, com projetos `Api`, `Application`, `Domain`, `Infrastructure` e `Worker`, Saga orquestrada, persistencia, Outbox Kafka e endpoints HTTP.
 - Elementos hexagonais onde existem contratos de persistencia e implementacoes em Infrastructure.
 - Layered architecture na entrega HTTP, porque controllers, auth e composicao ficam concentrados nos projetos `*.Api`, com defaults tecnicos comuns em `Shared/ApiDefaults`.
 - Workers dedicados (`LedgerService.Worker` e `BalanceService.Worker`) para processamento assincrono continuo, sem superficie HTTP.
 - CQRS pragmatico entre servicos: Ledger escreve e publica eventos; Balance consome e mantem uma projecao de leitura.
-- Keycloak e o provedor principal de identidade da stack local.
+- Keycloak e o provedor principal de autenticacao/JWT da stack local.
+- IdentityService e o bounded context de cadastro e vinculo local de usuarios.
 - Auth.Api e legado, deliberadamente mais simples, em projeto unico e fora da stack principal.
 
 ## Boundaries recomendados
@@ -149,6 +151,25 @@ Pontos de atencao:
 - As consultas diaria e por periodo ficam diretamente em handlers MediatR. As interfaces e services intermediarios foram removidos porque apenas encaminhavam chamadas sem representar boundary ou variacao real.
 - A ausencia de currency no evento obriga default `BRL` no handler. Isso e uma fragilidade de contrato, nao uma regra de dominio consolidada.
 
+### IdentityService
+
+O `IdentityService` e o bounded context atual para cadastro de usuarios e emissao de `MerchantId`. Ele nao emite tokens e nao substitui o Keycloak como IdP. A API recebe `POST /api/v1/users`, exige token com audience `identity-api` e scope `identity.write`, chama o Keycloak Admin API para criar o usuario e definir senha, gera `MerchantId`, persiste o vinculo local no schema `identity` e retorna os identificadores do cadastro.
+
+Boundaries atuais:
+
+- `IdentityService.Api` contem Minimal APIs, contratos HTTP, Swagger, JWT/JWKS, policies, rate limit, health/readiness e composition root.
+- `IdentityService.Application` contem `CreateUserCommandHandler` e portas como `IIdentityProviderUserService`, `IMerchantIdGenerator`, `IUserRepository`, `IEmailSender` e `IEmailTemplateRenderer`.
+- `IdentityService.Domain` contem o aggregate `User`, value objects e `UserRegisteredDomainEvent`.
+- `IdentityService.Infrastructure` contem EF Core, `IdentityDbContext`, repositories, `KeycloakAdminClient`, Domain Event Dispatcher, handlers de e-mail, template HTML e adapters Mailpit/Resend.
+
+Pontos de atencao:
+
+- A senha e enviada ao Keycloak e nao deve ser persistida localmente.
+- Se a persistencia local falha apos criar o usuario no Keycloak, o handler tenta compensar removendo o usuario recem-criado no provider. Essa compensacao e best effort.
+- Domain events sao despachados depois do commit do EF Core. Falhas nos handlers sao logadas e nao revertem o cadastro.
+- O envio de e-mail atual e side effect intra-processo, sem Outbox, retry duravel, DLQ ou worker dedicado. A evolucao futura esta registrada na ADR-0095, mas nao esta implementada.
+- Mailpit e somente local/teste controlado; Resend e provider real configuravel via secret.
+
 ### TransferService
 
 O `TransferService` existe como bounded context de transferencias entre merchants conforme ADR-0087. A estrutura atual contem aggregate de Saga, portas de persistencia/idempotencia/Outbox em Application, `TransferServiceDbContext`, mappings EF Core, migration do schema `transfer`, repository concreto, idempotencia persistida, Outbox transacional, API HTTP de solicitacao/status, Worker de Saga, client HTTP do Ledger e publisher Kafka da Outbox.
@@ -173,6 +194,7 @@ Pontos de atencao:
 - A regra de login da POC vive no endpoint. Isso e aceitavel enquanto for autenticacao local temporaria e documentada.
 - Se Auth.Api evoluir para usuarios reais, refresh tokens, revogacao, persistencia e federacao OIDC, ai sim boundaries mais fortes seriam necessarios.
 - A migracao para Keycloak foi aplicada na stack principal; o Auth.Api permanece apenas para compatibilidade e rastreabilidade.
+- Fluxos novos de cadastro, gestao de usuarios e e-mail pertencem ao IdentityService, nao ao Auth.Api.
 
 ## Anti-patterns encontrados ou proximos
 
@@ -190,6 +212,7 @@ A arquitetura ideal para este projeto deve ser minimalista e pragmatica, com rob
 
 - manter quatro camadas para LedgerService e BalanceService;
 - manter o TransferService como bounded context separado, com Saga e Outbox Kafka alinhados ao broker padrao, sem misturar Pub/Sub no fluxo da Saga;
+- manter o IdentityService como bounded context separado para usuarios, MerchantId, vinculo local com Keycloak e e-mail de boas-vindas;
 - manter APIs e workers como processos separados, com composition root e `ServiceName` explicitos por processo;
 - manter Auth.Api legado em projeto unico enquanto ele existir;
 - reforcar boundaries onde ha risco real: contratos de eventos, tempo/clock, outbox e idempotencia;
