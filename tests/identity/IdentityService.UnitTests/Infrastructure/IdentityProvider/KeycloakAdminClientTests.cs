@@ -183,6 +183,10 @@ public sealed class KeycloakAdminClientTests
         "http://keycloak.local/realms/poc/protocol/openid-connect/token")]
     [InlineData(
         "http://keycloak.local",
+        "http://identity.example/realms/poc/protocol/openid-connect/token",
+        "http://identity.example/realms/poc/protocol/openid-connect/token")]
+    [InlineData(
+        "http://keycloak.local",
         "https://identity.example/realms/poc/protocol/openid-connect/token",
         "https://identity.example/realms/poc/protocol/openid-connect/token")]
     public async Task CreateUserAsync_should_build_token_uri_from_supported_endpoint_formats_Async(
@@ -204,6 +208,54 @@ public sealed class KeycloakAdminClientTests
     }
 
     [Fact]
+    public async Task CreateUserAsync_should_reject_absolute_token_endpoint_with_non_http_scheme_Async()
+    {
+        using var fixture = new KeycloakAdminClientFixture(tokenEndpoint: "ftp://identity.example/token");
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            fixture.Client.CreateUserAsync(
+                new CreateIdentityProviderUserRequest("User Name", "user@example.com", "user-name", "N3ver-log-me!"),
+                CancellationToken.None));
+
+        Assert.Contains("HTTP/HTTPS", exception.Message, StringComparison.Ordinal);
+        Assert.Empty(fixture.Handler.Requests);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.Unauthorized)]
+    [InlineData(HttpStatusCode.Forbidden)]
+    public async Task CreateUserAsync_should_classify_token_endpoint_auth_errors_as_unauthorized_Async(
+        HttpStatusCode statusCode)
+    {
+        using var fixture = new KeycloakAdminClientFixture();
+        fixture.Handler.Enqueue(statusCode, "provider response");
+
+        var exception = await Assert.ThrowsAsync<IdentityProviderException>(() =>
+            fixture.Client.CreateUserAsync(
+                new CreateIdentityProviderUserRequest("User Name", "user@example.com", "user-name", "N3ver-log-me!"),
+                CancellationToken.None));
+
+        Assert.Equal(IdentityProviderErrorKind.Unauthorized, exception.Kind);
+        Assert.Equal(statusCode, exception.StatusCode);
+        Assert.DoesNotContain("N3ver-log-me!", exception.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task CreateUserAsync_should_propagate_cancellation_without_translating_to_timeout_Async()
+    {
+        using var fixture = new KeycloakAdminClientFixture();
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        await Assert.ThrowsAsync<TaskCanceledException>(() =>
+            fixture.Client.CreateUserAsync(
+                new CreateIdentityProviderUserRequest("User Name", "user@example.com", "user-name", "N3ver-log-me!"),
+                cts.Token));
+
+        Assert.Empty(fixture.Logger.Messages);
+    }
+
+    [Fact]
     public async Task DeleteUserAsync_should_call_keycloak_delete_for_compensation_Async()
     {
         using var fixture = new KeycloakAdminClientFixture();
@@ -215,6 +267,33 @@ public sealed class KeycloakAdminClientTests
         Assert.Equal(2, fixture.Handler.Requests.Count);
         Assert.Equal(HttpMethod.Delete, fixture.Handler.Requests[1].Method);
         Assert.Equal("/admin/realms/poc/users/keycloak-user-1", fixture.Handler.Requests[1].RequestUri?.PathAndQuery);
+    }
+
+    [Fact]
+    public async Task DeleteUserAsync_should_treat_missing_keycloak_user_as_success_Async()
+    {
+        using var fixture = new KeycloakAdminClientFixture();
+        fixture.Handler.EnqueueJson(HttpStatusCode.OK, /*lang=json,strict*/ """{ "access_token": "admin-token" }""");
+        fixture.Handler.Enqueue(HttpStatusCode.NotFound, "already removed");
+
+        await fixture.Client.DeleteUserAsync("keycloak-user-1", CancellationToken.None);
+
+        Assert.Equal(2, fixture.Handler.Requests.Count);
+        Assert.Equal(HttpMethod.Delete, fixture.Handler.Requests[1].Method);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(" ")]
+    public async Task DeleteUserAsync_should_reject_empty_keycloak_user_id_Async(string keycloakUserId)
+    {
+        using var fixture = new KeycloakAdminClientFixture();
+
+        var exception = await Assert.ThrowsAsync<ArgumentException>(() =>
+            fixture.Client.DeleteUserAsync(keycloakUserId, CancellationToken.None));
+
+        Assert.Equal("keycloakUserId", exception.ParamName);
+        Assert.Empty(fixture.Handler.Requests);
     }
 
     private sealed class KeycloakAdminClientFixture : IDisposable

@@ -1,12 +1,15 @@
 using IdentityService.Application.Users.Ports;
 using IdentityService.Domain.Users;
 
+using Microsoft.Extensions.Logging;
+
 namespace IdentityService.Application.Users.Commands;
 
-public sealed class CreateUserCommandHandler(
+public sealed partial class CreateUserCommandHandler(
     IIdentityProviderUserService identityProvider,
     IUserRepository users,
-    IMerchantIdGenerator merchantIdGenerator)
+    IMerchantIdGenerator merchantIdGenerator,
+    ILogger<CreateUserCommandHandler> logger)
 {
     public async Task<CreateUserResult> Handle(
         CreateUserCommand command,
@@ -34,9 +37,23 @@ public sealed class CreateUserCommandHandler(
             await users.AddAsync(user, cancellationToken);
             await users.SaveChangesAsync(cancellationToken);
         }
-        catch (Exception) when (!cancellationToken.IsCancellationRequested)
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
         {
-            await identityProvider.DeleteUserAsync(identityUser.KeycloakUserId, CancellationToken.None);
+            try
+            {
+                await identityProvider.DeleteUserAsync(identityUser.KeycloakUserId, CancellationToken.None);
+            }
+#pragma warning disable CA1031 // Compensation failure is logged without hiding the original persistence failure.
+            catch (Exception compensationException)
+#pragma warning restore CA1031
+            {
+                LogIdentityProviderUserCompensationFailed(
+                    logger,
+                    compensationException,
+                    identityUser.KeycloakUserId,
+                    exception.GetType().Name);
+            }
+
             throw;
         }
 
@@ -47,4 +64,14 @@ public sealed class CreateUserCommandHandler(
             user.Username.Value,
             user.Email.Value);
     }
+
+    [LoggerMessage(
+        EventId = 1,
+        Level = LogLevel.Error,
+        Message = "Falha ao compensar usuario criado no provedor de identidade. KeycloakUserId: {KeycloakUserId}; OriginalExceptionType: {OriginalExceptionType}")]
+    private static partial void LogIdentityProviderUserCompensationFailed(
+        ILogger logger,
+        Exception exception,
+        string keycloakUserId,
+        string originalExceptionType);
 }

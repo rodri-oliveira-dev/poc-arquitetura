@@ -3,6 +3,8 @@ using IdentityService.Application.Users.Commands;
 using IdentityService.Application.Users.Ports;
 using IdentityService.Domain.Users;
 
+using Microsoft.Extensions.Logging;
+
 namespace IdentityService.UnitTests.Application.Users.Commands;
 
 public sealed class CreateUserCommandHandlerTests
@@ -74,6 +76,51 @@ public sealed class CreateUserCommandHandlerTests
     }
 
     [Fact]
+    public async Task Handle_should_compensate_keycloak_when_database_add_fails_Async()
+    {
+        var fixture = new HandlerFixture
+        {
+            Repository =
+            {
+                AddException = new InvalidOperationException("add failed")
+            }
+        };
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            fixture.Handler.Handle(CreateCommand(), CancellationToken.None));
+
+        Assert.Equal("add failed", exception.Message);
+        Assert.False(fixture.Repository.SaveWasCalled);
+        Assert.Equal(["keycloak-user-1"], fixture.IdentityProvider.DeletedUserIds);
+    }
+
+    [Fact]
+    public async Task Handle_should_log_compensation_failure_without_masking_database_failure_Async()
+    {
+        var fixture = new HandlerFixture
+        {
+            IdentityProvider =
+            {
+                DeleteException = new InvalidOperationException("compensation failed")
+            },
+            Repository =
+            {
+                SaveException = new InvalidOperationException("database failed")
+            }
+        };
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            fixture.Handler.Handle(CreateCommand(), CancellationToken.None));
+
+        Assert.Equal("database failed", exception.Message);
+        Assert.Equal(["keycloak-user-1"], fixture.IdentityProvider.DeletedUserIds);
+        Assert.Contains(fixture.Logger.Messages, message =>
+            message.Contains("Falha ao compensar usuario criado no provedor de identidade", StringComparison.Ordinal));
+        Assert.Contains(fixture.Logger.Messages, message =>
+            message.Contains("compensation failed", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task Handle_should_return_generated_merchant_id_Async()
     {
         var fixture = new HandlerFixture("merchant-from-generator");
@@ -111,6 +158,38 @@ public sealed class CreateUserCommandHandlerTests
         Assert.Empty(merchantIdProperties);
     }
 
+    [Fact]
+    public async Task Handle_should_propagate_cancellation_token_to_create_add_and_save_Async()
+    {
+        var fixture = new HandlerFixture();
+        using var cts = new CancellationTokenSource();
+
+        await fixture.Handler.Handle(CreateCommand(), cts.Token);
+
+        Assert.Equal(cts.Token, fixture.IdentityProvider.CreateCancellationToken);
+        Assert.Equal(cts.Token, fixture.Repository.AddCancellationToken);
+        Assert.Equal(cts.Token, fixture.Repository.SaveCancellationToken);
+    }
+
+    [Fact]
+    public async Task Handle_should_not_compensate_when_save_is_canceled_Async()
+    {
+        var fixture = new HandlerFixture
+        {
+            Repository =
+            {
+                SaveException = new OperationCanceledException("save canceled")
+            }
+        };
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            fixture.Handler.Handle(CreateCommand(), cts.Token));
+
+        Assert.Empty(fixture.IdentityProvider.DeletedUserIds);
+    }
+
     private static CreateUserCommand CreateCommand(string password = "N3ver-save-me!")
         => new(
             Name: "User Name",
@@ -124,7 +203,7 @@ public sealed class CreateUserCommandHandlerTests
         public HandlerFixture(string merchantId = "merchant-generated")
         {
             MerchantIds = new StubMerchantIdGenerator(merchantId);
-            Handler = new CreateUserCommandHandler(IdentityProvider, Repository, MerchantIds);
+            Handler = new CreateUserCommandHandler(IdentityProvider, Repository, MerchantIds, Logger);
         }
 
         public FakeIdentityProvider IdentityProvider
@@ -143,6 +222,11 @@ public sealed class CreateUserCommandHandlerTests
         {
             get;
         }
+
+        public CapturingLogger<CreateUserCommandHandler> Logger
+        {
+            get;
+        } = new();
 
         public CreateUserCommandHandler Handler
         {
@@ -168,10 +252,24 @@ public sealed class CreateUserCommandHandlerTests
             set;
         }
 
+        public Exception? DeleteException
+        {
+            get;
+            set;
+        }
+
+        public CancellationToken CreateCancellationToken
+        {
+            get;
+            private set;
+        }
+
         public Task<CreateIdentityProviderUserResult> CreateUserAsync(
             CreateIdentityProviderUserRequest request,
             CancellationToken cancellationToken = default)
         {
+            CreateCancellationToken = cancellationToken;
+
             if (CreateException is not null)
                 return Task.FromException<CreateIdentityProviderUserResult>(CreateException);
 
@@ -182,7 +280,9 @@ public sealed class CreateUserCommandHandlerTests
         public Task DeleteUserAsync(string keycloakUserId, CancellationToken cancellationToken = default)
         {
             DeletedUserIds.Add(keycloakUserId);
-            return Task.CompletedTask;
+            return DeleteException is null
+                ? Task.CompletedTask
+                : Task.FromException(DeleteException);
         }
     }
 
@@ -218,6 +318,24 @@ public sealed class CreateUserCommandHandlerTests
             set;
         }
 
+        public Exception? AddException
+        {
+            get;
+            set;
+        }
+
+        public CancellationToken AddCancellationToken
+        {
+            get;
+            private set;
+        }
+
+        public CancellationToken SaveCancellationToken
+        {
+            get;
+            private set;
+        }
+
         public List<string> PersistedScalarValues
         {
             get;
@@ -225,6 +343,7 @@ public sealed class CreateUserCommandHandlerTests
 
         public Task AddAsync(User user, CancellationToken cancellationToken = default)
         {
+            AddCancellationToken = cancellationToken;
             AddWasCalled = true;
             SavedUser = user;
             PersistedScalarValues.AddRange(
@@ -236,11 +355,14 @@ public sealed class CreateUserCommandHandlerTests
                 user.KeycloakUserId
             ]);
 
-            return Task.CompletedTask;
+            return AddException is null
+                ? Task.CompletedTask
+                : Task.FromException(AddException);
         }
 
         public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
         {
+            SaveCancellationToken = cancellationToken;
             AddCalledBeforeSave = AddWasCalled;
             SaveWasCalled = true;
 
@@ -253,5 +375,33 @@ public sealed class CreateUserCommandHandlerTests
     private sealed class StubMerchantIdGenerator(string merchantId) : IMerchantIdGenerator
     {
         public string Generate() => merchantId;
+    }
+
+    private sealed class CapturingLogger<T> : ILogger<T>
+    {
+        public List<string> Messages
+        {
+            get;
+        } = [];
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull
+            => null;
+
+        public bool IsEnabled(LogLevel logLevel)
+            => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            Messages.Add(formatter(state, exception));
+
+            if (exception is not null)
+                Messages.Add(exception.ToString());
+        }
     }
 }

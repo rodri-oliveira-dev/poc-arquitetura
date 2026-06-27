@@ -61,6 +61,28 @@ public sealed class UserTests
     }
 
     [Fact]
+    public void MerchantId_should_accept_value_at_maximum_length()
+    {
+        var value = new string('m', MerchantId.MaxLength);
+
+        var merchantId = new MerchantId(value);
+
+        Assert.Equal(MerchantId.MaxLength, merchantId.Value.Length);
+        Assert.Equal(value, merchantId.ToString());
+    }
+
+    [Fact]
+    public void MerchantId_should_trim_value_and_reject_empty_result()
+    {
+        var merchantId = new MerchantId(" merchant-1 ");
+
+        Assert.Equal("merchant-1", merchantId.Value);
+
+        var exception = Assert.Throws<DomainException>(() => new MerchantId("\t"));
+        Assert.Contains("MerchantId", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Register_should_add_user_registered_domain_event()
     {
         var occurredAt = new DateTime(2026, 06, 26, 12, 00, 00, DateTimeKind.Utc);
