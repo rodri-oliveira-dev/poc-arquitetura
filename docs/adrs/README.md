@@ -95,7 +95,7 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 | [ADR-0018](./0018-avaliar-adocao-incremental-dotnet-aspire.md)        | Proposto    | Avalia adocao incremental do .NET Aspire com AppHost e ServiceDefaults para desenvolvimento.     |
 | [ADR-0017](./0017-implementar-dlq-versionamento-eventos-readiness-operacional.md) | Aceito      | Implementa DLQ real, `LedgerEntryCreated.v1`, headers Kafka e readiness operacional.             |
 | [ADR-0016](./0016-contrato-http-explicito-swagger-e-controllers-magros.md) | Aceito      | Contrato HTTP explícito com Swagger e controllers magros com bind/map em componentes dedicados. |
-| [ADR-0015](./0015-api-resilience-timeouts-retries-circuit-breaker.md) | Proposto    | Ponto de melhoria: timeouts/retries/circuit breaker padronizados (HTTP/JWKS e readiness).        |
+| [ADR-0015](./0015-api-resilience-timeouts-retries-circuit-breaker.md) | Parcialmente implementado | HTTP resiliente com `Microsoft.Extensions.Http.Resilience` para JWKS, Keycloak e Ledger; readiness permanece em ADRs próprias. |
 | [ADR-0014](./0014-contratos-eventos-kafka-versionamento-e-dlq.md)     | Proposto    | Ponto de melhoria: versionamento/compatibilidade de eventos e DLQ para poison messages no Kafka. |
 | [ADR-0013](./0013-readiness-healthchecks-db-kafka.md)                 | Proposto    | Ponto de melhoria: endpoint de readiness verificando DB e Kafka com timeouts.                    |
 | [ADR-0012](./0012-health-liveness-publico.md)                         | Substituído | Consolidado em observabilidade + readiness.                                                      |

@@ -9,6 +9,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [Dev Container opcional](development/devcontainer.md): ambiente VS Code conteinerizado sem substituir o fluxo local do host.
 - [Ferramentas auxiliares](development/tooling.md): Node.js LTS, npm, npx, tools .NET, Redocly CLI, LikeC4, Swashbuckle CLI e fluxo local de OpenAPI.
 - [Política de wrappers de scripts](development/scripts.md): caminhos atuais e compatibilidade dos wrappers antigos em `scripts/`.
+- [Manutencao Docker local](development/docker-maintenance.md): diagnostico de disco, cache BuildKit limitado a 5GB, classificacao de volumes e limpeza segura por retencao.
 - [Validacao dos contratos OpenAPI](development/openapi-contract-validation.md): geracao, lint, drift e diff de breaking changes contra a main.
 - [Politica de versionamento de contratos de eventos](development/event-contract-versioning.md): evoluir eventos versionados entre Ledger e Balance preservando compatibilidade em Pub/Sub e Kafka.
 - [FAQ](faq.md): respostas curtas para as duvidas mais provaveis de leitura tecnica.

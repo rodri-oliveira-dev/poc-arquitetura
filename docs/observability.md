@@ -329,8 +329,12 @@ Labels/tags permitidas devem ter baixa cardinalidade. Exemplos aceitos:
 
 - `service`;
 - `operation`;
+- `client`;
+- `dependency`;
 - `event_type`;
 - `topic`;
+- `outcome`;
+- `exception_type`;
 - `status`;
 - `result`.
 
@@ -351,10 +355,12 @@ A primeira metrica customizada foi `ledger.outbox.publish.attempts`, registrada 
 
 Meters customizados registrados no OpenTelemetry Metrics quando `Observability:OpenTelemetry:Enabled=true` no processo host:
 
+- `HttpResilienceDefaults`, emitido pelos clientes HTTP resilientes de JWKS nas APIs e pelos clientes Ledger/Keycloak do `TransferService.Worker`;
 - `LedgerService.Domain`, emitido pelo `LedgerService.Api`;
 - `LedgerService.Outbox`, emitido pelo `LedgerService.Worker`;
 - `BalanceService.Domain`, emitido pelos casos de uso do Balance quando registrado no processo host;
-- `BalanceService.Kafka`, emitido pelo `BalanceService.Worker`.
+- `BalanceService.Kafka`, emitido pelo `BalanceService.Worker`;
+- `TransferService.Worker`, emitido pelo `TransferService.Worker`.
 
 Com OpenTelemetry desabilitado, os instrumentos continuam sendo chamados pela aplicacao, mas nao ha provider/exporter ativo coletando as series. O fluxo funcional permanece inalterado.
 
@@ -364,7 +370,27 @@ Metricas tecnicas medem comportamento da plataforma ou runtime, como HTTP, `Http
 
 As metricas de dominio sao emitidas em pontos de orquestracao da camada de aplicacao ou no processamento de mensagens que chama casos de uso. Elas nao fazem parte do dominio puro: entidades, value objects e regras de dominio nao dependem de `System.Diagnostics.Metrics`, OpenTelemetry, exporters ou infraestrutura de observabilidade.
 
-Metricas de dominio nao devem carregar identificadores individuais nem valores de alta cardinalidade. Tags como `merchant_id`, `ledger_entry_id`, `event_id`, `correlation_id`, `trace_id`, `span_id`, `document`, `external_reference`, `idempotency_key`, valor monetario, descricao e mensagem de exception continuam proibidas. Tags como `result`, `reason`, `operation`, `entry_type`, `event_type` e `currency` devem usar conjuntos pequenos e estaveis. A tag `reason` deve ser classificacao estavel, nunca mensagem livre.
+Metricas de dominio nao devem carregar identificadores individuais nem valores de alta cardinalidade. Tags como `merchant_id`, `ledger_entry_id`, `event_id`, `correlation_id`, `trace_id`, `span_id`, `document`, `external_reference`, `idempotency_key`, valor monetario, descricao e mensagem de exception continuam proibidas. Tags como `result`, `reason`, `operation`, `entry_type`, `event_type`, `client`, `dependency`, `outcome`, `exception_type` e `currency` devem usar conjuntos pequenos e estaveis. A tag `reason` deve ser classificacao estavel, nunca mensagem livre.
+
+Metricas tecnicas de resiliencia HTTP:
+
+| Metrica | Instrumento | Unidade | Tags permitidas | Interpretacao |
+| --- | --- | --- | --- | --- |
+| `http.resilience.retries` | Counter | `1` | `client`, `dependency`, `operation`, `outcome`, `exception_type` | Retries executados por cliente resiliente. `exception_type` aparece quando o retry foi causado por excecao, por exemplo timeout. |
+| `http.resilience.timeouts` | Counter | `1` | `client`, `dependency`, `operation`, `outcome`, `exception_type` | Timeouts observados nas politicas de timeout total ou por tentativa. |
+| `http.resilience.circuit_breaker.opened` | Counter | `1` | `client`, `dependency`, `operation`, `outcome`, `exception_type` | Transicoes do circuit breaker para open. Indica dependencia degradada ou indisponivel. |
+| `http.resilience.circuit_breaker.half_opened` | Counter | `1` | `client`, `dependency`, `operation`, `outcome` | Transicoes para half-open, quando uma tentativa de recuperacao e liberada. |
+| `http.resilience.circuit_breaker.closed` | Counter | `1` | `client`, `dependency`, `operation`, `outcome` | Transicoes para closed apos recuperacao. |
+| `http.resilience.open_circuit.rejected_calls` | Counter | `1` | `client`, `dependency`, `operation`, `outcome`, `exception_type` | Chamadas rejeitadas imediatamente por circuito aberto. |
+| `http.resilience.request.duration` | Histogram | `s` | `client`, `dependency`, `operation`, `outcome`, `exception_type` | Duracao da chamada protegida pela politica resiliente, incluindo retries quando houver. |
+
+Clientes instrumentados pela politica compartilhada:
+
+- `Ledger`: chamada service-to-service do `TransferService.Worker` para `LedgerService.Api`;
+- `Keycloak`: token provider client credentials usado pelo `TransferService.Worker`;
+- `JWKS`: fetch das chaves publicas usadas pelas APIs para validacao JWT.
+
+Os logs da politica HTTP resiliente usam `Warning` para retry, abertura de circuito e chamada rejeitada por circuito aberto, e `Information` para half-open e fechamento do circuito. Eles registram apenas `client`, `operation`, duracao de break quando aplicavel e tipo de excecao pelo logging estruturado; nao registram token, client secret, payload nem URL completa.
 
 Metricas de dominio do `LedgerService.Application`:
 

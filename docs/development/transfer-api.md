@@ -127,9 +127,22 @@ O `TransferService.Worker` possui duas responsabilidades separadas:
 
 O fluxo usa Kafka como transporte explicito dos eventos da Saga. Pub/Sub nao e configurado nem usado pelo TransferService.
 
-As chamadas do Worker ao `LedgerService.Api` sao autenticadas por OAuth2 client credentials. No compose local, o `TransferService.Worker` solicita token ao Keycloak com o client `poc-automation`, segredo vindo de `KEYCLOAK_CLIENT_SECRET` e scope `ledger.write` configurado por `TRANSFER_WORKER_LEDGER_AUTH_SCOPE`. O token e enviado como `Authorization: Bearer <token>` em todas as chamadas ao Ledger, mantendo `Idempotency-Key` e `X-Correlation-Id` por etapa da Saga.
+As chamadas do Worker ao `LedgerService.Api` sao autenticadas por OAuth2 client credentials. No compose local, o `TransferService.Worker` solicita token ao Keycloak com o client `poc-automation`, segredo vindo de `KEYCLOAK_CLIENT_SECRET` e scope `ledger.write` configurado por `TRANSFER_WORKER_LEDGER_AUTH_SCOPE`. O token e enviado como `Authorization: Bearer <token>` em todas as chamadas ao Ledger, mantendo `Idempotency-Key` e `X-Correlation-Id` por etapa da Saga. Tokens validos continuam em cache no Worker ate a janela de `RefreshSkew`, e um `SemaphoreSlim` evita multiplos refreshes simultaneos.
 
 O `Idempotency-Key` enviado ao Ledger e um UUID deterministico derivado de `transferenciaId` e da etapa logica (`debit`, `credit` ou `compensate-debit`). Assim o Worker preserva replay por etapa e respeita o contrato HTTP do Ledger, que exige UUID no header.
+
+O client HTTP do Ledger usa a politica compartilhada `HttpResilience:Clients:Ledger`, com timeout total, timeout por tentativa, retry para falhas transitorias e circuit breaker. O retry e habilitado para `POST` porque as etapas usam `Idempotency-Key` deterministico; respostas esperadas de negocio, como `400`, `401`, `403` e `404`, nao sao tratadas como transitorias pela politica. Quando o circuito abre, novas chamadas falham rapido e a Saga continua usando o retry persistido configurado em `TransferService:Worker:RetryBackoff`.
+
+A obtencao de token no Keycloak usa uma politica separada, `HttpResilience:Clients:Keycloak`, aplicada ao `HttpClient` do `ClientCredentialsLedgerAccessTokenProvider`. Essa politica possui timeout, retry e circuit breaker proprios para proteger o token endpoint contra indisponibilidade temporaria, timeout, `408`, `429`, `5xx` e `HttpRequestException`. Erros de credencial ou autorizacao negada, como `401` e `403`, nao sao tratados como transitorios: nao geram retry e nao contam para abrir o circuito.
+
+Defaults versionados no `TransferService.Worker`:
+
+| Cliente | Timeout total | Timeout por tentativa | Retries | Delay/backoff | Failure ratio | Minimum throughput | Sampling duration | Break duration |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `Ledger` | `30s` | `10s` | `3` | `2s`, constante | `0.1` | `4` | `30s` | `5s` |
+| `Keycloak` | `15s` | `5s` | `2` | `1s`, constante | `0.1` | `20` | `30s` | `5s` |
+
+O wrapper compartilhado nao configura jitter. Para validar localmente sem depender do fluxo completo, rode os testes `HttpClient*` em `tests/TransferService.Worker.Tests`; para validar o caminho funcional, use o cenario k6 `transfer-fullstack-kafka` com a stack local.
 
 Fluxo feliz:
 

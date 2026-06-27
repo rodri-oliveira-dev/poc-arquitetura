@@ -20,6 +20,8 @@ Variaveis padrao relevantes:
 - `BASE_URL_BALANCE` / `BALANCE_BASE_URL` conforme ambiente
 - `BASE_URL_TRANSFER` / `TRANSFER_BASE_URL` conforme ambiente
 - `BASE_URL_AUTH` / `AUTH_BASE_URL` quando um emissor legado for usado explicitamente
+- `KEYCLOAK_BASE_URL` ou `KEYCLOAK_HOST_PORT`, para emissao local do token
+- `KEYCLOAK_CLIENT_ID`, `KEYCLOAK_CLIENT_SECRET` e `KEYCLOAK_SCOPE`, para client credentials do runner
 - credenciais de client por ambiente via `.env.local` ou variaveis de processo, sem versionar segredo
 
 ## Modos
@@ -35,6 +37,7 @@ Os runners usam Kafka por padrao. Pub/Sub permanece legado/opt-in para a stack l
 | `transfer-smoke-kafka` (`transfer-smoke`) | `transfer_smoke` | Validar contrato HTTP basico do `TransferService.Api`. | 1 VU, 1 iteracao. | `POST /api/v1/transferencias` retorna 202, `GET` retorna a Saga, replay idempotente retorna 202, conflito retorna 409, alem de 400/401/403/404 esperados. |
 | `transfer-load-kafka` (`transfer-load`) | `transfer_load` | Exercitar POST/GET de transferencias com concorrencia moderada, sem exigir conclusao full-stack em todas as iteracoes. | Ramping ate 10 VUs. | `http_req_failed{service:transfer} < 2%`, checks >= 99%, POST/GET >= 99%, sem iteracoes descartadas, p95 < 1000ms e p99 < 2000ms. |
 | `transfer-fullstack-kafka` | `transfer_fullstack_kafka` | Validar API + Worker + LedgerService + Outbox + Kafka no fluxo feliz da Saga. | 1 VU, 1 iteracao. | POST retorna 202, GET via polling chega em `Completed`, topicos principais crescem, `message key = transferenciaId`, `correlationId` esperado aparece no payload e DLQ nao cresce. |
+| `transfer-circuit-breaker-kafka` (`transfer-cb-kafka`) | `transfer_circuit_breaker` | Validar degradacao e recuperacao do `TransferService.Worker` quando o `LedgerService.Api` fica indisponivel. | Fase saudavel: 1 iteracao com timeout ate 120s. Fase degradada: 5 VUs por 30s. Fase recuperacao: 1 iteracao com timeout ate 120s. | POST/GET do `TransferService.Api` continuam autenticados e rapidos, degradacao e classificada sem tempestade de erro HTTP, logs do worker indicam circuito aberto, chamadas rejeitadas por circuito aberto, half-open e fechamento apos restaurar o Ledger. |
 
 Os nomes antigos entre parenteses continuam aceitos por compatibilidade. Para novos comandos, prefira os nomes com sufixo `-kafka`.
 
@@ -45,6 +48,7 @@ Os nomes antigos entre parenteses continuam aceitos por compatibilidade. Para no
 ./scripts/performance/run-loadtests.ps1 -Mode smoke-kafka
 ./scripts/performance/run-loadtests.ps1 -Mode load-kafka
 ./scripts/performance/run-loadtests.ps1 -Mode transfer-fullstack-kafka
+./scripts/performance/run-loadtests.ps1 -Mode transfer-circuit-breaker-kafka
 ```
 
 ```bash
@@ -52,6 +56,7 @@ Os nomes antigos entre parenteses continuam aceitos por compatibilidade. Para no
 ./scripts/performance/run-loadtests.sh smoke-kafka
 ./scripts/performance/run-loadtests.sh load-kafka
 ./scripts/performance/run-loadtests.sh transfer-fullstack-kafka
+./scripts/performance/run-loadtests.sh transfer-circuit-breaker-kafka
 ```
 
 Pub/Sub nao e usado no caminho padrao. Se alguem tentar `--provider PubSub` ou `-Provider PubSub`, o runner falha cedo com mensagem clara e aponta para a stack legada manual.
@@ -67,9 +72,10 @@ Os limites sao guardrails iniciais para ambiente local controlado, nao SLO produ
 | `load-kafka` | `BALANCE` | 1000ms | 2500ms |
 | `balance-load-kafka` | `BALANCE` | 1000ms | 2500ms |
 | `ledger-load-kafka` | `LEDGER` | 2000ms | 5000ms |
-| `transfer-smoke-kafka` | `TRANSFER` | 500ms | 1000ms |
+| `transfer-smoke-kafka` | `TRANSFER` | 10000ms | 15000ms |
 | `transfer-load-kafka` | `TRANSFER` | 1000ms | 2000ms |
 | `transfer-fullstack-kafka` | `TRANSFER` | 1000ms | 2000ms |
+| `transfer-circuit-breaker-kafka` | `TRANSFER` | 1000ms | 2000ms |
 
 Para sobrescrever limites sem alterar codigo:
 
@@ -94,9 +100,40 @@ Execute a stack local Kafka antes dos testes. Os runners precisam de:
 - `LedgerService.Api` e `LedgerService.Worker`, para criar lancamentos e publicar Outbox;
 - `BalanceService.Api` e `BalanceService.Worker`, para consultar e projetar saldos;
 - `TransferService.Api`, para os modos `transfer-smoke-kafka`, `transfer-load-kafka` e `transfer-fullstack-kafka`;
-- `TransferService.Worker` e `LedgerService.Api`, apenas para `transfer-fullstack-kafka`.
+- `TransferService.Worker` e `LedgerService.Api`, para `transfer-fullstack-kafka` e `transfer-circuit-breaker-kafka`.
 
 No `transfer-fullstack-kafka`, o `TransferService.Worker` precisa autenticar no `LedgerService.Api` por OAuth2 client credentials. No compose local isso usa `KEYCLOAK_CLIENT_ID=poc-automation`, `KEYCLOAK_CLIENT_SECRET` e `TRANSFER_WORKER_LEDGER_AUTH_SCOPE=ledger.write`. Uma Saga `Failed` por `401 Unauthorized` deve falhar o smoke e indica problema real nessa configuracao, no token emitido ou na validacao JWT do Ledger.
+
+No `transfer-circuit-breaker-kafka`, o runner:
+
+- executa uma fase saudavel para confirmar que transferencias chegam em `Completed`;
+- para o container `ledger-service` de forma controlada;
+- executa uma fase degradada criando transferencias enquanto o worker tenta chamar o Ledger;
+- valida nos logs do `transfer-worker` as mensagens `Circuit breaker HTTP aberto. Client=Ledger` e `Chamada HTTP rejeitada por circuito aberto. Client=Ledger`;
+- restaura o `ledger-service`;
+- executa uma fase de recuperacao e valida `Tentativa HTTP em half-open liberada pelo circuit breaker. Client=Ledger` e `Circuit breaker HTTP fechado. Client=Ledger`.
+
+Esse cenario nao altera contratos publicos das APIs. Como a falha ocorre no worker, o k6 valida que o `TransferService.Api` continua aceitando `POST /api/v1/transferencias`, respondendo `GET /api/v1/transferencias/{id}` e classificando a degradacao sem falha de autenticacao. A evidencia direta do Circuit Breaker vem dos logs e das metricas OpenTelemetry do worker.
+
+Overrides uteis para regressao local:
+
+```powershell
+$env:TRANSFER_CIRCUIT_DEGRADED_VUS='8'
+$env:TRANSFER_CIRCUIT_DEGRADED_DURATION='45s'
+$env:TRANSFER_CIRCUIT_RECOVERY_DURATION='1m'
+$env:K6_LEDGER_CIRCUIT_BREAKER_MINIMUM_THROUGHPUT='2'
+$env:K6_LEDGER_CIRCUIT_BREAKER_BREAK_DURATION='00:00:05'
+./scripts/performance/run-loadtests.ps1 -Mode transfer-circuit-breaker-kafka
+```
+
+```bash
+TRANSFER_CIRCUIT_DEGRADED_VUS=8 \
+TRANSFER_CIRCUIT_DEGRADED_DURATION=45s \
+TRANSFER_CIRCUIT_RECOVERY_DURATION=1m \
+K6_LEDGER_CIRCUIT_BREAKER_MINIMUM_THROUGHPUT=2 \
+K6_LEDGER_CIRCUIT_BREAKER_BREAK_DURATION=00:00:05 \
+./scripts/performance/run-loadtests.sh transfer-circuit-breaker-kafka
+```
 
 Os runners falham cedo quando Kafka esta indisponivel, quando um servico obrigatorio nao esta em execucao ou quando `kafka-init-topics` nao concluiu. Se um topico estiver ausente, a mensagem sugere subir a stack local para executar o script de criacao de topicos.
 

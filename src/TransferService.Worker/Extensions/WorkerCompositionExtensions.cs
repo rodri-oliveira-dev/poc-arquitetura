@@ -1,3 +1,5 @@
+using HttpResilienceDefaults;
+
 using TransferService.Application;
 using TransferService.Infrastructure;
 using TransferService.Worker.Ledger;
@@ -21,6 +23,7 @@ public static class WorkerCompositionExtensions
 
         services.AddTransferApplication();
         services.AddTransferInfrastructure(configuration, environment);
+        services.AddWorkerObservability(configuration);
         services.AddTransferWorkerRuntime(configuration);
 
         return services;
@@ -45,7 +48,8 @@ public static class WorkerCompositionExtensions
             .ValidateOnStart();
 
         services.AddSingleton(TimeProvider.System);
-        services.AddHttpClient<ILedgerAccessTokenProvider, ClientCredentialsLedgerAccessTokenProvider>();
+        services.AddHttpClient<ILedgerAccessTokenProvider, ClientCredentialsLedgerAccessTokenProvider>()
+            .AddConfiguredHttpResilience(configuration, "Keycloak");
         services.AddTransient<LedgerAuthenticationHandler>();
         services.AddHttpClient<ILedgerServiceClient, LedgerServiceClient>((sp, client) =>
         {
@@ -57,6 +61,7 @@ public static class WorkerCompositionExtensions
 
             client.Timeout = options.Ledger.Timeout;
         })
+            .AddConfiguredHttpResilience(configuration, "Ledger")
             .AddHttpMessageHandler<LedgerAuthenticationHandler>();
 
         services.AddSingleton<ITransferenciaKafkaProducer, KafkaTransferenciaOutboxPublisher>();

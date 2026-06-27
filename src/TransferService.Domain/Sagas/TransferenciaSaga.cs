@@ -5,6 +5,8 @@ namespace TransferService.Domain.Sagas;
 
 public sealed class TransferenciaSaga : Entity, IAggregateRoot
 {
+    public const int FailureReasonMaxLength = 1000;
+
     public MerchantId SourceMerchantId
     {
         get; private set;
@@ -210,7 +212,7 @@ public sealed class TransferenciaSaga : Entity, IAggregateRoot
     {
         EnsureNotFinalized();
 
-        FailureReason = Normalize(failureReason);
+        FailureReason = NormalizeFailureReason(failureReason);
         MoveTo(TransferenciaSagaStatus.Failed, TransferenciaSagaStep.Failed, now);
     }
 
@@ -230,7 +232,7 @@ public sealed class TransferenciaSaga : Entity, IAggregateRoot
 
         RetryCount++;
         NextRetryAt = nextRetryAt;
-        FailureReason = Normalize(failureReason);
+        FailureReason = NormalizeFailureReason(failureReason);
         UpdatedAt = now;
     }
 
@@ -276,6 +278,14 @@ public sealed class TransferenciaSaga : Entity, IAggregateRoot
 
     private static string? Normalize(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static string? NormalizeFailureReason(string? value)
+    {
+        var normalized = Normalize(value);
+        return normalized is { Length: > FailureReasonMaxLength }
+            ? normalized[..FailureReasonMaxLength]
+            : normalized;
+    }
 
     private static string NormalizeRequired(string value, string paramName)
     {

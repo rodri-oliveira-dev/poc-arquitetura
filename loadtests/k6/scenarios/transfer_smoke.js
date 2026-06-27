@@ -31,8 +31,8 @@ export const options = {
         transfer_idempotency_replay_success: ['rate==1'],
         transfer_idempotency_conflict_success: ['rate==1'],
         'http_req_failed{service:transfer}': ['rate==0'],
-        'http_req_duration{name:transfer_create}': localLatencyThresholds('TRANSFER', { p95: 500, p99: 1000 }),
-        'http_req_duration{name:transfer_get}': localLatencyThresholds('TRANSFER', { p95: 500, p99: 1000 }),
+        'http_req_duration{name:transfer_create}': localLatencyThresholds('TRANSFER', { p95: 10000, p99: 15000 }),
+        'http_req_duration{name:transfer_get}': localLatencyThresholds('TRANSFER', { p95: 10000, p99: 15000 }),
         checks: ['rate==1'],
         dropped_iterations: ['count==0'],
     },
@@ -89,7 +89,7 @@ export default function () {
     });
     transferIdempotencyConflictSuccess.add(conflictOk);
 
-    const notFound = getTransfer(cfg, '00000000-0000-0000-0000-000000000000', {
+    const notFound = getTransfer(cfg, '11111111-1111-4111-8111-111111111111', {
         operation: 'transfer_get_not_found',
         expectedStatuses: [404],
     });

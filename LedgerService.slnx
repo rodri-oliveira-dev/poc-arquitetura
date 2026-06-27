@@ -3,6 +3,7 @@
   <Folder Name="/src/Shared/">
     <Project Path="src/Shared/ApiDefaults/ApiDefaults.csproj" />
     <Project Path="src/Shared/ApplicationDefaults/ApplicationDefaults.csproj" />
+    <Project Path="src/Shared/HttpResilienceDefaults/HttpResilienceDefaults.csproj" />
   </Folder>
   <Folder Name="/src/Auth/">
     <Project Path="src/Auth.Api/Auth.Api.csproj" />

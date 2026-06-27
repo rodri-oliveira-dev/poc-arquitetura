@@ -25,6 +25,11 @@ internal sealed class FakeHttpMessageHandler : HttpMessageHandler
     public int PendingResponses
         => _responses.Count;
 
+    public int RequestCount
+    {
+        get; private set;
+    }
+
     public void EnqueueJson(HttpStatusCode statusCode, string json)
     {
         _responses.Enqueue((_, _) => Task.FromResult(new HttpResponseMessage(statusCode)
@@ -41,10 +46,31 @@ internal sealed class FakeHttpMessageHandler : HttpMessageHandler
         }));
     }
 
+    public void EnqueueException(Exception exception)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+
+        _responses.Enqueue((_, _) => Task.FromException<HttpResponseMessage>(exception));
+    }
+
+    public void EnqueueDelay(TimeSpan delay, HttpStatusCode statusCode, string content)
+    {
+        _responses.Enqueue(async (_, cancellationToken) =>
+        {
+            await Task.Delay(delay, cancellationToken);
+
+            return new HttpResponseMessage(statusCode)
+            {
+                Content = new StringContent(content, Encoding.UTF8, "text/plain")
+            };
+        });
+    }
+
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
+        RequestCount++;
         LastRequest = request;
         LastCancellationToken = cancellationToken;
         LastRequestBody = request.Content is null

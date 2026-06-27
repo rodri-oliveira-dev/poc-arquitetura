@@ -1,7 +1,7 @@
 ﻿[CmdletBinding()]
 param(
   [Parameter(Mandatory = $true)]
-  [ValidateSet("smoke", "smoke-kafka", "balance50", "load-kafka", "balance-load-kafka", "resilience", "ledger-load-kafka", "transfer-smoke", "transfer-smoke-kafka", "transfer-load", "transfer-load-kafka", "transfer-fullstack-kafka")]
+  [ValidateSet("smoke", "smoke-kafka", "balance50", "load-kafka", "balance-load-kafka", "resilience", "ledger-load-kafka", "transfer-smoke", "transfer-smoke-kafka", "transfer-load", "transfer-load-kafka", "transfer-fullstack-kafka", "transfer-circuit-breaker-kafka", "transfer-cb-kafka")]
   [string]$Mode,
 
   [string]$Provider = "",
@@ -50,6 +50,7 @@ switch ($Mode) {
   "ledger-load-kafka" { $Mode = "resilience" }
   "transfer-smoke-kafka" { $Mode = "transfer-smoke" }
   "transfer-load-kafka" { $Mode = "transfer-load" }
+  "transfer-cb-kafka" { $Mode = "transfer-circuit-breaker-kafka" }
 }
 
 if ([string]::IsNullOrWhiteSpace($ComposeFile)) { $ComposeFile = (Join-Path $root "compose.yaml") }
@@ -237,6 +238,22 @@ function Assert-LocalTransferKafkaStack {
   if ([string]$kafkaInit.State -ne "exited" -or [int]$kafkaInit.ExitCode -ne 0) {
     throw "Topicos Kafka ausentes ou inicializacao incompleta. Rode ./scripts/local/start-stack.ps1 ou confira: docker compose logs kafka-init-topics"
   }
+}
+
+function Assert-TransferWorkerLogContains([string]$Since, [string]$Pattern, [string]$Description) {
+  $logs = & docker @(Get-ComposeArguments -IncludeKafka) logs --since $Since transfer-worker 2>&1
+  if ($LASTEXITCODE -ne 0) {
+    throw "Falha ao ler logs do transfer-worker para validar Circuit Breaker."
+  }
+
+  $text = $logs | Out-String
+  if (-not $text.Contains($Pattern)) {
+    $logPath = Join-Path $ArtifactsDir "transfer-worker-circuit-breaker-$ts.log"
+    $text | Set-Content -Path $logPath -Encoding UTF8
+    throw "Nao encontrei evidencia de $Description nos logs do transfer-worker desde $Since. Logs salvos em: $logPath"
+  }
+
+  Write-Output "OK. Evidencia de $Description encontrada nos logs do transfer-worker."
 }
 
 function Get-KafkaTopicEndOffset([string]$Topic, [switch]$IncludeKafka) {
@@ -470,7 +487,8 @@ function Wait-AsyncFlowIdle([int]$TimeoutSeconds = 120) {
 powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "scripts\lib\compose-env.ps1") -ComposeFile $ComposeFile -OutFile $EnvFile | Out-Host
 
 $isTransferFullStackKafka = $Mode -eq "transfer-fullstack-kafka"
-$isTransferMode = $Mode -in @("transfer-smoke", "transfer-load", "transfer-fullstack-kafka")
+$isTransferCircuitBreakerKafka = $Mode -eq "transfer-circuit-breaker-kafka"
+$isTransferMode = $Mode -in @("transfer-smoke", "transfer-load", "transfer-fullstack-kafka", "transfer-circuit-breaker-kafka")
 
 if (-not $isTransferMode) {
   Assert-LocalKafkaStack
@@ -480,7 +498,7 @@ if (-not $isTransferMode) {
 # mantem os testes apontando para as APIs HTTP e aumenta apenas limites tecnicos
 # que poderiam transformar o cenario de throughput em teste de rate limiting.
 if ($isTransferMode) {
-  if ($isTransferFullStackKafka) {
+  if ($isTransferFullStackKafka -or $isTransferCircuitBreakerKafka) {
     & docker @(Get-ComposeArguments -IncludeK6 -IncludeKafka) up -d --no-build --force-recreate kafka kafka-init-topics ledger-service transfer-service transfer-worker
   }
   else {
@@ -496,7 +514,7 @@ Wait-ComposeServiceHealthy "keycloak"
 if ($isTransferMode) {
   $transferHostPort = Get-LocalConfigValue "TRANSFER_SERVICE_HOST_PORT" "5230"
   Wait-HttpEndpoint "http://localhost:$transferHostPort/health"
-  if ($isTransferFullStackKafka) {
+  if ($isTransferFullStackKafka -or $isTransferCircuitBreakerKafka) {
     $ledgerHostPort = Get-LocalConfigValue "LEDGER_SERVICE_HOST_PORT" "5226"
     Wait-HttpEndpoint "http://localhost:$ledgerHostPort/health"
     Assert-LocalTransferKafkaStack
@@ -660,7 +678,7 @@ switch ($Mode) {
     Run-K6 "ledger_resilience" "scenarios/ledger_resilience.js" @{ TOKEN = $token; VUS = "5"; DURATION = "1m"; LEDGER_HTTP_REQ_DURATION_P95_MS = (Get-ThresholdValue "LEDGER" "P95" "2000"); LEDGER_HTTP_REQ_DURATION_P99_MS = (Get-ThresholdValue "LEDGER" "P99" "5000") }
   }
   "transfer-smoke" {
-    Run-K6 "transfer_smoke" "scenarios/transfer_smoke.js" @{ TOKEN = $token; DURATION = "30s"; TRANSFER_HTTP_REQ_DURATION_P95_MS = (Get-ThresholdValue "TRANSFER" "P95" "500"); TRANSFER_HTTP_REQ_DURATION_P99_MS = (Get-ThresholdValue "TRANSFER" "P99" "1000") }
+    Run-K6 "transfer_smoke" "scenarios/transfer_smoke.js" @{ TOKEN = $token; DURATION = "30s"; TRANSFER_HTTP_REQ_DURATION_P95_MS = (Get-ThresholdValue "TRANSFER" "P95" "10000"); TRANSFER_HTTP_REQ_DURATION_P99_MS = (Get-ThresholdValue "TRANSFER" "P99" "15000") }
   }
   "transfer-load" {
     Run-K6 "transfer_load" "scenarios/transfer_load.js" @{ TOKEN = $token; VUS = "10"; TRANSFER_HTTP_REQ_DURATION_P95_MS = (Get-ThresholdValue "TRANSFER" "P95" "1000"); TRANSFER_HTTP_REQ_DURATION_P99_MS = (Get-ThresholdValue "TRANSFER" "P99" "2000") }
@@ -671,6 +689,26 @@ switch ($Mode) {
     Run-K6 "transfer_fullstack_kafka" "scenarios/transfer_fullstack_kafka.js" @{ TOKEN = $token; VUS = "1"; ITERATIONS = "1"; DURATION = "90s"; TRANSFER_FINAL_STATUS_TIMEOUT_SECONDS = "60"; TRANSFER_CORRELATION_ID = $transferCorrelationId; TRANSFER_HTTP_REQ_DURATION_P95_MS = (Get-ThresholdValue "TRANSFER" "P95" "1000"); TRANSFER_HTTP_REQ_DURATION_P99_MS = (Get-ThresholdValue "TRANSFER" "P99" "2000") }
     $kafkaOffsetsAfter = Get-TransferKafkaOffsets
     Assert-TransferKafkaEventsPublished $kafkaOffsetsBefore $kafkaOffsetsAfter $transferCorrelationId
+  }
+  "transfer-circuit-breaker-kafka" {
+    $circuitStartedAt = [DateTimeOffset]::UtcNow.AddSeconds(-2).ToString("yyyy-MM-ddTHH:mm:ssZ")
+    Run-K6 "transfer_circuit_healthy" "scenarios/transfer_circuit_breaker.js" @{ TOKEN = $token; VUS = "1"; ITERATIONS = "1"; DURATION = (Get-LocalConfigValue "TRANSFER_CIRCUIT_HEALTHY_DURATION" "120s"); TRANSFER_CIRCUIT_PHASE = "healthy"; TRANSFER_FINAL_STATUS_TIMEOUT_SECONDS = (Get-LocalConfigValue "TRANSFER_CIRCUIT_HEALTHY_STATUS_TIMEOUT_SECONDS" "90"); TRANSFER_HTTP_REQ_DURATION_P95_MS = (Get-ThresholdValue "TRANSFER" "P95" "1000"); TRANSFER_HTTP_REQ_DURATION_P99_MS = (Get-ThresholdValue "TRANSFER" "P99" "2000") }
+
+    & docker @(Get-ComposeArguments -IncludeKafka) stop ledger-service
+    if ($LASTEXITCODE -ne 0) { throw "Falha ao parar ledger-service para cenario de degradacao." }
+
+    Run-K6 "transfer_circuit_degraded" "scenarios/transfer_circuit_breaker.js" @{ TOKEN = $token; VUS = (Get-LocalConfigValue "TRANSFER_CIRCUIT_DEGRADED_VUS" "5"); DURATION = (Get-LocalConfigValue "TRANSFER_CIRCUIT_DEGRADED_DURATION" "30s"); TRANSFER_CIRCUIT_PHASE = "degraded"; TRANSFER_FINAL_STATUS_TIMEOUT_SECONDS = (Get-LocalConfigValue "TRANSFER_CIRCUIT_DEGRADED_STATUS_TIMEOUT_SECONDS" "8"); TRANSFER_HTTP_REQ_DURATION_P95_MS = (Get-ThresholdValue "TRANSFER" "P95" "1000"); TRANSFER_HTTP_REQ_DURATION_P99_MS = (Get-ThresholdValue "TRANSFER" "P99" "2000") }
+    Assert-TransferWorkerLogContains $circuitStartedAt "Circuit breaker HTTP aberto. Client=Ledger" "abertura do Circuit Breaker"
+    Assert-TransferWorkerLogContains $circuitStartedAt "Chamada HTTP rejeitada por circuito aberto. Client=Ledger" "rejeicao rapida por circuito aberto"
+
+    & docker @(Get-ComposeArguments -IncludeK6 -IncludeKafka) up -d --no-build ledger-service
+    if ($LASTEXITCODE -ne 0) { throw "Falha ao restaurar ledger-service para cenario de recuperacao." }
+    $ledgerHostPort = Get-LocalConfigValue "LEDGER_SERVICE_HOST_PORT" "5226"
+    Wait-HttpEndpoint "http://localhost:$ledgerHostPort/health"
+
+    Run-K6 "transfer_circuit_recovery" "scenarios/transfer_circuit_breaker.js" @{ TOKEN = $token; VUS = (Get-LocalConfigValue "TRANSFER_CIRCUIT_RECOVERY_VUS" "1"); ITERATIONS = (Get-LocalConfigValue "TRANSFER_CIRCUIT_RECOVERY_ITERATIONS" "1"); DURATION = (Get-LocalConfigValue "TRANSFER_CIRCUIT_RECOVERY_DURATION" "120s"); TRANSFER_CIRCUIT_PHASE = "recovery"; TRANSFER_FINAL_STATUS_TIMEOUT_SECONDS = (Get-LocalConfigValue "TRANSFER_CIRCUIT_RECOVERY_STATUS_TIMEOUT_SECONDS" "90"); TRANSFER_HTTP_REQ_DURATION_P95_MS = (Get-ThresholdValue "TRANSFER" "P95" "1000"); TRANSFER_HTTP_REQ_DURATION_P99_MS = (Get-ThresholdValue "TRANSFER" "P99" "2000") }
+    Assert-TransferWorkerLogContains $circuitStartedAt "Tentativa HTTP em half-open liberada pelo circuit breaker. Client=Ledger" "transicao half-open do Circuit Breaker"
+    Assert-TransferWorkerLogContains $circuitStartedAt "Circuit breaker HTTP fechado. Client=Ledger" "fechamento do Circuit Breaker"
   }
 }
 

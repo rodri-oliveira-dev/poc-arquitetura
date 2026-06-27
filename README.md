@@ -424,6 +424,7 @@ Se houver containers antigos ou rede local presa do proprio projeto, o script pe
 | Parar stack completa | `./scripts/local/stop-full-stack.ps1` ou `./scripts/local/stop-full-stack.sh` |
 | Diagnosticar disco Docker | `./scripts/docker/disk-report.ps1` ou `./scripts/docker/disk-report.sh` |
 | Limpeza segura Docker | `./scripts/docker/clean-safe.ps1` ou `./scripts/docker/clean-safe.sh` |
+| Prune dry-run de volumes locais | `./scripts/docker/prune-volumes.ps1` ou `./scripts/docker/prune-volumes.sh` |
 | Load test smoke Kafka | `./scripts/performance/run-loadtests.ps1 -Mode smoke-kafka` ou `./scripts/performance/run-loadtests.sh smoke-kafka` |
 | Load test Kafka leve | `./scripts/performance/run-loadtests.ps1 -Mode load-kafka` ou `./scripts/performance/run-loadtests.sh load-kafka` |
 | TransferService smoke Kafka | `./scripts/performance/run-loadtests.ps1 -Mode transfer-smoke-kafka` ou `./scripts/performance/run-loadtests.sh transfer-smoke-kafka` |

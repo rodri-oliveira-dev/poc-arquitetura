@@ -432,6 +432,8 @@ Para limpeza segura sem apagar bancos ou outros volumes:
 
 Esses scripts usam `docker compose down --remove-orphans` sem `-v` e oferecem `docker builder prune`/`docker image prune` com confirmacao.
 
+Volumes persistentes e descartaveis estao rotulados no Compose. A classificacao completa, os comandos para limitar cache de build a 5GB e o prune dry-run de volumes com `auto-prune=true` ficam em [manutencao Docker local](docker-maintenance.md).
+
 Reset destrutivo do PostgreSQL local:
 
 ```bash
@@ -1161,6 +1163,8 @@ Detalhes de operacao ficam em [observabilidade e operacao minima](../observabili
 - `ApiLimits:MaxBalancePeriodDays`.
 
 Em variaveis de ambiente, use `ApiLimits__MaxRequestBodySizeBytes`, `ApiLimits__MaxBalancePeriodDays` e os demais nomes equivalentes.
+
+Clientes HTTP externos podem usar a base compartilhada `HttpResilience:Clients:<NomeDoCliente>` para configurar timeout, retry e circuit breaker via `Microsoft.Extensions.Http.Resilience`. A configuracao aceita valores por cliente, como `Ledger`, `Keycloak` e `JWKS`, com defaults seguros quando uma chave nao e informada. Valores de timeout, retry count, delay, janela de amostragem e duracao de abertura do circuit breaker devem ser maiores que zero; configuracoes invalidas falham no startup do consumidor. A politica trata como transitorias falhas como `HttpRequestException`, timeout, `408`, `429` e `5xx`; erros esperados de negocio, como `400`, `401`, `403` e `404`, nao devem acionar retry.
 
 ## VS Code
 
