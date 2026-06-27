@@ -26,7 +26,20 @@ public sealed partial class KeycloakAdminClient(
         {
             var accessToken = await GetAdminAccessTokenAsync(cancellationToken);
             var userId = await CreateKeycloakUserAsync(request, accessToken, cancellationToken);
-            await SetPasswordAsync(userId, request.Password, accessToken, cancellationToken);
+
+            try
+            {
+                await SetPasswordAsync(userId, request.Password, accessToken, cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                await CompensateCreatedUserAsync(userId, accessToken, ex, cancellationToken);
+                throw;
+            }
 
             return new CreateIdentityProviderUserResult(userId);
         }
@@ -62,17 +75,7 @@ public sealed partial class KeycloakAdminClient(
         try
         {
             var accessToken = await GetAdminAccessTokenAsync(cancellationToken);
-            var currentOptions = RequiredOptions;
-            using var request = CreateAuthorizedRequest(
-                HttpMethod.Delete,
-                $"admin/realms/{Escape(currentOptions.Realm!)}/users/{Escape(keycloakUserId)}",
-                accessToken);
-
-            using var response = await httpClient.SendAsync(request, cancellationToken);
-            if (response.StatusCode == HttpStatusCode.NotFound)
-                return;
-
-            await EnsureSuccessAsync(response, "remover usuario no Keycloak", cancellationToken);
+            await DeleteKeycloakUserAsync(keycloakUserId, accessToken, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -205,6 +208,49 @@ public sealed partial class KeycloakAdminClient(
         await EnsureSuccessAsync(response, "definir senha no Keycloak", cancellationToken);
     }
 
+    private async Task CompensateCreatedUserAsync(
+        string keycloakUserId,
+        string accessToken,
+        Exception originalException,
+        CancellationToken cancellationToken)
+    {
+        LogKeycloakUserCreationCompensationStarted(logger, keycloakUserId);
+
+        try
+        {
+            await DeleteKeycloakUserAsync(keycloakUserId, accessToken, cancellationToken);
+            LogKeycloakUserCreationCompensationSucceeded(logger, keycloakUserId);
+        }
+#pragma warning disable CA1031 // Compensation failure must be logged without hiding the original creation failure.
+        catch (Exception compensationException)
+#pragma warning restore CA1031
+        {
+            LogKeycloakUserCreationCompensationFailed(
+                logger,
+                compensationException,
+                keycloakUserId,
+                originalException.GetType().Name);
+        }
+    }
+
+    private async Task DeleteKeycloakUserAsync(
+        string keycloakUserId,
+        string accessToken,
+        CancellationToken cancellationToken)
+    {
+        var currentOptions = RequiredOptions;
+        using var request = CreateAuthorizedRequest(
+            HttpMethod.Delete,
+            $"admin/realms/{Escape(currentOptions.Realm!)}/users/{Escape(keycloakUserId)}",
+            accessToken);
+
+        using var response = await httpClient.SendAsync(request, cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return;
+
+        await EnsureSuccessAsync(response, "remover usuario no Keycloak", cancellationToken);
+    }
+
     private static async Task EnsureSuccessAsync(
         HttpResponseMessage response,
         string operation,
@@ -324,6 +370,32 @@ public sealed partial class KeycloakAdminClient(
     private static partial void LogIdentityProviderTimeout(
         ILogger logger,
         Exception exception);
+
+    [LoggerMessage(
+        EventId = 3,
+        Level = LogLevel.Warning,
+        Message = "Compensando usuario criado no Keycloak apos falha ao concluir criacao. KeycloakUserId: {KeycloakUserId}")]
+    private static partial void LogKeycloakUserCreationCompensationStarted(
+        ILogger logger,
+        string keycloakUserId);
+
+    [LoggerMessage(
+        EventId = 4,
+        Level = LogLevel.Information,
+        Message = "Usuario criado no Keycloak removido durante compensacao. KeycloakUserId: {KeycloakUserId}")]
+    private static partial void LogKeycloakUserCreationCompensationSucceeded(
+        ILogger logger,
+        string keycloakUserId);
+
+    [LoggerMessage(
+        EventId = 5,
+        Level = LogLevel.Error,
+        Message = "Falha ao compensar usuario criado no Keycloak. KeycloakUserId: {KeycloakUserId}; OriginalExceptionType: {OriginalExceptionType}")]
+    private static partial void LogKeycloakUserCreationCompensationFailed(
+        ILogger logger,
+        Exception exception,
+        string keycloakUserId,
+        string originalExceptionType);
 
     private sealed record TokenResponse(
         [property: JsonPropertyName("access_token")] string? AccessToken);

@@ -92,6 +92,7 @@ public sealed class KeycloakAdminClientTests
         fixture.Handler.EnqueueJson(HttpStatusCode.OK, /*lang=json,strict*/ """{ "access_token": "admin-token" }""");
         fixture.Handler.Enqueue(HttpStatusCode.Created, string.Empty, "/admin/realms/poc/users/keycloak-user-1");
         fixture.Handler.Enqueue(HttpStatusCode.BadRequest, $"provider body contains {password}");
+        fixture.Handler.Enqueue(HttpStatusCode.NoContent, string.Empty);
 
         var exception = await Assert.ThrowsAsync<IdentityProviderException>(() =>
             fixture.Client.CreateUserAsync(
@@ -101,6 +102,51 @@ public sealed class KeycloakAdminClientTests
         Assert.DoesNotContain(password, exception.Message, StringComparison.Ordinal);
         Assert.DoesNotContain(password, exception.ToString(), StringComparison.Ordinal);
         Assert.DoesNotContain(password, string.Join(Environment.NewLine, fixture.Logger.Messages), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task CreateUserAsync_should_delete_keycloak_user_when_password_reset_fails_Async()
+    {
+        using var fixture = new KeycloakAdminClientFixture();
+        fixture.Handler.EnqueueJson(HttpStatusCode.OK, /*lang=json,strict*/ """{ "access_token": "admin-token" }""");
+        fixture.Handler.Enqueue(HttpStatusCode.Created, string.Empty, "/admin/realms/poc/users/keycloak-user-1");
+        fixture.Handler.Enqueue(HttpStatusCode.BadRequest, "invalid password");
+        fixture.Handler.Enqueue(HttpStatusCode.NoContent, string.Empty);
+
+        var exception = await Assert.ThrowsAsync<IdentityProviderException>(() =>
+            fixture.Client.CreateUserAsync(
+                new CreateIdentityProviderUserRequest("User Name", "user@example.com", "user-name", "N3ver-log-me!"),
+                CancellationToken.None));
+
+        Assert.Equal(IdentityProviderErrorKind.Unexpected, exception.Kind);
+        Assert.Equal(HttpStatusCode.BadRequest, exception.StatusCode);
+        Assert.Equal(4, fixture.Handler.Requests.Count);
+        Assert.Equal(HttpMethod.Delete, fixture.Handler.Requests[3].Method);
+        Assert.Equal("/admin/realms/poc/users/keycloak-user-1", fixture.Handler.Requests[3].RequestUri?.PathAndQuery);
+        Assert.Contains("Compensando usuario criado no Keycloak", fixture.Logger.JoinedMessages, StringComparison.Ordinal);
+        Assert.Contains("Usuario criado no Keycloak removido", fixture.Logger.JoinedMessages, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task CreateUserAsync_should_preserve_original_exception_when_compensation_fails_Async()
+    {
+        using var fixture = new KeycloakAdminClientFixture();
+        fixture.Handler.EnqueueJson(HttpStatusCode.OK, /*lang=json,strict*/ """{ "access_token": "admin-token" }""");
+        fixture.Handler.Enqueue(HttpStatusCode.Created, string.Empty, "/admin/realms/poc/users/keycloak-user-1");
+        fixture.Handler.Enqueue(HttpStatusCode.BadRequest, "invalid password");
+        fixture.Handler.Enqueue(HttpStatusCode.InternalServerError, "delete failed");
+
+        var exception = await Assert.ThrowsAsync<IdentityProviderException>(() =>
+            fixture.Client.CreateUserAsync(
+                new CreateIdentityProviderUserRequest("User Name", "user@example.com", "user-name", "N3ver-log-me!"),
+                CancellationToken.None));
+
+        Assert.Equal(IdentityProviderErrorKind.Unexpected, exception.Kind);
+        Assert.Equal(HttpStatusCode.BadRequest, exception.StatusCode);
+        Assert.Contains("definir senha no Keycloak", exception.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("remover usuario no Keycloak", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("Falha ao compensar usuario criado no Keycloak", fixture.Logger.JoinedMessages, StringComparison.Ordinal);
+        Assert.Contains("OriginalExceptionType: IdentityProviderException", fixture.Logger.JoinedMessages, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -289,6 +335,9 @@ public sealed class KeycloakAdminClientTests
         {
             get;
         } = [];
+
+        public string JoinedMessages
+            => string.Join(Environment.NewLine, Messages);
 
         public IDisposable? BeginScope<TState>(TState state)
             where TState : notnull
