@@ -9,6 +9,8 @@
 \set transfer_db_migrator_password `printf '%s' "${TRANSFER_DB_MIGRATOR_PASSWORD:?Defina TRANSFER_DB_MIGRATOR_PASSWORD}"`
 \set identity_db_password `printf '%s' "${IDENTITY_DB_PASSWORD:?Defina IDENTITY_DB_PASSWORD}"`
 \set identity_db_migrator_password `printf '%s' "${IDENTITY_DB_MIGRATOR_PASSWORD:?Defina IDENTITY_DB_MIGRATOR_PASSWORD}"`
+\set identity_app_role 'identity_app_user'
+\set identity_migrator_role 'identity_migrator_user'
 
 -- Idempotent local bootstrap for the shared PostgreSQL container.
 -- Runtime roles receive only DML privileges in their own service schema.
@@ -40,13 +42,13 @@ SELECT format('CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATER
 WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'transfer_migrator_user') \gexec
 SELECT format('ALTER ROLE %I WITH LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION', 'transfer_migrator_user', :'transfer_db_migrator_password') \gexec
 
-SELECT format('CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION', 'identity_app_user', :'identity_db_password')
-WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'identity_app_user') \gexec
-SELECT format('ALTER ROLE %I WITH LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION', 'identity_app_user', :'identity_db_password') \gexec
+SELECT format('CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION', :'identity_app_role', :'identity_db_password')
+WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = :'identity_app_role') \gexec
+SELECT format('ALTER ROLE %I WITH LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION', :'identity_app_role', :'identity_db_password') \gexec
 
-SELECT format('CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION', 'identity_migrator_user', :'identity_db_migrator_password')
-WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'identity_migrator_user') \gexec
-SELECT format('ALTER ROLE %I WITH LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION', 'identity_migrator_user', :'identity_db_migrator_password') \gexec
+SELECT format('CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION', :'identity_migrator_role', :'identity_db_migrator_password')
+WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = :'identity_migrator_role') \gexec
+SELECT format('ALTER ROLE %I WITH LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION', :'identity_migrator_role', :'identity_db_migrator_password') \gexec
 
 CREATE SCHEMA IF NOT EXISTS ledger AUTHORIZATION ledger_migrator_user;
 CREATE SCHEMA IF NOT EXISTS balance AUTHORIZATION balance_migrator_user;

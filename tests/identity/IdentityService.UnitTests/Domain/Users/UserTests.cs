@@ -121,7 +121,7 @@ public sealed class UserTests
     [Fact]
     public void Domain_event_contract_should_expose_occurred_at()
     {
-        var domainEvent = Assert.IsAssignableFrom<IDomainEvent>(Assert.Single(CreateUser().DomainEvents));
+        var domainEvent = Assert.IsType<IDomainEvent>(Assert.Single(CreateUser().DomainEvents), exactMatch: false);
 
         Assert.NotEqual(default, domainEvent.OccurredAt);
     }

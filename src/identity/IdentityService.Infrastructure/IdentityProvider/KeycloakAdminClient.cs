@@ -286,12 +286,13 @@ public sealed partial class KeycloakAdminClient(
 
     private static Uri BuildAbsoluteOrRelativeTokenUri(string baseUrl, string tokenEndpoint)
     {
-        return Uri.TryCreate(tokenEndpoint, UriKind.Absolute, out var absoluteUri)
-            ? IsHttpUri(absoluteUri)
-                ? absoluteUri
-                : throw new InvalidOperationException(
-                    "IdentityProvider:Keycloak:TokenEndpoint deve ser uma URL HTTP/HTTPS absoluta ou um caminho relativo.")
-            : BuildRelativeTokenUri(baseUrl, tokenEndpoint);
+        return Uri.TryCreate(tokenEndpoint, UriKind.Absolute, out var absoluteUri) switch
+        {
+            false => BuildRelativeTokenUri(baseUrl, tokenEndpoint),
+            true when IsHttpUri(absoluteUri) => absoluteUri,
+            _ => throw new InvalidOperationException(
+                "IdentityProvider:Keycloak:TokenEndpoint deve ser uma URL HTTP/HTTPS absoluta ou um caminho relativo.")
+        };
     }
 
     private static Uri BuildRelativeTokenUri(string baseUrl, string tokenEndpoint)

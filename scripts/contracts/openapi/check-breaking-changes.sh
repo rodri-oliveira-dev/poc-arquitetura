@@ -32,14 +32,14 @@ for contract in "${contracts[@]}"; do
   base_contract="$BASE_OPENAPI_DIR/$contract"
   current_contract="$CURRENT_OPENAPI_DIR/$contract"
 
-  if [[ ! -f "$base_contract" ]]; then
-    echo "Contrato base nao encontrado: $base_contract" >&2
-    exit 1
-  fi
-
   if [[ ! -f "$current_contract" ]]; then
     echo "Contrato atual nao encontrado: $current_contract" >&2
     exit 1
+  fi
+
+  if [[ ! -f "$base_contract" ]]; then
+    echo "::notice::Contrato base nao encontrado para $contract em $BASE_OPENAPI_DIR. Tratando como baseline inicial e pulando diff de breaking changes deste contrato."
+    continue
   fi
 
   echo "Comparando breaking changes OpenAPI: $contract"

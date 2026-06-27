@@ -88,25 +88,40 @@ jobs:
           git fetch --depth=1 origin "${{ github.base_ref }}"
           mkdir -p .openapi-main
 
+          fetched_contracts=()
           missing_contracts=()
-          for contract in ledger.v1.json balance.v1.json transfer.v1.json; do
+          for contract in ledger.v1.json balance.v1.json transfer.v1.json identity.v1.json; do
             source_ref="origin/${{ github.base_ref }}:docs/openapi/${contract}"
             if git cat-file -e "$source_ref"; then
               git show "$source_ref" > ".openapi-main/${contract}"
+              fetched_contracts+=("$contract")
             else
               missing_contracts+=("$contract")
               echo "::notice::OpenAPI baseline docs/openapi/${contract} does not exist on ${{ github.base_ref }}. Breaking-change diff will be skipped for this initial baseline."
             fi
           done
 
-          if [ "${#missing_contracts[@]}" -eq 0 ]; then
+          if [ "${#fetched_contracts[@]}" -gt 0 ]; then
             echo "available=true" >> "$GITHUB_OUTPUT"
+            if [ "${#missing_contracts[@]}" -gt 0 ]; then
+              {
+                echo "## OpenAPI breaking change diff"
+                echo
+                echo "Alguns contratos ainda nao existem na \`${{ github.base_ref }}\` e serao tratados como baseline inicial."
+                echo
+                echo "Contratos ausentes na base:"
+                printf -- "- \`docs/openapi/%s\`\n" "${missing_contracts[@]}"
+                echo
+                echo "Contratos existentes na base continuam protegidos contra breaking changes:"
+                printf -- "- \`docs/openapi/%s\`\n" "${fetched_contracts[@]}"
+              } >> "$GITHUB_STEP_SUMMARY"
+            fi
           else
             echo "available=false" >> "$GITHUB_OUTPUT"
             {
               echo "## OpenAPI breaking change diff"
               echo
-              echo "Comparacao contra a \`${{ github.base_ref }}\` ignorada porque a branch base ainda nao possui todos os contratos OpenAPI versionados."
+              echo "Comparacao contra a \`${{ github.base_ref }}\` ignorada porque a branch base ainda nao possui contratos OpenAPI versionados."
               echo
               echo "Contratos ausentes na base:"
               printf -- "- \`docs/openapi/%s\`\n" "${missing_contracts[@]}"

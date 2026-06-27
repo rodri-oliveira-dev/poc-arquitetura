@@ -21,9 +21,8 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(configuration);
         ArgumentNullException.ThrowIfNull(environment);
 
-        services
-            .AddApiDefaults<GlobalExceptionHandler>(configuration, "identity.localhost", "localhost")
-            .AddIdentityApiSwagger();
+        services.AddApiDefaults<GlobalExceptionHandler>(configuration, "identity.localhost", "localhost");
+        services.AddIdentityApiSwagger();
 
         services.AddApiJwtBearerAuthentication(
             ReadJwtOptions(configuration, "Jwt"),
@@ -36,9 +35,9 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
-    private static IServiceCollection AddIdentityApiSwagger(this IServiceCollection services)
+    private static void AddIdentityApiSwagger(this IServiceCollection services)
     {
-        return services.AddApiSwaggerDefaults<ConfigureSwaggerOptions>(
+        services.AddApiSwaggerDefaults<ConfigureSwaggerOptions>(
             typeof(Program).Assembly,
             options =>
             {

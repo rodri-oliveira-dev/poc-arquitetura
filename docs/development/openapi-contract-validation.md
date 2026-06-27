@@ -56,8 +56,8 @@ Em pull requests para `main`, o workflow `openapi-contract-validation` executa e
 4. Gera os contratos atuais em `docs/openapi/`.
 5. Executa o lint com Redocly.
 6. Busca a referencia base da `main`.
-7. Extrai os contratos em `docs/openapi/*.v1.json` da `main` para `.openapi-main/`, quando os contratos ja existem na branch base.
-8. Executa `npm run openapi:diff` apenas quando todos os contratos esperados existem na `main`.
+7. Extrai os contratos em `docs/openapi/*.v1.json` da `main` para `.openapi-main/`, quando cada contrato ja existe na branch base.
+8. Executa `npm run openapi:diff` quando houver ao menos um contrato base; contratos novos sem baseline sao registrados como baseline inicial e pulados individualmente.
 9. Valida drift nos contratos gerados.
 
 O script `scripts/contracts/openapi/check-breaking-changes.sh` compara os contratos da `main` com os contratos gerados na branch usando `oasdiff breaking --fail-on ERR`. Esse modo falha apenas para mudancas classificadas como erro, que representam breaking changes mais claros. Warnings continuam visiveis na saida, mas nao bloqueiam a etapa inicial.
@@ -66,7 +66,7 @@ O script `scripts/contracts/openapi/check-breaking-changes.sh` compara os contra
 ./scripts/contracts/openapi/check-breaking-changes.sh
 ```
 
-Quando a `main` ainda nao possui um dos contratos versionados esperados, como no PR que introduz o baseline inicial, o workflow registra um notice e pula a comparacao de breaking changes. Se a geracao tambem produzir drift em `docs/openapi/`, o workflow registra warning e summary, mas nao bloqueia esse primeiro baseline. A geracao e o lint continuam obrigatorios. Depois que o baseline entrar na `main`, pull requests seguintes voltam a comparar contra a base normalmente e drift volta a ser bloqueante.
+Quando a `main` ainda nao possui um dos contratos versionados esperados, como no PR que introduz o baseline inicial do `IdentityService`, o workflow registra um notice e pula apenas a comparacao de breaking changes desse contrato novo. Contratos que ja existem na `main`, como Ledger, Balance e Transfer, continuam sendo comparados normalmente. Se nenhum contrato existir na base, o workflow trata o PR como baseline inicial completo. Se a geracao tambem produzir drift em `docs/openapi/`, o workflow registra warning e summary, mas nao bloqueia esse primeiro baseline completo. A geracao e o lint continuam obrigatorios. Depois que o baseline entrar na `main`, pull requests seguintes voltam a comparar contra a base normalmente e drift volta a ser bloqueante.
 
 Em push na `main`, o workflow nao compara a branch contra ela mesma. Ele gera, linta e valida drift. Em `workflow_dispatch`, o comportamento tambem e seguro: quando nao ha pull request, a comparacao contra `main` e ignorada e o summary registra essa decisao.
 
