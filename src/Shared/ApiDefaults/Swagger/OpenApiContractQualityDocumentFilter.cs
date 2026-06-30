@@ -12,6 +12,7 @@ public sealed class OpenApiContractQualityDocumentFilter : IDocumentFilter
         ["OutboxAdmin"] = "Operacoes administrativas protegidas para inspecao e recuperacao da DLQ do Outbox.",
         ["Consolidados"] = "Consultas protegidas de saldo consolidado diario e por periodo.",
         ["Transferencias"] = "Operacoes protegidas para solicitar transferencias e consultar o status da saga.",
+        ["Users"] = "Operacoes protegidas para cadastro de usuarios no IdentityService.",
         ["Operacional"] = "Endpoints operacionais publicos de liveness e readiness."
     };
 

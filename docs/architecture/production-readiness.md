@@ -23,6 +23,7 @@ Fora do escopo desta etapa:
 | Tema | Status | Evidencia atual | Direcao recomendada |
 | --- | --- | --- | --- |
 | Stack local de servicos | Ja existe no projeto | `compose.yaml`, `docs/development/local-development.md` | Manter como laboratorio local, sem tratar como ambiente produtivo. |
+| IdentityService | Ja existe no projeto | `src/identity`, ADR-0089 a ADR-0095 | Manter cadastro/vinculo local de usuarios separado do IdP; avaliar Outbox/worker para e-mail apenas se entrega duravel virar requisito. |
 | Kafka local | Ja existe no projeto | `compose.yaml`, `docs/development/kafka-outbox.md`, ADR-0088 | Tratar Kafka como broker padrao dos workers principais e definir seguranca/operacao antes de qualquer ambiente compartilhado. |
 | Pub/Sub emulator | Existe apenas localmente | `docs/operations/pubsub.md` | Usar somente para desenvolvimento e testes locais. |
 | Pub/Sub real dev | Documentado, mas nao automatizado como producao | `infra/terraform/environments/dev`, `docs/development/pubsub-infra-app-contract.md` | Usar apenas como alternativa explicita/legada ou estudo GCP; separar configuracao produtiva futura se uma ADR escolher Pub/Sub para algum fluxo. |
@@ -37,6 +38,7 @@ Fora do escopo desta etapa:
 | SBOM e assinatura de imagem | Pendente | Nao ha politica versionada | Avaliar como etapa futura junto de supply chain e Artifact Registry. |
 | WAF e rate limit por identidade | Pendente | Rate limits locais existem como hardening de API, sem WAF produtivo | Definir protecao por rota, identidade, tenant, origem e abuso. |
 | Observabilidade local | Ja existe no projeto | `docs/observability.md`, dashboards, alertas locais | Projetar backend produtivo, alertas e dashboards por SLO operacional futuro. |
+| E-mail transacional | Parcialmente documentado | ADR-0092, ADR-0093, ADR-0094, ADR-0095 | Usar Mailpit apenas localmente; usar Resend por secret/configuracao quando envio real for desejado; decidir Outbox/retry/DLQ antes de tratar envio como critico. |
 | DLQ, replay e rebuild | Documentado, mas nao automatizado como producao | Runbooks em `docs/operations/` | Criar automacao controlada, auditoria e permissoes antes de uso produtivo. |
 | OpenAPI e contratos de eventos | Ja existe no projeto | `docs/openapi/`, `docs/events/`, `contracts/events/` | Manter validacao de contrato como requisito de mudanca. |
 | Terraform produtivo | Pendente | Terraform atual e dev/controlado | Criar desenho separado somente depois de decisao de ambiente. |
@@ -55,6 +57,8 @@ Baseline recomendado:
 - evitar imprimir connection strings, tokens, senhas e valores de secret em logs, summaries, artifacts ou dashboards.
 
 O projeto ja documenta o uso de `dotnet user-secrets`, variaveis de ambiente locais e arquivos ignorados para desenvolvimento. Isso nao deve ser confundido com governanca produtiva de secrets.
+
+No IdentityService, `IdentityProvider:Keycloak:ClientSecret` e `Resend:ApiKey` sao secrets operacionais. Eles devem continuar fora do repositorio e fora de exemplos com valores reais.
 
 ## Identidade de workload e IAM
 

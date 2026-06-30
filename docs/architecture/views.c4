@@ -13,6 +13,9 @@ views {
     include edge.nginx
     include edge.nginx.portal
     include identity.keycloak
+    include legacyAuth.authApi
+    include identityService.identityApi
+    include identityService.identityDb
     include ledger.ledgerApi
     include ledger.ledgerWorker
     include ledger.ledgerDb
@@ -23,6 +26,8 @@ views {
     include kafka.ledgerEstornoTopic
     include kafka.ledgerReprocessamentoTopic
     include kafka.ledgerDlq
+    include email.mailpit
+    include email.resend
     include pubsubLocal.ledgerTopic
     include pubsubLocal.balanceSubscription
     include pubsubLocal.applicationDlqTopic
@@ -62,6 +67,28 @@ views {
     include balance.balanceApi
     include observability.collector
     include observability.jaeger
+    autoLayout LeftRight
+  }
+
+  dynamic view identityRegistrationFlow {
+    title "Dynamic View - cadastro de usuario no IdentityService"
+    description "Estado atual: cadastro sincronico cria usuario no Keycloak antes do commit local; e-mail e side effect depois do commit, sem Outbox nesta etapa."
+
+    customer -> identityService.identityEndpoints "1. Chama POST /api/v1/users com JWT identity.write"
+    identityService.identityEndpoints -> identityService.identityApplication "2. Valida request e cria CreateUserCommand"
+    identityService.identityApplication -> identityService.keycloakAdminClient "3. Solicita criacao do usuario no provider"
+    identityService.keycloakAdminClient -> identity.keycloak "4. Obtem token admin, cria usuario e define senha"
+    identityService.identityApplication -> identityService.identityDomain "5. Gera MerchantId e cria aggregate User"
+    identityService.identityApplication -> identityService.identityDbContext "6. Persiste usuario local"
+    identityService.identityDbContext -> identityService.identityDb "7. Commit no schema identity"
+    identityService.identityDbContext -> identityService.domainEventDispatcher "8. Despacha UserRegisteredDomainEvent apos commit"
+    identityService.domainEventDispatcher -> identityService.emailHandlers "9. Executa handler de boas-vindas"
+    identityService.emailHandlers -> identityService.welcomeEmailTemplate "10. Renderiza template HTML"
+    identityService.emailHandlers -> identityService.emailSenderPort "11. Envia por IEmailSender"
+    identityService.emailSenderPort -> email.mailpit "12a. Captura local quando Email:Provider=Mailpit"
+    identityService.emailSenderPort -> email.resend "12b. Envia real quando Email:Provider=Resend"
+    identityService.identityEndpoints -> customer "13. Retorna 201 com Id, KeycloakUserId, MerchantId, username e email"
+
     autoLayout LeftRight
   }
 
@@ -105,6 +132,7 @@ views {
   view observabilityFlow {
     title "Observabilidade local - traces, metricas, logs, dashboards e alertas"
     include identity.keycloak
+    include identityService.identityApi
     include ledger.ledgerApi
     include ledger.ledgerWorker
     include balance.balanceApi
@@ -117,6 +145,27 @@ views {
     include observability.alertmanager
     include observability.grafana
     include observability.grafana.dashboards
+    autoLayout LeftRight
+  }
+
+  view identityServiceComponents of identityService.identityApi {
+    title "Component View - IdentityService.Api"
+    include identityService.identityEndpoints
+    include identityService.identityApplication
+    include identityService.identityDomain
+    include identityService.identityInfrastructure
+    include identityService.keycloakAdminClient
+    include identityService.identityDbContext
+    include identityService.domainEventDispatcher
+    include identityService.emailHandlers
+    include identityService.emailSenderPort
+    include identityService.mailpitEmailSender
+    include identityService.resendEmailSender
+    include identityService.welcomeEmailTemplate
+    include identityService.identityDb
+    include identity.keycloak
+    include email.mailpit
+    include email.resend
     autoLayout LeftRight
   }
 
@@ -197,7 +246,7 @@ views {
   }
 
   view identityComponents of identity.keycloak {
-    title "Component View - Keycloak"
+    title "Component View - Keycloak IdP"
     include identity.oidcEndpoints
     include identity.realmConfig
     autoLayout LeftRight

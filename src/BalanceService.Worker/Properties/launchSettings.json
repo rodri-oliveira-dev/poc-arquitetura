@@ -4,7 +4,7 @@
     "BalanceService.Worker": {
       "commandName": "Project",
       "environmentVariables": {
-        "DOTNET_ENVIRONMENT": "Local",
+        "DOTNET_ENVIRONMENT": "Development",
         "PUBSUB_EMULATOR_HOST": "127.0.0.1:8085",
         "PUBSUB_PROJECT_ID": "poc-local"
       }

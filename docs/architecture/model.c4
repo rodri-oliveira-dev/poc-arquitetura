@@ -90,9 +90,94 @@ model {
       }
 
       realmConfig = component "Realm poc" {
-        description "Configuracao versionada em infra/keycloak/realm-poc.json com client poc-automation, audiences ledger-api/balance-api, scopes e merchant_id."
+        description "Configuracao versionada em infra/keycloak/realm-poc.json com clients poc-automation e identity-service-admin, audiences das APIs, scopes e merchant_id."
       }
 
+    }
+  }
+
+  legacyAuth = softwareSystem "Auth.Api legado" {
+    description "API simples de autenticacao da POC antiga. Permanece no repositorio e no overlay legacy-auth, mas nao e o caminho principal de identidade."
+
+    authApi = container "Auth.Api" {
+      technology "ASP.NET Core"
+      description "Projeto unico legado que emite JWT de POC com chave RSA persistida em volume local quando o profile legacy-auth e usado."
+    }
+  }
+
+  identityService = softwareSystem "IdentityService" {
+    description "Bounded context de identidade. Cadastra usuarios, gera MerchantId, cria o usuario no Keycloak e guarda o vinculo local no schema identity."
+
+    identityApi = container "IdentityService.Api" {
+      technology "ASP.NET Core Minimal API"
+      description "HTTP API para cadastro de usuarios em /api/v1/users, protegida por JWT Keycloak com audience identity-api e scope identity.write."
+
+      identityEndpoints = component "Minimal API / endpoints" {
+        description "Endpoint de cadastro, contratos HTTP, validacao de request, Swagger, autorizacao por scope, rate limit, health/readiness e composition root."
+      }
+
+      identityApplication = component "Application / use cases" {
+        description "CreateUserCommandHandler e portas IIdentityProviderUserService, IMerchantIdGenerator, IUserRepository, IEmailSender e IEmailTemplateRenderer."
+      }
+
+      identityDomain = component "Domain" {
+        description "Aggregate User, value objects Email, Username, UserId, MerchantId e UserRegisteredDomainEvent."
+      }
+
+      identityInfrastructure = component "Infrastructure" {
+        description "EF Core, IdentityDbContext, repositories, Keycloak Admin API, Domain Event Dispatcher, handlers de e-mail e adapters Mailpit/Resend."
+      }
+
+      keycloakAdminClient = component "KeycloakAdminClient" {
+        description "Adapter de IIdentityProviderUserService que obtem token administrativo, cria usuario, define senha e executa compensacao best effort no Keycloak."
+      }
+
+      identityDbContext = component "IdentityDbContext" {
+        description "DbContext do schema identity; salva User e despacha domain events depois do commit local."
+      }
+
+      domainEventDispatcher = component "Domain Event Dispatcher" {
+        description "Dispatcher intra-processo que executa handlers de UserRegisteredDomainEvent apos o commit; falhas sao registradas e nao desfazem o cadastro."
+      }
+
+      emailHandlers = component "Email handlers" {
+        description "Handlers de UserRegisteredDomainEvent, incluindo envio de e-mail de boas-vindas e log do cadastro."
+      }
+
+      emailSenderPort = component "IEmailSender" {
+        description "Porta de envio de e-mail usada pelos handlers sem expor SMTP, Resend ou Mailpit para Application/Domain."
+      }
+
+      resendEmailSender = component "ResendEmailSender" {
+        description "Adapter real de e-mail selecionado por Email:Provider=Resend; requer Resend:ApiKey fora do repositorio."
+      }
+
+      mailpitEmailSender = component "MailpitEmailSender" {
+        description "Adapter SMTP local selecionado por Email:Provider=Mailpit para capturar e-mails no Mailpit."
+      }
+
+      welcomeEmailTemplate = component "WelcomeEmail.html" {
+        description "Template HTML versionado em IdentityService.Infrastructure/Email/Templates, renderizado com dados do usuario e link de autenticacao."
+      }
+    }
+
+    identityDb = container "PostgreSQL schema identity" {
+      technology "PostgreSQL"
+      description "Schema identity no PostgreSQL local unico: users e historico de migrations do IdentityDbContext; nao armazena senha, hash ou segredo de usuario."
+    }
+  }
+
+  email = softwareSystem "E-mail transacional" {
+    description "Sistemas usados pelo IdentityService para e-mail de boas-vindas. Mailpit e local; Resend e provider real configuravel."
+
+    mailpit = container "Mailpit" {
+      technology "SMTP / Web UI"
+      description "Ferramenta local de captura de e-mails. Expoe SMTP em 1025 e UI em 8025 no host."
+    }
+
+    resend = container "Resend" {
+      technology "SaaS de e-mail"
+      description "Provider externo real de e-mail transacional usado quando Email:Provider=Resend e a API key e fornecida por secret/configuracao externa."
     }
   }
 
@@ -378,6 +463,8 @@ model {
   }
 
   customer -> identity.keycloak "Obtem JWT por OIDC/client_credentials" "HTTP"
+  customer -> identityService.identityApi "Cadastra usuarios e recebe MerchantId" "HTTP + JWT"
+  customer -> legacyAuth.authApi "Usa somente em cenarios legados explicitos" "HTTP + JWT legado"
   customer -> ledger.ledgerApi "Cria lancamentos e solicita/consulta estornos e reprocessamentos" "HTTP + JWT"
   customer -> balance.balanceApi "Consulta consolidados" "HTTP + JWT"
   customer -> edge.nginx "Acessa portal e Swaggers locais opcionais" "HTTPS"
@@ -387,8 +474,28 @@ model {
   edge.nginx.portal -> observability.jaeger "Linka UI local" "HTTP direto"
   edge.nginx.portal -> observability.prometheus "Linka UI local" "HTTP direto"
 
+  identityService.identityApi -> identity.keycloak "Valida JWT offline por JWKS, cria usuario via Admin API e define senha" "HTTP"
+  identityService.identityApi -> identityService.identityDb "Persiste usuario, MerchantId e KeycloakUserId" "EF Core"
+  identityService.identityApi -> email.mailpit "Envia e-mail local quando Email:Provider=Mailpit" "SMTP"
+  identityService.identityApi -> email.resend "Envia e-mail real quando Email:Provider=Resend" "HTTPS"
+
+  identityService.identityEndpoints -> identityService.identityApplication "Valida request e chama CreateUserCommandHandler"
+  identityService.identityApplication -> identityService.identityDomain "Cria User e UserRegisteredDomainEvent"
+  identityService.identityApplication -> identityService.keycloakAdminClient "Cria usuario e define senha via porta IIdentityProviderUserService"
+  identityService.identityApplication -> identityService.identityDbContext "Persiste User via IUserRepository"
+  identityService.identityDbContext -> identityService.domainEventDispatcher "Despacha eventos depois do commit"
+  identityService.domainEventDispatcher -> identityService.emailHandlers "Executa handlers de UserRegisteredDomainEvent"
+  identityService.emailHandlers -> identityService.welcomeEmailTemplate "Renderiza template HTML"
+  identityService.emailHandlers -> identityService.emailSenderPort "Solicita envio de e-mail"
+  identityService.emailSenderPort -> identityService.mailpitEmailSender "Adapter local selecionado por configuracao" "DI"
+  identityService.emailSenderPort -> identityService.resendEmailSender "Adapter real selecionado por configuracao" "DI"
+  identityService.keycloakAdminClient -> identity.keycloak "Usa client identity-service-admin para gerenciar usuarios" "HTTP Admin API"
+  identityService.mailpitEmailSender -> email.mailpit "Entrega e-mail no SMTP local" "SMTP"
+  identityService.resendEmailSender -> email.resend "Entrega e-mail transacional" "HTTPS"
+
   ledger.ledgerApi -> identity.keycloak "Baixa/cacheia JWKS e valida JWT offline com iss, aud, scopes e merchant_id" "HTTP cacheado"
   balance.balanceApi -> identity.keycloak "Baixa/cacheia JWKS e valida JWT offline com iss, aud, scopes e merchant_id" "HTTP cacheado"
+  transfer.transferApi -> identity.keycloak "Baixa/cacheia JWKS e valida JWT offline com iss, aud, scopes e merchant_id" "HTTP cacheado"
 
   ledger.ledgerApi -> ledger.ledgerDb "Persiste lancamento, estorno, reprocessamento, idempotencia e outbox" "EF Core"
   ledger.ledgerWorker.ledgerWorkerComposition -> ledger.ledgerWorker.ledgerWorkerApplication "Registra casos de uso e handlers" "DI / MediatR"
@@ -439,6 +546,9 @@ model {
   ledger.ledgerWorker -> observability.collector "Exporta telemetria quando habilitado no compose" "OTLP"
   balance.balanceApi -> observability.collector "Exporta telemetria quando habilitado no compose" "OTLP"
   balance.balanceWorker -> observability.collector "Exporta telemetria quando habilitado no compose" "OTLP"
+  transfer.transferApi -> observability.collector "Exporta telemetria quando habilitado no compose" "OTLP"
+  transfer.transferWorker -> observability.collector "Exporta telemetria quando habilitado no compose" "OTLP"
+  identityService.identityApi -> observability.collector "Exporta telemetria quando habilitado no compose" "OTLP"
   observability.collector -> observability.jaeger "Encaminha traces" "OTLP"
   observability.prometheus -> observability.collector "Coleta metricas tecnicas" "Prometheus scrape"
   observability.prometheus -> observability.alertmanager "Envia alertas tecnicos" "Alertmanager API"
