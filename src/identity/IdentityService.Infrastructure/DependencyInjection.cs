@@ -1,3 +1,4 @@
+using IdentityService.Application.Idempotency.Ports;
 using IdentityService.Application.Users.Ports;
 using IdentityService.Infrastructure.DomainEvents;
 using IdentityService.Infrastructure.Email;
@@ -53,6 +54,7 @@ public static class DependencyInjection
         ArgumentNullException.ThrowIfNull(services);
 
         services.AddSingleton<IMerchantIdGenerator, SequentialMerchantIdGenerator>();
+        services.AddScoped<IIdempotencyRepository, IdempotencyRepository>();
         services.AddScoped<IUserRepository, UserRepository>();
 
         return services;

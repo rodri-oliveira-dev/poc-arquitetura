@@ -1,4 +1,5 @@
 using IdentityService.Application.Common.DomainEvents;
+using IdentityService.Application.Idempotency;
 using IdentityService.Domain.Common;
 using IdentityService.Domain.Users;
 
@@ -10,6 +11,8 @@ public sealed class IdentityDbContext(
     DbContextOptions<IdentityDbContext> options,
     IDomainEventDispatcher? domainEventDispatcher = null) : DbContext(options)
 {
+    public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
+
     public DbSet<User> Users => Set<User>();
 
     public override int SaveChanges()
