@@ -17,6 +17,7 @@ public sealed partial class CreateUserCommandHandler(
 {
     private const int CreatedStatusCode = 201;
     private static readonly TimeSpan _idempotencyTimeToLive = TimeSpan.FromHours(24);
+    private static readonly TimeSpan _idempotencyProcessingLockDuration = TimeSpan.FromMinutes(10);
 
     public async Task<CreateUserResult> Handle(
         CreateUserCommand command,
@@ -31,6 +32,7 @@ public sealed partial class CreateUserCommandHandler(
 
         LogIdempotentCreateUserRequested(logger, CreateUserIdempotencyPayload.CreateUserOperationName);
 
+        string? createdIdentityProviderUserId = null;
         var idempotentResult = await idempotencyService.ExecuteAsync(
             new IdempotentOperationRequest<CreateUserResult>(
                 CreateUserIdempotencyPayload.CreateUserOperationName,
@@ -38,8 +40,17 @@ public sealed partial class CreateUserCommandHandler(
                 requestHash,
                 CreatedStatusCode,
                 _idempotencyTimeToLive,
-                executeAsync: token => ExecuteCreateAsync(command, token),
-                resourceIdSelector: response => response.Id),
+                executeAsync: token => ExecuteCreateAsync(
+                    command,
+                    saveChanges: false,
+                    keycloakUserId => createdIdentityProviderUserId = keycloakUserId,
+                    token),
+                resourceIdSelector: response => response.Id,
+                processingLockDuration: _idempotencyProcessingLockDuration,
+                onPersistenceFailureAsync: (exception, token) => CompensateIdentityProviderAsync(
+                    createdIdentityProviderUserId,
+                    exception,
+                    token)),
             cancellationToken);
 
         if (idempotentResult.Response is not null)
@@ -70,6 +81,17 @@ public sealed partial class CreateUserCommandHandler(
     private async Task<CreateUserResult> ExecuteCreateAsync(
         CreateUserCommand command,
         CancellationToken cancellationToken)
+        => await ExecuteCreateAsync(
+            command,
+            saveChanges: true,
+            onIdentityProviderCreated: null,
+            cancellationToken);
+
+    private async Task<CreateUserResult> ExecuteCreateAsync(
+        CreateUserCommand command,
+        bool saveChanges,
+        Action<string>? onIdentityProviderCreated,
+        CancellationToken cancellationToken)
     {
         var identityUser = await identityProvider.CreateUserAsync(
             new CreateIdentityProviderUserRequest(
@@ -78,6 +100,7 @@ public sealed partial class CreateUserCommandHandler(
                 command.Username,
                 command.Password),
             cancellationToken);
+        onIdentityProviderCreated?.Invoke(identityUser.KeycloakUserId);
 
         var user = User.Register(
             UserId.New(),
@@ -89,24 +112,16 @@ public sealed partial class CreateUserCommandHandler(
         try
         {
             await users.AddAsync(user, cancellationToken);
-            await users.SaveChangesAsync(cancellationToken);
+
+            if (saveChanges)
+                await users.SaveChangesAsync(cancellationToken);
         }
         catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
         {
-            try
-            {
-                await identityProvider.DeleteUserAsync(identityUser.KeycloakUserId, CancellationToken.None);
-            }
-#pragma warning disable CA1031 // Compensation failure is logged without hiding the original persistence failure.
-            catch (Exception compensationException)
-#pragma warning restore CA1031
-            {
-                LogIdentityProviderUserCompensationFailed(
-                    logger,
-                    compensationException,
-                    identityUser.KeycloakUserId,
-                    exception.GetType().Name);
-            }
+            _ = await CompensateIdentityProviderAsync(
+                identityUser.KeycloakUserId,
+                exception,
+                CancellationToken.None);
 
             throw;
         }
@@ -117,6 +132,42 @@ public sealed partial class CreateUserCommandHandler(
             user.MerchantId.Value,
             user.Username.Value,
             user.Email.Value);
+    }
+
+    private async Task<string?> CompensateIdentityProviderAsync(
+        string? keycloakUserId,
+        Exception originalException,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(originalException);
+
+        if (string.IsNullOrWhiteSpace(keycloakUserId))
+            return IdempotencyFailureStage.BeforeExternalSideEffect;
+
+        try
+        {
+            await identityProvider.DeleteUserAsync(keycloakUserId, cancellationToken);
+            IdempotencyFailureMetadata.SetFailureStage(
+                originalException,
+                IdempotencyFailureStage.AfterIdentityProviderCompensated);
+
+            return IdempotencyFailureStage.AfterIdentityProviderCompensated;
+        }
+#pragma warning disable CA1031 // Compensation failure is logged without hiding the original persistence failure.
+        catch (Exception compensationException)
+#pragma warning restore CA1031
+        {
+            IdempotencyFailureMetadata.SetFailureStage(
+                originalException,
+                IdempotencyFailureStage.AfterIdentityProviderCompensationFailed);
+            LogIdentityProviderUserCompensationFailed(
+                logger,
+                compensationException,
+                keycloakUserId,
+                originalException.GetType().Name);
+
+            return IdempotencyFailureStage.AfterIdentityProviderCompensationFailed;
+        }
     }
 
     [LoggerMessage(

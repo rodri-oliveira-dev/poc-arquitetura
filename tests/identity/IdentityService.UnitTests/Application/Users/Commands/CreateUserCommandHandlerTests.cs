@@ -6,6 +6,7 @@ using IdentityService.Application.Users.Ports;
 using IdentityService.Domain.Users;
 
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IdentityService.UnitTests.Application.Users.Commands;
 
@@ -260,6 +261,87 @@ public sealed class CreateUserCommandHandlerTests
         Assert.Empty(fixture.IdentityProvider.CreateRequests);
     }
 
+    [Fact]
+    public async Task Handle_should_allow_retry_after_idempotent_failure_before_keycloak_effect_Async()
+    {
+        var fixture = new HandlerFixture
+        {
+            IdentityProvider =
+            {
+                CreateException = new IdentityProviderException(
+                    IdentityProviderErrorKind.Unexpected,
+                    "provider failed")
+            }
+        };
+        var command = CreateCommand(idempotencyKey: "idem-provider-retry-1");
+
+        await Assert.ThrowsAsync<IdentityProviderException>(() =>
+            fixture.Handler.Handle(command, CancellationToken.None));
+
+        var failedRecord = Assert.Single(fixture.IdempotencyRepository.Records);
+        Assert.Equal(IdempotencyStatus.Failed, failedRecord.Status);
+        Assert.Equal(IdempotencyFailureStage.BeforeExternalSideEffect, failedRecord.FailureStage);
+
+        fixture.IdentityProvider.CreateException = null;
+        var result = await fixture.Handler.Handle(command, CancellationToken.None);
+
+        Assert.Equal("keycloak-user-1", result.KeycloakUserId);
+        Assert.Equal(IdempotencyStatus.Completed, failedRecord.Status);
+        Assert.Equal(2, fixture.IdentityProvider.CreateAttemptCount);
+        Assert.Single(fixture.IdentityProvider.CreateRequests);
+    }
+
+    [Fact]
+    public async Task Handle_should_compensate_keycloak_when_idempotent_local_commit_fails_Async()
+    {
+        var expected = new InvalidOperationException("database failed");
+        var fixture = new HandlerFixture
+        {
+            IdempotencyRepository =
+            {
+                SaveChangesException = expected
+            }
+        };
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            fixture.Handler.Handle(CreateCommand(idempotencyKey: "idem-commit-fails-1"), CancellationToken.None));
+
+        var record = Assert.Single(fixture.IdempotencyRepository.Records);
+        Assert.Same(expected, exception);
+        Assert.Equal(["keycloak-user-1"], fixture.IdentityProvider.DeletedUserIds);
+        Assert.Equal(IdempotencyStatus.Failed, record.Status);
+        Assert.Equal(IdempotencyFailureStage.AfterIdentityProviderCompensated, record.FailureStage);
+        Assert.Null(record.ResponseBody);
+    }
+
+    [Fact]
+    public async Task Handle_should_preserve_original_exception_when_idempotent_compensation_fails_Async()
+    {
+        var expected = new InvalidOperationException("database failed");
+        var fixture = new HandlerFixture
+        {
+            IdentityProvider =
+            {
+                DeleteException = new InvalidOperationException("compensation failed")
+            },
+            IdempotencyRepository =
+            {
+                SaveChangesException = expected
+            }
+        };
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            fixture.Handler.Handle(CreateCommand(idempotencyKey: "idem-compensation-fails-1"), CancellationToken.None));
+
+        var record = Assert.Single(fixture.IdempotencyRepository.Records);
+        Assert.Same(expected, exception);
+        Assert.Equal(["keycloak-user-1"], fixture.IdentityProvider.DeletedUserIds);
+        Assert.Equal(IdempotencyStatus.Failed, record.Status);
+        Assert.Equal(IdempotencyFailureStage.AfterIdentityProviderCompensationFailed, record.FailureStage);
+        Assert.Contains(fixture.Logger.Messages, message =>
+            message.Contains("Falha ao compensar usuario criado no provedor de identidade", StringComparison.Ordinal));
+    }
+
     private static CreateUserCommand CreateCommand(
         string email = "user@example.com",
         string password = "N3ver-save-me!",
@@ -283,7 +365,8 @@ public sealed class CreateUserCommandHandlerTests
             IdempotencyService = new IdempotencyService(
                 IdempotencyRepository,
                 Serializer,
-                TimeProvider.System);
+                TimeProvider.System,
+                NullLogger<IdempotencyService>.Instance);
             Handler = new CreateUserCommandHandler(
                 IdentityProvider,
                 Repository,
@@ -371,11 +454,18 @@ public sealed class CreateUserCommandHandlerTests
             private set;
         }
 
+        public int CreateAttemptCount
+        {
+            get;
+            private set;
+        }
+
         public Task<CreateIdentityProviderUserResult> CreateUserAsync(
             CreateIdentityProviderUserRequest request,
             CancellationToken cancellationToken = default)
         {
             CreateCancellationToken = cancellationToken;
+            CreateAttemptCount++;
 
             if (CreateException is not null)
                 return Task.FromException<CreateIdentityProviderUserResult>(CreateException);
@@ -514,13 +604,27 @@ public sealed class CreateUserCommandHandlerTests
             => Task.FromResult(_records.FirstOrDefault(x =>
                 x.OperationName == operationName && x.IdempotencyKey == idempotencyKey));
 
-        public Task AddAsync(IdempotencyRecord record, CancellationToken cancellationToken = default)
+        public Task<bool> TryAddProcessingAsync(IdempotencyRecord record, CancellationToken cancellationToken = default)
         {
+            if (_records.Any(x => x.OperationName == record.OperationName && x.IdempotencyKey == record.IdempotencyKey))
+                return Task.FromResult(false);
+
             _records.Add(record);
-            return Task.CompletedTask;
+            return Task.FromResult(true);
+        }
+
+        public Exception? SaveChangesException
+        {
+            get;
+            set;
         }
 
         public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+            => SaveChangesException is null
+                ? Task.FromResult(1)
+                : Task.FromException<int>(SaveChangesException);
+
+        public Task<int> SaveFailureAsync(IdempotencyRecord record, CancellationToken cancellationToken = default)
             => Task.FromResult(1);
 
         public void SeedProcessing(string idempotencyKey, string requestHash)

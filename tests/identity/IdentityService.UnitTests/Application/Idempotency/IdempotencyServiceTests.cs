@@ -2,6 +2,8 @@ using IdentityService.Application.Idempotency;
 using IdentityService.Application.Idempotency.Ports;
 using IdentityService.Application.Users.Commands;
 
+using Microsoft.Extensions.Logging.Abstractions;
+
 namespace IdentityService.UnitTests.Application.Idempotency;
 
 public sealed class IdempotencyServiceTests
@@ -99,7 +101,115 @@ public sealed class IdempotencyServiceTests
         Assert.Same(expected, exception);
         Assert.Equal(IdempotencyStatus.Failed, record.Status);
         Assert.Equal("business failed", record.ErrorMessage);
+        Assert.Equal(IdempotencyFailureStage.BeforeExternalSideEffect, record.FailureStage);
         Assert.Equal(2, fixture.Repository.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_should_treat_unique_constraint_as_concurrent_processing()
+    {
+        var fixture = new Fixture();
+        fixture.Repository.SimulateConcurrentReservation = true;
+        fixture.Repository.SeedProcessing();
+        var executions = 0;
+
+        var result = await fixture.Service.ExecuteAsync(CreateRequest(_ =>
+        {
+            executions++;
+            return Task.FromResult(new TestResponse(Guid.NewGuid(), "new"));
+        }), TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, executions);
+        Assert.True(result.IsInProgress);
+        Assert.Single(fixture.Repository.Records);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_should_retry_failed_record_when_failure_was_before_external_side_effect()
+    {
+        var fixture = new Fixture();
+        fixture.Repository.SeedFailed(IdempotencyFailureStage.BeforeExternalSideEffect);
+        var executions = 0;
+
+        var result = await fixture.Service.ExecuteAsync(CreateRequest(_ =>
+        {
+            executions++;
+            return Task.FromResult(new TestResponse(Guid.NewGuid(), "created"));
+        }), TestContext.Current.CancellationToken);
+
+        var record = Assert.Single(fixture.Repository.Records);
+        Assert.Equal(1, executions);
+        Assert.True(result.OperationExecutedNow);
+        Assert.Equal(IdempotencyStatus.Completed, record.Status);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_should_not_retry_failed_record_when_compensation_failed()
+    {
+        var fixture = new Fixture();
+        fixture.Repository.SeedFailed(IdempotencyFailureStage.AfterIdentityProviderCompensationFailed);
+        var executions = 0;
+
+        var result = await fixture.Service.ExecuteAsync(CreateRequest(_ =>
+        {
+            executions++;
+            return Task.FromResult(new TestResponse(Guid.NewGuid(), "created"));
+        }), TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, executions);
+        Assert.True(result.IsInProgress);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_should_run_persistence_failure_callback_when_retried_record_commit_fails()
+    {
+        var fixture = new Fixture();
+        fixture.Repository.SeedFailed(IdempotencyFailureStage.BeforeExternalSideEffect);
+        fixture.Repository.ThrowOnSaveChangesCallNumber = 2;
+        var callbackCalled = false;
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            fixture.Service.ExecuteAsync(
+                new IdempotentOperationRequest<TestResponse>(
+                    CreateUserIdempotencyPayload.CreateUserOperationName,
+                    "idem-1",
+                    RequestHash,
+                    201,
+                    TimeSpan.FromHours(24),
+                    _ => Task.FromResult(new TestResponse(Guid.NewGuid(), "created")),
+                    onPersistenceFailureAsync: (_, _) =>
+                    {
+                        callbackCalled = true;
+                        return Task.FromResult<string?>(IdempotencyFailureStage.AfterIdentityProviderCompensated);
+                    }),
+                TestContext.Current.CancellationToken));
+
+        var record = Assert.Single(fixture.Repository.Records);
+        Assert.Equal("commit failed", exception.Message);
+        Assert.True(callbackCalled);
+        Assert.Equal(IdempotencyStatus.Failed, record.Status);
+        Assert.Equal(IdempotencyFailureStage.AfterIdentityProviderCompensated, record.FailureStage);
+    }
+
+
+    [Fact]
+    public async Task ExecuteAsync_should_mark_old_processing_lock_as_failed_without_executing_action()
+    {
+        var fixture = new Fixture();
+        fixture.Repository.SeedProcessing(lockedUntilUtc: _now.AddMinutes(-1).UtcDateTime);
+        var executions = 0;
+
+        var result = await fixture.Service.ExecuteAsync(CreateRequest(_ =>
+        {
+            executions++;
+            return Task.FromResult(new TestResponse(Guid.NewGuid(), "created"));
+        }), TestContext.Current.CancellationToken);
+
+        var record = Assert.Single(fixture.Repository.Records);
+        Assert.Equal(0, executions);
+        Assert.True(result.IsInProgress);
+        Assert.Equal(IdempotencyStatus.Failed, record.Status);
+        Assert.Equal(IdempotencyFailureStage.ProcessingLockExpired, record.FailureStage);
     }
 
     [Fact]
@@ -217,7 +327,11 @@ public sealed class IdempotencyServiceTests
         {
             Serializer = new StableJsonIdempotencyResponseSerializer();
             Repository = new FakeIdempotencyRepository(Serializer);
-            Service = new IdempotencyService(Repository, Serializer, new FakeTimeProvider(_now));
+            Service = new IdempotencyService(
+                Repository,
+                Serializer,
+                new FakeTimeProvider(_now),
+                NullLogger<IdempotencyService>.Instance);
         }
 
         public StableJsonIdempotencyResponseSerializer Serializer
@@ -248,6 +362,18 @@ public sealed class IdempotencyServiceTests
             private set;
         }
 
+        public bool SimulateConcurrentReservation
+        {
+            get;
+            set;
+        }
+
+        public int? ThrowOnSaveChangesCallNumber
+        {
+            get;
+            set;
+        }
+
         public Task<IdempotencyRecord?> GetByOperationAndKeyAsync(
             string operationName,
             string idempotencyKey,
@@ -255,21 +381,44 @@ public sealed class IdempotencyServiceTests
             => Task.FromResult(_records.FirstOrDefault(x =>
                 x.OperationName == operationName && x.IdempotencyKey == idempotencyKey));
 
-        public Task AddAsync(IdempotencyRecord record, CancellationToken cancellationToken = default)
+        public Task<bool> TryAddProcessingAsync(IdempotencyRecord record, CancellationToken cancellationToken = default)
         {
+            if (_records.Any(x => x.OperationName == record.OperationName && x.IdempotencyKey == record.IdempotencyKey))
+                return Task.FromResult(false);
+
             _records.Add(record);
-            return Task.CompletedTask;
+
+            if (SimulateConcurrentReservation)
+                return Task.FromResult(false);
+
+            SaveChangesCount++;
+            return Task.FromResult(true);
         }
 
         public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
         {
             SaveChangesCount++;
+            return ThrowOnSaveChangesCallNumber == SaveChangesCount
+                ? Task.FromException<int>(new InvalidOperationException("commit failed"))
+                : Task.FromResult(1);
+        }
+
+        public Task<int> SaveFailureAsync(IdempotencyRecord record, CancellationToken cancellationToken = default)
+        {
+            SaveChangesCount++;
             return Task.FromResult(1);
         }
 
-        public void SeedProcessing()
+        public void SeedProcessing(DateTime? lockedUntilUtc = null)
         {
-            _records.Add(CreateProcessingRecord());
+            _records.Add(CreateProcessingRecord(lockedUntilUtc));
+        }
+
+        public void SeedFailed(string failureStage)
+        {
+            var record = CreateProcessingRecord();
+            record.MarkFailed(failureStage, "failed", _now.AddMinutes(1).UtcDateTime);
+            _records.Add(record);
         }
 
         public void SeedCompleted(TestResponse response)
@@ -279,13 +428,14 @@ public sealed class IdempotencyServiceTests
             _records.Add(record);
         }
 
-        private static IdempotencyRecord CreateProcessingRecord()
+        private static IdempotencyRecord CreateProcessingRecord(DateTime? lockedUntilUtc = null)
             => IdempotencyRecord.StartProcessing(
                 CreateUserIdempotencyPayload.CreateUserOperationName,
                 "idem-1",
                 RequestHash,
                 _now.UtcDateTime,
-                _now.AddHours(24).UtcDateTime);
+                _now.AddHours(24).UtcDateTime,
+                lockedUntilUtc);
     }
 
     private sealed class FakeTimeProvider(DateTimeOffset now) : TimeProvider

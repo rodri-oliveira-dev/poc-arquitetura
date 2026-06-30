@@ -6,6 +6,7 @@ public sealed class IdempotencyRecord
     public const int IdempotencyKeyMaxLength = 128;
     public const int RequestHashMaxLength = 64;
     public const int StatusMaxLength = 32;
+    public const int FailureStageMaxLength = 64;
     public const int ErrorMessageMaxLength = 2_000;
 
     private IdempotencyRecord()
@@ -96,6 +97,11 @@ public sealed class IdempotencyRecord
         get; private set;
     }
 
+    public string? FailureStage
+    {
+        get; private set;
+    }
+
     public string? ErrorMessage
     {
         get; private set;
@@ -129,6 +135,8 @@ public sealed class IdempotencyRecord
         Guid? resourceId,
         DateTime completedAtUtc)
     {
+        EnsureProcessing();
+
         if (responseStatusCode is < 100 or > 599)
             throw new ArgumentOutOfRangeException(nameof(responseStatusCode), "Response status code must be valid HTTP status.");
 
@@ -141,15 +149,48 @@ public sealed class IdempotencyRecord
         ResourceId = resourceId;
         CompletedAtUtc = EnsureUtc(completedAtUtc, nameof(completedAtUtc));
         LockedUntilUtc = null;
+        FailureStage = null;
         ErrorMessage = null;
     }
 
-    public void MarkFailed(string? errorMessage, DateTime completedAtUtc)
+    public void MarkFailed(string failureStage, string? errorMessage, DateTime completedAtUtc)
     {
+        EnsureCanFail();
+        ValidateRequired(failureStage, nameof(failureStage), FailureStageMaxLength);
+
         Status = IdempotencyStatus.Failed;
+        ResponseStatusCode = null;
+        ResponseBody = null;
+        ResourceId = null;
         CompletedAtUtc = EnsureUtc(completedAtUtc, nameof(completedAtUtc));
         LockedUntilUtc = null;
+        FailureStage = failureStage;
         ErrorMessage = Truncate(errorMessage, ErrorMessageMaxLength);
+    }
+
+    public void RestartProcessing(DateTime nowUtc, DateTime? lockedUntilUtc = null)
+    {
+        if (Status != IdempotencyStatus.Failed)
+            throw new InvalidOperationException("Only failed idempotency records can be restarted.");
+
+        Status = IdempotencyStatus.Processing;
+        CompletedAtUtc = null;
+        LockedUntilUtc = EnsureNullableUtc(lockedUntilUtc, nameof(lockedUntilUtc));
+        FailureStage = null;
+        ErrorMessage = null;
+        _ = EnsureUtc(nowUtc, nameof(nowUtc));
+    }
+
+    private void EnsureProcessing()
+    {
+        if (Status != IdempotencyStatus.Processing)
+            throw new InvalidOperationException($"Idempotency record cannot transition from '{Status}'.");
+    }
+
+    private void EnsureCanFail()
+    {
+        if (Status is not (IdempotencyStatus.Processing or IdempotencyStatus.Completed))
+            throw new InvalidOperationException($"Idempotency record cannot transition from '{Status}'.");
     }
 
     private static void ValidateRequired(string value, string parameterName, int maxLength)

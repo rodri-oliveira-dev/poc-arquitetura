@@ -117,8 +117,7 @@ public sealed class IdentityPersistenceTests(PostgresIdentityFixture fixture) : 
         var repository = scope.ServiceProvider.GetRequiredService<IIdempotencyRepository>();
         var record = CreateProcessingRecord("CreateUser", "idem-processing");
 
-        await repository.AddAsync(record, TestContext.Current.CancellationToken);
-        await repository.SaveChangesAsync(TestContext.Current.CancellationToken);
+        Assert.True(await repository.TryAddProcessingAsync(record, TestContext.Current.CancellationToken));
 
         var persisted = await repository.GetByOperationAndKeyAsync(
             "CreateUser",
@@ -141,8 +140,7 @@ public sealed class IdentityPersistenceTests(PostgresIdentityFixture fixture) : 
         var record = CreateProcessingRecord("CreateUser", "idem-completed");
         var resourceId = Guid.NewGuid();
 
-        await repository.AddAsync(record, TestContext.Current.CancellationToken);
-        await repository.SaveChangesAsync(TestContext.Current.CancellationToken);
+        Assert.True(await repository.TryAddProcessingAsync(record, TestContext.Current.CancellationToken));
 
         var responseBody = /*lang=json,strict*/ """
             {"id":"user-1","email":"completed@example.com"}
@@ -185,6 +183,36 @@ public sealed class IdentityPersistenceTests(PostgresIdentityFixture fixture) : 
     }
 
     [Fact]
+    public async Task Idempotency_repository_should_treat_unique_constraint_as_expected_concurrency()
+    {
+        await using var firstProvider = _fixture.CreateServiceProvider();
+        await using var secondProvider = _fixture.CreateServiceProvider();
+        await using var firstScope = firstProvider.CreateAsyncScope();
+        await using var secondScope = secondProvider.CreateAsyncScope();
+        var firstRepository = firstScope.ServiceProvider.GetRequiredService<IIdempotencyRepository>();
+        var secondRepository = secondScope.ServiceProvider.GetRequiredService<IIdempotencyRepository>();
+
+        var results = await Task.WhenAll(
+            firstRepository.TryAddProcessingAsync(
+                CreateProcessingRecord("CreateUser", "idem-concurrent-unique"),
+                TestContext.Current.CancellationToken),
+            secondRepository.TryAddProcessingAsync(
+                CreateProcessingRecord("CreateUser", "idem-concurrent-unique"),
+                TestContext.Current.CancellationToken));
+
+        Assert.Contains(true, results);
+        Assert.Contains(false, results);
+
+        await using var db = _fixture.CreateDbContext();
+        Assert.Equal(
+            1,
+            await db.IdempotencyRecords.CountAsync(
+                record => record.OperationName == "CreateUser" &&
+                    record.IdempotencyKey == "idem-concurrent-unique",
+                TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
     public async Task Database_should_allow_same_idempotency_key_for_different_operations()
     {
         await using var db = _fixture.CreateDbContext();
@@ -221,8 +249,7 @@ public sealed class IdentityPersistenceTests(PostgresIdentityFixture fixture) : 
             Guid.Parse("00000000-0000-0000-0000-000000000001"),
             new DateTime(2026, 06, 26, 12, 5, 0, DateTimeKind.Utc));
 
-        await repository.AddAsync(record, TestContext.Current.CancellationToken);
-        await repository.SaveChangesAsync(TestContext.Current.CancellationToken);
+        Assert.True(await repository.TryAddProcessingAsync(record, TestContext.Current.CancellationToken));
 
         var persisted = await repository.GetByOperationAndKeyAsync(
             "CreateUser",

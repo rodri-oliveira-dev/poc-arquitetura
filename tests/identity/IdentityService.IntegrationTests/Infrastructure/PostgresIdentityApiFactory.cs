@@ -24,6 +24,7 @@ public sealed class PostgresIdentityApiFactory(string connectionString) : WebApp
         {
             logging.ClearProviders();
             logging.AddDebug();
+            logging.AddProvider(new RecordingLoggerProvider(LogMessages));
         });
 
         builder.ConfigureAppConfiguration((_, configuration) =>
@@ -77,6 +78,11 @@ public sealed class PostgresIdentityApiFactory(string connectionString) : WebApp
         get;
     } = new();
 
+    public List<string> LogMessages
+    {
+        get;
+    } = [];
+
     private static void RemoveService<TService>(IServiceCollection services)
     {
         ServiceDescriptor? descriptor = services.SingleOrDefault(descriptor => descriptor.ServiceType == typeof(TService));
@@ -96,27 +102,71 @@ public sealed class PostgresIdentityApiFactory(string connectionString) : WebApp
 
     public sealed class RecordingIdentityProviderUserService : IIdentityProviderUserService
     {
+        private readonly Lock _sync = new();
+
         public List<CreateIdentityProviderUserRequest> CreateRequests
         {
             get;
         } = [];
+
+        public List<string> DeletedUserIds
+        {
+            get;
+        } = [];
+
+        public TaskCompletionSource<bool>? CreateEntered
+        {
+            get;
+            set;
+        }
+
+        public TaskCompletionSource<bool>? ReleaseCreate
+        {
+            get;
+            set;
+        }
 
         public Task<CreateIdentityProviderUserResult> CreateUserAsync(
             CreateIdentityProviderUserRequest request,
             CancellationToken cancellationToken = default)
         {
             ArgumentNullException.ThrowIfNull(request);
-            CreateRequests.Add(request);
 
-            return Task.FromResult(new CreateIdentityProviderUserResult($"kc-{Guid.NewGuid():N}"));
+            return CreateUserCoreAsync(request, cancellationToken);
         }
 
         public Task DeleteUserAsync(string keycloakUserId, CancellationToken cancellationToken = default)
-            => Task.CompletedTask;
+        {
+            lock (_sync)
+            {
+                DeletedUserIds.Add(keycloakUserId);
+            }
+
+            return Task.CompletedTask;
+        }
+
+        private async Task<CreateIdentityProviderUserResult> CreateUserCoreAsync(
+            CreateIdentityProviderUserRequest request,
+            CancellationToken cancellationToken)
+        {
+            lock (_sync)
+            {
+                CreateRequests.Add(request);
+            }
+
+            CreateEntered?.TrySetResult(true);
+
+            if (ReleaseCreate is not null)
+                await ReleaseCreate.Task.WaitAsync(cancellationToken);
+
+            return new CreateIdentityProviderUserResult($"kc-{Guid.NewGuid():N}");
+        }
     }
 
     public sealed class RecordingEmailSender : IEmailSender
     {
+        private readonly Lock _sync = new();
+
         public List<EmailMessage> Messages
         {
             get;
@@ -124,8 +174,48 @@ public sealed class PostgresIdentityApiFactory(string connectionString) : WebApp
 
         public Task SendAsync(EmailMessage message, CancellationToken cancellationToken = default)
         {
-            Messages.Add(message);
+            lock (_sync)
+            {
+                Messages.Add(message);
+            }
+
             return Task.CompletedTask;
+        }
+    }
+
+    private sealed class RecordingLoggerProvider(List<string> messages) : ILoggerProvider
+    {
+        public ILogger CreateLogger(string categoryName) => new RecordingLogger(messages, categoryName);
+
+        public void Dispose()
+        {
+        }
+    }
+
+    private sealed class RecordingLogger(List<string> messages, string categoryName) : ILogger
+    {
+        private readonly Lock _sync = new();
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull
+            => null;
+
+        public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Warning;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (!IsEnabled(logLevel))
+                return;
+
+            lock (_sync)
+            {
+                messages.Add($"{categoryName}: {formatter(state, exception)} {exception}");
+            }
         }
     }
 }

@@ -217,9 +217,10 @@ Comportamento preferido:
 - marcar como `Failed` com `failure_stage = BeforeExternalSideEffect` e permitir
   que a proxima chamada com o mesmo hash tente assumir a chave novamente.
 
-A implementacao deve escolher a alternativa mais simples e transacionalmente
-  segura no EF Core. A spec nao exige retencao de falhas pre-efeito para auditoria
-no MVP.
+A implementacao atual marca `Failed` com
+`failure_stage = BeforeExternalSideEffect` e permite que a proxima chamada com a
+mesma chave e mesmo hash reassuma o registro como `Processing`. A spec nao exige
+retencao de falhas pre-efeito para auditoria no MVP.
 
 ### Falha depois de criar usuario no Keycloak
 
@@ -249,6 +250,17 @@ revertem o cadastro. Portanto, quando o usuario foi persistido e a resposta
 `201` foi produzida, a chave deve ser marcada como `Completed` mesmo que o envio
 de e-mail falhe. Retries com a mesma chave retornam a resposta salva e nao
 reenviam e-mail.
+
+Mitigacao implementada para a janela entre salvar o usuario e persistir a
+resposta idempotente: no caminho com `Idempotency-Key`, o usuario local e a
+transicao `Processing -> Completed` sao persistidos no mesmo `SaveChanges` do
+EF Core. Se esse commit falhar depois da criacao no Keycloak, a compensacao e
+executada e o registro e marcado como `Failed` com o estagio apropriado. O
+caminho sem `Idempotency-Key` preserva o fluxo historico.
+
+Se o processo cair depois do commit local concluido e antes da resposta HTTP
+chegar ao cliente, o registro ja esta `Completed`; o retry retorna a resposta
+persistida e nao reexecuta Keycloak, persistencia local ou e-mail.
 
 ## Modelo de dados proposto
 
@@ -434,9 +446,12 @@ inflar cobertura.
 - A exclusao de `password` do `request_hash` e uma decisao de seguranca, mas
   significa que uma segunda chamada com mesma chave e senha diferente nao troca
   a senha no Keycloak.
-- Se o processo morrer enquanto o registro estiver `Processing`, sera necessario
-  decidir se `locked_until_utc` habilita recuperacao automatica ou se o primeiro
-  MVP retorna conflito ate expiracao.
+- A implementacao atual usa `locked_until_utc` de 10 minutos para o cadastro de
+  usuario. Quando um `Processing` antigo ultrapassa esse limite, o registro e
+  marcado como `Failed` com `failure_stage = ProcessingLockExpired` e o retry
+  automatico continua bloqueado ate recuperacao operacional. A escolha e
+  conservadora para evitar chamar Keycloak duas vezes quando nao ha certeza se o
+  efeito externo ocorreu antes da queda.
 - Falha de compensacao no Keycloak pode deixar usuario externo orfao; a spec
   evita repetir a criacao no retry, mas recuperacao operacional ainda precisara
   de runbook se o caso se tornar frequente.

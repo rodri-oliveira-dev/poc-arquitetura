@@ -74,6 +74,10 @@ public sealed class IdempotencyRecordConfiguration : IEntityTypeConfiguration<Id
             .HasColumnName("locked_until_utc")
             .HasColumnType(PostgreSqlColumnTypes.TimestampWithTimeZone);
 
+        builder.Property(x => x.FailureStage)
+            .HasColumnName("failure_stage")
+            .HasMaxLength(IdempotencyRecord.FailureStageMaxLength);
+
         builder.Property(x => x.ErrorMessage)
             .HasColumnName("error_message")
             .HasMaxLength(IdempotencyRecord.ErrorMessageMaxLength);

@@ -10,7 +10,8 @@ public sealed class IdempotentOperationRequest<TResponse>
         TimeSpan timeToLive,
         Func<CancellationToken, Task<TResponse>> executeAsync,
         Func<TResponse, Guid?>? resourceIdSelector = null,
-        TimeSpan? processingLockDuration = null)
+        TimeSpan? processingLockDuration = null,
+        Func<Exception, CancellationToken, Task<string?>>? onPersistenceFailureAsync = null)
     {
         if (string.IsNullOrWhiteSpace(operationName))
             throw new ArgumentException("Operation name is required.", nameof(operationName));
@@ -37,6 +38,7 @@ public sealed class IdempotentOperationRequest<TResponse>
         ExecuteAsync = executeAsync;
         ResourceIdSelector = resourceIdSelector;
         ProcessingLockDuration = processingLockDuration;
+        OnPersistenceFailureAsync = onPersistenceFailureAsync;
     }
 
     public string OperationName
@@ -75,6 +77,11 @@ public sealed class IdempotentOperationRequest<TResponse>
     }
 
     public TimeSpan? ProcessingLockDuration
+    {
+        get;
+    }
+
+    public Func<Exception, CancellationToken, Task<string?>>? OnPersistenceFailureAsync
     {
         get;
     }

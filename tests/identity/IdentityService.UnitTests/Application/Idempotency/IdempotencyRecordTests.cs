@@ -67,11 +67,15 @@ public sealed class IdempotencyRecordTests
         var record = CreateRecord();
         var completedAtUtc = new DateTime(2026, 06, 26, 12, 5, 0, DateTimeKind.Utc);
 
-        record.MarkFailed("failed after compensation", completedAtUtc);
+        record.MarkFailed(
+            IdempotencyFailureStage.AfterIdentityProviderCompensated,
+            "failed after compensation",
+            completedAtUtc);
 
         Assert.Equal(IdempotencyStatus.Failed, record.Status);
         Assert.Equal(completedAtUtc, record.CompletedAtUtc);
         Assert.Null(record.LockedUntilUtc);
+        Assert.Equal(IdempotencyFailureStage.AfterIdentityProviderCompensated, record.FailureStage);
         Assert.Equal("failed after compensation", record.ErrorMessage);
     }
 
