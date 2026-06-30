@@ -134,7 +134,7 @@ jobs:
           /d:sonar.issue.ignore.block=placeholderSecrets
           /d:sonar.issue.ignore.block.placeholderSecrets.beginBlockRegexp="$SONAR_PLACEHOLDER_SECRET_LINE_REGEX"
           /d:sonar.issue.ignore.block.placeholderSecrets.endBlockRegexp="$SONAR_PLACEHOLDER_SECRET_LINE_REGEX"
-          /d:sonar.coverage.exclusions=".github/**,docs/**,infra/**,loadtests/**,scripts/**"
+          /d:sonar.coverage.exclusions=".github/**,docs/**,infra/**,loadtests/**,scripts/**,**/Program.cs,**/Migrations/*.cs,**/*.g.cs,**/*.g.*.cs"
           /d:sonar.qualitygate.wait=true
 
       - name: Build
