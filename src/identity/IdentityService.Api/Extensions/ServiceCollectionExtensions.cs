@@ -4,6 +4,7 @@ using ApiDefaults.Extensions;
 using IdentityService.Api.Middlewares;
 using IdentityService.Api.Security;
 using IdentityService.Api.Swagger;
+using IdentityService.Application.Idempotency;
 using IdentityService.Application.Users.Commands;
 
 using Microsoft.OpenApi;
@@ -29,6 +30,10 @@ public static class ServiceCollectionExtensions
             environment,
             options => options.RequireAuthenticatedUserByDefault().AddScopePolicies());
 
+        services.AddSingleton(TimeProvider.System);
+        services.AddSingleton<IIdempotencyResponseSerializer, StableJsonIdempotencyResponseSerializer>();
+        services.AddSingleton<IIdempotencyRequestHasher, Sha256IdempotencyRequestHasher>();
+        services.AddScoped<IIdempotencyService, IdempotencyService>();
         services.AddScoped<CreateUserCommandHandler>();
         services.AddEndpointsApiExplorer();
 
@@ -51,6 +56,7 @@ public static class ServiceCollectionExtensions
                     Description = $"Autenticacao via JWT Bearer. Audience esperada: identity-api. Scopes: {ScopePolicies.IdentityWrite} (cadastro) / {ScopePolicies.IdentityRead} (consulta futura)."
                 });
                 options.OperationFilter<AuthorizeOperationFilter>();
+                options.OperationFilter<CreateUserIdempotencyHeaderOperationFilter>();
             });
     }
 

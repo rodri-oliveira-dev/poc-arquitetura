@@ -70,6 +70,10 @@ public sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logge
                 StatusCodes.Status409Conflict,
                 "Conflict",
                 exception.Message),
+            IdempotencyConflictException idempotencyConflict => (
+                StatusCodes.Status409Conflict,
+                idempotencyConflict.Title,
+                idempotencyConflict.Message),
             IdentityProviderException { Kind: IdentityProviderErrorKind.Unauthorized } => (
                 StatusCodes.Status502BadGateway,
                 "Identity provider unauthorized",

@@ -55,6 +55,19 @@
         "summary": "Cadastra usuario no IdentityService",
         "description": "Cria o usuario no provider de identidade e registra o vinculo local com merchantId.\n\n<b>Autorizacao</b>: requer scope(s): <c>identity.write</c>. (claim <c>scope</c> do JWT)",
         "operationId": "CreateIdentityUser",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Chave opcional de idempotencia para replay seguro do cadastro. Formato: ^[A-Za-z0-9._:-]{1,128}$.",
+            "schema": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._:-]{1,128}$",
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {

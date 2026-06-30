@@ -1,4 +1,6 @@
 using IdentityService.Application.Common.Exceptions;
+using IdentityService.Application.Idempotency;
+using IdentityService.Application.Idempotency.Ports;
 using IdentityService.Application.Users.Commands;
 using IdentityService.Application.Users.Ports;
 using IdentityService.Domain.Users;
@@ -190,20 +192,105 @@ public sealed class CreateUserCommandHandlerTests
         Assert.Empty(fixture.IdentityProvider.DeletedUserIds);
     }
 
-    private static CreateUserCommand CreateCommand(string password = "N3ver-save-me!")
+    [Fact]
+    public async Task Handle_should_execute_and_store_response_when_idempotency_key_is_new_Async()
+    {
+        var fixture = new HandlerFixture();
+
+        var result = await fixture.Handler.Handle(
+            CreateCommand(idempotencyKey: "idem-create-user-1"),
+            CancellationToken.None);
+
+        var record = Assert.Single(fixture.IdempotencyRepository.Records);
+        Assert.Equal(IdempotencyStatus.Completed, record.Status);
+        Assert.Equal(201, record.ResponseStatusCode);
+        Assert.DoesNotContain("N3ver-save-me!", record.ResponseBody, StringComparison.Ordinal);
+        Assert.Single(fixture.IdentityProvider.CreateRequests);
+        Assert.Equal("merchant-generated", result.MerchantId);
+    }
+
+    [Fact]
+    public async Task Handle_should_replay_completed_response_without_repeating_side_effects_Async()
+    {
+        var fixture = new HandlerFixture();
+        var command = CreateCommand(idempotencyKey: "idem-replay-1");
+
+        var first = await fixture.Handler.Handle(command, CancellationToken.None);
+        var second = await fixture.Handler.Handle(
+            command with
+            {
+                Password = "another-secret"
+            },
+            CancellationToken.None);
+
+        Assert.Equal(first, second);
+        Assert.Single(fixture.IdentityProvider.CreateRequests);
+        Assert.Equal(1, fixture.Repository.AddCallCount);
+        Assert.Equal(1, fixture.MerchantIds.GenerateCount);
+    }
+
+    [Fact]
+    public async Task Handle_should_return_conflict_for_same_key_and_different_logical_payload_Async()
+    {
+        var fixture = new HandlerFixture();
+        await fixture.Handler.Handle(CreateCommand(idempotencyKey: "idem-conflict-1"), CancellationToken.None);
+
+        var exception = await Assert.ThrowsAsync<IdempotencyConflictException>(() =>
+            fixture.Handler.Handle(
+                CreateCommand(email: "another@example.com", idempotencyKey: "idem-conflict-1"),
+                CancellationToken.None));
+
+        Assert.Equal("Idempotency key conflict", exception.Title);
+        Assert.Single(fixture.IdentityProvider.CreateRequests);
+    }
+
+    [Fact]
+    public async Task Handle_should_return_conflict_when_key_is_still_processing_Async()
+    {
+        var fixture = new HandlerFixture();
+        var command = CreateCommand(idempotencyKey: "idem-processing-1");
+        fixture.IdempotencyRepository.SeedProcessing(
+            "idem-processing-1",
+            fixture.Hasher.ComputeHash(CreateUserIdempotencyPayload.From(command)));
+
+        var exception = await Assert.ThrowsAsync<IdempotencyConflictException>(() =>
+            fixture.Handler.Handle(command, CancellationToken.None));
+
+        Assert.Equal("Idempotency key is still processing", exception.Title);
+        Assert.Empty(fixture.IdentityProvider.CreateRequests);
+    }
+
+    private static CreateUserCommand CreateCommand(
+        string email = "user@example.com",
+        string password = "N3ver-save-me!",
+        string? idempotencyKey = null)
         => new(
             Name: "User Name",
-            Email: "user@example.com",
+            Email: email,
             Username: "user-name",
             Password: password,
-            Document: "12345678900");
+            Document: "12345678900",
+            IdempotencyKey: idempotencyKey);
 
     private sealed class HandlerFixture
     {
         public HandlerFixture(string merchantId = "merchant-generated")
         {
             MerchantIds = new StubMerchantIdGenerator(merchantId);
-            Handler = new CreateUserCommandHandler(IdentityProvider, Repository, MerchantIds, Logger);
+            Serializer = new StableJsonIdempotencyResponseSerializer();
+            Hasher = new Sha256IdempotencyRequestHasher(Serializer);
+            IdempotencyRepository = new FakeIdempotencyRepository();
+            IdempotencyService = new IdempotencyService(
+                IdempotencyRepository,
+                Serializer,
+                TimeProvider.System);
+            Handler = new CreateUserCommandHandler(
+                IdentityProvider,
+                Repository,
+                MerchantIds,
+                IdempotencyService,
+                Hasher,
+                Logger);
         }
 
         public FakeIdentityProvider IdentityProvider
@@ -219,6 +306,26 @@ public sealed class CreateUserCommandHandlerTests
         } = new();
 
         public StubMerchantIdGenerator MerchantIds
+        {
+            get;
+        }
+
+        public StableJsonIdempotencyResponseSerializer Serializer
+        {
+            get;
+        }
+
+        public Sha256IdempotencyRequestHasher Hasher
+        {
+            get;
+        }
+
+        public FakeIdempotencyRepository IdempotencyRepository
+        {
+            get;
+        }
+
+        public IdempotencyService IdempotencyService
         {
             get;
         }
@@ -341,10 +448,17 @@ public sealed class CreateUserCommandHandlerTests
             get;
         } = [];
 
+        public int AddCallCount
+        {
+            get;
+            private set;
+        }
+
         public Task AddAsync(User user, CancellationToken cancellationToken = default)
         {
             AddCancellationToken = cancellationToken;
             AddWasCalled = true;
+            AddCallCount++;
             SavedUser = user;
             PersistedScalarValues.AddRange(
             [
@@ -374,7 +488,50 @@ public sealed class CreateUserCommandHandlerTests
 
     private sealed class StubMerchantIdGenerator(string merchantId) : IMerchantIdGenerator
     {
-        public string Generate() => merchantId;
+        public int GenerateCount
+        {
+            get;
+            private set;
+        }
+
+        public string Generate()
+        {
+            GenerateCount++;
+            return merchantId;
+        }
+    }
+
+    private sealed class FakeIdempotencyRepository : IIdempotencyRepository
+    {
+        private readonly List<IdempotencyRecord> _records = [];
+
+        public IReadOnlyList<IdempotencyRecord> Records => _records;
+
+        public Task<IdempotencyRecord?> GetByOperationAndKeyAsync(
+            string operationName,
+            string idempotencyKey,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult(_records.FirstOrDefault(x =>
+                x.OperationName == operationName && x.IdempotencyKey == idempotencyKey));
+
+        public Task AddAsync(IdempotencyRecord record, CancellationToken cancellationToken = default)
+        {
+            _records.Add(record);
+            return Task.CompletedTask;
+        }
+
+        public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult(1);
+
+        public void SeedProcessing(string idempotencyKey, string requestHash)
+        {
+            _records.Add(IdempotencyRecord.StartProcessing(
+                CreateUserIdempotencyPayload.CreateUserOperationName,
+                idempotencyKey,
+                requestHash,
+                DateTime.UtcNow,
+                DateTime.UtcNow.AddHours(24)));
+        }
     }
 
     private sealed class CapturingLogger<T> : ILogger<T>

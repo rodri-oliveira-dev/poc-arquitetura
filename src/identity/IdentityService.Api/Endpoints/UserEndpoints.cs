@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.RegularExpressions;
 
 using IdentityService.Api.Contracts.Requests;
 using IdentityService.Api.Contracts.Responses;
@@ -7,8 +8,10 @@ using IdentityService.Application.Users.Commands;
 
 namespace IdentityService.Api.Endpoints;
 
-public static class UserEndpoints
+public static partial class UserEndpoints
 {
+    private const string IdempotencyKeyHeaderName = "Idempotency-Key";
+
     public static RouteGroupBuilder MapUserEndpoints(this IEndpointRouteBuilder app)
     {
         ArgumentNullException.ThrowIfNull(app);
@@ -36,10 +39,13 @@ public static class UserEndpoints
 
     private static async Task<IResult> CreateUserAsync(
         CreateUserRequest request,
+        HttpRequest httpRequest,
         CreateUserCommandHandler handler,
         CancellationToken cancellationToken)
     {
         var validationErrors = Validate(request);
+        var idempotencyKey = ReadIdempotencyKey(httpRequest, validationErrors);
+
         if (validationErrors.Count > 0)
         {
             return Results.ValidationProblem(validationErrors);
@@ -51,7 +57,8 @@ public static class UserEndpoints
                 request.Email!,
                 request.Username!,
                 request.Password!,
-                request.Document),
+                request.Document,
+                idempotencyKey),
             cancellationToken);
 
         var response = new CreateUserResponse(
@@ -62,6 +69,25 @@ public static class UserEndpoints
             result.Email);
 
         return Results.Created($"/api/v1/users/{response.Id}", response);
+    }
+
+    private static string? ReadIdempotencyKey(
+        HttpRequest request,
+        Dictionary<string, string[]> validationErrors)
+    {
+        if (!request.Headers.TryGetValue(IdempotencyKeyHeaderName, out var values))
+            return null;
+
+        var value = values.ToString();
+        if (!IdempotencyKeyRegex().IsMatch(value))
+        {
+            validationErrors[IdempotencyKeyHeaderName] =
+            [
+                "Idempotency-Key must contain 1 to 128 characters and only letters, numbers, dot, underscore, colon or hyphen."
+            ];
+        }
+
+        return value;
     }
 
     private static Dictionary<string, string[]> Validate(CreateUserRequest request)
@@ -83,4 +109,7 @@ public static class UserEndpoints
 
         return errors;
     }
+
+    [GeneratedRegex("^[A-Za-z0-9._:-]{1,128}$", RegexOptions.CultureInvariant)]
+    private static partial Regex IdempotencyKeyRegex();
 }

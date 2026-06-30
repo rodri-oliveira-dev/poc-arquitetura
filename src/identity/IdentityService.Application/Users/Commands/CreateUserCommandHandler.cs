@@ -1,3 +1,5 @@
+using IdentityService.Application.Common.Exceptions;
+using IdentityService.Application.Idempotency;
 using IdentityService.Application.Users.Ports;
 using IdentityService.Domain.Users;
 
@@ -9,14 +11,66 @@ public sealed partial class CreateUserCommandHandler(
     IIdentityProviderUserService identityProvider,
     IUserRepository users,
     IMerchantIdGenerator merchantIdGenerator,
+    IIdempotencyService idempotencyService,
+    IIdempotencyRequestHasher idempotencyRequestHasher,
     ILogger<CreateUserCommandHandler> logger)
 {
+    private const int CreatedStatusCode = 201;
+    private static readonly TimeSpan _idempotencyTimeToLive = TimeSpan.FromHours(24);
+
     public async Task<CreateUserResult> Handle(
         CreateUserCommand command,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(command);
 
+        if (string.IsNullOrWhiteSpace(command.IdempotencyKey))
+            return await ExecuteCreateAsync(command, cancellationToken);
+
+        var requestHash = idempotencyRequestHasher.ComputeHash(CreateUserIdempotencyPayload.From(command));
+
+        LogIdempotentCreateUserRequested(logger, CreateUserIdempotencyPayload.CreateUserOperationName);
+
+        var idempotentResult = await idempotencyService.ExecuteAsync(
+            new IdempotentOperationRequest<CreateUserResult>(
+                CreateUserIdempotencyPayload.CreateUserOperationName,
+                command.IdempotencyKey,
+                requestHash,
+                CreatedStatusCode,
+                _idempotencyTimeToLive,
+                executeAsync: token => ExecuteCreateAsync(command, token),
+                resourceIdSelector: response => response.Id),
+            cancellationToken);
+
+        if (idempotentResult.Response is not null)
+        {
+            if (idempotentResult.ResponseRecoveredFromPreviousExecution)
+                LogIdempotentCreateUserReplayed(logger, CreateUserIdempotencyPayload.CreateUserOperationName);
+
+            return idempotentResult.Response;
+        }
+
+        if (idempotentResult.IsConflict)
+        {
+            throw new IdempotencyConflictException(
+                "Idempotency key conflict",
+                idempotentResult.ErrorMessage ?? "Idempotency key already used with a different logical payload.");
+        }
+
+        if (idempotentResult.IsInProgress)
+        {
+            throw new IdempotencyConflictException(
+                "Idempotency key is still processing",
+                idempotentResult.ErrorMessage ?? "Idempotency key is still processing.");
+        }
+
+        throw new InvalidOperationException($"Unsupported idempotency result '{idempotentResult.Kind}'.");
+    }
+
+    private async Task<CreateUserResult> ExecuteCreateAsync(
+        CreateUserCommand command,
+        CancellationToken cancellationToken)
+    {
         var identityUser = await identityProvider.CreateUserAsync(
             new CreateIdentityProviderUserRequest(
                 command.Name,
@@ -64,6 +118,22 @@ public sealed partial class CreateUserCommandHandler(
             user.Username.Value,
             user.Email.Value);
     }
+
+    [LoggerMessage(
+        EventId = 2,
+        Level = LogLevel.Information,
+        Message = "Cadastro de usuario com idempotencia solicitado. OperationName: {OperationName}")]
+    private static partial void LogIdempotentCreateUserRequested(
+        ILogger logger,
+        string operationName);
+
+    [LoggerMessage(
+        EventId = 3,
+        Level = LogLevel.Information,
+        Message = "Cadastro de usuario recuperado por idempotencia. OperationName: {OperationName}")]
+    private static partial void LogIdempotentCreateUserReplayed(
+        ILogger logger,
+        string operationName);
 
     [LoggerMessage(
         EventId = 1,
