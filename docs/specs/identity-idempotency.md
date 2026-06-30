@@ -9,9 +9,24 @@ PostgreSQL no schema `identity`, compensa removendo o usuario no Keycloak se a
 persistencia local falhar, e dispara domain event depois do commit para envio de
 e-mail. A senha nao e persistida localmente.
 
-Esta especificacao define o comportamento esperado para suporte opcional ao
-header `Idempotency-Key` nesse endpoint, sem alterar codigo, migrations, testes
-ou contrato HTTP nesta etapa.
+Esta especificacao registra o comportamento implementado para suporte opcional
+ao header `Idempotency-Key` nesse endpoint, incluindo contrato HTTP, persistencia,
+concorrencia, retry e limitacoes conhecidas.
+
+## Status de implementacao
+
+Implementado em 2026-06-30.
+
+- `Idempotency-Key` opcional foi exposto em `POST /api/v1/users`.
+- A validacao do header ocorre na `IdentityService.Api`.
+- A regra de idempotencia, hash logico e decisao de replay ficam na
+  `IdentityService.Application`.
+- Os registros sao persistidos no schema PostgreSQL `identity`.
+- A concorrencia e protegida por constraint unica em
+  `(operation_name, idempotency_key)`.
+- O contrato OpenAPI versionado documenta o header e os status HTTP esperados.
+- Testes unitarios e de integracao cobrem primeira execucao, replay, payload
+  diferente, chave invalida e concorrencia.
 
 ## Problema
 
@@ -39,7 +54,6 @@ plataforma generica de idempotencia.
 
 ## Nao objetivos
 
-- Implementar codigo, migrations ou testes nesta etapa.
 - Tornar todos os endpoints do projeto idempotentes.
 - Criar uma solucao distribuida generica para qualquer operacao.
 - Persistir senha, hash de senha ou segredo equivalente.
@@ -334,7 +348,7 @@ TTL:
   o log deve registrar tanto o correlation id atual quanto o original, se
   disponivel.
 
-## Decisoes SDD
+## Decisoes SDD finais
 
 - `Idempotency-Key` e opcional no MVP.
 - Senha nao entra no `request_hash`.
@@ -342,14 +356,18 @@ TTL:
 - `Program.cs` e migrations nao devem ser usados para forcar cobertura.
 - Idempotencia deve ficar na `Application`, nao acoplada diretamente a Minimal
   API.
+- A persistencia de idempotencia fica em `Infrastructure`, com PostgreSQL como
+  mecanismo de coordenacao de concorrencia.
+- Operacao ainda em andamento retorna `409 Conflict`; a API nao espera a
+  conclusao da chamada original.
+- Falha de compensacao no Keycloak bloqueia retry automatico conservadoramente.
 
 ## Impacto no OpenAPI
 
-Quando a implementacao for feita, o contrato OpenAPI de
-`docs/openapi/identity.v1.json` deve ser regenerado pelo script oficial do
-repositorio.
+O contrato OpenAPI de `docs/openapi/identity.v1.json` deve permanecer
+sincronizado pelo script oficial do repositorio sempre que esse endpoint mudar.
 
-Mudancas esperadas no OpenAPI:
+Contrato atual esperado no OpenAPI:
 
 - documentar header opcional `Idempotency-Key` em `POST /api/v1/users`;
 - documentar `400 Bad Request` para header invalido, se ainda nao estiver
@@ -358,8 +376,10 @@ Mudancas esperadas no OpenAPI:
 - documentar `409 Conflict` para chave em processamento ou conflito de hash;
 - manter `422 Unprocessable Entity` para validacoes existentes de negocio,
   quando aplicavel.
+- manter `401 Unauthorized`, `403 Forbidden` e `502 Bad Gateway` quando
+  aplicaveis ao contrato existente.
 
-Validacao esperada na fase de implementacao:
+Validacao:
 
 ```powershell
 dotnet build ./LedgerService.slnx --configuration Release --no-restore
@@ -370,9 +390,8 @@ git diff --exit-code -- docs/openapi
 
 ## Impacto nos testes
 
-Testes esperados na fase de implementacao:
+Testes implementados:
 
-- unidade da validacao de `Idempotency-Key`;
 - unidade do calculo de `request_hash`, garantindo que `password` nao participa;
 - unidade do fluxo de replay `Completed`;
 - unidade de conflito por mesma chave e hash diferente;
@@ -382,11 +401,14 @@ Testes esperados na fase de implementacao:
 - unidade para falha apos Keycloak com compensacao falha;
 - integracao com PostgreSQL validando unique constraint por
   `(operation_name, idempotency_key)`;
+- integracao do endpoint confirmando primeira execucao `201 Created`;
 - integracao do endpoint confirmando que replay nao chama Keycloak novamente;
 - integracao do endpoint confirmando que replay nao gera novo `MerchantId`;
 - integracao do endpoint confirmando que replay nao persiste novo usuario;
 - integracao do endpoint confirmando que replay nao dispara novo e-mail;
-- contrato/OpenAPI validando o header opcional e respostas de conflito.
+- integracao do endpoint confirmando conflito por payload diferente;
+- integracao do endpoint confirmando concorrencia com mesma chave;
+- unidade de Swagger validando o header opcional.
 
 Nao devem ser adicionados testes artificiais em `Program.cs` ou migrations para
 inflar cobertura.
@@ -413,6 +435,8 @@ inflar cobertura.
 
 ### Fase 1: contrato interno e modelo
 
+Status: concluida.
+
 - Criar porta de Application para reserva, leitura e conclusao de registros de
   idempotencia.
 - Definir tipos internos para `IdempotencyKey`, `IdempotencyStatus` e
@@ -422,6 +446,8 @@ inflar cobertura.
 
 ### Fase 2: integracao no caso de uso
 
+Status: concluida.
+
 - Estender o comando de cadastro para receber chave opcional.
 - Aplicar reserva atomica antes de chamar Keycloak.
 - Reproduzir resposta quando registro `Completed` for encontrado.
@@ -430,11 +456,15 @@ inflar cobertura.
 
 ### Fase 3: Minimal API e contrato
 
+Status: concluida.
+
 - Ler e validar o header na Minimal API.
 - Mapear erros de idempotencia para `ProblemDetails`.
 - Atualizar Swagger/OpenAPI e regenerar `docs/openapi/identity.v1.json`.
 
 ### Fase 4: testes e validacao
+
+Status: concluida.
 
 - Adicionar testes unitarios da Application.
 - Adicionar testes de persistencia com PostgreSQL.
@@ -457,3 +487,16 @@ inflar cobertura.
   de runbook se o caso se tornar frequente.
 - O dispatch atual de domain events nao e duravel. Idempotencia evita reenvio em
   replay, mas nao resolve falha original de envio de e-mail.
+
+## Limitacoes conhecidas
+
+- A idempotencia cobre apenas o cadastro de usuarios em `POST /api/v1/users`.
+- O TTL implementado e de 24 horas; limpeza automatica de registros expirados
+  ainda e trabalho futuro.
+- Chaves em `Processing` com lock expirado sao marcadas como `Failed` com
+  `failure_stage = ProcessingLockExpired`, mas retry automatico continua
+  bloqueado ate decisao operacional.
+- Falha de compensacao no Keycloak pode deixar usuario externo orfao; o retry
+  automatico e bloqueado para evitar nova duplicidade.
+- Retry HTTP nao reenvia e-mail e tambem nao corrige falha original de envio de
+  e-mail pos-commit.
