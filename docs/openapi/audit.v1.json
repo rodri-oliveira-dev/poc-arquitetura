@@ -1,0 +1,58 @@
+{
+  "openapi": "3.0.4",
+  "info": {
+    "title": "Poc Arquitetura Audit API",
+    "description": "Bounded context de auditoria funcional",
+    "version": "1.0"
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "Servidor relativo do AuditService.Api"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "Operacional"
+        ],
+        "summary": "Health check simples",
+        "description": "Retorna 200 com body 'ok'. Endpoint publico para liveness simples.",
+        "operationId": "Health",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [ ]
+      }
+    },
+    "/ready": {
+      "get": {
+        "tags": [
+          "Operacional"
+        ],
+        "summary": "Readiness check",
+        "description": "Valida o estado interno inicial do AuditService. O servico ainda nao possui dependencias externas configuradas.",
+        "operationId": "Ready",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "503": {
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [ ]
+      }
+    }
+  },
+  "components": { },
+  "tags": [
+    {
+      "name": "Operacional",
+      "description": "Endpoints operacionais publicos de liveness e readiness."
+    }
+  ]
+}

@@ -5,6 +5,12 @@
     <Project Path="src/Shared/ApplicationDefaults/ApplicationDefaults.csproj" />
     <Project Path="src/Shared/HttpResilienceDefaults/HttpResilienceDefaults.csproj" />
   </Folder>
+  <Folder Name="/src/audit/">
+    <Project Path="src/audit/AuditService.Api/AuditService.Api.csproj" />
+    <Project Path="src/audit/AuditService.Application/AuditService.Application.csproj" />
+    <Project Path="src/audit/AuditService.Domain/AuditService.Domain.csproj" />
+    <Project Path="src/audit/AuditService.Infrastructure/AuditService.Infrastructure.csproj" />
+  </Folder>
   <Folder Name="/src/Auth/">
     <Project Path="src/Auth.Api/Auth.Api.csproj" />
   </Folder>
@@ -48,6 +54,12 @@
     <Project Path="tests/Auth.UnitTests/Auth.UnitTests.csproj" />
     <Project Path="tests/Auth.IntegrationTests/Auth.IntegrationTests.csproj" />
     <Project Path="tests/Architecture.Tests/Architecture.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tests/audit/">
+    <Project Path="tests/audit/AuditService.Api.Tests/AuditService.Api.Tests.csproj" />
+    <Project Path="tests/audit/AuditService.Application.Tests/AuditService.Application.Tests.csproj" />
+    <Project Path="tests/audit/AuditService.Domain.Tests/AuditService.Domain.Tests.csproj" />
+    <Project Path="tests/audit/AuditService.Infrastructure.Tests/AuditService.Infrastructure.Tests.csproj" />
   </Folder>
   <Folder Name="/tests/Identity/">
     <Project Path="tests/identity/IdentityService.UnitTests/IdentityService.UnitTests.csproj" />
