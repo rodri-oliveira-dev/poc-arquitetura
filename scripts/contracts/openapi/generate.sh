@@ -14,13 +14,17 @@ CONFIGURATION="${CONFIGURATION:-Release}"
 FRAMEWORK="${FRAMEWORK:-net10.0}"
 SWAGGER_DOCUMENT="${SWAGGER_DOCUMENT:-v1}"
 OUTPUT_DIR="${OUTPUT_DIR:-$ROOT_DIR/docs/openapi}"
+SERVICE="${SERVICE:-}"
 
 usage() {
   cat >&2 <<EOF
-Uso: ./scripts/contracts/openapi/generate.sh [--configuration Release] [--framework net10.0] [--document v1]
+Uso: ./scripts/contracts/openapi/generate.sh [--configuration Release] [--framework net10.0] [--document v1] [--service audit]
 
 Variaveis aceitas:
-  CONFIGURATION, FRAMEWORK, SWAGGER_DOCUMENT, OUTPUT_DIR
+  CONFIGURATION, FRAMEWORK, SWAGGER_DOCUMENT, OUTPUT_DIR, SERVICE
+
+Servicos aceitos em --service:
+  ledger, balance, transfer, identity, audit
 EOF
 }
 
@@ -50,6 +54,14 @@ while [[ $# -gt 0 ]]; do
       SWAGGER_DOCUMENT="${2:-}"
       shift 2
       ;;
+    -s|--service)
+      require_option_value "$1" "${2:-}" || {
+        usage
+        exit 2
+      }
+      SERVICE="${2:-}"
+      shift 2
+      ;;
     -h|--help)
       usage
       exit 0
@@ -76,12 +88,13 @@ generate_contract() {
   local output_path="$OUTPUT_DIR/$output_name"
 
   if [[ ! -f "$assembly_path" ]]; then
+    local project_path="./src/$service_name/$assembly_name.csproj"
     cat >&2 <<EOF
 Assembly esperado nao encontrado:
   $assembly_path
 
 Execute antes:
-  dotnet build ./LedgerService.slnx --configuration $CONFIGURATION --no-restore
+  dotnet build $project_path --configuration $CONFIGURATION --no-restore
 EOF
     exit 1
   fi
@@ -105,12 +118,40 @@ EOF
   perl -0pi -e 's/\\r\\n/\\n/g' "$output_path"
 }
 
+generate_selected_contracts() {
+  case "${SERVICE,,}" in
+    "")
+      generate_contract "LedgerService.Api" "LedgerService.Api" "ledger.v1.json"
+      generate_contract "BalanceService.Api" "BalanceService.Api" "balance.v1.json"
+      generate_contract "TransferService.Api" "TransferService.Api" "transfer.v1.json"
+      generate_contract "identity/IdentityService.Api" "IdentityService.Api" "identity.v1.json"
+      generate_contract "audit/AuditService.Api" "AuditService.Api" "audit.v1.json"
+      ;;
+    ledger)
+      generate_contract "LedgerService.Api" "LedgerService.Api" "ledger.v1.json"
+      ;;
+    balance)
+      generate_contract "BalanceService.Api" "BalanceService.Api" "balance.v1.json"
+      ;;
+    transfer)
+      generate_contract "TransferService.Api" "TransferService.Api" "transfer.v1.json"
+      ;;
+    identity)
+      generate_contract "identity/IdentityService.Api" "IdentityService.Api" "identity.v1.json"
+      ;;
+    audit)
+      generate_contract "audit/AuditService.Api" "AuditService.Api" "audit.v1.json"
+      ;;
+    *)
+      echo "Servico OpenAPI desconhecido: $SERVICE" >&2
+      usage
+      exit 2
+      ;;
+  esac
+}
+
 mkdir -p "$OUTPUT_DIR"
 
-generate_contract "LedgerService.Api" "LedgerService.Api" "ledger.v1.json"
-generate_contract "BalanceService.Api" "BalanceService.Api" "balance.v1.json"
-generate_contract "TransferService.Api" "TransferService.Api" "transfer.v1.json"
-generate_contract "identity/IdentityService.Api" "IdentityService.Api" "identity.v1.json"
-generate_contract "audit/AuditService.Api" "AuditService.Api" "audit.v1.json"
+generate_selected_contracts
 
 echo "Contratos OpenAPI gerados em: $OUTPUT_DIR"

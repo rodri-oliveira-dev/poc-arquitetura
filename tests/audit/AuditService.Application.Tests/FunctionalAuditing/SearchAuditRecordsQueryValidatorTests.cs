@@ -1,6 +1,7 @@
 using System.Globalization;
 
 using AuditService.Application.FunctionalAuditing.SearchAuditRecords;
+using AuditService.Domain.FunctionalAuditing;
 
 namespace AuditService.Application.Tests.FunctionalAuditing;
 
@@ -39,6 +40,20 @@ public sealed class SearchAuditRecordsQueryValidatorTests
     }
 
     [Fact]
+    public void Validate_should_reject_page_below_minimum()
+    {
+        var query = ValidQuery() with
+        {
+            Page = 0
+        };
+
+        var result = _validator.Validate(query);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, error => error.PropertyName == nameof(SearchAuditRecordsQuery.Page));
+    }
+
+    [Fact]
     public void Validate_should_reject_interval_above_limit()
     {
         var query = ValidQuery() with
@@ -49,6 +64,33 @@ public sealed class SearchAuditRecordsQueryValidatorTests
         var result = _validator.Validate(query);
 
         Assert.False(result.IsValid);
+    }
+
+    [Fact]
+    public void Validate_should_reject_to_before_from()
+    {
+        var query = ValidQuery() with
+        {
+            To = ValidQuery().From!.Value.AddTicks(-1)
+        };
+
+        var result = _validator.Validate(query);
+
+        Assert.False(result.IsValid);
+    }
+
+    [Fact]
+    public void Validate_should_reject_string_filters_above_limits()
+    {
+        var query = ValidQuery() with
+        {
+            SourceService = new string('a', FunctionalAuditRecord.SourceServiceMaxLength + 1)
+        };
+
+        var result = _validator.Validate(query);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, error => error.PropertyName == nameof(SearchAuditRecordsQuery.SourceService));
     }
 
     private static SearchAuditRecordsQuery ValidQuery()

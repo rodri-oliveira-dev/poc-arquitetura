@@ -3,7 +3,8 @@ param(
   [string]$Configuration = "",
   [string]$Framework = "",
   [string]$Document = "",
-  [string]$OutputDir = ""
+  [string]$OutputDir = "",
+  [string]$Service = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -55,12 +56,13 @@ function Invoke-OpenApiGeneration {
   $outputPath = Join-Path $OutputDir $OutputName
 
   if (-not (Test-Path -Path $assemblyPath -PathType Leaf)) {
+    $projectPath = "./src/$ServiceName/$AssemblyName.csproj".Replace("\", "/")
     [Console]::Error.WriteLine(@"
 Assembly esperado nao encontrado:
   $assemblyPath
 
 Execute antes:
-  dotnet build ./LedgerService.slnx --configuration $Configuration --no-restore
+  dotnet build $projectPath --configuration $Configuration --no-restore
 "@)
     exit 1
   }
@@ -72,6 +74,31 @@ Execute antes:
   }
 
   Normalize-OpenApiContract $outputPath
+}
+
+function Invoke-SelectedOpenApiGeneration {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$SelectedService
+  )
+
+  switch ($SelectedService.ToLowerInvariant()) {
+    "" {
+      Invoke-OpenApiGeneration "LedgerService.Api" "LedgerService.Api" "ledger.v1.json"
+      Invoke-OpenApiGeneration "BalanceService.Api" "BalanceService.Api" "balance.v1.json"
+      Invoke-OpenApiGeneration "TransferService.Api" "TransferService.Api" "transfer.v1.json"
+      Invoke-OpenApiGeneration "identity\IdentityService.Api" "IdentityService.Api" "identity.v1.json"
+      Invoke-OpenApiGeneration "audit\AuditService.Api" "AuditService.Api" "audit.v1.json"
+    }
+    "ledger" { Invoke-OpenApiGeneration "LedgerService.Api" "LedgerService.Api" "ledger.v1.json" }
+    "balance" { Invoke-OpenApiGeneration "BalanceService.Api" "BalanceService.Api" "balance.v1.json" }
+    "transfer" { Invoke-OpenApiGeneration "TransferService.Api" "TransferService.Api" "transfer.v1.json" }
+    "identity" { Invoke-OpenApiGeneration "identity\IdentityService.Api" "IdentityService.Api" "identity.v1.json" }
+    "audit" { Invoke-OpenApiGeneration "audit\AuditService.Api" "AuditService.Api" "audit.v1.json" }
+    default {
+      throw "Servico OpenAPI desconhecido '$SelectedService'. Valores aceitos: ledger, balance, transfer, identity, audit."
+    }
+  }
 }
 
 function Normalize-OpenApiContract {
@@ -122,11 +149,7 @@ try {
     }
   }
 
-  Invoke-OpenApiGeneration "LedgerService.Api" "LedgerService.Api" "ledger.v1.json"
-  Invoke-OpenApiGeneration "BalanceService.Api" "BalanceService.Api" "balance.v1.json"
-  Invoke-OpenApiGeneration "TransferService.Api" "TransferService.Api" "transfer.v1.json"
-  Invoke-OpenApiGeneration "identity\IdentityService.Api" "IdentityService.Api" "identity.v1.json"
-  Invoke-OpenApiGeneration "audit\AuditService.Api" "AuditService.Api" "audit.v1.json"
+  Invoke-SelectedOpenApiGeneration $Service
 }
 finally {
   [System.Environment]::SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", $previousAspNetCoreEnvironment, "Process")

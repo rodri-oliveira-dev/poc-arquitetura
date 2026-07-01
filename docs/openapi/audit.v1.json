@@ -18,7 +18,7 @@
           "AuditRecords"
         ],
         "summary": "Consulta um registro de auditoria funcional por id.",
-        "description": "Retorna um registro de auditoria funcional sem expor payload bruto sensivel.",
+        "description": "Retorna um registro de auditoria funcional sem expor payload bruto sensivel.\n\n<b>Autorizacao</b>: requer policy/scope <c>audit.read</c>. (claim <c>scope</c> do JWT)",
         "operationId": "GetAuditRecordById",
         "parameters": [
           {
@@ -54,6 +54,12 @@
           },
           "404": {
             "description": "Registro de auditoria nao encontrado."
+          },
+          "401": {
+            "description": "Token JWT ausente ou invalido."
+          },
+          "403": {
+            "description": "Token sem scope ou merchant autorizado para o registro."
           },
           "400": {
             "description": "Request invalido.",
@@ -99,7 +105,11 @@
             }
           }
         },
-        "security": [ ]
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/api/v1/audit-records/operations/{operationId}": {
@@ -108,7 +118,7 @@
           "AuditRecords"
         ],
         "summary": "Consulta a trilha funcional de uma operacao.",
-        "description": "Retorna registros da operacao ordenados por occurredAt asc para reconstruir a trilha funcional em ordem cronologica.",
+        "description": "Retorna registros da operacao ordenados por occurredAt asc para reconstruir a trilha funcional em ordem cronologica.\n\n<b>Autorizacao</b>: requer policy/scope <c>audit.read</c>. (claim <c>scope</c> do JWT)",
         "operationId": "GetAuditRecordsByOperationId",
         "parameters": [
           {
@@ -150,6 +160,12 @@
               }
             }
           },
+          "401": {
+            "description": "Token JWT ausente ou invalido."
+          },
+          "403": {
+            "description": "Token sem scope autorizado."
+          },
           "400": {
             "description": "Request invalido.",
             "content": {
@@ -194,7 +210,11 @@
             }
           }
         },
-        "security": [ ]
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/api/v1/audit-records": {
@@ -203,7 +223,7 @@
           "AuditRecords"
         ],
         "summary": "Pesquisa registros de auditoria funcional.",
-        "description": "Pesquisa registros de auditoria com filtros opcionais, periodo obrigatorio, paginacao segura e ordenacao padrao por occurredAt desc.",
+        "description": "Pesquisa registros de auditoria com filtros opcionais, periodo obrigatorio, paginacao segura e ordenacao padrao por occurredAt desc.\n\n<b>Autorizacao</b>: requer policy/scope <c>audit.read</c>. (claim <c>scope</c> do JWT)",
         "operationId": "SearchAuditRecords",
         "parameters": [
           {
@@ -304,6 +324,12 @@
               }
             }
           },
+          "401": {
+            "description": "Token JWT ausente ou invalido."
+          },
+          "403": {
+            "description": "Token sem scope ou merchant autorizado para a consulta."
+          },
           "400": {
             "description": "Request invalido.",
             "content": {
@@ -348,14 +374,18 @@
             }
           }
         },
-        "security": [ ]
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       },
       "post": {
         "tags": [
           "AuditRecords"
         ],
         "summary": "Cria um registro de auditoria funcional.",
-        "description": "Cria um registro canonico e agnostico de auditoria funcional. O endpoint exige Idempotency-Key em formato UUID.",
+        "description": "Cria um registro canonico e agnostico de auditoria funcional. O endpoint exige Idempotency-Key em formato UUID.\n\n<b>Autorizacao</b>: requer policy/scope <c>audit.write</c>. (claim <c>scope</c> do JWT)",
         "operationId": "CreateAuditRecord",
         "parameters": [
           {
@@ -415,6 +445,12 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Token JWT ausente ou invalido."
+          },
+          "403": {
+            "description": "Token sem scope audit.write."
           },
           "400": {
             "description": "Request invalido.",
@@ -500,7 +536,11 @@
             }
           }
         },
-        "security": [ ]
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/health": {
@@ -763,6 +803,14 @@
           }
         },
         "additionalProperties": { }
+      }
+    },
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "description": "Autenticacao via JWT Bearer. Audience esperada: audit-api. Scopes: audit.write, audit.read, audit.admin.",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
       }
     }
   },

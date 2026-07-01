@@ -43,3 +43,15 @@ Estrutura em Clean Architecture:
 
 O servico nao consome Kafka, nao possui worker e ainda nao integra com `LedgerService`,
 `BalanceService` ou `TransferService`.
+
+Para gerar apenas o contrato OpenAPI do AuditService depois do build do projeto:
+
+```powershell
+./scripts/contracts/openapi/generate.ps1 -Service audit
+```
+
+No Linux/macOS:
+
+```bash
+./scripts/contracts/openapi/generate.sh --service audit
+```

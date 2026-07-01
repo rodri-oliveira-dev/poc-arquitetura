@@ -40,6 +40,39 @@ public sealed class CreateAuditRecordCommandValidatorTests
     }
 
     [Fact]
+    public void Validate_should_reject_source_service_above_limit()
+    {
+        var result = _validator.Validate(ValidCommand() with
+        {
+            SourceService = new string('a', FunctionalAuditRecord.SourceServiceMaxLength + 1)
+        });
+
+        Assert.Contains(result.Errors, error => error.PropertyName == nameof(CreateAuditRecordCommand.SourceService));
+    }
+
+    [Fact]
+    public void Validate_should_reject_operation_type_above_limit()
+    {
+        var result = _validator.Validate(ValidCommand() with
+        {
+            OperationType = new string('a', FunctionalAuditRecord.OperationTypeMaxLength + 1)
+        });
+
+        Assert.Contains(result.Errors, error => error.PropertyName == nameof(CreateAuditRecordCommand.OperationType));
+    }
+
+    [Fact]
+    public void Validate_should_reject_reason_above_limit()
+    {
+        var result = _validator.Validate(ValidCommand() with
+        {
+            Reason = new string('a', FunctionalAuditRecord.ReasonMaxLength + 1)
+        });
+
+        Assert.Contains(result.Errors, error => error.PropertyName == nameof(CreateAuditRecordCommand.Reason));
+    }
+
+    [Fact]
     public void Validate_should_reject_unsupported_actor_type()
     {
         var result = _validator.Validate(ValidCommand() with

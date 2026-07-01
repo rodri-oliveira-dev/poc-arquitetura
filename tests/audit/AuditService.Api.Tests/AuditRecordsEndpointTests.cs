@@ -71,6 +71,50 @@ public sealed class AuditRecordsEndpointTests
     }
 
     [Fact]
+    public async Task Post_should_return_correlation_id_header()
+    {
+        using var factory = new AuditApiFactory();
+        using HttpClient client = factory.CreateClient();
+        const string correlationId = "00000000-0000-0000-0000-000000000102";
+
+        using var request = CreatePost(
+            ValidPayload() with
+            {
+                CorrelationId = null
+            },
+            "00000000-0000-0000-0000-000000000003",
+            correlationId);
+
+        HttpResponseMessage response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        Assert.True(response.Headers.TryGetValues("X-Correlation-Id", out IEnumerable<string>? values));
+        Assert.Equal(correlationId, Assert.Single(values));
+    }
+
+    [Fact]
+    public async Task Post_without_body_correlation_id_should_persist_header_correlation_id()
+    {
+        using var factory = new AuditApiFactory();
+        using HttpClient client = factory.CreateClient();
+        const string correlationId = "00000000-0000-0000-0000-000000000102";
+
+        using var request = CreatePost(
+            ValidPayload() with
+            {
+                CorrelationId = null
+            },
+            "00000000-0000-0000-0000-000000000003",
+            correlationId);
+
+        HttpResponseMessage response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        FunctionalAuditRecord record = Assert.Single(factory.Store.Records);
+        Assert.Equal(correlationId, record.CorrelationId);
+    }
+
+    [Fact]
     public async Task Post_with_audit_write_should_persist_actor_from_token_when_claims_are_available()
     {
         using var factory = new AuditApiFactory(
@@ -505,6 +549,32 @@ public sealed class AuditRecordsEndpointTests
     }
 
     [Fact]
+    public async Task Search_with_period_above_limit_should_return_400()
+    {
+        using var factory = new AuditApiFactory();
+        using HttpClient client = factory.CreateClient();
+
+        HttpResponseMessage response = await client.GetAsync(
+            "/api/v1/audit-records?from=2026-06-01T00%3A00%3A00Z&to=2026-07-03T00%3A00%3A00Z",
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Search_with_page_below_minimum_should_return_400()
+    {
+        using var factory = new AuditApiFactory();
+        using HttpClient client = factory.CreateClient();
+
+        HttpResponseMessage response = await client.GetAsync(
+            $"/api/v1/audit-records?{PeriodQuery()}&page=0",
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Search_with_page_size_above_limit_should_return_400()
     {
         using var factory = new AuditApiFactory();
@@ -573,7 +643,10 @@ public sealed class AuditRecordsEndpointTests
             forbiddenAssemblyPrefixes.Any(prefix => reference.StartsWith(prefix, StringComparison.Ordinal)));
     }
 
-    private static HttpRequestMessage CreatePost(CreateAuditRecordRequest payload, string? idempotencyKey)
+    private static HttpRequestMessage CreatePost(
+        CreateAuditRecordRequest payload,
+        string? idempotencyKey,
+        string? correlationId = null)
     {
         var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/audit-records")
         {
@@ -582,6 +655,9 @@ public sealed class AuditRecordsEndpointTests
 
         if (idempotencyKey is not null)
             request.Headers.Add("Idempotency-Key", idempotencyKey);
+
+        if (correlationId is not null)
+            request.Headers.Add("X-Correlation-Id", correlationId);
 
         return request;
     }
