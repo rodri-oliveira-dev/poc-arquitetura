@@ -8,8 +8,8 @@
 | Versao | `v1` |
 | `event_type` | `AuditRecordRequested.v1` |
 | Produtor | Nenhum produtor atual |
-| Consumidores | Nenhum consumidor atual |
-| Natureza | Solicitacao canonica futura para auditoria funcional |
+| Consumidores | `AuditService.Worker` |
+| Natureza | Solicitacao canonica para auditoria funcional |
 | JSON Schema versionado | [`../../contracts/events/audit-record-requested.v1.schema.json`](../../contracts/events/audit-record-requested.v1.schema.json) |
 | Exemplos versionados | [`valido`](../../contracts/events/examples/audit-record-requested.v1.valid.json), [`invalido`](../../contracts/events/examples/audit-record-requested.v1.invalid.json) |
 
@@ -23,12 +23,13 @@ entidades EF, payloads HTTP crus ou detalhes internos de `LedgerService`,
 
 ## Estado atual
 
-Este evento foi documentado e versionado, mas nao esta ativo em runtime:
+Este evento possui consumidor no `AuditService.Worker`, mas ainda nao possui
+produtor real:
 
 - nenhum servico publica `AuditRecordRequested.v1`;
-- nenhum worker consome `AuditRecordRequested.v1`;
-- nenhum topico Kafka foi criado por esta mudanca;
-- nenhum producer, consumer ou DLQ foi implementado por esta mudanca.
+- `AuditService.Worker` consome opcionalmente o topico `audit.record.requested`;
+- nenhum topico Kafka e criado automaticamente por esta mudanca;
+- nenhum producer ou DLQ foi implementado por esta mudanca.
 
 A integracao futura deve seguir a estrategia de Outbox transacional local no
 servico de origem e Kafka para o `AuditService.Worker`, conforme ADR-0099.
@@ -56,8 +57,8 @@ servico de origem e Kafka para o `AuditService.Worker`, conforme ADR-0099.
 
 `metadata` deve caber em ate 4096 bytes quando serializado, alinhado ao limite
 do `AuditService`. O schema restringe o objeto a no maximo 50 pares string/string
-para manter a intencao de metadata pequena; o limite exato em bytes deve ser
-validado pelo consumidor quando a integracao for implementada.
+para manter a intencao de metadata pequena; o limite exato em bytes e validado
+pelo consumidor.
 
 ## Status e actor
 
@@ -129,27 +130,32 @@ Motivos: `schemaVersion` deve ser `1`, `operationId` esta ausente,
 
 ## Idempotencia
 
-`idempotencyKey` e opcional no schema para permitir evolucao controlada, mas
-produtores reais devem informa-la quando a integracao for implementada. A chave
-deve ser estavel para a operacao auditavel e permitir que retries, redrives e
-replays nao dupliquem registros funcionais.
+`eventId` e a chave idempotente principal do consumer atual e e persistido como
+`source_event_id` em `audit.functional_audit_records`, com indice unico. Isso
+deduplica reprocessamentos Kafka sem misturar a semantica do `Idempotency-Key`
+HTTP.
 
-O `eventId` identifica a publicacao logica; a deduplicacao funcional deve usar
-`idempotencyKey` quando disponivel.
+`idempotencyKey` permanece opcional no schema para evolucao futura de produtores,
+mas nao e a chave usada pelo consumer atual do `AuditService.Worker`.
 
-## Transporte futuro
+## Transporte
 
 O JSON Schema valida somente o payload logico. Headers Kafka, topic, partition,
 offset, message key, consumer group, DLQ e metadados de redrive ficam fora deste
 schema.
 
-Quando a integracao for implementada, a ADR/fatia tecnica deve definir:
+Configuracao atual:
 
-- topico Kafka;
+- topico Kafka: `audit.record.requested`;
+- consumer group default: `audit-record-requested-consumer`;
+- `EnableAutoCommit=false`;
+- `EnableAutoOffsetStore=false`.
+
+Quando producers reais forem implementados, a fatia tecnica deve definir:
+
 - message key;
 - headers obrigatorios;
 - politica de retry e DLQ;
-- validacao de schema no `AuditService.Worker`;
 - observabilidade minima;
 - estrategia de rollout e compatibilidade.
 

@@ -26,7 +26,7 @@ Principais servicos:
 | `BalanceService.Api` | API de leitura de saldos consolidados projetados pelo Worker. |
 | `BalanceService.Worker` | Processo dedicado para consumir eventos financeiros do Ledger pelo provider selecionado e atualizar a projecao de saldos. |
 | `TransferService.Api` / `TransferService.Worker` | Bounded context de transferencias com Saga orquestrada, POST/consulta HTTP, persistencia EF Core, Outbox transacional e publicacao Kafka explicita dos eventos da Saga. |
-| `AuditService.Api` | Bounded context de auditoria funcional com contrato HTTP canonico, schema `audit`, idempotencia e consultas por operacao, ainda sem integracao com os demais dominios. |
+| `AuditService.Api` / `AuditService.Worker` | Bounded context de auditoria funcional com contrato HTTP canonico, schema `audit`, idempotencia, consultas por operacao e consumer Kafka opcional de `AuditRecordRequested.v1`, ainda sem producers nos demais dominios. |
 
 ## Arquitetura
 
@@ -55,8 +55,10 @@ e consultar trilhas funcionais por id, por `operationId` e por filtros.
 O contrato e canonico e agnostico ao servico chamador: `sourceService` e
 `operationType` identificam a origem e a operacao sem acoplar a auditoria a
 tipos internos de Ledger, Balance, Transfer ou Identity. Nesta etapa, o
-`AuditService` nao esta integrado aos demais dominios, nao possui worker e nao
-consome Kafka.
+`AuditService.Worker` consome opcionalmente `AuditRecordRequested.v1` no topico
+Kafka `audit.record.requested`, usando `eventId` como `source_event_id`
+idempotente. Ledger, Balance e Transfer ainda nao publicam eventos reais de
+auditoria.
 
 Leitura das decisoes e contrato:
 

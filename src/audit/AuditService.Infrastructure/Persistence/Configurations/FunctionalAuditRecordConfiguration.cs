@@ -32,6 +32,10 @@ public sealed class FunctionalAuditRecordConfiguration : IEntityTypeConfiguratio
             .HasColumnName("idempotency_key")
             .HasMaxLength(FunctionalAuditRecord.IdempotencyKeyMaxLength);
 
+        builder.Property(x => x.SourceEventId)
+            .HasColumnName("source_event_id")
+            .HasMaxLength(FunctionalAuditRecord.SourceEventIdMaxLength);
+
         builder.Property(x => x.SourceService)
             .HasColumnName("source_service")
             .HasMaxLength(FunctionalAuditRecord.SourceServiceMaxLength)
@@ -100,6 +104,10 @@ public sealed class FunctionalAuditRecordConfiguration : IEntityTypeConfiguratio
 
         builder.HasIndex(x => x.IdempotencyKey)
             .HasDatabaseName("ux_audit_functional_audit_records_idempotency_key")
+            .IsUnique();
+
+        builder.HasIndex(x => x.SourceEventId)
+            .HasDatabaseName("ux_audit_functional_audit_records_source_event_id")
             .IsUnique();
 
         builder.HasIndex(x => new { x.MerchantId, x.OccurredAt })

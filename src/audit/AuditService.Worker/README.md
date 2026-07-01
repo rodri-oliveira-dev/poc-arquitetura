@@ -1,7 +1,43 @@
 # AuditService.Worker
 
-Estrutura inicial do worker do bounded context AuditService.
+Worker do bounded context `AuditService` para ingestao assincrona de registros
+funcionais de auditoria.
 
-Nesta etapa o processo apenas valida a composition root, registra Application/Infrastructure, options e observabilidade opcional. O servico hospedado atual e um placeholder seguro: nao consome Kafka, nao abre conexao com topico e nao executa loop de processamento.
+## Consumer Kafka
 
-O consumer real de `AuditRecordRequested.v1` deve ser adicionado em uma etapa futura, mantendo os detalhes de transporte em `Worker`/`Infrastructure` e sem referencias a Ledger, Balance ou Transfer.
+O worker consome `AuditRecordRequested.v1` do topico
+`audit.record.requested`, valida o contrato canonico, mapeia para
+`CreateAuditRecordCommand` e persiste em `audit.functional_audit_records`.
+
+O consumo fica desabilitado por padrao. Para ativar:
+
+```json
+{
+  "AuditService": {
+    "Worker": {
+      "Enabled": true
+    }
+  },
+  "Kafka": {
+    "AuditRecordRequestedConsumer": {
+      "Enabled": true,
+      "BootstrapServers": "127.0.0.1:19092",
+      "Topic": "audit.record.requested"
+    }
+  }
+}
+```
+
+`EnableAutoCommit` e `EnableAutoOffsetStore` permanecem `false`. O offset e
+commitado somente depois que a mensagem e tratada pelo processador.
+
+## Idempotencia
+
+Eventos Kafka usam `eventId` como chave idempotente, persistida em
+`source_event_id` com indice unico. Essa chave e separada do `Idempotency-Key`
+HTTP usado por `AuditService.Api`.
+
+## Escopo atual
+
+Nenhum outro bounded context publica eventos reais nesta etapa. Nao ha producer
+em Ledger, Balance ou Transfer, e nao ha DLQ sofisticada para auditoria.

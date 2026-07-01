@@ -8,7 +8,7 @@ O contrato logico do evento deve ser o mesmo quando publicado por Pub/Sub ou Kaf
 
 | Evento | Natureza | Produtor | Consumidores atuais |
 | --- | --- | --- | --- |
-| [AuditRecordRequested.v1](audit-record-requested-v1.md) | Solicitacao canonica futura para auditoria funcional | Nenhum produtor atual | Nenhum consumidor atual |
+| [AuditRecordRequested.v1](audit-record-requested-v1.md) | Solicitacao canonica para auditoria funcional | Nenhum produtor atual | `AuditService.Worker` |
 | [LedgerEntryCreated.v1](ledger-entry-created-v1.md) | Integracao Ledger para Balance, legado | `LedgerService` historico | `BalanceService.Worker` por Pub/Sub ou Kafka |
 | [LedgerEntryCreated.v2](ledger-entry-created-v2.md) | Integracao Ledger para Balance | `LedgerService` | `BalanceService.Worker` por Pub/Sub ou Kafka |
 | [LancamentoEstornoSolicitado.v1](lancamento-estorno-solicitado-v1.md) | Operacional do Ledger | `LedgerService` | Nenhum consumer de mensageria encontrado |

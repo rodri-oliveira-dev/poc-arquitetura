@@ -1,7 +1,7 @@
 # ADR-0099: Estrategia de integracao assincrona do AuditService
 
 ## Status
-Proposto
+Aceito
 
 ## Data
 2026-07-01
@@ -46,16 +46,18 @@ no Kafka. O `AuditService.Worker` consumira esses eventos, validara o envelope
 canonico, aplicara idempotencia e persistira registros funcionais no schema
 `audit` usando o caso de uso de criacao existente.
 
-Esta ADR nao implementa a integracao. Portanto, nesta etapa:
+Esta ADR define a estrategia de integracao. A primeira fatia implementada criou
+apenas o consumer Kafka do `AuditService.Worker` para `AuditRecordRequested.v1`.
+Portanto, nesta etapa:
 
 - `LedgerService` nao publica eventos de auditoria;
 - `BalanceService` nao publica eventos de auditoria;
 - `TransferService` nao publica eventos de auditoria;
 - nenhum producer Kafka de auditoria foi criado;
-- nenhum consumer Kafka de auditoria foi criado;
-- nenhum `AuditService.Worker` foi criado;
+- o `AuditService.Worker` consome opcionalmente `AuditRecordRequested.v1` do
+  topico `audit.record.requested`;
 - nenhum contrato HTTP existente foi alterado;
-- nenhum contrato de evento foi versionado como ativo.
+- nenhum contrato financeiro foi alterado.
 
 ## Motivos da decisao
 - Auditoria funcional nao deve bloquear o fluxo financeiro principal.
@@ -99,15 +101,17 @@ Os publicadores dos servicos de origem devem seguir a politica de Outbox ja
 adotada no repositorio: publicacao at-least-once, tentativas com backoff,
 marcacao de falha e caminho operacional para reprocessamento quando aplicavel.
 
-O consumo pelo `AuditService.Worker` tambem deve assumir entrega at-least-once.
-Por isso, a idempotencia e obrigatoria no contrato canonico. A chave de
-idempotencia deve ser estavel para a operacao auditavel e permitir que retries,
-redrives e replays nao dupliquem registros funcionais.
+O consumo pelo `AuditService.Worker` tambem assume entrega at-least-once. Por
+isso, a idempotencia e obrigatoria no contrato canonico. Para
+`AuditRecordRequested.v1`, o `eventId` e a chave idempotente principal e e
+persistido como `source_event_id` em `audit.functional_audit_records`, com
+indice unico. O `Idempotency-Key` HTTP continua separado.
 
-Falhas transientes devem ser tentadas novamente. Falhas permanentes de contrato,
-payload invalido, schema incompativel ou violacao de politica devem ir para DLQ
-com metadados suficientes para diagnostico, redrive controlado ou descarte
-auditavel. A DLQ nao deve virar fonte primaria de consulta funcional.
+Falhas transientes devem ser tentadas novamente. Enquanto nao houver DLQ
+sofisticada para auditoria, JSON invalido e contrato incompativel sao tratados
+como erro definitivo com log e avanço do offset para evitar loop infinito de
+mensagem venenosa. Uma etapa futura pode introduzir DLQ/redrive com metadados
+suficientes para diagnostico, redrive controlado ou descarte auditavel.
 
 ## Alternativas consideradas
 

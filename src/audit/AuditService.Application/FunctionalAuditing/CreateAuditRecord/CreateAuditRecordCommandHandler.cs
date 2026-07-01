@@ -23,12 +23,14 @@ public sealed class CreateAuditRecordCommandHandler(IFunctionalAuditRecordReposi
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        var idempotencyKey = request.IdempotencyKey.Trim();
         var requestHash = GenerateRequestHash(request);
 
-        CreateAuditRecordResult? replay = await ResolveExistingAsync(idempotencyKey, requestHash, cancellationToken);
+        CreateAuditRecordResult? replay = await ResolveExistingAsync(request, requestHash, cancellationToken);
         if (replay is not null)
             return replay;
+
+        var idempotencyKey = Normalize(request.IdempotencyKey);
+        var sourceEventId = request.SourceEventId?.ToString();
 
         var record = FunctionalAuditRecord.Create(
             operationId: request.OperationId.ToString(),
@@ -38,6 +40,7 @@ public sealed class CreateAuditRecordCommandHandler(IFunctionalAuditRecordReposi
             occurredAt: request.OccurredAt,
             correlationId: request.CorrelationId?.ToString(),
             idempotencyKey: idempotencyKey,
+            sourceEventId: sourceEventId,
             entityType: request.EntityType,
             entityId: request.EntityId,
             merchantId: request.MerchantId,
@@ -54,15 +57,43 @@ public sealed class CreateAuditRecordCommandHandler(IFunctionalAuditRecordReposi
         }
         catch (IdempotencyKeyUniqueConstraintViolationException)
         {
-            return await ResolveExistingAsync(idempotencyKey, requestHash, cancellationToken)
+            return await ResolveExistingByIdempotencyKeyAsync(idempotencyKey!, requestHash, cancellationToken)
                 ?? throw new InvalidOperationException(
                     "Concurrent idempotency record was not found after unique constraint conflict.");
+        }
+        catch (SourceEventIdUniqueConstraintViolationException)
+        {
+            return await ResolveExistingBySourceEventIdAsync(sourceEventId!, requestHash, cancellationToken)
+                ?? throw new InvalidOperationException(
+                    "Concurrent source event record was not found after unique constraint conflict.");
         }
 
         return new CreateAuditRecordResult(record.Id);
     }
 
     private async Task<CreateAuditRecordResult?> ResolveExistingAsync(
+        CreateAuditRecordCommand request,
+        string requestHash,
+        CancellationToken cancellationToken)
+    {
+        if (request.SourceEventId is { } sourceEventId)
+        {
+            CreateAuditRecordResult? bySourceEvent = await ResolveExistingBySourceEventIdAsync(
+                sourceEventId.ToString(),
+                requestHash,
+                cancellationToken);
+
+            if (bySourceEvent is not null)
+                return bySourceEvent;
+        }
+
+        var idempotencyKey = Normalize(request.IdempotencyKey);
+        return idempotencyKey is null
+            ? null
+            : await ResolveExistingByIdempotencyKeyAsync(idempotencyKey, requestHash, cancellationToken);
+    }
+
+    private async Task<CreateAuditRecordResult?> ResolveExistingByIdempotencyKeyAsync(
         string idempotencyKey,
         string requestHash,
         CancellationToken cancellationToken)
@@ -75,6 +106,22 @@ public sealed class CreateAuditRecordCommandHandler(IFunctionalAuditRecordReposi
             ? null
             : !string.Equals(requestHash, GenerateRequestHash(existing), StringComparison.Ordinal)
             ? throw new ConflictException("Idempotency-Key already used with a different payload.")
+            : new CreateAuditRecordResult(existing.Id);
+    }
+
+    private async Task<CreateAuditRecordResult?> ResolveExistingBySourceEventIdAsync(
+        string sourceEventId,
+        string requestHash,
+        CancellationToken cancellationToken)
+    {
+        FunctionalAuditRecord? existing = await _repository.GetBySourceEventIdAsync(
+            sourceEventId,
+            cancellationToken);
+
+        return existing is null
+            ? null
+            : !string.Equals(requestHash, GenerateRequestHash(existing), StringComparison.Ordinal)
+            ? throw new ConflictException("SourceEventId already used with a different payload.")
             : new CreateAuditRecordResult(existing.Id);
     }
 
@@ -93,7 +140,8 @@ public sealed class CreateAuditRecordCommandHandler(IFunctionalAuditRecordReposi
             request.Status,
             request.Reason,
             request.Metadata,
-            request.OccurredAt);
+            request.OccurredAt,
+            request.SourceEventId?.ToString());
 
     private static string GenerateRequestHash(FunctionalAuditRecord record)
         => GenerateRequestHash(
@@ -110,7 +158,8 @@ public sealed class CreateAuditRecordCommandHandler(IFunctionalAuditRecordReposi
             record.Status,
             record.Reason,
             record.Metadata,
-            record.OccurredAt);
+            record.OccurredAt,
+            record.SourceEventId);
 
     private static string GenerateRequestHash(
         string operationId,
@@ -126,7 +175,8 @@ public sealed class CreateAuditRecordCommandHandler(IFunctionalAuditRecordReposi
         string status,
         string? reason,
         IReadOnlyDictionary<string, string>? metadata,
-        DateTimeOffset occurredAt)
+        DateTimeOffset occurredAt,
+        string? sourceEventId)
     {
         var canonical = JsonSerializer.Serialize(new
         {
@@ -143,7 +193,8 @@ public sealed class CreateAuditRecordCommandHandler(IFunctionalAuditRecordReposi
             Status = Normalize(status),
             Reason = Normalize(reason),
             Metadata = Normalize(metadata),
-            OccurredAt = occurredAt
+            OccurredAt = occurredAt,
+            SourceEventId = Normalize(sourceEventId)
         }, JsonOptions);
 
         byte[] bytes = SHA256.HashData(Encoding.UTF8.GetBytes(canonical));

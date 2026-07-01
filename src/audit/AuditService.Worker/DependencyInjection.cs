@@ -1,6 +1,8 @@
 using AuditService.Application;
 using AuditService.Infrastructure;
 using AuditService.Worker.HostedServices;
+using AuditService.Worker.Messaging.Kafka;
+using AuditService.Worker.Messaging.Kafka.Configuration;
 using AuditService.Worker.Observability;
 using AuditService.Worker.Options;
 
@@ -24,8 +26,22 @@ public static class DependencyInjection
         services.AddAuditApplication();
         services.AddAuditInfrastructure(configuration, environment);
         services.AddAuditWorkerOptions(configuration);
+        services.AddAuditKafkaConsumer(configuration, environment);
         services.AddAuditWorkerObservability(configuration);
-        services.AddHostedService<AuditWorkerPlaceholderService>();
+
+        var workerOptions = configuration.GetSection(AuditWorkerOptions.SectionName).Get<AuditWorkerOptions>()
+            ?? new AuditWorkerOptions();
+        var consumerOptions = configuration.GetSection(AuditRecordRequestedConsumerOptions.SectionName).Get<AuditRecordRequestedConsumerOptions>()
+            ?? new AuditRecordRequestedConsumerOptions();
+
+        if (workerOptions.Enabled && consumerOptions.Enabled)
+        {
+            services.AddHostedService<AuditRecordRequestedConsumerService>();
+        }
+        else
+        {
+            services.AddHostedService<AuditWorkerPlaceholderService>();
+        }
 
         return services;
     }
@@ -41,6 +57,33 @@ public static class DependencyInjection
 
         return services;
     }
+
+    private static IServiceCollection AddAuditKafkaConsumer(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        IHostEnvironment environment)
+    {
+        services.AddOptions<AuditRecordRequestedConsumerOptions>()
+            .Bind(configuration.GetSection(AuditRecordRequestedConsumerOptions.SectionName))
+            .Validate(o => !o.Enabled || !string.IsNullOrWhiteSpace(o.BootstrapServers), "AuditRecordRequested Consumer BootstrapServers nao configurado.")
+            .Validate(o => !o.Enabled || !string.IsNullOrWhiteSpace(o.GroupId), "AuditRecordRequested Consumer GroupId nao configurado.")
+            .Validate(o => !o.Enabled || !string.IsNullOrWhiteSpace(o.Topic), "AuditRecordRequested Consumer Topic nao configurado.")
+            .Validate(o => !o.Enabled || o.ConsumeErrorRetryDelay > TimeSpan.Zero, "AuditRecordRequested Consumer ConsumeErrorRetryDelay deve ser maior que zero.")
+            .Validate(o => !o.Enabled || o.ProcessingErrorRetryDelay > TimeSpan.Zero, "AuditRecordRequested Consumer ProcessingErrorRetryDelay deve ser maior que zero.")
+            .Validate(o => IsLocalEnvironment(environment) || !KafkaClientConfigExtensions.IsPlaintext(o), "Kafka PLAINTEXT e permitido apenas em Development/Local.")
+            .ValidateOnStart();
+
+        services.AddSingleton<AuditRecordRequestedValidator>();
+        services.AddScoped<IAuditRecordRequestedProcessor, AuditRecordRequestedProcessor>();
+        services.AddSingleton<IAuditKafkaConsumerFactory, ConfluentAuditKafkaConsumerFactory>();
+
+        return services;
+    }
+
+    private static bool IsLocalEnvironment(IHostEnvironment environment)
+        => environment.IsDevelopment()
+            || string.Equals(environment.EnvironmentName, "Local", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(environment.EnvironmentName, "Test", StringComparison.OrdinalIgnoreCase);
 
     private static IServiceCollection AddAuditWorkerObservability(
         this IServiceCollection services,

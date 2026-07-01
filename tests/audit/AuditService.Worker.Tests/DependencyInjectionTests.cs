@@ -1,5 +1,7 @@
 using AuditService.Application.FunctionalAuditing.Ingestion;
 using AuditService.Worker.HostedServices;
+using AuditService.Worker.Messaging.Kafka;
+using AuditService.Worker.Messaging.Kafka.Configuration;
 using AuditService.Worker.Options;
 
 using Microsoft.Extensions.Configuration;
@@ -27,6 +29,28 @@ public sealed class DependencyInjectionTests
     }
 
     [Fact]
+    public void AddAuditWorkerComposition_should_register_kafka_consumer_when_enabled()
+    {
+        var services = new ServiceCollection();
+
+        DependencyInjection.AddAuditWorkerComposition(
+            services,
+            CreateConfiguration(new Dictionary<string, string?>
+            {
+                ["AuditService:Worker:Enabled"] = "true",
+                ["Kafka:AuditRecordRequestedConsumer:Enabled"] = "true",
+                ["Kafka:AuditRecordRequestedConsumer:BootstrapServers"] = "localhost:9092"
+            }),
+            CreateEnvironment());
+
+        Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(IAuditRecordRequestedProcessor));
+        Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(IAuditKafkaConsumerFactory));
+        Assert.Contains(services, descriptor =>
+            descriptor.ServiceType == typeof(IHostedService) &&
+            descriptor.ImplementationType == typeof(AuditRecordRequestedConsumerService));
+    }
+
+    [Fact]
     public void AuditWorkerOptions_should_use_safe_defaults()
     {
         using ServiceProvider provider = CreateProvider();
@@ -49,6 +73,19 @@ public sealed class DependencyInjectionTests
             () => provider.GetRequiredService<IOptions<AuditWorkerOptions>>().Value);
 
         Assert.Contains(exception.Failures, failure => failure.Contains("IdleDelay", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void AuditRecordRequestedConsumerOptions_should_use_safe_defaults()
+    {
+        using ServiceProvider provider = CreateProvider();
+
+        AuditRecordRequestedConsumerOptions options = provider.GetRequiredService<IOptions<AuditRecordRequestedConsumerOptions>>().Value;
+
+        Assert.False(options.Enabled);
+        Assert.Equal("audit.record.requested", options.Topic);
+        Assert.False(options.EnableAutoCommit);
+        Assert.False(options.EnableAutoOffsetStore);
     }
 
     private static ServiceProvider CreateProvider(Dictionary<string, string?>? overrides = null)

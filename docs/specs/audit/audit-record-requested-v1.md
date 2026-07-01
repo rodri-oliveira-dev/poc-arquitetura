@@ -6,8 +6,9 @@ Definir o contrato canonico `AuditRecordRequested.v1` para uma integracao
 assincrona futura em que servicos de origem solicitem ao `AuditService` o
 registro de auditoria funcional.
 
-Esta spec cria contrato, schema e exemplos. Ela nao implementa publicacao,
-consumo, worker, topico, DLQ ou alteracao em servicos de origem.
+Esta spec criou contrato, schema e exemplos. O consumo pelo
+`AuditService.Worker` foi implementado em etapa posterior; publicacao,
+producer, DLQ e alteracao em servicos de origem continuam fora de escopo.
 
 ## Semantica
 
@@ -129,14 +130,13 @@ A validacao de contrato deve usar o validador existente:
 npm run events:validate
 ```
 
-Nao ha validacao .NET obrigatoria nesta etapa, porque nenhum codigo em
-`src/audit` ou `tests/audit` foi alterado.
+O consumer .NET do `AuditService.Worker` possui testes isolados em
+`tests/audit/AuditService.Worker.Tests`.
 
 ## Fora de escopo confirmado
 
 - Criar producer em `LedgerService`, `BalanceService` ou `TransferService`.
-- Criar consumer no `AuditService`.
-- Criar `AuditService.Worker`.
+- Criar producer nos servicos de origem.
 - Criar topico Kafka, DLQ ou redrive.
 - Alterar contratos HTTP ou OpenAPI.
 - Executar build/test da solution inteira.
@@ -148,5 +148,5 @@ Nao ha validacao .NET obrigatoria nesta etapa, porque nenhum codigo em
    retry, DLQ, redrive, observabilidade e rollout.
 3. Implementar gravacao na Outbox transacional local do servico produtor.
 4. Implementar publicador Kafka do produtor, se ainda nao existir no fluxo.
-5. Criar `AuditService.Worker` para consumir `AuditRecordRequested.v1`, validar
-   schema, aplicar idempotencia e delegar ao caso de uso existente de criacao.
+5. Conectar producers reais por Outbox somente quando houver primeiro fluxo
+   produtor definido.

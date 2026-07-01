@@ -5,7 +5,9 @@ Orientar a implementacao futura da integracao automatica do `AuditService` com
 `LedgerService`, `BalanceService` e `TransferService`, preservando baixo
 acoplamento e mantendo a auditoria fora do caminho critico financeiro.
 
-Esta spec nao implementa integracao.
+Esta spec orienta a integracao entre bounded contexts. O consumer do
+`AuditService.Worker` ja existe, mas nao ha producer real nos servicos de
+origem.
 
 ## Fluxo alvo
 
@@ -26,7 +28,7 @@ Servico de origem
   usando Outbox do proprio servico de origem.
 - O evento publicado deve ser canonico para auditoria, nao um evento de dominio
   interno cru.
-- O `AuditService.Worker` consome o evento canonico, valida o envelope, aplica
+- O `AuditService.Worker` consome o evento canonico, valida o payload, aplica
   idempotencia e delega ao caso de uso existente de criacao de registro.
 - Falha do `AuditService`, do worker ou do Kafka nao deve reverter a operacao
   financeira ja confirmada.
@@ -38,9 +40,8 @@ exemplos versionados em [`contracts/events`](../../../contracts/events/README.md
 
 Esse contrato inclui, no minimo:
 
-- nome e versao do contrato;
-- idempotency key;
-- correlation id e causation id;
+- `eventId`, `eventType` e `schemaVersion`;
+- correlation id quando disponivel;
 - source service;
 - operation type;
 - operation id;
@@ -52,8 +53,8 @@ Esse contrato inclui, no minimo:
 - metadata minimizada, sem segredos;
 - occurred at.
 
-O contrato esta documentado, mas ainda nao ha produtor, consumer, worker, topico
-Kafka, DLQ ou integracao ativa.
+O contrato e o consumer do AuditService estao implementados, mas ainda nao ha
+produtor, DLQ ou integracao ativa com Ledger, Balance ou Transfer.
 
 ## Operacao
 - Entrega deve ser tratada como at-least-once.
@@ -64,12 +65,10 @@ Kafka, DLQ ou integracao ativa.
   idempotency key.
 
 ## Fora de escopo desta spec
-- Criar `AuditService.Worker`.
-- Criar producer Kafka.
-- Criar consumer Kafka.
+- Criar producer Kafka nos servicos de origem.
 - Alterar Ledger, Balance ou Transfer.
 - Alterar contratos HTTP existentes.
-- Criar topicos, schemas ou exemplos ativos de eventos.
+- Criar DLQ ou redrive de auditoria.
 
 ## Referencias
 - [ADR-0099](../../adrs/0099-audit-async-integration-strategy.md)
