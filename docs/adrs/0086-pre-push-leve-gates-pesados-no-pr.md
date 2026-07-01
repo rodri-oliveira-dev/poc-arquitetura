@@ -21,6 +21,8 @@ Manter o `pre-push` como validacao local leve:
 - executar `terraform fmt -check` apenas quando houver alteracoes em `*.tf` ou `*.tfvars`;
 - executar restore, `dotnet format whitespace --verify-no-changes` nos arquivos `.cs` alterados, build e testes sem cobertura apenas quando houver alteracoes .NET impactantes;
 - filtrar os testes locais com `Category!=Integration&Category!=Container&Category!=Contract`;
+- medir a duracao aproximada de cada etapa local executada;
+- permitir validacao completa explicita com `FULL_TESTS=true git push`, reaproveitando `./test.sh` e o gate oficial de cobertura;
 - nao executar Trivy, cobertura, ReportGenerator, SonarQube, Docker build, scan de imagem, Terraform validate completo, testes de integracao ou Testcontainers no `pre-push`.
 
 O Pull Request permanece como gate forte:
@@ -35,6 +37,8 @@ O Pull Request permanece como gate forte:
 - Reduz tempo de feedback no `git push`.
 - O push local nao falha por Docker desligado.
 - Mantem testes unitarios, build e formatacao dos arquivos alterados como defesa rapida antes do PR.
+- Torna gargalos locais visiveis por logs de duracao simples.
+- Permite que um desenvolvedor execute a validacao completa no proprio push quando quiser feedback maximo antes do PR.
 - Remove duplicidade local de checks pesados ja cobertos no GitHub Actions.
 - Mantem seguranca e qualidade no PR, onde o runner possui ambiente controlado.
 
@@ -62,7 +66,7 @@ O Pull Request permanece como gate forte:
    - Rejeitado para o hook padrao porque exige Terraform, providers, TFLint e inicializacao. O PR ja cobre essa validacao em runner controlado.
 
 ## Impacto no fluxo local
-`git push` executa apenas validacoes locais leves proporcionais ao diff. Docker desligado nao impede o push por causa de Testcontainers. Para cobertura, Trivy, Terraform validate completo e testes de integracao/container, use os comandos manuais documentados ou abra o Pull Request.
+`git push` executa apenas validacoes locais leves proporcionais ao diff. Docker desligado nao impede o push por causa de Testcontainers. Para cobertura, Trivy, Terraform validate completo e testes de integracao/container, use os comandos manuais documentados ou abra o Pull Request. Se quiser executar a validacao completa oficial antes do envio, use `FULL_TESTS=true git push`.
 
 ## Impacto no CI
 Nao ha reducao intencional de seguranca no CI. Os workflows existentes continuam sendo a linha de defesa para testes completos, cobertura, SonarQube, Trivy e Terraform validate.
