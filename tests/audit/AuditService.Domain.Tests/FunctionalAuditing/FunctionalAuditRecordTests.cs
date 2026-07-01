@@ -78,6 +78,21 @@ public sealed class FunctionalAuditRecordTests
     }
 
     [Fact]
+    public void Create_should_reject_optional_values_above_limits()
+    {
+        var exception = Assert.Throws<DomainException>(() =>
+            FunctionalAuditRecord.Create(
+                operationId: "op-123",
+                sourceService: "AnyCallingService",
+                operationType: "PaymentAuthorized",
+                status: "Received",
+                occurredAt: DateTimeOffset.UtcNow,
+                entityType: new string('a', FunctionalAuditRecord.EntityTypeMaxLength + 1)));
+
+        Assert.Contains("EntityType", exception.Message);
+    }
+
+    [Fact]
     public void Create_should_preserve_operation_correlation_and_idempotency_identifiers()
     {
         var record = FunctionalAuditRecord.Create(

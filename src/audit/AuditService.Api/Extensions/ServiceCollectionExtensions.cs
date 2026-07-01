@@ -13,7 +13,7 @@ public static class ServiceCollectionExtensions
 
         return services.AddApiSwaggerDefaults<ConfigureSwaggerOptions>(
             typeof(Program).Assembly,
-            static _ => { });
+            static options => options.DocumentFilter<AuditOpenApiDocumentFilter>());
     }
 
     public static IServiceCollection AddApiObservability(this IServiceCollection services, IConfiguration configuration)

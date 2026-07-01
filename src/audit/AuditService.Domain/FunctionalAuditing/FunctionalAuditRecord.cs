@@ -4,9 +4,19 @@ namespace AuditService.Domain.FunctionalAuditing;
 
 public sealed class FunctionalAuditRecord
 {
+    public const int OperationIdMaxLength = 100;
+    public const int CorrelationIdMaxLength = 100;
+    public const int IdempotencyKeyMaxLength = 200;
     public const int SourceServiceMaxLength = 100;
     public const int OperationTypeMaxLength = 150;
+    public const int EntityTypeMaxLength = 150;
+    public const int EntityIdMaxLength = 150;
+    public const int MerchantIdMaxLength = 100;
+    public const int ActorTypeMaxLength = 50;
+    public const int ActorSubjectMaxLength = 200;
+    public const int ActorClientIdMaxLength = 200;
     public const int ReasonMaxLength = 1_000;
+    public const int MetadataMaxBytes = 4_096;
 
     private static readonly HashSet<string> ValidStatuses = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -54,17 +64,17 @@ public sealed class FunctionalAuditRecord
         DateTimeOffset createdAt)
     {
         Id = id;
-        OperationId = Required(operationId, nameof(OperationId));
-        CorrelationId = Optional(correlationId);
-        IdempotencyKey = Optional(idempotencyKey);
+        OperationId = RequiredLimited(operationId, nameof(OperationId), OperationIdMaxLength);
+        CorrelationId = OptionalLimited(correlationId, nameof(CorrelationId), CorrelationIdMaxLength);
+        IdempotencyKey = OptionalLimited(idempotencyKey, nameof(IdempotencyKey), IdempotencyKeyMaxLength);
         SourceService = RequiredLimited(sourceService, nameof(SourceService), SourceServiceMaxLength);
         OperationType = RequiredLimited(operationType, nameof(OperationType), OperationTypeMaxLength);
-        EntityType = Optional(entityType);
-        EntityId = Optional(entityId);
-        MerchantId = Optional(merchantId);
+        EntityType = OptionalLimited(entityType, nameof(EntityType), EntityTypeMaxLength);
+        EntityId = OptionalLimited(entityId, nameof(EntityId), EntityIdMaxLength);
+        MerchantId = OptionalLimited(merchantId, nameof(MerchantId), MerchantIdMaxLength);
         ActorType = ValidateActorType(actorType);
-        ActorSubject = Optional(actorSubject);
-        ActorClientId = Optional(actorClientId);
+        ActorSubject = OptionalLimited(actorSubject, nameof(ActorSubject), ActorSubjectMaxLength);
+        ActorClientId = OptionalLimited(actorClientId, nameof(ActorClientId), ActorClientIdMaxLength);
         Status = ValidateStatus(status);
         Reason = OptionalLimited(reason, nameof(Reason), ReasonMaxLength);
         OccurredAt = occurredAt == default

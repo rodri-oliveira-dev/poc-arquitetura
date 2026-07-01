@@ -118,7 +118,8 @@ namespace AuditService.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("idx_audit_functional_audit_records_correlation_id");
 
                     b.HasIndex("IdempotencyKey")
-                        .HasDatabaseName("idx_audit_functional_audit_records_idempotency_key");
+                        .IsUnique()
+                        .HasDatabaseName("ux_audit_functional_audit_records_idempotency_key");
 
                     b.HasIndex("OperationId")
                         .HasDatabaseName("idx_audit_functional_audit_records_operation_id");

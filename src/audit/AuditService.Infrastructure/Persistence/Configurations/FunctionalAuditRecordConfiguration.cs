@@ -21,16 +21,16 @@ public sealed class FunctionalAuditRecordConfiguration : IEntityTypeConfiguratio
 
         builder.Property(x => x.OperationId)
             .HasColumnName("operation_id")
-            .HasMaxLength(100)
+            .HasMaxLength(FunctionalAuditRecord.OperationIdMaxLength)
             .IsRequired();
 
         builder.Property(x => x.CorrelationId)
             .HasColumnName("correlation_id")
-            .HasMaxLength(100);
+            .HasMaxLength(FunctionalAuditRecord.CorrelationIdMaxLength);
 
         builder.Property(x => x.IdempotencyKey)
             .HasColumnName("idempotency_key")
-            .HasMaxLength(200);
+            .HasMaxLength(FunctionalAuditRecord.IdempotencyKeyMaxLength);
 
         builder.Property(x => x.SourceService)
             .HasColumnName("source_service")
@@ -44,27 +44,27 @@ public sealed class FunctionalAuditRecordConfiguration : IEntityTypeConfiguratio
 
         builder.Property(x => x.EntityType)
             .HasColumnName("entity_type")
-            .HasMaxLength(150);
+            .HasMaxLength(FunctionalAuditRecord.EntityTypeMaxLength);
 
         builder.Property(x => x.EntityId)
             .HasColumnName("entity_id")
-            .HasMaxLength(150);
+            .HasMaxLength(FunctionalAuditRecord.EntityIdMaxLength);
 
         builder.Property(x => x.MerchantId)
             .HasColumnName("merchant_id")
-            .HasMaxLength(100);
+            .HasMaxLength(FunctionalAuditRecord.MerchantIdMaxLength);
 
         builder.Property(x => x.ActorType)
             .HasColumnName("actor_type")
-            .HasMaxLength(50);
+            .HasMaxLength(FunctionalAuditRecord.ActorTypeMaxLength);
 
         builder.Property(x => x.ActorSubject)
             .HasColumnName("actor_subject")
-            .HasMaxLength(200);
+            .HasMaxLength(FunctionalAuditRecord.ActorSubjectMaxLength);
 
         builder.Property(x => x.ActorClientId)
             .HasColumnName("actor_client_id")
-            .HasMaxLength(200);
+            .HasMaxLength(FunctionalAuditRecord.ActorClientIdMaxLength);
 
         builder.Property(x => x.Status)
             .HasColumnName("status")
@@ -99,7 +99,8 @@ public sealed class FunctionalAuditRecordConfiguration : IEntityTypeConfiguratio
             .HasDatabaseName("idx_audit_functional_audit_records_correlation_id");
 
         builder.HasIndex(x => x.IdempotencyKey)
-            .HasDatabaseName("idx_audit_functional_audit_records_idempotency_key");
+            .HasDatabaseName("ux_audit_functional_audit_records_idempotency_key")
+            .IsUnique();
 
         builder.HasIndex(x => new { x.MerchantId, x.OccurredAt })
             .HasDatabaseName("idx_audit_functional_audit_records_merchant_occurred_at")

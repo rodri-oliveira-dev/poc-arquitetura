@@ -1,4 +1,6 @@
+using AuditService.Application.Abstractions.Persistence;
 using AuditService.Infrastructure.Persistence;
+using AuditService.Infrastructure.Persistence.Repositories;
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -35,6 +37,8 @@ public static class DependencyInjection
             options.UseNpgsql(
                 connectionString,
                 npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "audit")));
+
+        services.AddScoped<IFunctionalAuditRecordRepository, FunctionalAuditRecordRepository>();
 
         return services;
     }
