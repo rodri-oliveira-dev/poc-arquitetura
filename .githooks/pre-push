@@ -6,6 +6,7 @@ COVERAGE_THRESHOLD="${COVERAGE_THRESHOLD:-85}"
 FULL_TESTS="${FULL_TESTS:-false}"
 ZERO_SHA="0000000000000000000000000000000000000000"
 UNIT_TEST_FILTER="${UNIT_TEST_FILTER:-Category!=Integration&Category!=Container&Category!=Contract}"
+DOTNET_FORMAT_FILE_LIMIT="${DOTNET_FORMAT_FILE_LIMIT:-30}"
 
 if command -v git >/dev/null 2>&1; then
   repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
@@ -44,6 +45,10 @@ run_dotnet_format_changed_files() {
     --no-restore \
     --verbosity minimal \
     --include <"$dotnet_format_files"
+}
+
+count_dotnet_format_files() {
+  wc -l <"$dotnet_format_files" | tr -d ' '
 }
 
 run_full_tests() {
@@ -342,7 +347,12 @@ fi
 run_timed "restore .NET" dotnet restore ./LedgerService.slnx
 
 if [ "$dotnet_format_check" = true ] && [ -s "$dotnet_format_files" ]; then
-  run_timed "formatacao dos arquivos .cs alterados" run_dotnet_format_changed_files
+  dotnet_format_file_count="$(count_dotnet_format_files)"
+  if [ "$dotnet_format_file_count" -gt "$DOTNET_FORMAT_FILE_LIMIT" ]; then
+    echo "==> pre-push: $dotnet_format_file_count arquivos .cs alterados excedem o limite local de $DOTNET_FORMAT_FILE_LIMIT; formatacao .NET local ignorada"
+  else
+    run_timed "formatacao dos arquivos .cs alterados" run_dotnet_format_changed_files
+  fi
 else
   echo "==> pre-push: sem arquivos .cs alterados ou diff inseguro; formatacao .NET local ignorada"
 fi

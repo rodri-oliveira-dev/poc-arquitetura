@@ -20,6 +20,7 @@ Manter o `pre-push` como validacao local leve:
 - calcular arquivos alterados antes de executar validacoes;
 - executar `terraform fmt -check` apenas quando houver alteracoes em `*.tf` ou `*.tfvars`;
 - executar restore, `dotnet format whitespace --verify-no-changes` nos arquivos `.cs` alterados, build e testes sem cobertura apenas quando houver alteracoes .NET impactantes;
+- pular a formatacao .NET local quando o diff tiver mais de 30 arquivos `.cs`, mantendo build, testes rapidos e gates de Pull Request;
 - filtrar os testes locais com `Category!=Integration&Category!=Container&Category!=Contract`;
 - medir a duracao aproximada de cada etapa local executada;
 - permitir validacao completa explicita com `FULL_TESTS=true git push`, reaproveitando `./test.sh` e o gate oficial de cobertura;
@@ -37,6 +38,7 @@ O Pull Request permanece como gate forte:
 - Reduz tempo de feedback no `git push`.
 - O push local nao falha por Docker desligado.
 - Mantem testes unitarios, build e formatacao dos arquivos alterados como defesa rapida antes do PR.
+- Evita que branches grandes gastem varios minutos apenas na formatacao local.
 - Torna gargalos locais visiveis por logs de duracao simples.
 - Permite que um desenvolvedor execute a validacao completa no proprio push quando quiser feedback maximo antes do PR.
 - Remove duplicidade local de checks pesados ja cobertos no GitHub Actions.
@@ -44,6 +46,7 @@ O Pull Request permanece como gate forte:
 
 ### Trade-offs / custos
 - Alguns problemas passam a ser descobertos no PR em vez de no push local.
+- Em branches com mais de 30 arquivos C#, problemas de formatacao podem ser descobertos no PR ou por validacao manual.
 - Desenvolvedores que quiserem feedback completo antes do PR precisam executar `./test.sh`, `./test.ps1`, Trivy ou `scripts/quality/terraform/validate.sh` manualmente.
 - A categorizacao de testes precisa ser mantida sempre que novos testes de integracao, contrato ou container forem criados.
 

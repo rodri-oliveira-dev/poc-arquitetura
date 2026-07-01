@@ -52,9 +52,13 @@ O hook pula restore, formatacao, build e testes quando todas as alteracoes sao c
 
 Se houver mistura de documentacao com qualquer arquivo impactante, as validacoes rapidas sao executadas. Em caso de duvida, a regra e validar.
 
-Quando o diff contem muitos arquivos C#, o hook divide a verificacao de
+Quando o diff contem ate 30 arquivos C#, o hook divide a verificacao de
 formatacao em lotes para evitar limites locais de tamanho da linha de comando,
 mantendo a mesma regra de falha se qualquer arquivo estiver fora do padrao.
+Acima desse limite, a formatacao .NET local e ignorada para preservar o push
+como feedback leve; build, testes rapidos e os gates do Pull Request continuam
+validando a branch. O limite pode ser ajustado temporariamente com
+`DOTNET_FORMAT_FILE_LIMIT`.
 
 Os testes locais do `pre-push` usam o filtro:
 
@@ -72,7 +76,7 @@ Para executar a validacao completa oficial durante o push, use:
 FULL_TESTS=true git push
 ```
 
-Nesse modo, depois do restore e da formatacao dos arquivos `.cs` alterados, o hook executa `./test.sh` com o `CONFIGURATION` e o `COVERAGE_THRESHOLD` configurados no ambiente. O padrao continua sendo `Release` e cobertura minima de `85%`. Esse modo pode executar testes de integracao/container e, portanto, pode exigir Docker-compatible API.
+Nesse modo, depois do restore e da etapa local de formatacao dos arquivos `.cs` alterados quando ela estiver dentro do limite, o hook executa `./test.sh` com o `CONFIGURATION` e o `COVERAGE_THRESHOLD` configurados no ambiente. O padrao continua sendo `Release` e cobertura minima de `85%`. Esse modo pode executar testes de integracao/container e, portanto, pode exigir Docker-compatible API.
 
 ## Padrao de commit
 
