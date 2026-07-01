@@ -61,6 +61,7 @@ Leitura das decisoes:
 - [ADR-0093: Resend como provider de e-mail do IdentityService](docs/adrs/0093-resend-email-provider-identity-service.md)
 - [ADR-0094: Mailpit local para e-mails do IdentityService](docs/adrs/0094-mailpit-local-identity-service.md)
 - [ADR-0095: Evolucao futura do envio de e-mails do IdentityService](docs/adrs/0095-evolucao-futura-email-identity-service.md)
+- [ADR-0096: Idempotencia no cadastro de usuarios do IdentityService](docs/adrs/0096-idempotencia-cadastro-usuarios-identity-service.md)
 
 ### Arquitetura
 
@@ -77,7 +78,9 @@ O modulo segue Clean Architecture por camada:
 
 O cadastro atual usa `POST /api/v1/users` e exige token com scope
 `identity.write`. A senha e enviada somente ao Keycloak; o banco local persiste
-`UserId`, `Email`, `Username`, `MerchantId` e `KeycloakUserId`.
+`UserId`, `Email`, `Username`, `MerchantId` e `KeycloakUserId`. O endpoint aceita
+`Idempotency-Key` opcional para retry seguro; detalhes ficam em
+[IdentityService API](docs/development/identity-api.md).
 
 ### Estrutura das pastas
 

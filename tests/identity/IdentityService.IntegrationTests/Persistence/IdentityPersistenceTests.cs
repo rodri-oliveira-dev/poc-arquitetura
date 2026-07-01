@@ -1,4 +1,8 @@
+using System.Text.Json;
+
 using IdentityService.Application.Common.DomainEvents;
+using IdentityService.Application.Idempotency;
+using IdentityService.Application.Idempotency.Ports;
 using IdentityService.Domain.Users;
 using IdentityService.Infrastructure.Persistence;
 using IdentityService.IntegrationTests.Infrastructure;
@@ -106,6 +110,238 @@ public sealed class IdentityPersistenceTests(PostgresIdentityFixture fixture) : 
     }
 
     [Fact]
+    public async Task Idempotency_repository_should_persist_processing_record()
+    {
+        await using var provider = _fixture.CreateServiceProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var repository = scope.ServiceProvider.GetRequiredService<IIdempotencyRepository>();
+        var record = CreateProcessingRecord("CreateUser", "idem-processing");
+
+        Assert.True(await repository.TryAddProcessingAsync(record, TestContext.Current.CancellationToken));
+
+        var persisted = await repository.GetByOperationAndKeyAsync(
+            "CreateUser",
+            "idem-processing",
+            TestContext.Current.CancellationToken);
+
+        Assert.NotNull(persisted);
+        Assert.Equal(record.Id, persisted.Id);
+        Assert.Equal(IdempotencyStatus.Processing, persisted.Status);
+        Assert.Equal(record.RequestHash, persisted.RequestHash);
+        Assert.Equal(record.ExpiresAtUtc, persisted.ExpiresAtUtc);
+    }
+
+    [Fact]
+    public async Task Idempotency_repository_should_mark_record_as_completed()
+    {
+        await using var provider = _fixture.CreateServiceProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var repository = scope.ServiceProvider.GetRequiredService<IIdempotencyRepository>();
+        var record = CreateProcessingRecord("CreateUser", "idem-completed");
+        var resourceId = Guid.NewGuid();
+
+        Assert.True(await repository.TryAddProcessingAsync(record, TestContext.Current.CancellationToken));
+
+        var responseBody = /*lang=json,strict*/ """
+            {"id":"user-1","email":"completed@example.com"}
+            """;
+
+        record.MarkCompleted(
+            201,
+            responseBody,
+            resourceId,
+            new DateTime(2026, 06, 26, 12, 5, 0, DateTimeKind.Utc));
+        await repository.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var persisted = await repository.GetByOperationAndKeyAsync(
+            "CreateUser",
+            "idem-completed",
+            TestContext.Current.CancellationToken);
+
+        Assert.NotNull(persisted);
+        Assert.Equal(IdempotencyStatus.Completed, persisted.Status);
+        Assert.Equal(201, persisted.ResponseStatusCode);
+        Assert.Equal(resourceId, persisted.ResourceId);
+        Assert.Equal(new DateTime(2026, 06, 26, 12, 5, 0, DateTimeKind.Utc), persisted.CompletedAtUtc);
+    }
+
+    [Fact]
+    public async Task Database_should_enforce_unique_idempotency_operation_and_key()
+    {
+        await using var db = _fixture.CreateDbContext();
+
+        db.IdempotencyRecords.Add(CreateProcessingRecord("CreateUser", "idem-unique"));
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        db.IdempotencyRecords.Add(CreateProcessingRecord("CreateUser", "idem-unique"));
+        var exception = await Assert.ThrowsAsync<DbUpdateException>(
+            () => db.SaveChangesAsync(TestContext.Current.CancellationToken));
+
+        var postgresException = Assert.IsType<PostgresException>(exception.InnerException);
+        Assert.Equal(PostgresErrorCodes.UniqueViolation, postgresException.SqlState);
+        Assert.Equal("ux_identity_idempotency_records_operation_key", postgresException.ConstraintName);
+    }
+
+    [Fact]
+    public async Task Idempotency_repository_should_treat_unique_constraint_as_expected_concurrency()
+    {
+        await using var firstProvider = _fixture.CreateServiceProvider();
+        await using var secondProvider = _fixture.CreateServiceProvider();
+        await using var firstScope = firstProvider.CreateAsyncScope();
+        await using var secondScope = secondProvider.CreateAsyncScope();
+        var firstRepository = firstScope.ServiceProvider.GetRequiredService<IIdempotencyRepository>();
+        var secondRepository = secondScope.ServiceProvider.GetRequiredService<IIdempotencyRepository>();
+
+        var results = await Task.WhenAll(
+            firstRepository.TryAddProcessingAsync(
+                CreateProcessingRecord("CreateUser", "idem-concurrent-unique"),
+                TestContext.Current.CancellationToken),
+            secondRepository.TryAddProcessingAsync(
+                CreateProcessingRecord("CreateUser", "idem-concurrent-unique"),
+                TestContext.Current.CancellationToken));
+
+        Assert.Contains(true, results);
+        Assert.Contains(false, results);
+
+        await using var db = _fixture.CreateDbContext();
+        Assert.Equal(
+            1,
+            await db.IdempotencyRecords.CountAsync(
+                record => record.OperationName == "CreateUser" &&
+                    record.IdempotencyKey == "idem-concurrent-unique",
+                TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task Idempotency_repository_should_claim_failed_retry_atomically()
+    {
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var failed = CreateProcessingRecord("CreateUser", "idem-failed-retry-claim");
+            failed.MarkFailed(
+                IdempotencyFailureStage.BeforeExternalSideEffect,
+                "provider failed before external effect",
+                new DateTime(2026, 06, 26, 12, 5, 0, DateTimeKind.Utc));
+
+            db.IdempotencyRecords.Add(failed);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        await using var firstProvider = _fixture.CreateServiceProvider();
+        await using var secondProvider = _fixture.CreateServiceProvider();
+        await using var firstScope = firstProvider.CreateAsyncScope();
+        await using var secondScope = secondProvider.CreateAsyncScope();
+        var firstRepository = firstScope.ServiceProvider.GetRequiredService<IIdempotencyRepository>();
+        var secondRepository = secondScope.ServiceProvider.GetRequiredService<IIdempotencyRepository>();
+        var nowUtc = new DateTime(2026, 06, 26, 12, 10, 0, DateTimeKind.Utc);
+
+        var results = await Task.WhenAll(
+            firstRepository.TryClaimFailedForRetryAsync(
+                "CreateUser",
+                "idem-failed-retry-claim",
+                RequestHash,
+                nowUtc,
+                nowUtc.AddMinutes(5),
+                TestContext.Current.CancellationToken),
+            secondRepository.TryClaimFailedForRetryAsync(
+                "CreateUser",
+                "idem-failed-retry-claim",
+                RequestHash,
+                nowUtc,
+                nowUtc.AddMinutes(5),
+                TestContext.Current.CancellationToken));
+
+        Assert.Single(results, result => result is not null);
+        Assert.Single(results, result => result is null);
+
+        await using var verificationDb = _fixture.CreateDbContext();
+        var persisted = await verificationDb.IdempotencyRecords
+            .AsNoTracking()
+            .SingleAsync(
+                record => record.OperationName == "CreateUser" &&
+                    record.IdempotencyKey == "idem-failed-retry-claim",
+                TestContext.Current.CancellationToken);
+
+        Assert.Equal(IdempotencyStatus.Processing, persisted.Status);
+        Assert.Null(persisted.FailureStage);
+        Assert.Null(persisted.ErrorMessage);
+        Assert.Equal(nowUtc.AddMinutes(5), persisted.LockedUntilUtc);
+    }
+
+    [Fact]
+    public async Task Database_should_allow_same_idempotency_key_for_different_operations()
+    {
+        await using var db = _fixture.CreateDbContext();
+
+        db.IdempotencyRecords.Add(CreateProcessingRecord("CreateUser", "idem-shared"));
+        db.IdempotencyRecords.Add(CreateProcessingRecord("ResetPassword", "idem-shared"));
+
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var records = await db.IdempotencyRecords
+            .AsNoTracking()
+            .Where(x => x.IdempotencyKey == "idem-shared")
+            .ToListAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(2, records.Count);
+        Assert.Contains(records, x => x.OperationName == "CreateUser");
+        Assert.Contains(records, x => x.OperationName == "ResetPassword");
+    }
+
+    [Fact]
+    public async Task Idempotency_repository_should_persist_and_load_response_body_json()
+    {
+        await using var provider = _fixture.CreateServiceProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var repository = scope.ServiceProvider.GetRequiredService<IIdempotencyRepository>();
+        var record = CreateProcessingRecord("CreateUser", "idem-json");
+        var responseBody = /*lang=json,strict*/ """
+            {"id":"00000000-0000-0000-0000-000000000001","merchantId":"merchant-1","email":"json@example.com"}
+            """;
+
+        record.MarkCompleted(
+            201,
+            responseBody,
+            Guid.Parse("00000000-0000-0000-0000-000000000001"),
+            new DateTime(2026, 06, 26, 12, 5, 0, DateTimeKind.Utc));
+
+        Assert.True(await repository.TryAddProcessingAsync(record, TestContext.Current.CancellationToken));
+
+        var persisted = await repository.GetByOperationAndKeyAsync(
+            "CreateUser",
+            "idem-json",
+            TestContext.Current.CancellationToken);
+
+        Assert.NotNull(persisted);
+        using var document = JsonDocument.Parse(persisted.ResponseBody!);
+        Assert.Equal("merchant-1", document.RootElement.GetProperty("merchantId").GetString());
+        Assert.Equal("json@example.com", document.RootElement.GetProperty("email").GetString());
+    }
+
+    [Fact]
+    public async Task Idempotency_repository_should_persist_expires_at_utc()
+    {
+        await using var db = _fixture.CreateDbContext();
+        var expiresAtUtc = new DateTime(2026, 06, 27, 12, 0, 0, DateTimeKind.Utc);
+        var record = IdempotencyRecord.StartProcessing(
+            "CreateUser",
+            "idem-expires",
+            RequestHash,
+            new DateTime(2026, 06, 26, 12, 0, 0, DateTimeKind.Utc),
+            expiresAtUtc);
+
+        db.IdempotencyRecords.Add(record);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var persisted = await db.IdempotencyRecords
+            .AsNoTracking()
+            .SingleAsync(x => x.Id == record.Id, TestContext.Current.CancellationToken);
+
+        Assert.Equal(expiresAtUtc, persisted.ExpiresAtUtc);
+        Assert.Equal(DateTimeKind.Utc, persisted.ExpiresAtUtc.Kind);
+    }
+
+    [Fact]
     public async Task SaveChanges_should_dispatch_domain_event_after_commit()
     {
         var recorder = new DomainEventRecorder();
@@ -202,6 +438,17 @@ public sealed class IdentityPersistenceTests(PostgresIdentityFixture fixture) : 
             new MerchantId("merchant-shared"),
             keycloakUserId,
             new DateTime(2026, 06, 26, 12, 0, 0, DateTimeKind.Utc));
+
+    private const string RequestHash = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+    private static IdempotencyRecord CreateProcessingRecord(string operationName, string idempotencyKey)
+        => IdempotencyRecord.StartProcessing(
+            operationName,
+            idempotencyKey,
+            RequestHash,
+            new DateTime(2026, 06, 26, 12, 0, 0, DateTimeKind.Utc),
+            new DateTime(2026, 06, 27, 12, 0, 0, DateTimeKind.Utc),
+            new DateTime(2026, 06, 26, 12, 1, 0, DateTimeKind.Utc));
 
     private sealed class DomainEventRecorder
     {

@@ -66,7 +66,7 @@ public sealed class PostgresIdentityFixture : IAsyncLifetime
     public async Task CleanAsync()
     {
         await using var db = CreateDbContext(BuildConnectionString(MigratorUser, Password));
-        await db.Database.ExecuteSqlRawAsync("TRUNCATE TABLE identity.users;");
+        await db.Database.ExecuteSqlRawAsync("TRUNCATE TABLE identity.idempotency_records, identity.users;");
     }
 
     private static IdentityDbContext CreateDbContext(string connectionString)

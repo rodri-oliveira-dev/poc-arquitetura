@@ -43,7 +43,26 @@ public sealed class UserEndpointsTests(PostgresIdentityFixture fixture) : IAsync
             },
             TestContext.Current.CancellationToken);
 
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        if (response.StatusCode != HttpStatusCode.Created)
+        {
+            await using var failureDb = _fixture.CreateDbContext();
+            var idempotencyRecords = await failureDb.IdempotencyRecords
+                .AsNoTracking()
+                .Select(record => new
+                {
+                    record.Status,
+                    record.FailureStage,
+                    record.ErrorMessage
+                })
+                .ToListAsync(TestContext.Current.CancellationToken);
+
+            Assert.Fail(
+                await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken) +
+                Environment.NewLine +
+                JsonSerializer.Serialize(idempotencyRecords) +
+                Environment.NewLine +
+                string.Join(Environment.NewLine, factory.LogMessages));
+        }
 
         using var document = await JsonDocument.ParseAsync(
             await response.Content.ReadAsStreamAsync(TestContext.Current.CancellationToken),
@@ -76,6 +95,175 @@ public sealed class UserEndpointsTests(PostgresIdentityFixture fixture) : IAsync
         Assert.Equal("ana.identity", persisted.Username.Value);
         Assert.Equal(root.GetProperty("merchantId").GetString(), persisted.MerchantId.Value);
         Assert.Equal(root.GetProperty("keycloakUserId").GetString(), persisted.KeycloakUserId);
+        Assert.Empty(await db.IdempotencyRecords.ToListAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task Post_users_with_new_idempotency_key_should_return_201()
+    {
+        using var factory = new PostgresIdentityApiFactory(_fixture.RuntimeConnectionString);
+        using var client = CreateAuthenticatedClient(factory, scopes: "identity.write");
+
+        using var response = await PostUserAsync(
+            client,
+            ValidRequest("idem.new", "idem.new@example.com"),
+            "idem-new-1");
+
+        if (response.StatusCode != HttpStatusCode.Created)
+        {
+            await using var db = _fixture.CreateDbContext();
+            var idempotencyRecords = await db.IdempotencyRecords
+                .AsNoTracking()
+                .Select(record => new
+                {
+                    record.Status,
+                    record.FailureStage,
+                    record.ErrorMessage
+                })
+                .ToListAsync(TestContext.Current.CancellationToken);
+
+            Assert.Fail(
+                await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken) +
+                Environment.NewLine +
+                JsonSerializer.Serialize(idempotencyRecords) +
+                Environment.NewLine +
+                string.Join(Environment.NewLine, factory.LogMessages));
+        }
+
+        Assert.Single(factory.IdentityProvider.CreateRequests);
+    }
+
+    [Fact]
+    public async Task Post_users_retry_with_same_idempotency_key_should_replay_response_without_side_effects()
+    {
+        using var factory = new PostgresIdentityApiFactory(_fixture.RuntimeConnectionString);
+        using var client = CreateAuthenticatedClient(factory, scopes: "identity.write");
+        var request = ValidRequest("idem.replay", "idem.replay@example.com");
+
+        using var firstResponse = await PostUserAsync(client, request, "idem-replay-1");
+        using var secondResponse = await PostUserAsync(client, request, "idem-replay-1");
+
+        Assert.Equal(HttpStatusCode.Created, firstResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.Created, secondResponse.StatusCode);
+
+        using var firstDocument = await ReadJsonAsync(firstResponse);
+        using var secondDocument = await ReadJsonAsync(secondResponse);
+        Assert.Equal(firstDocument.RootElement.GetProperty("id").GetGuid(), secondDocument.RootElement.GetProperty("id").GetGuid());
+        Assert.Equal(
+            firstDocument.RootElement.GetProperty("keycloakUserId").GetString(),
+            secondDocument.RootElement.GetProperty("keycloakUserId").GetString());
+        Assert.Equal(
+            firstDocument.RootElement.GetProperty("merchantId").GetString(),
+            secondDocument.RootElement.GetProperty("merchantId").GetString());
+
+        Assert.Single(factory.IdentityProvider.CreateRequests);
+        Assert.Single(factory.EmailSender.Messages);
+
+        await using var db = _fixture.CreateDbContext();
+        var persistedUsers = await db.Users.ToListAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(1, persistedUsers.Count(user => user.Email.Value == "idem.replay@example.com"));
+    }
+
+    [Fact]
+    public async Task Post_users_concurrent_requests_with_same_key_should_not_duplicate_user_or_keycloak_call()
+    {
+        using var factory = new PostgresIdentityApiFactory(_fixture.RuntimeConnectionString);
+        factory.IdentityProvider.CreateEntered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        factory.IdentityProvider.ReleaseCreate = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var client = CreateAuthenticatedClient(factory, scopes: "identity.write");
+        var request = ValidRequest("idem.concurrent", "idem.concurrent@example.com");
+
+        var firstTask = PostUserAsync(client, request, "idem-concurrent-1");
+        await factory.IdentityProvider.CreateEntered.Task.WaitAsync(TestContext.Current.CancellationToken);
+
+        var secondTask = PostUserAsync(client, request, "idem-concurrent-1");
+        using var secondResponse = await secondTask;
+
+        factory.IdentityProvider.ReleaseCreate.SetResult(true);
+        using var firstResponse = await firstTask;
+
+        Assert.Equal(HttpStatusCode.Created, firstResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, secondResponse.StatusCode);
+        Assert.Single(factory.IdentityProvider.CreateRequests);
+
+        await using var db = _fixture.CreateDbContext();
+        var persistedUsers = await db.Users.ToListAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(
+            1,
+            persistedUsers.Count(user => user.Email.Value == "idem.concurrent@example.com"));
+    }
+
+    [Fact]
+    public async Task Post_users_concurrent_requests_with_same_key_and_different_payload_should_return_conflict()
+    {
+        using var factory = new PostgresIdentityApiFactory(_fixture.RuntimeConnectionString);
+        factory.IdentityProvider.CreateEntered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        factory.IdentityProvider.ReleaseCreate = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var client = CreateAuthenticatedClient(factory, scopes: "identity.write");
+
+        var firstTask = PostUserAsync(
+            client,
+            ValidRequest("idem.concurrent.conflict", "idem.concurrent.conflict@example.com"),
+            "idem-concurrent-conflict-1");
+        await factory.IdentityProvider.CreateEntered.Task.WaitAsync(TestContext.Current.CancellationToken);
+
+        using var secondResponse = await PostUserAsync(
+            client,
+            ValidRequest("idem.concurrent.other", "idem.concurrent.other@example.com"),
+            "idem-concurrent-conflict-1");
+
+        factory.IdentityProvider.ReleaseCreate.SetResult(true);
+        using var firstResponse = await firstTask;
+
+        Assert.Equal(HttpStatusCode.Created, firstResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, secondResponse.StatusCode);
+        var problem = await secondResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains("Idempotency key conflict", problem, StringComparison.Ordinal);
+        Assert.Single(factory.IdentityProvider.CreateRequests);
+    }
+
+    [Fact]
+    public async Task Post_users_retry_with_same_idempotency_key_and_different_payload_should_return_conflict()
+    {
+        using var factory = new PostgresIdentityApiFactory(_fixture.RuntimeConnectionString);
+        using var client = CreateAuthenticatedClient(factory, scopes: "identity.write");
+
+        using var firstResponse = await PostUserAsync(
+            client,
+            ValidRequest("idem.conflict", "idem.conflict@example.com"),
+            "idem-conflict-1");
+        using var secondResponse = await PostUserAsync(
+            client,
+            ValidRequest("idem.conflict.other", "idem.conflict.other@example.com"),
+            "idem-conflict-1");
+
+        Assert.Equal(HttpStatusCode.Created, firstResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, secondResponse.StatusCode);
+
+        var problem = await secondResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains("Idempotency key conflict", problem, StringComparison.Ordinal);
+        Assert.DoesNotContain("StrongPassword123!", problem, StringComparison.Ordinal);
+        Assert.DoesNotContain(" at ", problem, StringComparison.Ordinal);
+        Assert.Single(factory.IdentityProvider.CreateRequests);
+    }
+
+    [Fact]
+    public async Task Post_users_should_return_400_for_invalid_idempotency_key()
+    {
+        using var factory = new PostgresIdentityApiFactory(_fixture.RuntimeConnectionString);
+        using var client = CreateAuthenticatedClient(factory, scopes: "identity.write");
+
+        using var response = await PostUserAsync(
+            client,
+            ValidRequest("idem.invalid", "idem.invalid@example.com"),
+            "invalid key with spaces");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains("Idempotency-Key", problem, StringComparison.Ordinal);
+        Assert.DoesNotContain("StrongPassword123!", problem, StringComparison.Ordinal);
+        Assert.DoesNotContain(" at ", problem, StringComparison.Ordinal);
+        Assert.Empty(factory.IdentityProvider.CreateRequests);
     }
 
     [Fact]
@@ -157,12 +345,33 @@ public sealed class UserEndpointsTests(PostgresIdentityFixture fixture) : IAsync
         return client;
     }
 
-    private static object ValidRequest()
+    private static async Task<HttpResponseMessage> PostUserAsync(
+        HttpClient client,
+        object request,
+        string? idempotencyKey)
+    {
+        using var message = new HttpRequestMessage(HttpMethod.Post, "/api/v1/users")
+        {
+            Content = JsonContent.Create(request)
+        };
+
+        if (idempotencyKey is not null)
+            message.Headers.Add("Idempotency-Key", idempotencyKey);
+
+        return await client.SendAsync(message, TestContext.Current.CancellationToken);
+    }
+
+    private static async Task<JsonDocument> ReadJsonAsync(HttpResponseMessage response)
+        => await JsonDocument.ParseAsync(
+            await response.Content.ReadAsStreamAsync(TestContext.Current.CancellationToken),
+            cancellationToken: TestContext.Current.CancellationToken);
+
+    private static object ValidRequest(string username = "valid.identity", string email = "valid.identity@example.com")
         => new
         {
-            username = "valid.identity",
+            username,
             name = "Valid Identity",
-            email = "valid.identity@example.com",
+            email,
             password = "StrongPassword123!"
         };
 }

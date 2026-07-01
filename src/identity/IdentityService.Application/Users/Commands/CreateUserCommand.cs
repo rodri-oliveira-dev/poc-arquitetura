@@ -5,4 +5,5 @@ public sealed record CreateUserCommand(
     string Email,
     string Username,
     string Password,
-    string? Document = null);
+    string? Document = null,
+    string? IdempotencyKey = null);

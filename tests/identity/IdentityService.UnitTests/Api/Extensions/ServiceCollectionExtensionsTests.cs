@@ -3,6 +3,7 @@ using Asp.Versioning.ApiExplorer;
 using IdentityService.Api.Extensions;
 using IdentityService.Api.Security;
 using IdentityService.Api.Swagger;
+using IdentityService.Application.Idempotency;
 using IdentityService.Application.Users.Commands;
 
 using Microsoft.AspNetCore.Authorization;
@@ -43,12 +44,23 @@ public sealed class ServiceCollectionExtensionsTests
             services,
             descriptor => descriptor.ServiceType == typeof(CreateUserCommandHandler)
                 && descriptor.Lifetime == ServiceLifetime.Scoped);
+        Assert.Contains(
+            services,
+            descriptor => descriptor.ServiceType == typeof(IIdempotencyService)
+                && descriptor.Lifetime == ServiceLifetime.Scoped);
+        Assert.Contains(
+            services,
+            descriptor => descriptor.ServiceType == typeof(IIdempotencyRequestHasher)
+                && descriptor.Lifetime == ServiceLifetime.Singleton);
 
         using var provider = services.BuildServiceProvider();
         var swaggerOptions = provider.GetRequiredService<IOptions<SwaggerGenOptions>>().Value;
         Assert.Contains(
             swaggerOptions.OperationFilterDescriptors,
             descriptor => descriptor.Type == typeof(AuthorizeOperationFilter));
+        Assert.Contains(
+            swaggerOptions.OperationFilterDescriptors,
+            descriptor => descriptor.Type == typeof(CreateUserIdempotencyHeaderOperationFilter));
 
         var authorizationOptions = provider.GetRequiredService<IOptions<AuthorizationOptions>>().Value;
         Assert.NotNull(authorizationOptions.GetPolicy(ScopePolicies.IdentityWritePolicy));

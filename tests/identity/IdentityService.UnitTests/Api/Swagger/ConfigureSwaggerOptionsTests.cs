@@ -3,6 +3,8 @@ using Asp.Versioning.ApiExplorer;
 
 using IdentityService.Api.Swagger;
 
+using Microsoft.OpenApi;
+
 using Swashbuckle.AspNetCore.SwaggerGen;
 
 namespace IdentityService.UnitTests.Api.Swagger;
@@ -35,6 +37,30 @@ public sealed class ConfigureSwaggerOptionsTests
         var sut = new ConfigureSwaggerOptions(new FakeApiVersionDescriptionProvider([]));
 
         Assert.Throws<ArgumentNullException>(() => sut.Configure(null!));
+    }
+
+    [Fact]
+    public void CreateUserIdempotencyHeaderOperationFilter_should_document_optional_header()
+    {
+        var operation = new OpenApiOperation
+        {
+            OperationId = "CreateIdentityUser"
+        };
+        var sut = new CreateUserIdempotencyHeaderOperationFilter();
+
+        sut.Apply(operation, null!);
+
+        Assert.NotNull(operation.Parameters);
+        var parameter = Assert.Single(operation.Parameters);
+        Assert.Equal("Idempotency-Key", parameter.Name);
+        Assert.Equal(ParameterLocation.Header, parameter.In);
+        Assert.False(parameter.Required);
+        Assert.NotNull(parameter.Schema);
+        Assert.Equal(JsonSchemaType.String, parameter.Schema.Type);
+        Assert.Equal(1, parameter.Schema.MinLength);
+        Assert.Equal(128, parameter.Schema.MaxLength);
+        Assert.Equal("^[A-Za-z0-9._:-]{1,128}$", parameter.Schema.Pattern);
+        Assert.Contains("opcional", parameter.Description, StringComparison.Ordinal);
     }
 
     private sealed class FakeApiVersionDescriptionProvider(IReadOnlyList<ApiVersionDescription> descriptions)

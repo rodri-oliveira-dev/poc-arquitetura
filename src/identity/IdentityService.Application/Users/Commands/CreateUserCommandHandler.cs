@@ -1,3 +1,5 @@
+using IdentityService.Application.Common.Exceptions;
+using IdentityService.Application.Idempotency;
 using IdentityService.Application.Users.Ports;
 using IdentityService.Domain.Users;
 
@@ -9,14 +11,88 @@ public sealed partial class CreateUserCommandHandler(
     IIdentityProviderUserService identityProvider,
     IUserRepository users,
     IMerchantIdGenerator merchantIdGenerator,
+    IIdempotencyService idempotencyService,
+    IIdempotencyRequestHasher idempotencyRequestHasher,
     ILogger<CreateUserCommandHandler> logger)
 {
+    private const int CreatedStatusCode = 201;
+    private static readonly TimeSpan _idempotencyTimeToLive = TimeSpan.FromHours(24);
+    private static readonly TimeSpan _idempotencyProcessingLockDuration = TimeSpan.FromMinutes(10);
+
     public async Task<CreateUserResult> Handle(
         CreateUserCommand command,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(command);
 
+        if (string.IsNullOrWhiteSpace(command.IdempotencyKey))
+            return await ExecuteCreateAsync(command, cancellationToken);
+
+        var requestHash = idempotencyRequestHasher.ComputeHash(CreateUserIdempotencyPayload.From(command));
+
+        LogIdempotentCreateUserRequested(logger, CreateUserIdempotencyPayload.CreateUserOperationName);
+
+        string? createdIdentityProviderUserId = null;
+        var idempotentResult = await idempotencyService.ExecuteAsync(
+            new IdempotentOperationRequest<CreateUserResult>(
+                CreateUserIdempotencyPayload.CreateUserOperationName,
+                command.IdempotencyKey,
+                requestHash,
+                CreatedStatusCode,
+                _idempotencyTimeToLive,
+                executeAsync: token => ExecuteCreateAsync(
+                    command,
+                    saveChanges: false,
+                    keycloakUserId => createdIdentityProviderUserId = keycloakUserId,
+                    token),
+                resourceIdSelector: response => response.Id,
+                processingLockDuration: _idempotencyProcessingLockDuration,
+                onPersistenceFailureAsync: (exception, token) => CompensateIdentityProviderAsync(
+                    createdIdentityProviderUserId,
+                    exception,
+                    token)),
+            cancellationToken);
+
+        if (idempotentResult.Response is not null)
+        {
+            if (idempotentResult.ResponseRecoveredFromPreviousExecution)
+                LogIdempotentCreateUserReplayed(logger, CreateUserIdempotencyPayload.CreateUserOperationName);
+
+            return idempotentResult.Response;
+        }
+
+        if (idempotentResult.IsConflict)
+        {
+            throw new IdempotencyConflictException(
+                "Idempotency key conflict",
+                idempotentResult.ErrorMessage ?? "Idempotency key already used with a different logical payload.");
+        }
+
+        if (idempotentResult.IsInProgress)
+        {
+            throw new IdempotencyConflictException(
+                "Idempotency key is still processing",
+                idempotentResult.ErrorMessage ?? "Idempotency key is still processing.");
+        }
+
+        throw new InvalidOperationException($"Unsupported idempotency result '{idempotentResult.Kind}'.");
+    }
+
+    private async Task<CreateUserResult> ExecuteCreateAsync(
+        CreateUserCommand command,
+        CancellationToken cancellationToken)
+        => await ExecuteCreateAsync(
+            command,
+            saveChanges: true,
+            onIdentityProviderCreated: null,
+            cancellationToken);
+
+    private async Task<CreateUserResult> ExecuteCreateAsync(
+        CreateUserCommand command,
+        bool saveChanges,
+        Action<string>? onIdentityProviderCreated,
+        CancellationToken cancellationToken)
+    {
         var identityUser = await identityProvider.CreateUserAsync(
             new CreateIdentityProviderUserRequest(
                 command.Name,
@@ -24,6 +100,7 @@ public sealed partial class CreateUserCommandHandler(
                 command.Username,
                 command.Password),
             cancellationToken);
+        onIdentityProviderCreated?.Invoke(identityUser.KeycloakUserId);
 
         var user = User.Register(
             UserId.New(),
@@ -35,24 +112,16 @@ public sealed partial class CreateUserCommandHandler(
         try
         {
             await users.AddAsync(user, cancellationToken);
-            await users.SaveChangesAsync(cancellationToken);
+
+            if (saveChanges)
+                await users.SaveChangesAsync(cancellationToken);
         }
         catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
         {
-            try
-            {
-                await identityProvider.DeleteUserAsync(identityUser.KeycloakUserId, CancellationToken.None);
-            }
-#pragma warning disable CA1031 // Compensation failure is logged without hiding the original persistence failure.
-            catch (Exception compensationException)
-#pragma warning restore CA1031
-            {
-                LogIdentityProviderUserCompensationFailed(
-                    logger,
-                    compensationException,
-                    identityUser.KeycloakUserId,
-                    exception.GetType().Name);
-            }
+            _ = await CompensateIdentityProviderAsync(
+                identityUser.KeycloakUserId,
+                exception,
+                CancellationToken.None);
 
             throw;
         }
@@ -64,6 +133,58 @@ public sealed partial class CreateUserCommandHandler(
             user.Username.Value,
             user.Email.Value);
     }
+
+    private async Task<string?> CompensateIdentityProviderAsync(
+        string? keycloakUserId,
+        Exception originalException,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(originalException);
+
+        if (string.IsNullOrWhiteSpace(keycloakUserId))
+            return IdempotencyFailureStage.BeforeExternalSideEffect;
+
+        try
+        {
+            await identityProvider.DeleteUserAsync(keycloakUserId, cancellationToken);
+            IdempotencyFailureMetadata.SetFailureStage(
+                originalException,
+                IdempotencyFailureStage.AfterIdentityProviderCompensated);
+
+            return IdempotencyFailureStage.AfterIdentityProviderCompensated;
+        }
+#pragma warning disable CA1031 // Compensation failure is logged without hiding the original persistence failure.
+        catch (Exception compensationException)
+#pragma warning restore CA1031
+        {
+            IdempotencyFailureMetadata.SetFailureStage(
+                originalException,
+                IdempotencyFailureStage.AfterIdentityProviderCompensationFailed);
+            LogIdentityProviderUserCompensationFailed(
+                logger,
+                compensationException,
+                keycloakUserId,
+                originalException.GetType().Name);
+
+            return IdempotencyFailureStage.AfterIdentityProviderCompensationFailed;
+        }
+    }
+
+    [LoggerMessage(
+        EventId = 2,
+        Level = LogLevel.Information,
+        Message = "Cadastro de usuario com idempotencia solicitado. OperationName: {OperationName}")]
+    private static partial void LogIdempotentCreateUserRequested(
+        ILogger logger,
+        string operationName);
+
+    [LoggerMessage(
+        EventId = 3,
+        Level = LogLevel.Information,
+        Message = "Cadastro de usuario recuperado por idempotencia. OperationName: {OperationName}")]
+    private static partial void LogIdempotentCreateUserReplayed(
+        ILogger logger,
+        string operationName);
 
     [LoggerMessage(
         EventId = 1,
