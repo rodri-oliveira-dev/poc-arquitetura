@@ -52,6 +52,10 @@ O hook pula restore, formatacao, build e testes quando todas as alteracoes sao c
 
 Se houver mistura de documentacao com qualquer arquivo impactante, as validacoes rapidas sao executadas. Em caso de duvida, a regra e validar.
 
+Quando o diff contem muitos arquivos C#, o hook divide a verificacao de
+formatacao em lotes para evitar limites locais de tamanho da linha de comando,
+mantendo a mesma regra de falha se qualquer arquivo estiver fora do padrao.
+
 Os testes locais do `pre-push` usam o filtro:
 
 ```bash

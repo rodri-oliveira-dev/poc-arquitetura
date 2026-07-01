@@ -303,11 +303,11 @@ dotnet restore ./LedgerService.slnx
 
 if [ "$dotnet_format_check" = true ] && [ -s "$dotnet_format_files" ]; then
   echo "==> pre-push: verificando formatacao dos arquivos .cs alterados"
-  dotnet format whitespace ./LedgerService.slnx \
+  xargs -n 100 dotnet format whitespace ./LedgerService.slnx \
     --verify-no-changes \
     --no-restore \
     --verbosity minimal \
-    --include $(cat "$dotnet_format_files")
+    --include <"$dotnet_format_files"
 else
   echo "==> pre-push: sem arquivos .cs alterados ou diff inseguro; formatacao .NET local ignorada"
 fi
