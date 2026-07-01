@@ -25,7 +25,7 @@ Um item deve sair de "Proximos passos" ou "Em andamento ou parcialmente atendido
 - `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker` separados operacionalmente, conforme [README](../README.md) e [boundaries](architecture/boundaries.md).
 - Kafka definido como provider padrao dos workers principais, com Pub/Sub mantido como adapter explicito/legado.
 - Keycloak consolidado como identidade principal local, com `Auth.Api` fora da stack principal.
-- `AuditService` documentado como bounded context de auditoria funcional isolado, com schema `audit`, contrato HTTP canonico e ADR propria.
+- `AuditService` documentado como bounded context de auditoria funcional isolado, com schema `audit`, contrato HTTP canonico, pontos internos de extensao para ingestao futura e ADR propria.
 - Modelo LikeC4 versionado e publicado por workflow de Pages.
 
 ### Em andamento ou parcialmente atendido
@@ -33,7 +33,7 @@ Um item deve sair de "Proximos passos" ou "Em andamento ou parcialmente atendido
 - Algumas diferencas de padrao entre Ledger e Balance continuam aceitas de forma pragmatica, como uso de MediatR no Balance e posicao historica de algumas portas.
 - Readiness das APIs cobre dependencias diretas HTTP, mas pode crescer demais se novas verificacoes forem adicionadas sem extracao.
 - `OutboxMessage` permanece como escolha pragmatica de dominio/integracao, com risco conhecido se a complexidade aumentar.
-- `AuditService` existe como bounded context separado, mas permanece sem integracao com Ledger, Balance ou Transfer ate haver decisao especifica.
+- `AuditService` existe como bounded context separado e ja possui contratos internos de ingestao futura, mas permanece sem integracao ativa com Ledger, Balance ou Transfer ate haver decisao especifica.
 
 ### Proximos passos
 

@@ -9,6 +9,20 @@ idempotencia, correlacao, filtros seguros e autorizacao por scope e
 `merchant_id`. Nesta etapa, ele nao esta integrado a `LedgerService`,
 `BalanceService` ou `TransferService`, nao possui worker e nao consome Kafka.
 
+## Ingestao futura
+
+O endpoint HTTP atual continua sendo o unico contrato ativo de criacao de
+registros. Internamente, o `AuditService.Application` possui contratos de
+ingestao futura (`AuditRecordEnvelope`, `AuditRecordPayload`, `AuditActor` e
+`AuditMetadata`) e portas para validator, mapper, serializer e ingestion
+service.
+
+Essas portas existem para que um adapter HTTP interno, Kafka ou outro transporte
+possa ser criado no futuro sem acoplar o `AuditService` a tipos de Ledger,
+Balance ou Transfer. Hoje elas apenas convergem para o mesmo caso de uso
+`CreateAuditRecord`; nenhum endpoint interno, worker, consumer Kafka, producer
+ou evento real foi criado.
+
 ## Headers
 
 | Header | Obrigatorio | Uso |
@@ -285,5 +299,7 @@ entidade, merchant, actor, status, reason, metadata canonica e `occurredAt`.
   `TransferService`.
 - Nao ha worker, consumo Kafka, Outbox de auditoria ou DLQ de auditoria nesta
   etapa.
+- O evento conceitual `AuditRecordRequested.v1` ainda nao e publicado por nenhum
+  servico e nao possui topico ativo.
 - `metadata` deve conter apenas atributos funcionais pequenos e nao deve
   carregar payload bruto, dados sensiveis ou segredos.

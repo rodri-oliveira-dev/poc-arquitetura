@@ -1,5 +1,7 @@
 using ApplicationDefaults.Behaviors;
 
+using AuditService.Application.FunctionalAuditing.Ingestion;
+
 using FluentValidation;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -19,6 +21,10 @@ public static class DependencyInjection
         });
 
         services.AddValidatorsFromAssembly(typeof(DependencyInjection).Assembly);
+        services.AddSingleton<IAuditRecordMapper, AuditRecordMapper>();
+        services.AddSingleton<IAuditRecordSerializer, AuditRecordSerializer>();
+        services.AddSingleton<IAuditRecordValidator, AuditRecordValidator>();
+        services.AddScoped<IAuditRecordIngestionService, AuditRecordIngestionService>();
 
         return services;
     }

@@ -43,6 +43,72 @@ Nao existe integracao nesta primeira etapa:
 Essa separacao evita acoplamento prematuro e permite validar o contrato
 funcional de auditoria antes de conectar fluxos de outros dominios.
 
+## Pontos de extensao para ingestao futura
+
+O `AuditService.Application` contem contratos canonicos internos em
+`FunctionalAuditing/Ingestion` para preparar adapters futuros sem ativar
+integracao:
+
+- `AuditRecordEnvelope`: envelope versionado da requisicao de auditoria;
+- `AuditRecordPayload`: dados funcionais auditaveis;
+- `AuditActor`: actor declarado no contrato canonico;
+- `AuditMetadata`: metadados tecnicos do envelope, como correlacao;
+- `IAuditRecordValidator`: valida apenas o formato minimo do envelope;
+- `IAuditRecordMapper`: traduz o envelope para `CreateAuditRecordCommand`;
+- `IAuditRecordSerializer`: serializa/desserializa o envelope;
+- `IAuditRecordIngestionService`: valida, mapeia e delega ao caso de uso
+  existente `CreateAuditRecord`.
+
+Essas abstracoes nao duplicam a regra de criacao. A criacao, idempotencia,
+persistencia e regras do registro continuam concentradas no caso de uso
+`CreateAuditRecord` e no dominio de auditoria funcional.
+
+As pastas `src/audit/AuditService.Api/Ingestion/Http` e
+`src/audit/AuditService.Infrastructure/Ingestion/Kafka` existem apenas como
+pontos documentados para adapters futuros. Nao ha endpoint interno novo, worker,
+consumer Kafka, producer, topico, DLQ ou publicacao ativa.
+
+Um evento futuro poderia usar o nome `AuditRecordRequested.v1` para solicitar a
+criacao de uma trilha funcional. Exemplo conceitual, sem produtor atual:
+
+```json
+{
+  "contractName": "AuditRecordRequested",
+  "contractVersion": 1,
+  "idempotencyKey": "11111111-1111-1111-1111-111111111111",
+  "metadata": {
+    "correlationId": "22222222-2222-2222-2222-222222222222",
+    "causationId": "request-123",
+    "attributes": {
+      "adapter": "future-kafka"
+    }
+  },
+  "payload": {
+    "operationId": "33333333-3333-3333-3333-333333333333",
+    "sourceService": "AnyCaller",
+    "operationType": "FunctionalAuditRecorded",
+    "entityType": "Payment",
+    "entityId": "pay_123",
+    "merchantId": "mrc_123",
+    "actor": {
+      "type": "Client",
+      "subject": null,
+      "clientId": "any-caller-api"
+    },
+    "status": "Succeeded",
+    "reason": "Functional operation recorded by caller.",
+    "metadata": {
+      "channel": "api"
+    },
+    "occurredAt": "2026-07-01T10:15:30Z"
+  }
+}
+```
+
+Nenhum servico publica esse evento hoje. Qualquer ativacao deve ser definida em
+ADR propria, incluindo topico, headers, idempotencia, retry, DLQ, seguranca,
+observabilidade e criterios de rollout.
+
 ## Contrato canonico
 
 O contrato HTTP canonico esta documentado em
@@ -118,6 +184,8 @@ da chave com payload diferente retorna `409 Conflict`.
   Transfer.
 - Nao ha worker dedicado, Outbox de auditoria, consumo Kafka, redrive ou DLQ de
   auditoria.
+- Os contratos de ingestao em `Application` sao pontos internos de extensao e
+  ainda nao representam contrato de mensageria ativo entre servicos.
 - Nao ha catalogo central versionado de `sourceService` e `operationType`.
 - A retencao, particionamento, arquivamento e politicas de expurgo de registros
   ainda nao foram definidos.

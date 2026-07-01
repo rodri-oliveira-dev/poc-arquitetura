@@ -1,3 +1,5 @@
+using AuditService.Application.FunctionalAuditing.Ingestion;
+
 using MediatR;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -15,5 +17,9 @@ public sealed class DependencyInjectionTests
             new ServiceCollection());
 
         Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(IMediator));
+        Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(IAuditRecordIngestionService));
+        Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(IAuditRecordMapper));
+        Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(IAuditRecordValidator));
+        Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(IAuditRecordSerializer));
     }
 }
