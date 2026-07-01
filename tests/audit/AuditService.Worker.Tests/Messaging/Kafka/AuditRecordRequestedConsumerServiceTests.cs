@@ -106,6 +106,131 @@ public sealed class AuditRecordRequestedConsumerServiceTests
         Assert.Contains("BootstrapServers", exception.Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void ValidateOptions_should_skip_required_values_when_consumer_is_disabled()
+    {
+        var options = new AuditRecordRequestedConsumerOptions
+        {
+            Enabled = false,
+            BootstrapServers = "",
+            GroupId = "",
+            Topic = "",
+            DeadLetterTopic = "",
+            DeadLetterMessageTimeoutMs = 0,
+            MaxProcessingAttempts = 0,
+            ProcessingRetryDelay = TimeSpan.Zero,
+            ConsumeErrorRetryDelay = TimeSpan.Zero,
+            ProcessingErrorRetryDelay = TimeSpan.Zero
+        };
+
+        AuditRecordRequestedConsumerService.ValidateOptions(options);
+    }
+
+    [Theory]
+    [InlineData("GroupId")]
+    [InlineData("Topic")]
+    [InlineData("DeadLetterTopic")]
+    [InlineData("DeadLetterMessageTimeoutMs")]
+    [InlineData("MaxProcessingAttempts")]
+    [InlineData("ProcessingRetryDelay")]
+    [InlineData("ConsumeErrorRetryDelay")]
+    [InlineData("ProcessingErrorRetryDelay")]
+    public void ValidateOptions_should_reject_invalid_enabled_consumer_options(
+        string expectedMessage)
+    {
+        AuditRecordRequestedConsumerOptions options = InvalidOptions(expectedMessage);
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
+            AuditRecordRequestedConsumerService.ValidateOptions(options));
+
+        Assert.Contains(expectedMessage, exception.Message, StringComparison.Ordinal);
+    }
+
+    private static AuditRecordRequestedConsumerOptions InvalidOptions(string optionName)
+    {
+        return optionName switch
+        {
+            "GroupId" => ValidOptions(options => options.GroupId = ""),
+            "Topic" => ValidOptions(options => options.Topic = ""),
+            "DeadLetterTopic" => ValidOptions(options => options.DeadLetterTopic = ""),
+            "DeadLetterMessageTimeoutMs" => ValidOptions(options => options.DeadLetterMessageTimeoutMs = 0),
+            "MaxProcessingAttempts" => ValidOptions(options => options.MaxProcessingAttempts = 0),
+            "ProcessingRetryDelay" => ValidOptions(options => options.ProcessingRetryDelay = TimeSpan.Zero),
+            "ConsumeErrorRetryDelay" => ValidOptions(options => options.ConsumeErrorRetryDelay = TimeSpan.Zero),
+            "ProcessingErrorRetryDelay" => ValidOptions(options => options.ProcessingErrorRetryDelay = TimeSpan.Zero),
+            _ => throw new ArgumentOutOfRangeException(nameof(optionName), optionName, "Invalid option name.")
+        };
+    }
+
+    private static AuditRecordRequestedConsumerOptions ValidOptions(
+        Action<MutableAuditRecordRequestedConsumerOptions>? configure = null)
+    {
+        var options = new MutableAuditRecordRequestedConsumerOptions
+        {
+            Enabled = true,
+            BootstrapServers = "localhost:9092",
+            GroupId = "audit-group",
+            Topic = "audit.record.requested",
+            DeadLetterTopic = "audit.record.requested.dlq",
+            DeadLetterMessageTimeoutMs = 1000,
+            MaxProcessingAttempts = 3,
+            ProcessingRetryDelay = TimeSpan.FromMilliseconds(1),
+            ConsumeErrorRetryDelay = TimeSpan.FromMilliseconds(1),
+            ProcessingErrorRetryDelay = TimeSpan.FromMilliseconds(1)
+        };
+
+        configure?.Invoke(options);
+
+        return options.ToOptions();
+    }
+
+    private sealed class MutableAuditRecordRequestedConsumerOptions
+    {
+        public bool Enabled
+        {
+            get; init;
+        }
+        public string BootstrapServers { get; init; } = string.Empty;
+        public string GroupId { get; set; } = string.Empty;
+        public string Topic { get; set; } = string.Empty;
+        public string DeadLetterTopic { get; set; } = string.Empty;
+        public int DeadLetterMessageTimeoutMs
+        {
+            get; set;
+        }
+        public int MaxProcessingAttempts
+        {
+            get; set;
+        }
+        public TimeSpan ProcessingRetryDelay
+        {
+            get; set;
+        }
+        public TimeSpan ConsumeErrorRetryDelay
+        {
+            get; set;
+        }
+        public TimeSpan ProcessingErrorRetryDelay
+        {
+            get; set;
+        }
+
+        public AuditRecordRequestedConsumerOptions ToOptions()
+            => new()
+            {
+                Enabled = Enabled,
+                BootstrapServers = BootstrapServers,
+                GroupId = GroupId,
+                Topic = Topic,
+                DeadLetterTopic = DeadLetterTopic,
+                DeadLetterMessageTimeoutMs = DeadLetterMessageTimeoutMs,
+                MaxProcessingAttempts = MaxProcessingAttempts,
+                ProcessingRetryDelay = ProcessingRetryDelay,
+                ConsumeErrorRetryDelay = ConsumeErrorRetryDelay,
+                ProcessingErrorRetryDelay = ProcessingErrorRetryDelay
+            };
+    }
+
     private static AuditRecordRequestedConsumerService CreateService(
         FakeProcessor processor,
         TimeSpan? processingRetryDelay = null)

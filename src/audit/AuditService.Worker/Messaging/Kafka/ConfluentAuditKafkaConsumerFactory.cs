@@ -13,6 +13,19 @@ internal sealed partial class ConfluentAuditKafkaConsumerFactory(
     public IAuditKafkaConsumer Create()
     {
         AuditRecordRequestedConsumerOptions consumerOptions = options.Value;
+        ConsumerConfig config = CreateConfig(consumerOptions);
+
+        IConsumer<string, string> consumer = new ConsumerBuilder<string, string>(config)
+            .SetErrorHandler((_, error) => LogKafkaConsumerError(logger, error.Reason, error.IsFatal))
+            .Build();
+
+        return new ConfluentAuditKafkaConsumer(consumer);
+    }
+
+    internal static ConsumerConfig CreateConfig(AuditRecordRequestedConsumerOptions consumerOptions)
+    {
+        ArgumentNullException.ThrowIfNull(consumerOptions);
+
         var config = new ConsumerConfig
         {
             BootstrapServers = consumerOptions.BootstrapServers,
@@ -25,11 +38,7 @@ internal sealed partial class ConfluentAuditKafkaConsumerFactory(
         };
         config.ApplySecurity(consumerOptions);
 
-        IConsumer<string, string> consumer = new ConsumerBuilder<string, string>(config)
-            .SetErrorHandler((_, error) => LogKafkaConsumerError(logger, error.Reason, error.IsFatal))
-            .Build();
-
-        return new ConfluentAuditKafkaConsumer(consumer);
+        return config;
     }
 
     internal static AutoOffsetReset ParseAutoOffsetReset(string value)

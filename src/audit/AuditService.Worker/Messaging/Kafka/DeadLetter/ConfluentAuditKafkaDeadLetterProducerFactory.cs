@@ -13,6 +13,19 @@ internal sealed partial class ConfluentAuditKafkaDeadLetterProducerFactory(
     public IAuditKafkaDeadLetterProducer Create()
     {
         AuditRecordRequestedConsumerOptions consumerOptions = options.Value;
+        ProducerConfig config = CreateConfig(consumerOptions);
+
+        IProducer<string, string> producer = new ProducerBuilder<string, string>(config)
+            .SetErrorHandler((_, error) => LogKafkaDlqProducerError(logger, error.Reason, error.IsFatal))
+            .Build();
+
+        return new ConfluentAuditKafkaDeadLetterProducer(producer);
+    }
+
+    internal static ProducerConfig CreateConfig(AuditRecordRequestedConsumerOptions consumerOptions)
+    {
+        ArgumentNullException.ThrowIfNull(consumerOptions);
+
         var config = new ProducerConfig
         {
             BootstrapServers = consumerOptions.BootstrapServers,
@@ -23,11 +36,7 @@ internal sealed partial class ConfluentAuditKafkaDeadLetterProducerFactory(
         };
         config.ApplySecurity(consumerOptions);
 
-        IProducer<string, string> producer = new ProducerBuilder<string, string>(config)
-            .SetErrorHandler((_, error) => LogKafkaDlqProducerError(logger, error.Reason, error.IsFatal))
-            .Build();
-
-        return new ConfluentAuditKafkaDeadLetterProducer(producer);
+        return config;
     }
 
     [LoggerMessage(EventId = 1, Level = LogLevel.Warning, Message = "Kafka DLQ producer de auditoria reportou erro: {Reason} (IsFatal={IsFatal})")]

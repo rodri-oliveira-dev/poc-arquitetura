@@ -37,7 +37,9 @@ public static class DependencyInjection
         services.AddDbContext<AuditDbContext>(options =>
             options.UseNpgsql(
                 connectionString,
-                npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "audit")));
+                npgsql => npgsql
+                    .MigrationsHistoryTable("__EFMigrationsHistory", "audit")
+                    .ConfigureDataSource(dataSourceBuilder => dataSourceBuilder.EnableDynamicJson())));
 
         services.AddScoped<IFunctionalAuditRecordRepository, FunctionalAuditRecordRepository>();
         services.AddScoped<IFunctionalAuditRecordQueryService, FunctionalAuditRecordQueryService>();
