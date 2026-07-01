@@ -6,6 +6,10 @@ using Asp.Versioning;
 
 using AuditService.Api.Contracts;
 using AuditService.Api.Controllers.Binds;
+using AuditService.Application.FunctionalAuditing.GetAuditRecordById;
+using AuditService.Application.FunctionalAuditing.GetAuditRecordsByOperationId;
+using AuditService.Application.FunctionalAuditing.ReadModels;
+using AuditService.Application.FunctionalAuditing.SearchAuditRecords;
 
 using MediatR;
 
@@ -21,6 +25,91 @@ namespace AuditService.Api.Controllers;
 public sealed class AuditRecordsController(ISender sender) : ControllerBase
 {
     private readonly ISender _sender = sender;
+
+    [HttpGet("{id:guid}")]
+    [SwaggerOperation(
+        OperationId = "GetAuditRecordById",
+        Summary = "Consulta um registro de auditoria funcional por id.",
+        Description = "Retorna um registro de auditoria funcional sem expor payload bruto sensivel.")]
+    [SwaggerResponse(StatusCodes.Status200OK, "Registro de auditoria encontrado.", typeof(AuditRecordResponse))]
+    [SwaggerResponse(StatusCodes.Status404NotFound, "Registro de auditoria nao encontrado.")]
+    [SwaggerResponse(StatusCodes.Status400BadRequest, "Request invalido.", typeof(ProblemDetails))]
+    [SwaggerResponse(StatusCodes.Status429TooManyRequests, "Limite de requisicoes excedido.")]
+    [SwaggerResponse(StatusCodes.Status500InternalServerError, "Erro interno.", typeof(ProblemDetails))]
+    public async Task<ActionResult<AuditRecordResponse>> GetById(
+        [FromRoute] Guid id,
+        CancellationToken cancellationToken)
+    {
+        AuditRecordReadModel? result = await _sender.Send(new GetAuditRecordByIdQuery(id), cancellationToken);
+
+        return result is null
+            ? NotFound()
+            : Ok(ToResponse(result));
+    }
+
+    [HttpGet("operations/{operationId}")]
+    [SwaggerOperation(
+        OperationId = "GetAuditRecordsByOperationId",
+        Summary = "Consulta a trilha funcional de uma operacao.",
+        Description = "Retorna registros da operacao ordenados por occurredAt asc para reconstruir a trilha funcional em ordem cronologica.")]
+    [SwaggerResponse(StatusCodes.Status200OK, "Registros de auditoria da operacao.", typeof(IReadOnlyCollection<AuditRecordResponse>))]
+    [SwaggerResponse(StatusCodes.Status400BadRequest, "Request invalido.", typeof(ProblemDetails))]
+    [SwaggerResponse(StatusCodes.Status429TooManyRequests, "Limite de requisicoes excedido.")]
+    [SwaggerResponse(StatusCodes.Status500InternalServerError, "Erro interno.", typeof(ProblemDetails))]
+    public async Task<ActionResult<IReadOnlyCollection<AuditRecordResponse>>> GetByOperationId(
+        [FromRoute] string operationId,
+        CancellationToken cancellationToken)
+    {
+        IReadOnlyCollection<AuditRecordReadModel> results = await _sender.Send(
+            new GetAuditRecordsByOperationIdQuery(operationId),
+            cancellationToken);
+
+        return Ok(results.Select(ToResponse).ToArray());
+    }
+
+    [HttpGet]
+    [SwaggerOperation(
+        OperationId = "SearchAuditRecords",
+        Summary = "Pesquisa registros de auditoria funcional.",
+        Description = "Pesquisa registros de auditoria com filtros opcionais, periodo obrigatorio, paginacao segura e ordenacao padrao por occurredAt desc.")]
+    [SwaggerResponse(StatusCodes.Status200OK, "Pagina de registros de auditoria.", typeof(PagedResponse<AuditRecordResponse>))]
+    [SwaggerResponse(StatusCodes.Status400BadRequest, "Request invalido.", typeof(ProblemDetails))]
+    [SwaggerResponse(StatusCodes.Status429TooManyRequests, "Limite de requisicoes excedido.")]
+    [SwaggerResponse(StatusCodes.Status500InternalServerError, "Erro interno.", typeof(ProblemDetails))]
+    public async Task<ActionResult<PagedResponse<AuditRecordResponse>>> Search(
+        [FromQuery(Name = "merchantId")] string? merchantId,
+        [FromQuery(Name = "sourceService")] string? sourceService,
+        [FromQuery(Name = "operationType")] string? operationType,
+        [FromQuery(Name = "status")] string? status,
+        [FromQuery(Name = "entityType")] string? entityType,
+        [FromQuery(Name = "entityId")] string? entityId,
+        [FromQuery(Name = "from")] DateTimeOffset? from,
+        [FromQuery(Name = "to")] DateTimeOffset? to,
+        [FromQuery(Name = "page")] int page = SearchAuditRecordsQuery.DefaultPage,
+        [FromQuery(Name = "pageSize")] int pageSize = SearchAuditRecordsQuery.DefaultPageSize,
+        CancellationToken cancellationToken = default)
+    {
+        PagedResult<AuditRecordReadModel> result = await _sender.Send(
+            new SearchAuditRecordsQuery(
+                merchantId,
+                sourceService,
+                operationType,
+                status,
+                entityType,
+                entityId,
+                from,
+                to,
+                page,
+                pageSize),
+            cancellationToken);
+
+        return Ok(new PagedResponse<AuditRecordResponse>(
+            [.. result.Items.Select(ToResponse)],
+            result.Page,
+            result.PageSize,
+            result.TotalItems,
+            result.TotalPages));
+    }
 
     [HttpPost]
     [SwaggerOperation(
@@ -53,4 +142,23 @@ public sealed class AuditRecordsController(ISender sender) : ControllerBase
 
         return Created($"/api/v1/audit-records/{response.Id}", response);
     }
+
+    private static AuditRecordResponse ToResponse(AuditRecordReadModel model)
+        => new(
+            model.Id,
+            model.OperationId,
+            model.CorrelationId,
+            model.SourceService,
+            model.OperationType,
+            model.EntityType,
+            model.EntityId,
+            model.MerchantId,
+            model.Actor is null
+                ? null
+                : new AuditRecordActorResponse(model.Actor.Type, model.Actor.Subject, model.Actor.ClientId),
+            model.Status,
+            model.Reason,
+            model.Metadata,
+            model.OccurredAt,
+            model.CreatedAt);
 }

@@ -15,23 +15,28 @@ public sealed class AuditOpenApiDocumentFilter : IDocumentFilter
             foreach (OpenApiTag tag in swaggerDoc.Tags)
             {
                 if (string.Equals(tag.Name, "AuditRecords", StringComparison.Ordinal))
-                    tag.Description = "Operacoes para criacao de registros canonicos de auditoria funcional.";
+                    tag.Description = "Operacoes para criacao e consulta de registros canonicos de auditoria funcional.";
             }
         }
 
-        MarkAuditRecordCreationAsPublic(swaggerDoc);
+        MarkAuditRecordEndpointsAsPublic(swaggerDoc);
     }
 
-    private static void MarkAuditRecordCreationAsPublic(OpenApiDocument swaggerDoc)
+    private static void MarkAuditRecordEndpointsAsPublic(OpenApiDocument swaggerDoc)
     {
-        if (swaggerDoc.Paths is null ||
-            !swaggerDoc.Paths.TryGetValue("/api/v1/audit-records", out IOpenApiPathItem? pathItem) ||
-            pathItem.Operations is null ||
-            !pathItem.Operations.TryGetValue(HttpMethod.Post, out OpenApiOperation? operation))
-        {
+        if (swaggerDoc.Paths is null)
             return;
-        }
 
-        operation.Security = [];
+        foreach (KeyValuePair<string, IOpenApiPathItem> item in swaggerDoc.Paths)
+        {
+            if (!item.Key.StartsWith("/api/v1/audit-records", StringComparison.Ordinal) ||
+                item.Value.Operations is null)
+            {
+                continue;
+            }
+
+            foreach (OpenApiOperation operation in item.Value.Operations.Values)
+                operation.Security = [];
+        }
     }
 }
