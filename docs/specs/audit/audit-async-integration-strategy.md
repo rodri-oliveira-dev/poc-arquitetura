@@ -32,7 +32,11 @@ Servico de origem
   financeira ja confirmada.
 
 ## Contrato futuro esperado
-O contrato canonico deve incluir, no minimo:
+O contrato canonico futuro foi formalizado como
+[`AuditRecordRequested.v1`](audit-record-requested-v1.md), com JSON Schema e
+exemplos versionados em [`contracts/events`](../../../contracts/events/README.md).
+
+Esse contrato inclui, no minimo:
 
 - nome e versao do contrato;
 - idempotency key;
@@ -47,6 +51,9 @@ O contrato canonico deve incluir, no minimo:
 - reason funcional;
 - metadata minimizada, sem segredos;
 - occurred at.
+
+O contrato esta documentado, mas ainda nao ha produtor, consumer, worker, topico
+Kafka, DLQ ou integracao ativa.
 
 ## Operacao
 - Entrega deve ser tratada como at-least-once.

@@ -54,6 +54,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [IdentityService API](development/identity-api.md): contrato HTTP de cadastro de usuarios, `Idempotency-Key`, retries e conflitos.
 - [AuditService API](development/audit-api.md): contrato HTTP de criacao e consulta de registros funcionais de auditoria, agnostico ao servico chamador.
 - [Spec SDD de idempotencia do IdentityService](specs/identity-idempotency.md): comportamento esperado para `Idempotency-Key` opcional em `POST /api/v1/users`.
+- [Spec SDD do AuditRecordRequested.v1](specs/audit/audit-record-requested-v1.md): contrato canonico futuro de auditoria funcional, com schema e exemplos, sem integracao ativa.
 - [Validacao isolada do AuditService](specs/audit/audit-service-isolated-validation.md): revisao de isolamento, referencias, schema, endpoints, idempotencia, consultas, testes e riscos remanescentes.
 - [Estrategia futura de integracao assincrona do AuditService](specs/audit/audit-async-integration-strategy.md): spec curta para futura integracao por Outbox local, Kafka e `AuditService.Worker`, sem implementacao ativa.
 - [Contratos logicos de eventos](events/README.md): payloads logicos atuais, produtores, consumidores e mapeamentos Pub/Sub/Kafka dos eventos.
@@ -67,6 +68,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [Rebuild de projecao do Balance](operations/projection-rebuild.md): relatorio de divergencia para rebuild paralelo logico antes de qualquer correcao ou troca de projecao.
 - [Contrato LedgerEntryCreated.v1](events/ledger-entry-created-v1.md): contrato legado sem `currency`, aceito para mensagens antigas.
 - [Contrato LedgerEntryCreated.v2](events/ledger-entry-created-v2.md): contrato atual com `currency` obrigatoria.
+- [Contrato AuditRecordRequested.v1](events/audit-record-requested-v1.md): solicitacao canonica futura para registro de auditoria funcional.
 - [Observabilidade e operacao minima](observability.md): health, readiness, logs, traces, metricas, dashboards, alertas e validacoes operacionais.
 - [Padroes do repositorio](development/repository-standards.md): arquivos de padronizacao, tools, estilo, hooks e manutencao.
 - [Artifacts dos workflows](development/workflow-artifacts.md): politica de publicacao, conteudo e retencao.

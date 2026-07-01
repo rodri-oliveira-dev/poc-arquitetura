@@ -8,6 +8,7 @@ O contrato logico do evento deve ser o mesmo quando publicado por Pub/Sub ou Kaf
 
 | Evento | Natureza | Produtor | Consumidores atuais |
 | --- | --- | --- | --- |
+| [AuditRecordRequested.v1](audit-record-requested-v1.md) | Solicitacao canonica futura para auditoria funcional | Nenhum produtor atual | Nenhum consumidor atual |
 | [LedgerEntryCreated.v1](ledger-entry-created-v1.md) | Integracao Ledger para Balance, legado | `LedgerService` historico | `BalanceService.Worker` por Pub/Sub ou Kafka |
 | [LedgerEntryCreated.v2](ledger-entry-created-v2.md) | Integracao Ledger para Balance | `LedgerService` | `BalanceService.Worker` por Pub/Sub ou Kafka |
 | [LancamentoEstornoSolicitado.v1](lancamento-estorno-solicitado-v1.md) | Operacional do Ledger | `LedgerService` | Nenhum consumer de mensageria encontrado |
@@ -58,6 +59,7 @@ Os JSON Schemas versionados ficam em [`../../contracts/events`](../../contracts/
 
 | Evento | Schema |
 | --- | --- |
+| `AuditRecordRequested.v1` | [`audit-record-requested.v1.schema.json`](../../contracts/events/audit-record-requested.v1.schema.json) |
 | `LedgerEntryCreated.v1` | [`ledger-entry-created.v1.schema.json`](../../contracts/events/ledger-entry-created.v1.schema.json) |
 | `LedgerEntryCreated.v2` | [`ledger-entry-created.v2.schema.json`](../../contracts/events/ledger-entry-created.v2.schema.json) |
 | `LancamentoEstornoSolicitado.v1` | [`lancamento-estorno-solicitado.v1.schema.json`](../../contracts/events/lancamento-estorno-solicitado.v1.schema.json) |
@@ -74,6 +76,7 @@ Os JSON Schemas versionados ficam em [`../../contracts/events`](../../contracts/
 
 - [Politica de versionamento de contratos de eventos](../development/event-contract-versioning.md)
 - [Diagnostico de contratos de eventos](../reports/event-contracts-diagnostics.md)
+- [Contrato AuditRecordRequested.v1](audit-record-requested-v1.md)
 - [Contrato LedgerEntryCreated.v1 com schema existente](../contracts/events/LedgerEntryCreated.v1.md)
 - [Contrato LedgerEntryCreated.v2](ledger-entry-created-v2.md)
 - [JSON Schemas versionados](../../contracts/events/README.md)

@@ -1,0 +1,176 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://poc-arquitetura.local/contracts/events/audit-record-requested.v1.schema.json",
+  "title": "AuditRecordRequested.v1",
+  "description": "Payload canonico de solicitacao para que o AuditService registre uma auditoria funcional.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "eventId",
+    "eventType",
+    "schemaVersion",
+    "occurredAt",
+    "sourceService",
+    "operationId",
+    "operationType",
+    "status"
+  ],
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Identificador unico da publicacao logica do evento de auditoria."
+    },
+    "eventType": {
+      "type": "string",
+      "const": "AuditRecordRequested.v1",
+      "description": "Nome e versao canonica do contrato."
+    },
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1,
+      "description": "Versao numerica do schema do payload."
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Instante UTC em que a operacao auditavel ocorreu no servico de origem."
+    },
+    "sourceService": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100,
+      "description": "Servico que solicita o registro de auditoria. Nao e enum fechado."
+    },
+    "operationId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Identificador estavel da operacao funcional auditada."
+    },
+    "correlationId": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "uuid",
+      "description": "Correlacao logica do fluxo, quando disponivel."
+    },
+    "idempotencyKey": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "uuid",
+      "description": "Chave estavel para deduplicacao em retries, redrives e replays."
+    },
+    "operationType": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 150,
+      "description": "Tipo funcional da operacao auditada. Nao e enum fechado."
+    },
+    "entityType": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 150,
+      "description": "Tipo funcional da entidade auditada, quando aplicavel."
+    },
+    "entityId": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 150,
+      "description": "Identificador funcional da entidade auditada, quando aplicavel."
+    },
+    "merchantId": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 100,
+      "description": "Merchant associado a operacao, quando aplicavel."
+    },
+    "actor": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "User",
+            "Client",
+            "System"
+          ],
+          "description": "Tipo canonico do actor funcional."
+        },
+        "subject": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "Subject funcional ou tecnico, quando conhecido."
+        },
+        "clientId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "Client id funcional ou tecnico, quando conhecido."
+        }
+      },
+      "description": "Identidade funcional declarada pelo produtor."
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "Received",
+        "Succeeded",
+        "Failed",
+        "Rejected",
+        "Replayed"
+      ],
+      "description": "Status funcional da operacao auditada."
+    },
+    "reason": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 1000,
+      "description": "Motivo funcional resumido, quando aplicavel."
+    },
+    "metadata": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "propertyNames": {
+        "minLength": 1,
+        "maxLength": 100
+      },
+      "additionalProperties": {
+        "type": "string",
+        "maxLength": 500
+      },
+      "maxProperties": 50,
+      "description": "Pares funcionais string/string minimizados, sem payload bruto sensivel. O limite operacional documentado e 4096 bytes serializados."
+    }
+  }
+}
