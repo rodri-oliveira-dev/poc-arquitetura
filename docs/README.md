@@ -54,6 +54,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [IdentityService API](development/identity-api.md): contrato HTTP de cadastro de usuarios, `Idempotency-Key`, retries e conflitos.
 - [AuditService API](development/audit-api.md): contrato HTTP de criacao e consulta de registros funcionais de auditoria, agnostico ao servico chamador.
 - [Spec SDD de idempotencia do IdentityService](specs/identity-idempotency.md): comportamento esperado para `Idempotency-Key` opcional em `POST /api/v1/users`.
+- [Validacao isolada do AuditService](specs/audit/audit-service-isolated-validation.md): revisao de isolamento, referencias, schema, endpoints, idempotencia, consultas, testes e riscos remanescentes.
 - [Contratos logicos de eventos](events/README.md): payloads logicos atuais, produtores, consumidores e mapeamentos Pub/Sub/Kafka dos eventos.
 - [JSON Schemas versionados de eventos](../contracts/events/README.md): schemas e exemplos para validar payloads logicos de eventos.
 - [Versionamento de contratos de eventos](development/event-contract-versioning.md): politica de compatibilidade, transporte, schemas, testes e depreciacao.
