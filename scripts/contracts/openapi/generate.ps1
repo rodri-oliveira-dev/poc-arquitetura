@@ -84,15 +84,15 @@ function Invoke-SelectedOpenApiGeneration {
 
   switch ($SelectedService.ToLowerInvariant()) {
     "" {
-      Invoke-OpenApiGeneration "LedgerService.Api" "LedgerService.Api" "ledger.v1.json"
-      Invoke-OpenApiGeneration "BalanceService.Api" "BalanceService.Api" "balance.v1.json"
-      Invoke-OpenApiGeneration "TransferService.Api" "TransferService.Api" "transfer.v1.json"
+      Invoke-OpenApiGeneration "ledger\LedgerService.Api" "LedgerService.Api" "ledger.v1.json"
+      Invoke-OpenApiGeneration "balance\BalanceService.Api" "BalanceService.Api" "balance.v1.json"
+      Invoke-OpenApiGeneration "transfer\TransferService.Api" "TransferService.Api" "transfer.v1.json"
       Invoke-OpenApiGeneration "identity\IdentityService.Api" "IdentityService.Api" "identity.v1.json"
       Invoke-OpenApiGeneration "audit\AuditService.Api" "AuditService.Api" "audit.v1.json"
     }
-    "ledger" { Invoke-OpenApiGeneration "LedgerService.Api" "LedgerService.Api" "ledger.v1.json" }
-    "balance" { Invoke-OpenApiGeneration "BalanceService.Api" "BalanceService.Api" "balance.v1.json" }
-    "transfer" { Invoke-OpenApiGeneration "TransferService.Api" "TransferService.Api" "transfer.v1.json" }
+    "ledger" { Invoke-OpenApiGeneration "ledger\LedgerService.Api" "LedgerService.Api" "ledger.v1.json" }
+    "balance" { Invoke-OpenApiGeneration "balance\BalanceService.Api" "BalanceService.Api" "balance.v1.json" }
+    "transfer" { Invoke-OpenApiGeneration "transfer\TransferService.Api" "TransferService.Api" "transfer.v1.json" }
     "identity" { Invoke-OpenApiGeneration "identity\IdentityService.Api" "IdentityService.Api" "identity.v1.json" }
     "audit" { Invoke-OpenApiGeneration "audit\AuditService.Api" "AuditService.Api" "audit.v1.json" }
     default {

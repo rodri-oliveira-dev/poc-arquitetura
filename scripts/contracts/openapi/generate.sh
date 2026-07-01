@@ -121,20 +121,20 @@ EOF
 generate_selected_contracts() {
   case "${SERVICE,,}" in
     "")
-      generate_contract "LedgerService.Api" "LedgerService.Api" "ledger.v1.json"
-      generate_contract "BalanceService.Api" "BalanceService.Api" "balance.v1.json"
-      generate_contract "TransferService.Api" "TransferService.Api" "transfer.v1.json"
+      generate_contract "ledger/LedgerService.Api" "LedgerService.Api" "ledger.v1.json"
+      generate_contract "balance/BalanceService.Api" "BalanceService.Api" "balance.v1.json"
+      generate_contract "transfer/TransferService.Api" "TransferService.Api" "transfer.v1.json"
       generate_contract "identity/IdentityService.Api" "IdentityService.Api" "identity.v1.json"
       generate_contract "audit/AuditService.Api" "AuditService.Api" "audit.v1.json"
       ;;
     ledger)
-      generate_contract "LedgerService.Api" "LedgerService.Api" "ledger.v1.json"
+      generate_contract "ledger/LedgerService.Api" "LedgerService.Api" "ledger.v1.json"
       ;;
     balance)
-      generate_contract "BalanceService.Api" "BalanceService.Api" "balance.v1.json"
+      generate_contract "balance/BalanceService.Api" "BalanceService.Api" "balance.v1.json"
       ;;
     transfer)
-      generate_contract "TransferService.Api" "TransferService.Api" "transfer.v1.json"
+      generate_contract "transfer/TransferService.Api" "TransferService.Api" "transfer.v1.json"
       ;;
     identity)
       generate_contract "identity/IdentityService.Api" "IdentityService.Api" "identity.v1.json"
