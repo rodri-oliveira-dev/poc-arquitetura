@@ -150,20 +150,20 @@ assert_database_authentication identity_migrator_user "$IDENTITY_DB_MIGRATOR_PAS
 
 run_migration \
   "Host=127.0.0.1;Port=$POSTGRES_HOST_PORT;Database=$POSTGRES_DATABASE;Username=ledger_migrator_user;Password=$LEDGER_DB_MIGRATOR_PASSWORD" \
-  "src/LedgerService.Infrastructure/LedgerService.Infrastructure.csproj" \
-  "src/LedgerService.Api/LedgerService.Api.csproj" \
+  "src/ledger/LedgerService.Infrastructure/LedgerService.Infrastructure.csproj" \
+  "src/ledger/LedgerService.Api/LedgerService.Api.csproj" \
   "AppDbContext"
 
 run_migration \
   "Host=127.0.0.1;Port=$POSTGRES_HOST_PORT;Database=$POSTGRES_DATABASE;Username=balance_migrator_user;Password=$BALANCE_DB_MIGRATOR_PASSWORD" \
-  "src/BalanceService.Infrastructure/BalanceService.Infrastructure.csproj" \
-  "src/BalanceService.Api/BalanceService.Api.csproj" \
+  "src/balance/BalanceService.Infrastructure/BalanceService.Infrastructure.csproj" \
+  "src/balance/BalanceService.Api/BalanceService.Api.csproj" \
   "BalanceDbContext"
 
 run_migration \
   "Host=127.0.0.1;Port=$POSTGRES_HOST_PORT;Database=$POSTGRES_DATABASE;Username=transfer_migrator_user;Password=$TRANSFER_DB_MIGRATOR_PASSWORD" \
-  "src/TransferService.Infrastructure/TransferService.Infrastructure.csproj" \
-  "src/TransferService.Api/TransferService.Api.csproj" \
+  "src/transfer/TransferService.Infrastructure/TransferService.Infrastructure.csproj" \
+  "src/transfer/TransferService.Api/TransferService.Api.csproj" \
   "TransferServiceDbContext" \
   "TRANSFER_SERVICE_CONNECTION_STRING"
 

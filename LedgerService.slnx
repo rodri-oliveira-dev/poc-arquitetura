@@ -5,6 +5,12 @@
     <Project Path="src/Shared/ApplicationDefaults/ApplicationDefaults.csproj" />
     <Project Path="src/Shared/HttpResilienceDefaults/HttpResilienceDefaults.csproj" />
   </Folder>
+  <Folder Name="/src/audit/">
+    <Project Path="src/audit/AuditService.Api/AuditService.Api.csproj" />
+    <Project Path="src/audit/AuditService.Application/AuditService.Application.csproj" />
+    <Project Path="src/audit/AuditService.Domain/AuditService.Domain.csproj" />
+    <Project Path="src/audit/AuditService.Infrastructure/AuditService.Infrastructure.csproj" />
+  </Folder>
   <Folder Name="/src/Auth/">
     <Project Path="src/Auth.Api/Auth.Api.csproj" />
   </Folder>
@@ -15,39 +21,46 @@
     <Project Path="src/identity/IdentityService.Infrastructure/IdentityService.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/src/Balance/">
-    <Project Path="src/BalanceService.Api/BalanceService.Api.csproj" />
-    <Project Path="src/BalanceService.Application/BalanceService.Application.csproj" />
-    <Project Path="src/BalanceService.Domain/BalanceService.Domain.csproj" />
-    <Project Path="src/BalanceService.Infrastructure/BalanceService.Infrastructure.csproj" />
-    <Project Path="src/BalanceService.Worker/BalanceService.Worker.csproj" />
+    <Project Path="src/balance/BalanceService.Api/BalanceService.Api.csproj" />
+    <Project Path="src/balance/BalanceService.Application/BalanceService.Application.csproj" />
+    <Project Path="src/balance/BalanceService.Domain/BalanceService.Domain.csproj" />
+    <Project Path="src/balance/BalanceService.Infrastructure/BalanceService.Infrastructure.csproj" />
+    <Project Path="src/balance/BalanceService.Worker/BalanceService.Worker.csproj" />
   </Folder>
   <Folder Name="/src/Transfer/">
-    <Project Path="src/TransferService.Api/TransferService.Api.csproj" />
-    <Project Path="src/TransferService.Application/TransferService.Application.csproj" />
-    <Project Path="src/TransferService.Domain/TransferService.Domain.csproj" />
-    <Project Path="src/TransferService.Infrastructure/TransferService.Infrastructure.csproj" />
+    <Project Path="src/transfer/TransferService.Api/TransferService.Api.csproj" />
+    <Project Path="src/transfer/TransferService.Application/TransferService.Application.csproj" />
+    <Project Path="src/transfer/TransferService.Domain/TransferService.Domain.csproj" />
+    <Project Path="src/transfer/TransferService.Infrastructure/TransferService.Infrastructure.csproj" />
+    <Project Path="src/transfer/TransferService.Worker/TransferService.Worker.csproj" />
   </Folder>
   <Folder Name="/src/Ledger/">
-    <Project Path="src/LedgerService.Api/LedgerService.Api.csproj" />
-    <Project Path="src/LedgerService.Application/LedgerService.Application.csproj" />
-    <Project Path="src/LedgerService.Domain/LedgerService.Domain.csproj" />
-    <Project Path="src/LedgerService.Infrastructure/LedgerService.Infrastructure.csproj" />
-    <Project Path="src/LedgerService.Worker/LedgerService.Worker.csproj" />
+    <Project Path="src/ledger/LedgerService.Api/LedgerService.Api.csproj" />
+    <Project Path="src/ledger/LedgerService.Application/LedgerService.Application.csproj" />
+    <Project Path="src/ledger/LedgerService.Domain/LedgerService.Domain.csproj" />
+    <Project Path="src/ledger/LedgerService.Infrastructure/LedgerService.Infrastructure.csproj" />
+    <Project Path="src/ledger/LedgerService.Worker/LedgerService.Worker.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/LedgerService.UnitTests/LedgerService.UnitTests.csproj" />
-    <Project Path="tests/LedgerService.IntegrationTests/LedgerService.IntegrationTests.csproj" />
-    <Project Path="tests/LedgerService.Worker.Tests/LedgerService.Worker.Tests.csproj" />
-    <Project Path="tests/BalanceService.Application.Tests/BalanceService.Application.Tests.csproj" />
-    <Project Path="tests/BalanceService.UnitTests/BalanceService.UnitTests.csproj" />
-    <Project Path="tests/BalanceService.IntegrationTests/BalanceService.IntegrationTests.csproj" />
-    <Project Path="tests/BalanceService.Worker.Tests/BalanceService.Worker.Tests.csproj" />
-    <Project Path="tests/TransferService.UnitTests/TransferService.UnitTests.csproj" />
-    <Project Path="tests/TransferService.IntegrationTests/TransferService.IntegrationTests.csproj" />
-    <Project Path="tests/TransferService.Worker.Tests/TransferService.Worker.Tests.csproj" />
+    <Project Path="tests/ledger/LedgerService.UnitTests/LedgerService.UnitTests.csproj" />
+    <Project Path="tests/ledger/LedgerService.IntegrationTests/LedgerService.IntegrationTests.csproj" />
+    <Project Path="tests/ledger/LedgerService.Worker.Tests/LedgerService.Worker.Tests.csproj" />
+    <Project Path="tests/balance/BalanceService.Application.Tests/BalanceService.Application.Tests.csproj" />
+    <Project Path="tests/balance/BalanceService.UnitTests/BalanceService.UnitTests.csproj" />
+    <Project Path="tests/balance/BalanceService.IntegrationTests/BalanceService.IntegrationTests.csproj" />
+    <Project Path="tests/balance/BalanceService.Worker.Tests/BalanceService.Worker.Tests.csproj" />
+    <Project Path="tests/transfer/TransferService.UnitTests/TransferService.UnitTests.csproj" />
+    <Project Path="tests/transfer/TransferService.IntegrationTests/TransferService.IntegrationTests.csproj" />
+    <Project Path="tests/transfer/TransferService.Worker.Tests/TransferService.Worker.Tests.csproj" />
     <Project Path="tests/Auth.UnitTests/Auth.UnitTests.csproj" />
     <Project Path="tests/Auth.IntegrationTests/Auth.IntegrationTests.csproj" />
     <Project Path="tests/Architecture.Tests/Architecture.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tests/audit/">
+    <Project Path="tests/audit/AuditService.Api.Tests/AuditService.Api.Tests.csproj" />
+    <Project Path="tests/audit/AuditService.Application.Tests/AuditService.Application.Tests.csproj" />
+    <Project Path="tests/audit/AuditService.Domain.Tests/AuditService.Domain.Tests.csproj" />
+    <Project Path="tests/audit/AuditService.Infrastructure.Tests/AuditService.Infrastructure.Tests.csproj" />
   </Folder>
   <Folder Name="/tests/Identity/">
     <Project Path="tests/identity/IdentityService.UnitTests/IdentityService.UnitTests.csproj" />

@@ -53,8 +53,8 @@ Os testes de integracao permanecem separados por custo e fidelidade:
 Para executar os projetos de integracao:
 
 ```powershell
-dotnet test ./tests/LedgerService.IntegrationTests/LedgerService.IntegrationTests.csproj --configuration Release
-dotnet test ./tests/BalanceService.IntegrationTests/BalanceService.IntegrationTests.csproj --configuration Release
+dotnet test ./tests/ledger/LedgerService.IntegrationTests/LedgerService.IntegrationTests.csproj --configuration Release
+dotnet test ./tests/balance/BalanceService.IntegrationTests/BalanceService.IntegrationTests.csproj --configuration Release
 ```
 
 ## Testes opcionais com Pub/Sub emulator
@@ -67,7 +67,7 @@ Para executa-los contra o emulator local, suba apenas o servico descartavel, con
 docker compose -f compose.yaml up -d pubsub-emulator
 $env:PUBSUB_EMULATOR_HOST='127.0.0.1:8085'
 $env:PUBSUB_PROJECT_ID='poc-integration-tests'
-dotnet test ./tests/LedgerService.IntegrationTests/LedgerService.IntegrationTests.csproj --configuration Release --filter "FullyQualifiedName~PubSubOutboxMessagePublisherEmulatorTests"
+dotnet test ./tests/ledger/LedgerService.IntegrationTests/LedgerService.IntegrationTests.csproj --configuration Release --filter "FullyQualifiedName~PubSubOutboxMessagePublisherEmulatorTests"
 ```
 
 Os testes criam topic e subscription com nomes unicos, publicam pelo `PubSubOutboxMessagePublisher`, consomem via pull e removem os recursos ao final. O projeto informado e apenas um identificador local do emulator; nao sao usadas credenciais GCP reais.
@@ -75,8 +75,8 @@ Os testes criam topic e subscription com nomes unicos, publicam pelo `PubSubOutb
 Para executar somente os cenarios PostgreSQL criticos:
 
 ```powershell
-dotnet test ./tests/LedgerService.IntegrationTests/LedgerService.IntegrationTests.csproj --configuration Release --filter "FullyQualifiedName~CreateLancamentoPostgresTests|FullyQualifiedName~EstornoLancamentoConcurrencyTests|FullyQualifiedName~OutboxPublisherWorkerTests|FullyQualifiedName~LedgerTimestampPersistenceTests"
-dotnet test ./tests/BalanceService.IntegrationTests/BalanceService.IntegrationTests.csproj --configuration Release --filter "FullyQualifiedName~ApplyLedgerEntryCreatedConcurrencyTests|FullyQualifiedName~BalanceReadOnlyPermissionsTests"
+dotnet test ./tests/ledger/LedgerService.IntegrationTests/LedgerService.IntegrationTests.csproj --configuration Release --filter "FullyQualifiedName~CreateLancamentoPostgresTests|FullyQualifiedName~EstornoLancamentoConcurrencyTests|FullyQualifiedName~OutboxPublisherWorkerTests|FullyQualifiedName~LedgerTimestampPersistenceTests"
+dotnet test ./tests/balance/BalanceService.IntegrationTests/BalanceService.IntegrationTests.csproj --configuration Release --filter "FullyQualifiedName~ApplyLedgerEntryCreatedConcurrencyTests|FullyQualifiedName~BalanceReadOnlyPermissionsTests"
 ```
 
 No Windows com Rancher Desktop/Docker-compatible API, o Docker CLI pode funcionar com `DOCKER_HOST=npipe:////./pipe/docker_engine`, mas o Testcontainers/Docker.DotNet espera o formato `npipe://./pipe/docker_engine`. Quando necessario, normalize a variavel apenas no processo do teste:

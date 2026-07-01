@@ -93,8 +93,8 @@ docker compose --env-file .env.local -f compose.yaml -f compose.pubsub.yaml --pr
 Os defaults locais versionados ficam em `appsettings.json`; os perfis
 `appsettings.PubSub.json` permanecem como exemplos explicitos:
 
-- `src/LedgerService.Worker/appsettings.PubSub.json`;
-- `src/BalanceService.Worker/appsettings.PubSub.json`.
+- `src/ledger/LedgerService.Worker/appsettings.PubSub.json`;
+- `src/balance/BalanceService.Worker/appsettings.PubSub.json`.
 
 Para rodar os workers no host contra o emulator ja iniciado, abra um terminal para cada processo:
 
@@ -102,14 +102,14 @@ Para rodar os workers no host contra o emulator ja iniciado, abra um terminal pa
 $env:DOTNET_ENVIRONMENT = "PubSub"
 $env:PUBSUB_EMULATOR_HOST = "127.0.0.1:8085"
 $env:PUBSUB_PROJECT_ID = "poc-local"
-dotnet run --project ./src/LedgerService.Worker
+dotnet run --project ./src/ledger/LedgerService.Worker
 ```
 
 ```powershell
 $env:DOTNET_ENVIRONMENT = "PubSub"
 $env:PUBSUB_EMULATOR_HOST = "127.0.0.1:8085"
 $env:PUBSUB_PROJECT_ID = "poc-local"
-dotnet run --project ./src/BalanceService.Worker
+dotnet run --project ./src/balance/BalanceService.Worker
 ```
 
 Para configurar sem perfil `appsettings.PubSub.json`, use os outputs do Terraform e sobrescreva explicitamente:

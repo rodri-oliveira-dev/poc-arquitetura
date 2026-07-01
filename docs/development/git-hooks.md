@@ -1,6 +1,6 @@
 # Git hooks locais
 
-O repositorio versiona hooks em `.githooks/` e o build de `src/BalanceService.Api/BalanceService.Api.csproj` configura automaticamente:
+O repositorio versiona hooks em `.githooks/` e o build de `src/balance/BalanceService.Api/BalanceService.Api.csproj` configura automaticamente:
 
 ```bash
 git config core.hooksPath .githooks
@@ -12,7 +12,7 @@ O target e idempotente, roda apos o build, ignora CI (`CI=true`) e nao falha o b
 
 - `commit-msg`: valida a primeira linha da mensagem de commit com Conventional Commits.
 - `post-merge`: apos `git merge` ou `git pull`, restaura as tools locais e as dependencias da solution.
-- `pre-push`: executa validacoes locais leves quando houver alteracoes impactantes: Terraform `fmt -check` para arquivos Terraform, restore, formatacao dos arquivos `.cs` alterados, build e testes unitarios rapidos sem cobertura. Testes de integracao/container, cobertura, SonarQube, Trivy e Terraform validate completo ficam no Pull Request/GitHub Actions.
+- `pre-push`: executa validacoes locais leves quando houver alteracoes impactantes: Terraform `fmt -check` para arquivos Terraform, restore, formatacao dos arquivos `.cs` alterados, build e testes unitarios rapidos sem cobertura. Testes de integracao/container, cobertura, SonarQube, Trivy e Terraform validate completo ficam no Pull Request/GitHub Actions. Se `FULL_TESTS=true`, o hook reaproveita `./test.sh` para executar a validacao completa oficial com cobertura antes do push.
 
 ## Politica do post-merge
 
@@ -52,6 +52,14 @@ O hook pula restore, formatacao, build e testes quando todas as alteracoes sao c
 
 Se houver mistura de documentacao com qualquer arquivo impactante, as validacoes rapidas sao executadas. Em caso de duvida, a regra e validar.
 
+Quando o diff contem ate 30 arquivos C#, o hook divide a verificacao de
+formatacao em lotes para evitar limites locais de tamanho da linha de comando,
+mantendo a mesma regra de falha se qualquer arquivo estiver fora do padrao.
+Acima desse limite, a formatacao .NET local e ignorada para preservar o push
+como feedback leve; build, testes rapidos e os gates do Pull Request continuam
+validando a branch. O limite pode ser ajustado temporariamente com
+`DOTNET_FORMAT_FILE_LIMIT`.
+
 Os testes locais do `pre-push` usam o filtro:
 
 ```bash
@@ -59,6 +67,16 @@ Category!=Integration&Category!=Container&Category!=Contract
 ```
 
 Isso evita executar testes de integracao, contrato ou container no push local. O hook nao depende de Docker ligado: testes baseados em Testcontainers/PostgreSQL e testes opcionais de emulador ficam para o PR ou execucao manual explicita.
+
+Cada etapa executada pelo hook registra a duracao aproximada em segundos. Esse log ajuda a identificar gargalos locais sem adicionar dependencia externa.
+
+Para executar a validacao completa oficial durante o push, use:
+
+```bash
+FULL_TESTS=true git push
+```
+
+Nesse modo, depois do restore e da etapa local de formatacao dos arquivos `.cs` alterados quando ela estiver dentro do limite, o hook executa `./test.sh` com o `CONFIGURATION` e o `COVERAGE_THRESHOLD` configurados no ambiente. O padrao continua sendo `Release` e cobertura minima de `85%`. Esse modo pode executar testes de integracao/container e, portanto, pode exigir Docker-compatible API.
 
 ## Padrao de commit
 
@@ -93,7 +111,7 @@ Use `!` antes de `:` para declarar breaking change na primeira linha do commit. 
 Instalar/configurar os hooks:
 
 ```bash
-dotnet build src/BalanceService.Api/BalanceService.Api.csproj
+dotnet build src/balance/BalanceService.Api/BalanceService.Api.csproj
 git config --get core.hooksPath
 ```
 
@@ -117,6 +135,12 @@ Por padrao, essa execucao manual roda apenas validacoes locais leves sem cobertu
 
 ```bash
 ./test.sh
+```
+
+Ou, durante o push:
+
+```bash
+FULL_TESTS=true git push
 ```
 
 Validar `post-merge` manualmente:

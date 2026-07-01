@@ -66,15 +66,15 @@ jobs:
         run: |
           ConnectionStrings__DefaultConnection="Host=127.0.0.1;Port=15432;Database=appdb;Username=ledger_migrator_user;Password=$LEDGER_DB_MIGRATOR_PASSWORD" \
             dotnet tool run dotnet-ef -- database update \
-            -p src/LedgerService.Infrastructure/LedgerService.Infrastructure.csproj \
-            -s src/LedgerService.Api/LedgerService.Api.csproj \
+            -p src/ledger/LedgerService.Infrastructure/LedgerService.Infrastructure.csproj \
+            -s src/ledger/LedgerService.Api/LedgerService.Api.csproj \
             -c AppDbContext \
             -- --environment Development
 
           ConnectionStrings__DefaultConnection="Host=127.0.0.1;Port=15432;Database=appdb;Username=balance_migrator_user;Password=$BALANCE_DB_MIGRATOR_PASSWORD" \
             dotnet tool run dotnet-ef -- database update \
-            -p src/BalanceService.Infrastructure/BalanceService.Infrastructure.csproj \
-            -s src/BalanceService.Api/BalanceService.Api.csproj \
+            -p src/balance/BalanceService.Infrastructure/BalanceService.Infrastructure.csproj \
+            -s src/balance/BalanceService.Api/BalanceService.Api.csproj \
             -c BalanceDbContext \
             -- --environment Development
 

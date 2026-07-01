@@ -13,7 +13,7 @@ services:
     image: poc-arquitetura-ledger-service:local
     build:
       context: .
-      dockerfile: src/LedgerService.Api/Dockerfile
+      dockerfile: src/ledger/LedgerService.Api/Dockerfile
     container_name: poc-ledger-service-1
     logging: *default-logging
     depends_on:

@@ -142,7 +142,7 @@ Defaults versionados no `TransferService.Worker`:
 | `Ledger` | `30s` | `10s` | `3` | `2s`, constante | `0.1` | `4` | `30s` | `5s` |
 | `Keycloak` | `15s` | `5s` | `2` | `1s`, constante | `0.1` | `20` | `30s` | `5s` |
 
-O wrapper compartilhado nao configura jitter. Para validar localmente sem depender do fluxo completo, rode os testes `HttpClient*` em `tests/TransferService.Worker.Tests`; para validar o caminho funcional, use o cenario k6 `transfer-fullstack-kafka` com a stack local.
+O wrapper compartilhado nao configura jitter. Para validar localmente sem depender do fluxo completo, rode os testes `HttpClient*` em `tests/transfer/TransferService.Worker.Tests`; para validar o caminho funcional, use o cenario k6 `transfer-fullstack-kafka` com a stack local.
 
 Fluxo feliz:
 

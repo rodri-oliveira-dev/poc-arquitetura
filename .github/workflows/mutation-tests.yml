@@ -57,7 +57,7 @@ jobs:
 
       - name: Run Stryker - LedgerService.Application
         continue-on-error: true
-        working-directory: tests/LedgerService.UnitTests
+        working-directory: tests/ledger/LedgerService.UnitTests
         run: dotnet stryker
 
       - name: Upload Stryker report - LedgerService.Application
@@ -65,13 +65,13 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: stryker-ledger-service-application
-          path: tests/LedgerService.UnitTests/StrykerOutput/**/reports/mutation-report.html
+          path: tests/ledger/LedgerService.UnitTests/StrykerOutput/**/reports/mutation-report.html
           if-no-files-found: warn
           retention-days: 7
 
       - name: Run Stryker - BalanceService.Application
         continue-on-error: true
-        working-directory: tests/BalanceService.UnitTests
+        working-directory: tests/balance/BalanceService.UnitTests
         run: dotnet stryker
 
       - name: Upload Stryker report - BalanceService.Application
@@ -79,7 +79,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: stryker-balance-service-application
-          path: tests/BalanceService.UnitTests/StrykerOutput/**/reports/mutation-report.html
+          path: tests/balance/BalanceService.UnitTests/StrykerOutput/**/reports/mutation-report.html
           if-no-files-found: warn
           retention-days: 7
 

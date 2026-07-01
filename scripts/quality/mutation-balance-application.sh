@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-TEST_PROJECT_DIR="$REPO_ROOT/tests/BalanceService.UnitTests"
+TEST_PROJECT_DIR="$REPO_ROOT/tests/balance/BalanceService.UnitTests"
 
 cd "$REPO_ROOT"
 dotnet tool restore

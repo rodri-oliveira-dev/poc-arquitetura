@@ -332,7 +332,11 @@ public sealed class LayerDependencyTests
         string layerName,
         IEnumerable<string> forbiddenTerms)
     {
-        string sourceDirectory = Path.Combine(_repositoryRoot.FullName, "src", $"{serviceName}.{layerName}");
+        string sourceDirectory = Path.Combine(
+            _repositoryRoot.FullName,
+            "src",
+            GetServiceFolderName(serviceName),
+            $"{serviceName}.{layerName}");
         string[] sourceFiles = [.. Directory.GetFiles(sourceDirectory, "*.cs", SearchOption.AllDirectories)
             .Where(sourceFile => !sourceFile.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
             .Where(sourceFile => !sourceFile.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))];
@@ -355,11 +359,21 @@ public sealed class LayerDependencyTests
         string projectPath = Path.Combine(
             _repositoryRoot.FullName,
             "src",
+            GetServiceFolderName(serviceName),
             $"{serviceName}.{layerName}",
             $"{serviceName}.{layerName}.csproj");
 
         return XDocument.Load(projectPath);
     }
+
+    private static string GetServiceFolderName(string serviceName)
+        => serviceName switch
+        {
+            "LedgerService" => "ledger",
+            "BalanceService" => "balance",
+            "TransferService" => "transfer",
+            _ => throw new ArgumentOutOfRangeException(nameof(serviceName), serviceName, "Unknown service name.")
+        };
 
     private static bool IsServicePort(ReflectionType interfaceType)
     {

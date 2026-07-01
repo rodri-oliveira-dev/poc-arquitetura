@@ -95,7 +95,7 @@ trivy --version
 
 ## Hook local
 
-O repositorio versiona hooks em `.githooks/`. Em geral, o build de `src/BalanceService.Api/BalanceService.Api.csproj` configura automaticamente:
+O repositorio versiona hooks em `.githooks/`. Em geral, o build de `src/balance/BalanceService.Api/BalanceService.Api.csproj` configura automaticamente:
 
 ```bash
 git config core.hooksPath .githooks

@@ -216,20 +216,20 @@ try {
 
   Invoke-Migration `
     "Host=127.0.0.1;Port=$postgresHostPort;Database=$postgresDatabase;Username=ledger_migrator_user;Password=$ledgerMigratorPassword" `
-    "src/LedgerService.Infrastructure/LedgerService.Infrastructure.csproj" `
-    "src/LedgerService.Api/LedgerService.Api.csproj" `
+    "src/ledger/LedgerService.Infrastructure/LedgerService.Infrastructure.csproj" `
+    "src/ledger/LedgerService.Api/LedgerService.Api.csproj" `
     "AppDbContext"
 
   Invoke-Migration `
     "Host=127.0.0.1;Port=$postgresHostPort;Database=$postgresDatabase;Username=balance_migrator_user;Password=$balanceMigratorPassword" `
-    "src/BalanceService.Infrastructure/BalanceService.Infrastructure.csproj" `
-    "src/BalanceService.Api/BalanceService.Api.csproj" `
+    "src/balance/BalanceService.Infrastructure/BalanceService.Infrastructure.csproj" `
+    "src/balance/BalanceService.Api/BalanceService.Api.csproj" `
     "BalanceDbContext"
 
   Invoke-Migration `
     "Host=127.0.0.1;Port=$postgresHostPort;Database=$postgresDatabase;Username=transfer_migrator_user;Password=$transferMigratorPassword" `
-    "src/TransferService.Infrastructure/TransferService.Infrastructure.csproj" `
-    "src/TransferService.Api/TransferService.Api.csproj" `
+    "src/transfer/TransferService.Infrastructure/TransferService.Infrastructure.csproj" `
+    "src/transfer/TransferService.Api/TransferService.Api.csproj" `
     "TransferServiceDbContext" `
     "TRANSFER_SERVICE_CONNECTION_STRING"
 

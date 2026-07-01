@@ -2,8 +2,11 @@
 set -eu
 
 CONFIGURATION="${CONFIGURATION:-Release}"
+COVERAGE_THRESHOLD="${COVERAGE_THRESHOLD:-85}"
+FULL_TESTS="${FULL_TESTS:-false}"
 ZERO_SHA="0000000000000000000000000000000000000000"
 UNIT_TEST_FILTER="${UNIT_TEST_FILTER:-Category!=Integration&Category!=Container&Category!=Contract}"
+DOTNET_FORMAT_FILE_LIMIT="${DOTNET_FORMAT_FILE_LIMIT:-30}"
 
 if command -v git >/dev/null 2>&1; then
   repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
@@ -12,6 +15,50 @@ else
 fi
 
 cd "$repo_root"
+
+run_timed() {
+  step_name="$1"
+  shift
+
+  start_time="$(date +%s)"
+  echo "==> pre-push: iniciando $step_name"
+
+  set +e
+  "$@"
+  status="$?"
+  set -e
+
+  end_time="$(date +%s)"
+  duration="$((end_time - start_time))"
+
+  if [ "$status" -ne 0 ]; then
+    echo "==> pre-push: $step_name falhou em ${duration}s"
+    exit "$status"
+  fi
+
+  echo "==> pre-push: $step_name finalizado em ${duration}s"
+}
+
+run_dotnet_format_changed_files() {
+  xargs -n 100 dotnet format whitespace ./LedgerService.slnx \
+    --verify-no-changes \
+    --no-restore \
+    --verbosity minimal \
+    --include <"$dotnet_format_files"
+}
+
+count_dotnet_format_files() {
+  wc -l <"$dotnet_format_files" | tr -d ' '
+}
+
+run_full_tests() {
+  if ! command -v bash >/dev/null 2>&1; then
+    echo "==> pre-push: FULL_TESTS=true exige bash para executar ./test.sh" >&2
+    exit 1
+  fi
+
+  bash ./test.sh "$CONFIGURATION" "$COVERAGE_THRESHOLD"
+}
 
 if command -v mktemp >/dev/null 2>&1; then
   changed_files="$(mktemp "${TMPDIR:-/tmp}/pre-push-changed.XXXXXX")"
@@ -285,8 +332,7 @@ fi
 
 if [ "$terraform_changes" = true ]; then
   if command -v terraform >/dev/null 2>&1; then
-    echo "==> pre-push: verificando formatacao Terraform"
-    terraform fmt -check -recursive "$repo_root/infra/terraform"
+    run_timed "formatacao Terraform" terraform fmt -check -recursive "$repo_root/infra/terraform"
   else
     echo "==> pre-push: Terraform CLI nao encontrado; fmt local ignorado"
     echo "==> pre-push: terraform validate completo roda no Pull Request"
@@ -298,25 +344,31 @@ if [ "$dotnet_changes" = false ]; then
   exit 0
 fi
 
-echo "==> pre-push: restaurando dependencias"
-dotnet restore ./LedgerService.slnx
+run_timed "restore .NET" dotnet restore ./LedgerService.slnx
 
 if [ "$dotnet_format_check" = true ] && [ -s "$dotnet_format_files" ]; then
-  echo "==> pre-push: verificando formatacao dos arquivos .cs alterados"
-  dotnet format whitespace ./LedgerService.slnx \
-    --verify-no-changes \
-    --no-restore \
-    --verbosity minimal \
-    --include $(cat "$dotnet_format_files")
+  dotnet_format_file_count="$(count_dotnet_format_files)"
+  if [ "$dotnet_format_file_count" -gt "$DOTNET_FORMAT_FILE_LIMIT" ]; then
+    echo "==> pre-push: $dotnet_format_file_count arquivos .cs alterados excedem o limite local de $DOTNET_FORMAT_FILE_LIMIT; formatacao .NET local ignorada"
+  else
+    run_timed "formatacao dos arquivos .cs alterados" run_dotnet_format_changed_files
+  fi
 else
   echo "==> pre-push: sem arquivos .cs alterados ou diff inseguro; formatacao .NET local ignorada"
 fi
 
-echo "==> pre-push: executando build ($CONFIGURATION)"
-dotnet build ./LedgerService.slnx --configuration "$CONFIGURATION" --no-restore
+case "$FULL_TESTS" in
+  true|TRUE|1|yes|YES)
+    echo "==> pre-push: FULL_TESTS=true; executando validacao completa oficial com cobertura"
+    run_timed "testes completos com cobertura" run_full_tests
+    echo "==> pre-push: validacao completa aprovada"
+    exit 0
+    ;;
+esac
 
-echo "==> pre-push: executando testes unitarios rapidos sem cobertura"
-dotnet test ./LedgerService.slnx \
+run_timed "build .NET ($CONFIGURATION)" dotnet build ./LedgerService.slnx --configuration "$CONFIGURATION" --no-restore
+
+run_timed "testes unitarios rapidos sem cobertura" dotnet test ./LedgerService.slnx \
   --configuration "$CONFIGURATION" \
   --no-build \
   --no-restore \

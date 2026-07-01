@@ -928,8 +928,8 @@ LedgerService:
 $env:ConnectionStrings__DefaultConnection = "Host=127.0.0.1;Port=15432;Database=appdb;Username=ledger_migrator_user;Password=<LEDGER_DB_MIGRATOR_PASSWORD>"
 dotnet tool restore
 dotnet tool run dotnet-ef -- database update `
-  -p src\LedgerService.Infrastructure\LedgerService.Infrastructure.csproj `
-  -s src\LedgerService.Api\LedgerService.Api.csproj `
+  -p src\ledger\LedgerService.Infrastructure\LedgerService.Infrastructure.csproj `
+  -s src\ledger\LedgerService.Api\LedgerService.Api.csproj `
   -c AppDbContext
 ```
 
@@ -939,8 +939,8 @@ BalanceService:
 $env:ConnectionStrings__DefaultConnection = "Host=127.0.0.1;Port=15432;Database=appdb;Username=balance_migrator_user;Password=<BALANCE_DB_MIGRATOR_PASSWORD>"
 dotnet tool restore
 dotnet tool run dotnet-ef -- database update `
-  -p src\BalanceService.Infrastructure\BalanceService.Infrastructure.csproj `
-  -s src\BalanceService.Api\BalanceService.Api.csproj `
+  -p src\balance\BalanceService.Infrastructure\BalanceService.Infrastructure.csproj `
+  -s src\balance\BalanceService.Api\BalanceService.Api.csproj `
   -c BalanceDbContext
 ```
 
@@ -950,8 +950,8 @@ TransferService:
 $env:TRANSFER_SERVICE_CONNECTION_STRING = "Host=127.0.0.1;Port=15432;Database=appdb;Username=transfer_migrator_user;Password=<TRANSFER_DB_MIGRATOR_PASSWORD>"
 dotnet tool restore
 dotnet tool run dotnet-ef -- database update `
-  -p src\TransferService.Infrastructure\TransferService.Infrastructure.csproj `
-  -s src\TransferService.Api\TransferService.Api.csproj `
+  -p src\transfer\TransferService.Infrastructure\TransferService.Infrastructure.csproj `
+  -s src\transfer\TransferService.Api\TransferService.Api.csproj `
   -c TransferServiceDbContext
 ```
 
@@ -990,9 +990,9 @@ dotnet tool restore
 Execute APIs no host:
 
 ```powershell
-dotnet run --project src\LedgerService.Api\LedgerService.Api.csproj
-dotnet run --project src\BalanceService.Api\BalanceService.Api.csproj
-dotnet run --project src\TransferService.Api\TransferService.Api.csproj
+dotnet run --project src\ledger\LedgerService.Api\LedgerService.Api.csproj
+dotnet run --project src\balance\BalanceService.Api\BalanceService.Api.csproj
+dotnet run --project src\transfer\TransferService.Api\TransferService.Api.csproj
 dotnet run --project src\identity\IdentityService.Api\IdentityService.Api.csproj
 ```
 
@@ -1015,9 +1015,9 @@ O `TransferService.Api` em `Development` usa JWT/JWKS do Keycloak local (`http:/
 Execute workers no host:
 
 ```powershell
-dotnet run --project src\LedgerService.Worker\LedgerService.Worker.csproj
-dotnet run --project src\BalanceService.Worker\BalanceService.Worker.csproj
-dotnet run --project src\TransferService.Worker\TransferService.Worker.csproj
+dotnet run --project src\ledger\LedgerService.Worker\LedgerService.Worker.csproj
+dotnet run --project src\balance\BalanceService.Worker\BalanceService.Worker.csproj
+dotnet run --project src\transfer\TransferService.Worker\TransferService.Worker.csproj
 ```
 
 Os `launchSettings.json` dos workers configuram `DOTNET_ENVIRONMENT=Development`. `LedgerService.Worker` e `BalanceService.Worker` usam Kafka em `127.0.0.1:19092` pelos `appsettings.Development.json`. `TransferService.Worker` usa Kafka em `127.0.0.1:19092`, Ledger em `http://localhost:5226` e token endpoint em `http://localhost:8081/realms/poc/protocol/openid-connect/token`; informe `TransferService__Worker__Ledger__Auth__ClientSecret` por variavel local ou User Secrets.
@@ -1200,7 +1200,7 @@ As tasks de stack e k6 chamam os scripts versionados (`scripts/local/start-stack
 
 As configuracoes de debug rodam processos no host em `Development` para `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker`. O `Auth.Api` legado tambem possui configuracao propria, mas deve ser usado apenas quando o fluxo legado for explicitamente validado. Os nomes indicam que dependencias locais podem ser necessarias quando banco, Kafka, Pub/Sub emulator legado ou JWKS forem usados. Se a stack completa do compose estiver em execucao, pare o container equivalente antes de depurar o mesmo processo no host para evitar conflito de porta ou processamento duplicado.
 
-O arquivo `src/LedgerService.Api/LedgerService.Api.http` pode ser usado com a extensao REST Client. Nao coloque segredos em `.vscode/rest-client.env.json`.
+O arquivo `src/ledger/LedgerService.Api/LedgerService.Api.http` pode ser usado com a extensao REST Client. Nao coloque segredos em `.vscode/rest-client.env.json`.
 
 ## Load tests com k6
 
