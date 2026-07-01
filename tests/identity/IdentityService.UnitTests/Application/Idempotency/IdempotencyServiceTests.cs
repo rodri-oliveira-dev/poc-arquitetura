@@ -72,6 +72,56 @@ public sealed class IdempotencyServiceTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_should_execute_again_when_completed_record_is_expired()
+    {
+        var fixture = new Fixture();
+        var storedResponse = new TestResponse(Guid.NewGuid(), "created");
+        fixture.Repository.SeedCompleted(storedResponse, expiresAtUtc: _now.AddTicks(-1).UtcDateTime);
+        var executions = 0;
+        var newResponse = new TestResponse(Guid.NewGuid(), "created-again");
+
+        var result = await fixture.Service.ExecuteAsync(CreateRequest(_ =>
+        {
+            executions++;
+            return Task.FromResult(newResponse);
+        }), TestContext.Current.CancellationToken);
+
+        var record = Assert.Single(fixture.Repository.Records);
+        Assert.Equal(1, executions);
+        Assert.True(result.OperationExecutedNow);
+        Assert.Equal(newResponse, result.Response);
+        Assert.Equal(IdempotencyStatus.Completed, record.Status);
+        Assert.Equal(_now.AddHours(24).UtcDateTime, record.ExpiresAtUtc);
+        Assert.NotEqual(storedResponse, result.Response);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_should_allow_different_payload_when_existing_record_is_expired()
+    {
+        var fixture = new Fixture();
+        fixture.Repository.SeedCompleted(
+            new TestResponse(Guid.NewGuid(), "created"),
+            expiresAtUtc: _now.UtcDateTime);
+        var newHash = "abcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd";
+        var executions = 0;
+
+        var result = await fixture.Service.ExecuteAsync(CreateRequest(
+            _ =>
+            {
+                executions++;
+                return Task.FromResult(new TestResponse(Guid.NewGuid(), "created-again"));
+            },
+            requestHash: newHash),
+            TestContext.Current.CancellationToken);
+
+        var record = Assert.Single(fixture.Repository.Records);
+        Assert.Equal(1, executions);
+        Assert.True(result.OperationExecutedNow);
+        Assert.Equal(newHash, record.RequestHash);
+        Assert.Equal(IdempotencyStatus.Completed, record.Status);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_should_return_in_progress_when_existing_record_is_processing()
     {
         var fixture = new Fixture();
@@ -144,6 +194,39 @@ public sealed class IdempotencyServiceTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_should_execute_only_once_when_retrying_failed_record_concurrently()
+    {
+        var fixture = new Fixture();
+        fixture.Repository.SeedFailed(IdempotencyFailureStage.BeforeExternalSideEffect);
+        var executionStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var allowCompletion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var executions = 0;
+
+        var first = fixture.Service.ExecuteAsync(CreateRequest(async _ =>
+        {
+            Interlocked.Increment(ref executions);
+            executionStarted.SetResult();
+            await allowCompletion.Task;
+            return new TestResponse(Guid.NewGuid(), "created");
+        }), TestContext.Current.CancellationToken);
+
+        await executionStarted.Task.WaitAsync(TestContext.Current.CancellationToken);
+
+        var second = await fixture.Service.ExecuteAsync(CreateRequest(_ =>
+        {
+            Interlocked.Increment(ref executions);
+            return Task.FromResult(new TestResponse(Guid.NewGuid(), "duplicate"));
+        }), TestContext.Current.CancellationToken);
+
+        allowCompletion.SetResult();
+        var firstResult = await first;
+
+        Assert.True(firstResult.OperationExecutedNow);
+        Assert.True(second.IsInProgress);
+        Assert.Equal(1, executions);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_should_not_retry_failed_record_when_compensation_failed()
     {
         var fixture = new Fixture();
@@ -165,7 +248,7 @@ public sealed class IdempotencyServiceTests
     {
         var fixture = new Fixture();
         fixture.Repository.SeedFailed(IdempotencyFailureStage.BeforeExternalSideEffect);
-        fixture.Repository.ThrowOnSaveChangesCallNumber = 2;
+        fixture.Repository.ThrowOnSaveChangesCallNumber = 1;
         var callbackCalled = false;
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
@@ -383,16 +466,69 @@ public sealed class IdempotencyServiceTests
 
         public Task<bool> TryAddProcessingAsync(IdempotencyRecord record, CancellationToken cancellationToken = default)
         {
-            if (_records.Any(x => x.OperationName == record.OperationName && x.IdempotencyKey == record.IdempotencyKey))
-                return Task.FromResult(false);
+            lock (_records)
+            {
+                if (_records.Any(x => x.OperationName == record.OperationName && x.IdempotencyKey == record.IdempotencyKey))
+                    return Task.FromResult(false);
 
-            _records.Add(record);
+                _records.Add(record);
+            }
 
             if (SimulateConcurrentReservation)
                 return Task.FromResult(false);
 
             SaveChangesCount++;
             return Task.FromResult(true);
+        }
+
+        public Task<IdempotencyRecord?> TryClaimExpiredForProcessingAsync(
+            string operationName,
+            string idempotencyKey,
+            string requestHash,
+            DateTime nowUtc,
+            DateTime expiresAtUtc,
+            DateTime? lockedUntilUtc,
+            CancellationToken cancellationToken = default)
+        {
+            lock (_records)
+            {
+                var record = _records.FirstOrDefault(x =>
+                    x.OperationName == operationName &&
+                    x.IdempotencyKey == idempotencyKey &&
+                    x.ExpiresAtUtc <= nowUtc);
+
+                if (record is null)
+                    return Task.FromResult<IdempotencyRecord?>(null);
+
+                record.RestartExpiredProcessing(requestHash, nowUtc, expiresAtUtc, lockedUntilUtc);
+                return Task.FromResult<IdempotencyRecord?>(record);
+            }
+        }
+
+        public Task<IdempotencyRecord?> TryClaimFailedForRetryAsync(
+            string operationName,
+            string idempotencyKey,
+            string requestHash,
+            DateTime nowUtc,
+            DateTime? lockedUntilUtc,
+            CancellationToken cancellationToken = default)
+        {
+            lock (_records)
+            {
+                var record = _records.FirstOrDefault(x =>
+                    x.OperationName == operationName &&
+                    x.IdempotencyKey == idempotencyKey &&
+                    x.RequestHash == requestHash &&
+                    x.Status == IdempotencyStatus.Failed &&
+                    (x.FailureStage == IdempotencyFailureStage.BeforeExternalSideEffect ||
+                        x.FailureStage == IdempotencyFailureStage.AfterIdentityProviderCompensated));
+
+                if (record is null)
+                    return Task.FromResult<IdempotencyRecord?>(null);
+
+                record.RestartProcessing(nowUtc, lockedUntilUtc);
+                return Task.FromResult<IdempotencyRecord?>(record);
+            }
         }
 
         public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
@@ -421,20 +557,20 @@ public sealed class IdempotencyServiceTests
             _records.Add(record);
         }
 
-        public void SeedCompleted(TestResponse response)
+        public void SeedCompleted(TestResponse response, DateTime? expiresAtUtc = null)
         {
-            var record = CreateProcessingRecord();
+            var record = CreateProcessingRecord(expiresAtUtc: expiresAtUtc);
             record.MarkCompleted(201, serializer.Serialize(response), response.Id, _now.AddMinutes(1).UtcDateTime);
             _records.Add(record);
         }
 
-        private static IdempotencyRecord CreateProcessingRecord(DateTime? lockedUntilUtc = null)
+        private static IdempotencyRecord CreateProcessingRecord(DateTime? lockedUntilUtc = null, DateTime? expiresAtUtc = null)
             => IdempotencyRecord.StartProcessing(
                 CreateUserIdempotencyPayload.CreateUserOperationName,
                 "idem-1",
                 RequestHash,
                 _now.UtcDateTime,
-                _now.AddHours(24).UtcDateTime,
+                expiresAtUtc ?? _now.AddHours(24).UtcDateTime,
                 lockedUntilUtc);
     }
 

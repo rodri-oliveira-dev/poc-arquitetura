@@ -181,6 +181,31 @@ public sealed class IdempotencyRecord
         _ = EnsureUtc(nowUtc, nameof(nowUtc));
     }
 
+    public void RestartExpiredProcessing(
+        string requestHash,
+        DateTime nowUtc,
+        DateTime expiresAtUtc,
+        DateTime? lockedUntilUtc = null)
+    {
+        ValidateRequired(requestHash, nameof(requestHash), RequestHashMaxLength);
+        var now = EnsureUtc(nowUtc, nameof(nowUtc));
+
+        if (ExpiresAtUtc > now)
+            throw new InvalidOperationException("Only expired idempotency records can be reused.");
+
+        RequestHash = requestHash;
+        Status = IdempotencyStatus.Processing;
+        ResponseStatusCode = null;
+        ResponseBody = null;
+        ResourceId = null;
+        CreatedAtUtc = now;
+        CompletedAtUtc = null;
+        ExpiresAtUtc = EnsureUtc(expiresAtUtc, nameof(expiresAtUtc));
+        LockedUntilUtc = EnsureNullableUtc(lockedUntilUtc, nameof(lockedUntilUtc));
+        FailureStage = null;
+        ErrorMessage = null;
+    }
+
     private void EnsureProcessing()
     {
         if (Status != IdempotencyStatus.Processing)

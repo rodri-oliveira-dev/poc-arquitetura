@@ -89,6 +89,10 @@ public sealed partial class IdempotencyService(
         string idempotencyKeyHash,
         CancellationToken cancellationToken)
     {
+        var now = GetUtcNow();
+        if (record.ExpiresAtUtc <= now)
+            return await RestartExpiredRecordAsync(record, request, idempotencyKeyHash, now, cancellationToken);
+
         if (!string.Equals(record.RequestHash, request.RequestHash, StringComparison.Ordinal))
         {
             LogPayloadHashConflict(logger, request.OperationName, idempotencyKeyHash);
@@ -145,13 +149,59 @@ public sealed partial class IdempotencyService(
         CancellationToken cancellationToken)
     {
         var now = GetUtcNow();
-        record.RestartProcessing(
+        var claimed = await records.TryClaimFailedForRetryAsync(
+            request.OperationName,
+            request.IdempotencyKey,
+            request.RequestHash,
             now,
-            request.ProcessingLockDuration is null ? null : now.Add(request.ProcessingLockDuration.Value));
+            request.ProcessingLockDuration is null ? null : now.Add(request.ProcessingLockDuration.Value),
+            cancellationToken);
+
+        if (claimed is null)
+        {
+            LogOperationInProgress(logger, request.OperationName, idempotencyKeyHash);
+            return InProgress<TResponse>("Idempotency key is being retried by another request.");
+        }
+
+        record = claimed;
 
         LogStatusTransition(logger, request.OperationName, idempotencyKeyHash, nameof(IdempotencyStatus.Failed), nameof(IdempotencyStatus.Processing));
-        await records.SaveChangesAsync(cancellationToken);
+        return await ExecuteClaimedProcessingRecordAsync(record, request, idempotencyKeyHash, cancellationToken);
+    }
 
+    private async Task<IdempotentOperationResult<TResponse>> RestartExpiredRecordAsync<TResponse>(
+        IdempotencyRecord record,
+        IdempotentOperationRequest<TResponse> request,
+        string idempotencyKeyHash,
+        DateTime now,
+        CancellationToken cancellationToken)
+    {
+        var fromStatus = record.Status.ToString();
+        var claimed = await records.TryClaimExpiredForProcessingAsync(
+            request.OperationName,
+            request.IdempotencyKey,
+            request.RequestHash,
+            now,
+            now.Add(request.TimeToLive),
+            request.ProcessingLockDuration is null ? null : now.Add(request.ProcessingLockDuration.Value),
+            cancellationToken);
+
+        if (claimed is null)
+        {
+            LogOperationInProgress(logger, request.OperationName, idempotencyKeyHash);
+            return InProgress<TResponse>("Expired idempotency key is being reused by another request.");
+        }
+
+        LogStatusTransition(logger, request.OperationName, idempotencyKeyHash, fromStatus, nameof(IdempotencyStatus.Processing));
+        return await ExecuteClaimedProcessingRecordAsync(claimed, request, idempotencyKeyHash, cancellationToken);
+    }
+
+    private async Task<IdempotentOperationResult<TResponse>> ExecuteClaimedProcessingRecordAsync<TResponse>(
+        IdempotencyRecord record,
+        IdempotentOperationRequest<TResponse> request,
+        string idempotencyKeyHash,
+        CancellationToken cancellationToken)
+    {
         try
         {
             var response = await request.ExecuteAsync(cancellationToken);

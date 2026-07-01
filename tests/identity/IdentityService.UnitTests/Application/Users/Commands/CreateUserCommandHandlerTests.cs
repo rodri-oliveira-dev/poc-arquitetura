@@ -613,6 +613,50 @@ public sealed class CreateUserCommandHandlerTests
             return Task.FromResult(true);
         }
 
+        public Task<IdempotencyRecord?> TryClaimExpiredForProcessingAsync(
+            string operationName,
+            string idempotencyKey,
+            string requestHash,
+            DateTime nowUtc,
+            DateTime expiresAtUtc,
+            DateTime? lockedUntilUtc,
+            CancellationToken cancellationToken = default)
+        {
+            var record = _records.FirstOrDefault(x =>
+                x.OperationName == operationName &&
+                x.IdempotencyKey == idempotencyKey &&
+                x.ExpiresAtUtc <= nowUtc);
+
+            if (record is null)
+                return Task.FromResult<IdempotencyRecord?>(null);
+
+            record.RestartExpiredProcessing(requestHash, nowUtc, expiresAtUtc, lockedUntilUtc);
+            return Task.FromResult<IdempotencyRecord?>(record);
+        }
+
+        public Task<IdempotencyRecord?> TryClaimFailedForRetryAsync(
+            string operationName,
+            string idempotencyKey,
+            string requestHash,
+            DateTime nowUtc,
+            DateTime? lockedUntilUtc,
+            CancellationToken cancellationToken = default)
+        {
+            var record = _records.FirstOrDefault(x =>
+                x.OperationName == operationName &&
+                x.IdempotencyKey == idempotencyKey &&
+                x.RequestHash == requestHash &&
+                x.Status == IdempotencyStatus.Failed &&
+                (x.FailureStage == IdempotencyFailureStage.BeforeExternalSideEffect ||
+                    x.FailureStage == IdempotencyFailureStage.AfterIdentityProviderCompensated));
+
+            if (record is null)
+                return Task.FromResult<IdempotencyRecord?>(null);
+
+            record.RestartProcessing(nowUtc, lockedUntilUtc);
+            return Task.FromResult<IdempotencyRecord?>(record);
+        }
+
         public Exception? SaveChangesException
         {
             get;

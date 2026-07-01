@@ -39,6 +39,67 @@ public sealed class IdempotencyRepository(IdentityDbContext context) : IIdempote
     public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
         => context.SaveChangesAsync(cancellationToken);
 
+    public async Task<IdempotencyRecord?> TryClaimExpiredForProcessingAsync(
+        string operationName,
+        string idempotencyKey,
+        string requestHash,
+        DateTime nowUtc,
+        DateTime expiresAtUtc,
+        DateTime? lockedUntilUtc,
+        CancellationToken cancellationToken = default)
+    {
+        var updated = await context.IdempotencyRecords
+            .Where(record => record.OperationName == operationName
+                && record.IdempotencyKey == idempotencyKey
+                && record.ExpiresAtUtc <= nowUtc)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(record => record.RequestHash, requestHash)
+                .SetProperty(record => record.Status, IdempotencyStatus.Processing)
+                .SetProperty(record => record.ResponseStatusCode, (int?)null)
+                .SetProperty(record => record.ResponseBody, (string?)null)
+                .SetProperty(record => record.ResourceId, (Guid?)null)
+                .SetProperty(record => record.CreatedAtUtc, nowUtc)
+                .SetProperty(record => record.CompletedAtUtc, (DateTime?)null)
+                .SetProperty(record => record.ExpiresAtUtc, expiresAtUtc)
+                .SetProperty(record => record.LockedUntilUtc, lockedUntilUtc)
+                .SetProperty(record => record.FailureStage, (string?)null)
+                .SetProperty(record => record.ErrorMessage, (string?)null),
+                cancellationToken);
+
+        return updated == 1
+            ? await ReloadClaimedRecordAsync(operationName, idempotencyKey, cancellationToken)
+            : null;
+    }
+
+    public async Task<IdempotencyRecord?> TryClaimFailedForRetryAsync(
+        string operationName,
+        string idempotencyKey,
+        string requestHash,
+        DateTime nowUtc,
+        DateTime? lockedUntilUtc,
+        CancellationToken cancellationToken = default)
+    {
+        var updated = await context.IdempotencyRecords
+            .Where(record => record.OperationName == operationName
+                && record.IdempotencyKey == idempotencyKey
+                && record.RequestHash == requestHash
+                && record.ExpiresAtUtc > nowUtc
+                && record.Status == IdempotencyStatus.Failed
+                && (record.FailureStage == IdempotencyFailureStage.BeforeExternalSideEffect
+                    || record.FailureStage == IdempotencyFailureStage.AfterIdentityProviderCompensated))
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(record => record.Status, IdempotencyStatus.Processing)
+                .SetProperty(record => record.CompletedAtUtc, (DateTime?)null)
+                .SetProperty(record => record.LockedUntilUtc, lockedUntilUtc)
+                .SetProperty(record => record.FailureStage, (string?)null)
+                .SetProperty(record => record.ErrorMessage, (string?)null),
+                cancellationToken);
+
+        return updated == 1
+            ? await ReloadClaimedRecordAsync(operationName, idempotencyKey, cancellationToken)
+            : null;
+    }
+
     public Task<int> SaveFailureAsync(IdempotencyRecord record, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(record);
@@ -52,6 +113,16 @@ public sealed class IdempotencyRepository(IdentityDbContext context) : IIdempote
         }
 
         return context.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task<IdempotencyRecord?> ReloadClaimedRecordAsync(
+        string operationName,
+        string idempotencyKey,
+        CancellationToken cancellationToken)
+    {
+        context.ChangeTracker.Clear();
+
+        return await GetByOperationAndKeyAsync(operationName, idempotencyKey, cancellationToken);
     }
 
     private static void DetachPendingOrFailedChange(EntityEntry entry)

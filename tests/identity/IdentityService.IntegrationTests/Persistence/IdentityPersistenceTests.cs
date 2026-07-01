@@ -213,6 +213,62 @@ public sealed class IdentityPersistenceTests(PostgresIdentityFixture fixture) : 
     }
 
     [Fact]
+    public async Task Idempotency_repository_should_claim_failed_retry_atomically()
+    {
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var failed = CreateProcessingRecord("CreateUser", "idem-failed-retry-claim");
+            failed.MarkFailed(
+                IdempotencyFailureStage.BeforeExternalSideEffect,
+                "provider failed before external effect",
+                new DateTime(2026, 06, 26, 12, 5, 0, DateTimeKind.Utc));
+
+            db.IdempotencyRecords.Add(failed);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        await using var firstProvider = _fixture.CreateServiceProvider();
+        await using var secondProvider = _fixture.CreateServiceProvider();
+        await using var firstScope = firstProvider.CreateAsyncScope();
+        await using var secondScope = secondProvider.CreateAsyncScope();
+        var firstRepository = firstScope.ServiceProvider.GetRequiredService<IIdempotencyRepository>();
+        var secondRepository = secondScope.ServiceProvider.GetRequiredService<IIdempotencyRepository>();
+        var nowUtc = new DateTime(2026, 06, 26, 12, 10, 0, DateTimeKind.Utc);
+
+        var results = await Task.WhenAll(
+            firstRepository.TryClaimFailedForRetryAsync(
+                "CreateUser",
+                "idem-failed-retry-claim",
+                RequestHash,
+                nowUtc,
+                nowUtc.AddMinutes(5),
+                TestContext.Current.CancellationToken),
+            secondRepository.TryClaimFailedForRetryAsync(
+                "CreateUser",
+                "idem-failed-retry-claim",
+                RequestHash,
+                nowUtc,
+                nowUtc.AddMinutes(5),
+                TestContext.Current.CancellationToken));
+
+        Assert.Single(results, result => result is not null);
+        Assert.Single(results, result => result is null);
+
+        await using var verificationDb = _fixture.CreateDbContext();
+        var persisted = await verificationDb.IdempotencyRecords
+            .AsNoTracking()
+            .SingleAsync(
+                record => record.OperationName == "CreateUser" &&
+                    record.IdempotencyKey == "idem-failed-retry-claim",
+                TestContext.Current.CancellationToken);
+
+        Assert.Equal(IdempotencyStatus.Processing, persisted.Status);
+        Assert.Null(persisted.FailureStage);
+        Assert.Null(persisted.ErrorMessage);
+        Assert.Equal(nowUtc.AddMinutes(5), persisted.LockedUntilUtc);
+    }
+
+    [Fact]
     public async Task Database_should_allow_same_idempotency_key_for_different_operations()
     {
         await using var db = _fixture.CreateDbContext();
