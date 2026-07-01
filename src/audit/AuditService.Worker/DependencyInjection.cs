@@ -3,6 +3,7 @@ using AuditService.Infrastructure;
 using AuditService.Worker.HostedServices;
 using AuditService.Worker.Messaging.Kafka;
 using AuditService.Worker.Messaging.Kafka.Configuration;
+using AuditService.Worker.Messaging.Kafka.DeadLetter;
 using AuditService.Worker.Observability;
 using AuditService.Worker.Options;
 
@@ -68,12 +69,19 @@ public static class DependencyInjection
             .Validate(o => !o.Enabled || !string.IsNullOrWhiteSpace(o.BootstrapServers), "AuditRecordRequested Consumer BootstrapServers nao configurado.")
             .Validate(o => !o.Enabled || !string.IsNullOrWhiteSpace(o.GroupId), "AuditRecordRequested Consumer GroupId nao configurado.")
             .Validate(o => !o.Enabled || !string.IsNullOrWhiteSpace(o.Topic), "AuditRecordRequested Consumer Topic nao configurado.")
+            .Validate(o => !o.Enabled || !string.IsNullOrWhiteSpace(o.DeadLetterTopic), "AuditRecordRequested Consumer DeadLetterTopic nao configurado.")
+            .Validate(o => !o.Enabled || o.DeadLetterMessageTimeoutMs > 0, "AuditRecordRequested Consumer DeadLetterMessageTimeoutMs deve ser maior que zero.")
+            .Validate(o => !o.Enabled || o.MaxProcessingAttempts > 0, "AuditRecordRequested Consumer MaxProcessingAttempts deve ser maior que zero.")
+            .Validate(o => !o.Enabled || o.ProcessingRetryDelay > TimeSpan.Zero, "AuditRecordRequested Consumer ProcessingRetryDelay deve ser maior que zero.")
             .Validate(o => !o.Enabled || o.ConsumeErrorRetryDelay > TimeSpan.Zero, "AuditRecordRequested Consumer ConsumeErrorRetryDelay deve ser maior que zero.")
             .Validate(o => !o.Enabled || o.ProcessingErrorRetryDelay > TimeSpan.Zero, "AuditRecordRequested Consumer ProcessingErrorRetryDelay deve ser maior que zero.")
             .Validate(o => IsLocalEnvironment(environment) || !KafkaClientConfigExtensions.IsPlaintext(o), "Kafka PLAINTEXT e permitido apenas em Development/Local.")
             .ValidateOnStart();
 
+        services.AddSingleton<AuditWorkerMetrics>();
         services.AddSingleton<AuditRecordRequestedValidator>();
+        services.AddSingleton<IAuditKafkaDeadLetterProducerFactory, ConfluentAuditKafkaDeadLetterProducerFactory>();
+        services.AddSingleton<IAuditRecordDeadLetterPublisher, KafkaAuditRecordDeadLetterPublisher>();
         services.AddScoped<IAuditRecordRequestedProcessor, AuditRecordRequestedProcessor>();
         services.AddSingleton<IAuditKafkaConsumerFactory, ConfluentAuditKafkaConsumerFactory>();
 

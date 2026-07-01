@@ -1,5 +1,6 @@
 using AuditService.Worker.Messaging.Kafka;
 using AuditService.Worker.Messaging.Kafka.Configuration;
+using AuditService.Worker.Observability;
 
 using Confluent.Kafka;
 
@@ -9,24 +10,26 @@ namespace AuditService.Worker.Tests.Messaging.Kafka;
 
 public sealed class AuditRecordRequestedConsumerServiceTests
 {
+    private static readonly AuditWorkerMetrics Metrics = new($"AuditService.Worker.Tests.{Guid.NewGuid():N}");
+
     [Fact]
     public async Task ConsumeOnceAsync_should_commit_after_processor_success()
     {
-        var processor = new FakeProcessor(processed: true);
+        var processor = new FakeProcessor(AuditRecordRequestedProcessingResult.Success);
         using var service = CreateService(processor);
         using var consumer = new FakeConsumer("message");
 
         bool consumed = await service.ConsumeOnceAsync(consumer, TestContext.Current.CancellationToken);
 
         Assert.True(consumed);
-        Assert.Equal("message", processor.Messages.Single());
+        Assert.Equal("message", processor.Messages.Single().Payload);
         Assert.Equal(1, consumer.CommitCalls);
     }
 
     [Fact]
     public async Task ConsumeOnceAsync_should_not_commit_when_processor_does_not_complete()
     {
-        var processor = new FakeProcessor(processed: false);
+        var processor = new FakeProcessor(AuditRecordRequestedProcessingResult.NotProcessed);
         using var service = CreateService(processor);
         using var consumer = new FakeConsumer("message");
 
@@ -39,7 +42,7 @@ public sealed class AuditRecordRequestedConsumerServiceTests
     [Fact]
     public async Task ConsumeOnceAsync_should_not_commit_when_processor_throws()
     {
-        var processor = new FakeProcessor(processed: false)
+        var processor = new FakeProcessor(AuditRecordRequestedProcessingResult.Success)
         {
             Exception = new InvalidOperationException("database unavailable")
         };
@@ -48,6 +51,42 @@ public sealed class AuditRecordRequestedConsumerServiceTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             service.ConsumeOnceAsync(consumer, TestContext.Current.CancellationToken));
+
+        Assert.Empty(consumer.CommittedOffsets);
+    }
+
+    [Fact]
+    public async Task ConsumeOnceAsync_should_retry_transient_failure_before_commit()
+    {
+        var processor = new FakeProcessor(AuditRecordRequestedProcessingResult.Success)
+        {
+            RemainingFailures = 1
+        };
+        using var service = CreateService(processor);
+        using var consumer = new FakeConsumer("message");
+
+        bool consumed = await service.ConsumeOnceAsync(consumer, TestContext.Current.CancellationToken);
+
+        Assert.True(consumed);
+        Assert.Equal(2, processor.Attempts);
+        Assert.Equal(1, consumer.CommitCalls);
+    }
+
+    [Fact]
+    public async Task ConsumeOnceAsync_should_respect_cancellation_token_during_retry_delay()
+    {
+        var processor = new FakeProcessor(AuditRecordRequestedProcessingResult.Success)
+        {
+            Exception = new InvalidOperationException("database unavailable")
+        };
+        using var service = CreateService(processor, processingRetryDelay: TimeSpan.FromSeconds(5));
+        using var consumer = new FakeConsumer("message");
+        using var cts = new CancellationTokenSource();
+
+        cts.CancelAfter(TimeSpan.FromMilliseconds(10));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            service.ConsumeOnceAsync(consumer, cts.Token));
 
         Assert.Empty(consumer.CommittedOffsets);
     }
@@ -67,33 +106,54 @@ public sealed class AuditRecordRequestedConsumerServiceTests
         Assert.Contains("BootstrapServers", exception.Message, StringComparison.Ordinal);
     }
 
-    private static AuditRecordRequestedConsumerService CreateService(FakeProcessor processor)
+    private static AuditRecordRequestedConsumerService CreateService(
+        FakeProcessor processor,
+        TimeSpan? processingRetryDelay = null)
         => new(
             Microsoft.Extensions.Options.Options.Create(new AuditRecordRequestedConsumerOptions
             {
                 Enabled = true,
-                BootstrapServers = "localhost:9092"
+                BootstrapServers = "localhost:9092",
+                ProcessingRetryDelay = processingRetryDelay ?? TimeSpan.FromMilliseconds(1)
             }),
             new FakeConsumerFactory(),
             processor,
+            Metrics,
             NullLogger<AuditRecordRequestedConsumerService>.Instance);
 
-    private sealed class FakeProcessor(bool processed) : IAuditRecordRequestedProcessor
+    private sealed class FakeProcessor(AuditRecordRequestedProcessingResult result) : IAuditRecordRequestedProcessor
     {
-        public List<string> Messages { get; } = [];
+        public List<AuditKafkaReceivedMessage> Messages { get; } = [];
+
+        public int Attempts
+        {
+            get; private set;
+        }
+
+        public int RemainingFailures
+        {
+            get; init;
+        }
 
         public Exception? Exception
         {
             get; init;
         }
 
-        public Task<bool> ProcessAsync(string messageValue, CancellationToken cancellationToken)
+        public Task<AuditRecordRequestedProcessingResult> ProcessAsync(
+            AuditKafkaReceivedMessage message,
+            CancellationToken cancellationToken)
         {
+            Attempts++;
+
             if (Exception is not null)
                 throw Exception;
 
-            Messages.Add(messageValue);
-            return Task.FromResult(processed);
+            if (Attempts <= RemainingFailures)
+                throw new InvalidOperationException("database unavailable");
+
+            Messages.Add(message);
+            return Task.FromResult(result);
         }
     }
 

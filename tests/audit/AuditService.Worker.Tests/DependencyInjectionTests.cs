@@ -2,6 +2,7 @@ using AuditService.Application.FunctionalAuditing.Ingestion;
 using AuditService.Worker.HostedServices;
 using AuditService.Worker.Messaging.Kafka;
 using AuditService.Worker.Messaging.Kafka.Configuration;
+using AuditService.Worker.Messaging.Kafka.DeadLetter;
 using AuditService.Worker.Options;
 
 using Microsoft.Extensions.Configuration;
@@ -45,6 +46,8 @@ public sealed class DependencyInjectionTests
 
         Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(IAuditRecordRequestedProcessor));
         Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(IAuditKafkaConsumerFactory));
+        Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(IAuditRecordDeadLetterPublisher));
+        Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(IAuditKafkaDeadLetterProducerFactory));
         Assert.Contains(services, descriptor =>
             descriptor.ServiceType == typeof(IHostedService) &&
             descriptor.ImplementationType == typeof(AuditRecordRequestedConsumerService));
@@ -84,6 +87,9 @@ public sealed class DependencyInjectionTests
 
         Assert.False(options.Enabled);
         Assert.Equal("audit.record.requested", options.Topic);
+        Assert.Equal("audit.record.requested.dlq", options.DeadLetterTopic);
+        Assert.Equal(3, options.MaxProcessingAttempts);
+        Assert.Equal(TimeSpan.FromSeconds(1), options.ProcessingRetryDelay);
         Assert.False(options.EnableAutoCommit);
         Assert.False(options.EnableAutoOffsetStore);
     }

@@ -3,6 +3,7 @@ using System.Text.Json;
 
 using AuditService.Application.FunctionalAuditing.CreateAuditRecord;
 using AuditService.Worker.Messaging.Kafka;
+using AuditService.Worker.Messaging.Kafka.DeadLetter;
 
 using MediatR;
 
@@ -18,11 +19,14 @@ public sealed class AuditRecordRequestedProcessorTests
     public async Task ProcessAsync_should_map_valid_event_to_create_command_with_source_event_id()
     {
         var sender = new RecordingSender();
-        var processor = CreateProcessor(sender);
+        var deadLetterPublisher = new RecordingDeadLetterPublisher();
+        var processor = CreateProcessor(sender, deadLetterPublisher);
 
-        bool processed = await processor.ProcessAsync(ValidEventJson(), TestContext.Current.CancellationToken);
+        AuditRecordRequestedProcessingResult processed = await processor.ProcessAsync(ReceivedMessage(ValidEventJson()), TestContext.Current.CancellationToken);
 
-        Assert.True(processed);
+        Assert.True(processed.ShouldCommit);
+        Assert.Equal("success", processed.Result);
+        Assert.Empty(deadLetterPublisher.Messages);
         CreateAuditRecordCommand command = Assert.IsType<CreateAuditRecordCommand>(sender.Request);
         Assert.Null(command.IdempotencyKey);
         Assert.Equal(Guid.Parse("00000000-0000-0000-0000-000000000001"), command.SourceEventId);
@@ -34,20 +38,88 @@ public sealed class AuditRecordRequestedProcessorTests
     }
 
     [Fact]
-    public async Task ProcessAsync_should_treat_invalid_contract_as_definitive_error()
+    public async Task ProcessAsync_should_report_duplicate_event_as_idempotent()
     {
-        var sender = new RecordingSender();
+        var sender = new RecordingSender
+        {
+            Result = new CreateAuditRecordResult(Guid.Parse("00000000-0000-0000-0000-000000000010"), Duplicate: true)
+        };
         var processor = CreateProcessor(sender);
 
-        bool processed = await processor.ProcessAsync(
+        AuditRecordRequestedProcessingResult processed = await processor.ProcessAsync(
+            ReceivedMessage(ValidEventJson()),
+            TestContext.Current.CancellationToken);
+
+        Assert.True(processed.ShouldCommit);
+        Assert.Equal("duplicate", processed.Result);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_should_send_invalid_contract_to_dlq()
+    {
+        var sender = new RecordingSender();
+        var deadLetterPublisher = new RecordingDeadLetterPublisher();
+        var processor = CreateProcessor(sender, deadLetterPublisher);
+
+        AuditRecordRequestedProcessingResult processed = await processor.ProcessAsync(
+            ReceivedMessage(
             ValidEventJson(new Dictionary<string, object?>
             {
                 ["eventType"] = "OtherEvent.v1"
-            }),
+            })),
             TestContext.Current.CancellationToken);
 
-        Assert.True(processed);
+        Assert.True(processed.ShouldCommit);
+        Assert.Equal("dlq", processed.Result);
         Assert.Null(sender.Request);
+        AuditRecordDeadLetterMessage deadLetter = Assert.Single(deadLetterPublisher.Messages);
+        Assert.Equal(Guid.Parse("00000000-0000-0000-0000-000000000001"), deadLetter.EventId);
+        Assert.Equal(Guid.Parse("00000000-0000-0000-0000-000000000003"), deadLetter.CorrelationId);
+        Assert.Equal("invalid_contract", deadLetter.FailureCategory);
+        Assert.Equal("audit.record.requested", deadLetter.OriginalTopic);
+        Assert.Equal(0, deadLetter.OriginalPartition);
+        Assert.Equal(42, deadLetter.OriginalOffset);
+        Assert.False(string.IsNullOrWhiteSpace(deadLetter.PayloadSha256));
+    }
+
+    [Fact]
+    public async Task ProcessAsync_should_send_invalid_json_to_dlq_without_original_payload()
+    {
+        var sender = new RecordingSender();
+        var deadLetterPublisher = new RecordingDeadLetterPublisher();
+        var processor = CreateProcessor(sender, deadLetterPublisher);
+
+        AuditRecordRequestedProcessingResult processed = await processor.ProcessAsync(
+            ReceivedMessage("{ invalid"),
+            TestContext.Current.CancellationToken);
+
+        Assert.True(processed.ShouldCommit);
+        Assert.Equal("dlq", processed.Result);
+        Assert.Null(sender.Request);
+        AuditRecordDeadLetterMessage deadLetter = Assert.Single(deadLetterPublisher.Messages);
+        Assert.Null(deadLetter.EventId);
+        Assert.Null(deadLetter.CorrelationId);
+        Assert.Equal("invalid_json", deadLetter.FailureCategory);
+        Assert.False(deadLetter.PayloadSha256.Contains("{ invalid", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ProcessAsync_should_send_idempotency_conflict_to_dlq()
+    {
+        var sender = new RecordingSender
+        {
+            Exception = new Application.Common.Exceptions.ConflictException("SourceEventId already used with a different payload.")
+        };
+        var deadLetterPublisher = new RecordingDeadLetterPublisher();
+        var processor = CreateProcessor(sender, deadLetterPublisher);
+
+        AuditRecordRequestedProcessingResult processed = await processor.ProcessAsync(
+            ReceivedMessage(ValidEventJson()),
+            TestContext.Current.CancellationToken);
+
+        Assert.True(processed.ShouldCommit);
+        Assert.Equal("dlq", processed.Result);
+        Assert.Single(deadLetterPublisher.Messages);
     }
 
     [Fact]
@@ -60,14 +132,20 @@ public sealed class AuditRecordRequestedProcessorTests
         var processor = CreateProcessor(sender);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            processor.ProcessAsync(ValidEventJson(), TestContext.Current.CancellationToken));
+            processor.ProcessAsync(ReceivedMessage(ValidEventJson()), TestContext.Current.CancellationToken));
     }
 
-    private static AuditRecordRequestedProcessor CreateProcessor(RecordingSender sender)
+    private static AuditRecordRequestedProcessor CreateProcessor(
+        RecordingSender sender,
+        RecordingDeadLetterPublisher? deadLetterPublisher = null)
         => new(
             new AuditRecordRequestedValidator(),
+            deadLetterPublisher ?? new RecordingDeadLetterPublisher(),
             sender,
             NullLogger<AuditRecordRequestedProcessor>.Instance);
+
+    private static AuditKafkaReceivedMessage ReceivedMessage(string payload)
+        => new(payload, "audit.record.requested", 0, 42);
 
     private static string ValidEventJson(Dictionary<string, object?>? overrides = null)
     {
@@ -122,6 +200,8 @@ public sealed class AuditRecordRequestedProcessorTests
             get; init;
         }
 
+        public CreateAuditRecordResult Result { get; init; } = new(Guid.NewGuid());
+
         public Task<TResponse> Send<TResponse>(
             IRequest<TResponse> request,
             CancellationToken cancellationToken = default)
@@ -130,8 +210,7 @@ public sealed class AuditRecordRequestedProcessorTests
                 throw Exception;
 
             Request = request;
-            object result = new CreateAuditRecordResult(Guid.NewGuid());
-            return Task.FromResult((TResponse)result);
+            return Task.FromResult((TResponse)(object)Result);
         }
 
         public Task Send<TRequest>(
@@ -156,5 +235,16 @@ public sealed class AuditRecordRequestedProcessorTests
 
         public IAsyncEnumerable<object?> CreateStream(object request, CancellationToken cancellationToken = default)
             => AsyncEnumerable.Empty<object?>();
+    }
+
+    private sealed class RecordingDeadLetterPublisher : IAuditRecordDeadLetterPublisher
+    {
+        public List<AuditRecordDeadLetterMessage> Messages { get; } = [];
+
+        public Task PublishAsync(AuditRecordDeadLetterMessage message, CancellationToken cancellationToken)
+        {
+            Messages.Add(message);
+            return Task.CompletedTask;
+        }
     }
 }

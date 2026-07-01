@@ -1,6 +1,8 @@
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 
 using AuditService.Worker.Messaging.Kafka.Configuration;
+using AuditService.Worker.Observability;
 
 using Confluent.Kafka;
 
@@ -12,6 +14,7 @@ internal sealed partial class AuditRecordRequestedConsumerService(
     IOptions<AuditRecordRequestedConsumerOptions> options,
     IAuditKafkaConsumerFactory consumerFactory,
     IAuditRecordRequestedProcessor processor,
+    AuditWorkerMetrics metrics,
     ILogger<AuditRecordRequestedConsumerService> logger) : BackgroundService
 {
     private readonly AuditRecordRequestedConsumerOptions _options = options.Value;
@@ -72,12 +75,57 @@ internal sealed partial class AuditRecordRequestedConsumerService(
         if (result?.Message?.Value is null)
             return false;
 
-        bool processed = await processor.ProcessAsync(result.Message.Value, cancellationToken);
-        if (!processed)
+        var receivedMessage = new AuditKafkaReceivedMessage(
+            result.Message.Value,
+            result.Topic,
+            result.Partition.Value,
+            result.Offset.Value);
+        long startedAt = Stopwatch.GetTimestamp();
+
+        AuditRecordRequestedProcessingResult processingResult = await ProcessWithRetryAsync(receivedMessage, cancellationToken);
+        metrics.RecordConsumerMessage(receivedMessage.Topic, processingResult.Result);
+        metrics.RecordConsumerProcessingDuration(
+            Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds,
+            receivedMessage.Topic,
+            processingResult.Result);
+
+        if (!processingResult.ShouldCommit)
             return false;
 
         consumer.Commit(result);
         return true;
+    }
+
+    private async Task<AuditRecordRequestedProcessingResult> ProcessWithRetryAsync(
+        AuditKafkaReceivedMessage message,
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                return await processor.ProcessAsync(message, cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex) when (attempt < _options.MaxProcessingAttempts)
+            {
+                metrics.RecordConsumerRetry(message.Topic, ex.GetType().Name);
+                LogAuditRecordRequestedRetryScheduled(
+                    logger,
+                    ex,
+                    message.Topic,
+                    message.Partition,
+                    message.Offset,
+                    attempt,
+                    _options.MaxProcessingAttempts,
+                    _options.ProcessingRetryDelay);
+
+                await Task.Delay(_options.ProcessingRetryDelay, cancellationToken);
+            }
+        }
     }
 
     internal static void ValidateOptions(AuditRecordRequestedConsumerOptions options)
@@ -93,6 +141,18 @@ internal sealed partial class AuditRecordRequestedConsumerService(
 
         if (string.IsNullOrWhiteSpace(options.Topic))
             throw new InvalidOperationException("AuditRecordRequested Consumer Topic nao configurado.");
+
+        if (string.IsNullOrWhiteSpace(options.DeadLetterTopic))
+            throw new InvalidOperationException("AuditRecordRequested Consumer DeadLetterTopic nao configurado.");
+
+        if (options.DeadLetterMessageTimeoutMs <= 0)
+            throw new InvalidOperationException("AuditRecordRequested Consumer DeadLetterMessageTimeoutMs deve ser maior que zero.");
+
+        if (options.MaxProcessingAttempts <= 0)
+            throw new InvalidOperationException("AuditRecordRequested Consumer MaxProcessingAttempts deve ser maior que zero.");
+
+        if (options.ProcessingRetryDelay <= TimeSpan.Zero)
+            throw new InvalidOperationException("AuditRecordRequested Consumer ProcessingRetryDelay deve ser maior que zero.");
 
         if (options.ConsumeErrorRetryDelay <= TimeSpan.Zero)
             throw new InvalidOperationException("AuditRecordRequested Consumer ConsumeErrorRetryDelay deve ser maior que zero.");
@@ -115,4 +175,15 @@ internal sealed partial class AuditRecordRequestedConsumerService(
 
     [LoggerMessage(EventId = 5, Level = LogLevel.Information, Message = "Consumer AuditRecordRequested.v1 parado.")]
     private static partial void LogConsumerStopped(ILogger logger);
+
+    [LoggerMessage(EventId = 6, Level = LogLevel.Warning, Message = "Retry local agendado para AuditRecordRequested.v1. topic={Topic} partition={Partition} offset={Offset} attempt={Attempt} maxAttempts={MaxAttempts} delay={Delay}")]
+    private static partial void LogAuditRecordRequestedRetryScheduled(
+        ILogger logger,
+        Exception exception,
+        string topic,
+        int partition,
+        long offset,
+        int attempt,
+        int maxAttempts,
+        TimeSpan delay);
 }

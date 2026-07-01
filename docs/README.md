@@ -35,6 +35,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [Custo e free tier do Pub/Sub](development/pubsub-cost-and-free-tier.md): estimar throughput, identificar recursos que podem gerar custo e coletar dados para uma estimativa real.
 - [Baseline de evolucao produtiva](architecture/production-readiness.md): referencia arquitetural para secrets, identidade de workload, TLS, Pub/Sub real, Cloud SQL, imagens, WAF, observabilidade, operacao e governanca, sem declarar prontidao produtiva.
 - [Operacao do Pub/Sub](operations/pubsub.md): selecionar provider, subir emulator, aplicar Terraform dev manualmente, configurar workers e diagnosticar falhas comuns.
+- [Operacao do AuditService.Worker](operations/audit-worker.md): retry, DLQ, logs, metricas e validacao isolada do consumer `AuditRecordRequested.v1`.
 - [Runbook de recuperacao de eventos](operations/event-recovery-runbook.md): consolidar investigacao de DLQ, retry, replay, descarte, rebuild de projecao e relatorio de divergencia.
 - [Replay e DLQ orientados por contrato](operations/event-replay-and-dlq.md): inspecionar DLQ, validar schema por versao, decidir discard, ack, nack ou redrive e preservar idempotencia.
 - [Estrategia operacional de DLQ](operations/dlq-strategy.md): classificar falhas, decidir discard, retry ou replay/redrive em Pub/Sub e Kafka, preservar idempotencia e orientar observabilidade.
@@ -56,6 +57,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [Spec SDD de idempotencia do IdentityService](specs/identity-idempotency.md): comportamento esperado para `Idempotency-Key` opcional em `POST /api/v1/users`.
 - [Spec SDD do AuditRecordRequested.v1](specs/audit/audit-record-requested-v1.md): contrato canonico futuro de auditoria funcional, com schema e exemplos, sem integracao ativa.
 - [Spec SDD do consumer AuditService.Worker](specs/audit/audit-service-worker-consumer.md): consumo Kafka de `AuditRecordRequested.v1`, idempotencia por `source_event_id` e validacoes isoladas.
+- [Spec SDD de hardening do AuditService.Worker](specs/audit/audit-service-worker-hardening.md): retry, DLQ, idempotencia, metricas e testes isolados do consumer de auditoria.
 - [Validacao isolada do AuditService](specs/audit/audit-service-isolated-validation.md): revisao de isolamento, referencias, schema, endpoints, idempotencia, consultas, testes e riscos remanescentes.
 - [Estrategia futura de integracao assincrona do AuditService](specs/audit/audit-async-integration-strategy.md): spec curta para futura integracao por Outbox local, Kafka e `AuditService.Worker`, sem implementacao ativa.
 - [Contratos logicos de eventos](events/README.md): payloads logicos atuais, produtores, consumidores e mapeamentos Pub/Sub/Kafka dos eventos.

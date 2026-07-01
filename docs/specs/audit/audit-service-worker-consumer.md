@@ -18,6 +18,7 @@ Kafka topic audit.record.requested
   -> mapeia para CreateAuditRecordCommand
   -> persiste em audit.functional_audit_records
   -> deduplica por source_event_id
+  -> publica DLQ para erro definitivo
   -> commita offset
 ```
 
@@ -36,8 +37,8 @@ evento, foi adicionada a coluna nullable `source_event_id` em
 
 O campo `eventId` de `AuditRecordRequested.v1` e mapeado para
 `SourceEventId`. Eventos duplicados com o mesmo payload retornam o registro ja
-persistido; reuso do mesmo `eventId` com payload diferente gera conflito no
-caso de uso e o offset nao e commitado.
+persistido; reuso do mesmo `eventId` com payload diferente gera conflito
+definitivo e e enviado para DLQ antes do commit.
 
 ## Configuracao
 
@@ -57,7 +58,9 @@ O consumer fica desabilitado por padrao:
       "Topic": "audit.record.requested",
       "GroupId": "audit-record-requested-consumer",
       "EnableAutoCommit": false,
-      "EnableAutoOffsetStore": false
+      "EnableAutoOffsetStore": false,
+      "DeadLetterTopic": "audit.record.requested.dlq",
+      "MaxProcessingAttempts": 3
     }
   }
 }
@@ -66,14 +69,18 @@ O consumer fica desabilitado por padrao:
 Para iniciar consumo real, `AuditService:Worker:Enabled` e
 `Kafka:AuditRecordRequestedConsumer:Enabled` devem estar `true`.
 
-## Tratamento de erros
+## Tratamento de erros e DLQ
 
-- JSON invalido ou contrato incompatível: erro definitivo, logado e considerado
-  processado para evitar loop infinito sem DLQ nesta etapa.
-- Falha de persistencia ou conflito de `source_event_id` com payload diferente:
-  excecao propagada, sem commit de offset.
+- JSON invalido ou contrato incompatível: erro definitivo, publicado em
+  `audit.record.requested.dlq` e commitado apenas apos a DLQ confirmar publish.
+- Falha transitoria de persistencia: retry local controlado e offset sem commit
+  enquanto a persistencia nao concluir.
+- Conflito de `source_event_id` com payload diferente: erro definitivo de
+  idempotencia, publicado em DLQ antes do commit.
 - Commit Kafka acontece apenas depois que o processador conclui o tratamento da
   mensagem.
+- O payload bruto nao e publicado na DLQ; o worker envia hash SHA-256 e
+  metadados de transporte.
 
 ## Validacao
 
@@ -95,5 +102,5 @@ devem ser executados os builds/testes isolados de `AuditService.Api`,
 - Criar producer Kafka em qualquer bounded context.
 - Alterar Ledger, Balance ou Transfer.
 - Criar eventos financeiros novos.
-- Criar DLQ sofisticada.
+- Criar redrive automatico de DLQ.
 - Executar testes dos demais dominios.

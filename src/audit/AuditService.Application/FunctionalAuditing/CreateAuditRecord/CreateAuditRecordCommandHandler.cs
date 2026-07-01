@@ -106,7 +106,7 @@ public sealed class CreateAuditRecordCommandHandler(IFunctionalAuditRecordReposi
             ? null
             : !string.Equals(requestHash, GenerateRequestHash(existing), StringComparison.Ordinal)
             ? throw new ConflictException("Idempotency-Key already used with a different payload.")
-            : new CreateAuditRecordResult(existing.Id);
+            : new CreateAuditRecordResult(existing.Id, Duplicate: true);
     }
 
     private async Task<CreateAuditRecordResult?> ResolveExistingBySourceEventIdAsync(
@@ -122,7 +122,7 @@ public sealed class CreateAuditRecordCommandHandler(IFunctionalAuditRecordReposi
             ? null
             : !string.Equals(requestHash, GenerateRequestHash(existing), StringComparison.Ordinal)
             ? throw new ConflictException("SourceEventId already used with a different payload.")
-            : new CreateAuditRecordResult(existing.Id);
+            : new CreateAuditRecordResult(existing.Id, Duplicate: true);
     }
 
     private static string GenerateRequestHash(CreateAuditRecordCommand request)

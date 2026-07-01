@@ -30,6 +30,10 @@ public sealed class AuditRecordRequestedConsumerOptions
     {
         get; init;
     }
+    public string DeadLetterTopic { get; init; } = "audit.record.requested.dlq";
+    public int DeadLetterMessageTimeoutMs { get; init; } = 30000;
+    public int MaxProcessingAttempts { get; init; } = 3;
+    public TimeSpan ProcessingRetryDelay { get; init; } = TimeSpan.FromSeconds(1);
     public TimeSpan ConsumeErrorRetryDelay { get; init; } = TimeSpan.FromSeconds(2);
     public TimeSpan ProcessingErrorRetryDelay { get; init; } = TimeSpan.FromSeconds(5);
 }

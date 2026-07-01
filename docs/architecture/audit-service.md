@@ -37,7 +37,7 @@ Nao existe integracao nesta primeira etapa:
 - `BalanceService` nao chama o `AuditService`;
 - `TransferService` nao chama o `AuditService`;
 - o `AuditService.Worker` possui consumer Kafka opcional de
-  `AuditRecordRequested.v1`;
+  `AuditRecordRequested.v1`, com retry controlado e DLQ de aplicacao;
 - nenhum outro bounded context publica eventos reais de auditoria;
 - nenhum evento financeiro foi alterado para carregar auditoria.
 
@@ -66,9 +66,9 @@ Essa direcao evita que falhas ou latencia do `AuditService` bloqueiem fluxos
 financeiros principais. Ela tambem preserva o contrato canonico de auditoria,
 com retry, DLQ, redrive e idempotencia tratados no fluxo assincrono.
 
-Nesta etapa, apenas o consumidor do `AuditService.Worker` foi implementado.
-Producers, Outbox nos servicos de origem, DLQ sofisticada e redrive continuam
-fora de escopo.
+Nesta etapa, apenas o consumidor do `AuditService.Worker` foi implementado e
+endurecido. Producers e Outbox nos servicos de origem continuam fora de escopo.
+Redrive automatico da DLQ tambem continua fora de escopo.
 
 ## Pontos de extensao para ingestao futura
 
@@ -94,7 +94,7 @@ As pastas `src/audit/AuditService.Api/Ingestion/Http` e
 `src/audit/AuditService.Infrastructure/Ingestion/Kafka` continuam como pontos
 documentados para adapters futuros. O consumer Kafka ativo fica em
 `src/audit/AuditService.Worker/Messaging/Kafka`. Nao ha endpoint interno novo,
-producer, DLQ ou publicacao ativa.
+producer real ou publicacao ativa em outro bounded context.
 
 O evento canonico `AuditRecordRequested.v1` solicita a criacao de uma trilha
 funcional. Exemplo conceitual, sem produtor real atual:
@@ -214,10 +214,10 @@ em `source_event_id` com indice unico. Essa chave e separada do
 
 - O contexto ainda nao esta conectado a nenhum fluxo de Ledger, Balance ou
   Transfer.
-- Ha consumer Kafka no `AuditService.Worker`, mas nao ha producer real nos
-  demais bounded contexts.
-- Nao ha Outbox de auditoria nos servicos de origem, redrive ou DLQ sofisticada
-  de auditoria.
+- Ha consumer Kafka endurecido no `AuditService.Worker`, mas nao ha producer
+  real nos demais bounded contexts.
+- Nao ha Outbox de auditoria nos servicos de origem nem redrive automatico da
+  DLQ de auditoria.
 - Os contratos de ingestao em `Application` sao pontos internos de extensao e
   ainda nao representam contrato de mensageria ativo entre servicos.
 - Nao ha catalogo central versionado de `sourceService` e `operationType`.
