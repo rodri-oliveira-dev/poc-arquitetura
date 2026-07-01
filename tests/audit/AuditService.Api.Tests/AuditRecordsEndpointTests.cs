@@ -1,16 +1,21 @@
 using System.Globalization;
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 
+using AuditService.Api.Tests.Security;
 using AuditService.Application.Abstractions.Persistence;
 using AuditService.Application.FunctionalAuditing.ReadModels;
 using AuditService.Domain.FunctionalAuditing;
 
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.IdentityModel.Tokens;
 
 using ApplicationDependencyInjection = AuditService.Application.DependencyInjection;
 using InfrastructureDependencyInjection = AuditService.Infrastructure.DependencyInjection;
@@ -21,6 +26,32 @@ public sealed class AuditRecordsEndpointTests
 {
     private static readonly DateTimeOffset BaseInstant =
         DateTimeOffset.Parse("2026-06-30T10:30:00Z", CultureInfo.InvariantCulture);
+
+    [Fact]
+    public async Task Post_without_token_should_return_401()
+    {
+        using var factory = new AuditApiFactory(authenticateByDefault: false);
+        using HttpClient client = factory.CreateClient();
+
+        using var request = CreatePost(ValidPayload(), "00000000-0000-0000-0000-000000000003");
+
+        HttpResponseMessage response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Post_without_audit_write_scope_should_return_403()
+    {
+        using var factory = new AuditApiFactory(scopes: "audit.read");
+        using HttpClient client = factory.CreateClient();
+
+        using var request = CreatePost(ValidPayload(), "00000000-0000-0000-0000-000000000003");
+
+        HttpResponseMessage response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
 
     [Fact]
     public async Task Post_valid_payload_should_return_201_created()
@@ -37,6 +68,30 @@ public sealed class AuditRecordsEndpointTests
             cancellationToken: TestContext.Current.CancellationToken);
         Assert.NotNull(body);
         Assert.NotEqual(Guid.Empty, body.Id);
+    }
+
+    [Fact]
+    public async Task Post_with_audit_write_should_persist_actor_from_token_when_claims_are_available()
+    {
+        using var factory = new AuditApiFactory(
+            scopes: "audit.write",
+            subject: "token-subject",
+            clientId: "token-client");
+        using HttpClient client = factory.CreateClient();
+        var payload = ValidPayload() with
+        {
+            Actor = new CreateAuditRecordActorRequest("Client", "body-subject", "body-client")
+        };
+
+        using var request = CreatePost(payload, "00000000-0000-0000-0000-000000000003");
+
+        HttpResponseMessage response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        FunctionalAuditRecord record = Assert.Single(factory.Store.Records);
+        Assert.Equal("User", record.ActorType);
+        Assert.Equal("token-subject", record.ActorSubject);
+        Assert.Equal("token-client", record.ActorClientId);
     }
 
     [Fact]
@@ -210,6 +265,48 @@ public sealed class AuditRecordsEndpointTests
     }
 
     [Fact]
+    public async Task Get_without_token_should_return_401()
+    {
+        using var factory = new AuditApiFactory(authenticateByDefault: false);
+        FunctionalAuditRecord record = factory.Store.Add(CreateRecord());
+        using HttpClient client = factory.CreateClient();
+
+        HttpResponseMessage response = await client.GetAsync(
+            $"/api/v1/audit-records/{record.Id}",
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Get_without_audit_read_or_admin_scope_should_return_403()
+    {
+        using var factory = new AuditApiFactory(scopes: "audit.write");
+        FunctionalAuditRecord record = factory.Store.Add(CreateRecord());
+        using HttpClient client = factory.CreateClient();
+
+        HttpResponseMessage response = await client.GetAsync(
+            $"/api/v1/audit-records/{record.Id}",
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Get_by_id_with_audit_read_should_return_403_for_other_merchant()
+    {
+        using var factory = new AuditApiFactory(scopes: "audit.read", merchantIds: "merchant-a");
+        FunctionalAuditRecord record = factory.Store.Add(CreateRecord(merchantId: "merchant-b"));
+        using HttpClient client = factory.CreateClient();
+
+        HttpResponseMessage response = await client.GetAsync(
+            $"/api/v1/audit-records/{record.Id}",
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Get_by_id_should_return_404_when_record_does_not_exist()
     {
         using var factory = new AuditApiFactory();
@@ -256,6 +353,84 @@ public sealed class AuditRecordsEndpointTests
 
         AuditRecordResponse item = Assert.Single(body.Items);
         Assert.Equal("merchant-a", item.MerchantId);
+    }
+
+    [Fact]
+    public async Task Search_with_audit_read_should_only_return_authorized_merchant()
+    {
+        using var factory = new AuditApiFactory(scopes: "audit.read", merchantIds: "merchant-a");
+        factory.Store.Add(CreateRecord(merchantId: "merchant-a"));
+        factory.Store.Add(CreateRecord(merchantId: "merchant-b"));
+        using HttpClient client = factory.CreateClient();
+
+        PagedResponse<AuditRecordResponse> body = await SearchAsync(client, string.Empty);
+
+        AuditRecordResponse item = Assert.Single(body.Items);
+        Assert.Equal("merchant-a", item.MerchantId);
+    }
+
+    [Fact]
+    public async Task Search_with_audit_admin_should_query_multiple_merchants()
+    {
+        using var factory = new AuditApiFactory(scopes: "audit.admin", merchantIds: "merchant-a");
+        factory.Store.Add(CreateRecord(merchantId: "merchant-a"));
+        factory.Store.Add(CreateRecord(merchantId: "merchant-b"));
+        using HttpClient client = factory.CreateClient();
+
+        PagedResponse<AuditRecordResponse> body = await SearchAsync(client, string.Empty);
+
+        Assert.Equal(["merchant-a", "merchant-b"], body.Items.Select(item => item.MerchantId).Order());
+    }
+
+    [Fact]
+    public async Task Search_with_audit_read_should_return_403_for_unauthorized_merchant_filter()
+    {
+        using var factory = new AuditApiFactory(scopes: "audit.read", merchantIds: "merchant-a");
+        factory.Store.Add(CreateRecord(merchantId: "merchant-b"));
+        using HttpClient client = factory.CreateClient();
+
+        HttpResponseMessage response = await client.GetAsync(
+            $"/api/v1/audit-records?{PeriodQuery()}&merchantId=merchant-b",
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Get_by_operation_id_with_audit_read_should_filter_to_authorized_merchant()
+    {
+        using var factory = new AuditApiFactory(scopes: "audit.read", merchantIds: "merchant-a");
+        const string operationId = "00000000-0000-0000-0000-000000000111";
+        factory.Store.Add(CreateRecord(operationId: operationId, merchantId: "merchant-a"));
+        factory.Store.Add(CreateRecord(operationId: operationId, merchantId: "merchant-b"));
+        using HttpClient client = factory.CreateClient();
+
+        HttpResponseMessage response = await client.GetAsync(
+            $"/api/v1/audit-records/operations/{operationId}",
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        AuditRecordResponse[] body = (await response.Content.ReadFromJsonAsync<AuditRecordResponse[]>(
+            cancellationToken: TestContext.Current.CancellationToken))!;
+        AuditRecordResponse item = Assert.Single(body);
+        Assert.Equal("merchant-a", item.MerchantId);
+    }
+
+    [Fact]
+    public async Task Swagger_should_include_bearer_security_scheme_for_audit_endpoints()
+    {
+        using var factory = new AuditApiFactory();
+        using HttpClient client = factory.CreateClient();
+
+        HttpResponseMessage response = await client.GetAsync(
+            "/swagger/v1/swagger.json",
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        string body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains("\"Bearer\"", body, StringComparison.Ordinal);
+        Assert.Contains("\"/api/v1/audit-records\"", body, StringComparison.Ordinal);
+        Assert.Contains("\"security\"", body, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -478,13 +653,28 @@ public sealed class AuditRecordsEndpointTests
             },
             createdAt: occurredAt ?? BaseInstant);
 
-    private sealed class AuditApiFactory : WebApplicationFactory<Program>
+    private sealed class AuditApiFactory(
+        bool authenticateByDefault = true,
+        string? scopes = "audit.write audit.admin",
+        string? merchantIds = "m1",
+        string? subject = "audit-test-user",
+        string? clientId = "audit-test-client") : WebApplicationFactory<Program>
     {
         public AuditRecordStore Store { get; } = new();
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             builder.UseEnvironment("Test");
+            builder.ConfigureAppConfiguration((_, configuration) =>
+            {
+                configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Jwt:Issuer"] = TestJwtTokenFactory.KeycloakIssuer,
+                    ["Jwt:Audience"] = TestJwtTokenFactory.AuditAudience,
+                    ["Jwt:JwksUrl"] = "https://localhost/jwks.json",
+                    ["Swagger:Enabled"] = "true"
+                });
+            });
             builder.ConfigureTestServices(services =>
             {
                 services.RemoveAll<IFunctionalAuditRecordRepository>();
@@ -492,7 +682,28 @@ public sealed class AuditRecordsEndpointTests
                 services.AddSingleton(Store);
                 services.AddScoped<IFunctionalAuditRecordRepository, FakeFunctionalAuditRecordRepository>();
                 services.AddScoped<IFunctionalAuditRecordQueryService, FakeFunctionalAuditRecordQueryService>();
+
+                services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
+                {
+                    options.ConfigurationManager = null;
+                    options.TokenValidationParameters.ConfigurationManager = null;
+                    options.TokenValidationParameters.ValidIssuer = TestJwtTokenFactory.KeycloakIssuer;
+                    options.TokenValidationParameters.IssuerSigningKey = new RsaSecurityKey(TestJwtKeys.CreateRsa())
+                    {
+                        KeyId = TestJwtKeys.Kid
+                    };
+                });
             });
+        }
+
+        protected override void ConfigureClient(HttpClient client)
+        {
+            if (!authenticateByDefault)
+                return;
+
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+                "Bearer",
+                TestJwtTokenFactory.CreateToken(scopes, merchantIds, subject, clientId));
         }
     }
 

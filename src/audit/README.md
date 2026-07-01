@@ -14,6 +14,15 @@ payload retornam o mesmo identificador; repeticoes com payload diferente retorna
 `X-Correlation-Id` e opcional; se ausente, o servico usa `correlationId` do body ou o valor gerado
 pelo middleware padrao.
 
+Os endpoints de auditoria exigem JWT Bearer validado via issuer/audience/JWKS configurados em `Jwt`.
+`POST /api/v1/audit-records` exige scope `audit.write`. Consultas exigem `audit.read` ou `audit.admin`.
+Tokens com `audit.read` ficam restritos ao `merchant_id` autorizado no token; `audit.admin` pode consultar
+sem filtro de merchant ou por diferentes merchants. Health e readiness permanecem publicos.
+
+Ao criar registros, se o token trouxer `sub` ou `client_id`, o actor persistido e derivado dessas claims
+e tem precedencia sobre `actor` informado no body. Isso evita confiar cegamente em identidade enviada pelo
+chamador; quando o token nao traz essas claims, o actor do body e preservado.
+
 Metadata e aceita como objeto JSON simples de pares string/string, com limite de tamanho, sem gravar
 payload bruto de request.
 

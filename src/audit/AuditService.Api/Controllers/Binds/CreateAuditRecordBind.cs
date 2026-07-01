@@ -1,6 +1,7 @@
 using ApiDefaults.Middlewares;
 
 using AuditService.Api.Contracts;
+using AuditService.Api.Security;
 using AuditService.Application.FunctionalAuditing.CreateAuditRecord;
 
 using FluentValidation;
@@ -35,12 +36,12 @@ public static class CreateAuditRecordBind
             validRequest.EntityType,
             validRequest.EntityId,
             validRequest.MerchantId,
-            validRequest.Actor is null
+            httpContext.User.ResolveActor(validRequest.Actor is null
                 ? null
                 : new CreateAuditRecordActor(
                     validRequest.Actor.Type,
                     validRequest.Actor.Subject,
-                    validRequest.Actor.ClientId),
+                    validRequest.Actor.ClientId)),
             validRequest.Status,
             validRequest.Reason,
             validRequest.Metadata,

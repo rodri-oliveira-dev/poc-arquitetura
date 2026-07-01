@@ -14,6 +14,8 @@ app.UseForwardedHeaders();
 app.UseApiSwagger(builder.Configuration);
 
 app.UseApiDefaults();
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapApiHealthEndpoints(
     static (_, _, _) => Task.FromResult<IReadOnlyDictionary<string, string>>(new Dictionary<string, string>

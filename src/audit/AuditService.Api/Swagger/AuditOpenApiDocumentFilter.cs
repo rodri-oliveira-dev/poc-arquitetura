@@ -19,24 +19,5 @@ public sealed class AuditOpenApiDocumentFilter : IDocumentFilter
             }
         }
 
-        MarkAuditRecordEndpointsAsPublic(swaggerDoc);
-    }
-
-    private static void MarkAuditRecordEndpointsAsPublic(OpenApiDocument swaggerDoc)
-    {
-        if (swaggerDoc.Paths is null)
-            return;
-
-        foreach (KeyValuePair<string, IOpenApiPathItem> item in swaggerDoc.Paths)
-        {
-            if (!item.Key.StartsWith("/api/v1/audit-records", StringComparison.Ordinal) ||
-                item.Value.Operations is null)
-            {
-                continue;
-            }
-
-            foreach (OpenApiOperation operation in item.Value.Operations.Values)
-                operation.Security = [];
-        }
     }
 }

@@ -1,5 +1,8 @@
+using AuditService.Api.Tests.Security;
+
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Configuration;
 
 namespace AuditService.Api.Tests;
 
@@ -42,6 +45,15 @@ public sealed class HealthEndpointTests
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             builder.UseEnvironment("Test");
+            builder.ConfigureAppConfiguration((_, configuration) =>
+            {
+                configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Jwt:Issuer"] = TestJwtTokenFactory.KeycloakIssuer,
+                    ["Jwt:Audience"] = TestJwtTokenFactory.AuditAudience,
+                    ["Jwt:JwksUrl"] = "https://localhost/jwks.json"
+                });
+            });
         }
     }
 }

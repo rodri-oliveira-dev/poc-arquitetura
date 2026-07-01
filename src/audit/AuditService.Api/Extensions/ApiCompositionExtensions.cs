@@ -20,6 +20,7 @@ public static class ApiCompositionExtensions
         services
             .AddApiDefaults<GlobalExceptionHandler>(configuration, "audit.localhost", "localhost")
             .AddApiSwagger()
+            .AddAuditApiSecurity(configuration, environment)
             .AddApiObservability(configuration);
 
         services.AddAuditApplication();
