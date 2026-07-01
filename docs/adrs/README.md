@@ -15,6 +15,7 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 
 | ADR                                                                   | Status      | Resumo                                                                                           |
 | --------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------ |
+| [ADR-0097](./0097-functional-audit-service.md) | Aceito | Define o AuditService como bounded context separado de auditoria funcional, com schema `audit`, contrato HTTP canonico e sem integracao inicial. |
 | [ADR-0096](./0096-idempotencia-cadastro-usuarios-identity-service.md) | Aceito | Define idempotencia opcional no cadastro de usuarios do IdentityService com `Idempotency-Key`, PostgreSQL, replay seguro e compensacao Keycloak. |
 | [ADR-0095](./0095-evolucao-futura-email-identity-service.md) | Proposto | Registra evolucao futura do envio de e-mails do IdentityService com Outbox, mensageria, retry, DLQ e worker dedicado. |
 | [ADR-0094](./0094-mailpit-local-identity-service.md) | Aceito | Define Mailpit como captura local de e-mails do IdentityService, sem alterar a Application. |

@@ -11,6 +11,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [Política de wrappers de scripts](development/scripts.md): caminhos atuais e compatibilidade dos wrappers antigos em `scripts/`.
 - [Manutencao Docker local](development/docker-maintenance.md): diagnostico de disco, cache BuildKit limitado a 5GB, classificacao de volumes e limpeza segura por retencao.
 - [Validacao dos contratos OpenAPI](development/openapi-contract-validation.md): geracao, lint, drift e diff de breaking changes contra a main.
+- [AuditService API](development/audit-api.md): contrato HTTP canonico de auditoria funcional, headers, scopes, idempotencia, filtros e limitacoes da etapa isolada.
 - [Politica de versionamento de contratos de eventos](development/event-contract-versioning.md): evoluir eventos versionados entre Ledger e Balance preservando compatibilidade em Pub/Sub e Kafka.
 - [FAQ](faq.md): respostas curtas para as duvidas mais provaveis de leitura tecnica.
 - [Maturidade tecnica do projeto](maturity.md): criterios atuais de documentacao, seguranca, testes, CI, observabilidade e pendencias.
@@ -51,6 +52,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [BalanceService API](development/balance-api.md): contratos HTTP de leitura de consolidados diarios e por periodo.
 - [TransferService API](development/transfer-api.md): contratos HTTP para solicitacao e consulta de sagas de transferencia.
 - [IdentityService API](development/identity-api.md): contrato HTTP de cadastro de usuarios, `Idempotency-Key`, retries e conflitos.
+- [AuditService API](development/audit-api.md): contrato HTTP de criacao e consulta de registros funcionais de auditoria, agnostico ao servico chamador.
 - [Spec SDD de idempotencia do IdentityService](specs/identity-idempotency.md): comportamento esperado para `Idempotency-Key` opcional em `POST /api/v1/users`.
 - [Contratos logicos de eventos](events/README.md): payloads logicos atuais, produtores, consumidores e mapeamentos Pub/Sub/Kafka dos eventos.
 - [JSON Schemas versionados de eventos](../contracts/events/README.md): schemas e exemplos para validar payloads logicos de eventos.
@@ -78,6 +80,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 ## Explicacao
 
 - [Documentacao arquitetural](architecture/README.md): modelo LikeC4 e publicacao no GitHub Pages.
+- [Arquitetura do AuditService](architecture/audit-service.md): papel do bounded context, schema `audit`, contrato canonico, seguranca, metadata e limites da etapa sem integracao.
 - [Boundaries arquiteturais](architecture/boundaries.md): responsabilidades de `Api`, `Application`, `Domain` e `Infrastructure`.
 - [Analise arquitetural e decisoes recomendadas](architecture/decisions.md): riscos, simplificacoes e roadmap pragmatico.
 - [Baseline de evolucao produtiva](architecture/production-readiness.md): requisitos recomendados para evolucao futura fora do laboratorio local, ainda sem implementacao produtiva.
@@ -87,6 +90,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [Backend remoto GCS para Terraform dev](adrs/0080-backend-remoto-gcs-terraform-dev.md): registra a adocao do backend remoto parcial em GCS, separacao por ambiente e migracao manual de state.
 - [Mensageria por ports and adapters](adrs/0075-mensageria-ports-adapters-kafka-provider.md): historico da introducao do boundary quando Kafka ainda era o provider atual.
 - [Kafka como default dos workers](adrs/0088-kafka-default-ledger-balance-workers.md): adota Kafka como default para Ledger/Balance e mantem Pub/Sub por selecao explicita.
+- [Bounded context de auditoria funcional](adrs/0097-functional-audit-service.md): registra AuditService separado, schema `audit`, contrato HTTP canonico e ausencia de integracao inicial.
 - [LedgerEntryCreated.v2 com currency explicita](adrs/0084-ledger-entry-created-v2-currency-explicita.md): cria v2 com `currency` obrigatoria e mantem leitura de v1 como legado.
 - [Separacao de configuracoes locais sensiveis](adrs/0085-separacao-configuracoes-locais-sensiveis-arquivos-versionados.md): registra a decisao de manter secrets locais fora dos arquivos versionados usando exemplos com placeholders.
 - [Saga orquestrada no TransferService com Kafka](adrs/0087-saga-orquestrada-transfer-service-kafka.md): planeja o estudo de transferencias entre merchants com orquestracao central, Outbox transacional, worker assincrono, Kafka explicito, idempotencia por etapa e DLQ de aplicacao.

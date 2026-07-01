@@ -26,10 +26,11 @@ Principais servicos:
 | `BalanceService.Api` | API de leitura de saldos consolidados projetados pelo Worker. |
 | `BalanceService.Worker` | Processo dedicado para consumir eventos financeiros do Ledger pelo provider selecionado e atualizar a projecao de saldos. |
 | `TransferService.Api` / `TransferService.Worker` | Bounded context de transferencias com Saga orquestrada, POST/consulta HTTP, persistencia EF Core, Outbox transacional e publicacao Kafka explicita dos eventos da Saga. |
+| `AuditService.Api` | Bounded context de auditoria funcional com contrato HTTP canonico, schema `audit`, idempotencia e consultas por operacao, ainda sem integracao com os demais dominios. |
 
 ## Arquitetura
 
-`LedgerService`, `BalanceService` e `TransferService` usam projetos por camada:
+`LedgerService`, `BalanceService`, `TransferService` e `AuditService` usam projetos por camada:
 
 - `Api`: entrada HTTP, autenticacao, autorizacao, Swagger, health/readiness e composicao via DI.
 - `Shared/ApiDefaults`: defaults HTTP tecnicos compartilhados pelas APIs de negocio, sem regras de dominio ou policies especificas.
@@ -43,6 +44,26 @@ Principais servicos:
 Documentacao arquitetural publicada:
 
 <https://rodri-oliveira-dev.github.io/poc-arquitetura/>
+
+## AuditService
+
+O `AuditService` e o bounded context de auditoria funcional da POC. Ele fica em
+`src/audit`, possui testes em `tests/audit`, persiste registros no schema
+PostgreSQL `audit` e expoe endpoints HTTP em `/api/v1/audit-records` para criar
+e consultar trilhas funcionais por id, por `operationId` e por filtros.
+
+O contrato e canonico e agnostico ao servico chamador: `sourceService` e
+`operationType` identificam a origem e a operacao sem acoplar a auditoria a
+tipos internos de Ledger, Balance, Transfer ou Identity. Nesta etapa, o
+`AuditService` nao esta integrado aos demais dominios, nao possui worker e nao
+consome Kafka.
+
+Leitura das decisoes e contrato:
+
+- [ADR-0097: Bounded context de auditoria funcional](docs/adrs/0097-functional-audit-service.md)
+- [Arquitetura do AuditService](docs/architecture/audit-service.md)
+- [AuditService API](docs/development/audit-api.md)
+- [OpenAPI audit.v1](docs/openapi/audit.v1.json)
 
 ## IdentityService
 
@@ -464,6 +485,7 @@ Os scripts executam testes com cobertura e aplicam gate minimo de 85% de cobertu
 - [Dev Container opcional](docs/development/devcontainer.md)
 - [LedgerService API](docs/development/ledger-api.md)
 - [BalanceService API](docs/development/balance-api.md)
+- [AuditService API](docs/development/audit-api.md)
 - [Contratos logicos de eventos](docs/events/README.md)
 - [Politica de versionamento de contratos de eventos](docs/development/event-contract-versioning.md)
 - [Arquitetura](docs/architecture/README.md)

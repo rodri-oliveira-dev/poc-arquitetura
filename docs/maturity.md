@@ -1,11 +1,11 @@
 # Maturidade tecnica do projeto
 
-Status documental atualizado em 2026-06-07. A tabela resume o estado atual do projeto com base nos arquivos versionados e em leitura estatica do codigo. Esta pagina nao substitui build, testes, k6, DAST, pentest ou scanners recentes, e nao afirma resultado recente de validacoes que nao foram executadas nesta revisao.
+Status documental atualizado em 2026-07-01. A tabela resume o estado atual do projeto com base nos arquivos versionados e em leitura estatica do codigo. Esta pagina nao substitui build, testes, k6, DAST, pentest ou scanners recentes, e nao afirma resultado recente de validacoes que nao foram executadas nesta revisao.
 
 | Criterio | Status | Evidencia | Observacao |
 | --- | --- | --- | --- |
 | Objetivo e escopo do projeto documentados | Atendido | `README.md`, `docs/README.md`, ADRs iniciais | O historico de POC foi preservado, mas o posicionamento principal agora descreve um projeto continuo de estudos arquiteturais. |
-| Contratos HTTP documentados | Atendido | `docs/development/ledger-api.md`, `docs/development/balance-api.md`, `docs/development/authentication.md` | Inclui lancamentos, estornos, reprocessamentos, consolidados, scopes e merchant authorization. |
+| Contratos HTTP documentados | Atendido | `docs/development/ledger-api.md`, `docs/development/balance-api.md`, `docs/development/audit-api.md`, `docs/development/authentication.md` | Inclui lancamentos, estornos, reprocessamentos, consolidados, auditoria funcional, scopes e merchant authorization. |
 | Swagger/OpenAPI alinhado ao codigo | Atendido | `docs/openapi/`, `.github/workflows/openapi-contracts.yml`, `scripts/contracts/openapi/generate.*`, `redocly.yaml`, `scripts/contracts/openapi/check-breaking-changes.sh` | Ha geracao automatizada, lint, validacao de drift e diff de breaking changes contra a branch base quando o baseline esta disponivel. Esta revisao nao executou o workflow. |
 | Contratos de eventos versionados | Atendido | `contracts/events/`, `docs/events/`, `docs/development/event-contract-versioning.md`, `.github/workflows/event-contracts.yml`, `scripts/contracts/events/validate.mjs` | JSON Schemas e exemplos versionados sao validados pelo workflow `event-contract-validation`; `LedgerEntryCreated.v2` inclui `currency` obrigatoria e v1 permanece como legado. |
 | LikeC4 representando implementacao real | Atendido | `docs/architecture/model.c4`, `deployment.c4`, `views.c4` | Modelo distingue Kafka local padrao, Pub/Sub emulator explicito/legado, Pub/Sub real na GCP, APIs, workers, bancos, observabilidade e Nginx local. |
@@ -26,6 +26,7 @@ Status documental atualizado em 2026-06-07. A tabela resume o estado atual do pr
 | Limitacoes conhecidas documentadas | Parcialmente atendido | `docs/reports/aspire-and-owasp-assessment.md`, `docs/architecture/decisions.md`, ADRs propostas | Limitacoes principais seguem registradas, incluindo Auth.Api legado, baseline produtivo, DAST sem gate e thresholds k6 restritos a baseline local, sem declarar SLO produtivo. |
 | Baseline de evolucao produtiva documentado | Parcialmente atendido | `docs/architecture/production-readiness.md` | Baseline recomendado criado como referencia arquitetural. Ele nao declara prontidao produtiva e nao implementa secrets, TLS, Workload Identity, WAF, scan de imagem ou infraestrutura produtiva. |
 | Decisoes arquiteturais registradas | Atendido | `docs/adrs/README.md`, `docs/adrs/*.md` | ADRs cobrem arquitetura, seguranca, CI, observabilidade, workers, Nginx e fluxos assincronos. |
+| AuditService como bounded context | Parcialmente atendido | `src/audit`, `tests/audit`, `docs/development/audit-api.md`, `docs/architecture/audit-service.md`, `docs/adrs/0097-functional-audit-service.md` | O contexto esta documentado e isolado, com schema `audit` e contrato HTTP canonico. Ainda nao ha integracao com Ledger, Balance ou Transfer, worker ou Kafka. |
 
 ## Pendencias principais
 

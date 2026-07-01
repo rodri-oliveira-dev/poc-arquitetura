@@ -25,6 +25,7 @@ Um item deve sair de "Proximos passos" ou "Em andamento ou parcialmente atendido
 - `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker` separados operacionalmente, conforme [README](../README.md) e [boundaries](architecture/boundaries.md).
 - Kafka definido como provider padrao dos workers principais, com Pub/Sub mantido como adapter explicito/legado.
 - Keycloak consolidado como identidade principal local, com `Auth.Api` fora da stack principal.
+- `AuditService` documentado como bounded context de auditoria funcional isolado, com schema `audit`, contrato HTTP canonico e ADR propria.
 - Modelo LikeC4 versionado e publicado por workflow de Pages.
 
 ### Em andamento ou parcialmente atendido
@@ -32,12 +33,14 @@ Um item deve sair de "Proximos passos" ou "Em andamento ou parcialmente atendido
 - Algumas diferencas de padrao entre Ledger e Balance continuam aceitas de forma pragmatica, como uso de MediatR no Balance e posicao historica de algumas portas.
 - Readiness das APIs cobre dependencias diretas HTTP, mas pode crescer demais se novas verificacoes forem adicionadas sem extracao.
 - `OutboxMessage` permanece como escolha pragmatica de dominio/integracao, com risco conhecido se a complexidade aumentar.
+- `AuditService` existe como bounded context separado, mas permanece sem integracao com Ledger, Balance ou Transfer ate haver decisao especifica.
 
 ### Proximos passos
 
 - Padronizar criterio para novas portas de persistencia antes de criar novos servicos ou mover contratos internos.
 - Extrair checks de readiness para componentes pequenos se a composicao em `Program.cs` crescer.
 - Isolar montagem de eventos e Outbox apenas se os casos de uso crescerem ou os testes ficarem ruidosos.
+- Definir criterios e ADR especifica antes de conectar AuditService a qualquer fluxo de outro bounded context.
 - Manter diagramas LikeC4 e ADRs alinhados a cada mudanca relevante.
 
 ### Fora de escopo por enquanto
@@ -52,6 +55,7 @@ Um item deve sair de "Proximos passos" ou "Em andamento ou parcialmente atendido
 ### Feito
 
 - Contratos HTTP documentados para Ledger e Balance.
+- Contrato HTTP do AuditService documentado como API isolada de auditoria funcional.
 - OpenAPI versionado em `docs/openapi/`.
 - Geracao automatizada por scripts e workflow `openapi-contract-validation`.
 - Lint com Redocly, deteccao de drift e diff de breaking changes contra `main`, conforme [validacao OpenAPI](development/openapi-contract-validation.md).
@@ -65,7 +69,7 @@ Um item deve sair de "Proximos passos" ou "Em andamento ou parcialmente atendido
 
 - Endurecer gradualmente regras OpenAPI hoje mantidas como warning, quando houver baixo risco de ruido.
 - Reavaliar documentacao de status codes, payloads de erro, headers e scopes quando endpoints protegidos evoluirem.
-- Manter `docs/development/ledger-api.md`, `docs/development/balance-api.md` e contratos gerados sincronizados a cada mudanca HTTP.
+- Manter `docs/development/ledger-api.md`, `docs/development/balance-api.md`, `docs/development/audit-api.md` e contratos gerados sincronizados a cada mudanca HTTP.
 
 ### Fora de escopo por enquanto
 
@@ -163,6 +167,7 @@ Um item deve sair de "Proximos passos" ou "Em andamento ou parcialmente atendido
 - Runbooks de DLQ, retry, replay, redrive, descarte e rebuild documentados.
 - Casos de uso internos para replay manual, replay filtrado, rebuild parcial e relatorio de divergencia.
 - Requeue operacional de Outbox exposto no Ledger para mensagens em dead letter.
+- A primeira etapa do AuditService e explicitamente isolada: sem worker, sem Kafka e sem integracao automatica com os demais dominios.
 
 ### Em andamento ou parcialmente atendido
 
