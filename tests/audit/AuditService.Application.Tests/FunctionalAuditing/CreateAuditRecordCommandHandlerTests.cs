@@ -59,6 +59,47 @@ public sealed class CreateAuditRecordCommandHandlerTests
         Assert.Single(repository.Records);
     }
 
+    [Fact]
+    public async Task Handle_should_return_existing_id_when_concurrent_save_collides_with_same_payload()
+    {
+        var repository = new FakeFunctionalAuditRecordRepository
+        {
+            ThrowIdempotencyCollisionOnSave = true
+        };
+        var command = ValidCommand();
+        FunctionalAuditRecord existing = CreateRecord(command);
+        repository.ExistingAfterCollision = existing;
+        var handler = new CreateAuditRecordCommandHandler(repository);
+
+        CreateAuditRecordResult result = await handler.Handle(command, TestContext.Current.CancellationToken);
+
+        Assert.Equal(existing.Id, result.Id);
+        Assert.Equal(2, repository.GetByIdempotencyKeyCalls);
+        Assert.Equal(1, repository.AddCalls);
+    }
+
+    [Fact]
+    public async Task Handle_should_reject_when_concurrent_save_collides_with_different_payload()
+    {
+        var repository = new FakeFunctionalAuditRecordRepository
+        {
+            ThrowIdempotencyCollisionOnSave = true
+        };
+        var command = ValidCommand();
+        repository.ExistingAfterCollision = CreateRecord(command with
+        {
+            OperationType = "LancamentoEstornado"
+        });
+        var handler = new CreateAuditRecordCommandHandler(repository);
+
+        var exception = await Assert.ThrowsAsync<ConflictException>(() =>
+            handler.Handle(command, TestContext.Current.CancellationToken));
+
+        Assert.Contains("Idempotency-Key already used", exception.Message);
+        Assert.Equal(2, repository.GetByIdempotencyKeyCalls);
+        Assert.Equal(1, repository.AddCalls);
+    }
+
     private static CreateAuditRecordCommand ValidCommand()
         => new(
             OperationId: Guid.Parse("00000000-0000-0000-0000-000000000001"),
@@ -79,24 +120,77 @@ public sealed class CreateAuditRecordCommandHandlerTests
             },
             OccurredAt: DateTimeOffset.Parse("2026-06-30T10:30:00Z", CultureInfo.InvariantCulture));
 
+    private static FunctionalAuditRecord CreateRecord(CreateAuditRecordCommand command)
+        => FunctionalAuditRecord.Create(
+            operationId: command.OperationId.ToString(),
+            sourceService: command.SourceService,
+            operationType: command.OperationType,
+            status: command.Status,
+            occurredAt: command.OccurredAt,
+            correlationId: command.CorrelationId?.ToString(),
+            idempotencyKey: command.IdempotencyKey,
+            entityType: command.EntityType,
+            entityId: command.EntityId,
+            merchantId: command.MerchantId,
+            actorType: command.Actor?.Type,
+            actorSubject: command.Actor?.Subject,
+            actorClientId: command.Actor?.ClientId,
+            reason: command.Reason,
+            metadata: command.Metadata);
+
     private sealed class FakeFunctionalAuditRecordRepository : IFunctionalAuditRecordRepository
     {
         private readonly List<FunctionalAuditRecord> _records = [];
 
         public IReadOnlyCollection<FunctionalAuditRecord> Records => _records;
 
+        public bool ThrowIdempotencyCollisionOnSave
+        {
+            get; init;
+        }
+
+        public FunctionalAuditRecord? ExistingAfterCollision
+        {
+            get; set;
+        }
+
+        public int GetByIdempotencyKeyCalls
+        {
+            get; private set;
+        }
+
+        public int AddCalls
+        {
+            get; private set;
+        }
+
         public Task<FunctionalAuditRecord?> GetByIdempotencyKeyAsync(
             string idempotencyKey,
             CancellationToken cancellationToken = default)
-            => Task.FromResult(_records.SingleOrDefault(x => x.IdempotencyKey == idempotencyKey));
+        {
+            GetByIdempotencyKeyCalls++;
+
+            FunctionalAuditRecord? record = _records.SingleOrDefault(x => x.IdempotencyKey == idempotencyKey);
+            if (record is null && GetByIdempotencyKeyCalls > 1)
+                record = ExistingAfterCollision;
+
+            return Task.FromResult(record);
+        }
 
         public Task AddAsync(FunctionalAuditRecord record, CancellationToken cancellationToken = default)
         {
+            AddCalls++;
             _records.Add(record);
             return Task.CompletedTask;
         }
 
         public Task SaveChangesAsync(CancellationToken cancellationToken = default)
-            => Task.CompletedTask;
+        {
+            if (!ThrowIdempotencyCollisionOnSave)
+                return Task.CompletedTask;
+
+            _records.Clear();
+            throw new IdempotencyKeyUniqueConstraintViolationException();
+        }
     }
 }

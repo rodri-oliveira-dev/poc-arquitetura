@@ -1,6 +1,7 @@
 using ApiDefaults.Extensions;
 
 using AuditService.Api.Extensions;
+using AuditService.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,12 +19,9 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapApiHealthEndpoints(
-    static (_, _, _) => Task.FromResult<IReadOnlyDictionary<string, string>>(new Dictionary<string, string>
-    {
-        ["self"] = "ok"
-    }),
-    state: string.Empty,
-    "Valida o estado interno inicial do AuditService. O servico ainda nao possui dependencias externas configuradas.");
+    static (services, cancellationToken) =>
+        services.GetRequiredService<AuditDbContext>().Database.CanConnectAsync(cancellationToken),
+    "Valida dependencias necessarias para aceitar trafego HTTP: banco.");
 
 app.MapControllers().RequireRateLimiting("fixed");
 

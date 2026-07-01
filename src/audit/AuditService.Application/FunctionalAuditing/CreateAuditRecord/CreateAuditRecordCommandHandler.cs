@@ -26,16 +26,9 @@ public sealed class CreateAuditRecordCommandHandler(IFunctionalAuditRecordReposi
         var idempotencyKey = request.IdempotencyKey.Trim();
         var requestHash = GenerateRequestHash(request);
 
-        FunctionalAuditRecord? existing = await _repository.GetByIdempotencyKeyAsync(
-            idempotencyKey,
-            cancellationToken);
-
-        if (existing is not null)
-        {
-            return !string.Equals(requestHash, GenerateRequestHash(existing), StringComparison.Ordinal)
-                ? throw new ConflictException("Idempotency-Key already used with a different payload.")
-                : new CreateAuditRecordResult(existing.Id);
-        }
+        CreateAuditRecordResult? replay = await ResolveExistingAsync(idempotencyKey, requestHash, cancellationToken);
+        if (replay is not null)
+            return replay;
 
         var record = FunctionalAuditRecord.Create(
             operationId: request.OperationId.ToString(),
@@ -55,9 +48,34 @@ public sealed class CreateAuditRecordCommandHandler(IFunctionalAuditRecordReposi
             metadata: request.Metadata);
 
         await _repository.AddAsync(record, cancellationToken);
-        await _repository.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _repository.SaveChangesAsync(cancellationToken);
+        }
+        catch (IdempotencyKeyUniqueConstraintViolationException)
+        {
+            return await ResolveExistingAsync(idempotencyKey, requestHash, cancellationToken)
+                ?? throw new InvalidOperationException(
+                    "Concurrent idempotency record was not found after unique constraint conflict.");
+        }
 
         return new CreateAuditRecordResult(record.Id);
+    }
+
+    private async Task<CreateAuditRecordResult?> ResolveExistingAsync(
+        string idempotencyKey,
+        string requestHash,
+        CancellationToken cancellationToken)
+    {
+        FunctionalAuditRecord? existing = await _repository.GetByIdempotencyKeyAsync(
+            idempotencyKey,
+            cancellationToken);
+
+        return existing is null
+            ? null
+            : !string.Equals(requestHash, GenerateRequestHash(existing), StringComparison.Ordinal)
+            ? throw new ConflictException("Idempotency-Key already used with a different payload.")
+            : new CreateAuditRecordResult(existing.Id);
     }
 
     private static string GenerateRequestHash(CreateAuditRecordCommand request)

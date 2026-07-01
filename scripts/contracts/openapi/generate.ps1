@@ -79,6 +79,7 @@ Execute antes:
 function Invoke-SelectedOpenApiGeneration {
   param(
     [Parameter(Mandatory = $true)]
+    [AllowEmptyString()]
     [string]$SelectedService
   )
 
