@@ -43,6 +43,29 @@ Nao existe integracao nesta primeira etapa:
 Essa separacao evita acoplamento prematuro e permite validar o contrato
 funcional de auditoria antes de conectar fluxos de outros dominios.
 
+## Estrategia futura de integracao assincrona
+
+A estrategia proposta para integracao automatica futura esta registrada na
+[ADR-0099](../adrs/0099-audit-async-integration-strategy.md). Quando houver
+chamador real, a integracao deve seguir Outbox transacional local no servico de
+origem e Kafka como transporte para o `AuditService.Worker`:
+
+```text
+Servico de origem
+  -> operacao de negocio
+  -> Outbox transacional local
+  -> Worker/publicador do servico de origem
+  -> Kafka
+  -> AuditService.Worker
+  -> schema audit
+```
+
+Essa direcao evita que falhas ou latencia do `AuditService` bloqueiem fluxos
+financeiros principais. Ela tambem preserva o contrato canonico de auditoria,
+com retry, DLQ, redrive e idempotencia tratados no fluxo assincrono.
+
+Nenhum desses componentes foi implementado nesta etapa.
+
 ## Pontos de extensao para ingestao futura
 
 O `AuditService.Application` contem contratos canonicos internos em
@@ -195,6 +218,8 @@ da chave com payload diferente retorna `409 Conflict`.
 ## Proximas evolucoes planejadas
 
 - Definir criterios objetivos para conectar fluxos de outros bounded contexts.
+- Implementar a integracao assincrona por Outbox + Kafka apenas quando houver
+  primeiro fluxo produtor definido, contrato versionado e plano de retry/DLQ.
 - Registrar catalogo leve de operacoes auditaveis quando houver o primeiro
   chamador real.
 - Avaliar retencao, expurgo e mascaramento conforme requisitos de auditoria.

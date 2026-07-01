@@ -26,6 +26,7 @@ Um item deve sair de "Proximos passos" ou "Em andamento ou parcialmente atendido
 - Kafka definido como provider padrao dos workers principais, com Pub/Sub mantido como adapter explicito/legado.
 - Keycloak consolidado como identidade principal local, com `Auth.Api` fora da stack principal.
 - `AuditService` documentado como bounded context de auditoria funcional isolado, com schema `audit`, contrato HTTP canonico, pontos internos de extensao para ingestao futura e ADR propria.
+- Estrategia futura de integracao do `AuditService` definida como Outbox transacional local + Kafka, sem implementacao ativa nesta etapa.
 - Modelo LikeC4 versionado e publicado por workflow de Pages.
 
 ### Em andamento ou parcialmente atendido
@@ -33,14 +34,14 @@ Um item deve sair de "Proximos passos" ou "Em andamento ou parcialmente atendido
 - Algumas diferencas de padrao entre Ledger e Balance continuam aceitas de forma pragmatica, como uso de MediatR no Balance e posicao historica de algumas portas.
 - Readiness das APIs cobre dependencias diretas HTTP, mas pode crescer demais se novas verificacoes forem adicionadas sem extracao.
 - `OutboxMessage` permanece como escolha pragmatica de dominio/integracao, com risco conhecido se a complexidade aumentar.
-- `AuditService` existe como bounded context separado e ja possui contratos internos de ingestao futura, mas permanece sem integracao ativa com Ledger, Balance ou Transfer ate haver decisao especifica.
+- `AuditService` existe como bounded context separado e ja possui contratos internos de ingestao futura e ADR de estrategia assincrona, mas permanece sem integracao ativa com Ledger, Balance ou Transfer.
 
 ### Proximos passos
 
 - Padronizar criterio para novas portas de persistencia antes de criar novos servicos ou mover contratos internos.
 - Extrair checks de readiness para componentes pequenos se a composicao em `Program.cs` crescer.
 - Isolar montagem de eventos e Outbox apenas se os casos de uso crescerem ou os testes ficarem ruidosos.
-- Definir criterios e ADR especifica antes de conectar AuditService a qualquer fluxo de outro bounded context.
+- Antes de conectar o AuditService a qualquer fluxo de outro bounded context, definir a primeira fatia produtora, contrato canonico versionado, topico Kafka, idempotencia, retry, DLQ, observabilidade e rollout.
 - Manter diagramas LikeC4 e ADRs alinhados a cada mudanca relevante.
 
 ### Fora de escopo por enquanto

@@ -55,6 +55,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [AuditService API](development/audit-api.md): contrato HTTP de criacao e consulta de registros funcionais de auditoria, agnostico ao servico chamador.
 - [Spec SDD de idempotencia do IdentityService](specs/identity-idempotency.md): comportamento esperado para `Idempotency-Key` opcional em `POST /api/v1/users`.
 - [Validacao isolada do AuditService](specs/audit/audit-service-isolated-validation.md): revisao de isolamento, referencias, schema, endpoints, idempotencia, consultas, testes e riscos remanescentes.
+- [Estrategia futura de integracao assincrona do AuditService](specs/audit/audit-async-integration-strategy.md): spec curta para futura integracao por Outbox local, Kafka e `AuditService.Worker`, sem implementacao ativa.
 - [Contratos logicos de eventos](events/README.md): payloads logicos atuais, produtores, consumidores e mapeamentos Pub/Sub/Kafka dos eventos.
 - [JSON Schemas versionados de eventos](../contracts/events/README.md): schemas e exemplos para validar payloads logicos de eventos.
 - [Versionamento de contratos de eventos](development/event-contract-versioning.md): politica de compatibilidade, transporte, schemas, testes e depreciacao.
@@ -92,6 +93,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [Mensageria por ports and adapters](adrs/0075-mensageria-ports-adapters-kafka-provider.md): historico da introducao do boundary quando Kafka ainda era o provider atual.
 - [Kafka como default dos workers](adrs/0088-kafka-default-ledger-balance-workers.md): adota Kafka como default para Ledger/Balance e mantem Pub/Sub por selecao explicita.
 - [Bounded context de auditoria funcional](adrs/0097-functional-audit-service.md): registra AuditService separado, schema `audit`, contrato HTTP canonico e ausencia de integracao inicial.
+- [Estrategia de integracao assincrona do AuditService](adrs/0099-audit-async-integration-strategy.md): registra Outbox transacional local + Kafka como estrategia futura, sem alterar os servicos financeiros nesta etapa.
 - [LedgerEntryCreated.v2 com currency explicita](adrs/0084-ledger-entry-created-v2-currency-explicita.md): cria v2 com `currency` obrigatoria e mantem leitura de v1 como legado.
 - [Separacao de configuracoes locais sensiveis](adrs/0085-separacao-configuracoes-locais-sensiveis-arquivos-versionados.md): registra a decisao de manter secrets locais fora dos arquivos versionados usando exemplos com placeholders.
 - [Saga orquestrada no TransferService com Kafka](adrs/0087-saga-orquestrada-transfer-service-kafka.md): planeja o estudo de transferencias entre merchants com orquestracao central, Outbox transacional, worker assincrono, Kafka explicito, idempotencia por etapa e DLQ de aplicacao.
