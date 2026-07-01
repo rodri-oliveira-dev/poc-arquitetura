@@ -71,7 +71,7 @@ public sealed class HttpResilienceMetricsTests
     {
         using var handler = new FakeHttpMessageHandler();
         var meterName = $"{HttpResilienceMetrics.MeterName}.Tests.{Guid.NewGuid():N}";
-        handler.EnqueueDelay(TimeSpan.FromMilliseconds(200), HttpStatusCode.OK, "late");
+        handler.EnqueueDelay(TimeSpan.FromSeconds(30), HttpStatusCode.OK, "late");
         handler.Enqueue(HttpStatusCode.OK, "ok");
 
         using var listener = new MeterListener();
