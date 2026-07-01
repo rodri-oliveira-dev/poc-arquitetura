@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="JsonSchema.Net" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
+    <PackageReference Include="Microsoft.OpenApi" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Moq" />
+    <PackageReference Include="YamlDotNet" />
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\ledger\LedgerService.Application\LedgerService.Application.csproj" />
+    <ProjectReference Include="..\..\..\src\ledger\LedgerService.Domain\LedgerService.Domain.csproj" />
+    <ProjectReference Include="..\..\..\src\ledger\LedgerService.Infrastructure\LedgerService.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\src\ledger\LedgerService.Api\LedgerService.Api.csproj" />
+    <ProjectReference Include="..\..\..\tools\ComposeEnvGen\ComposeEnvGen.csproj" />
+  </ItemGroup>
+
+</Project>

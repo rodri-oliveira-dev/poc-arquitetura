@@ -30,11 +30,11 @@ Para executar os workers diretamente no host contra um emulator ja iniciado, use
 $env:DOTNET_ENVIRONMENT='PubSub'
 $env:PUBSUB_EMULATOR_HOST='127.0.0.1:8085'
 $env:PUBSUB_PROJECT_ID='poc-local'
-dotnet run --project ./src/LedgerService.Worker
-dotnet run --project ./src/BalanceService.Worker
+dotnet run --project ./src/ledger/LedgerService.Worker
+dotnet run --project ./src/balance/BalanceService.Worker
 ```
 
-Execute cada worker em um terminal separado. Os arquivos `src/LedgerService.Worker/appsettings.PubSub.json` e `src/BalanceService.Worker/appsettings.PubSub.json` mantem os valores locais ficticios alinhados ao compose principal. `PUBSUB_EMULATOR_HOST` direciona os clients Google para o emulator sem credenciais. `PUBSUB_PROJECT_ID` identifica o projeto local usado ao inicializar recursos; quando necessario, sobrescreva tambem `PubSub__Producer__ProjectId` e `PubSub__Consumer__ProjectId` para manter o bind das options alinhado ao mesmo projeto.
+Execute cada worker em um terminal separado. Os arquivos `src/ledger/LedgerService.Worker/appsettings.PubSub.json` e `src/balance/BalanceService.Worker/appsettings.PubSub.json` mantem os valores locais ficticios alinhados ao compose principal. `PUBSUB_EMULATOR_HOST` direciona os clients Google para o emulator sem credenciais. `PUBSUB_PROJECT_ID` identifica o projeto local usado ao inicializar recursos; quando necessario, sobrescreva tambem `PubSub__Producer__ProjectId` e `PubSub__Consumer__ProjectId` para manter o bind das options alinhado ao mesmo projeto.
 
 ## Fluxo
 
@@ -248,7 +248,7 @@ Estas metricas nao possuem dashboard especifico nem alertas nesta etapa. No comp
 
 ## Configuracao
 
-Configuracoes de mensageria do Ledger ficam em `src/LedgerService.Worker/appsettings.json`. A API do Ledger mantem apenas configuracoes HTTP, JWT, hardening, observabilidade da API e banco.
+Configuracoes de mensageria do Ledger ficam em `src/ledger/LedgerService.Worker/appsettings.json`. A API do Ledger mantem apenas configuracoes HTTP, JWT, hardening, observabilidade da API e banco.
 
 Ledger:
 
@@ -259,7 +259,7 @@ Ledger:
 - `Outbox:Publisher`.
 - `Reprocessamentos:Consumer`.
 
-Configuracoes de mensageria do Balance ficam em `src/BalanceService.Worker/appsettings.json`. A API do Balance mantem apenas configuracoes HTTP, JWT, hardening, observabilidade da API e banco.
+Configuracoes de mensageria do Balance ficam em `src/balance/BalanceService.Worker/appsettings.json`. A API do Balance mantem apenas configuracoes HTTP, JWT, hardening, observabilidade da API e banco.
 
 Balance:
 

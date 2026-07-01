@@ -751,7 +751,7 @@ Se preferir validar apenas a sintaxe efetiva do compose:
 docker compose config
 ```
 
-O realm Keycloak local autoriza os merchants `tese` e `m1` pela claim `merchant_id`. Para criar um lancamento, use um desses merchants. O contrato real de criacao de lancamento fica em `src/LedgerService.Api/Contracts/CreateLancamentoRequest.cs`; `CREDIT` exige `amount` maior que zero e `DEBIT` exige `amount` menor que zero.
+O realm Keycloak local autoriza os merchants `tese` e `m1` pela claim `merchant_id`. Para criar um lancamento, use um desses merchants. O contrato real de criacao de lancamento fica em `src/ledger/LedgerService.Api/Contracts/CreateLancamentoRequest.cs`; `CREDIT` exige `amount` maior que zero e `DEBIT` exige `amount` menor que zero.
 
 No Windows/PowerShell, o fluxo completo pode ser executado com:
 

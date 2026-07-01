@@ -27,14 +27,14 @@ A solution principal e `LedgerService.slnx`.
 
 Componentes principais:
 
-- `src/LedgerService.Api`
-- `src/LedgerService.Application`
-- `src/LedgerService.Domain`
-- `src/LedgerService.Infrastructure`
-- `src/BalanceService.Api`
-- `src/BalanceService.Application`
-- `src/BalanceService.Domain`
-- `src/BalanceService.Infrastructure`
+- `src/ledger/LedgerService.Api`
+- `src/ledger/LedgerService.Application`
+- `src/ledger/LedgerService.Domain`
+- `src/ledger/LedgerService.Infrastructure`
+- `src/balance/BalanceService.Api`
+- `src/balance/BalanceService.Application`
+- `src/balance/BalanceService.Domain`
+- `src/balance/BalanceService.Infrastructure`
 - `tests/*`
 
 `src/Auth.Api` permanece apenas como legado de autenticacao de POC, fora da stack principal, com testes proprios enquanto o projeto existir.

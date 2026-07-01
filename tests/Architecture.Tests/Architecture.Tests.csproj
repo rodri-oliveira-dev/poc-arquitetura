@@ -21,21 +21,21 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\BalanceService.Api\BalanceService.Api.csproj" />
-    <ProjectReference Include="..\..\src\BalanceService.Application\BalanceService.Application.csproj" />
-    <ProjectReference Include="..\..\src\BalanceService.Domain\BalanceService.Domain.csproj" />
-    <ProjectReference Include="..\..\src\BalanceService.Infrastructure\BalanceService.Infrastructure.csproj" />
-    <ProjectReference Include="..\..\src\BalanceService.Worker\BalanceService.Worker.csproj" />
-    <ProjectReference Include="..\..\src\TransferService.Api\TransferService.Api.csproj" />
-    <ProjectReference Include="..\..\src\TransferService.Application\TransferService.Application.csproj" />
-    <ProjectReference Include="..\..\src\TransferService.Domain\TransferService.Domain.csproj" />
-    <ProjectReference Include="..\..\src\TransferService.Infrastructure\TransferService.Infrastructure.csproj" />
-    <ProjectReference Include="..\..\src\TransferService.Worker\TransferService.Worker.csproj" />
-    <ProjectReference Include="..\..\src\LedgerService.Api\LedgerService.Api.csproj" />
-    <ProjectReference Include="..\..\src\LedgerService.Application\LedgerService.Application.csproj" />
-    <ProjectReference Include="..\..\src\LedgerService.Domain\LedgerService.Domain.csproj" />
-    <ProjectReference Include="..\..\src\LedgerService.Infrastructure\LedgerService.Infrastructure.csproj" />
-    <ProjectReference Include="..\..\src\LedgerService.Worker\LedgerService.Worker.csproj" />
+    <ProjectReference Include="..\..\src\balance\BalanceService.Api\BalanceService.Api.csproj" />
+    <ProjectReference Include="..\..\src\balance\BalanceService.Application\BalanceService.Application.csproj" />
+    <ProjectReference Include="..\..\src\balance\BalanceService.Domain\BalanceService.Domain.csproj" />
+    <ProjectReference Include="..\..\src\balance\BalanceService.Infrastructure\BalanceService.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\balance\BalanceService.Worker\BalanceService.Worker.csproj" />
+    <ProjectReference Include="..\..\src\transfer\TransferService.Api\TransferService.Api.csproj" />
+    <ProjectReference Include="..\..\src\transfer\TransferService.Application\TransferService.Application.csproj" />
+    <ProjectReference Include="..\..\src\transfer\TransferService.Domain\TransferService.Domain.csproj" />
+    <ProjectReference Include="..\..\src\transfer\TransferService.Infrastructure\TransferService.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\transfer\TransferService.Worker\TransferService.Worker.csproj" />
+    <ProjectReference Include="..\..\src\ledger\LedgerService.Api\LedgerService.Api.csproj" />
+    <ProjectReference Include="..\..\src\ledger\LedgerService.Application\LedgerService.Application.csproj" />
+    <ProjectReference Include="..\..\src\ledger\LedgerService.Domain\LedgerService.Domain.csproj" />
+    <ProjectReference Include="..\..\src\ledger\LedgerService.Infrastructure\LedgerService.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\ledger\LedgerService.Worker\LedgerService.Worker.csproj" />
   </ItemGroup>
 
 </Project>

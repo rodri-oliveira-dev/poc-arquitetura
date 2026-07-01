@@ -259,7 +259,7 @@ services:
   ledger-service:
     build:
       context: .
-      dockerfile: src/LedgerService.Api/Dockerfile
+      dockerfile: src/ledger/LedgerService.Api/Dockerfile
     container_name: poc-ledger-service
     logging: *default-logging
     depends_on:
@@ -298,7 +298,7 @@ services:
   ledger-worker:
     build:
       context: .
-      dockerfile: src/LedgerService.Worker/Dockerfile
+      dockerfile: src/ledger/LedgerService.Worker/Dockerfile
     container_name: poc-ledger-worker
     logging: *default-logging
     depends_on:
@@ -339,7 +339,7 @@ services:
   balance-service:
     build:
       context: .
-      dockerfile: src/BalanceService.Api/Dockerfile
+      dockerfile: src/balance/BalanceService.Api/Dockerfile
     container_name: poc-balance-service
     logging: *default-logging
     depends_on:
@@ -377,7 +377,7 @@ services:
   balance-worker:
     build:
       context: .
-      dockerfile: src/BalanceService.Worker/Dockerfile
+      dockerfile: src/balance/BalanceService.Worker/Dockerfile
     container_name: poc-balance-worker
     logging: *default-logging
     depends_on:
@@ -417,7 +417,7 @@ services:
   transfer-service:
     build:
       context: .
-      dockerfile: src/TransferService.Api/Dockerfile
+      dockerfile: src/transfer/TransferService.Api/Dockerfile
     container_name: poc-transfer-service
     logging: *default-logging
     depends_on:
@@ -452,7 +452,7 @@ services:
   transfer-worker:
     build:
       context: .
-      dockerfile: src/TransferService.Worker/Dockerfile
+      dockerfile: src/transfer/TransferService.Worker/Dockerfile
     container_name: poc-transfer-worker
     logging: *default-logging
     depends_on:

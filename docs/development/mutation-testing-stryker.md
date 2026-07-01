@@ -74,11 +74,11 @@ dotnet tool restore
 Comando manual recomendado:
 
 ```bash
-cd tests/LedgerService.UnitTests
+cd tests/ledger/LedgerService.UnitTests
 dotnet stryker
 ```
 
-O arquivo `tests/LedgerService.UnitTests/stryker-config.json` e carregado automaticamente quando o comando roda a partir desse diretorio.
+O arquivo `tests/ledger/LedgerService.UnitTests/stryker-config.json` e carregado automaticamente quando o comando roda a partir desse diretorio.
 
 Scripts opcionais:
 
@@ -95,14 +95,14 @@ Scripts opcionais:
 Comando manual recomendado:
 
 ```bash
-cd tests/BalanceService.UnitTests
+cd tests/balance/BalanceService.UnitTests
 dotnet stryker
 ```
 
-O arquivo `tests/BalanceService.UnitTests/stryker-config.json` e carregado automaticamente quando o comando roda a partir desse diretorio. Se quiser informar o arquivo explicitamente:
+O arquivo `tests/balance/BalanceService.UnitTests/stryker-config.json` e carregado automaticamente quando o comando roda a partir desse diretorio. Se quiser informar o arquivo explicitamente:
 
 ```bash
-cd tests/BalanceService.UnitTests
+cd tests/balance/BalanceService.UnitTests
 dotnet stryker --config-file stryker-config.json
 ```
 
@@ -191,8 +191,8 @@ O workspace possui tasks locais em `.vscode/tasks.json` para executar mutation t
 
 Tasks disponiveis:
 
-- `test:mutation:ledger`: executa mutation testing para `LedgerService.Application` a partir de `tests/LedgerService.UnitTests`.
-- `test:mutation:balance`: executa mutation testing para `BalanceService.Application` a partir de `tests/BalanceService.UnitTests`.
+- `test:mutation:ledger`: executa mutation testing para `LedgerService.Application` a partir de `tests/ledger/LedgerService.UnitTests`.
+- `test:mutation:balance`: executa mutation testing para `BalanceService.Application` a partir de `tests/balance/BalanceService.UnitTests`.
 - `test:mutation:all`: executa os dois alvos em sequencia, primeiro Ledger e depois Balance.
 
 Como executar no VS Code:
@@ -209,8 +209,8 @@ As tasks individuais executam `dotnet tool restore` antes de `dotnet stryker` e 
 Os relatorios HTML esperados ficam em:
 
 ```text
-tests/LedgerService.UnitTests/StrykerOutput/**/reports/mutation-report.html
-tests/BalanceService.UnitTests/StrykerOutput/**/reports/mutation-report.html
+tests/ledger/LedgerService.UnitTests/StrykerOutput/**/reports/mutation-report.html
+tests/balance/BalanceService.UnitTests/StrykerOutput/**/reports/mutation-report.html
 ```
 
 Para abrir o relatorio:
@@ -252,19 +252,19 @@ O Stryker gera os relatorios dentro do diretorio `StrykerOutput` no diretorio em
 Para `LedgerService.Application`, o relatorio HTML fica em:
 
 ```text
-tests/LedgerService.UnitTests/StrykerOutput/**/reports/mutation-report.html
+tests/ledger/LedgerService.UnitTests/StrykerOutput/**/reports/mutation-report.html
 ```
 
 Para `BalanceService.Application`, o relatorio HTML fica em:
 
 ```text
-tests/BalanceService.UnitTests/StrykerOutput/**/reports/mutation-report.html
+tests/balance/BalanceService.UnitTests/StrykerOutput/**/reports/mutation-report.html
 ```
 
-Na validacao local de 2026-05-05, a execucao em `tests/BalanceService.UnitTests` gerou:
+Na validacao local de 2026-05-05, a execucao em `tests/balance/BalanceService.UnitTests` gerou:
 
 ```text
-tests/BalanceService.UnitTests/StrykerOutput/2026-05-05.18-36-39/reports/mutation-report.html
+tests/balance/BalanceService.UnitTests/StrykerOutput/2026-05-05.18-36-39/reports/mutation-report.html
 ```
 
 Baseline observado nessa execucao: score 27,91%, com 24 `Killed`, 36 `Survived`, 26 `NoCoverage`, 0 `Timeout`, 10 `Ignored` e 3 `CompileError`.

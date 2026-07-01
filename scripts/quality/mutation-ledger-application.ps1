@@ -4,7 +4,7 @@ param()
 $ErrorActionPreference = "Stop"
 
 $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..\..")).Path
-$testProjectDir = Join-Path $repoRoot "tests/LedgerService.UnitTests"
+$testProjectDir = Join-Path $repoRoot "tests/ledger/LedgerService.UnitTests"
 
 Push-Location $repoRoot
 try {

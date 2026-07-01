@@ -1,6 +1,6 @@
 # Git hooks locais
 
-O repositorio versiona hooks em `.githooks/` e o build de `src/BalanceService.Api/BalanceService.Api.csproj` configura automaticamente:
+O repositorio versiona hooks em `.githooks/` e o build de `src/balance/BalanceService.Api/BalanceService.Api.csproj` configura automaticamente:
 
 ```bash
 git config core.hooksPath .githooks
@@ -93,7 +93,7 @@ Use `!` antes de `:` para declarar breaking change na primeira linha do commit. 
 Instalar/configurar os hooks:
 
 ```bash
-dotnet build src/BalanceService.Api/BalanceService.Api.csproj
+dotnet build src/balance/BalanceService.Api/BalanceService.Api.csproj
 git config --get core.hooksPath
 ```
 

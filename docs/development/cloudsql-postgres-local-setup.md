@@ -235,7 +235,7 @@ Ledger API:
 
 ```powershell
 dotnet user-secrets set `
-  --project src/LedgerService.Api/LedgerService.Api.csproj `
+  --project src/ledger/LedgerService.Api/LedgerService.Api.csproj `
   "ConnectionStrings:DefaultConnection" `
   "Host=127.0.0.1;Port=5432;Database=<DATABASE_NAME>;Username=<LEDGER_DB_USER>;Password=<DATABASE_PASSWORD>"
 ```
@@ -244,7 +244,7 @@ Ledger Worker:
 
 ```powershell
 dotnet user-secrets set `
-  --project src/LedgerService.Worker/LedgerService.Worker.csproj `
+  --project src/ledger/LedgerService.Worker/LedgerService.Worker.csproj `
   "ConnectionStrings:DefaultConnection" `
   "Host=127.0.0.1;Port=5432;Database=<DATABASE_NAME>;Username=<LEDGER_DB_USER>;Password=<DATABASE_PASSWORD>"
 ```
@@ -253,7 +253,7 @@ Balance API:
 
 ```powershell
 dotnet user-secrets set `
-  --project src/BalanceService.Api/BalanceService.Api.csproj `
+  --project src/balance/BalanceService.Api/BalanceService.Api.csproj `
   "ConnectionStrings:DefaultConnection" `
   "Host=127.0.0.1;Port=5432;Database=<DATABASE_NAME>;Username=<BALANCE_DB_USER>;Password=<DATABASE_PASSWORD>"
 ```
@@ -262,7 +262,7 @@ Balance Worker:
 
 ```powershell
 dotnet user-secrets set `
-  --project src/BalanceService.Worker/BalanceService.Worker.csproj `
+  --project src/balance/BalanceService.Worker/BalanceService.Worker.csproj `
   "ConnectionStrings:DefaultConnection" `
   "Host=127.0.0.1;Port=5432;Database=<DATABASE_NAME>;Username=<BALANCE_DB_USER>;Password=<DATABASE_PASSWORD>"
 ```
@@ -270,14 +270,14 @@ dotnet user-secrets set `
 Para conferir sem exibir em logs compartilhados:
 
 ```powershell
-dotnet user-secrets list --project src/LedgerService.Api/LedgerService.Api.csproj
+dotnet user-secrets list --project src/ledger/LedgerService.Api/LedgerService.Api.csproj
 ```
 
 Para remover um valor local:
 
 ```powershell
 dotnet user-secrets remove `
-  --project src/LedgerService.Api/LedgerService.Api.csproj `
+  --project src/ledger/LedgerService.Api/LedgerService.Api.csproj `
   "ConnectionStrings:DefaultConnection"
 ```
 
@@ -286,7 +286,7 @@ terminal:
 
 ```powershell
 $env:ConnectionStrings__DefaultConnection = "Host=127.0.0.1;Port=5432;Database=<DATABASE_NAME>;Username=<DATABASE_USER>;Password=<DATABASE_PASSWORD>"
-dotnet run --project src/LedgerService.Api/LedgerService.Api.csproj
+dotnet run --project src/ledger/LedgerService.Api/LedgerService.Api.csproj
 Remove-Item Env:ConnectionStrings__DefaultConnection
 ```
 
@@ -297,8 +297,8 @@ ambiente forem os alvos corretos:
 
 ```powershell
 dotnet ef database update `
-  --project src/LedgerService.Infrastructure/LedgerService.Infrastructure.csproj `
-  --startup-project src/LedgerService.Api/LedgerService.Api.csproj
+  --project src/ledger/LedgerService.Infrastructure/LedgerService.Infrastructure.csproj `
+  --startup-project src/ledger/LedgerService.Api/LedgerService.Api.csproj
 ```
 
 Repita para Balance com o projeto de infrastructure/startup correspondente se
@@ -309,7 +309,7 @@ SQL real.
 Para um smoke manual da API:
 
 ```powershell
-dotnet run --project src/LedgerService.Api/LedgerService.Api.csproj
+dotnet run --project src/ledger/LedgerService.Api/LedgerService.Api.csproj
 Invoke-RestMethod http://localhost:<PORTA_DA_API>/ready
 ```
 
