@@ -126,7 +126,7 @@ jobs:
       - name: NuGet login
         if: ${{ github.event_name != 'pull_request' }}
         id: nuget_login
-        uses: NuGet/login@v1
+        uses: NuGet/login@ebc737b6fc418a6ca0073cf116ec8dc156d8b81e # v1
         with:
           user: rodri-oliveira-dev
 
@@ -166,5 +166,5 @@ jobs:
             echo "- Package version: \`${PACKAGE_VERSION:-not calculated}\`"
             echo "- Output directory: \`$PACKAGE_OUTPUT_DIR\`"
             echo "- Artifact: \`shared-nuget-packages\`"
-            echo "- NuGet.org publish: Trusted Publishing via \`NuGet/login@v1\`"
+            echo "- NuGet.org publish: Trusted Publishing via \`NuGet/login\` v1 pinned to SHA"
           } >> "$GITHUB_STEP_SUMMARY"
