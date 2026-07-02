@@ -92,11 +92,12 @@ Em branches de feature, o GitVersion pode gerar pre-release com o nome do branch
 
 Os pacotes em `src/Shared` usam a mesma fonte de versao do repositorio: o `GitVersion.Tool` configurado em `GitVersion.yml`. O workflow de empacotamento calcula a versao uma unica vez, exporta esse valor em `PACKAGE_VERSION` e reutiliza-o em todos os `dotnet pack` da execucao.
 
-A propriedade do GitVersion usada como `PackageVersion` e `SemVer`:
+A propriedade do GitVersion usada como base para `PackageVersion` e `SemVer`:
 
 ```powershell
 dotnet tool restore
-$env:PACKAGE_VERSION = dotnet tool run dotnet-gitversion /showvariable SemVer
+$rawPackageVersion = dotnet tool run dotnet-gitversion /showvariable SemVer
+$env:PACKAGE_VERSION = if ($rawPackageVersion -match '^([0-9]+\.[0-9]+\.[0-9]+)-([0-9]+)$') { "$($Matches[1])-main.$($Matches[2])" } else { $rawPackageVersion }
 dotnet pack ./src/Shared/HttpResilienceDefaults/HttpResilienceDefaults.csproj --configuration Release /p:PackageVersion=$env:PACKAGE_VERSION
 dotnet pack ./src/Shared/ApplicationDefaults/ApplicationDefaults.csproj --configuration Release /p:PackageVersion=$env:PACKAGE_VERSION
 dotnet pack ./src/Shared/ApiDefaults/ApiDefaults.csproj --configuration Release /p:PackageVersion=$env:PACKAGE_VERSION
@@ -105,14 +106,18 @@ dotnet pack ./src/Shared/ApiDefaults/ApiDefaults.csproj --configuration Release 
 No GitHub Actions, o mesmo valor deve ser exportado para o ambiente antes dos packs:
 
 ```bash
-PACKAGE_VERSION="$(dotnet tool run dotnet-gitversion /showvariable SemVer)"
+RAW_PACKAGE_VERSION="$(dotnet tool run dotnet-gitversion /showvariable SemVer)"
+PACKAGE_VERSION="$RAW_PACKAGE_VERSION"
+if [[ "$PACKAGE_VERSION" =~ ^([0-9]+\.[0-9]+\.[0-9]+)-([0-9]+)$ ]]; then
+  PACKAGE_VERSION="${BASH_REMATCH[1]}-main.${BASH_REMATCH[2]}"
+fi
 echo "PACKAGE_VERSION=$PACKAGE_VERSION" >> "$GITHUB_ENV"
 dotnet pack ./src/Shared/HttpResilienceDefaults/HttpResilienceDefaults.csproj --configuration Release /p:PackageVersion="$PACKAGE_VERSION"
 dotnet pack ./src/Shared/ApplicationDefaults/ApplicationDefaults.csproj --configuration Release /p:PackageVersion="$PACKAGE_VERSION"
 dotnet pack ./src/Shared/ApiDefaults/ApiDefaults.csproj --configuration Release /p:PackageVersion="$PACKAGE_VERSION"
 ```
 
-`SemVer` e adequado para NuGet porque gera uma versao SemVer sem metadados de build (`+...`), por exemplo `0.18.1-lib.1` em branch de feature ou `0.18.1` em uma versao estavel. Esse formato e aceito como `PackageVersion` e preserva pre-releases quando o empacotamento ocorrer fora de uma tag estavel. Na versao atual do `GitVersion.Tool` usada pelo repositorio, `NuGetVersionV2` e `NuGetVersion` nao estao disponiveis como variaveis de saida; por isso o workflow deve extrair `SemVer`.
+`SemVer` e adequado para NuGet porque gera uma versao SemVer sem metadados de build (`+...`), por exemplo `0.18.1-lib.1` em branch de feature ou `0.18.1` em uma versao estavel. Quando o GitVersion calcular uma pre-release apenas numerica em `main`, como `0.18.1-8`, o workflow deve normalizar o valor para `0.18.1-main.8` antes do `dotnet pack`, porque o NuGet.org rejeita esse sufixo numerico puro no push. Na versao atual do `GitVersion.Tool` usada pelo repositorio, `NuGetVersionV2` e `NuGetVersion` nao estao disponiveis como variaveis de saida; por isso o workflow deve extrair `SemVer` e aplicar essa normalizacao pequena.
 
 O workflow `.github/workflows/publish-shared-nuget.yml` restaura, compila, testa, empacota e publica os pacotes no NuGet.org. A publicacao usa Trusted Publishing com GitHub Actions OIDC por meio de `NuGet/login@v1`; nao ha API key persistente nem secret `NUGET_API_KEY`.
 

@@ -48,13 +48,20 @@ jobs:
         run: |
           set -euo pipefail
 
-          package_version="$(dotnet tool run dotnet-gitversion /showvariable SemVer)"
+          raw_package_version="$(dotnet tool run dotnet-gitversion /showvariable SemVer)"
+          package_version="$raw_package_version"
+
+          if [[ "$package_version" =~ ^([0-9]+\.[0-9]+\.[0-9]+)-([0-9]+)$ ]]; then
+            package_version="${BASH_REMATCH[1]}-main.${BASH_REMATCH[2]}"
+          fi
+
           if [ -z "$package_version" ]; then
             echo "GitVersion did not calculate a NuGet package version." >&2
             exit 1
           fi
 
           echo "PACKAGE_VERSION=$package_version" >> "$GITHUB_ENV"
+          echo "GitVersion SemVer: $raw_package_version"
           echo "Package version: $package_version"
 
       - name: Restore dependencies
