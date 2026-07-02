@@ -12,6 +12,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -122,6 +123,40 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      - name: NuGet login
+        if: ${{ github.event_name != 'pull_request' }}
+        id: nuget_login
+        uses: NuGet/login@v1
+        with:
+          user: rodri-oliveira-dev
+
+      - name: Publish HttpResilienceDefaults
+        if: ${{ github.event_name != 'pull_request' }}
+        run: >
+          dotnet nuget push
+          "$PACKAGE_OUTPUT_DIR/PocArquitetura.HttpResilienceDefaults.$PACKAGE_VERSION.nupkg"
+          --source https://api.nuget.org/v3/index.json
+          --api-key "${{ steps.nuget_login.outputs.NUGET_API_KEY }}"
+          --skip-duplicate
+
+      - name: Publish ApplicationDefaults
+        if: ${{ github.event_name != 'pull_request' }}
+        run: >
+          dotnet nuget push
+          "$PACKAGE_OUTPUT_DIR/PocArquitetura.ApplicationDefaults.$PACKAGE_VERSION.nupkg"
+          --source https://api.nuget.org/v3/index.json
+          --api-key "${{ steps.nuget_login.outputs.NUGET_API_KEY }}"
+          --skip-duplicate
+
+      - name: Publish ApiDefaults
+        if: ${{ github.event_name != 'pull_request' }}
+        run: >
+          dotnet nuget push
+          "$PACKAGE_OUTPUT_DIR/PocArquitetura.ApiDefaults.$PACKAGE_VERSION.nupkg"
+          --source https://api.nuget.org/v3/index.json
+          --api-key "${{ steps.nuget_login.outputs.NUGET_API_KEY }}"
+          --skip-duplicate
+
       - name: Write summary
         if: ${{ always() }}
         shell: bash
@@ -131,4 +166,5 @@ jobs:
             echo "- Package version: \`${PACKAGE_VERSION:-not calculated}\`"
             echo "- Output directory: \`$PACKAGE_OUTPUT_DIR\`"
             echo "- Artifact: \`shared-nuget-packages\`"
+            echo "- NuGet.org publish: Trusted Publishing via \`NuGet/login@v1\`"
           } >> "$GITHUB_STEP_SUMMARY"
