@@ -792,6 +792,9 @@ public sealed class AuditRecordsEndpointTests
         public FunctionalAuditRecord? GetByIdempotencyKey(string idempotencyKey)
             => _records.SingleOrDefault(x => x.IdempotencyKey == idempotencyKey);
 
+        public FunctionalAuditRecord? GetBySourceEventId(string sourceEventId)
+            => _records.SingleOrDefault(x => x.SourceEventId == sourceEventId);
+
         public FunctionalAuditRecord Add(FunctionalAuditRecord record)
         {
             _records.Add(record);
@@ -806,6 +809,11 @@ public sealed class AuditRecordsEndpointTests
             string idempotencyKey,
             CancellationToken cancellationToken = default)
             => Task.FromResult(store.GetByIdempotencyKey(idempotencyKey));
+
+        public Task<FunctionalAuditRecord?> GetBySourceEventIdAsync(
+            string sourceEventId,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult(store.GetBySourceEventId(sourceEventId));
 
         public Task AddAsync(FunctionalAuditRecord record, CancellationToken cancellationToken = default)
         {

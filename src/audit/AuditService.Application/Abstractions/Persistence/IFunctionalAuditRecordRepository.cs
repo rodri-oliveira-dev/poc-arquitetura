@@ -8,6 +8,10 @@ public interface IFunctionalAuditRecordRepository
         string idempotencyKey,
         CancellationToken cancellationToken = default);
 
+    Task<FunctionalAuditRecord?> GetBySourceEventIdAsync(
+        string sourceEventId,
+        CancellationToken cancellationToken = default);
+
     Task AddAsync(FunctionalAuditRecord record, CancellationToken cancellationToken = default);
 
     Task SaveChangesAsync(CancellationToken cancellationToken = default);

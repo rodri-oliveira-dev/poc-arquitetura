@@ -7,6 +7,7 @@ public sealed class FunctionalAuditRecord
     public const int OperationIdMaxLength = 100;
     public const int CorrelationIdMaxLength = 100;
     public const int IdempotencyKeyMaxLength = 200;
+    public const int SourceEventIdMaxLength = 100;
     public const int SourceServiceMaxLength = 100;
     public const int OperationTypeMaxLength = 150;
     public const int EntityTypeMaxLength = 150;
@@ -49,6 +50,7 @@ public sealed class FunctionalAuditRecord
         string operationId,
         string? correlationId,
         string? idempotencyKey,
+        string? sourceEventId,
         string sourceService,
         string operationType,
         string? entityType,
@@ -67,6 +69,7 @@ public sealed class FunctionalAuditRecord
         OperationId = RequiredLimited(operationId, nameof(OperationId), OperationIdMaxLength);
         CorrelationId = OptionalLimited(correlationId, nameof(CorrelationId), CorrelationIdMaxLength);
         IdempotencyKey = OptionalLimited(idempotencyKey, nameof(IdempotencyKey), IdempotencyKeyMaxLength);
+        SourceEventId = OptionalLimited(sourceEventId, nameof(SourceEventId), SourceEventIdMaxLength);
         SourceService = RequiredLimited(sourceService, nameof(SourceService), SourceServiceMaxLength);
         OperationType = RequiredLimited(operationType, nameof(OperationType), OperationTypeMaxLength);
         EntityType = OptionalLimited(entityType, nameof(EntityType), EntityTypeMaxLength);
@@ -110,6 +113,11 @@ public sealed class FunctionalAuditRecord
     }
 
     public string? IdempotencyKey
+    {
+        get; private set;
+    }
+
+    public string? SourceEventId
     {
         get; private set;
     }
@@ -184,6 +192,7 @@ public sealed class FunctionalAuditRecord
         DateTimeOffset occurredAt,
         string? correlationId = null,
         string? idempotencyKey = null,
+        string? sourceEventId = null,
         string? entityType = null,
         string? entityId = null,
         string? merchantId = null,
@@ -198,6 +207,7 @@ public sealed class FunctionalAuditRecord
             operationId,
             correlationId,
             idempotencyKey,
+            sourceEventId,
             sourceService,
             operationType,
             entityType,

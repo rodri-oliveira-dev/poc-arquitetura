@@ -3,8 +3,8 @@
 O `AuditService` e o bounded context de auditoria funcional da POC. Ele registra
 trilhas canonicas de operacoes de negocio sem assumir quem e o servico chamador.
 Nesta etapa, o contexto existe isolado em `src/audit` e `tests/audit`, com
-dominio, Application, Infrastructure, API HTTP, seguranca, persistencia, testes
-e contrato OpenAPI proprios.
+dominio, Application, Infrastructure, API HTTP, Worker, seguranca, persistencia,
+testes e contrato OpenAPI proprios.
 
 ## Papel do bounded context
 
@@ -36,12 +36,39 @@ Nao existe integracao nesta primeira etapa:
 - `LedgerService` nao chama o `AuditService`;
 - `BalanceService` nao chama o `AuditService`;
 - `TransferService` nao chama o `AuditService`;
-- nenhum worker de auditoria foi criado;
-- nenhum consumer Kafka foi criado;
+- o `AuditService.Worker` possui consumer Kafka opcional de
+  `AuditRecordRequested.v1`, com retry controlado e DLQ de aplicacao;
+- nenhum outro bounded context publica eventos reais de auditoria;
 - nenhum evento financeiro foi alterado para carregar auditoria.
 
 Essa separacao evita acoplamento prematuro e permite validar o contrato
 funcional de auditoria antes de conectar fluxos de outros dominios.
+
+## Estrategia futura de integracao assincrona
+
+A estrategia proposta para integracao automatica futura esta registrada na
+[ADR-0099](../adrs/0099-audit-async-integration-strategy.md). O consumer do
+`AuditService.Worker` ja existe, mas ainda nao ha produtores reais. Quando
+houver chamador real, a integracao deve seguir Outbox transacional local no
+servico de origem e Kafka como transporte para o `AuditService.Worker`:
+
+```text
+Servico de origem
+  -> operacao de negocio
+  -> Outbox transacional local
+  -> Worker/publicador do servico de origem
+  -> Kafka
+  -> AuditService.Worker
+  -> schema audit
+```
+
+Essa direcao evita que falhas ou latencia do `AuditService` bloqueiem fluxos
+financeiros principais. Ela tambem preserva o contrato canonico de auditoria,
+com retry, DLQ, redrive e idempotencia tratados no fluxo assincrono.
+
+Nesta etapa, apenas o consumidor do `AuditService.Worker` foi implementado e
+endurecido. Producers e Outbox nos servicos de origem continuam fora de escopo.
+Redrive automatico da DLQ tambem continua fora de escopo.
 
 ## Pontos de extensao para ingestao futura
 
@@ -64,12 +91,13 @@ persistencia e regras do registro continuam concentradas no caso de uso
 `CreateAuditRecord` e no dominio de auditoria funcional.
 
 As pastas `src/audit/AuditService.Api/Ingestion/Http` e
-`src/audit/AuditService.Infrastructure/Ingestion/Kafka` existem apenas como
-pontos documentados para adapters futuros. Nao ha endpoint interno novo, worker,
-consumer Kafka, producer, topico, DLQ ou publicacao ativa.
+`src/audit/AuditService.Infrastructure/Ingestion/Kafka` continuam como pontos
+documentados para adapters futuros. O consumer Kafka ativo fica em
+`src/audit/AuditService.Worker/Messaging/Kafka`. Nao ha endpoint interno novo,
+producer real ou publicacao ativa em outro bounded context.
 
-Um evento futuro poderia usar o nome `AuditRecordRequested.v1` para solicitar a
-criacao de uma trilha funcional. Exemplo conceitual, sem produtor atual:
+O evento canonico `AuditRecordRequested.v1` solicita a criacao de uma trilha
+funcional. Exemplo conceitual, sem produtor real atual:
 
 ```json
 {
@@ -178,12 +206,18 @@ payload logico.
 Retries com mesma chave e mesmo payload retornam o mesmo identificador. Reuso
 da chave com payload diferente retorna `409 Conflict`.
 
+Para Kafka, a idempotencia usa `eventId` do `AuditRecordRequested.v1`, persistido
+em `source_event_id` com indice unico. Essa chave e separada do
+`Idempotency-Key` HTTP para preservar as semanticas de transporte.
+
 ## Limitacoes conhecidas
 
 - O contexto ainda nao esta conectado a nenhum fluxo de Ledger, Balance ou
   Transfer.
-- Nao ha worker dedicado, Outbox de auditoria, consumo Kafka, redrive ou DLQ de
-  auditoria.
+- Ha consumer Kafka endurecido no `AuditService.Worker`, mas nao ha producer
+  real nos demais bounded contexts.
+- Nao ha Outbox de auditoria nos servicos de origem nem redrive automatico da
+  DLQ de auditoria.
 - Os contratos de ingestao em `Application` sao pontos internos de extensao e
   ainda nao representam contrato de mensageria ativo entre servicos.
 - Nao ha catalogo central versionado de `sourceService` e `operationType`.
@@ -195,6 +229,8 @@ da chave com payload diferente retorna `409 Conflict`.
 ## Proximas evolucoes planejadas
 
 - Definir criterios objetivos para conectar fluxos de outros bounded contexts.
+- Implementar producers por Outbox + Kafka apenas quando houver primeiro fluxo
+  produtor definido, contrato versionado e plano de retry/DLQ.
 - Registrar catalogo leve de operacoes auditaveis quando houver o primeiro
   chamador real.
 - Avaliar retencao, expurgo e mascaramento conforme requisitos de auditoria.

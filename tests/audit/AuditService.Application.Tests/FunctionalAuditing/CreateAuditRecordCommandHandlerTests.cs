@@ -60,6 +60,24 @@ public sealed class CreateAuditRecordCommandHandlerTests
     }
 
     [Fact]
+    public async Task Handle_should_return_existing_id_for_same_source_event_id_and_payload()
+    {
+        var repository = new FakeFunctionalAuditRecordRepository();
+        var handler = new CreateAuditRecordCommandHandler(repository);
+        var command = ValidCommand() with
+        {
+            IdempotencyKey = null,
+            SourceEventId = Guid.Parse("00000000-0000-0000-0000-000000000099")
+        };
+
+        CreateAuditRecordResult first = await handler.Handle(command, TestContext.Current.CancellationToken);
+        CreateAuditRecordResult second = await handler.Handle(command, TestContext.Current.CancellationToken);
+
+        Assert.Equal(first.Id, second.Id);
+        Assert.Single(repository.Records);
+    }
+
+    [Fact]
     public async Task Handle_should_return_existing_id_when_concurrent_save_collides_with_same_payload()
     {
         var repository = new FakeFunctionalAuditRecordRepository
@@ -129,6 +147,7 @@ public sealed class CreateAuditRecordCommandHandlerTests
             occurredAt: command.OccurredAt,
             correlationId: command.CorrelationId?.ToString(),
             idempotencyKey: command.IdempotencyKey,
+            sourceEventId: command.SourceEventId?.ToString(),
             entityType: command.EntityType,
             entityId: command.EntityId,
             merchantId: command.MerchantId,
@@ -159,6 +178,11 @@ public sealed class CreateAuditRecordCommandHandlerTests
             get; private set;
         }
 
+        public int GetBySourceEventIdCalls
+        {
+            get; private set;
+        }
+
         public int AddCalls
         {
             get; private set;
@@ -174,6 +198,15 @@ public sealed class CreateAuditRecordCommandHandlerTests
             if (record is null && GetByIdempotencyKeyCalls > 1)
                 record = ExistingAfterCollision;
 
+            return Task.FromResult(record);
+        }
+
+        public Task<FunctionalAuditRecord?> GetBySourceEventIdAsync(
+            string sourceEventId,
+            CancellationToken cancellationToken = default)
+        {
+            GetBySourceEventIdCalls++;
+            FunctionalAuditRecord? record = _records.SingleOrDefault(x => x.SourceEventId == sourceEventId);
             return Task.FromResult(record);
         }
 

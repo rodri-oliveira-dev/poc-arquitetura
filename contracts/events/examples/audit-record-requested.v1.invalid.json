@@ -1,0 +1,10 @@
+{
+  "eventId": "00000000-0000-0000-0000-000000000001",
+  "eventType": "AuditRecordRequested.v1",
+  "schemaVersion": 2,
+  "occurredAt": "2026-07-01T10:30:00Z",
+  "sourceService": "LedgerService",
+  "correlationId": "not-a-uuid",
+  "operationType": "LancamentoCriado",
+  "status": "Unknown"
+}

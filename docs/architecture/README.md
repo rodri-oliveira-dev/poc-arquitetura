@@ -5,7 +5,7 @@ Esta pasta registra a leitura arquitetural atual da POC e o modelo LikeC4 usado 
 Arquivos principais:
 
 - `model.c4`: modelo estrutural do ecossistema, containers e componentes reais, incluindo IdentityService, Keycloak, Auth.Api legado, PostgreSQL por schemas, Kafka default, Pub/Sub explicito/legado, Mailpit, Resend e observabilidade.
-- `audit-service.md`: papel arquitetural do AuditService como bounded context de auditoria funcional isolado, com schema `audit`, contrato canonico e ausencia de integracao inicial.
+- `audit-service.md`: papel arquitetural do AuditService como bounded context de auditoria funcional isolado, com schema `audit`, contrato canonico, ausencia de integracao inicial e estrategia futura por Outbox + Kafka.
 - `deployment.c4`: modelo de deployment local que associa servicos do `compose.yaml` e overlays locais aos elementos logicos com `instanceOf`, alimentando a aba `Deployments` do LikeC4.
 - `views.c4`: views LikeC4 para contexto, containers, fluxo de cadastro no IdentityService, fluxo Kafka, Pub/Sub explicito/legado, observabilidade local e componentes por processo.
 - `boundaries.md`: regras de fronteira entre camadas, responsabilidades e anti-patterns.
@@ -22,7 +22,7 @@ Classificacao atual: arquitetura hibrida, com predominancia de Clean Architectur
 - O PostgreSQL local e unico, mas os servicos usam schemas e roles separados: `identity`, `ledger`, `balance`, `transfer` e `audit`.
 - Kafka e o provider padrao dos fluxos principais de mensageria. Pub/Sub continua explicito/legado para Ledger/Balance quando configurado.
 - O `IdentityService.Api` cria usuarios no Keycloak, persiste o vinculo local no schema `identity`, despacha domain events depois do commit e envia e-mail por Mailpit no local ou Resend em ambiente real configurado.
-- O `AuditService.Api` cria e consulta registros de auditoria funcional no schema `audit`, com `Idempotency-Key`, scopes `audit.*` e contrato agnostico ao chamador, sem worker ou Kafka nesta etapa.
+- O `AuditService.Api` cria e consulta registros de auditoria funcional no schema `audit`, com `Idempotency-Key`, scopes `audit.*` e contrato agnostico ao chamador, sem worker ou Kafka nesta etapa; a integracao futura proposta usa Outbox + Kafka fora do caminho critico financeiro.
 - O `Auth.Api` legado nao deve receber novos fluxos de identidade; use apenas cenarios compativeis antigos por overlay/profile explicito.
 
 ## Estado atual e evolucao futura
@@ -38,6 +38,7 @@ Evolucao futura documentada:
 
 - ADR-0095 registra a possibilidade de evoluir e-mail do IdentityService para Outbox, mensageria, retry, DLQ e worker dedicado. Isso nao esta implementado.
 - ADR-0097 registra os criterios para evoluir o AuditService para integracao futura, incluindo quando avaliar Kafka, worker, catalogo de operacoes ou banco fisico proprio.
+- ADR-0099 registra Outbox transacional local + Kafka como estrategia futura para integrar auditoria funcional aos bounded contexts financeiros, sem implementacao ativa nesta etapa.
 
 ## ADRs relacionadas
 
@@ -50,6 +51,7 @@ Evolucao futura documentada:
 - [ADR-0094: Mailpit local para e-mails do IdentityService](../adrs/0094-mailpit-local-identity-service.md)
 - [ADR-0095: Evolucao futura do envio de e-mails do IdentityService](../adrs/0095-evolucao-futura-email-identity-service.md)
 - [ADR-0097: Bounded context de auditoria funcional](../adrs/0097-functional-audit-service.md)
+- [ADR-0099: Estrategia de integracao assincrona do AuditService](../adrs/0099-audit-async-integration-strategy.md)
 
 ## Visualizacao
 

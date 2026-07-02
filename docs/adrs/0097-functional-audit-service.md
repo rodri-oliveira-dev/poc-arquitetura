@@ -125,3 +125,10 @@ contexts.
 - [AuditService API](../development/audit-api.md)
 - [Arquitetura do AuditService](../architecture/audit-service.md)
 - [OpenAPI audit.v1](../openapi/audit.v1.json)
+
+## Evolucao posterior
+
+Em etapa posterior, o `AuditService.Worker` passou a consumir opcionalmente
+`AuditRecordRequested.v1` via Kafka, sem criar producers em Ledger, Balance ou
+Transfer. A estrategia assincrona e a idempotencia por `eventId` ficam
+registradas na [ADR-0099](./0099-audit-async-integration-strategy.md).

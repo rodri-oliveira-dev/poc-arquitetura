@@ -100,6 +100,11 @@ namespace AuditService.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(1000)")
                         .HasColumnName("reason");
 
+                    b.Property<string>("SourceEventId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("source_event_id");
+
                     b.Property<string>("SourceService")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -123,6 +128,10 @@ namespace AuditService.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("OperationId")
                         .HasDatabaseName("idx_audit_functional_audit_records_operation_id");
+
+                    b.HasIndex("SourceEventId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_audit_functional_audit_records_source_event_id");
 
                     b.HasIndex("EntityType", "EntityId")
                         .HasDatabaseName("idx_audit_functional_audit_records_entity");

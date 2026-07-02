@@ -16,7 +16,19 @@ public sealed class FunctionalAuditRecordRepository(AuditDbContext dbContext) : 
         ArgumentNullException.ThrowIfNull(idempotencyKey);
 
         return dbContext.FunctionalAuditRecords
+            .AsNoTracking()
             .SingleOrDefaultAsync(x => x.IdempotencyKey == idempotencyKey, cancellationToken);
+    }
+
+    public Task<FunctionalAuditRecord?> GetBySourceEventIdAsync(
+        string sourceEventId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(sourceEventId);
+
+        return dbContext.FunctionalAuditRecords
+            .AsNoTracking()
+            .SingleOrDefaultAsync(x => x.SourceEventId == sourceEventId, cancellationToken);
     }
 
     public async Task AddAsync(FunctionalAuditRecord record, CancellationToken cancellationToken = default)
@@ -40,6 +52,11 @@ public sealed class FunctionalAuditRecordRepository(AuditDbContext dbContext) : 
             DetachPendingFunctionalAuditRecords();
             throw new IdempotencyKeyUniqueConstraintViolationException(exception);
         }
+        catch (DbUpdateException exception) when (IsSourceEventIdUniqueViolation(exception))
+        {
+            DetachPendingFunctionalAuditRecords();
+            throw new SourceEventIdUniqueConstraintViolationException(exception);
+        }
     }
 
     private void DetachPendingFunctionalAuditRecords()
@@ -58,5 +75,13 @@ public sealed class FunctionalAuditRecordRepository(AuditDbContext dbContext) : 
             && string.Equals(
                 postgresException.ConstraintName,
                 "ux_audit_functional_audit_records_idempotency_key",
+                StringComparison.Ordinal);
+
+    private static bool IsSourceEventIdUniqueViolation(DbUpdateException exception)
+        => exception.InnerException is PostgresException postgresException
+            && postgresException.SqlState == PostgresErrorCodes.UniqueViolation
+            && string.Equals(
+                postgresException.ConstraintName,
+                "ux_audit_functional_audit_records_source_event_id",
                 StringComparison.Ordinal);
 }

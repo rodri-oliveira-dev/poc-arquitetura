@@ -1,0 +1,25 @@
+{
+  "eventId": "00000000-0000-0000-0000-000000000001",
+  "eventType": "AuditRecordRequested.v1",
+  "schemaVersion": 1,
+  "occurredAt": "2026-07-01T10:30:00Z",
+  "sourceService": "LedgerService",
+  "operationId": "00000000-0000-0000-0000-000000000002",
+  "correlationId": "00000000-0000-0000-0000-000000000003",
+  "idempotencyKey": "00000000-0000-0000-0000-000000000004",
+  "operationType": "LancamentoCriado",
+  "entityType": "Lancamento",
+  "entityId": "lan_123",
+  "merchantId": "m1",
+  "actor": {
+    "type": "Client",
+    "subject": "poc-automation",
+    "clientId": "poc-automation"
+  },
+  "status": "Succeeded",
+  "reason": null,
+  "metadata": {
+    "amount": "100.00",
+    "currency": "BRL"
+  }
+}
