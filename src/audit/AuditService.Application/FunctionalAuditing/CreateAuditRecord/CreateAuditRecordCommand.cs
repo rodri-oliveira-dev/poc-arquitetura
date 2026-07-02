@@ -5,7 +5,7 @@ namespace AuditService.Application.FunctionalAuditing.CreateAuditRecord;
 public sealed record CreateAuditRecordCommand(
     Guid OperationId,
     Guid? CorrelationId,
-    string IdempotencyKey,
+    string? IdempotencyKey,
     string SourceService,
     string OperationType,
     string? EntityType,
@@ -15,4 +15,5 @@ public sealed record CreateAuditRecordCommand(
     string Status,
     string? Reason,
     IReadOnlyDictionary<string, string>? Metadata,
-    DateTimeOffset OccurredAt) : IRequest<CreateAuditRecordResult>;
+    DateTimeOffset OccurredAt,
+    Guid? SourceEventId = null) : IRequest<CreateAuditRecordResult>;

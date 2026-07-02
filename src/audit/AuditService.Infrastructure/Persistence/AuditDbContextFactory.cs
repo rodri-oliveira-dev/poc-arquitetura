@@ -16,7 +16,9 @@ public sealed class AuditDbContextFactory : IDesignTimeDbContextFactory<AuditDbC
         var options = new DbContextOptionsBuilder<AuditDbContext>()
             .UseNpgsql(
                 connectionString,
-                npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "audit"))
+                npgsql => npgsql
+                    .MigrationsHistoryTable("__EFMigrationsHistory", "audit")
+                    .ConfigureDataSource(dataSourceBuilder => dataSourceBuilder.EnableDynamicJson()))
             .Options;
 
         return new AuditDbContext(options);

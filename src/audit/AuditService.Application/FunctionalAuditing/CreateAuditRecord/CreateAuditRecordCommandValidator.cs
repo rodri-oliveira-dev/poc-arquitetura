@@ -36,11 +36,17 @@ public sealed class CreateAuditRecordCommandValidator : AbstractValidator<Create
             .Must(value => value is null || value.Value != Guid.Empty)
             .WithMessage("CorrelationId must be a valid UUID when provided.");
 
+        RuleFor(x => x)
+            .Must(x => !string.IsNullOrWhiteSpace(x.IdempotencyKey) || (x.SourceEventId is { } sourceEventId && sourceEventId != Guid.Empty))
+            .WithMessage("Idempotency-Key or SourceEventId is required.");
+
         RuleFor(x => x.IdempotencyKey)
-            .NotEmpty()
-            .WithMessage("Idempotency-Key is required.")
-            .Must(value => Guid.TryParse(value, out _))
+            .Must(value => string.IsNullOrWhiteSpace(value) || Guid.TryParse(value, out _))
             .WithMessage("Idempotency-Key must be a valid UUID.");
+
+        RuleFor(x => x.SourceEventId)
+            .Must(value => value is null || value.Value != Guid.Empty)
+            .WithMessage("SourceEventId must be a valid UUID when provided.");
 
         RuleFor(x => x.SourceService)
             .NotEmpty()

@@ -40,9 +40,16 @@ Estrutura em Clean Architecture:
 - `AuditService.Application`
 - `AuditService.Domain`
 - `AuditService.Infrastructure`
+- `AuditService.Worker`
 
-O servico nao consome Kafka, nao possui worker e ainda nao integra com `LedgerService`,
-`BalanceService` ou `TransferService`.
+O `AuditService.Worker` consome opcionalmente `AuditRecordRequested.v1` do topico
+Kafka `audit.record.requested`, quando `AuditService:Worker:Enabled=true` e
+`Kafka:AuditRecordRequestedConsumer:Enabled=true`. O consumer usa `eventId` como
+`source_event_id` idempotente e delega a persistencia ao caso de uso de criacao
+existente.
+
+Nesta etapa, `LedgerService`, `BalanceService` e `TransferService` nao publicam
+eventos reais de auditoria.
 
 Para gerar apenas o contrato OpenAPI do AuditService depois do build do projeto:
 
