@@ -88,6 +88,34 @@ dotnet tool run dotnet-gitversion /showvariable FullSemVer
 
 Em branches de feature, o GitVersion pode gerar pre-release com o nome do branch. Na `main`, o workflow usa `MajorMinorPatch` para criar a tag estavel `vMAJOR.MINOR.PATCH`.
 
+## Versionamento dos pacotes NuGet compartilhados
+
+Os pacotes em `src/Shared` usam a mesma fonte de versao do repositorio: o `GitVersion.Tool` configurado em `GitVersion.yml`. O workflow futuro de empacotamento deve calcular a versao uma unica vez, exportar esse valor em `PACKAGE_VERSION` e reutiliza-lo em todos os `dotnet pack` da execucao.
+
+A propriedade do GitVersion usada como `PackageVersion` sera `SemVer`:
+
+```powershell
+dotnet tool restore
+$env:PACKAGE_VERSION = dotnet tool run dotnet-gitversion /showvariable SemVer
+dotnet pack ./src/Shared/ApiDefaults/ApiDefaults.csproj --configuration Release /p:PackageVersion=$env:PACKAGE_VERSION
+dotnet pack ./src/Shared/ApplicationDefaults/ApplicationDefaults.csproj --configuration Release /p:PackageVersion=$env:PACKAGE_VERSION
+dotnet pack ./src/Shared/HttpResilienceDefaults/HttpResilienceDefaults.csproj --configuration Release /p:PackageVersion=$env:PACKAGE_VERSION
+```
+
+No GitHub Actions, o mesmo valor deve ser exportado para o ambiente antes dos packs:
+
+```bash
+PACKAGE_VERSION="$(dotnet tool run dotnet-gitversion /showvariable SemVer)"
+echo "PACKAGE_VERSION=$PACKAGE_VERSION" >> "$GITHUB_ENV"
+dotnet pack ./src/Shared/ApiDefaults/ApiDefaults.csproj --configuration Release /p:PackageVersion="$PACKAGE_VERSION"
+dotnet pack ./src/Shared/ApplicationDefaults/ApplicationDefaults.csproj --configuration Release /p:PackageVersion="$PACKAGE_VERSION"
+dotnet pack ./src/Shared/HttpResilienceDefaults/HttpResilienceDefaults.csproj --configuration Release /p:PackageVersion="$PACKAGE_VERSION"
+```
+
+`SemVer` e adequado para NuGet porque gera uma versao SemVer sem metadados de build (`+...`), por exemplo `0.18.1-lib.1` em branch de feature ou `0.18.1` em uma versao estavel. Esse formato e aceito como `PackageVersion` e preserva pre-releases quando o empacotamento ocorrer fora de uma tag estavel. Na versao atual do `GitVersion.Tool` usada pelo repositorio, `NuGetVersionV2` e `NuGetVersion` nao estao disponiveis como variaveis de saida; por isso o workflow deve extrair `SemVer`.
+
+Nao adicione `Version` fixa aos `.csproj`, nao use `GitVersion.MsBuild` para este fluxo e nao altere consumidores para `PackageReference` ate existir uma tarefa especifica para publicacao/consumo dos pacotes.
+
 ## Conteudo da release
 
 A release usa a tag SemVer como titulo e inclui:
