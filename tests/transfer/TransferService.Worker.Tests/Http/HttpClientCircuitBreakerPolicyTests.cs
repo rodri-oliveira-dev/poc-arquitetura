@@ -113,7 +113,7 @@ public sealed class HttpClientCircuitBreakerPolicyTests
     {
         using var handler = new FakeHttpMessageHandler();
         var lancamentoId = Guid.NewGuid();
-        handler.EnqueueDelay(TimeSpan.FromMilliseconds(200), HttpStatusCode.Created, "late");
+        handler.EnqueueDelay(TimeSpan.FromSeconds(5), HttpStatusCode.Created, "late");
         handler.EnqueueJson(HttpStatusCode.Created, $$"""{ "lancamentoId": "{{lancamentoId}}" }""");
         using ServiceProvider provider = CreateLedgerProvider(handler, new Dictionary<string, string?>
         {
@@ -221,7 +221,7 @@ public sealed class HttpClientCircuitBreakerPolicyTests
     public async Task Keycloak_token_provider_should_treat_timeout_as_transient_failure_Async()
     {
         using var handler = new FakeHttpMessageHandler();
-        handler.EnqueueDelay(TimeSpan.FromMilliseconds(200), HttpStatusCode.OK, "late");
+        handler.EnqueueDelay(TimeSpan.FromSeconds(5), HttpStatusCode.OK, "late");
         handler.EnqueueJson(HttpStatusCode.OK, /*lang=json,strict*/ """{ "access_token": "token-after-timeout", "expires_in": 600 }""");
         using ServiceProvider provider = CreateKeycloakProvider(handler, new Dictionary<string, string?>
         {
