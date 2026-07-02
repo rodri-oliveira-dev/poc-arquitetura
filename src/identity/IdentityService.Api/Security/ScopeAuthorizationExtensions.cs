@@ -1,3 +1,5 @@
+using ApiDefaults.Security;
+
 using Microsoft.AspNetCore.Authorization;
 
 namespace IdentityService.Api.Security;
@@ -11,23 +13,16 @@ public static class ScopeAuthorizationExtensions
         options.AddPolicy(ScopePolicies.IdentityReadPolicy, policy =>
         {
             policy.RequireAuthenticatedUser();
-            policy.RequireAssertion(ctx => HasScope(ctx.User, ScopePolicies.IdentityRead));
+            policy.RequireScope(ScopePolicies.ClaimType, ScopePolicies.IdentityRead);
         });
 
         options.AddPolicy(ScopePolicies.IdentityWritePolicy, policy =>
         {
             policy.RequireAuthenticatedUser();
-            policy.RequireAssertion(ctx => HasScope(ctx.User, ScopePolicies.IdentityWrite));
+            policy.RequireScope(ScopePolicies.ClaimType, ScopePolicies.IdentityWrite);
         });
 
         return options;
     }
 
-    private static bool HasScope(System.Security.Claims.ClaimsPrincipal user, string scope)
-    {
-        var scopeClaim = user.FindFirst(ScopePolicies.ClaimType)?.Value;
-        return !string.IsNullOrWhiteSpace(scopeClaim) && scopeClaim
-            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Contains(scope, StringComparer.Ordinal);
-    }
 }

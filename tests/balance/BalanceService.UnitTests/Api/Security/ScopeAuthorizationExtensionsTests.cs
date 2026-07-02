@@ -1,6 +1,8 @@
-using BalanceService.Api.Security;
-
 using System.Security.Claims;
+
+using ApiDefaults.Security;
+
+using BalanceService.Api.Security;
 
 namespace BalanceService.UnitTests.Api.Security;
 
@@ -20,10 +22,7 @@ public sealed class ScopeAuthorizationExtensionsTests
     public void HasScope_should_return_false_when_empty()
     {
         var principal = PrincipalWithScope(" ");
-        var method = typeof(ScopeAuthorizationExtensions)
-            .GetMethod("HasScope", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
-
-        var result = (bool)method!.Invoke(null, [principal, ScopePolicies.BalanceRead])!;
+        bool result = principal.HasScope(ScopePolicies.ClaimType, ScopePolicies.BalanceRead);
         Assert.False(result);
     }
 
@@ -31,10 +30,7 @@ public sealed class ScopeAuthorizationExtensionsTests
     public void HasScope_should_find_scope_in_space_separated_list()
     {
         var principal = PrincipalWithScope("balance.read ledger.write");
-        var method = typeof(ScopeAuthorizationExtensions)
-            .GetMethod("HasScope", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
-
-        var result = (bool)method!.Invoke(null, [principal, ScopePolicies.BalanceRead])!;
+        bool result = principal.HasScope(ScopePolicies.ClaimType, ScopePolicies.BalanceRead);
         Assert.True(result);
     }
 }

@@ -31,6 +31,9 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
+    <PackageId>PocArquitetura.ApiDefaults</PackageId>
+    <Description>Defaults compartilhados para APIs ASP.NET Core: autenticação JWT, Swagger/OpenAPI, health endpoints, middlewares, CORS, rate limiting e OpenTelemetry.</Description>
+    <PackageTags>dotnet;aspnetcore;api;swagger;opentelemetry;jwt;microservices</PackageTags>
   </PropertyGroup>
 
 </Project>

@@ -1,0 +1,29 @@
+<Project>
+  <!--
+    MSBuild defaults for Shared projects packaged as independent NuGet libraries.
+    Keep package identity, description and tags in each project file.
+  -->
+
+  <PropertyGroup>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <RestoreEnablePackagePruning>true</RestoreEnablePackagePruning>
+
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+
+    <IsPackable>true</IsPackable>
+    <Authors>Rodrigo Oliveira</Authors>
+    <Company>poc-arquitetura</Company>
+    <RepositoryUrl>https://github.com/rodri-oliveira-dev/poc-arquitetura</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageProjectUrl>https://rodri-oliveira-dev.github.io/poc-arquitetura/</PackageProjectUrl>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+
+    <NoWarn>$(NoWarn);1591</NoWarn>
+  </PropertyGroup>
+</Project>

@@ -12,8 +12,9 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
+    <PackageId>PocArquitetura.HttpResilienceDefaults</PackageId>
+    <Description>Defaults compartilhados para configuração de HttpClient resiliente, timeouts, retries, circuit breaker e métricas.</Description>
+    <PackageTags>dotnet;httpclient;resilience;polly;observability;microservices</PackageTags>
   </PropertyGroup>
 
 </Project>
