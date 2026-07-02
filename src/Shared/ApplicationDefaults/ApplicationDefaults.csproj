@@ -7,18 +7,9 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
     <PackageId>PocArquitetura.ApplicationDefaults</PackageId>
-    <Authors>Rodrigo Oliveira</Authors>
-    <Company>poc-arquitetura</Company>
     <Description>Defaults de camada Application para validação e pipeline behaviors baseados em MediatR e FluentValidation.</Description>
     <PackageTags>dotnet;application;mediatr;fluentvalidation;clean-architecture</PackageTags>
-    <RepositoryUrl>https://github.com/rodri-oliveira-dev/poc-arquitetura</RepositoryUrl>
-    <RepositoryType>git</RepositoryType>
-    <PackageProjectUrl>https://rodri-oliveira-dev.github.io/poc-arquitetura/</PackageProjectUrl>
-    <IsPackable>true</IsPackable>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
 
 </Project>
