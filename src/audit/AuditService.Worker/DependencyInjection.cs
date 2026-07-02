@@ -47,7 +47,7 @@ public static class DependencyInjection
         return services;
     }
 
-    private static IServiceCollection AddAuditWorkerOptions(
+    private static void AddAuditWorkerOptions(
         this IServiceCollection services,
         IConfiguration configuration)
     {
@@ -55,11 +55,9 @@ public static class DependencyInjection
             .Bind(configuration.GetSection(AuditWorkerOptions.SectionName))
             .Validate(o => o.IdleDelay > TimeSpan.Zero, "AuditService Worker IdleDelay deve ser maior que zero.")
             .ValidateOnStart();
-
-        return services;
     }
 
-    private static IServiceCollection AddAuditKafkaConsumer(
+    private static void AddAuditKafkaConsumer(
         this IServiceCollection services,
         IConfiguration configuration,
         IHostEnvironment environment)
@@ -84,8 +82,6 @@ public static class DependencyInjection
         services.AddSingleton<IAuditRecordDeadLetterPublisher, KafkaAuditRecordDeadLetterPublisher>();
         services.AddScoped<IAuditRecordRequestedProcessor, AuditRecordRequestedProcessor>();
         services.AddSingleton<IAuditKafkaConsumerFactory, ConfluentAuditKafkaConsumerFactory>();
-
-        return services;
     }
 
     private static bool IsLocalEnvironment(IHostEnvironment environment)
@@ -93,7 +89,7 @@ public static class DependencyInjection
             || string.Equals(environment.EnvironmentName, "Local", StringComparison.OrdinalIgnoreCase)
             || string.Equals(environment.EnvironmentName, "Test", StringComparison.OrdinalIgnoreCase);
 
-    private static IServiceCollection AddAuditWorkerObservability(
+    private static void AddAuditWorkerObservability(
         this IServiceCollection services,
         IConfiguration configuration)
     {
@@ -138,7 +134,5 @@ public static class DependencyInjection
                     }
                 });
         }
-
-        return services;
     }
 }

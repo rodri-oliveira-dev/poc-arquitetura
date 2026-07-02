@@ -53,6 +53,7 @@ public sealed class AuditRecordRequestedConsumerServiceTests
             service.ConsumeOnceAsync(consumer, TestContext.Current.CancellationToken));
 
         Assert.Empty(consumer.CommittedOffsets);
+        Assert.Equal(3, processor.Attempts);
     }
 
     [Fact]

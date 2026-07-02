@@ -102,11 +102,13 @@ public sealed class CreateAuditRecordCommandHandler(IFunctionalAuditRecordReposi
             idempotencyKey,
             cancellationToken);
 
-        return existing is null
-            ? null
-            : !string.Equals(requestHash, GenerateRequestHash(existing), StringComparison.Ordinal)
-            ? throw new ConflictException("Idempotency-Key already used with a different payload.")
-            : new CreateAuditRecordResult(existing.Id, Duplicate: true);
+        if (existing is not null)
+        {
+            EnsureSameRequestHash(existing, requestHash, "Idempotency-Key already used with a different payload.");
+            return new CreateAuditRecordResult(existing.Id, Duplicate: true);
+        }
+
+        return null;
     }
 
     private async Task<CreateAuditRecordResult?> ResolveExistingBySourceEventIdAsync(
@@ -118,11 +120,22 @@ public sealed class CreateAuditRecordCommandHandler(IFunctionalAuditRecordReposi
             sourceEventId,
             cancellationToken);
 
-        return existing is null
-            ? null
-            : !string.Equals(requestHash, GenerateRequestHash(existing), StringComparison.Ordinal)
-            ? throw new ConflictException("SourceEventId already used with a different payload.")
-            : new CreateAuditRecordResult(existing.Id, Duplicate: true);
+        if (existing is not null)
+        {
+            EnsureSameRequestHash(existing, requestHash, "SourceEventId already used with a different payload.");
+            return new CreateAuditRecordResult(existing.Id, Duplicate: true);
+        }
+
+        return null;
+    }
+
+    private static void EnsureSameRequestHash(
+        FunctionalAuditRecord existing,
+        string requestHash,
+        string conflictMessage)
+    {
+        if (!string.Equals(requestHash, GenerateRequestHash(existing), StringComparison.Ordinal))
+            throw new ConflictException(conflictMessage);
     }
 
     private static string GenerateRequestHash(CreateAuditRecordCommand request)

@@ -100,7 +100,7 @@ internal sealed partial class AuditRecordRequestedConsumerService(
         AuditKafkaReceivedMessage message,
         CancellationToken cancellationToken)
     {
-        for (var attempt = 1; ; attempt++)
+        for (var attempt = 1; attempt <= _options.MaxProcessingAttempts; attempt++)
         {
             try
             {
@@ -116,16 +116,19 @@ internal sealed partial class AuditRecordRequestedConsumerService(
                 LogAuditRecordRequestedRetryScheduled(
                     logger,
                     ex,
-                    message.Topic,
-                    message.Partition,
-                    message.Offset,
-                    attempt,
-                    _options.MaxProcessingAttempts,
-                    _options.ProcessingRetryDelay);
+                    new AuditRecordRetryContext(
+                        message.Topic,
+                        message.Partition,
+                        message.Offset,
+                        attempt,
+                        _options.MaxProcessingAttempts,
+                        _options.ProcessingRetryDelay));
 
                 await Task.Delay(_options.ProcessingRetryDelay, cancellationToken);
             }
         }
+
+        throw new InvalidOperationException("AuditRecordRequested Consumer retry loop completed without processing result.");
     }
 
     internal static void ValidateOptions(AuditRecordRequestedConsumerOptions options)
@@ -176,14 +179,31 @@ internal sealed partial class AuditRecordRequestedConsumerService(
     [LoggerMessage(EventId = 5, Level = LogLevel.Information, Message = "Consumer AuditRecordRequested.v1 parado.")]
     private static partial void LogConsumerStopped(ILogger logger);
 
-    [LoggerMessage(EventId = 6, Level = LogLevel.Warning, Message = "Retry local agendado para AuditRecordRequested.v1. topic={Topic} partition={Partition} offset={Offset} attempt={Attempt} maxAttempts={MaxAttempts} delay={Delay}")]
-    private static partial void LogAuditRecordRequestedRetryScheduled(
+    private static readonly Action<ILogger, string, int, long, int, int, TimeSpan, Exception?> AuditRecordRequestedRetryScheduled =
+        LoggerMessage.Define<string, int, long, int, int, TimeSpan>(
+            LogLevel.Warning,
+            new EventId(6, nameof(LogAuditRecordRequestedRetryScheduled)),
+            "Retry local agendado para AuditRecordRequested.v1. topic={Topic} partition={Partition} offset={Offset} attempt={Attempt} maxAttempts={MaxAttempts} delay={Delay}");
+
+    private static void LogAuditRecordRequestedRetryScheduled(
         ILogger logger,
         Exception exception,
-        string topic,
-        int partition,
-        long offset,
-        int attempt,
-        int maxAttempts,
-        TimeSpan delay);
+        AuditRecordRetryContext context)
+        => AuditRecordRequestedRetryScheduled(
+            logger,
+            context.Topic,
+            context.Partition,
+            context.Offset,
+            context.Attempt,
+            context.MaxAttempts,
+            context.Delay,
+            exception);
+
+    private sealed record AuditRecordRetryContext(
+        string Topic,
+        int Partition,
+        long Offset,
+        int Attempt,
+        int MaxAttempts,
+        TimeSpan Delay);
 }

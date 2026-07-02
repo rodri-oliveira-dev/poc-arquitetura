@@ -59,15 +59,16 @@ internal sealed partial class KafkaAuditRecordDeadLetterPublisher(
 
             LogAuditRecordRequestedPublishedToDlq(
                 _logger,
-                _options.DeadLetterTopic,
-                result.Partition.Value,
-                result.Offset.Value,
-                message.OriginalTopic,
-                message.OriginalPartition,
-                message.OriginalOffset,
-                message.EventId,
-                message.CorrelationId,
-                message.FailureCategory);
+                new DeadLetterPublishContext(
+                    _options.DeadLetterTopic,
+                    result.Partition.Value,
+                    result.Offset.Value,
+                    message.OriginalTopic,
+                    message.OriginalPartition,
+                    message.OriginalOffset,
+                    message.EventId,
+                    message.CorrelationId,
+                    message.FailureCategory));
         }
         catch (Exception ex) when (ex is ProduceException<string, string> or KafkaException or TimeoutException or InvalidOperationException)
         {
@@ -96,16 +97,19 @@ internal sealed partial class KafkaAuditRecordDeadLetterPublisher(
         _producer.Dispose();
     }
 
-    [LoggerMessage(EventId = 1, Level = LogLevel.Warning, Message = "AuditRecordRequested.v1 publicado na DLQ {DeadLetterTopic}. partition={Partition} offset={Offset} originalTopic={OriginalTopic} originalPartition={OriginalPartition} originalOffset={OriginalOffset} eventId={EventId} correlationId={CorrelationId} failureCategory={FailureCategory}")]
+    [LoggerMessage(EventId = 1, Level = LogLevel.Warning, Message = "AuditRecordRequested.v1 publicado na DLQ. {Context}")]
     private static partial void LogAuditRecordRequestedPublishedToDlq(
         ILogger logger,
-        string deadLetterTopic,
-        int partition,
-        long offset,
-        string originalTopic,
-        int originalPartition,
-        long originalOffset,
-        Guid? eventId,
-        Guid? correlationId,
-        string failureCategory);
+        DeadLetterPublishContext context);
+
+    private sealed record DeadLetterPublishContext(
+        string DeadLetterTopic,
+        int Partition,
+        long Offset,
+        string OriginalTopic,
+        int OriginalPartition,
+        long OriginalOffset,
+        Guid? EventId,
+        Guid? CorrelationId,
+        string FailureCategory);
 }

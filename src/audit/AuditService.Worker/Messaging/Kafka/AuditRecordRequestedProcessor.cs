@@ -19,120 +19,121 @@ internal sealed partial class AuditRecordRequestedProcessor(
     ILogger<AuditRecordRequestedProcessor> logger) : IAuditRecordRequestedProcessor
 {
     public async Task<AuditRecordRequestedProcessingResult> ProcessAsync(
-        AuditKafkaReceivedMessage receivedMessage,
+        AuditKafkaReceivedMessage message,
         CancellationToken cancellationToken)
     {
-        AuditRecordRequestedEvent message;
+        AuditRecordRequestedEvent requestedEvent;
         try
         {
-            message = AuditRecordRequestedSerializer.Deserialize(receivedMessage.Payload);
+            requestedEvent = AuditRecordRequestedSerializer.Deserialize(message.Payload);
         }
         catch (JsonException ex)
         {
             await PublishToDeadLetterAsync(
-                receivedMessage,
-                "JSON invalido.",
-                "invalid_json",
+                new AuditRecordFailureContext(
+                    message,
+                    EventId: null,
+                    CorrelationId: null,
+                    FailureReason: "JSON invalido.",
+                    FailureCategory: "invalid_json"),
                 ex,
-                eventId: null,
-                correlationId: null,
                 cancellationToken);
 
-            LogInvalidAuditRecordRequestedJson(logger, ex, receivedMessage.Topic, receivedMessage.Partition, receivedMessage.Offset);
+            LogInvalidAuditRecordRequestedJson(logger, ex, message.Topic, message.Partition, message.Offset);
             return AuditRecordRequestedProcessingResult.DeadLetter;
         }
 
         try
         {
-            validator.ValidateAndThrow(message);
+            await validator.ValidateAndThrowAsync(requestedEvent, cancellationToken);
 
-            var result = await sender.Send(AuditRecordRequestedMapper.Map(message), cancellationToken);
+            var result = await sender.Send(AuditRecordRequestedMapper.Map(requestedEvent), cancellationToken);
 
             if (result.Duplicate)
             {
                 LogAuditRecordRequestedDuplicated(
                     logger,
-                    message.EventId,
-                    message.CorrelationId,
-                    message.OperationId,
-                    message.SourceService,
-                    message.OperationType);
+                    requestedEvent.EventId,
+                    requestedEvent.CorrelationId,
+                    requestedEvent.OperationId,
+                    requestedEvent.SourceService,
+                    requestedEvent.OperationType);
 
                 return AuditRecordRequestedProcessingResult.Duplicate;
             }
 
             LogAuditRecordRequestedProcessed(
                 logger,
-                message.EventId,
-                message.CorrelationId,
-                message.OperationId,
-                message.SourceService,
-                message.OperationType);
+                requestedEvent.EventId,
+                requestedEvent.CorrelationId,
+                requestedEvent.OperationId,
+                requestedEvent.SourceService,
+                requestedEvent.OperationType);
 
             return AuditRecordRequestedProcessingResult.Success;
         }
         catch (ValidationException ex)
         {
             await PublishToDeadLetterAsync(
-                receivedMessage,
-                "Contrato invalido.",
-                "invalid_contract",
+                new AuditRecordFailureContext(
+                    message,
+                    requestedEvent.EventId,
+                    requestedEvent.CorrelationId,
+                    "Contrato invalido.",
+                    "invalid_contract"),
                 ex,
-                message.EventId,
-                message.CorrelationId,
                 cancellationToken);
 
-            LogInvalidAuditRecordRequestedContract(logger, ex, message.EventId, message.CorrelationId);
+            LogInvalidAuditRecordRequestedContract(logger, ex, requestedEvent.EventId, requestedEvent.CorrelationId);
             return AuditRecordRequestedProcessingResult.DeadLetter;
         }
         catch (ConflictException ex)
         {
             await PublishToDeadLetterAsync(
-                receivedMessage,
-                "Conflito de idempotencia.",
-                "idempotency_conflict",
+                new AuditRecordFailureContext(
+                    message,
+                    requestedEvent.EventId,
+                    requestedEvent.CorrelationId,
+                    "Conflito de idempotencia.",
+                    "idempotency_conflict"),
                 ex,
-                message.EventId,
-                message.CorrelationId,
                 cancellationToken);
 
-            LogAuditRecordRequestedIdempotencyConflict(logger, ex, message.EventId, message.CorrelationId);
+            LogAuditRecordRequestedIdempotencyConflict(logger, ex, requestedEvent.EventId, requestedEvent.CorrelationId);
             return AuditRecordRequestedProcessingResult.DeadLetter;
         }
     }
 
     private async Task PublishToDeadLetterAsync(
-        AuditKafkaReceivedMessage receivedMessage,
-        string failureReason,
-        string failureCategory,
+        AuditRecordFailureContext failure,
         Exception exception,
-        Guid? eventId,
-        Guid? correlationId,
         CancellationToken cancellationToken)
     {
         var deadLetterMessage = new AuditRecordDeadLetterMessage(
-            eventId,
-            correlationId,
-            receivedMessage.Topic,
-            receivedMessage.Partition,
-            receivedMessage.Offset,
-            failureReason,
-            failureCategory,
+            failure.EventId,
+            failure.CorrelationId,
+            failure.Message.Topic,
+            failure.Message.Partition,
+            failure.Message.Offset,
+            failure.FailureReason,
+            failure.FailureCategory,
             DateTimeOffset.UtcNow,
-            ComputeSha256(receivedMessage.Payload));
+            ComputeSha256(failure.Message.Payload));
 
         await deadLetterPublisher.PublishAsync(deadLetterMessage, cancellationToken);
 
         LogAuditRecordRequestedSentToDlq(
             logger,
             exception,
-            receivedMessage.Topic,
-            receivedMessage.Partition,
-            receivedMessage.Offset,
-            eventId,
-            correlationId,
-            failureCategory);
+            failure);
     }
+
+    private sealed record AuditRecordFailureContext(
+        AuditKafkaReceivedMessage Message,
+        Guid? EventId,
+        Guid? CorrelationId,
+        string FailureReason,
+        string FailureCategory);
 
     private static string ComputeSha256(string value)
     {
@@ -173,16 +174,25 @@ internal sealed partial class AuditRecordRequestedProcessor(
         string sourceService,
         string operationType);
 
-    [LoggerMessage(EventId = 5, Level = LogLevel.Warning, Message = "AuditRecordRequested.v1 enviado para DLQ. topic={Topic} partition={Partition} offset={Offset} eventId={EventId} correlationId={CorrelationId} failureCategory={FailureCategory}")]
-    private static partial void LogAuditRecordRequestedSentToDlq(
+    private static readonly Action<ILogger, string, int, long, Guid?, Guid?, string, Exception?> AuditRecordRequestedSentToDlq =
+        LoggerMessage.Define<string, int, long, Guid?, Guid?, string>(
+            LogLevel.Warning,
+            new EventId(5, nameof(LogAuditRecordRequestedSentToDlq)),
+            "AuditRecordRequested.v1 enviado para DLQ. topic={Topic} partition={Partition} offset={Offset} eventId={EventId} correlationId={CorrelationId} failureCategory={FailureCategory}");
+
+    private static void LogAuditRecordRequestedSentToDlq(
         ILogger logger,
         Exception exception,
-        string topic,
-        int partition,
-        long offset,
-        Guid? eventId,
-        Guid? correlationId,
-        string failureCategory);
+        AuditRecordFailureContext failure)
+        => AuditRecordRequestedSentToDlq(
+            logger,
+            failure.Message.Topic,
+            failure.Message.Partition,
+            failure.Message.Offset,
+            failure.EventId,
+            failure.CorrelationId,
+            failure.FailureCategory,
+            exception);
 
     [LoggerMessage(EventId = 6, Level = LogLevel.Warning, Message = "AuditRecordRequested.v1 com conflito definitivo de idempotencia. eventId={EventId} correlationId={CorrelationId}")]
     private static partial void LogAuditRecordRequestedIdempotencyConflict(
