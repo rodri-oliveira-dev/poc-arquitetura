@@ -22,7 +22,7 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <RepositoryUrl>https://github.com/rodri-oliveira-dev/poc-arquitetura</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
-    <PackageProjectUrl>https://rodri-oliveira-dev.github.io/poc-arquitetura/</PackageProjectUrl>
+    <PackageProjectUrl>https://github.com/rodri-oliveira-dev/poc-arquitetura</PackageProjectUrl>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>

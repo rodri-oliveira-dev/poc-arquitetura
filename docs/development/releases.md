@@ -119,7 +119,7 @@ dotnet pack ./src/Shared/ApiDefaults/ApiDefaults.csproj --configuration Release 
 
 `SemVer` e adequado para NuGet porque gera uma versao SemVer sem metadados de build (`+...`), por exemplo `0.18.1-lib.1` em branch de feature ou `0.18.1` em uma versao estavel. Quando o GitVersion calcular uma pre-release apenas numerica em `main`, como `0.18.1-8`, o workflow deve normalizar o valor para `0.18.1-main.8` antes do `dotnet pack`, porque o NuGet.org rejeita esse sufixo numerico puro no push. Na versao atual do `GitVersion.Tool` usada pelo repositorio, `NuGetVersionV2` e `NuGetVersion` nao estao disponiveis como variaveis de saida; por isso o workflow deve extrair `SemVer` e aplicar essa normalizacao pequena.
 
-O workflow `.github/workflows/publish-shared-nuget.yml` restaura, compila, testa, empacota e publica os pacotes no NuGet.org. A publicacao usa Trusted Publishing com GitHub Actions OIDC por meio de `NuGet/login@v1`; nao ha API key persistente nem secret `NUGET_API_KEY`.
+O workflow `.github/workflows/publish-shared-nuget.yml` restaura, compila, testa, empacota, valida os metadados dos `.nupkg` e publica os pacotes no NuGet.org. A publicacao usa Trusted Publishing com GitHub Actions OIDC por meio de `NuGet/login@v1`; nao ha API key persistente nem secret `NUGET_API_KEY`.
 
 Para a publicacao funcionar, deve existir no NuGet.org uma Trusted Publishing policy com:
 
@@ -136,6 +136,10 @@ Os pacotes sao publicados em ordem para respeitar a dependencia de `ApiDefaults`
 1. `PocArquitetura.HttpResilienceDefaults`
 2. `PocArquitetura.ApplicationDefaults`
 3. `PocArquitetura.ApiDefaults`
+
+Antes do upload do artifact e da publicacao, o workflow abre cada `.nupkg` e valida `id`, versao, descricao, autores, tags, `projectUrl`, licenca MIT, `README.md`, repository metadata e o `README.md` na raiz do pacote. Para `PocArquitetura.ApiDefaults`, tambem valida a dependencia interna para `PocArquitetura.HttpResilienceDefaults`.
+
+O push para o NuGet.org nao usa `--skip-duplicate`. Se o GitVersion calcular uma versao ja publicada, a execucao deve falhar em vez de mascarar que uma nova versao nao foi gerada.
 
 O artifact `shared-nuget-packages` continua sendo enviado em toda execucao bem-sucedida de pack, mesmo quando a publicacao tambem ocorre. Para baixa-lo, abra a execucao do workflow no GitHub Actions e use a secao **Artifacts** da pagina da run.
 

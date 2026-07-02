@@ -98,29 +98,103 @@ jobs:
           /p:PackageVersion=$PACKAGE_VERSION
 
       - name: Validate generated packages
-        shell: bash
+        shell: pwsh
         run: |
-          set -euo pipefail
+          $ErrorActionPreference = "Stop"
 
-          expected_packages=(
-            "PocArquitetura.HttpResilienceDefaults.$PACKAGE_VERSION.nupkg"
-            "PocArquitetura.ApplicationDefaults.$PACKAGE_VERSION.nupkg"
-            "PocArquitetura.ApiDefaults.$PACKAGE_VERSION.nupkg"
+          $expectedPackages = @(
+            @{
+              Id = "PocArquitetura.HttpResilienceDefaults"
+              Tags = @("dotnet", "httpclient", "resilience", "polly", "observability", "microservices")
+              Dependencies = @()
+            },
+            @{
+              Id = "PocArquitetura.ApplicationDefaults"
+              Tags = @("dotnet", "application", "mediatr", "fluentvalidation", "clean-architecture")
+              Dependencies = @()
+            },
+            @{
+              Id = "PocArquitetura.ApiDefaults"
+              Tags = @("dotnet", "aspnetcore", "api", "swagger", "opentelemetry", "jwt", "microservices")
+              Dependencies = @("PocArquitetura.HttpResilienceDefaults")
+            }
           )
 
-          for package in "${expected_packages[@]}"; do
-            if [ ! -f "$PACKAGE_OUTPUT_DIR/$package" ]; then
-              echo "Expected package not found: $PACKAGE_OUTPUT_DIR/$package" >&2
-              exit 1
-            fi
-          done
+          $packageFiles = Get-ChildItem -Path $env:PACKAGE_OUTPUT_DIR -Filter "*.nupkg" -File
+          if ($packageFiles.Count -ne $expectedPackages.Count) {
+            $found = ($packageFiles.Name -join ", ")
+            throw "Expected $($expectedPackages.Count) .nupkg files, found $($packageFiles.Count): $found"
+          }
 
-          package_count="$(find "$PACKAGE_OUTPUT_DIR" -maxdepth 1 -name '*.nupkg' | wc -l | tr -d ' ')"
-          if [ "$package_count" != "${#expected_packages[@]}" ]; then
-            echo "Expected ${#expected_packages[@]} .nupkg files, found $package_count." >&2
-            find "$PACKAGE_OUTPUT_DIR" -maxdepth 1 -name '*.nupkg' -print >&2
-            exit 1
-          fi
+          foreach ($expectedPackage in $expectedPackages) {
+            $packageFileName = "$($expectedPackage.Id).$env:PACKAGE_VERSION.nupkg"
+            $packagePath = Join-Path $env:PACKAGE_OUTPUT_DIR $packageFileName
+            if (-not (Test-Path -LiteralPath $packagePath -PathType Leaf)) {
+              throw "Expected package not found: $packagePath"
+            }
+
+            $extractPath = Join-Path ([System.IO.Path]::GetTempPath()) ([System.IO.Path]::GetRandomFileName())
+            New-Item -ItemType Directory -Path $extractPath | Out-Null
+            $zipPath = Join-Path ([System.IO.Path]::GetTempPath()) "$([System.IO.Path]::GetRandomFileName()).zip"
+            Copy-Item -LiteralPath $packagePath -Destination $zipPath
+            Expand-Archive -LiteralPath $zipPath -DestinationPath $extractPath
+
+            try {
+              $nuspecPath = Join-Path $extractPath "$($expectedPackage.Id).nuspec"
+              if (-not (Test-Path -LiteralPath $nuspecPath -PathType Leaf)) {
+                throw "Nuspec not found in $packageFileName"
+              }
+
+              [xml]$nuspec = Get-Content -LiteralPath $nuspecPath -Raw
+              $metadata = $nuspec.package.metadata
+              $tags = ($metadata.tags -split "\s+") | Where-Object { $_ }
+              $dependencyIds = @($metadata.dependencies.group.dependency | ForEach-Object { $_.id })
+
+              if ($metadata.id -ne $expectedPackage.Id) { throw "Invalid PackageId in ${packageFileName}: $($metadata.id)" }
+              if ($metadata.version -ne $env:PACKAGE_VERSION) { throw "Invalid version in ${packageFileName}: $($metadata.version)" }
+              if ([string]::IsNullOrWhiteSpace($metadata.description)) { throw "Description is missing in $packageFileName" }
+              if ($metadata.authors -ne "Rodrigo Oliveira") { throw "Invalid authors in ${packageFileName}: $($metadata.authors)" }
+              if ($metadata.projectUrl -ne "https://github.com/rodri-oliveira-dev/poc-arquitetura") { throw "Invalid projectUrl in ${packageFileName}: $($metadata.projectUrl)" }
+              if ($metadata.license.type -ne "expression" -or $metadata.license.'#text' -ne "MIT") { throw "Invalid license in $packageFileName" }
+              if ($metadata.readme -ne "README.md") { throw "Invalid readme metadata in ${packageFileName}: $($metadata.readme)" }
+              if ($metadata.repository.type -ne "git" -or $metadata.repository.url -ne "https://github.com/rodri-oliveira-dev/poc-arquitetura") { throw "Invalid repository metadata in $packageFileName" }
+
+              foreach ($expectedTag in $expectedPackage.Tags) {
+                if ($tags -notcontains $expectedTag) {
+                  throw "Missing tag '$expectedTag' in $packageFileName"
+                }
+              }
+
+              foreach ($expectedDependency in $expectedPackage.Dependencies) {
+                if ($dependencyIds -notcontains $expectedDependency) {
+                  throw "Missing dependency '$expectedDependency' in $packageFileName"
+                }
+              }
+
+              $readmePath = Join-Path $extractPath "README.md"
+              if (-not (Test-Path -LiteralPath $readmePath -PathType Leaf)) {
+                throw "README.md not found at package root in $packageFileName"
+              }
+
+              $readme = Get-Content -LiteralPath $readmePath -Raw
+              if (-not $readme.StartsWith("# $($expectedPackage.Id)")) {
+                throw "README.md in $packageFileName does not start with the package name"
+              }
+              if ($readme -notmatch "dotnet add package $([regex]::Escape($expectedPackage.Id))") {
+                throw "README.md in $packageFileName does not include the install command"
+              }
+              if ($readme -notmatch "POC|poc-arquitetura") {
+                throw "README.md in $packageFileName does not mention the architecture POC"
+              }
+              if ($readme -notmatch "Licenca MIT") {
+                throw "README.md in $packageFileName does not mention the MIT license"
+              }
+            }
+            finally {
+              Remove-Item -LiteralPath $zipPath -Force
+              Remove-Item -LiteralPath $extractPath -Recurse -Force
+            }
+          }
 
       - name: Upload Shared NuGet packages
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -144,7 +218,6 @@ jobs:
           "$PACKAGE_OUTPUT_DIR/PocArquitetura.HttpResilienceDefaults.$PACKAGE_VERSION.nupkg"
           --source https://api.nuget.org/v3/index.json
           --api-key "${{ steps.nuget_login.outputs.NUGET_API_KEY }}"
-          --skip-duplicate
 
       - name: Publish ApplicationDefaults
         if: ${{ github.event_name != 'pull_request' }}
@@ -153,7 +226,6 @@ jobs:
           "$PACKAGE_OUTPUT_DIR/PocArquitetura.ApplicationDefaults.$PACKAGE_VERSION.nupkg"
           --source https://api.nuget.org/v3/index.json
           --api-key "${{ steps.nuget_login.outputs.NUGET_API_KEY }}"
-          --skip-duplicate
 
       - name: Publish ApiDefaults
         if: ${{ github.event_name != 'pull_request' }}
@@ -162,7 +234,6 @@ jobs:
           "$PACKAGE_OUTPUT_DIR/PocArquitetura.ApiDefaults.$PACKAGE_VERSION.nupkg"
           --source https://api.nuget.org/v3/index.json
           --api-key "${{ steps.nuget_login.outputs.NUGET_API_KEY }}"
-          --skip-duplicate
 
       - name: Write summary
         if: ${{ always() }}
