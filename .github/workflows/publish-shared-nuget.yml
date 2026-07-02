@@ -1,0 +1,134 @@
+name: publish-shared-nuget
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+    paths:
+      - "src/Shared/**"
+      - "LedgerService.slnx"
+      - "GitVersion.yml"
+      - ".github/workflows/publish-shared-nuget.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: true
+  DOTNET_NOLOGO: true
+  BUILD_CONFIGURATION: Release
+  SOLUTION_PATH: LedgerService.slnx
+  PACKAGE_OUTPUT_DIR: artifacts/packages
+
+jobs:
+  pack-shared:
+    name: Build, test and pack Shared NuGet packages
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: ./.github/actions/setup-dotnet
+
+      - name: Install GitVersion.Tool
+        run: dotnet tool restore
+
+      - name: Calculate package version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          package_version="$(dotnet tool run dotnet-gitversion /showvariable SemVer)"
+          if [ -z "$package_version" ]; then
+            echo "GitVersion did not calculate a NuGet package version." >&2
+            exit 1
+          fi
+
+          echo "PACKAGE_VERSION=$package_version" >> "$GITHUB_ENV"
+          echo "Package version: $package_version"
+
+      - name: Restore dependencies
+        run: dotnet restore $SOLUTION_PATH
+
+      - name: Build
+        run: dotnet build $SOLUTION_PATH -c $BUILD_CONFIGURATION --no-restore
+
+      - name: Test
+        run: dotnet test $SOLUTION_PATH -c $BUILD_CONFIGURATION --no-build
+
+      - name: Pack HttpResilienceDefaults
+        run: >
+          dotnet pack src/Shared/HttpResilienceDefaults/HttpResilienceDefaults.csproj
+          -c $BUILD_CONFIGURATION
+          --no-build
+          --output $PACKAGE_OUTPUT_DIR
+          /p:PackageVersion=$PACKAGE_VERSION
+
+      - name: Pack ApplicationDefaults
+        run: >
+          dotnet pack src/Shared/ApplicationDefaults/ApplicationDefaults.csproj
+          -c $BUILD_CONFIGURATION
+          --no-build
+          --output $PACKAGE_OUTPUT_DIR
+          /p:PackageVersion=$PACKAGE_VERSION
+
+      - name: Pack ApiDefaults
+        run: >
+          dotnet pack src/Shared/ApiDefaults/ApiDefaults.csproj
+          -c $BUILD_CONFIGURATION
+          --no-build
+          --output $PACKAGE_OUTPUT_DIR
+          /p:PackageVersion=$PACKAGE_VERSION
+
+      - name: Validate generated packages
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          expected_packages=(
+            "PocArquitetura.HttpResilienceDefaults.$PACKAGE_VERSION.nupkg"
+            "PocArquitetura.ApplicationDefaults.$PACKAGE_VERSION.nupkg"
+            "PocArquitetura.ApiDefaults.$PACKAGE_VERSION.nupkg"
+          )
+
+          for package in "${expected_packages[@]}"; do
+            if [ ! -f "$PACKAGE_OUTPUT_DIR/$package" ]; then
+              echo "Expected package not found: $PACKAGE_OUTPUT_DIR/$package" >&2
+              exit 1
+            fi
+          done
+
+          package_count="$(find "$PACKAGE_OUTPUT_DIR" -maxdepth 1 -name '*.nupkg' | wc -l | tr -d ' ')"
+          if [ "$package_count" != "${#expected_packages[@]}" ]; then
+            echo "Expected ${#expected_packages[@]} .nupkg files, found $package_count." >&2
+            find "$PACKAGE_OUTPUT_DIR" -maxdepth 1 -name '*.nupkg' -print >&2
+            exit 1
+          fi
+
+      - name: Upload Shared NuGet packages
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: shared-nuget-packages
+          path: artifacts/packages/*.nupkg
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Write summary
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          {
+            echo "## Shared NuGet packages"
+            echo "- Package version: \`${PACKAGE_VERSION:-not calculated}\`"
+            echo "- Output directory: \`$PACKAGE_OUTPUT_DIR\`"
+            echo "- Artifact: \`shared-nuget-packages\`"
+          } >> "$GITHUB_STEP_SUMMARY"
