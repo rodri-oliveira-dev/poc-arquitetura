@@ -6,9 +6,15 @@ on:
     branches: ["main"]
     paths:
       - "src/Shared/**"
-      - "LedgerService.slnx"
+      - "tests/Shared/**"
+      - "PocArquitetura.Shared.slnx"
       - "GitVersion.yml"
+      - "Directory.Build.props"
+      - "Directory.Packages.props"
+      - "src/Shared/Directory.Build.props"
+      - "src/Shared/Directory.Packages.props"
       - ".github/workflows/publish-shared-nuget.yml"
+      - "LICENSE"
 
 permissions:
   contents: read
@@ -22,7 +28,7 @@ env:
   CI: true
   DOTNET_NOLOGO: true
   BUILD_CONFIGURATION: Release
-  SOLUTION_PATH: LedgerService.slnx
+  SOLUTION_PATH: PocArquitetura.Shared.slnx
   PACKAGE_OUTPUT_DIR: artifacts/packages
 
 jobs:
