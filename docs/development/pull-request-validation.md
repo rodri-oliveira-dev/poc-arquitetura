@@ -12,11 +12,30 @@ Quando o PR altera apenas documentacao ou imagens de documentacao, o workflow re
 
 Isso evita required check pendente em PRs que o GitHub poderia ignorar por filtro de arquivos e reduz custo de execucao em mudancas que nao impactam codigo.
 
-Quando ha qualquer arquivo fora desse conjunto, ou quando a deteccao de arquivos falha, o workflow executa:
+Quando ha arquivos de codigo, configuracao ou automacao fora desse conjunto, o workflow classifica o impacto antes de executar restore, build e testes:
 
-- `dotnet restore ./LedgerService.slnx`;
-- `dotnet build ./LedgerService.slnx --configuration Release --no-restore`;
-- `dotnet test ./LedgerService.slnx --configuration Release --no-build --no-restore`.
+- mudancas apenas em `src/Shared/**`, `tests/Shared/**` ou `PocArquitetura.Shared.slnx` validam `./PocArquitetura.Shared.slnx`;
+- mudancas apenas em servicos, testes de servico, `tests/Architecture.Tests/**` ou `LedgerService.slnx` validam `./LedgerService.slnx`;
+- mudancas que combinam Shared e servicos validam as duas solutions;
+- mudancas globais validam as duas solutions;
+- quando a deteccao de arquivos falha ou encontra arquivo impactante nao classificado, o workflow valida as duas solutions por seguranca.
+
+Arquivos globais para o gate de PR:
+
+- `global.json`;
+- `NuGet.config`;
+- `Directory.Build.props`;
+- `Directory.Packages.props`;
+- `.github/actions/setup-dotnet/**`;
+- `.github/workflows/**`;
+- `test.sh`;
+- `test.ps1`.
+
+Para cada solution impactada, o workflow executa:
+
+- `dotnet restore`;
+- `dotnet build --configuration Release --no-restore`;
+- `dotnet test --configuration Release --no-build --no-restore`.
 
 Ele nao executa verificacao de vulnerabilidades, cobertura ou publicacao de relatorios, e nao chama `test.sh`. Ele executa a suite de testes sem filtro, portanto inclui testes `Integration`, `Container` e `Contract` quando existirem e quando o runner disponibilizar as dependencias esperadas. As demais responsabilidades continuam nos workflows especificos, como `dependency-security-review`, `main-dotnet-ci` e `infra-security-and-terraform-validation`.
 
@@ -60,15 +79,15 @@ Os workflows continuam mantendo explicitos os comandos de negocio do pipeline, c
 
 | Workflow | Arquivo | Evento | Papel | Bloqueante / informativo / operacional |
 | --- | --- | --- | --- | --- |
-| `pr-build-and-test` | `.github/workflows/pull-request-validation.yml` | `pull_request`, `merge_group`, `workflow_dispatch` | Gate minimo de PR. Em PR documental, cria o status check e pula restore/build/test. Em PR com mudanca impactante, executa restore, build e testes sem cobertura e sem recompilar depois do build. | Bloqueante |
-| `main-dotnet-ci` | `.github/workflows/dotnet.yml` | `push` na `main`, `pull_request` para `main`, `workflow_dispatch` | Validacao completa, com restore, vulnerabilidades NuGet, SonarQube Cloud, build, testes, cobertura, gate de 85% e artifacts de diagnostico. | Bloqueante se exigido por branch protection/ruleset |
+| `pr-build-and-test` | `.github/workflows/pull-request-validation.yml` | `pull_request`, `merge_group`, `workflow_dispatch` | Gate minimo de PR. Em PR documental, cria o status check e pula restore/build/test. Em PR impactante, escolhe `LedgerService.slnx`, `PocArquitetura.Shared.slnx` ou ambas conforme arquivos alterados. | Bloqueante |
+| `main-dotnet-ci` | `.github/workflows/dotnet.yml` | `push` na `main`, `pull_request` para `main`, `workflow_dispatch` | Validacao completa da solution principal, com restore, vulnerabilidades NuGet, SonarQube Cloud, build, testes, cobertura, gate de 85% e artifacts de diagnostico. Mudancas exclusivas em Shared nao disparam este workflow; a validacao Shared fica no gate de PR e no workflow dedicado de publish. | Bloqueante se exigido por branch protection/ruleset |
 | `dependency-security-review` | `.github/workflows/dependency-review.yml` | `pull_request` para `main` | Revisa dependencias alteradas no PR e falha para vulnerabilidades `moderate` ou superior. | Bloqueante se exigido por branch protection/ruleset |
 | `codeql-security-analysis` | `.github/workflows/codeql.yml` | `push` na `main`, `pull_request` para `main`, `schedule` semanal | Analise estatica de seguranca C# via CodeQL. | Bloqueante se exigido por branch protection/ruleset |
-| `pr-advisory-checks` | `.github/workflows/pr-advisory-review.yml` | `pull_request`, `pull_request_target`, `workflow_dispatch` | Atribui o autor como responsavel do PR quando a API permite e publica recomendacoes de analyzers para arquivos C# alterados. Falhas de atribuicao de responsavel sao registradas como warning e nao bloqueiam o PR. | Informativo |
+| `pr-advisory-checks` | `.github/workflows/pr-advisory-checks.yml` | `pull_request` | Publica recomendacoes de analyzers para arquivos C# alterados. Escolhe `LedgerService.slnx`, `PocArquitetura.Shared.slnx` ou ambas pela mesma separacao Shared/servicos/globais do gate de PR. O resultado e advisory e nao bloqueia o PR. | Informativo |
 | `event-contract-validation` | `.github/workflows/event-contracts.yml` | `pull_request`, `push` na `main`, `workflow_dispatch` quando ha mudancas em contratos, exemplos, docs e tooling de eventos | Valida JSON Schemas e exemplos versionados dos eventos. | Bloqueante se exigido por branch protection/ruleset |
-| `openapi-contract-validation` | `.github/workflows/openapi-contracts.yml` | `pull_request`, `push` na `main`, `workflow_dispatch` quando ha mudancas em APIs, contratos OpenAPI ou tooling relacionado | Gera, linta, compara breaking changes e valida drift dos contratos OpenAPI. | Bloqueante se exigido por branch protection/ruleset |
+| `openapi-contract-validation` | `.github/workflows/openapi-contracts.yml` | `pull_request`, `push` na `main`, `workflow_dispatch` quando ha mudancas em APIs, contratos OpenAPI ou tooling relacionado | Gera, linta, compara breaking changes e valida drift dos contratos OpenAPI. Mudancas exclusivas em Shared nao disparam o workflow, exceto `src/Shared/ApiDefaults/**`, que pode alterar Swagger, autenticacao, headers, middlewares ou comportamento observavel das APIs. | Bloqueante se exigido por branch protection/ruleset |
 | `infra-security-and-terraform-validation` | `.github/workflows/terraform-validation.yml` | `pull_request` e `push` para `main` quando ha mudancas em `infra/terraform/**`, Dockerfiles, Compose, `.github/actions/trivy-repository-scan/**` ou no proprio workflow; `workflow_dispatch` | Executa Trivy para Dockerfile, Terraform, misconfigurations, secrets e filesystem; depois executa `fmt -check`, `init -backend=false`, `validate` e TFLint. Nao executa `plan`, `apply` nem `destroy`; o `init` sem backend e apenas validacao sintatica sem credenciais. Plan real no CI deve inicializar o backend remoto GCS e nao usar `-lock=false`. | Bloqueante se exigido por branch protection/ruleset |
-| `mutation-tests` | `.github/workflows/mutation-tests.yml` | `push` na `main`, `workflow_dispatch` | Diagnostico de qualidade por Stryker.NET com relatorios HTML publicados como artifacts. Nao roda em PR e nao deve virar gate obrigatorio sem decisao explicita. | Informativo |
+| `mutation-tests` | `.github/workflows/mutation-tests.yml` | `push` na `main`, `workflow_dispatch` | Diagnostico de qualidade por Stryker.NET para alvos de servico com relatorios HTML publicados como artifacts. Mudancas exclusivas em Shared nao disparam mutation de servicos; mutation de Shared exige decisao futura explicita. Nao roda em PR e nao deve virar gate obrigatorio sem decisao explicita. | Informativo |
 | `smoke-load-tests` | `.github/workflows/loadtests-smoke.yml` | `workflow_dispatch` | Executa testes k6 smoke contra a stack local inicializada no runner. | Operacional/manual |
 | `owasp-zap-baseline` | `.github/workflows/owasp-zap.yml` | `workflow_dispatch` | Executa OWASP ZAP baseline contra LedgerService.Api e BalanceService.Api em stack HTTP controlada no runner e publica relatorios como artifacts. Nao roda em PR. | Operacional/manual |
 | `architecture-pages` | `.github/workflows/pages-architecture.yml` | `push` na `main`, `pull_request` para `main`, `workflow_dispatch` quando ha mudancas em `docs/architecture/**` ou `.github/workflows/pages-architecture.yml` | Build LikeC4 em PRs afetados e publicacao da documentacao arquitetural no GitHub Pages apos merge/manual. | Operacional |

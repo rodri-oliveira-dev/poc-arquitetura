@@ -5,10 +5,15 @@ on:
     branches: ["main"]
     paths:
       - "src/**"
+      - "!src/Shared/**"
       - "tests/**"
+      - "!tests/Shared/**"
       - "*.sln"
       - "*.slnx"
+      - "!PocArquitetura.Shared.slnx"
       - "**/*.csproj"
+      - "!src/Shared/**/*.csproj"
+      - "!tests/Shared/**/*.csproj"
       - "Directory.Build.props"
       - "Directory.Build.targets"
       - "Directory.Packages.props"

@@ -16,7 +16,8 @@ env:
   CI: true
   DOTNET_NOLOGO: true
   BUILD_CONFIGURATION: Release
-  SOLUTION_PATH: ./LedgerService.slnx
+  LEDGER_SOLUTION_PATH: ./LedgerService.slnx
+  SHARED_SOLUTION_PATH: ./PocArquitetura.Shared.slnx
 
 jobs:
   analyzer-recommendations:
@@ -36,7 +37,7 @@ jobs:
         with:
           cache-key-prefix: nuget-analyzers
 
-      - name: Detect changed C# files
+      - name: Detect changed files
         id: changed_files
         shell: bash
         env:
@@ -46,11 +47,37 @@ jobs:
         run: |
           set -euo pipefail
 
-          gh api --paginate "repos/$REPOSITORY/pulls/$PR_NUMBER/files" --jq '.[].filename' |
-            grep -E '\.cs$' > changed-csharp-files.txt || true
+          gh api --paginate "repos/$REPOSITORY/pulls/$PR_NUMBER/files" --jq '.[].filename' > changed-files.txt
+          grep -E '\.cs$' changed-files.txt > changed-csharp-files.txt || true
 
           count="$(wc -l < changed-csharp-files.txt | tr -d ' ')"
           echo "count=$count" >> "$GITHUB_OUTPUT"
+          run_ledger=false
+          run_shared=false
+
+          while IFS= read -r file; do
+            normalized="${file,,}"
+
+            case "$normalized" in
+              global.json|nuget.config|directory.build.props|directory.packages.props|test.sh|test.ps1|.github/actions/setup-dotnet/*|.github/workflows/*)
+                run_ledger=true
+                run_shared=true
+                ;;
+              pocarquitetura.shared.slnx|src/shared/*|tests/shared/*)
+                run_shared=true
+                ;;
+              ledgerservice.slnx|src/audit/*|src/auth.api/*|src/identity/*|src/balance/*|src/transfer/*|src/ledger/*|tests/audit/*|tests/auth.*|tests/identity/*|tests/balance/*|tests/transfer/*|tests/ledger/*|tests/architecture.tests/*)
+                run_ledger=true
+                ;;
+              *.cs)
+                run_ledger=true
+                run_shared=true
+                ;;
+            esac
+          done < changed-files.txt
+
+          echo "run_ledger=$run_ledger" >> "$GITHUB_OUTPUT"
+          echo "run_shared=$run_shared" >> "$GITHUB_OUTPUT"
 
           if [ "$count" -eq 0 ]; then
             echo "No changed C# files found in this PR." >> "$GITHUB_STEP_SUMMARY"
@@ -62,19 +89,24 @@ jobs:
             } >> "$GITHUB_STEP_SUMMARY"
           fi
 
-      - name: Restore dependencies
-        if: ${{ steps.changed_files.outputs.count != '0' }}
+      - name: Restore LedgerService dependencies
+        if: ${{ steps.changed_files.outputs.run_ledger == 'true' }}
         shell: bash
-        run: dotnet restore "$SOLUTION_PATH"
+        run: dotnet restore "$LEDGER_SOLUTION_PATH"
 
-      - name: Run .NET analyzers as recommendations
-        if: ${{ steps.changed_files.outputs.count != '0' }}
-        id: analyzers
+      - name: Restore Shared dependencies
+        if: ${{ steps.changed_files.outputs.run_shared == 'true' }}
+        shell: bash
+        run: dotnet restore "$SHARED_SOLUTION_PATH"
+
+      - name: Run .NET analyzers as LedgerService recommendations
+        if: ${{ steps.changed_files.outputs.run_ledger == 'true' }}
+        id: ledger_analyzers
         shell: bash
         run: |
           set +e
 
-          dotnet build "$SOLUTION_PATH" \
+          dotnet build "$LEDGER_SOLUTION_PATH" \
             --configuration "$BUILD_CONFIGURATION" \
             --no-restore \
             /p:AnalysisMode=AllEnabledByDefault \
@@ -93,8 +125,34 @@ jobs:
 
           exit 0
 
+      - name: Run .NET analyzers as Shared recommendations
+        if: ${{ steps.changed_files.outputs.run_shared == 'true' }}
+        id: shared_analyzers
+        shell: bash
+        run: |
+          set +e
+
+          dotnet build "$SHARED_SOLUTION_PATH" \
+            --configuration "$BUILD_CONFIGURATION" \
+            --no-restore \
+            /p:AnalysisMode=AllEnabledByDefault \
+            /p:AnalysisLevel=latest \
+            /p:EnforceCodeStyleInBuild=true \
+            /p:TreatWarningsAsErrors=false \
+            /warnaserror- \
+            2>&1 | tee -a analyzer-output.log
+
+          status="${PIPESTATUS[0]}"
+          echo "build_exit_code=$status" >> "$GITHUB_OUTPUT"
+
+          if [ "$status" -ne 0 ]; then
+            echo "Shared analyzer build returned exit code $status. This workflow keeps the result advisory and does not fail the PR." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          exit 0
+
       - name: Publish analyzer recommendations
-        if: ${{ steps.changed_files.outputs.count != '0' && always() }}
+        if: ${{ (steps.changed_files.outputs.run_ledger == 'true' || steps.changed_files.outputs.run_shared == 'true') && always() }}
         shell: bash
         run: |
           python - <<'PY'

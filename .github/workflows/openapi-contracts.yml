@@ -5,6 +5,9 @@ on:
     branches: ["main"]
     paths:
       - "src/**"
+      - "!src/Shared/**"
+      - "src/Shared/ApiDefaults/**"
+      - "Directory.Build.props"
       - "Directory.Packages.props"
       - "LedgerService.slnx"
       - ".config/dotnet-tools.json"
@@ -21,6 +24,9 @@ on:
     branches: ["main"]
     paths:
       - "src/**"
+      - "!src/Shared/**"
+      - "src/Shared/ApiDefaults/**"
+      - "Directory.Build.props"
       - "Directory.Packages.props"
       - "LedgerService.slnx"
       - ".config/dotnet-tools.json"
