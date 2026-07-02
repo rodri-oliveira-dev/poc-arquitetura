@@ -1,10 +1,5 @@
 <Solution>
   <Folder Name="/src/" />
-  <Folder Name="/src/Shared/">
-    <Project Path="src/Shared/ApiDefaults/ApiDefaults.csproj" />
-    <Project Path="src/Shared/ApplicationDefaults/ApplicationDefaults.csproj" />
-    <Project Path="src/Shared/HttpResilienceDefaults/HttpResilienceDefaults.csproj" />
-  </Folder>
   <Folder Name="/src/audit/">
     <Project Path="src/audit/AuditService.Api/AuditService.Api.csproj" />
     <Project Path="src/audit/AuditService.Application/AuditService.Application.csproj" />
