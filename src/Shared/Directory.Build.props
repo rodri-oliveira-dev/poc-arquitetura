@@ -17,6 +17,9 @@
     <IsPackable>true</IsPackable>
     <Authors>Rodrigo Oliveira</Authors>
     <Company>poc-arquitetura</Company>
+    <Copyright>Copyright (c) Rodrigo Oliveira</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <RepositoryUrl>https://github.com/rodri-oliveira-dev/poc-arquitetura</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageProjectUrl>https://rodri-oliveira-dev.github.io/poc-arquitetura/</PackageProjectUrl>
@@ -26,4 +29,9 @@
 
     <NoWarn>$(NoWarn);1591</NoWarn>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove="$(MSBuildProjectDirectory)\README.md" />
+    <None Include="$(MSBuildProjectDirectory)\README.md" Pack="true" PackagePath="/" Visible="false" />
+  </ItemGroup>
 </Project>
