@@ -1,7 +1,7 @@
 using System.Diagnostics.Metrics;
 using System.Net;
 
-using HttpResilienceDefaults;
+using HttpResilienceDefaults.Tests.Support;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -9,9 +9,7 @@ using Microsoft.Extensions.Logging;
 
 using Polly.CircuitBreaker;
 
-using TransferService.Worker.Tests.Support;
-
-namespace TransferService.Worker.Tests.Http;
+namespace HttpResilienceDefaults.Tests.Http;
 
 public sealed class HttpResilienceMetricsTests
 {
@@ -53,14 +51,14 @@ public sealed class HttpResilienceMetricsTests
 
         listener.Start();
 
-        metrics.RecordRetry("Ledger", "POST", new HttpRequestException("connection refused"));
+        metrics.RecordRetry("SharedClient", "POST", new HttpRequestException("connection refused"));
 
         Assert.NotNull(observed);
         Assert.Equal(1L, observed.Measurement);
         AssertTags(
             observed.Tags,
-            "Ledger",
-            "LedgerService.Api",
+            "SharedClient",
+            "SharedClient",
             "POST",
             "retry",
             "HttpRequestException");
@@ -81,13 +79,13 @@ public sealed class HttpResilienceMetricsTests
 
         using ServiceProvider provider = CreateProvider(handler, meterName, new Dictionary<string, string?>
         {
-            ["HttpResilience:Clients:Ledger:AttemptTimeout"] = "00:00:00.050",
-            ["HttpResilience:Clients:Ledger:TotalTimeout"] = "00:00:02",
-            ["HttpResilience:Clients:Ledger:RetryCount"] = "1",
-            ["HttpResilience:Clients:Ledger:RetryDelay"] = "00:00:00.001",
-            ["HttpResilience:Clients:Ledger:CircuitBreakerMinimumThroughput"] = "10"
+            ["HttpResilience:Clients:SharedClient:AttemptTimeout"] = "00:00:00.050",
+            ["HttpResilience:Clients:SharedClient:TotalTimeout"] = "00:00:02",
+            ["HttpResilience:Clients:SharedClient:RetryCount"] = "1",
+            ["HttpResilience:Clients:SharedClient:RetryDelay"] = "00:00:00.001",
+            ["HttpResilience:Clients:SharedClient:CircuitBreakerMinimumThroughput"] = "10"
         });
-        var client = provider.GetRequiredService<IHttpClientFactory>().CreateClient("Ledger");
+        var client = provider.GetRequiredService<IHttpClientFactory>().CreateClient("SharedClient");
 
         using HttpResponseMessage response = await client.GetAsync("health", TestContext.Current.CancellationToken);
 
@@ -107,10 +105,10 @@ public sealed class HttpResilienceMetricsTests
         using var handler = new FakeHttpMessageHandler();
         var meterName = $"{HttpResilienceMetrics.MeterName}.Tests.{Guid.NewGuid():N}";
         using var loggerProvider = new InMemoryLoggerProvider();
-        handler.Enqueue(HttpStatusCode.ServiceUnavailable, "falha 1");
-        handler.Enqueue(HttpStatusCode.ServiceUnavailable, "falha 2");
-        handler.Enqueue(HttpStatusCode.OK, "recuperado");
-        handler.Enqueue(HttpStatusCode.OK, "fechado");
+        handler.Enqueue(HttpStatusCode.ServiceUnavailable, "failure 1");
+        handler.Enqueue(HttpStatusCode.ServiceUnavailable, "failure 2");
+        handler.Enqueue(HttpStatusCode.OK, "recovered");
+        handler.Enqueue(HttpStatusCode.OK, "closed");
 
         using var listener = new MeterListener();
         var observed = new List<ObservedMetric>();
@@ -122,15 +120,15 @@ public sealed class HttpResilienceMetricsTests
             meterName,
             new Dictionary<string, string?>
             {
-                ["HttpResilience:Clients:Ledger:RetryCount"] = "1",
-                ["HttpResilience:Clients:Ledger:RetryDelay"] = "00:00:00.001",
-                ["HttpResilience:Clients:Ledger:CircuitBreakerFailureRatio"] = "0.5",
-                ["HttpResilience:Clients:Ledger:CircuitBreakerMinimumThroughput"] = "2",
-                ["HttpResilience:Clients:Ledger:CircuitBreakerSamplingDuration"] = "00:00:05",
-                ["HttpResilience:Clients:Ledger:CircuitBreakerBreakDuration"] = "00:00:00.500"
+                ["HttpResilience:Clients:SharedClient:RetryCount"] = "1",
+                ["HttpResilience:Clients:SharedClient:RetryDelay"] = "00:00:00.001",
+                ["HttpResilience:Clients:SharedClient:CircuitBreakerFailureRatio"] = "0.5",
+                ["HttpResilience:Clients:SharedClient:CircuitBreakerMinimumThroughput"] = "2",
+                ["HttpResilience:Clients:SharedClient:CircuitBreakerSamplingDuration"] = "00:00:05",
+                ["HttpResilience:Clients:SharedClient:CircuitBreakerBreakDuration"] = "00:00:00.500"
             },
             loggerProvider);
-        var client = provider.GetRequiredService<IHttpClientFactory>().CreateClient("Ledger");
+        var client = provider.GetRequiredService<IHttpClientFactory>().CreateClient("SharedClient");
 
         using HttpResponseMessage first = await client.GetAsync("health", TestContext.Current.CancellationToken);
         await Assert.ThrowsAsync<BrokenCircuitException>(
@@ -172,14 +170,14 @@ public sealed class HttpResilienceMetricsTests
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["HttpResilience:Clients:Ledger:TotalTimeout"] = "00:00:05",
-                ["HttpResilience:Clients:Ledger:AttemptTimeout"] = "00:00:01",
-                ["HttpResilience:Clients:Ledger:RetryCount"] = "1",
-                ["HttpResilience:Clients:Ledger:RetryDelay"] = "00:00:00.001",
-                ["HttpResilience:Clients:Ledger:CircuitBreakerFailureRatio"] = "1",
-                ["HttpResilience:Clients:Ledger:CircuitBreakerMinimumThroughput"] = "100",
-                ["HttpResilience:Clients:Ledger:CircuitBreakerSamplingDuration"] = "00:00:30",
-                ["HttpResilience:Clients:Ledger:CircuitBreakerBreakDuration"] = "00:00:05"
+                ["HttpResilience:Clients:SharedClient:TotalTimeout"] = "00:00:05",
+                ["HttpResilience:Clients:SharedClient:AttemptTimeout"] = "00:00:01",
+                ["HttpResilience:Clients:SharedClient:RetryCount"] = "1",
+                ["HttpResilience:Clients:SharedClient:RetryDelay"] = "00:00:00.001",
+                ["HttpResilience:Clients:SharedClient:CircuitBreakerFailureRatio"] = "1",
+                ["HttpResilience:Clients:SharedClient:CircuitBreakerMinimumThroughput"] = "100",
+                ["HttpResilience:Clients:SharedClient:CircuitBreakerSamplingDuration"] = "00:00:30",
+                ["HttpResilience:Clients:SharedClient:CircuitBreakerBreakDuration"] = "00:00:05"
             })
             .AddInMemoryCollection(overrides)
             .Build();
@@ -193,9 +191,9 @@ public sealed class HttpResilienceMetricsTests
             }
         });
         services
-            .AddHttpClient("Ledger", client => client.BaseAddress = new Uri("https://ledger.local/"))
+            .AddHttpClient("SharedClient", client => client.BaseAddress = new Uri("https://shared-client.local/"))
             .ConfigurePrimaryHttpMessageHandler(() => handler)
-            .AddConfiguredHttpResilience(configuration, "Ledger");
+            .AddConfiguredHttpResilience(configuration, "SharedClient");
         services.AddSingleton(_ => new HttpResilienceMetrics(meterName));
 
         return services.BuildServiceProvider(validateScopes: true);
@@ -259,7 +257,7 @@ public sealed class HttpResilienceMetricsTests
             Assert.Equal(1L, longValue);
         }
 
-        AssertTags(metric.Tags, "Ledger", "LedgerService.Api", metric.Tags["operation"] as string ?? "unknown", outcome, exceptionType);
+        AssertTags(metric.Tags, "SharedClient", "SharedClient", metric.Tags["operation"] as string ?? "unknown", outcome, exceptionType);
     }
 
     private static void AssertTags(

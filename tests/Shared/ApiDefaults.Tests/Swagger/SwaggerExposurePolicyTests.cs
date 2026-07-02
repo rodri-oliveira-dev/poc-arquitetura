@@ -5,7 +5,7 @@ using Microsoft.Extensions.Hosting;
 
 using Moq;
 
-namespace LedgerService.UnitTests.Api.Swagger;
+namespace ApiDefaults.Tests.Swagger;
 
 public sealed class SwaggerExposurePolicyTests
 {

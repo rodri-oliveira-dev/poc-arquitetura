@@ -9,7 +9,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="TransferService.IntegrationTests" />
+    <InternalsVisibleTo Include="ApiDefaults.Tests" />
   </ItemGroup>
 
   <ItemGroup>
