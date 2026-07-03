@@ -60,6 +60,14 @@ Em pull requests para `main`, o workflow `openapi-contract-validation` executa e
 8. Executa `npm run openapi:diff` quando houver ao menos um contrato base; contratos novos sem baseline sao registrados como baseline inicial e pulados individualmente.
 9. Valida drift nos contratos gerados.
 
+## Gatilhos e Shared
+
+O workflow deve proteger contratos HTTP das APIs de servico, nao validar todos os pacotes compartilhados. Por isso, alteracoes exclusivas em `src/Shared/**` nao disparam OpenAPI por padrao.
+
+A excecao conservadora e `src/Shared/ApiDefaults/**`. Esse pacote concentra configuracao compartilhada de Swagger, autenticacao, headers de seguranca, middlewares e respostas de erro. Nem toda mudanca ali altera contrato HTTP, mas nao ha uma forma simples e segura de detectar apenas mudancas observaveis por `paths` do GitHub Actions. Assim, alteracoes em `ApiDefaults` continuam disparando a validacao OpenAPI.
+
+Mudancas em `src/Shared/ApplicationDefaults/**`, `src/Shared/HttpResilienceDefaults/**` e `tests/Shared/**` nao disparam este workflow quando forem exclusivas. Elas continuam cobertas pelo gate de PR da solution `PocArquitetura.Shared.slnx` e pelo workflow dedicado de publish dos pacotes Shared.
+
 O script `scripts/contracts/openapi/check-breaking-changes.sh` compara os contratos da `main` com os contratos gerados na branch usando `oasdiff breaking --fail-on ERR`. Esse modo falha apenas para mudancas classificadas como erro, que representam breaking changes mais claros. Warnings continuam visiveis na saida, mas nao bloqueiam a etapa inicial.
 
 ```bash

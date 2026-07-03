@@ -13,7 +13,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 using Polly.CircuitBreaker;
 
-namespace TransferService.IntegrationTests.Api.Security;
+namespace ApiDefaults.Tests.Authentication;
 
 public sealed class JwksDocumentRetrieverTests
 {
@@ -359,5 +359,4 @@ public sealed class JwksDocumentRetrieverTests
             }
         }
     }
-
 }

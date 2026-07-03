@@ -121,6 +121,8 @@ dotnet pack ./src/Shared/ApiDefaults/ApiDefaults.csproj --configuration Release 
 
 O workflow `.github/workflows/publish-shared-nuget.yml` restaura, compila, testa, empacota, valida os metadados dos `.nupkg` e publica os pacotes no NuGet.org. A publicacao usa Trusted Publishing com GitHub Actions OIDC por meio de `NuGet/login@v1`; nao ha API key persistente nem secret `NUGET_API_KEY`.
 
+O workflow usa a solution dedicada `PocArquitetura.Shared.slnx`, que contem apenas os tres pacotes Shared e seus testes em `tests/Shared`. O gatilho de `push` para `main` fica restrito a alteracoes relevantes para esses pacotes: `src/Shared/**`, `tests/Shared/**`, `PocArquitetura.Shared.slnx`, `GitVersion.yml`, o proprio workflow, `LICENSE` e os arquivos `Directory.Build.props`/`Directory.Packages.props` da raiz e de `src/Shared`. Os arquivos `Directory.*` da raiz permanecem no gatilho porque os projetos de teste em `tests/Shared` os herdam; os arquivos `Directory.*` de `src/Shared` permanecem porque definem propriedades e versoes usadas pelos pacotes publicados.
+
 Para a publicacao funcionar, deve existir no NuGet.org uma Trusted Publishing policy com:
 
 | Campo | Valor |

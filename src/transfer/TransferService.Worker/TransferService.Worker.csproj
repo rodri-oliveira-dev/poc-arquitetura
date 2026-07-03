@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk.Worker">
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Shared\HttpResilienceDefaults\HttpResilienceDefaults.csproj" />
     <ProjectReference Include="..\TransferService.Application\TransferService.Application.csproj" />
     <ProjectReference Include="..\TransferService.Infrastructure\TransferService.Infrastructure.csproj" />
   </ItemGroup>
@@ -15,6 +14,7 @@
     <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
     <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
     <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" />
+    <PackageReference Include="PocArquitetura.HttpResilienceDefaults" />
   </ItemGroup>
 
   <PropertyGroup>

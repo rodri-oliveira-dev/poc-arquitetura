@@ -1,12 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Shared\ApplicationDefaults\ApplicationDefaults.csproj" />
     <ProjectReference Include="..\AuditService.Domain\AuditService.Domain.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="FluentValidation" />
+    <PackageReference Include="PocArquitetura.ApplicationDefaults" />
     <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
     <PackageReference Include="MediatR" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />

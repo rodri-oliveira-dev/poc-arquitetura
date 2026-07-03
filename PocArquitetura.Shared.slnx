@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/Shared/">
+    <Project Path="src/Shared/ApiDefaults/ApiDefaults.csproj" />
+    <Project Path="src/Shared/ApplicationDefaults/ApplicationDefaults.csproj" />
+    <Project Path="src/Shared/HttpResilienceDefaults/HttpResilienceDefaults.csproj" />
+  </Folder>
+  <Folder Name="/tests/Shared/">
+    <Project Path="tests/Shared/ApiDefaults.Tests/ApiDefaults.Tests.csproj" />
+    <Project Path="tests/Shared/ApplicationDefaults.Tests/ApplicationDefaults.Tests.csproj" />
+    <Project Path="tests/Shared/HttpResilienceDefaults.Tests/HttpResilienceDefaults.Tests.csproj" />
+  </Folder>
+</Solution>

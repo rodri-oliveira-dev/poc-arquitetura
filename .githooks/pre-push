@@ -40,15 +40,18 @@ run_timed() {
 }
 
 run_dotnet_format_changed_files() {
-  xargs -n 100 dotnet format whitespace ./LedgerService.slnx \
+  solution_path="$1"
+  format_files_path="$2"
+
+  xargs -n 100 dotnet format whitespace "$solution_path" \
     --verify-no-changes \
     --no-restore \
     --verbosity minimal \
-    --include <"$dotnet_format_files"
+    --include <"$format_files_path"
 }
 
 count_dotnet_format_files() {
-  wc -l <"$dotnet_format_files" | tr -d ' '
+  wc -l <"$1" | tr -d ' '
 }
 
 run_full_tests() {
@@ -62,25 +65,64 @@ run_full_tests() {
 
 if command -v mktemp >/dev/null 2>&1; then
   changed_files="$(mktemp "${TMPDIR:-/tmp}/pre-push-changed.XXXXXX")"
-  dotnet_format_files="$(mktemp "${TMPDIR:-/tmp}/pre-push-format.XXXXXX")"
+  shared_dotnet_format_files="$(mktemp "${TMPDIR:-/tmp}/pre-push-shared-format.XXXXXX")"
+  services_dotnet_format_files="$(mktemp "${TMPDIR:-/tmp}/pre-push-services-format.XXXXXX")"
 else
   changed_files="${TMPDIR:-/tmp}/pre-push-changed.$$"
-  dotnet_format_files="${TMPDIR:-/tmp}/pre-push-format.$$"
+  shared_dotnet_format_files="${TMPDIR:-/tmp}/pre-push-shared-format.$$"
+  services_dotnet_format_files="${TMPDIR:-/tmp}/pre-push-services-format.$$"
   : >"$changed_files"
-  : >"$dotnet_format_files"
+  : >"$shared_dotnet_format_files"
+  : >"$services_dotnet_format_files"
 fi
 
-trap 'rm -f "$changed_files" "$dotnet_format_files"' EXIT
+trap 'rm -f "$changed_files" "$shared_dotnet_format_files" "$services_dotnet_format_files"' EXIT
 
-is_dotnet_impacting_path() {
+is_shared_path() {
   case "$1" in
-    src/*|tests/*|.github/workflows/*|.githooks/*|scripts/*|tools/*)
+    src/Shared/*|tests/Shared/*|PocArquitetura.Shared.slnx)
       return 0
       ;;
-    *.cs|*.csproj|*.sln|*.slnx|*.props|*.targets|*.runsettings|*.editorconfig|*.globalconfig|*.ruleset)
+  esac
+
+  return 1
+}
+
+is_services_path() {
+  case "$1" in
+    src/audit/*|src/Auth.Api/*|src/identity/*|src/balance/*|src/transfer/*|src/ledger/*)
       return 0
       ;;
-    global.json|NuGet.config|Directory.Build.props|Directory.Build.targets|Directory.Packages.props|dotnet-tools.json|coverlet.runsettings|test.sh|test.ps1)
+    tests/audit/*|tests/Auth.*|tests/identity/*|tests/balance/*|tests/transfer/*|tests/ledger/*|tests/Architecture.Tests/*)
+      return 0
+      ;;
+    LedgerService.slnx)
+      return 0
+      ;;
+  esac
+
+  return 1
+}
+
+is_global_path() {
+  case "$1" in
+    global.json|NuGet.config|Directory.Build.props|Directory.Build.targets|Directory.Packages.props)
+      return 0
+      ;;
+    dotnet-tools.json|.config/dotnet-tools.json|.editorconfig|.globalconfig|coverlet.runsettings)
+      return 0
+      ;;
+    test.sh|test.ps1|.github/actions/setup-dotnet/*|.githooks/pre-push)
+      return 0
+      ;;
+  esac
+
+  return 1
+}
+
+is_shared_global_path() {
+  case "$1" in
+    src/Shared/Directory.Build.props|src/Shared/Directory.Packages.props)
       return 0
       ;;
   esac
@@ -293,12 +335,16 @@ if [ "$stdin_seen" = false ]; then
 fi
 
 dotnet_changes=false
+shared_changes=false
+services_changes=false
 terraform_changes=false
 dotnet_format_check=true
 
 if [ "$diff_is_safe" = false ]; then
   echo "==> pre-push: validacoes serao executadas por seguranca"
   dotnet_changes=true
+  shared_changes=true
+  services_changes=true
   terraform_changes=true
   dotnet_format_check=false
 else
@@ -306,13 +352,31 @@ else
   do
     [ -n "$changed_file" ] || continue
 
-    if is_dotnet_impacting_path "$changed_file"; then
+    if is_global_path "$changed_file"; then
       dotnet_changes=true
-      echo "==> pre-push: alteracao .NET impactante detectada em $changed_file"
+      shared_changes=true
+      services_changes=true
+      echo "==> pre-push: alteracao .NET global detectada em $changed_file"
+    fi
 
+    if is_shared_path "$changed_file" || is_shared_global_path "$changed_file"; then
+      dotnet_changes=true
+      shared_changes=true
+      echo "==> pre-push: alteracao Shared detectada em $changed_file"
       case "$changed_file" in
         *.cs)
-          printf '%s\n' "$changed_file" >>"$dotnet_format_files"
+          printf '%s\n' "$changed_file" >>"$shared_dotnet_format_files"
+          ;;
+      esac
+    fi
+
+    if is_services_path "$changed_file"; then
+      dotnet_changes=true
+      services_changes=true
+      echo "==> pre-push: alteracao de servicos detectada em $changed_file"
+      case "$changed_file" in
+        *.cs)
+          printf '%s\n' "$changed_file" >>"$services_dotnet_format_files"
           ;;
       esac
     fi
@@ -344,17 +408,38 @@ if [ "$dotnet_changes" = false ]; then
   exit 0
 fi
 
-run_timed "restore .NET" dotnet restore ./LedgerService.slnx
+if [ "$shared_changes" = true ]; then
+  run_timed "restore .NET Shared" dotnet restore ./PocArquitetura.Shared.slnx
+fi
 
-if [ "$dotnet_format_check" = true ] && [ -s "$dotnet_format_files" ]; then
-  dotnet_format_file_count="$(count_dotnet_format_files)"
-  if [ "$dotnet_format_file_count" -gt "$DOTNET_FORMAT_FILE_LIMIT" ]; then
-    echo "==> pre-push: $dotnet_format_file_count arquivos .cs alterados excedem o limite local de $DOTNET_FORMAT_FILE_LIMIT; formatacao .NET local ignorada"
+if [ "$services_changes" = true ]; then
+  run_timed "restore .NET servicos" dotnet restore ./LedgerService.slnx
+fi
+
+if [ "$dotnet_format_check" = true ] && [ -s "$shared_dotnet_format_files" ]; then
+  shared_dotnet_format_file_count="$(count_dotnet_format_files "$shared_dotnet_format_files")"
+  if [ "$shared_dotnet_format_file_count" -gt "$DOTNET_FORMAT_FILE_LIMIT" ]; then
+    echo "==> pre-push: $shared_dotnet_format_file_count arquivos .cs Shared alterados excedem o limite local de $DOTNET_FORMAT_FILE_LIMIT; formatacao .NET Shared local ignorada"
   else
-    run_timed "formatacao dos arquivos .cs alterados" run_dotnet_format_changed_files
+    run_timed "formatacao dos arquivos .cs Shared alterados" run_dotnet_format_changed_files ./PocArquitetura.Shared.slnx "$shared_dotnet_format_files"
   fi
+elif [ "$dotnet_format_check" = false ]; then
+  echo "==> pre-push: diff inseguro; formatacao .NET Shared local ignorada"
 else
-  echo "==> pre-push: sem arquivos .cs alterados ou diff inseguro; formatacao .NET local ignorada"
+  echo "==> pre-push: sem arquivos .cs Shared alterados; formatacao .NET Shared local ignorada"
+fi
+
+if [ "$dotnet_format_check" = true ] && [ -s "$services_dotnet_format_files" ]; then
+  services_dotnet_format_file_count="$(count_dotnet_format_files "$services_dotnet_format_files")"
+  if [ "$services_dotnet_format_file_count" -gt "$DOTNET_FORMAT_FILE_LIMIT" ]; then
+    echo "==> pre-push: $services_dotnet_format_file_count arquivos .cs de servicos alterados excedem o limite local de $DOTNET_FORMAT_FILE_LIMIT; formatacao .NET servicos local ignorada"
+  else
+    run_timed "formatacao dos arquivos .cs de servicos alterados" run_dotnet_format_changed_files ./LedgerService.slnx "$services_dotnet_format_files"
+  fi
+elif [ "$dotnet_format_check" = false ]; then
+  echo "==> pre-push: diff inseguro; formatacao .NET servicos local ignorada"
+else
+  echo "==> pre-push: sem arquivos .cs de servicos alterados; formatacao .NET servicos local ignorada"
 fi
 
 case "$FULL_TESTS" in
@@ -366,13 +451,25 @@ case "$FULL_TESTS" in
     ;;
 esac
 
-run_timed "build .NET ($CONFIGURATION)" dotnet build ./LedgerService.slnx --configuration "$CONFIGURATION" --no-restore
+if [ "$shared_changes" = true ]; then
+  run_timed "build .NET Shared ($CONFIGURATION)" dotnet build ./PocArquitetura.Shared.slnx --configuration "$CONFIGURATION" --no-restore
 
-run_timed "testes unitarios rapidos sem cobertura" dotnet test ./LedgerService.slnx \
-  --configuration "$CONFIGURATION" \
-  --no-build \
-  --no-restore \
-  --filter "$UNIT_TEST_FILTER"
+  run_timed "testes unitarios rapidos Shared sem cobertura" dotnet test ./PocArquitetura.Shared.slnx \
+    --configuration "$CONFIGURATION" \
+    --no-build \
+    --no-restore \
+    --filter "$UNIT_TEST_FILTER"
+fi
+
+if [ "$services_changes" = true ]; then
+  run_timed "build .NET servicos ($CONFIGURATION)" dotnet build ./LedgerService.slnx --configuration "$CONFIGURATION" --no-restore
+
+  run_timed "testes unitarios rapidos servicos sem cobertura" dotnet test ./LedgerService.slnx \
+    --configuration "$CONFIGURATION" \
+    --no-build \
+    --no-restore \
+    --filter "$UNIT_TEST_FILTER"
+fi
 
 echo "==> pre-push: build, formatacao e testes unitarios aprovados"
 echo "==> pre-push: testes Integration/Container/Contract, cobertura, SonarQube, Trivy e Terraform validate completo ficam no Pull Request"

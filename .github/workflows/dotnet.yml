@@ -12,6 +12,9 @@ on:
       - "**/*.gif"
       - "**/*.svg"
       - "**/*.webp"
+      - "src/Shared/**"
+      - "tests/Shared/**"
+      - "PocArquitetura.Shared.slnx"
   pull_request:
     branches: ["main"]
     types: [opened, synchronize, reopened]
@@ -24,6 +27,9 @@ on:
       - "**/*.gif"
       - "**/*.svg"
       - "**/*.webp"
+      - "src/Shared/**"
+      - "tests/Shared/**"
+      - "PocArquitetura.Shared.slnx"
   workflow_dispatch:
 
 permissions:

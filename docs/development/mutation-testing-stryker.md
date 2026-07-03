@@ -124,10 +124,12 @@ O workflow `mutation-tests` fica em `.github/workflows/mutation-tests.yml`.
 
 Ele roda em:
 
-- `push` para a branch `main`; na pratica, isso cobre merges de PR para `main`;
+- `push` para a branch `main` quando houver mudancas em codigo, testes ou configuracao dos servicos cobertos; na pratica, isso cobre merges de PR para `main`;
 - `workflow_dispatch`, para execucao manual opcional pela aba Actions.
 
 Ele nao roda em `pull_request` nesta etapa. A intencao e dar visibilidade continua do mutation score integrado na `main`, sem aumentar custo e tempo do fluxo de PR.
+
+Mudancas exclusivas em `src/Shared/**`, `tests/Shared/**` ou `PocArquitetura.Shared.slnx` nao disparam este workflow. Os alvos atuais de Stryker sao `LedgerService.Application` e `BalanceService.Application`; rodar mutation de servicos para uma alteracao exclusivamente Shared teria custo sem cobertura especifica equivalente. Um workflow futuro de mutation para Shared pode ser avaliado quando houver decisao explicita e baseline proprio.
 
 ### Caracteristica nao impeditiva
 

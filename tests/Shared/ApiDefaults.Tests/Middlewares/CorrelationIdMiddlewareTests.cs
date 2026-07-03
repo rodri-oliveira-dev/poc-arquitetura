@@ -5,7 +5,7 @@ using ApiDefaults.Middlewares;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 
-namespace BalanceService.UnitTests.Api.Middlewares;
+namespace ApiDefaults.Tests.Middlewares;
 
 public sealed class CorrelationIdMiddlewareTests
 {
