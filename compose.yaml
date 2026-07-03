@@ -184,7 +184,7 @@ services:
     healthcheck:
       test: [ "CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list 1>/dev/null 2>&1" ]
       interval: 10s
-      timeout: 5s
+      timeout: 20s
       retries: 30
 
   # Consumer está com AllowAutoCreateTopics=false, então garantimos o tópico via init.
@@ -630,4 +630,5 @@ services:
       test: [ "CMD-SHELL", "bash -ec \"exec 3<>/dev/tcp/localhost/9000; printf 'HEAD /health/ready HTTP/1.0\\r\\n\\r\\n' >&3; grep 'HTTP/1.0 200' <&3\"" ]
       interval: 10s
       timeout: 5s
+      start_period: 360s
       retries: 30
