@@ -29,16 +29,16 @@ services:
     environment:
       POSTGRES_DB: appdb
       POSTGRES_USER: postgres_admin
-      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD no ambiente ou em .env.local}"
-      LEDGER_DB_PASSWORD: "${LEDGER_DB_PASSWORD:?Defina LEDGER_DB_PASSWORD no ambiente ou em .env.local}"
-      LEDGER_DB_MIGRATOR_PASSWORD: "${LEDGER_DB_MIGRATOR_PASSWORD:?Defina LEDGER_DB_MIGRATOR_PASSWORD no ambiente ou em .env.local}"
-      BALANCE_DB_READ_PASSWORD: "${BALANCE_DB_READ_PASSWORD:?Defina BALANCE_DB_READ_PASSWORD no ambiente ou em .env.local}"
-      BALANCE_DB_WRITE_PASSWORD: "${BALANCE_DB_WRITE_PASSWORD:?Defina BALANCE_DB_WRITE_PASSWORD no ambiente ou em .env.local}"
-      BALANCE_DB_MIGRATOR_PASSWORD: "${BALANCE_DB_MIGRATOR_PASSWORD:?Defina BALANCE_DB_MIGRATOR_PASSWORD no ambiente ou em .env.local}"
-      TRANSFER_DB_PASSWORD: "${TRANSFER_DB_PASSWORD:?Defina TRANSFER_DB_PASSWORD no ambiente ou em .env.local}"
-      TRANSFER_DB_MIGRATOR_PASSWORD: "${TRANSFER_DB_MIGRATOR_PASSWORD:?Defina TRANSFER_DB_MIGRATOR_PASSWORD no ambiente ou em .env.local}"
-      IDENTITY_DB_PASSWORD: "${IDENTITY_DB_PASSWORD:?Defina IDENTITY_DB_PASSWORD no ambiente ou em .env.local}"
-      IDENTITY_DB_MIGRATOR_PASSWORD: "${IDENTITY_DB_MIGRATOR_PASSWORD:?Defina IDENTITY_DB_MIGRATOR_PASSWORD no ambiente ou em .env.local}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-postgres-local-password}"
+      LEDGER_DB_PASSWORD: "${LEDGER_DB_PASSWORD:-ledger-local-password}"
+      LEDGER_DB_MIGRATOR_PASSWORD: "${LEDGER_DB_MIGRATOR_PASSWORD:-ledger-migrator-local-password}"
+      BALANCE_DB_READ_PASSWORD: "${BALANCE_DB_READ_PASSWORD:-balance-read-local-password}"
+      BALANCE_DB_WRITE_PASSWORD: "${BALANCE_DB_WRITE_PASSWORD:-balance-write-local-password}"
+      BALANCE_DB_MIGRATOR_PASSWORD: "${BALANCE_DB_MIGRATOR_PASSWORD:-balance-migrator-local-password}"
+      TRANSFER_DB_PASSWORD: "${TRANSFER_DB_PASSWORD:-transfer-local-password}"
+      TRANSFER_DB_MIGRATOR_PASSWORD: "${TRANSFER_DB_MIGRATOR_PASSWORD:-transfer-migrator-local-password}"
+      IDENTITY_DB_PASSWORD: "${IDENTITY_DB_PASSWORD:-identity-local-password}"
+      IDENTITY_DB_MIGRATOR_PASSWORD: "${IDENTITY_DB_MIGRATOR_PASSWORD:-identity-migrator-local-password}"
     ports:
       # Porta exposta para uso local (psql, migrations, etc.)
       # Obs: pode conflitar com um Postgres já rodando no host.
@@ -184,7 +184,7 @@ services:
     healthcheck:
       test: [ "CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list 1>/dev/null 2>&1" ]
       interval: 10s
-      timeout: 5s
+      timeout: 20s
       retries: 30
 
   # Consumer está com AllowAutoCreateTopics=false, então garantimos o tópico via init.
@@ -278,7 +278,7 @@ services:
       Jwt__RequireHttpsMetadata: "${JWT_REQUIRE_HTTPS_METADATA:-false}"
 
       # Overrides dos appsettings (no container, 127.0.0.1 aponta para ele mesmo)
-      ConnectionStrings__DefaultConnection: "Host=postgres-db;Port=5432;Database=appdb;Username=ledger_app_user;Password=${LEDGER_DB_PASSWORD:?Defina LEDGER_DB_PASSWORD no ambiente ou em .env.local}"
+      ConnectionStrings__DefaultConnection: "Host=postgres-db;Port=5432;Database=appdb;Username=ledger_app_user;Password=${LEDGER_DB_PASSWORD:-ledger-local-password}"
       Observability__OpenTelemetry__Enabled: "${OTEL_ENABLED:-false}"
       Observability__OpenTelemetry__UseConsoleExporter: "false"
       Observability__OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"
@@ -310,7 +310,7 @@ services:
       DOTNET_ENVIRONMENT: "Local"
 
       # Overrides dos appsettings (no container, 127.0.0.1 aponta para ele mesmo)
-      ConnectionStrings__DefaultConnection: "Host=postgres-db;Port=5432;Database=appdb;Username=ledger_app_user;Password=${LEDGER_DB_PASSWORD:?Defina LEDGER_DB_PASSWORD no ambiente ou em .env.local}"
+      ConnectionStrings__DefaultConnection: "Host=postgres-db;Port=5432;Database=appdb;Username=ledger_app_user;Password=${LEDGER_DB_PASSWORD:-ledger-local-password}"
       Messaging__Provider: "Kafka"
       PubSub__Enabled: "false"
       PUBSUB_PROJECT_ID: "${PUBSUB_PROJECT_ID:-poc-local}"
@@ -358,7 +358,7 @@ services:
       Jwt__RequireHttpsMetadata: "${JWT_REQUIRE_HTTPS_METADATA:-false}"
 
       # Overrides dos appsettings
-      ConnectionStrings__DefaultConnection: "Host=postgres-db;Port=5432;Database=appdb;Username=balance_read_user;Password=${BALANCE_DB_READ_PASSWORD:?Defina BALANCE_DB_READ_PASSWORD no ambiente ou em .env.local}"
+      ConnectionStrings__DefaultConnection: "Host=postgres-db;Port=5432;Database=appdb;Username=balance_read_user;Password=${BALANCE_DB_READ_PASSWORD:-balance-read-local-password}"
       Observability__OpenTelemetry__Enabled: "${OTEL_ENABLED:-false}"
       Observability__OpenTelemetry__UseConsoleExporter: "false"
       Observability__OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"
@@ -389,7 +389,7 @@ services:
       DOTNET_ENVIRONMENT: "Local"
 
       # Overrides dos appsettings (no container, 127.0.0.1 aponta para ele mesmo)
-      ConnectionStrings__DefaultConnection: "Host=postgres-db;Port=5432;Database=appdb;Username=balance_write_user;Password=${BALANCE_DB_WRITE_PASSWORD:?Defina BALANCE_DB_WRITE_PASSWORD no ambiente ou em .env.local}"
+      ConnectionStrings__DefaultConnection: "Host=postgres-db;Port=5432;Database=appdb;Username=balance_write_user;Password=${BALANCE_DB_WRITE_PASSWORD:-balance-write-local-password}"
       Messaging__Provider: "Kafka"
       PubSub__Enabled: "false"
       PUBSUB_PROJECT_ID: "${PUBSUB_PROJECT_ID:-poc-local}"
@@ -432,7 +432,7 @@ services:
       Jwt__JwksUrl: "${JWT_JWKS_URL:-http://keycloak:8080/realms/poc/protocol/openid-connect/certs}"
       Jwt__RequireHttpsMetadata: "${JWT_REQUIRE_HTTPS_METADATA:-false}"
 
-      ConnectionStrings__DefaultConnection: "Host=postgres-db;Port=5432;Database=appdb;Username=transfer_app_user;Password=${TRANSFER_DB_PASSWORD:?Defina TRANSFER_DB_PASSWORD no ambiente ou em .env.local}"
+      ConnectionStrings__DefaultConnection: "Host=postgres-db;Port=5432;Database=appdb;Username=transfer_app_user;Password=${TRANSFER_DB_PASSWORD:-transfer-local-password}"
       Messaging__Provider: "Kafka"
       Observability__OpenTelemetry__Enabled: "${OTEL_ENABLED:-false}"
       Observability__OpenTelemetry__UseConsoleExporter: "false"
@@ -467,7 +467,7 @@ services:
     environment:
       DOTNET_ENVIRONMENT: "Local"
 
-      ConnectionStrings__DefaultConnection: "Host=postgres-db;Port=5432;Database=appdb;Username=transfer_app_user;Password=${TRANSFER_DB_PASSWORD:?Defina TRANSFER_DB_PASSWORD no ambiente ou em .env.local}"
+      ConnectionStrings__DefaultConnection: "Host=postgres-db;Port=5432;Database=appdb;Username=transfer_app_user;Password=${TRANSFER_DB_PASSWORD:-transfer-local-password}"
       Messaging__Provider: "Kafka"
       TransferService__Worker__Enabled: "true"
       TransferService__Worker__PollingInterval: "00:00:05"
@@ -492,7 +492,7 @@ services:
       TransferService__Worker__Ledger__Timeout: "00:00:10"
       TransferService__Worker__Ledger__Auth__TokenEndpoint: "http://keycloak:8080/realms/poc/protocol/openid-connect/token"
       TransferService__Worker__Ledger__Auth__ClientId: "${KEYCLOAK_CLIENT_ID:-poc-automation}"
-      TransferService__Worker__Ledger__Auth__ClientSecret: "${KEYCLOAK_CLIENT_SECRET:?Defina KEYCLOAK_CLIENT_SECRET no ambiente ou em .env.local}"
+      TransferService__Worker__Ledger__Auth__ClientSecret: "${KEYCLOAK_CLIENT_SECRET:-keycloak-local-client-secret}"
       TransferService__Worker__Ledger__Auth__Scope: "${TRANSFER_WORKER_LEDGER_AUTH_SCOPE:-ledger.write}"
       TransferService__Worker__Ledger__Auth__RefreshSkew: "00:01:00"
       Observability__OpenTelemetry__Enabled: "${OTEL_ENABLED:-false}"
@@ -517,7 +517,7 @@ services:
         condition: service_healthy
     environment:
       KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME: "${KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME:-local_admin}"
-      KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD: "${KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD:?Defina KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD no ambiente ou em .env.local}"
+      KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD: "${KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD:-keycloak-local-admin-password}"
       KEYCLOAK_IDENTITY_ADMIN_CLIENT_ID: "${KEYCLOAK_IDENTITY_ADMIN_CLIENT_ID:-identity-service-admin}"
     entrypoint:
       - /bin/bash
@@ -570,14 +570,14 @@ services:
       Jwt__JwksUrl: "${JWT_JWKS_URL:-http://keycloak:8080/realms/poc/protocol/openid-connect/certs}"
       Jwt__RequireHttpsMetadata: "${JWT_REQUIRE_HTTPS_METADATA:-false}"
 
-      ConnectionStrings__DefaultConnection: "Host=postgres-db;Port=5432;Database=appdb;Username=identity_app_user;Password=${IDENTITY_DB_PASSWORD:?Defina IDENTITY_DB_PASSWORD no ambiente ou em .env.local}"
+      ConnectionStrings__DefaultConnection: "Host=postgres-db;Port=5432;Database=appdb;Username=identity_app_user;Password=${IDENTITY_DB_PASSWORD:-identity-local-password}"
       # BaseUrl deve ser a URL HTTP/HTTPS acessivel dentro da rede Docker.
       IdentityProvider__Keycloak__BaseUrl: "${KEYCLOAK_INTERNAL_BASE_URL:-http://keycloak:8080}"
       IdentityProvider__Keycloak__Realm: "poc"
       # TokenEndpoint aceita URL HTTP/HTTPS absoluta ou caminho relativo combinado com BaseUrl.
       IdentityProvider__Keycloak__TokenEndpoint: "${KEYCLOAK_TOKEN_ENDPOINT:-/realms/poc/protocol/openid-connect/token}"
       IdentityProvider__Keycloak__ClientId: "${KEYCLOAK_IDENTITY_ADMIN_CLIENT_ID:-identity-service-admin}"
-      IdentityProvider__Keycloak__ClientSecret: "${KEYCLOAK_CLIENT_SECRET:?Defina KEYCLOAK_CLIENT_SECRET no ambiente ou em .env.local}"
+      IdentityProvider__Keycloak__ClientSecret: "${KEYCLOAK_CLIENT_SECRET:-keycloak-local-client-secret}"
       Email__Provider: "Mailpit"
       Email__AuthenticationUrl: "http://localhost:${KEYCLOAK_HOST_PORT:-8081}/realms/poc/account"
       Mailpit__Host: "mailpit"
@@ -607,13 +607,13 @@ services:
     command: [ "start-dev", "--import-realm" ]
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: "${KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME:-local_admin}"
-      KC_BOOTSTRAP_ADMIN_PASSWORD: "${KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD:?Defina KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD no ambiente ou em .env.local}"
+      KC_BOOTSTRAP_ADMIN_PASSWORD: "${KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD:-keycloak-local-admin-password}"
       KC_HOSTNAME: "http://localhost:${KEYCLOAK_HOST_PORT:-8081}"
       KC_HEALTH_ENABLED: "true"
-      KEYCLOAK_CLIENT_SECRET: "${KEYCLOAK_CLIENT_SECRET:?Defina KEYCLOAK_CLIENT_SECRET no ambiente ou em .env.local}"
-      KEYCLOAK_LOCAL_LEDGER_USER_PASSWORD: "${KEYCLOAK_LOCAL_LEDGER_USER_PASSWORD:?Defina KEYCLOAK_LOCAL_LEDGER_USER_PASSWORD no ambiente ou em .env.local}"
-      KEYCLOAK_LOCAL_BALANCE_USER_PASSWORD: "${KEYCLOAK_LOCAL_BALANCE_USER_PASSWORD:?Defina KEYCLOAK_LOCAL_BALANCE_USER_PASSWORD no ambiente ou em .env.local}"
-      KEYCLOAK_LOCAL_ADMIN_USER_PASSWORD: "${KEYCLOAK_LOCAL_ADMIN_USER_PASSWORD:?Defina KEYCLOAK_LOCAL_ADMIN_USER_PASSWORD no ambiente ou em .env.local}"
+      KEYCLOAK_CLIENT_SECRET: "${KEYCLOAK_CLIENT_SECRET:-keycloak-local-client-secret}"
+      KEYCLOAK_LOCAL_LEDGER_USER_PASSWORD: "${KEYCLOAK_LOCAL_LEDGER_USER_PASSWORD:-ledger-user-local-password}"
+      KEYCLOAK_LOCAL_BALANCE_USER_PASSWORD: "${KEYCLOAK_LOCAL_BALANCE_USER_PASSWORD:-balance-user-local-password}"
+      KEYCLOAK_LOCAL_ADMIN_USER_PASSWORD: "${KEYCLOAK_LOCAL_ADMIN_USER_PASSWORD:-admin-user-local-password}"
     ports:
       - "${KEYCLOAK_HOST_PORT:-8081}:8080"
     deploy:
@@ -630,4 +630,5 @@ services:
       test: [ "CMD-SHELL", "bash -ec \"exec 3<>/dev/tcp/localhost/9000; printf 'HEAD /health/ready HTTP/1.0\\r\\n\\r\\n' >&3; grep 'HTTP/1.0 200' <&3\"" ]
       interval: 10s
       timeout: 5s
+      start_period: 360s
       retries: 30

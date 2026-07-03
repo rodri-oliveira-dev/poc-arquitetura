@@ -7,8 +7,6 @@ WORKDIR /src
 COPY LedgerService.slnx ./
 COPY Directory.Packages.props ./
 COPY Directory.Build.props ./
-COPY src/Shared/ApiDefaults/ApiDefaults.csproj src/Shared/ApiDefaults/
-COPY src/Shared/HttpResilienceDefaults/HttpResilienceDefaults.csproj src/Shared/HttpResilienceDefaults/
 COPY src/identity/IdentityService.Api/IdentityService.Api.csproj src/identity/IdentityService.Api/
 COPY src/identity/IdentityService.Application/IdentityService.Application.csproj src/identity/IdentityService.Application/
 COPY src/identity/IdentityService.Domain/IdentityService.Domain.csproj src/identity/IdentityService.Domain/
@@ -20,8 +18,6 @@ RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages,sharing=locked \
     || dotnet restore src/identity/IdentityService.Api/IdentityService.Api.csproj --disable-parallel
 
 # Agora copia o restante
-COPY src/Shared/ApiDefaults/ ./src/Shared/ApiDefaults/
-COPY src/Shared/HttpResilienceDefaults/ ./src/Shared/HttpResilienceDefaults/
 COPY src/identity/IdentityService.Api/ ./src/identity/IdentityService.Api/
 COPY src/identity/IdentityService.Application/ ./src/identity/IdentityService.Application/
 COPY src/identity/IdentityService.Domain/ ./src/identity/IdentityService.Domain/

@@ -1,6 +1,37 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+MSYS_DOCKER_PATHCONV_OFF=false
+case "$(uname -s 2>/dev/null || true)" in
+  MINGW*|MSYS*|CYGWIN*) MSYS_DOCKER_PATHCONV_OFF=true ;;
+esac
+
+docker_compose() {
+  if [[ "$MSYS_DOCKER_PATHCONV_OFF" == true ]]; then
+    MSYS_NO_PATHCONV="${MSYS_NO_PATHCONV:-1}" docker compose "$@"
+  else
+    docker compose "$@"
+  fi
+}
+
+PYTHON_CMD=()
+for candidate in python3 python "py -3"; do
+  read -r -a candidate_parts <<<"$candidate"
+  if "${candidate_parts[@]}" -c "import sys" >/dev/null 2>&1; then
+    PYTHON_CMD=("${candidate_parts[@]}")
+    break
+  fi
+done
+
+if [[ "${#PYTHON_CMD[@]}" -eq 0 ]]; then
+  echo "Python 3 nao encontrado. Instale python3/python ou disponibilize py -3 no PATH." >&2
+  exit 2
+fi
+
+run_python() {
+  "${PYTHON_CMD[@]}" "$@"
+}
+
 # Runner reprodutivel:
 #  a) gera .env.k6.auto a partir do compose.yaml
 #  b) obtem TOKEN conforme README
@@ -144,7 +175,7 @@ assert_balance_database_authentication() {
   database="$(get_local_config_value BALANCE_DB_NAME appdb)"
   password="$(get_required_local_config_value BALANCE_DB_WRITE_PASSWORD)"
 
-  if ! docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" exec -T \
+  if ! docker_compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" exec -T \
     -e "PGPASSWORD=$password" \
     postgres-db \
     psql -h "$host_name" -U "$user" -d "$database" -v "ON_ERROR_STOP=1" -c "select 1;" >/dev/null 2>&1; then
@@ -160,11 +191,11 @@ wait_compose_service_healthy() {
   local health=""
 
   while (( SECONDS < deadline )); do
-    if docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_K6_FILE" ps "$service" --format json | grep -q '"Health":"healthy"'; then
+    if docker_compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_K6_FILE" ps "$service" --format json | grep -q '"Health":"healthy"'; then
       return 0
     fi
 
-    health="$(docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_K6_FILE" ps "$service" --format json | sed -nE 's/.*"Health":"([^"]*)".*/\1/p' | tail -n 1)"
+    health="$(docker_compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_K6_FILE" ps "$service" --format json | sed -nE 's/.*"Health":"([^"]*)".*/\1/p' | tail -n 1)"
     if [[ "$health" == "unhealthy" ]]; then
       echo "$service ficou unhealthy durante a preparacao do k6." 1>&2
       exit 1
@@ -197,7 +228,7 @@ wait_http_endpoint() {
 assert_local_kafka_stack() {
   local config
   local running_services
-  config="$(docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" config)"
+  config="$(docker_compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" config)"
 
   for expected in \
     "Messaging__Provider: Kafka" \
@@ -210,7 +241,7 @@ assert_local_kafka_stack() {
     fi
   done
 
-  running_services="$(docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" ps --status running --services)"
+  running_services="$(docker_compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" ps --status running --services)"
   for service in kafka ledger-worker balance-worker; do
     if ! grep -qx "$service" <<<"$running_services"; then
       echo "Kafka indisponivel para o caminho padrao k6: servico obrigatorio nao esta em execucao ($service). Suba ./scripts/local/start-stack.sh antes do teste." >&2
@@ -218,13 +249,13 @@ assert_local_kafka_stack() {
     fi
   done
 
-  if ! docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" exec -T kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --list >/dev/null; then
+  if ! docker_compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" exec -T kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --list >/dev/null; then
     echo "Kafka indisponivel em kafka:9092. Confira docker compose logs kafka e rode ./scripts/local/start-stack.sh." >&2
     exit 1
   fi
 
   local kafka_init
-  kafka_init="$(docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" ps -a kafka-init-topics --format json)"
+  kafka_init="$(docker_compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" ps -a kafka-init-topics --format json)"
   if ! grep -q '"State":"exited"' <<<"$kafka_init" ||
     ! grep -q '"ExitCode":0' <<<"$kafka_init"; then
     echo "Topicos Kafka ausentes ou inicializacao incompleta. Rode ./scripts/local/start-stack.sh ou confira: docker compose logs kafka-init-topics" >&2
@@ -235,7 +266,7 @@ assert_local_kafka_stack() {
 assert_local_transfer_kafka_stack() {
   local config
   local running_services
-  config="$(docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_KAFKA_FILE" config)"
+  config="$(docker_compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_KAFKA_FILE" config)"
 
   for expected in \
     "Messaging__Provider: Kafka" \
@@ -248,7 +279,7 @@ assert_local_transfer_kafka_stack() {
     fi
   done
 
-  running_services="$(docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_KAFKA_FILE" ps --status running --services)"
+  running_services="$(docker_compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_KAFKA_FILE" ps --status running --services)"
   for service in kafka ledger-service transfer-service transfer-worker; do
     if ! grep -qx "$service" <<<"$running_services"; then
       echo "Kafka full-stack indisponivel: servico obrigatorio nao esta em execucao ($service). Suba ./scripts/local/start-stack.sh antes do teste." >&2
@@ -256,13 +287,13 @@ assert_local_transfer_kafka_stack() {
     fi
   done
 
-  if ! docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_KAFKA_FILE" exec -T kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --list >/dev/null; then
+  if ! docker_compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_KAFKA_FILE" exec -T kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --list >/dev/null; then
     echo "Kafka indisponivel em kafka:9092 para full-stack TransferService. Confira docker compose logs kafka e rode ./scripts/local/start-stack.sh." >&2
     exit 1
   fi
 
   local kafka_init
-  kafka_init="$(docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_KAFKA_FILE" ps -a kafka-init-topics --format json)"
+  kafka_init="$(docker_compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_KAFKA_FILE" ps -a kafka-init-topics --format json)"
   if ! grep -q '"State":"exited"' <<<"$kafka_init" ||
     ! grep -q '"ExitCode":0' <<<"$kafka_init"; then
     echo "Topicos Kafka ausentes ou inicializacao incompleta. Rode ./scripts/local/start-stack.sh ou confira: docker compose logs kafka-init-topics" >&2
@@ -276,7 +307,7 @@ assert_transfer_worker_log_contains() {
   local description="$3"
   local logs
 
-  if ! logs="$(docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_KAFKA_FILE" logs --since "$since" transfer-worker 2>&1)"; then
+  if ! logs="$(docker_compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_KAFKA_FILE" logs --since "$since" transfer-worker 2>&1)"; then
     echo "Falha ao ler logs do transfer-worker para validar Circuit Breaker." >&2
     exit 1
   fi
@@ -300,7 +331,7 @@ kafka_topic_end_offset() {
   fi
 
   local output
-  if ! output="$(docker compose "${compose_env_args[@]}" "${compose_files[@]}" exec -T kafka \
+  if ! output="$(docker_compose "${compose_env_args[@]}" "${compose_files[@]}" exec -T kafka \
     /opt/kafka/bin/kafka-get-offsets.sh \
     --bootstrap-server kafka:9092 \
     --topic "$topic" \
@@ -409,7 +440,7 @@ assert_ledger_kafka_smoke() {
 
 read_kafka_topic_sample() {
   local topic="$1"
-  docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_KAFKA_FILE" exec -T kafka \
+  docker_compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_KAFKA_FILE" exec -T kafka \
     /opt/kafka/bin/kafka-console-consumer.sh \
     --bootstrap-server kafka:9092 \
     --topic "$topic" \
@@ -423,7 +454,7 @@ read_kafka_topic_sample() {
 json_string_value() {
   local json="$1"
   local property="$2"
-  python3 - "$json" "$property" <<'PY'
+  run_python - "$json" "$property" <<'PY'
 import json
 import sys
 
@@ -449,11 +480,20 @@ find_transfer_kafka_event() {
 
   while IFS= read -r line; do
     [[ "$line" == *"@@KEY@@"* ]] || continue
-    [[ "$line" == *"\"eventType\":\"$event_type\""* ]] || continue
-    [[ "$line" == *"\"correlationId\":\"$correlation_id\""* ]] || continue
 
     local key="${line%%@@KEY@@*}"
     local payload="${line#*@@KEY@@}"
+    local payload_event_type
+    local payload_correlation_id
+    if ! payload_event_type="$(json_string_value "$payload" eventType)"; then
+      continue
+    fi
+    if ! payload_correlation_id="$(json_string_value "$payload" correlationId)"; then
+      continue
+    fi
+    [[ "$payload_event_type" == "$event_type" ]] || continue
+    [[ "$payload_correlation_id" == "$correlation_id" ]] || continue
+
     local transferencia_id
     if ! transferencia_id="$(json_string_value "$payload" transferenciaId)"; then
       echo "Evento Kafka $event_type em $topic nao contem transferenciaId no payload." >&2
@@ -484,7 +524,7 @@ postgres_count() {
   local database="$3"
   local sql="$4"
   local password="$5"
-  docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" exec -T \
+  docker_compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" exec -T \
     -e "PGPASSWORD=$password" \
     "$service" \
     psql -h "$service" -U "$user" -d "$database" -t -A -c "$sql" |
@@ -563,6 +603,10 @@ fi
 is_transfer_circuit_breaker_kafka=false
 if [[ "$MODE" == "transfer-circuit-breaker-kafka" ]]; then
   is_transfer_circuit_breaker_kafka=true
+  export K6_LEDGER_RESILIENCE_TOTAL_TIMEOUT="${K6_LEDGER_RESILIENCE_TOTAL_TIMEOUT:-00:00:01}"
+  export K6_LEDGER_RESILIENCE_ATTEMPT_TIMEOUT="${K6_LEDGER_RESILIENCE_ATTEMPT_TIMEOUT:-00:00:00.300}"
+  export K6_LEDGER_RESILIENCE_RETRY_COUNT="${K6_LEDGER_RESILIENCE_RETRY_COUNT:-1}"
+  export K6_LEDGER_RESILIENCE_RETRY_DELAY="${K6_LEDGER_RESILIENCE_RETRY_DELAY:-00:00:00.100}"
 fi
 
 is_transfer_mode=false
@@ -579,12 +623,12 @@ fi
 # que poderiam transformar o cenario de throughput em teste de rate limiting.
 if [[ "$is_transfer_mode" == true ]]; then
   if [[ "$is_transfer_fullstack_kafka" == true || "$is_transfer_circuit_breaker_kafka" == true ]]; then
-    docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_KAFKA_FILE" -f "$COMPOSE_K6_FILE" up -d --no-build --force-recreate kafka kafka-init-topics ledger-service transfer-service transfer-worker
+    docker_compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_KAFKA_FILE" -f "$COMPOSE_K6_FILE" up -d --no-build --force-recreate kafka kafka-init-topics ledger-service transfer-service transfer-worker
   else
-    docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_K6_FILE" up -d --no-build --force-recreate transfer-service
+    docker_compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_K6_FILE" up -d --no-build --force-recreate transfer-service
   fi
 else
-  docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_K6_FILE" up -d --no-build --force-recreate ledger-service balance-service
+  docker_compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_K6_FILE" up -d --no-build --force-recreate ledger-service balance-service
 fi
 
 wait_compose_service_healthy keycloak
@@ -621,7 +665,7 @@ warmup_balance() {
   local date_value="${DATE:-$(date +%F)}"
   local merchant_id="${MERCHANT_ID:-tese}"
   local encoded_merchant
-  encoded_merchant="$(python3 - "$merchant_id" <<'PY'
+  encoded_merchant="$(run_python - "$merchant_id" <<'PY'
 import sys
 from urllib.parse import quote
 print(quote(sys.argv[1], safe=""))
@@ -639,8 +683,70 @@ PY
   curl -fsS -H "Authorization: Bearer $TOKEN" "$url" >/dev/null
 }
 
+warmup_ledger() {
+  local merchant_id="${MERCHANT_ID:-tese}"
+  local ledger_host_port
+  local idempotency_key
+  local correlation_id
+  local payload
+  local url
+
+  ledger_host_port="$(get_local_config_value LEDGER_SERVICE_HOST_PORT 5226)"
+  idempotency_key="$(run_python - <<'PY'
+import uuid
+print(uuid.uuid4())
+PY
+)"
+  correlation_id="$(run_python - <<'PY'
+import uuid
+print(uuid.uuid4())
+PY
+)"
+  payload="$(run_python - "$merchant_id" "$idempotency_key" <<'PY'
+import json
+import sys
+
+merchant_id = sys.argv[1]
+idempotency_key = sys.argv[2]
+print(json.dumps({
+    "type": "CREDIT",
+    "merchantId": merchant_id,
+    "amount": 1,
+    "description": "k6 ledger warmup",
+    "externalReference": f"k6-warmup-{idempotency_key}",
+}, separators=(",", ":")))
+PY
+)"
+  url="http://localhost:$ledger_host_port/api/v1/lancamentos"
+
+  for _ in $(seq 1 30); do
+    if curl -fsS \
+      -H "Authorization: Bearer $TOKEN" \
+      -H "Content-Type: application/json" \
+      -H "Idempotency-Key: $idempotency_key" \
+      -H "X-Correlation-Id: $correlation_id" \
+      --data "$payload" \
+      "$url" >/dev/null; then
+      return 0
+    fi
+    sleep 1
+  done
+
+  curl -fsS \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
+    -H "Idempotency-Key: $idempotency_key" \
+    -H "X-Correlation-Id: $correlation_id" \
+    --data "$payload" \
+    "$url" >/dev/null
+}
+
 if [[ "$is_transfer_mode" != true ]]; then
+  warmup_ledger
   warmup_balance
+  if [[ "$MODE" == "smoke" ]]; then
+    wait_async_flow_idle
+  fi
 fi
 
 ts="$(date +%Y%m%d-%H%M%S)"
@@ -651,7 +757,7 @@ run_k6() {
   local summary_file="summary-$MODE-$scenario_name-$ts.json"
   local host_summary="$ARTIFACTS_DIR/$summary_file"
 
-  docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_K6_FILE" --profile k6 run --rm \
+  docker_compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_K6_FILE" --profile k6 run --rm \
     --user "$(id -u):$(id -g)" \
     -e "TOKEN=$TOKEN" \
     -e "MESSAGING_PROVIDER=Kafka" \
@@ -664,7 +770,7 @@ run_k6() {
     exit 1
   fi
 
-  python3 - "$host_summary" <<'PY'
+  run_python - "$host_summary" <<'PY'
 import json
 import sys
 
@@ -721,7 +827,7 @@ case "$MODE" in
     before_offsets="$(mktemp)"
     after_offsets="$(mktemp)"
     trap 'rm -f "$before_offsets" "$after_offsets"' EXIT
-    transfer_correlation_id="$(python3 - <<'PY'
+    transfer_correlation_id="$(run_python - <<'PY'
 import uuid
 print(uuid.uuid4())
 PY
@@ -742,7 +848,7 @@ PY
       -e TRANSFER_HTTP_REQ_DURATION_P95_MS="$(threshold_value TRANSFER P95 1000)" \
       -e TRANSFER_HTTP_REQ_DURATION_P99_MS="$(threshold_value TRANSFER P99 2000)"
 
-    docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_KAFKA_FILE" stop ledger-service
+    docker_compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_KAFKA_FILE" stop ledger-service
 
     run_k6 transfer_circuit_degraded scenarios/transfer_circuit_breaker.js \
       -e VUS="$(get_local_config_value TRANSFER_CIRCUIT_DEGRADED_VUS 5)" \
@@ -754,7 +860,7 @@ PY
     assert_transfer_worker_log_contains "$circuit_started_at" "Circuit breaker HTTP aberto. Client=Ledger" "abertura do Circuit Breaker"
     assert_transfer_worker_log_contains "$circuit_started_at" "Chamada HTTP rejeitada por circuito aberto. Client=Ledger" "rejeicao rapida por circuito aberto"
 
-    docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_KAFKA_FILE" -f "$COMPOSE_K6_FILE" up -d --no-build ledger-service
+    docker_compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_KAFKA_FILE" -f "$COMPOSE_K6_FILE" up -d --no-build ledger-service
     ledger_host_port="$(get_local_config_value LEDGER_SERVICE_HOST_PORT 5226)"
     wait_http_endpoint "http://localhost:$ledger_host_port/health"
 

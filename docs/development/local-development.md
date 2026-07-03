@@ -32,7 +32,9 @@ Esta stack e local, descartavel e nao deve ser promovida para ambientes comparti
 
 O `compose.yaml` atual e a base oficial do ambiente local. O `compose.debug.yml` inclui essa mesma base para oferecer um ponto de entrada curto para dependencias de debug. Reaproveite os servicos ja existentes, em especial `postgres-db`, `kafka` e `kafka-init-topics`; nao crie um segundo Compose nem um segundo PostgreSQL para separar Ledger, Balance e Transfer no desenvolvimento local. Pub/Sub emulator permanece no compose base apenas como profile explicito/legado.
 
-O compose nao versiona senhas locais. Para subir a stack por comandos diretos, crie `.env.local` a partir de `.env.local.example` e preencha os placeholders na sua maquina:
+O `compose.yaml` possui defaults locais descartaveis para permitir comandos de validacao como `docker compose config` e `docker compose build` sem exigir segredo real quando a imagem ainda nem esta em runtime. Para subir a stack de desenvolvimento com migrations e validacao de credenciais, continue criando `.env.local` a partir de `.env.local.example` ou dos scripts locais.
+
+Para subir a stack por comandos diretos, crie `.env.local` a partir de `.env.local.example` e ajuste os valores na sua maquina quando necessario:
 
 ```bash
 cp .env.local.example .env.local
@@ -76,7 +78,7 @@ No PowerShell:
 Copy-Item .env.example .env
 ```
 
-Depois preencha os placeholders no `.env`. Nao copie valores reais para `.env.example` ou `.env.local.example`.
+Depois ajuste os valores no `.env` se precisar sobrescrever os defaults locais. Nao copie valores reais para `.env.example` ou `.env.local.example`.
 
 Resumo dos arquivos de ambiente:
 
@@ -93,7 +95,7 @@ Resumo dos arquivos de ambiente:
 
 Os scripts locais ficam em subpastas de `scripts/` por finalidade. Use os caminhos novos neste guia; a politica de wrappers antigos fica em [scripts.md](scripts.md).
 
-Variaveis sensiveis obrigatorias para o compose principal:
+Variaveis sensiveis que os scripts locais validam ao subir a stack principal:
 
 - `POSTGRES_PASSWORD`
 - `LEDGER_DB_PASSWORD`
@@ -1072,6 +1074,8 @@ Esses testes iniciam e descartam containers PostgreSQL automaticamente durante a
 
 Os testes PostgreSQL ficam em collections xUnit especificas, compartilham um container por collection e limpam as tabelas afetadas entre cenarios para evitar estado residual.
 
+`TransferService.IntegrationTests` e `LedgerService.IntegrationTests` usam a mesma imagem `docker.io/postgres:16` e containers efemeros, sem nome fixo, sem bind mount, sem network customizada e sem reuse. A diferenca principal e a inicializacao: Transfer aplica migrations diretamente pelo `TransferServiceDbContext`; Ledger inicializa uma `WebApplicationFactory` para aplicar migrations e depois usa a mesma factory para limpeza. Se a falha acontecer antes de `MigrateAsync`, trate primeiro como falha de Docker/Testcontainers; se acontecer depois do container iniciado, trate como falha de configuracao da factory, migration ou teste de integracao.
+
 Validacao rapida do ambiente:
 
 ```powershell
@@ -1079,6 +1083,16 @@ docker version
 docker ps
 dotnet test
 ```
+
+Para separar os perfis de validacao local:
+
+```powershell
+dotnet test LedgerService.slnx -c Release --no-build --filter "Category!=Integration&Category!=Container&Category!=Contract"
+dotnet test tests/transfer/TransferService.IntegrationTests/TransferService.IntegrationTests.csproj -c Release --no-build
+dotnet test tests/ledger/LedgerService.IntegrationTests/LedgerService.IntegrationTests.csproj -c Release --no-build
+```
+
+`docker compose build` valida build de imagens e nao deve exigir senha real. `docker compose up` e os scripts `scripts/local/start-stack.*` validam runtime/configuracao local, incluindo credenciais do PostgreSQL preservadas no volume.
 
 No Windows sem Docker Desktop, a recomendacao local e Rancher Desktop com `moby/dockerd`:
 
@@ -1138,6 +1152,8 @@ Se os testes com Testcontainers falharem por nao localizar o Docker daemon:
    Evite persistir esse valor como variavel de usuario, pois ele pode quebrar a CLI `docker` em alguns ambientes Windows.
 
 8. Feche e abra novamente o terminal ou IDE apos alterar variaveis de ambiente persistentes.
+
+9. Se algum teste com Testcontainers falhar com `Invalid chunk header`, remova primeiro `DOCKER_HOST` da sessao e repita com o endpoint padrao detectado pelo Testcontainers. Se ainda falhar, colete o output completo do teste. A fixture PostgreSQL do Ledger escreve no erro padrao a imagem, o nome do container quando disponivel, o `DOCKER_HOST`, o endpoint Docker resolvido pelo Testcontainers, a exception original e logs do container quando a API do Docker permite leitura. Esse erro costuma indicar problema na comunicacao Docker.DotNet/Testcontainers com a Docker-compatible API local; se o container iniciou e a falha veio depois, investigue migration, configuracao da `WebApplicationFactory` ou limpeza do schema `ledger`.
 
 ## Swagger e endpoints operacionais
 

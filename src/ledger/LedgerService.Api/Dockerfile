@@ -7,8 +7,6 @@ WORKDIR /src
 COPY LedgerService.slnx ./
 COPY Directory.Packages.props ./
 COPY Directory.Build.props ./
-COPY src/Shared/ApiDefaults/ApiDefaults.csproj src/Shared/ApiDefaults/
-COPY src/Shared/ApplicationDefaults/ApplicationDefaults.csproj src/Shared/ApplicationDefaults/
 COPY src/ledger/LedgerService.Api/LedgerService.Api.csproj src/ledger/LedgerService.Api/
 COPY src/ledger/LedgerService.Application/LedgerService.Application.csproj src/ledger/LedgerService.Application/
 COPY src/ledger/LedgerService.Domain/LedgerService.Domain.csproj src/ledger/LedgerService.Domain/
@@ -20,8 +18,6 @@ RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages,sharing=locked \
     || dotnet restore src/ledger/LedgerService.Api/LedgerService.Api.csproj --disable-parallel
 
 # Agora copia o restante
-COPY src/Shared/ApiDefaults/ ./src/Shared/ApiDefaults/
-COPY src/Shared/ApplicationDefaults/ ./src/Shared/ApplicationDefaults/
 COPY src/ledger/LedgerService.Api/ ./src/ledger/LedgerService.Api/
 COPY src/ledger/LedgerService.Application/ ./src/ledger/LedgerService.Application/
 COPY src/ledger/LedgerService.Domain/ ./src/ledger/LedgerService.Domain/
