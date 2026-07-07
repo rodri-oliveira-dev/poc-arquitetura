@@ -6,11 +6,10 @@ THRESHOLD="${2:-85}"
 
 echo "==> Running solution tests with coverage gate (line >= ${THRESHOLD}%)"
 
-if command -v git >/dev/null 2>&1; then
-  REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-else
-  REPO_ROOT="$(pwd)"
-fi
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/lib/common.sh
+. "$SCRIPT_DIR/scripts/lib/common.sh"
+REPO_ROOT="$(resolve_repo_root "$SCRIPT_DIR")"
 
 cd "$REPO_ROOT"
 
@@ -18,7 +17,7 @@ RESULTS_DIR="$REPO_ROOT/TestResults"
 rm -rf "$RESULTS_DIR"
 mkdir -p "$RESULTS_DIR"
 
-dotnet test ./LedgerService.slnx -c "$CONFIGURATION" \
+dotnet test ./PocArquitetura.slnx -c "$CONFIGURATION" \
   --collect:"XPlat Code Coverage" \
   --settings ./coverlet.runsettings \
   --results-directory "$RESULTS_DIR"

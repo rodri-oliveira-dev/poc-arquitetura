@@ -2,11 +2,14 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+SCRIPTS_LIB_DIR="$SCRIPT_DIR/../lib"
+# shellcheck source=../lib/common.sh
+. "$SCRIPTS_LIB_DIR/common.sh"
+REPO_ROOT="$(resolve_repo_root "$SCRIPT_DIR")"
 
 PROJECT_KEY="poc-arquitetura"
 PROJECT_NAME="poc-arquitetura"
-SOLUTION_PATH="$REPO_ROOT/LedgerService.slnx"
+SOLUTION_PATH="$REPO_ROOT/PocArquitetura.slnx"
 RUNSETTINGS_PATH="$REPO_ROOT/coverlet.runsettings"
 BUILD_CONFIGURATION="${BUILD_CONFIGURATION:-Release}"
 SONAR_HOST_URL="${SONAR_HOST_URL:-http://localhost:9000}"

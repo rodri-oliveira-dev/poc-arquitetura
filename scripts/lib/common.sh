@@ -3,13 +3,21 @@ set -euo pipefail
 
 SCRIPT_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+is_repo_root() {
+  local candidate="$1"
+
+  [[ -f "$candidate/Directory.Build.props" &&
+    -f "$candidate/Directory.Packages.props" &&
+    -d "$candidate/scripts" ]]
+}
+
 resolve_repo_root() {
   local start_dir="${1:-$SCRIPT_LIB_DIR}"
   local root=""
 
   if command -v git >/dev/null 2>&1; then
     root="$(git -C "$start_dir" rev-parse --show-toplevel 2>/dev/null || true)"
-    if [[ -n "$root" && -f "$root/LedgerService.slnx" ]]; then
+    if [[ -n "$root" ]]; then
       printf '%s' "$root"
       return 0
     fi
@@ -18,7 +26,7 @@ resolve_repo_root() {
   local current
   current="$(cd "$start_dir" && pwd)"
   while [[ "$current" != "/" ]]; do
-    if [[ -f "$current/LedgerService.slnx" ]]; then
+    if is_repo_root "$current"; then
       printf '%s' "$current"
       return 0
     fi

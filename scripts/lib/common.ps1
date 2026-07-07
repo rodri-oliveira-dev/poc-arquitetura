@@ -3,6 +3,19 @@ param()
 
 $ErrorActionPreference = "Stop"
 
+function Test-RepositoryRoot {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$Path
+  )
+
+  return (
+    (Test-Path -LiteralPath (Join-Path $Path "Directory.Build.props") -PathType Leaf) -and
+    (Test-Path -LiteralPath (Join-Path $Path "Directory.Packages.props") -PathType Leaf) -and
+    (Test-Path -LiteralPath (Join-Path $Path "scripts") -PathType Container)
+  )
+}
+
 function Resolve-RepositoryRoot {
   param(
     [string]$StartPath = $PSScriptRoot
@@ -11,16 +24,13 @@ function Resolve-RepositoryRoot {
   if (Get-Command git -ErrorAction SilentlyContinue) {
     $gitRoot = & git -C $StartPath rev-parse --show-toplevel 2>$null
     if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($gitRoot)) {
-      $candidate = (Resolve-Path -LiteralPath ([string]$gitRoot)).Path
-      if (Test-Path -LiteralPath (Join-Path $candidate "LedgerService.slnx") -PathType Leaf) {
-        return $candidate
-      }
+      return (Resolve-Path -LiteralPath ([string]$gitRoot)).Path
     }
   }
 
   $current = (Resolve-Path -LiteralPath $StartPath).Path
   while (-not [string]::IsNullOrWhiteSpace($current)) {
-    if (Test-Path -LiteralPath (Join-Path $current "LedgerService.slnx") -PathType Leaf) {
+    if (Test-RepositoryRoot -Path $current) {
       return $current
     }
 
