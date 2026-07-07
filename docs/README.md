@@ -25,7 +25,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [SonarQube Cloud](development/sonarqube-cloud.md): configurar analise via GitHub Actions, token, importacao OpenCover, quality gate e troubleshooting.
 - [SonarQube local](quality/sonarqube.md): subir SonarQube com Docker Compose e executar analise estatica local.
 - [Mutation testing com Stryker.NET](development/mutation-testing-stryker.md): executar mutation testing local e interpretar relatorios.
-- [OWASP ZAP local e manual](development/owasp-zap.md): executar DAST baseline local ou via workflow manual contra Ledger e Balance, com Auth.Api legado fora do escopo padrao, salvando relatorios em artifacts ou `zap-reports/`.
+- [OWASP ZAP local e manual](development/owasp-zap.md): executar DAST baseline local ou via workflow manual contra Ledger e Balance, salvando relatorios em artifacts ou `zap-reports/`.
 - [Validacao de seguranca com Trivy](development/trivy-security-scan.md): validar Dockerfiles, Terraform, misconfigurations, secrets e filesystem no hook local e no CI.
 - [Git hooks locais](development/git-hooks.md): instalar e entender `commit-msg`, `post-merge` e `pre-push`.
 - [Setup local Terraform e GCP](development/terraform-gcp-local-setup.md): instalar Terraform CLI, Google Cloud CLI e TFLint no Windows e executar validacoes locais seguras.
@@ -104,7 +104,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [Saga orquestrada no TransferService com Kafka](adrs/0087-saga-orquestrada-transfer-service-kafka.md): planeja o estudo de transferencias entre merchants com orquestracao central, Outbox transacional, worker assincrono, Kafka explicito, idempotencia por etapa e DLQ de aplicacao.
 - [Pub/Sub como provider alternativo](adrs/0077-pubsub-provider-mensageria.md): historico do plano incremental que precedeu a adocao principal.
 - [Plano de migracao Auth.Api para Keycloak/OIDC](adrs/0073-plano-migracao-auth-api-keycloak-oidc.md): execucao incremental mantendo validacao JWT offline via JWKS.
-- [Keycloak como identidade principal](adrs/0074-keycloak-como-identidade-principal.md): decisao final de remover Auth.Api da stack principal e mante-lo apenas como legado por overlay.
+- [Keycloak como identidade principal](adrs/0074-keycloak-como-identidade-principal.md): decisao historica que removeu Auth.Api da stack principal e consolidou Keycloak como identidade local.
 - [Avaliacao de .NET Aspire e riscos OWASP](reports/aspire-and-owasp-assessment.md): relatorio historico de contexto, nao estado operacional mais recente.
 
 ## Agentes

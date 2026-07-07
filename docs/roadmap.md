@@ -24,7 +24,7 @@ Um item deve sair de "Proximos passos" ou "Em andamento ou parcialmente atendido
 - Clean Architecture e DDD pragmaticos por microservico, com separacao entre `Api`, `Application`, `Domain`, `Infrastructure` e processos Worker.
 - `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker` separados operacionalmente, conforme [README](../README.md) e [boundaries](architecture/boundaries.md).
 - Kafka definido como provider padrao dos workers principais, com Pub/Sub mantido como adapter explicito/legado.
-- Keycloak consolidado como identidade principal local, com `Auth.Api` fora da stack principal.
+- Keycloak consolidado como identidade principal local.
 - `AuditService` documentado como bounded context de auditoria funcional isolado, com schema `audit`, contrato HTTP canonico, pontos internos de extensao para ingestao futura e ADR propria.
 - Estrategia futura de integracao do `AuditService` definida como Outbox transacional local + Kafka, sem implementacao ativa nesta etapa.
 - Modelo LikeC4 versionado e publicado por workflow de Pages.
@@ -131,7 +131,7 @@ Um item deve sair de "Proximos passos" ou "Em andamento ou parcialmente atendido
 
 - Implementar infraestrutura produtiva nesta etapa.
 - Tornar OWASP ZAP obrigatorio em PR sem decisao de ambiente alvo, credenciais, risco de falso positivo e politica de bloqueio.
-- Recolocar `Auth.Api` como emissor principal.
+- Reintroduzir emissor local proprio de autenticacao sem nova decisao arquitetural.
 
 ## Observabilidade
 
@@ -305,25 +305,22 @@ Um item deve sair de "Proximos passos" ou "Em andamento ou parcialmente atendido
 
 ### Feito
 
-- `Auth.Api` foi depreciado como emissor legado de POC e removido da stack principal.
+- `Auth.Api` legado foi removido do repositorio e da stack operacional.
 - Keycloak e o caminho principal local de autenticacao.
 - Pub/Sub permanece disponivel apenas como provider explicito/legado opcional.
 - `LedgerEntryCreated.v1` esta documentado como legado aceito para mensagens antigas.
 
 ### Em andamento ou parcialmente atendido
 
-- `Auth.Api` continua no repositorio com testes proprios enquanto existir.
 - Pub/Sub explicito/legado ainda e mantido para estudo, GCP dev e compatibilidade.
 - Leitura de `LedgerEntryCreated.v1` continua necessaria para convivencia operacional.
 
 ### Proximos passos
 
-- Remover definitivamente `Auth.Api` quando nao houver mais necessidade de compatibilidade.
 - Remover ou reduzir Pub/Sub legado somente com decisao explicita, evidencias de nao uso e atualizacao de docs, testes e ADRs.
 - Remover suporte a eventos legados apenas depois de avaliar backlog, producers antigos, retencao e replay esperado.
 
 ### Fora de escopo por enquanto
 
-- Remover `Auth.Api` nesta etapa.
 - Remover Pub/Sub legado sem uma frente dedicada.
 - Apagar contratos legados ainda aceitos pelo consumidor.

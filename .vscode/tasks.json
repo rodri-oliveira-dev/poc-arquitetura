@@ -61,18 +61,6 @@
       }
     },
     {
-      "label": "dotnet: build Auth.Api",
-      "type": "process",
-      "command": "dotnet",
-      "args": [
-        "build",
-        "${workspaceFolder}/src/Auth.Api/Auth.Api.csproj",
-        "--configuration",
-        "Debug"
-      ],
-      "problemMatcher": "$msCompile"
-    },
-    {
       "label": "dotnet: build LedgerService.Api",
       "type": "process",
       "command": "dotnet",

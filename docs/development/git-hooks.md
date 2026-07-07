@@ -43,7 +43,7 @@ O `pre-push` nao executa Trivy localmente por padrao. Os scans bloqueantes de Do
 O hook executa restore, `dotnet format whitespace --verify-no-changes` somente para arquivos `.cs` alterados, build e testes unitarios rapidos sem cobertura quando encontra arquivos .NET impactantes. A escolha de solution e feita assim:
 
 - alteracoes em `src/Shared/`, `tests/Shared/` ou `PocArquitetura.Shared.slnx` validam `PocArquitetura.Shared.slnx`;
-- alteracoes em `src/audit/`, `src/Auth.Api/`, `src/identity/`, `src/balance/`, `src/transfer/`, `src/ledger/`, `tests/audit/`, `tests/Auth.*`, `tests/identity/`, `tests/balance/`, `tests/transfer/`, `tests/ledger/`, `tests/Architecture.Tests/` ou `LedgerService.slnx` validam `LedgerService.slnx`;
+- alteracoes em `src/audit/`, `src/identity/`, `src/balance/`, `src/transfer/`, `src/ledger/`, `tests/audit/`, `tests/identity/`, `tests/balance/`, `tests/transfer/`, `tests/ledger/`, `tests/Architecture.Tests/` ou `LedgerService.slnx` validam `LedgerService.slnx`;
 - alteracoes globais em `global.json`, `NuGet.config`, `Directory.Build.props`, `Directory.Build.targets`, `Directory.Packages.props`, `dotnet-tools.json`, `.config/dotnet-tools.json`, `.editorconfig`, `.globalconfig`, `coverlet.runsettings`, `test.sh`, `test.ps1`, `.github/actions/setup-dotnet/` ou `.githooks/pre-push` validam ambas;
 - alteracoes em `src/Shared/Directory.Build.props` ou `src/Shared/Directory.Packages.props` validam Shared;
 - quando o diff nao pode ser determinado com seguranca, ambas as solutions sao validadas.

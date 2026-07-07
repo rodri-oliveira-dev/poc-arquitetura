@@ -14,7 +14,7 @@ O projeto modela um cenario comum em sistemas financeiros: registrar lancamentos
 
 ## Solucao
 
-A arquitetura separa escrita e leitura em servicos distintos e separa APIs HTTP de workers. O `LedgerService.Api` recebe comandos de lancamento, estorno e reprocessamento, persiste os dados e grava eventos em Outbox na mesma transacao. O `LedgerService.Worker` publica a Outbox pelo provider de mensageria selecionado e executa processamentos assincronos do Ledger. O `BalanceService.Worker` consome os eventos financeiros pelo provider selecionado e atualiza saldos consolidados; o `BalanceService.Api` atende consultas HTTP. Kafka e o provider default dos workers principais quando `Messaging:Provider` esta ausente. Pub/Sub permanece disponivel por selecao explicita via `Messaging:Provider=PubSub`. O Keycloak local emite tokens JWT RS256 e publica JWKS para validacao offline pelas APIs de negocio. O `Auth.Api` foi depreciado como emissor legado de POC e nao faz parte da stack principal.
+A arquitetura separa escrita e leitura em servicos distintos e separa APIs HTTP de workers. O `LedgerService.Api` recebe comandos de lancamento, estorno e reprocessamento, persiste os dados e grava eventos em Outbox na mesma transacao. O `LedgerService.Worker` publica a Outbox pelo provider de mensageria selecionado e executa processamentos assincronos do Ledger. O `BalanceService.Worker` consome os eventos financeiros pelo provider selecionado e atualiza saldos consolidados; o `BalanceService.Api` atende consultas HTTP. Kafka e o provider default dos workers principais quando `Messaging:Provider` esta ausente. Pub/Sub permanece disponivel por selecao explicita via `Messaging:Provider=PubSub`. O Keycloak local emite tokens JWT RS256 e publica JWKS para validacao offline pelas APIs de negocio.
 
 Principais servicos:
 
@@ -39,7 +39,7 @@ Principais servicos:
 - `Domain`: entidades, invariantes e regras de dominio sem dependencia de infraestrutura.
 - `Infrastructure`: EF Core, PostgreSQL, repositorios, migrations e implementacoes tecnicas compartilhadas pelos processos.
 
-`Auth.Api` permanece no repositorio apenas como legado testado e rastreavel; quando necessario, ele pode ser iniciado pelo overlay `compose.auth-legacy.yaml`. A leitura arquitetural completa fica em [docs/architecture](docs/architecture/README.md) e as decisoes historicas ficam em [docs/adrs](docs/adrs/README.md).
+A leitura arquitetural completa fica em [docs/architecture](docs/architecture/README.md) e as decisoes historicas ficam em [docs/adrs](docs/adrs/README.md).
 
 Documentacao arquitetural publicada:
 
@@ -73,7 +73,7 @@ O `IdentityService` e o bounded context de identidade da POC. Ele fica em
 `src/identity`, possui testes em `tests/identity`, integra com Keycloak para
 criar usuarios, persiste o vinculo local no schema PostgreSQL `identity`, gera
 automaticamente o `MerchantId` e envia e-mail de boas-vindas por Domain Event
-apos o commit local. O `Auth.Api` permanece legado e nao faz parte desse fluxo.
+apos o commit local. O Keycloak permanece o emissor de tokens da stack local.
 
 Leitura das decisoes:
 
@@ -301,7 +301,7 @@ Para validar e-mail localmente:
 - Nao ha worker dedicado para notificacoes.
 - A integracao com Keycloak Admin API e chamada sincronamente no cadastro.
 - O `IdentityService` ainda nao emite tokens; Keycloak continua sendo o emissor.
-- `Auth.Api` permanece legado apenas para compatibilidade historica.
+- O emissor local de tokens e o Keycloak; referencias ao Auth legado ficam apenas em registros historicos.
 
 ### Proximos passos
 

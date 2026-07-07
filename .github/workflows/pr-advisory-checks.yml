@@ -66,7 +66,7 @@ jobs:
               pocarquitetura.shared.slnx|src/shared/*|tests/shared/*)
                 run_shared=true
                 ;;
-              ledgerservice.slnx|src/audit/*|src/auth.api/*|src/identity/*|src/balance/*|src/transfer/*|src/ledger/*|tests/audit/*|tests/auth.*|tests/identity/*|tests/balance/*|tests/transfer/*|tests/ledger/*|tests/architecture.tests/*)
+              ledgerservice.slnx|src/audit/*|src/identity/*|src/balance/*|src/transfer/*|src/ledger/*|tests/audit/*|tests/identity/*|tests/balance/*|tests/transfer/*|tests/ledger/*|tests/architecture.tests/*)
                 run_ledger=true
                 ;;
               *.cs)

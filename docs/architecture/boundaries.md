@@ -13,7 +13,6 @@ A solucao atual e uma arquitetura hibrida:
 - CQRS pragmatico entre servicos: Ledger escreve e publica eventos; Balance consome e mantem uma projecao de leitura.
 - Keycloak e o provedor principal de autenticacao/JWT da stack local.
 - IdentityService e o bounded context de cadastro e vinculo local de usuarios.
-- Auth.Api e legado, deliberadamente mais simples, em projeto unico e fora da stack principal.
 
 ## Boundaries recomendados
 
@@ -185,17 +184,6 @@ Pontos de atencao:
 - `TransferService.Worker` registra HostedServices, client HTTP do Ledger e publisher Kafka, sem controllers, Swagger ou CORS.
 - Pub/Sub nao faz parte do fluxo do TransferService definido pela ADR-0087.
 
-### Auth.Api legado
-
-Projeto unico e a escolha correta neste momento. Criar `Auth.Application`, `Auth.Domain` e `Auth.Infrastructure` agora seria overengineering.
-
-Pontos de atencao:
-
-- A regra de login da POC vive no endpoint. Isso e aceitavel enquanto for autenticacao local temporaria e documentada.
-- Se Auth.Api evoluir para usuarios reais, refresh tokens, revogacao, persistencia e federacao OIDC, ai sim boundaries mais fortes seriam necessarios.
-- A migracao para Keycloak foi aplicada na stack principal; o Auth.Api permanece apenas para compatibilidade e rastreabilidade.
-- Fluxos novos de cadastro, gestao de usuarios e e-mail pertencem ao IdentityService, nao ao Auth.Api.
-
 ## Anti-patterns encontrados ou proximos
 
 - Padrao por reflexo: criar interfaces para toda classe sem variacao real.
@@ -204,7 +192,6 @@ Pontos de atencao:
 - Application conhecendo detalhes de transporte ou headers Kafka.
 - Controllers chamando DbContext/repository para executar regra de negocio.
 - Duplicar a mesma politica de arquitetura com variacoes injustificadas entre Ledger e Balance.
-- Criar camadas adicionais em Auth.Api legado antes de remove-lo ou antes de uma necessidade real.
 
 ## Arquitetura recomendada
 
@@ -214,7 +201,6 @@ A arquitetura ideal para este projeto deve ser minimalista e pragmatica, com rob
 - manter o TransferService como bounded context separado, com Saga e Outbox Kafka alinhados ao broker padrao, sem misturar Pub/Sub no fluxo da Saga;
 - manter o IdentityService como bounded context separado para usuarios, MerchantId, vinculo local com Keycloak e e-mail de boas-vindas;
 - manter APIs e workers como processos separados, com composition root e `ServiceName` explicitos por processo;
-- manter Auth.Api legado em projeto unico enquanto ele existir;
 - reforcar boundaries onde ha risco real: contratos de eventos, tempo/clock, outbox e idempotencia;
 - evitar novas camadas genericas, shared kernel prematuro ou frameworks adicionais sem dor concreta;
 - documentar contratos entre servicos antes de refatorar estrutura.

@@ -9,7 +9,6 @@ Este documento descreve o fluxo atual de JWT Bearer via JWKS e as regras de auto
 - `LedgerService.Api` e `BalanceService.Api` validam tokens por JWT Bearer e JWKS.
 - `TransferService.Worker` obtem token por OAuth2 client credentials para chamar o `LedgerService.Api`.
 - As APIs nao fazem introspeccao por request; a configuracao de chaves usa cache e refresh.
-- `Auth.Api` esta depreciado como emissor legado de POC, fora da stack principal, e so deve ser iniciado pelo overlay legado quando houver necessidade explicita de compatibilidade.
 
 ## Keycloak local
 
@@ -127,33 +126,6 @@ Audiences atuais:
 | LedgerService.Api | `ledger-api` |
 | BalanceService.Api | `balance-api` |
 
-Nesta POC, o `Auth.Api` pode emitir `aud` como string com audiences separadas por espaco, como `ledger-api balance-api`. As APIs tratam esse formato tokenizando por espaco.
-
-## Auth.Api legado
-
-O `Auth.Api` permanece no repositorio para rastreabilidade, testes de compatibilidade e rollback local controlado, mas nao faz parte da stack principal nem da borda Nginx padrao. Para iniciar o emissor legado:
-
-```bash
-docker compose -f compose.yaml -f compose.auth-legacy.yaml --profile legacy-auth up -d --build auth-api
-```
-
-Para validar tokens emitidos por ele, sobrescreva a configuracao das APIs e use o provider legado somente nesse contexto:
-
-| Variavel | Valor Auth.Api local |
-| --- | --- |
-| `JWT_ISSUER` | `https://auth-api` |
-| `JWT_JWKS_URL` | `http://auth-api:8080/.well-known/jwks.json` |
-| `JWT_REQUIRE_HTTPS_METADATA` | `false` |
-| `TOKEN_PROVIDER` | `auth-api` |
-
-O catalogo do `Auth.Api` legado aceita somente estes scopes no `POST /auth/login`:
-
-- `ledger.write`
-- `outbox.admin`
-- `balance.read`
-
-Os endpoints de consulta de status do `LedgerService.Api` exigem `ledger.read`, mas esse scope nao esta no catalogo emitido pelo `Auth.Api` legado. Esse desalinhamento e aceito apenas enquanto o projeto legado existir; o fluxo operacional local deve usar Keycloak, cujo realm inclui `ledger.read`.
-
 O realm Keycloak local inclui `ledger.read` junto com `ledger.write`, `balance.read`, `transfer.write`, `transfer.read` e `outbox.admin`.
 O client `poc-automation` declara esses scopes como default client scopes, adiciona as audiences `ledger-api`, `balance-api` e `transfer-api` no access token e emite `merchant_id=tese m1 m2` pelo mapper `poc-merchants`.
 Os clients `poc-local-*-debug` adicionam as mesmas audiences e emitem `scope` pelos seus `clientScopes` default e `merchant_id` pelo mapper `poc-merchants`, sem usar roles nativas do Keycloak como contrato das APIs.
@@ -199,8 +171,7 @@ Os scripts `scripts/validation/get-token.ps1` e `scripts/validation/get-token.sh
 Precedencia:
 
 - `TOKEN` informado por variavel de ambiente e retornado diretamente;
-- `TOKEN_PROVIDER=keycloak`, valor padrao, usa Keycloak local por `client_credentials`;
-- `TOKEN_PROVIDER=auth-api` usa o `Auth.Api` legado em `POST /auth/login` e exige que o overlay `compose.auth-legacy.yaml` esteja em execucao.
+- `TOKEN_PROVIDER=keycloak`, valor padrao, usa Keycloak local por `client_credentials`.
 
 Variaveis Keycloak:
 
@@ -214,19 +185,9 @@ Variaveis Keycloak:
 | `KEYCLOAK_CLIENT_SECRET` | `<KEYCLOAK_CLIENT_SECRET>` |
 | `KEYCLOAK_SCOPE` | vazio, usando os default client scopes do realm |
 
-Variaveis legadas preservadas para `TOKEN_PROVIDER=auth-api`:
+O contrato de resposta esperado e `access_token`; `accessToken` permanece aceito pelos scripts apenas como tolerancia a provedores compativeis.
 
-| Variavel | Default local |
-| --- | --- |
-| `AUTH_BASE_URL` | `http://localhost:5030` |
-| `TOKEN_URL` | `/auth/login` |
-| `AUTH_POC_USERNAME` ou `USERNAME` | `local_user` |
-| `AUTH_POC_PASSWORD` ou `PASSWORD` | `<AUTH_POC_PASSWORD>` |
-| `AUTH_POC_SCOPE` ou `SCOPE` | `ledger.write balance.read` |
-
-O contrato de resposta continua aceitando `access_token` como campo principal e `accessToken` como fallback temporario.
-
-Scripts operacionais que precisam de token devem chamar `scripts/validation/get-token.*` em vez de duplicar login. Esse e o caso dos validadores locais (`validate-*.ps1`), dos runners k6 (`run-loadtests.*`) e do modo autenticado do OWASP ZAP (`run-owasp-zap.* -UseAuthentication` ou `--use-authentication`). Assim, Keycloak e o fallback temporario para `Auth.Api` seguem uma unica configuracao.
+Scripts operacionais que precisam de token devem chamar `scripts/validation/get-token.*` em vez de duplicar login. Esse e o caso dos validadores locais (`validate-*.ps1`), dos runners k6 (`run-loadtests.*`) e do modo autenticado do OWASP ZAP (`run-owasp-zap.* -UseAuthentication` ou `--use-authentication`).
 
 ## Autenticacao service-to-service do TransferService.Worker
 
@@ -288,49 +249,6 @@ O access token emitido pelo realm local deve conter `iss=http://localhost:8081/r
 Para debug manual com usuario/senha, use o client publico de debug correspondente diretamente no token endpoint com `grant_type=password`. Os scripts versionados nao usam esse fluxo por padrao para evitar transformar Direct Grant em automacao oficial.
 
 Para APIs rodando em container, mantenha `Jwt:JwksUrl` apontando para `http://keycloak:8080/realms/poc/protocol/openid-connect/certs`. Para APIs rodando no host, use `http://localhost:8081/realms/poc/protocol/openid-connect/certs`.
-
-### Auth.Api legado
-
-Suba o `Auth.Api` pelo overlay legado ou via `dotnet run` e solicite um token pelo provider legado:
-
-```bash
-docker compose -f compose.yaml -f compose.auth-legacy.yaml --profile legacy-auth up -d --build auth-api
-TOKEN_PROVIDER=auth-api ./scripts/validation/get-token.sh
-```
-
-No Windows:
-
-```powershell
-docker compose -f compose.yaml -f compose.auth-legacy.yaml --profile legacy-auth up -d --build auth-api
-$env:TOKEN_PROVIDER = "auth-api"
-./scripts/validation/get-token.ps1
-```
-
-Chamada equivalente:
-
-```bash
-curl -s -X POST http://localhost:5030/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "username": "local_user",
-    "password": "<AUTH_POC_PASSWORD>",
-    "scope": "ledger.write balance.read"
-  }'
-```
-
-Em `Development`, o repositorio traz valores de exemplo em `src/Auth.Api/appsettings.Development.json`. Em outros ambientes, use variaveis de ambiente ou secret store.
-
-Use o `access_token` retornado:
-
-```bash
-curl -i http://localhost:5226/api/v1/lancamentos \
-  -H "Authorization: Bearer <TOKEN>" \
-  -H "Idempotency-Key: 00000000-0000-0000-0000-000000000001" \
-  -H "Content-Type: application/json" \
-  -d '{"type":"CREDIT","merchantId":"tese","amount":10.00}'
-```
-
-O contrato do `Auth.Api` retorna `access_token`. Os scripts aceitam `accessToken` apenas como fallback de compatibilidade.
 
 ## Cuidados
 

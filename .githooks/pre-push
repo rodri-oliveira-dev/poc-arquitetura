@@ -90,10 +90,10 @@ is_shared_path() {
 
 is_services_path() {
   case "$1" in
-    src/audit/*|src/Auth.Api/*|src/identity/*|src/balance/*|src/transfer/*|src/ledger/*)
+    src/audit/*|src/identity/*|src/balance/*|src/transfer/*|src/ledger/*)
       return 0
       ;;
-    tests/audit/*|tests/Auth.*|tests/identity/*|tests/balance/*|tests/transfer/*|tests/ledger/*|tests/Architecture.Tests/*)
+    tests/audit/*|tests/identity/*|tests/balance/*|tests/transfer/*|tests/ledger/*|tests/Architecture.Tests/*)
       return 0
       ;;
     LedgerService.slnx)

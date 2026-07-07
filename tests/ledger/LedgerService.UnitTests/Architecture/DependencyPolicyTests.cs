@@ -80,7 +80,6 @@ public sealed class DependencyPolicyTests
     }
 
     [Theory]
-    [InlineData("src/Auth.Api/Auth.Api.csproj")]
     [InlineData("src/ledger/LedgerService.Api/LedgerService.Api.csproj")]
     [InlineData("src/balance/BalanceService.Api/BalanceService.Api.csproj")]
     public void Api_projects_should_reference_otlp_exporter_without_local_version(string projectPath)

@@ -7,7 +7,6 @@ COMPOSE_OBSERVABILITY_FILE="$ROOT_DIR/compose.observability.yaml"
 COMPOSE_KAFKA_FILE="$ROOT_DIR/compose.kafka.yaml"
 COMPOSE_NGINX_FILE="$ROOT_DIR/compose.nginx.yaml"
 COMPOSE_K6_FILE="$ROOT_DIR/compose.k6.yaml"
-COMPOSE_AUTH_LEGACY_FILE="$ROOT_DIR/compose.auth-legacy.yaml"
 COMPOSE_SONAR_FILE="$ROOT_DIR/compose.sonar.yaml"
 YES="${YES:-false}"
 
@@ -67,11 +66,9 @@ docker compose \
   -f "$COMPOSE_KAFKA_FILE" \
   -f "$COMPOSE_NGINX_FILE" \
   -f "$COMPOSE_K6_FILE" \
-  -f "$COMPOSE_AUTH_LEGACY_FILE" \
   --profile observability \
   --profile direct-ledger \
   --profile k6 \
-  --profile legacy-auth \
   --profile legacy-pubsub \
   down \
   --remove-orphans

@@ -95,7 +95,6 @@ public sealed partial class WorkflowArtifactPolicyTests
         var regex = PlaceholderSecretLineRegex();
         Assert.Matches(regex, "DefaultConnection=Host=127.0.0.1;Password=<LEDGER_DB_PASSWORD>");
         Assert.Matches(regex, "KEYCLOAK_CLIENT_SECRET=<KEYCLOAK_CLIENT_SECRET>");
-        Assert.Matches(regex, "  -d \"password=<AUTH_POC_PASSWORD>\"");
         Assert.Matches(regex, "  --token \"<TOKEN>\"");
         Assert.Matches(regex, "ApiKey=<SOME_SECRET>");
 

@@ -129,7 +129,6 @@ jobs:
             echo
             echo "- Workflow manual via workflow_dispatch; nao e gate obrigatorio de PR."
             echo "- Alvos padrao: LedgerService.Api e BalanceService.Api."
-            echo "- Auth.Api legado fica fora do escopo padrao."
             echo "- Alerts do ZAP so falham o job quando fail_on_alerts=true."
             echo
           } >> "$GITHUB_STEP_SUMMARY"

@@ -60,7 +60,7 @@ internal static class Program
         YamlStream yaml;
         try
         {
-            yaml = new YamlStream();
+            yaml = [];
             yaml.Load(new StringReader(composeContent));
         }
         catch (YamlException ex)
@@ -69,17 +69,15 @@ internal static class Program
             return ExitCodes.ComposeParseFailed;
         }
 
-        var root = yaml.Documents.FirstOrDefault()?.RootNode as YamlMappingNode;
-        if (root is null)
+        if (yaml.Documents.FirstOrDefault()?.RootNode is not YamlMappingNode root)
         {
             Console.Error.WriteLine("[ComposeEnvGen] YAML sem root mapping.");
             return ExitCodes.ComposeParseFailed;
         }
 
-        var servicesNode = ComposeHelpers.GetChild(root, "services") as YamlMappingNode;
-        if (servicesNode is null)
+        if (ComposeHelpers.GetChild(root, "services") is not YamlMappingNode servicesNode)
         {
-            Console.Error.WriteLine("[ComposeEnvGen] 'services' não encontrado no compose.");
+            Console.Error.WriteLine("[ComposeEnvGen] 'services' nÃ£o encontrado no compose.");
             return ExitCodes.ComposeParseFailed;
         }
 
@@ -93,16 +91,15 @@ internal static class Program
         var ledgerServiceName = ServiceDiscovery.PickBestService(servicesNode, serviceNames, ["ledger"]);
         var balanceServiceName = ServiceDiscovery.PickBestService(servicesNode, serviceNames, ["balance", "consolid"]);
         var transferServiceName = ServiceDiscovery.PickBestService(servicesNode, serviceNames, ["transfer"]);
-        var authServiceName = ServiceDiscovery.PickBestService(servicesNode, serviceNames, ["auth", "keycloak", "identity"]);
 
         if (ledgerServiceName is null)
         {
-            Console.Error.WriteLine("[ComposeEnvGen] Não foi possível inferir o service do Ledger (keyword: ledger).");
+            Console.Error.WriteLine("[ComposeEnvGen] NÃ£o foi possÃ­vel inferir o service do Ledger (keyword: ledger).");
             return ExitCodes.ComposeParseFailed;
         }
         if (balanceServiceName is null)
         {
-            Console.Error.WriteLine("[ComposeEnvGen] Não foi possível inferir o service do Balance (keywords: balance|consolid).");
+            Console.Error.WriteLine("[ComposeEnvGen] NÃ£o foi possÃ­vel inferir o service do Balance (keywords: balance|consolid).");
             return ExitCodes.ComposeParseFailed;
         }
         if (transferServiceName is null)
@@ -110,27 +107,16 @@ internal static class Program
             Console.Error.WriteLine("[ComposeEnvGen] Nao foi possivel inferir o service do Transfer (keyword: transfer).");
             return ExitCodes.ComposeParseFailed;
         }
-        if (authServiceName is null)
-        {
-            Console.Error.WriteLine("[ComposeEnvGen] Não foi possível inferir o service de Auth (keywords: auth|keycloak|identity).");
-            return ExitCodes.ComposeParseFailed;
-        }
 
-        var ledgerService = servicesNode.Children[new YamlScalarNode(ledgerServiceName)] as YamlMappingNode;
-        var balanceService = servicesNode.Children[new YamlScalarNode(balanceServiceName)] as YamlMappingNode;
-        var transferService = servicesNode.Children[new YamlScalarNode(transferServiceName)] as YamlMappingNode;
-        var authService = servicesNode.Children[new YamlScalarNode(authServiceName)] as YamlMappingNode;
-
-        if (ledgerService is null || balanceService is null || transferService is null || authService is null)
+        if (servicesNode.Children[new YamlScalarNode(ledgerServiceName)] is not YamlMappingNode ledgerService || servicesNode.Children[new YamlScalarNode(balanceServiceName)] is not YamlMappingNode balanceService || servicesNode.Children[new YamlScalarNode(transferServiceName)] is not YamlMappingNode transferService)
         {
-            Console.Error.WriteLine("[ComposeEnvGen] Erro interno: service mapping não encontrado.");
+            Console.Error.WriteLine("[ComposeEnvGen] Erro interno: service mapping nÃ£o encontrado.");
             return ExitCodes.ComposeParseFailed;
         }
 
         var ledgerPort = ServiceDiscovery.DetermineInternalHttpPort(ledgerService);
         var balancePort = ServiceDiscovery.DetermineInternalHttpPort(balanceService);
         var transferPort = ServiceDiscovery.DetermineInternalHttpPort(transferService);
-        var authPort = ServiceDiscovery.DetermineInternalHttpPort(authService);
 
         var envLines = new List<string>
         {
@@ -140,27 +126,17 @@ internal static class Program
             $"LEDGER_SERVICE_NAME={ledgerServiceName}",
             $"BALANCE_SERVICE_NAME={balanceServiceName}",
             $"TRANSFER_SERVICE_NAME={transferServiceName}",
-            $"AUTH_SERVICE_NAME={authServiceName}",
             "",
             $"BASE_URL_LEDGER=http://{ledgerServiceName}:{ledgerPort}",
             $"BASE_URL_BALANCE=http://{balanceServiceName}:{balancePort}",
             $"BASE_URL_TRANSFER=http://{transferServiceName}:{transferPort}",
-            $"AUTH_BASE_URL=http://{authServiceName}:{authPort}",
             "",
-            // Paths inferidos do README atual (rotas estáveis)
-            "TOKEN_URL=/auth/login",
+            // Paths inferidos do README atual (rotas estÃ¡veis)
             "LEDGER_POST_PATH=/api/v1/lancamentos",
             "BALANCE_DAILY_PATH=/api/v1/consolidados/diario",
             "BALANCE_PERIOD_PATH=/api/v1/consolidados/periodo",
             "TRANSFER_PATH=/api/v1/transferencias",
             "",
-            "# Credenciais locais ficticias - podem ser sobrescritas por env no get-token",
-            "AUTH_POC_USERNAME=local_user",
-            "AUTH_POC_PASSWORD=local_password",
-            "AUTH_POC_SCOPE=ledger.write balance.read",
-            "USERNAME=local_user",
-            "PASSWORD=local_password",
-            "SCOPE=ledger.write balance.read",
             "MERCHANT_ID=tese",
             "SOURCE_MERCHANT_ID=m1",
             "DESTINATION_MERCHANT_ID=m2",
@@ -169,7 +145,7 @@ internal static class Program
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outPath)) ?? ".");
-            File.WriteAllLines(outPath, envLines.Select(l => EnvFile.EscapeValue(l)));
+            File.WriteAllLines(outPath, envLines.Select(EnvFile.EscapeValue));
         }
         catch (IOException ex)
         {
@@ -210,7 +186,7 @@ internal static class EnvFile
 {
     public static string EscapeValue(string value)
     {
-        // Mantém simples: grava cru. Se tiver CR/LF, substitui por espaço.
+        // MantÃ©m simples: grava cru. Se tiver CR/LF, substitui por espaÃ§o.
         return value.Replace("\r", " ").Replace("\n", " ");
     }
 }
@@ -219,9 +195,7 @@ internal static class ComposeHelpers
 {
     public static YamlNode? GetChild(YamlMappingNode map, string key)
     {
-        if (!map.Children.TryGetValue(new YamlScalarNode(key), out var node))
-            return null;
-        return node;
+        return !map.Children.TryGetValue(new YamlScalarNode(key), out var node) ? null : node;
     }
 
     public static IEnumerable<string> GetStringSequence(YamlMappingNode map, string key)
@@ -232,7 +206,7 @@ internal static class ComposeHelpers
         foreach (var item in seq)
         {
             if (item is YamlScalarNode s && !string.IsNullOrWhiteSpace(s.Value))
-                yield return s.Value!;
+                yield return s.Value;
         }
     }
 
@@ -249,7 +223,7 @@ internal static class ComposeHelpers
                 if (string.IsNullOrWhiteSpace(k))
                     continue;
                 var v = (kv.Value as YamlScalarNode)?.Value ?? string.Empty;
-                dict[k!] = v;
+                dict[k] = v;
             }
         }
         else if (envNode is YamlSequenceNode envSeq)
@@ -258,7 +232,7 @@ internal static class ComposeHelpers
             {
                 if (item is not YamlScalarNode s || string.IsNullOrWhiteSpace(s.Value))
                     continue;
-                var parts = s.Value!.Split('=', 2);
+                var parts = s.Value.Split('=', 2);
                 dict[parts[0]] = parts.Length == 2 ? parts[1] : string.Empty;
             }
         }
@@ -355,7 +329,7 @@ internal static class ServiceDiscovery
             if (name.Contains("init", StringComparison.OrdinalIgnoreCase))
                 score -= 20;
 
-            // Indícios de HTTP app
+            // IndÃ­cios de HTTP app
             var env = ComposeHelpers.GetEnvironment(svc);
             if (env.ContainsKey("ASPNETCORE_URLS"))
                 score += 100;
@@ -370,7 +344,7 @@ internal static class ServiceDiscovery
                     score -= 100;
             }
 
-            // Build tende a ser nosso serviço local
+            // Build tende a ser nosso serviÃ§o local
             if (ComposeHelpers.GetChild(svc, "build") is not null)
                 score += 20;
 

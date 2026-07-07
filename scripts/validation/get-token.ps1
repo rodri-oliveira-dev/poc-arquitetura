@@ -157,56 +157,6 @@ function Request-KeycloakToken {
   return Get-TokenFromResponse $resp
 }
 
-function Request-AuthApiToken {
-  $authBaseUrl = Get-EnvOrEmpty "AUTH_BASE_URL"
-  $tokenUrl = Get-ConfigValue "TOKEN_URL"
-
-  # Por padrao, o script roda no host. O AUTH_BASE_URL gerado para k6 usa o nome
-  # do service dentro da rede Docker e so deve ser usado quando solicitado.
-  $useEnvFileAuthBaseUrl = (Get-EnvOrEmpty "USE_ENVFILE_AUTH_BASE_URL").ToLowerInvariant() -eq "true"
-  if ($useEnvFileAuthBaseUrl -and [string]::IsNullOrWhiteSpace($authBaseUrl) -and $script:envFile.ContainsKey("AUTH_BASE_URL")) {
-    $authBaseUrl = $script:envFile["AUTH_BASE_URL"]
-  }
-
-  $authPocUsername = Get-ConfigValue "AUTH_POC_USERNAME"
-  $authPocPassword = Get-ConfigValue "AUTH_POC_PASSWORD"
-  $authPocScope = Get-ConfigValue "AUTH_POC_SCOPE"
-  $username = Get-ConfigValue "USERNAME"
-  $password = Get-ConfigValue "PASSWORD"
-  $scope = Get-ConfigValue "SCOPE"
-
-  # No Windows, USERNAME existe por padrao com o usuario do SO. Para evitar colisao,
-  # USERNAME/PASSWORD so sao considerados override legado se ambos estiverem preenchidos.
-  if (-not [string]::IsNullOrWhiteSpace($username) -and [string]::IsNullOrWhiteSpace($password)) {
-    $username = ""
-  }
-  if (-not [string]::IsNullOrWhiteSpace($password) -and [string]::IsNullOrWhiteSpace($username)) {
-    $password = ""
-  }
-
-  if ([string]::IsNullOrWhiteSpace($username)) { $username = $authPocUsername }
-  if ([string]::IsNullOrWhiteSpace($password)) { $password = $authPocPassword }
-  if ([string]::IsNullOrWhiteSpace($scope)) { $scope = $authPocScope }
-
-  if ([string]::IsNullOrWhiteSpace($username)) { $username = "local_user" }
-  if ([string]::IsNullOrWhiteSpace($password)) { Fail "AUTH_POC_PASSWORD ou PASSWORD nao informado" }
-  if ([string]::IsNullOrWhiteSpace($scope)) { $scope = "ledger.write balance.read" }
-  if ([string]::IsNullOrWhiteSpace($tokenUrl)) { $tokenUrl = "/auth/login" }
-  if ([string]::IsNullOrWhiteSpace($authBaseUrl)) { $authBaseUrl = "http://localhost:5030" }
-
-  $url = Combine-Url $authBaseUrl $tokenUrl
-
-  try {
-    $body = @{ username = $username; password = $password; scope = $scope } | ConvertTo-Json
-    $resp = Invoke-RestMethod -Method Post -Uri $url -ContentType "application/json" -Body $body
-  } catch {
-    $summary = Get-ErrorSummary $_
-    Fail "Falha ao obter token Auth.Api em '$url': $summary"
-  }
-
-  return Get-TokenFromResponse $resp
-}
-
 $tokenOverride = Get-EnvOrEmpty "TOKEN"
 if (-not [string]::IsNullOrWhiteSpace($tokenOverride)) {
   Write-Output $tokenOverride
@@ -231,11 +181,7 @@ switch ($provider) {
     Write-Output (Request-KeycloakToken)
     exit 0
   }
-  "auth-api" {
-    Write-Output (Request-AuthApiToken)
-    exit 0
-  }
   default {
-    Fail "TOKEN_PROVIDER invalido: '$provider'. Valores aceitos: keycloak|auth-api"
+    Fail "TOKEN_PROVIDER invalido: '$provider'. Valor aceito: keycloak"
   }
 }

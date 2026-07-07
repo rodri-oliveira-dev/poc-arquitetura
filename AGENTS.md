@@ -37,8 +37,6 @@ Componentes principais:
 - `src/balance/BalanceService.Infrastructure`
 - `tests/*`
 
-`src/Auth.Api` permanece apenas como legado de autenticacao de POC, fora da stack principal, com testes proprios enquanto o projeto existir.
-
 ## Regras obrigatorias
 
 - Faca a menor mudanca possivel para resolver o problema.

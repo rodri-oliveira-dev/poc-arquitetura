@@ -25,7 +25,7 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 | [ADR-0092](./0092-envio-email-identity-service.md) | Aceito | Define envio de e-mail de boas-vindas por UserRegisteredDomainEvent, handler, template HTML e IEmailSender. |
 | [ADR-0091](./0091-domain-event-dispatcher-identity-service.md) | Aceito | Define Domain Events no IdentityService com Aggregate Root, dispatch after commit, dispatcher e side effects em handlers. |
 | [ADR-0090](./0090-cadastro-usuarios-identity-service.md) | Aceito | Define cadastro de usuarios com Keycloak, persistencia local, MerchantId automatico e senha somente no provider. |
-| [ADR-0089](./0089-bounded-context-identity-service.md) | Aceito | Define o IdentityService como novo bounded context independente em src/identity, com testes em tests/identity e Auth.Api legado. |
+| [ADR-0089](./0089-bounded-context-identity-service.md) | Aceito | Define o IdentityService como novo bounded context independente em src/identity e registra a coexistencia historica com Auth.Api legado. |
 | [ADR-0088](./0088-kafka-default-ledger-balance-workers.md) | Aceito | Define Kafka como default dos workers principais Ledger/Balance e mantem Pub/Sub apenas por selecao explicita. |
 | [ADR-0087](./0087-saga-orquestrada-transfer-service-kafka.md) | Proposto | Define estudo de Saga Orquestrada no `TransferService` para transferencias entre merchants usando Kafka, Outbox transacional, worker assincrono, idempotencia por etapa e DLQ de aplicacao. |
 | [ADR-0086](./0086-pre-push-leve-gates-pesados-no-pr.md) | Aceito | Mantem o pre-push leve e desloca validacoes pesadas como cobertura, Trivy, Terraform validate e testes de container para o Pull Request. |
@@ -40,7 +40,7 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 | [ADR-0077](./0077-pubsub-provider-mensageria.md) | Substituido | Define a fase incremental de Pub/Sub como provider alternativo, encerrada pela ADR-0078. |
 | [ADR-0076](./0076-formalizar-contrato-ledger-entry-created-v1.md) | Aceito | Formaliza `LedgerEntryCreated.v1` em JSON Schema e mantem `BRL` como limitacao conhecida fora do payload. |
 | [ADR-0075](./0075-mensageria-ports-adapters-kafka-provider.md) | Parcialmente substituido | Define o boundary de mensageria por ports and adapters; a ADR-0088 define Kafka como default atual e Pub/Sub como selecao explicita/legada. |
-| [ADR-0074](./0074-keycloak-como-identidade-principal.md) | Aceito | Define Keycloak como identidade principal, remove Auth.Api da stack principal e o mantem apenas como legado por overlay. |
+| [ADR-0074](./0074-keycloak-como-identidade-principal.md) | Aceito | Define Keycloak como identidade principal, remove Auth.Api da stack principal e registra sua permanencia temporaria como legado por overlay. |
 | [ADR-0073](./0073-plano-migracao-auth-api-keycloak-oidc.md) | Substituido | Define plano executavel para migrar Auth.Api para Keycloak/OIDC mantendo JWT offline via JWKS e claims atuais na primeira fase; fechado pela ADR-0074. |
 | [ADR-0072](./0072-load-balance-local-ledger-nginx.md) | Aceito | Demonstra load balance local do LedgerService.Api com duas instancias atras do Nginx e `least_conn`. |
 | [ADR-0071](./0071-borda-local-nginx-https.md) | Aceito | Adiciona overlay opcional com Nginx, HTTPS local, portal e subdominios `.localhost` para Swagger. |

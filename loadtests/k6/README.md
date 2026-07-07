@@ -19,7 +19,6 @@ Variaveis padrao relevantes:
 - `BASE_URL_LEDGER` / `LEDGER_BASE_URL` conforme ambiente
 - `BASE_URL_BALANCE` / `BALANCE_BASE_URL` conforme ambiente
 - `BASE_URL_TRANSFER` / `TRANSFER_BASE_URL` conforme ambiente
-- `BASE_URL_AUTH` / `AUTH_BASE_URL` quando um emissor legado for usado explicitamente
 - `KEYCLOAK_BASE_URL` ou `KEYCLOAK_HOST_PORT`, para emissao local do token
 - `KEYCLOAK_CLIENT_ID`, `KEYCLOAK_CLIENT_SECRET` e `KEYCLOAK_SCOPE`, para client credentials do runner
 - credenciais de client por ambiente via `.env.local` ou variaveis de processo, sem versionar segredo

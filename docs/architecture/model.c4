@@ -96,15 +96,6 @@ model {
     }
   }
 
-  legacyAuth = softwareSystem "Auth.Api legado" {
-    description "API simples de autenticacao da POC antiga. Permanece no repositorio e no overlay legacy-auth, mas nao e o caminho principal de identidade."
-
-    authApi = container "Auth.Api" {
-      technology "ASP.NET Core"
-      description "Projeto unico legado que emite JWT de POC com chave RSA persistida em volume local quando o profile legacy-auth e usado."
-    }
-  }
-
   identityService = softwareSystem "IdentityService" {
     description "Bounded context de identidade. Cadastra usuarios, gera MerchantId, cria o usuario no Keycloak e guarda o vinculo local no schema identity."
 
@@ -464,7 +455,6 @@ model {
 
   customer -> identity.keycloak "Obtem JWT por OIDC/client_credentials" "HTTP"
   customer -> identityService.identityApi "Cadastra usuarios e recebe MerchantId" "HTTP + JWT"
-  customer -> legacyAuth.authApi "Usa somente em cenarios legados explicitos" "HTTP + JWT legado"
   customer -> ledger.ledgerApi "Cria lancamentos e solicita/consulta estornos e reprocessamentos" "HTTP + JWT"
   customer -> balance.balanceApi "Consulta consolidados" "HTTP + JWT"
   customer -> edge.nginx "Acessa portal e Swaggers locais opcionais" "HTTPS"

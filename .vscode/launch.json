@@ -2,26 +2,6 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Auth.Api (host, local dependencies required)",
-      "type": "coreclr",
-      "request": "launch",
-      "preLaunchTask": "dotnet: build Auth.Api",
-      "program": "dotnet",
-      "args": [
-        "run",
-        "--no-launch-profile",
-        "--project",
-        "${workspaceFolder}/src/Auth.Api/Auth.Api.csproj"
-      ],
-      "cwd": "${workspaceFolder}",
-      "env": {
-        "ASPNETCORE_ENVIRONMENT": "Development",
-        "ASPNETCORE_URLS": "http://localhost:5030"
-      },
-      "console": "integratedTerminal",
-      "stopAtEntry": false
-    },
-    {
       "name": "LedgerService.Api (host, local dependencies required)",
       "type": "coreclr",
       "request": "launch",
@@ -102,7 +82,6 @@
     {
       "name": "APIs (host, local dependencies required)",
       "configurations": [
-        "Auth.Api (host, local dependencies required)",
         "LedgerService.Api (host, local dependencies required)",
         "BalanceService.Api (host, local dependencies required)"
       ],

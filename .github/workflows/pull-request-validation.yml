@@ -82,7 +82,7 @@ jobs:
                 run_shared=true
                 echo "Shared file detected: $file"
                 ;;
-              ledgerservice.slnx|src/audit/*|src/auth.api/*|src/identity/*|src/balance/*|src/transfer/*|src/ledger/*|tests/audit/*|tests/auth.*|tests/identity/*|tests/balance/*|tests/transfer/*|tests/ledger/*|tests/architecture.tests/*)
+              ledgerservice.slnx|src/audit/*|src/identity/*|src/balance/*|src/transfer/*|src/ledger/*|tests/audit/*|tests/identity/*|tests/balance/*|tests/transfer/*|tests/ledger/*|tests/architecture.tests/*)
                 docs_only=false
                 run_ledger=true
                 echo "Service file detected: $file"

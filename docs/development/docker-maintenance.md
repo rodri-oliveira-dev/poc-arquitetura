@@ -107,7 +107,6 @@ O script lista volumes com `auto-prune=true`, confere `retention=7d`, verifica i
 | `sonar-postgres-data` | persistente util em desenvolvimento | Nao remover automaticamente; guarda banco local do SonarQube. |
 | `sonarqube-data` | persistente util em desenvolvimento | Nao remover automaticamente; guarda estado local do SonarQube. |
 | `sonarqube-extensions` | persistente util em desenvolvimento | Nao remover automaticamente; guarda plugins/extensoes locais do SonarQube. |
-| `auth-api-data` | persistente util para fluxo legado | Nao remover automaticamente; guarda chave RSA local do `Auth.Api` legado. |
 | `nginx-certs` | cache descartavel | Seguro para apagar apos 7 dias quando nao estiver em uso; e recriado a partir de `infra/nginx/certs`. |
 
 Bind mounts de codigo/configuracao:

@@ -7,9 +7,6 @@
     <Project Path="src/audit/AuditService.Infrastructure/AuditService.Infrastructure.csproj" />
     <Project Path="src/audit/AuditService.Worker/AuditService.Worker.csproj" />
   </Folder>
-  <Folder Name="/src/Auth/">
-    <Project Path="src/Auth.Api/Auth.Api.csproj" />
-  </Folder>
   <Folder Name="/src/Identity/">
     <Project Path="src/identity/IdentityService.Api/IdentityService.Api.csproj" />
     <Project Path="src/identity/IdentityService.Application/IdentityService.Application.csproj" />
@@ -48,8 +45,6 @@
     <Project Path="tests/transfer/TransferService.UnitTests/TransferService.UnitTests.csproj" />
     <Project Path="tests/transfer/TransferService.IntegrationTests/TransferService.IntegrationTests.csproj" />
     <Project Path="tests/transfer/TransferService.Worker.Tests/TransferService.Worker.Tests.csproj" />
-    <Project Path="tests/Auth.UnitTests/Auth.UnitTests.csproj" />
-    <Project Path="tests/Auth.IntegrationTests/Auth.IntegrationTests.csproj" />
     <Project Path="tests/Architecture.Tests/Architecture.Tests.csproj" />
   </Folder>
   <Folder Name="/tests/audit/">

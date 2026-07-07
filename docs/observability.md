@@ -37,7 +37,7 @@ OpenTelemetry fica desabilitado por padrao. A correlacao via `X-Correlation-Id` 
 - nao verifica PostgreSQL nem o provider de mensageria;
 - uso esperado: liveness simples do processo HTTP.
 
-Keycloak expoe health/readiness propria no container local e e a origem principal de tokens/JWKS. O `Auth.Api` legado possui `GET /health`, `POST /auth/login` e `GET /.well-known/jwks.json`, mas fica fora da stack principal e so entra em validacoes quando `compose.auth-legacy.yaml` for usado explicitamente.
+Keycloak expoe health/readiness propria no container local e e a origem principal de tokens/JWKS.
 
 No compose local, PostgreSQL e Kafka possuem healthchecks nativos e sao usados por `depends_on.condition`. No modo Pub/Sub legado, o emulator tambem possui healthcheck. As APIs nao recebem healthcheck HTTP no compose porque a imagem runtime .NET usada nesta POC nao inclui `curl`, `wget` ou `busybox`; a sonda HTTP continua disponivel pelo host em `GET /health` e pelos workflows/scripts de validacao.
 
