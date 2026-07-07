@@ -354,9 +354,9 @@ Restaure ferramentas, dependencias, build e testes:
 
 ```powershell
 dotnet tool restore
-dotnet restore ./LedgerService.slnx
-dotnet build ./LedgerService.slnx --configuration Release --no-restore
-dotnet test ./LedgerService.slnx --configuration Release --no-build --settings ./coverlet.runsettings
+dotnet restore ./PocArquitetura.slnx
+dotnet build ./PocArquitetura.slnx --configuration Release --no-restore
+dotnet test ./PocArquitetura.slnx --configuration Release --no-build --settings ./coverlet.runsettings
 ```
 
 Crie primeiro as variaveis locais descartaveis:
@@ -434,9 +434,9 @@ Se houver containers antigos ou rede local presa do proprio projeto, o script pe
 | Tarefa | Comando |
 | --- | --- |
 | Restaurar tools | `dotnet tool restore` |
-| Restaurar pacotes | `dotnet restore ./LedgerService.slnx` |
-| Build Release | `dotnet build ./LedgerService.slnx --configuration Release --no-restore` |
-| Testes sem rebuild | `dotnet test ./LedgerService.slnx --configuration Release --no-build --settings ./coverlet.runsettings` |
+| Restaurar pacotes | `dotnet restore ./PocArquitetura.slnx` |
+| Build Release | `dotnet build ./PocArquitetura.slnx --configuration Release --no-restore` |
+| Testes sem rebuild | `dotnet test ./PocArquitetura.slnx --configuration Release --no-build --settings ./coverlet.runsettings` |
 | Testes com cobertura e gate | `./test.ps1` ou `./test.sh` |
 | Criar `.env.local` de onboarding | `./scripts/local/create-env-local.ps1` ou `./scripts/local/create-env-local.sh` |
 | SonarQube local | `docker compose --env-file .env.local -f compose.sonar.yaml --profile quality up -d` |
