@@ -98,7 +98,7 @@ public sealed class DependencyPolicyTests
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
 
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "LedgerService.slnx")))
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "PocArquitetura.slnx")))
         {
             directory = directory.Parent;
         }

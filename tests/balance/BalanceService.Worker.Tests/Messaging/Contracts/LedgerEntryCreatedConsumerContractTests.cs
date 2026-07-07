@@ -1,5 +1,4 @@
 using System.Globalization;
-using TextEncoding = System.Text.Encoding;
 
 using BalanceService.Application;
 using BalanceService.Application.Abstractions.Persistence;
@@ -8,19 +7,21 @@ using BalanceService.Domain.Balances;
 using BalanceService.Worker.Messaging.Abstractions;
 using BalanceService.Worker.Messaging.Contracts;
 using BalanceService.Worker.Messaging.Kafka.Consumers;
+using BalanceService.Worker.Messaging.Processors;
 using BalanceService.Worker.Messaging.PubSub.Consumers;
 using BalanceService.Worker.Messaging.PubSub.Tracing;
-using BalanceService.Worker.Messaging.Processors;
 using BalanceService.Worker.Observability;
 
 using Confluent.Kafka;
 
 using Google.Cloud.PubSub.V1;
 using Google.Protobuf;
-using ProtobufTimestamp = Google.Protobuf.WellKnownTypes.Timestamp;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+
+using ProtobufTimestamp = Google.Protobuf.WellKnownTypes.Timestamp;
+using TextEncoding = System.Text.Encoding;
 
 namespace BalanceService.Worker.Tests.Messaging.Contracts;
 
@@ -223,7 +224,7 @@ public sealed class LedgerEntryCreatedConsumerContractTests
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null)
         {
-            if (File.Exists(Path.Combine(directory.FullName, "LedgerService.slnx")))
+            if (File.Exists(Path.Combine(directory.FullName, "PocArquitetura.slnx")))
                 return directory.FullName;
 
             directory = directory.Parent;
@@ -294,7 +295,7 @@ public sealed class LedgerEntryCreatedConsumerContractTests
 
     private sealed class InMemoryDailyBalanceRepository : IDailyBalanceRepository
     {
-        private readonly Dictionary<(string MerchantId, DateOnly Date, string Currency), DailyBalance> _balances = new();
+        private readonly Dictionary<(string MerchantId, DateOnly Date, string Currency), DailyBalance> _balances = [];
 
         public IReadOnlyCollection<DailyBalance> Items => _balances.Values;
 
@@ -399,7 +400,7 @@ public sealed class LedgerEntryCreatedConsumerContractTests
 
     private sealed class CapturingDeadLetterPublisher : IDeadLetterPublisher
     {
-        public List<DeadLetterMessage> Messages { get; } = new();
+        public List<DeadLetterMessage> Messages { get; } = [];
 
         public Task PublishAsync(DeadLetterMessage message, CancellationToken cancellationToken)
         {

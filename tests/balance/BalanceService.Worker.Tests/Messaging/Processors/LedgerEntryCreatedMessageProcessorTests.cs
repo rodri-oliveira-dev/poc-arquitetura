@@ -2,7 +2,6 @@ using System.Diagnostics;
 using System.Text.Json;
 
 using BalanceService.Application.Balances.Commands;
-using BalanceService.Domain.Balances;
 using BalanceService.Domain.Exceptions;
 using BalanceService.Worker.Messaging.Abstractions;
 using BalanceService.Worker.Messaging.Contracts;
@@ -51,7 +50,7 @@ public sealed class LedgerEntryCreatedMessageProcessorTests
     {
         var dlq = new CapturingDeadLetterProducer();
         var sut = CreateSut(dlq);
-        var message = CreateMessage(ValidPayload(), new Dictionary<string, string>());
+        var message = CreateMessage(ValidPayload(), []);
 
         var shouldCommit = await sut.ProcessAsync(message, CancellationToken.None);
         Assert.True(shouldCommit);
@@ -192,7 +191,7 @@ public sealed class LedgerEntryCreatedMessageProcessorTests
         Assert.True(shouldCommit);
         Assert.Empty(dlq.Messages);
         Assert.NotNull(command);
-        Assert.Equal("lan_12345678", command!.Event.Id);
+        Assert.Equal("lan_12345678", command.Event.Id);
         Assert.Equal("BRL", command.Event.Currency);
         Assert.Equal(LedgerEntryCreatedV2Contract.EventType, command.EventType);
     }
@@ -217,7 +216,7 @@ public sealed class LedgerEntryCreatedMessageProcessorTests
         Assert.Empty(dlq.Messages);
         Assert.Equal("evt-header-1", message.EventId);
         Assert.NotNull(command);
-        Assert.Equal("lan_12345678", command!.Event.Id);
+        Assert.Equal("lan_12345678", command.Event.Id);
     }
 
     [Fact]
@@ -227,7 +226,7 @@ public sealed class LedgerEntryCreatedMessageProcessorTests
         using var listener = new ActivityListener
         {
             ShouldListenTo = source => source.Name == LedgerEntryCreatedMessageProcessor.ActivitySourceName,
-            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
+            Sample = (ref _) => ActivitySamplingResult.AllDataAndRecorded,
             ActivityStopped = activity => stoppedActivity = activity
         };
         ActivitySource.AddActivityListener(listener);
@@ -250,7 +249,7 @@ public sealed class LedgerEntryCreatedMessageProcessorTests
         var shouldCommit = await sut.ProcessAsync(message, CancellationToken.None);
         Assert.True(shouldCommit);
         Assert.NotNull(stoppedActivity);
-        Assert.Equal("4bf92f3577b34da6a3ce929d0e0e4736", stoppedActivity!.TraceId.ToString());
+        Assert.Equal("4bf92f3577b34da6a3ce929d0e0e4736", stoppedActivity.TraceId.ToString());
         Assert.Equal("00f067aa0ba902b7", stoppedActivity.ParentSpanId.ToString());
         Assert.Contains(stoppedActivity.Baggage, x => x.Key == "tenant" && x.Value == "poc");
     }
@@ -295,8 +294,11 @@ public sealed class LedgerEntryCreatedMessageProcessorTests
         var sut = CreateSut(dlq);
         var message = CreateMessage("{invalid-json", AttributesWith(EventId: "evt-1"));
 
-        var act = async () => await sut.ProcessAsync(message, CancellationToken.None);
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(act);
+        async Task<bool> act()
+        {
+            return await sut.ProcessAsync(message, CancellationToken.None);
+        }
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>((Func<Task<bool>>)act);
         Assert.Matches("^" + System.Text.RegularExpressions.Regex.Escape("DLQ unavailable.").Replace("\\*", ".*") + "$", ex.Message);
     }
 
@@ -398,7 +400,7 @@ public sealed class LedgerEntryCreatedMessageProcessorTests
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null)
         {
-            if (File.Exists(Path.Combine(directory.FullName, "LedgerService.slnx")))
+            if (File.Exists(Path.Combine(directory.FullName, "PocArquitetura.slnx")))
                 return directory.FullName;
 
             directory = directory.Parent;
@@ -409,7 +411,7 @@ public sealed class LedgerEntryCreatedMessageProcessorTests
 
     private sealed class CapturingDeadLetterProducer : IDeadLetterPublisher
     {
-        public List<DeadLetterMessage> Messages { get; } = new();
+        public List<DeadLetterMessage> Messages { get; } = [];
         public bool ThrowOnProduce
         {
             get; init;

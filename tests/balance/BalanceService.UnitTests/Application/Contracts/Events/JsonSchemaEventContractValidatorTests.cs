@@ -95,7 +95,7 @@ public sealed class JsonSchemaEventContractValidatorTests
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null)
         {
-            if (File.Exists(Path.Combine(directory.FullName, "LedgerService.slnx")))
+            if (File.Exists(Path.Combine(directory.FullName, "PocArquitetura.slnx")))
                 return directory.FullName;
 
             directory = directory.Parent;
