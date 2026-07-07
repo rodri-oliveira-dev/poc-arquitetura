@@ -96,7 +96,7 @@ is_services_path() {
     tests/audit/*|tests/identity/*|tests/balance/*|tests/transfer/*|tests/ledger/*|tests/Architecture.Tests/*)
       return 0
       ;;
-    LedgerService.slnx)
+    PocArquitetura.slnx|AuditService.slnx|BalanceService.slnx|IdentityService.slnx|LedgerService.slnx|TransferService.slnx)
       return 0
       ;;
   esac
@@ -413,7 +413,7 @@ if [ "$shared_changes" = true ]; then
 fi
 
 if [ "$services_changes" = true ]; then
-  run_timed "restore .NET servicos" dotnet restore ./LedgerService.slnx
+  run_timed "restore .NET agregadora" dotnet restore ./PocArquitetura.slnx
 fi
 
 if [ "$dotnet_format_check" = true ] && [ -s "$shared_dotnet_format_files" ]; then
@@ -434,7 +434,7 @@ if [ "$dotnet_format_check" = true ] && [ -s "$services_dotnet_format_files" ]; 
   if [ "$services_dotnet_format_file_count" -gt "$DOTNET_FORMAT_FILE_LIMIT" ]; then
     echo "==> pre-push: $services_dotnet_format_file_count arquivos .cs de servicos alterados excedem o limite local de $DOTNET_FORMAT_FILE_LIMIT; formatacao .NET servicos local ignorada"
   else
-    run_timed "formatacao dos arquivos .cs de servicos alterados" run_dotnet_format_changed_files ./LedgerService.slnx "$services_dotnet_format_files"
+    run_timed "formatacao dos arquivos .cs de servicos alterados" run_dotnet_format_changed_files ./PocArquitetura.slnx "$services_dotnet_format_files"
   fi
 elif [ "$dotnet_format_check" = false ]; then
   echo "==> pre-push: diff inseguro; formatacao .NET servicos local ignorada"
@@ -462,9 +462,9 @@ if [ "$shared_changes" = true ]; then
 fi
 
 if [ "$services_changes" = true ]; then
-  run_timed "build .NET servicos ($CONFIGURATION)" dotnet build ./LedgerService.slnx --configuration "$CONFIGURATION" --no-restore
+  run_timed "build .NET agregadora ($CONFIGURATION)" dotnet build ./PocArquitetura.slnx --configuration "$CONFIGURATION" --no-restore
 
-  run_timed "testes unitarios rapidos servicos sem cobertura" dotnet test ./LedgerService.slnx \
+  run_timed "testes unitarios rapidos agregadora sem cobertura" dotnet test ./PocArquitetura.slnx \
     --configuration "$CONFIGURATION" \
     --no-build \
     --no-restore \

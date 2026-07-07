@@ -23,7 +23,7 @@ env:
   CI: true
   DOTNET_NOLOGO: true
   BUILD_CONFIGURATION: Release
-  SOLUTION_PATH: ./LedgerService.slnx
+  SOLUTION_PATH: ./PocArquitetura.slnx
   K6_ARTIFACTS_DIR: ./artifacts/k6
 
 jobs:

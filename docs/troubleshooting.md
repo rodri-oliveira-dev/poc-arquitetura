@@ -26,7 +26,7 @@ No Windows com Rancher Desktop, use `moby/dockerd`. Se `DOCKER_HOST=npipe:////./
 
 ```powershell
 $env:DOCKER_HOST = "npipe://./pipe/docker_engine"
-dotnet test ./LedgerService.slnx --configuration Release --no-build --settings ./coverlet.runsettings
+dotnet test ./PocArquitetura.slnx --configuration Release --no-build --settings ./coverlet.runsettings
 ```
 
 Detalhes ficam em [Testcontainers e Docker-compatible API](development/local-development.md#testcontainers-e-docker-compatible-api).

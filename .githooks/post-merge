@@ -18,6 +18,6 @@ echo "==> post-merge: restaurando tools locais"
 dotnet tool restore
 
 echo "==> post-merge: restaurando dependencias da solution"
-dotnet restore ./LedgerService.slnx
+dotnet restore ./PocArquitetura.slnx
 
 echo "==> post-merge: restore concluido"

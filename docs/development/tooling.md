@@ -72,7 +72,7 @@ Nao e necessario instalar o Swashbuckle CLI globalmente para este fluxo.
 Os contratos OpenAPI sao gerados a partir dos assemblies compilados das APIs. Antes de gerar, faca build da solution:
 
 ```bash
-dotnet build ./LedgerService.slnx --configuration Release
+dotnet build ./PocArquitetura.slnx --configuration Release
 ```
 
 No Linux/macOS ou em shell Bash no Windows:
@@ -91,6 +91,8 @@ Os scripts geram:
 
 - `docs/openapi/ledger.v1.json`
 - `docs/openapi/balance.v1.json`
+- `docs/openapi/transfer.v1.json`
+- `docs/openapi/identity.v1.json`
 
 Eles usam `dotnet tool run swagger`, configuram defaults locais para a geracao e falham se os assemblies esperados nao existirem.
 
@@ -155,7 +157,7 @@ Para validar ferramentas auxiliares, contratos OpenAPI e documentacao arquitetur
 ```bash
 dotnet tool restore
 npm ci
-dotnet build ./LedgerService.slnx --configuration Release
+dotnet build ./PocArquitetura.slnx --configuration Release
 ./scripts/contracts/openapi/generate.sh
 npm run openapi:lint
 npm run architecture:build

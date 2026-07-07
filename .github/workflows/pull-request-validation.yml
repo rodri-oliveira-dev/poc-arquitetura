@@ -18,7 +18,7 @@ env:
   CI: true
   DOTNET_NOLOGO: true
   BUILD_CONFIGURATION: Release
-  LEDGER_SOLUTION_PATH: ./LedgerService.slnx
+  AGGREGATE_SOLUTION_PATH: ./PocArquitetura.slnx
   SHARED_SOLUTION_PATH: ./PocArquitetura.Shared.slnx
 
 jobs:
@@ -43,25 +43,25 @@ jobs:
           set -euo pipefail
 
           if [ "$EVENT_NAME" != "pull_request" ]; then
-            echo "run_ledger=true" >> "$GITHUB_OUTPUT"
+            echo "run_aggregate=true" >> "$GITHUB_OUTPUT"
             echo "run_shared=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           if ! files="$(gh api --paginate "repos/$REPOSITORY/pulls/$PR_NUMBER/files" --jq '.[] | .filename, (.previous_filename // empty)')"; then
             echo "Could not detect pull request files. Running both validations."
-            echo "run_ledger=true" >> "$GITHUB_OUTPUT"
+            echo "run_aggregate=true" >> "$GITHUB_OUTPUT"
             echo "run_shared=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           docs_only=true
-          run_ledger=false
+          run_aggregate=false
           run_shared=false
 
           if [ -z "$files" ]; then
             docs_only=false
-            run_ledger=true
+            run_aggregate=true
             run_shared=true
           fi
 
@@ -73,7 +73,7 @@ jobs:
                 ;;
               global.json|nuget.config|directory.build.props|directory.packages.props|test.sh|test.ps1|.github/actions/setup-dotnet/*|.github/workflows/*)
                 docs_only=false
-                run_ledger=true
+                run_aggregate=true
                 run_shared=true
                 echo "Global file detected: $file"
                 ;;
@@ -82,14 +82,14 @@ jobs:
                 run_shared=true
                 echo "Shared file detected: $file"
                 ;;
-              ledgerservice.slnx|src/audit/*|src/identity/*|src/balance/*|src/transfer/*|src/ledger/*|tests/audit/*|tests/identity/*|tests/balance/*|tests/transfer/*|tests/ledger/*|tests/architecture.tests/*)
+              pocarquitetura.slnx|auditservice.slnx|balanceservice.slnx|identityservice.slnx|ledgerservice.slnx|transferservice.slnx|src/audit/*|src/identity/*|src/balance/*|src/transfer/*|src/ledger/*|tests/audit/*|tests/identity/*|tests/balance/*|tests/transfer/*|tests/ledger/*|tests/architecture.tests/*)
                 docs_only=false
-                run_ledger=true
+                run_aggregate=true
                 echo "Service file detected: $file"
                 ;;
               *)
                 docs_only=false
-                run_ledger=true
+                run_aggregate=true
                 run_shared=true
                 echo "Unclassified impactful file detected: $file. Running both validations."
                 ;;
@@ -97,37 +97,37 @@ jobs:
           done <<< "$files"
 
           if [ "$docs_only" = true ]; then
-            run_ledger=false
+            run_aggregate=false
             run_shared=false
           fi
 
-          echo "run_ledger=$run_ledger" >> "$GITHUB_OUTPUT"
+          echo "run_aggregate=$run_aggregate" >> "$GITHUB_OUTPUT"
           echo "run_shared=$run_shared" >> "$GITHUB_OUTPUT"
 
       - name: Skip build and tests for documentation-only PR
-        if: ${{ steps.changes.outputs.run_ledger != 'true' && steps.changes.outputs.run_shared != 'true' }}
+        if: ${{ steps.changes.outputs.run_aggregate != 'true' && steps.changes.outputs.run_shared != 'true' }}
         run: |
           echo "Apenas arquivos de documentacao ou imagens de documentacao foram alterados. Restore, build e testes foram ignorados." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Setup .NET
-        if: ${{ steps.changes.outputs.run_ledger == 'true' || steps.changes.outputs.run_shared == 'true' }}
+        if: ${{ steps.changes.outputs.run_aggregate == 'true' || steps.changes.outputs.run_shared == 'true' }}
         uses: ./.github/actions/setup-dotnet
 
-      - name: Restore LedgerService dependencies
-        if: ${{ steps.changes.outputs.run_ledger == 'true' }}
-        run: dotnet restore $LEDGER_SOLUTION_PATH
+      - name: Restore aggregate dependencies
+        if: ${{ steps.changes.outputs.run_aggregate == 'true' }}
+        run: dotnet restore $AGGREGATE_SOLUTION_PATH
 
       - name: Restore Shared dependencies
         if: ${{ steps.changes.outputs.run_shared == 'true' }}
         run: dotnet restore $SHARED_SOLUTION_PATH
 
-      - name: Build LedgerService
-        if: ${{ steps.changes.outputs.run_ledger == 'true' }}
-        run: dotnet build $LEDGER_SOLUTION_PATH --configuration $BUILD_CONFIGURATION --no-restore
+      - name: Build aggregate solution
+        if: ${{ steps.changes.outputs.run_aggregate == 'true' }}
+        run: dotnet build $AGGREGATE_SOLUTION_PATH --configuration $BUILD_CONFIGURATION --no-restore
 
-      - name: Test LedgerService
-        if: ${{ steps.changes.outputs.run_ledger == 'true' }}
-        run: dotnet test $LEDGER_SOLUTION_PATH --configuration $BUILD_CONFIGURATION --no-build --no-restore
+      - name: Test aggregate solution
+        if: ${{ steps.changes.outputs.run_aggregate == 'true' }}
+        run: dotnet test $AGGREGATE_SOLUTION_PATH --configuration $BUILD_CONFIGURATION --no-build --no-restore
 
       - name: Build Shared
         if: ${{ steps.changes.outputs.run_shared == 'true' }}

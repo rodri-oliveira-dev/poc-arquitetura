@@ -11,7 +11,7 @@
         "run",
         "--no-launch-profile",
         "--project",
-        "${workspaceFolder}/src/LedgerService.Api/LedgerService.Api.csproj"
+        "${workspaceFolder}/src/ledger/LedgerService.Api/LedgerService.Api.csproj"
       ],
       "cwd": "${workspaceFolder}",
       "env": {
@@ -30,7 +30,7 @@
       "args": [
         "run",
         "--project",
-        "${workspaceFolder}/src/LedgerService.Worker/LedgerService.Worker.csproj"
+        "${workspaceFolder}/src/ledger/LedgerService.Worker/LedgerService.Worker.csproj"
       ],
       "cwd": "${workspaceFolder}",
       "env": {
@@ -49,7 +49,7 @@
         "run",
         "--no-launch-profile",
         "--project",
-        "${workspaceFolder}/src/BalanceService.Api/BalanceService.Api.csproj"
+        "${workspaceFolder}/src/balance/BalanceService.Api/BalanceService.Api.csproj"
       ],
       "cwd": "${workspaceFolder}",
       "env": {
@@ -68,7 +68,7 @@
       "args": [
         "run",
         "--project",
-        "${workspaceFolder}/src/BalanceService.Worker/BalanceService.Worker.csproj"
+        "${workspaceFolder}/src/balance/BalanceService.Worker/BalanceService.Worker.csproj"
       ],
       "cwd": "${workspaceFolder}",
       "env": {

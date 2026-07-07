@@ -1,6 +1,6 @@
 # Cobertura de testes
 
-Este repositorio valida cobertura de testes na solution inteira (`LedgerService.slnx`) usando:
+Este repositorio valida cobertura de testes na solution agregadora (`PocArquitetura.slnx`) usando:
 
 - `dotnet test` com `--collect:"XPlat Code Coverage"`;
 - `coverlet.runsettings` como configuracao unica de coleta;
@@ -32,7 +32,7 @@ Esses scripts representam a validacao completa de cobertura. O `pre-push` padrao
 Comando equivalente:
 
 ```bash
-dotnet test ./LedgerService.slnx \
+dotnet test ./PocArquitetura.slnx \
   --configuration Release \
   --collect:"XPlat Code Coverage" \
   --settings ./coverlet.runsettings \
@@ -83,7 +83,7 @@ No Windows com Rancher Desktop/Docker-compatible API, o Docker CLI pode funciona
 
 ```powershell
 $env:DOCKER_HOST='npipe://./pipe/docker_engine'
-dotnet test ./LedgerService.slnx --configuration Release --no-build --settings ./coverlet.runsettings
+dotnet test ./PocArquitetura.slnx --configuration Release --no-build --settings ./coverlet.runsettings
 ```
 
 Se a suite falhar com `npipe:////pipe/docker_engine is not a valid npipe URI`, repita com o `DOCKER_HOST` acima antes de investigar falhas funcionais dos testes.

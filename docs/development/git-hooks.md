@@ -12,7 +12,7 @@ O target e idempotente, roda apos o build, ignora CI (`CI=true`) e nao falha o b
 
 - `commit-msg`: valida a primeira linha da mensagem de commit com Conventional Commits.
 - `post-merge`: apos `git merge` ou `git pull`, restaura as tools locais e as dependencias da solution.
-- `pre-push`: executa validacoes locais leves quando houver alteracoes impactantes: Terraform `fmt -check` para arquivos Terraform, restore, formatacao dos arquivos `.cs` alterados, build e testes unitarios rapidos sem cobertura. Para .NET, escolhe `LedgerService.slnx`, `PocArquitetura.Shared.slnx` ou ambas conforme os arquivos alterados. Testes de integracao/container, cobertura, SonarQube, Trivy e Terraform validate completo ficam no Pull Request/GitHub Actions. Se `FULL_TESTS=true`, o hook reaproveita `./test.sh` para executar a validacao completa oficial com cobertura antes do push.
+- `pre-push`: executa validacoes locais leves quando houver alteracoes impactantes: Terraform `fmt -check` para arquivos Terraform, restore, formatacao dos arquivos `.cs` alterados, build e testes unitarios rapidos sem cobertura. Para .NET, escolhe `PocArquitetura.slnx`, `PocArquitetura.Shared.slnx` ou ambas conforme os arquivos alterados. Testes de integracao/container, cobertura, SonarQube, Trivy e Terraform validate completo ficam no Pull Request/GitHub Actions. Se `FULL_TESTS=true`, o hook reaproveita `./test.sh` para executar a validacao completa oficial com cobertura antes do push.
 
 ## Politica do post-merge
 
@@ -22,7 +22,7 @@ Ele roda, a partir da raiz do repositorio:
 
 ```bash
 dotnet tool restore
-dotnet restore ./LedgerService.slnx
+dotnet restore ./PocArquitetura.slnx
 ```
 
 Isso reinstala ferramentas versionadas em `.config/dotnet-tools.json` quando necessario e atualiza o restore NuGet da solution apos receber mudancas de branch ou remoto.
@@ -43,12 +43,12 @@ O `pre-push` nao executa Trivy localmente por padrao. Os scans bloqueantes de Do
 O hook executa restore, `dotnet format whitespace --verify-no-changes` somente para arquivos `.cs` alterados, build e testes unitarios rapidos sem cobertura quando encontra arquivos .NET impactantes. A escolha de solution e feita assim:
 
 - alteracoes em `src/Shared/`, `tests/Shared/` ou `PocArquitetura.Shared.slnx` validam `PocArquitetura.Shared.slnx`;
-- alteracoes em `src/audit/`, `src/identity/`, `src/balance/`, `src/transfer/`, `src/ledger/`, `tests/audit/`, `tests/identity/`, `tests/balance/`, `tests/transfer/`, `tests/ledger/`, `tests/Architecture.Tests/` ou `LedgerService.slnx` validam `LedgerService.slnx`;
+- alteracoes em `src/audit/`, `src/identity/`, `src/balance/`, `src/transfer/`, `src/ledger/`, `tests/audit/`, `tests/identity/`, `tests/balance/`, `tests/transfer/`, `tests/ledger/`, `tests/Architecture.Tests/`, `PocArquitetura.slnx` ou alguma solution de contexto de servico validam `PocArquitetura.slnx`;
 - alteracoes globais em `global.json`, `NuGet.config`, `Directory.Build.props`, `Directory.Build.targets`, `Directory.Packages.props`, `dotnet-tools.json`, `.config/dotnet-tools.json`, `.editorconfig`, `.globalconfig`, `coverlet.runsettings`, `test.sh`, `test.ps1`, `.github/actions/setup-dotnet/` ou `.githooks/pre-push` validam ambas;
 - alteracoes em `src/Shared/Directory.Build.props` ou `src/Shared/Directory.Packages.props` validam Shared;
 - quando o diff nao pode ser determinado com seguranca, ambas as solutions sao validadas.
 
-Quando apenas uma solution e impactada, somente ela passa por restore, build e testes unitarios rapidos. Quando ha impacto em Shared e servicos, o hook executa as duas validacoes. Arquivos `.cs` alterados sao formatados separadamente por solution: Shared usa `PocArquitetura.Shared.slnx` e servicos usam `LedgerService.slnx`.
+Quando apenas uma solution e impactada, somente ela passa por restore, build e testes unitarios rapidos. Quando ha impacto em Shared e servicos, o hook executa as duas validacoes. Arquivos `.cs` alterados sao formatados separadamente por solution: Shared usa `PocArquitetura.Shared.slnx` e servicos usam `PocArquitetura.slnx`.
 
 O hook pula restore, formatacao, build e testes quando todas as alteracoes sao claramente nao impactantes para validacao local, como Markdown, arquivos em `docs/`, imagens de documentacao (`png`, `jpg`, `jpeg`, `gif`, `svg`, `webp`), diagramas Mermaid/LikeC4 e notas textuais que nao entram no build. Mudancas em Dockerfile, Compose e Trivy sao validadas no Pull Request pelo workflow de infraestrutura quando seus filtros se aplicam.
 
@@ -154,10 +154,10 @@ Validar `post-merge` manualmente:
 Para executar a validacao rapida manualmente sem passar pelo hook, use os comandos equivalentes:
 
 ```bash
-dotnet restore ./LedgerService.slnx
-dotnet format whitespace ./LedgerService.slnx --verify-no-changes --no-restore --verbosity minimal --include <arquivos-cs-alterados>
-dotnet build ./LedgerService.slnx --configuration Release --no-restore
-dotnet test ./LedgerService.slnx --configuration Release --no-build --no-restore --filter "Category!=Integration&Category!=Container&Category!=Contract"
+dotnet restore ./PocArquitetura.slnx
+dotnet format whitespace ./PocArquitetura.slnx --verify-no-changes --no-restore --verbosity minimal --include <arquivos-cs-alterados>
+dotnet build ./PocArquitetura.slnx --configuration Release --no-restore
+dotnet test ./PocArquitetura.slnx --configuration Release --no-build --no-restore --filter "Category!=Integration&Category!=Container&Category!=Contract"
 
 dotnet restore ./PocArquitetura.Shared.slnx
 dotnet format whitespace ./PocArquitetura.Shared.slnx --verify-no-changes --no-restore --verbosity minimal --include <arquivos-cs-shared-alterados>

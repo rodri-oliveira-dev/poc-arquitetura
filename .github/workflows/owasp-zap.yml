@@ -19,7 +19,7 @@ concurrency:
 env:
   CI: true
   DOTNET_NOLOGO: true
-  SOLUTION_PATH: ./LedgerService.slnx
+  SOLUTION_PATH: ./PocArquitetura.slnx
   ZAP_ARTIFACTS_DIR: ./artifacts/zap
 
 jobs:

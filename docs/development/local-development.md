@@ -1055,7 +1055,7 @@ dotnet test
 Para separar os perfis de validacao local:
 
 ```powershell
-dotnet test LedgerService.slnx -c Release --no-build --filter "Category!=Integration&Category!=Container&Category!=Contract"
+dotnet test PocArquitetura.slnx -c Release --no-build --filter "Category!=Integration&Category!=Container&Category!=Contract"
 dotnet test tests/transfer/TransferService.IntegrationTests/TransferService.IntegrationTests.csproj -c Release --no-build
 dotnet test tests/ledger/LedgerService.IntegrationTests/LedgerService.IntegrationTests.csproj -c Release --no-build
 ```
@@ -1167,7 +1167,7 @@ Para abrir:
 2. Selecione `poc-arquitetura.code-workspace`.
 3. Instale as extensoes sugeridas.
 
-As configuracoes do VS Code sao opcionais e apenas facilitam comandos que continuam funcionando pelo terminal. A solution padrao e `LedgerService.slnx`; as exclusoes do workspace escondem diretorios gerados como `bin`, `obj`, `TestResults`, `artifacts/k6`, relatorios de cobertura e `StrykerOutput`.
+As configuracoes do VS Code sao opcionais e apenas facilitam comandos que continuam funcionando pelo terminal. A solution padrao e `PocArquitetura.slnx`; as exclusoes do workspace escondem diretorios gerados como `bin`, `obj`, `TestResults`, `artifacts/k6`, relatorios de cobertura e `StrykerOutput`.
 
 Tasks uteis:
 

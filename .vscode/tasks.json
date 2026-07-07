@@ -17,7 +17,7 @@
       "command": "dotnet",
       "args": [
         "restore",
-        "${workspaceFolder}/LedgerService.slnx"
+        "${workspaceFolder}/PocArquitetura.slnx"
       ],
       "problemMatcher": "$msCompile"
     },
@@ -27,7 +27,7 @@
       "command": "dotnet",
       "args": [
         "build",
-        "${workspaceFolder}/LedgerService.slnx",
+        "${workspaceFolder}/PocArquitetura.slnx",
         "--configuration",
         "Debug"
       ],
@@ -43,7 +43,7 @@
       "command": "dotnet",
       "args": [
         "test",
-        "${workspaceFolder}/LedgerService.slnx",
+        "${workspaceFolder}/PocArquitetura.slnx",
         "--configuration",
         "Release",
         "--settings",
@@ -66,7 +66,7 @@
       "command": "dotnet",
       "args": [
         "build",
-        "${workspaceFolder}/src/LedgerService.Api/LedgerService.Api.csproj",
+        "${workspaceFolder}/src/ledger/LedgerService.Api/LedgerService.Api.csproj",
         "--configuration",
         "Debug"
       ],
@@ -78,7 +78,7 @@
       "command": "dotnet",
       "args": [
         "build",
-        "${workspaceFolder}/src/LedgerService.Worker/LedgerService.Worker.csproj",
+        "${workspaceFolder}/src/ledger/LedgerService.Worker/LedgerService.Worker.csproj",
         "--configuration",
         "Debug"
       ],
@@ -90,7 +90,7 @@
       "command": "dotnet",
       "args": [
         "build",
-        "${workspaceFolder}/src/BalanceService.Api/BalanceService.Api.csproj",
+        "${workspaceFolder}/src/balance/BalanceService.Api/BalanceService.Api.csproj",
         "--configuration",
         "Debug"
       ],
@@ -102,7 +102,7 @@
       "command": "dotnet",
       "args": [
         "build",
-        "${workspaceFolder}/src/BalanceService.Worker/BalanceService.Worker.csproj",
+        "${workspaceFolder}/src/balance/BalanceService.Worker/BalanceService.Worker.csproj",
         "--configuration",
         "Debug"
       ],
