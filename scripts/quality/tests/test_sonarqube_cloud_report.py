@@ -1,6 +1,8 @@
+import inspect
 import json
 import pathlib
 import shutil
+import subprocess
 import tempfile
 import unittest
 from unittest import mock
@@ -81,17 +83,14 @@ class SonarQubeCloudReportMainTests(unittest.TestCase):
     def test_resolve_report_paths_accepts_fixed_artifacts_inside_allowed_root(self) -> None:
         paths = report.resolve_report_paths("artifacts/unit-sonarqube-report")
 
+        self.assertEqual(self.output_dir, paths.output_dir)
         self.assertEqual(self.output_dir / "quality-gate.json", paths.quality_gate)
         self.assertEqual(self.output_dir / "measures.json", paths.measures)
         self.assertEqual(self.output_dir / "issues.json", paths.issues)
-        self.assertEqual(self.output_dir / "sonarqube-cloud-report.md", paths.report)
-        self.assertEqual(self.output_dir / "report.md", paths.report_alias)
         for artifact_path in (
             paths.quality_gate,
             paths.measures,
             paths.issues,
-            paths.report,
-            paths.report_alias,
         ):
             artifact_path.relative_to(self.output_dir)
 
@@ -107,10 +106,75 @@ class SonarQubeCloudReportMainTests(unittest.TestCase):
     def test_artifact_filenames_are_fixed_by_production_api(self) -> None:
         self.assertFalse(hasattr(report, "write_text_artifact"))
         self.assertFalse(hasattr(report, "write_json"))
-        paths = report.resolve_report_paths("artifacts/unit-sonarqube-report")
+        self.assertNotIn("report", report.SonarReportPaths.__dataclass_fields__)
+        self.assertNotIn("report_alias", report.SonarReportPaths.__dataclass_fields__)
+        self.assertEqual(["output_dir", "report"], list(inspect.signature(report.write_markdown_artifacts).parameters))
 
-        self.assertNotEqual(self.output_dir / "arbitrary.txt", paths.report)
-        self.assertNotEqual(self.output_dir / "../../escape.txt", paths.report_alias)
+    def test_write_markdown_artifacts_accepts_artifacts_sonarqube_and_generates_only_fixed_markdown_files(self) -> None:
+        output_dir = report.artifacts_root() / "sonarqube"
+        shutil.rmtree(output_dir, ignore_errors=True)
+        output_dir.mkdir(parents=True)
+        try:
+            report.write_markdown_artifacts("artifacts/sonarqube", "conteudo\n")
+
+            markdown_files = sorted(path.name for path in output_dir.glob("*.md"))
+            self.assertEqual(["report.md", "sonarqube-cloud-report.md"], markdown_files)
+            self.assertEqual("conteudo\n", (output_dir / "sonarqube-cloud-report.md").read_text(encoding="utf-8"))
+            self.assertEqual("conteudo\n", (output_dir / "report.md").read_text(encoding="utf-8"))
+        finally:
+            shutil.rmtree(output_dir, ignore_errors=True)
+
+    def test_write_markdown_artifacts_rejects_traversal_output_dir(self) -> None:
+        with self.assertRaisesRegex(ValueError, "fora da raiz permitida"):
+            report.write_markdown_artifacts("artifacts/../../outside", "conteudo\n")
+
+    def test_write_markdown_artifacts_rejects_absolute_external_output_dir(self) -> None:
+        outside = pathlib.Path(tempfile.gettempdir()) / "outside-sonar-report"
+        with self.assertRaisesRegex(ValueError, "fora da raiz permitida"):
+            report.write_markdown_artifacts(outside, "conteudo\n")
+
+    @unittest.skipIf(not hasattr(pathlib.Path, "symlink_to"), "symlink nao suportado neste ambiente")
+    def test_write_markdown_artifacts_rejects_symlink_escape_inside_artifacts(self) -> None:
+        outside = pathlib.Path(tempfile.mkdtemp())
+        link = report.artifacts_root() / "unit-sonarqube-report-link"
+
+        def remove_link() -> None:
+            try:
+                if link.is_symlink():
+                    link.unlink()
+                else:
+                    link.rmdir()
+            except FileNotFoundError:
+                pass
+            except NotADirectoryError:
+                link.unlink(missing_ok=True)
+
+        remove_link()
+
+        try:
+            link.symlink_to(outside, target_is_directory=True)
+        except OSError as exc:
+            if sys.platform != "win32":
+                shutil.rmtree(outside, ignore_errors=True)
+                self.skipTest(f"symlink indisponivel neste ambiente: {exc}")
+
+            remove_link()
+            junction = subprocess.run(
+                ["cmd", "/c", "mklink", "/J", str(link), str(outside)],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if junction.returncode != 0:
+                shutil.rmtree(outside, ignore_errors=True)
+                self.skipTest(f"symlink/junction indisponivel neste ambiente: {exc}")
+
+        try:
+            with self.assertRaisesRegex(ValueError, "fora da raiz permitida|nao pode ser resolvido"):
+                report.write_markdown_artifacts(link, "conteudo\n")
+        finally:
+            remove_link()
+            shutil.rmtree(outside, ignore_errors=True)
 
     @mock.patch.dict("os.environ", {"SONAR_TOKEN": "secret-token"}, clear=False)
     @mock.patch("sonarqube_cloud_report.request_json")

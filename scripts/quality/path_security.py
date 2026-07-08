@@ -63,6 +63,8 @@ def _resolve_path(
         resolved_path = candidate.resolve(strict=must_exist)
     except FileNotFoundError as exc:
         raise PathSecurityError(f"{label} inexistente: {candidate}.") from exc
+    except OSError as exc:
+        raise PathSecurityError(f"{label} nao pode ser resolvido com seguranca: {candidate}.") from exc
 
     _ensure_within_root(resolved_path, resolved_root, label)
     return resolved_path
