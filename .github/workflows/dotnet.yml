@@ -25,20 +25,6 @@ on:
       - "**/*.svg"
       - "**/*.webp"
   workflow_dispatch:
-    inputs:
-      sonar_context:
-        description: Contexto SonarQube Cloud contextual a executar.
-        required: true
-        default: all
-        type: choice
-        options:
-          - all
-          - ledger
-          - balance
-          - transfer
-          - identity
-          - audit
-          - shared
 
 permissions:
   contents: read
@@ -66,7 +52,6 @@ env:
 jobs:
   build-test:
     name: Build, test and coverage
-    if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.sonar_context == 'all') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -84,6 +69,13 @@ jobs:
       - name: Resolve SonarQube analysis context
         shell: bash
         run: python scripts/quality/sonar_context.py "$SONAR_CONTEXT" --format github-env >> "$GITHUB_ENV"
+
+      - name: Prepare consolidated artifacts
+        shell: bash
+        run: |
+          rm -rf "$TEST_RESULTS_DIR"
+          rm -rf "$SONAR_REPORT_DIR"
+          mkdir -p "$TEST_RESULTS_DIR" "$SONAR_REPORT_DIR"
 
       - name: Restore dependencies
         run: >
@@ -309,135 +301,5 @@ jobs:
             ${{ env.TEST_RESULTS_DIR }}/coverage-report/Summary.json
             ${{ env.TEST_RESULTS_DIR }}/coverage-report/Summary.txt
             ${{ env.SONAR_REPORT_DIR }}/**
-          if-no-files-found: warn
-          retention-days: 7
-
-  detect-sonar-contexts:
-    name: Detect SonarQube contextual impact
-    runs-on: ubuntu-latest
-    outputs:
-      ledger: ${{ steps.detect.outputs.ledger }}
-      balance: ${{ steps.detect.outputs.balance }}
-      transfer: ${{ steps.detect.outputs.transfer }}
-      identity: ${{ steps.detect.outputs.identity }}
-      audit: ${{ steps.detect.outputs.audit }}
-      shared: ${{ steps.detect.outputs.shared }}
-      all: ${{ steps.detect.outputs.all }}
-      has_contexts: ${{ steps.detect.outputs.has_contexts }}
-      selected_contexts: ${{ steps.detect.outputs.selected_contexts }}
-      matrix: ${{ steps.detect.outputs.matrix }}
-      summary_json: ${{ steps.detect.outputs.summary_json }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-
-      - name: Detect changed files
-        if: ${{ github.event_name == 'pull_request' }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          REPOSITORY: ${{ github.repository }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          if ! gh api --paginate "repos/$REPOSITORY/pulls/$PR_NUMBER/files" --jq '.[] | .filename, (.previous_filename // empty)' > changed-files.txt; then
-            echo "Could not detect pull request files. Running all contextual SonarQube analyses."
-            echo ".github/workflows/dotnet.yml" > changed-files.txt
-          fi
-
-      - name: Resolve contextual impact
-        id: detect
-        shell: bash
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          SELECTED_CONTEXT: ${{ github.event_name == 'workflow_dispatch' && inputs.sonar_context || 'all' }}
-        run: |
-          args=(--event-name "$EVENT_NAME" --selected-context "$SELECTED_CONTEXT" --format github-output)
-          if [ "$EVENT_NAME" = "pull_request" ]; then
-            args+=(--files-from changed-files.txt)
-          fi
-
-          python scripts/quality/sonar_context_impact.py "${args[@]}" >> "$GITHUB_OUTPUT"
-
-      - name: Write impact summary
-        shell: bash
-        env:
-          SUMMARY_JSON: ${{ steps.detect.outputs.summary_json }}
-        run: |
-          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
-          import json
-          import os
-
-          payload = json.loads(os.environ["SUMMARY_JSON"])
-          selected = payload["selectedContexts"]
-          skipped = payload["skippedContexts"]
-
-          print("## Impacto SonarQube contextual")
-          print()
-          print("- Executados: " + (", ".join(selected) if selected else "nenhum"))
-          print("- Skipped: " + (", ".join(skipped) if skipped else "nenhum"))
-          print()
-          print("| Path | Decisao |")
-          print("| --- | --- |")
-          for reason in payload["reasons"]:
-              print(f"| `{reason['path']}` | {reason['reason']} |")
-          PY
-
-  sonar-contextual:
-    name: SonarQube ${{ matrix.context }}
-    if: ${{ needs.detect-sonar-contexts.outputs.has_contexts == 'true' }}
-    needs: [detect-sonar-contexts]
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJson(needs.detect-sonar-contexts.outputs.matrix) }}
-    uses: ./.github/workflows/sonarqube-context.yml
-    with:
-      context: ${{ matrix.context }}
-      solution: ${{ matrix.solution }}
-      project-key: ${{ matrix['project-key'] }}
-      project-name: ${{ matrix['project-name'] }}
-      results-dir: ${{ matrix['results-dir'] }}
-      sonar-dir: ${{ matrix['sonar-dir'] }}
-      artifact-name: ${{ matrix['artifact-name'] }}
-    secrets:
-      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-
-  sonar-summary:
-    name: SonarQube contextual summary
-    if: ${{ always() }}
-    needs: [detect-sonar-contexts, sonar-contextual]
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-
-      - name: Download contextual artifacts
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        continue-on-error: true
-        with:
-          pattern: sonar-*
-          path: downloaded-sonar-artifacts
-
-      - name: Write consolidated SonarQube summary
-        shell: bash
-        env:
-          SELECTED_CONTEXT: ${{ github.event_name == 'workflow_dispatch' && inputs.sonar_context || 'all' }}
-          EXPECTED_CONTEXTS: ${{ needs.detect-sonar-contexts.outputs.selected_contexts }}
-        run: |
-          python scripts/quality/sonarqube_context_summary.py \
-            --artifacts-dir downloaded-sonar-artifacts \
-            --selected-context "$SELECTED_CONTEXT" \
-            --expected-contexts "$EXPECTED_CONTEXTS" \
-            --output artifacts/sonarqube/context-summary.md >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload consolidated SonarQube summary
-        if: ${{ always() }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: sonar-summary
-          path: artifacts/sonarqube/context-summary.md
           if-no-files-found: warn
           retention-days: 7

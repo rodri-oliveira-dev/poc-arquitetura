@@ -32,7 +32,7 @@ Esta stack e local, descartavel e nao deve ser promovida para ambientes comparti
 
 O `compose.yaml` atual e a base oficial do ambiente local. O `compose.debug.yml` inclui essa mesma base para oferecer um ponto de entrada curto para dependencias de debug. Reaproveite os servicos ja existentes, em especial `postgres-db`, `kafka` e `kafka-init-topics`; nao crie um segundo Compose nem um segundo PostgreSQL para separar Ledger, Balance e Transfer no desenvolvimento local. Pub/Sub emulator permanece no compose base apenas como profile explicito/legado.
 
-O `compose.yaml` possui defaults locais descartaveis para permitir comandos de validacao como `docker compose config` e `docker compose build` sem exigir segredo real quando a imagem ainda nem esta em runtime. Para subir a stack de desenvolvimento com migrations e validacao de credenciais, continue criando `.env.local` a partir de `.env.local.example` ou dos scripts locais.
+O `compose.yaml` nao versiona defaults com formato de senha, token ou client secret. Para validar ou subir a stack, forneca `.env.local`, `.env` local ignorado pelo Git ou variaveis exportadas na sessao. Para subir a stack de desenvolvimento com migrations e validacao de credenciais, continue criando `.env.local` a partir de `.env.local.example` ou dos scripts locais.
 
 Para subir a stack por comandos diretos, crie `.env.local` a partir de `.env.local.example` e ajuste os valores na sua maquina quando necessario:
 
@@ -78,7 +78,7 @@ No PowerShell:
 Copy-Item .env.example .env
 ```
 
-Depois ajuste os valores no `.env` se precisar sobrescrever os defaults locais. Nao copie valores reais para `.env.example` ou `.env.local.example`.
+Depois ajuste os valores no `.env` para preencher os placeholders sensiveis. Nao copie valores reais para `.env.example` ou `.env.local.example`.
 
 Resumo dos arquivos de ambiente:
 

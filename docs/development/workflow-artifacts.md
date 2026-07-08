@@ -11,13 +11,6 @@ Workflow: `.github/workflows/dotnet.yml`
 Artifacts:
 
 - `test-results-coverage-and-sonarqube`
-- `sonar-ledger`
-- `sonar-balance`
-- `sonar-transfer`
-- `sonar-identity`
-- `sonar-audit`
-- `sonar-shared`
-- `sonar-summary`
 
 Retencao: 7 dias
 
@@ -34,19 +27,6 @@ Conteudo publicado:
 - `artifacts/sonarqube/sonarqube-cloud-report.md`;
 - `artifacts/sonarqube/report.md`.
 
-Cada artifact contextual `sonar-*` publica somente dados do respectivo contexto selecionado:
-
-- arquivos `.trx` da solution contextual;
-- arquivos `coverage.cobertura.xml` gerados em `artifacts/test-results/<contexto>`;
-- arquivos `coverage.opencover.xml` gerados em `artifacts/test-results/<contexto>`;
-- `artifacts/test-results/<contexto>/coverage-report/Summary.json`;
-- `artifacts/test-results/<contexto>/coverage-report/Summary.txt`;
-- `artifacts/sonarqube/<contexto>/quality-gate.json`;
-- `artifacts/sonarqube/<contexto>/measures.json`;
-- `artifacts/sonarqube/<contexto>/issues.json`;
-- `artifacts/sonarqube/<contexto>/sonarqube-cloud-report.md`;
-- `artifacts/sonarqube/<contexto>/report.md`.
-
 Motivo:
 
 - os arquivos `.trx` ajudam a diagnosticar falhas de teste;
@@ -54,7 +34,8 @@ Motivo:
 - o XML OpenCover permite diagnosticar falhas de importacao de cobertura pelo SonarQube Cloud;
 - o resumo Markdown e os JSONs do SonarQube Cloud permitem analisar no GitHub Actions um snapshot da execucao do CI sem depender apenas da interface externa durante a triagem;
 - o relatorio HTML completo do ReportGenerator nao e publicado como artifact, porque os summaries e o XML ja atendem ao diagnostico principal com menor exposicao de paths e trechos renderizados.
-- os artifacts contextuais permitem comparar temporariamente o projeto Sonar global com os projetos por contexto sem misturar cobertura, issues, metricas ou Quality Gate.
+
+O workflow oficial nao publica automaticamente `sonar-ledger`, `sonar-balance`, `sonar-transfer`, `sonar-identity`, `sonar-audit`, `sonar-shared` ou `sonar-summary`. A infraestrutura contextual permanece versionada para evolucao futura, mas inativa no fluxo operacional atual.
 
 Risco residual:
 

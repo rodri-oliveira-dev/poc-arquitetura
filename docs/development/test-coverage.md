@@ -136,10 +136,10 @@ Quando o gate falhar:
 3. Priorize testes que validem comportamento de dominio, aplicacao, infraestrutura critica ou contratos HTTP.
 4. Use exclusao somente quando houver justificativa tecnica clara e localizada.
 
-O workflow `pr-build-and-test` e um gate rapido de PR e executa testes sem cobertura. O workflow `main-dotnet-ci` e a validacao completa em `push` para `main`, `pull_request` para `main` e execucao manual. Em PR, a analise Sonar contextual roda somente para os contextos impactados por paths; em `push` para `main`, todos os contextos rodam. O artifact global `test-results-coverage-and-sonarqube` e publicado por 7 dias quando o job global executa durante a janela temporaria de comparacao.
+O workflow `pr-build-and-test` e um gate rapido de PR e executa testes sem cobertura. O workflow `main-dotnet-ci` e a validacao completa em `push` para `main`, `pull_request` para `main` e execucao manual. Ele executa o SonarQube Cloud consolidado com `PocArquitetura.slnx`, cobertura consolidada e Quality Gate do projeto global. O artifact `test-results-coverage-and-sonarqube` e publicado por 7 dias.
 
 O artifact contem arquivos `.trx`, `coverage.cobertura.xml`, `coverage.opencover.xml`, `coverage-report/Summary.json`, `coverage-report/Summary.txt` e o snapshot do SonarQube Cloud em `artifacts/sonarqube`. O HTML completo do ReportGenerator nao e publicado como artifact porque o XML e os summaries atendem ao diagnostico principal com menor exposicao de paths e trechos renderizados.
 
-As analises contextuais gravam cobertura isolada em `artifacts/test-results/{context}` e publicam artifacts `sonar-{context}` com os arquivos `.trx`, Cobertura, OpenCover e summaries daquele contexto. O scanner importa apenas `artifacts/test-results/{context}/**/coverage.opencover.xml`, evitando contaminacao entre solutions. Os jobs contextuais geram summary de cobertura para diagnostico, mas nao criam thresholds contextuais automaticamente.
+Infraestrutura para analises contextuais pode existir versionada, mas esta desativada no fluxo oficial. O CI nao publica artifacts `sonar-{context}` nem usa diretorios `artifacts/test-results/{context}` enquanto o modelo oficial for consolidado.
 
 Detalhes da politica de artifacts: [`workflow-artifacts.md`](workflow-artifacts.md).

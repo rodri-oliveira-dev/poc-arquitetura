@@ -44,13 +44,13 @@ export SONAR_HOST_URL="http://localhost:9000"
 
 O script restaura as tools locais, inicia o SonarScanner for .NET, compila `PocArquitetura.slnx`, executa os testes com `coverlet.runsettings` e finaliza o envio para o SonarQube.
 
-Por default, a analise local usa o contexto `global`. Para exercitar uma configuracao contextual ja cadastrada em `scripts/quality/sonar-contexts.json`, informe o contexto:
+Por default, a analise local usa o contexto `global`, equivalente ao fluxo oficial consolidado do CI. Para exercitar localmente uma configuracao contextual ja cadastrada em `scripts/quality/sonar-contexts.json`, informe o contexto:
 
 ```bash
 ./scripts/quality/sonar-analyze.sh transfer
 ```
 
-Esse modo usa a solution, Project Key e diretorios de cobertura do contexto informado. O projeto correspondente precisa existir no SonarQube local ou remoto apontado por `SONAR_HOST_URL`, e o token precisa ter permissao para enviar analise nesse projeto.
+Esse modo usa a solution, Project Key e diretorios de cobertura do contexto informado. Ele permanece como capacidade local/futura e nao faz parte do fluxo oficial de CI. O projeto correspondente precisa existir no SonarQube local ou remoto apontado por `SONAR_HOST_URL`, e o token precisa ter permissao para enviar analise nesse projeto.
 
 A cobertura para o SonarQube usa o formato OpenCover, consumido por `sonar.cs.opencover.reportsPaths`. O mesmo `coverlet.runsettings` tambem gera Cobertura, preservando o formato usado pelo fluxo de cobertura existente do CI.
 
