@@ -55,6 +55,11 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [IdentityService API](development/identity-api.md): contrato HTTP de cadastro de usuarios, `Idempotency-Key`, retries e conflitos.
 - [AuditService API](development/audit-api.md): contrato HTTP de criacao e consulta de registros funcionais de auditoria, agnostico ao servico chamador.
 - [Spec SDD de idempotencia do IdentityService](specs/identity-idempotency.md): comportamento esperado para `Idempotency-Key` opcional em `POST /api/v1/users`.
+- [Spec SDD PaymentService + Stripe - requisitos](specs/payment-stripe/requirements.md): contexto, objetivos, nao objetivos, atores, regras, riscos e criterios para o novo fluxo de pagamentos externos.
+- [Spec SDD PaymentService + Stripe - design](specs/payment-stripe/design.md): bounded context, ACL Stripe, Inbox, webhook security, integracao com Ledger, observabilidade, testes e configuracao futura.
+- [Spec SDD PaymentService + Stripe - state machine](specs/payment-stripe/state-machine.md): estados internos, transicoes, eventos duplicados, atrasados, fora de ordem e refund futuro.
+- [Spec SDD PaymentService + Stripe - fluxos](specs/payment-stripe/integration-flows.md): diagramas Mermaid para criacao, webhook, deduplicacao, Inbox, Ledger, retry, timeout desconhecido e refund futuro.
+- [Spec SDD PaymentService + Stripe - tasks](specs/payment-stripe/tasks.md): plano incremental de implementacao futura com escopo, criterios de aceite, testes e documentacao afetada.
 - [Spec SDD do AuditRecordRequested.v1](specs/audit/audit-record-requested-v1.md): contrato canonico futuro de auditoria funcional, com schema e exemplos, sem integracao ativa.
 - [Spec SDD do consumer AuditService.Worker](specs/audit/audit-service-worker-consumer.md): consumo Kafka de `AuditRecordRequested.v1`, idempotencia por `source_event_id` e validacoes isoladas.
 - [Spec SDD de hardening do AuditService.Worker](specs/audit/audit-service-worker-hardening.md): retry, DLQ, idempotencia, metricas e testes isolados do consumer de auditoria.
@@ -94,6 +99,11 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [Roadmap arquitetural consolidado](roadmap.md): leitura consolidada das frentes feitas, parciais, proximos passos e itens fora de escopo por enquanto.
 - [ADRs](adrs/README.md): historico de decisoes arquiteturais e pontos de melhoria.
 - [Organizacao de solutions por contexto](adrs/0100-organizacao-solutions-contexto-agregadora.md): registra a agregadora `PocArquitetura.slnx`, as solutions contextuais e a diferenca entre organizacao de desenvolvimento e topologia runtime.
+- [PaymentService como bounded context futuro](adrs/0101-payment-service-bounded-context.md): registra a proposta de contexto para pagamentos externos preservando Ledger e Balance.
+- [ACL Stripe para PaymentService](adrs/0102-stripe-anti-corruption-layer.md): registra a proposta de integrar Stripe por porta interna sem vazar tipos do SDK.
+- [Inbox Pattern para webhooks Stripe](adrs/0103-inbox-pattern-webhooks-stripe.md): registra a proposta de persistir e deduplicar webhooks antes do processamento assincrono.
+- [Integracao PaymentService -> LedgerService](adrs/0104-payment-ledger-integration.md): registra a proposta de criar efeito financeiro via contrato HTTP idempotente do Ledger.
+- [Ordenacao e deduplicacao de eventos externos de pagamento](adrs/0105-payment-provider-event-ordering-deduplication.md): registra a proposta de state machine monotona para eventos duplicados, atrasados e fora de ordem.
 - [Terraform state local e backend remoto](adrs/0079-terraform-state-local-e-backend-remoto.md): registra os riscos do state local, gatilhos e estrategia que antecederam a adocao do backend remoto GCS.
 - [Backend remoto GCS para Terraform dev](adrs/0080-backend-remoto-gcs-terraform-dev.md): registra a adocao do backend remoto parcial em GCS, separacao por ambiente e migracao manual de state.
 - [Mensageria por ports and adapters](adrs/0075-mensageria-ports-adapters-kafka-provider.md): historico da introducao do boundary quando Kafka ainda era o provider atual.
