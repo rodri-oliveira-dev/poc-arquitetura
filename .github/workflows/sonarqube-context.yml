@@ -39,6 +39,7 @@ env:
   SONAR_ORGANIZATION_KEY: rodri-oliveira-dev
   SONAR_HOST_URL: https://sonarcloud.io
   SONAR_CONTEXT: ${{ inputs.context }}
+  SONAR_PULL_REQUEST: ${{ github.event.pull_request.number || '' }}
   SOLUTION_PATH: ${{ inputs.solution }}
   SONAR_PROJECT_KEY: ${{ inputs['project-key'] }}
   SONAR_PROJECT_NAME: ${{ inputs['project-name'] }}

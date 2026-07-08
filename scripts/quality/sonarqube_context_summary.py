@@ -3,6 +3,14 @@ import argparse
 import json
 import pathlib
 
+from path_security import (
+    artifacts_root,
+    downloaded_sonar_artifacts_root,
+    repo_root,
+    resolve_existing_dir,
+    resolve_output_file,
+)
+
 
 CONTEXTS = ["ledger", "balance", "transfer", "identity", "audit", "shared"]
 METRICS = {
@@ -73,18 +81,22 @@ def markdown_table(headers: list[str], rows: list[list[str]]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def main() -> int:
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Consolida artifacts SonarQube contextuais.")
     parser.add_argument("--artifacts-dir", default="downloaded-sonar-artifacts", type=pathlib.Path)
     parser.add_argument("--selected-context", default="all")
     parser.add_argument("--expected-contexts", default="")
     parser.add_argument("--output", default="")
-    args = parser.parse_args()
+    return parser.parse_args()
 
-    if args.expected_contexts:
-        expected_contexts = {context.strip() for context in args.expected_contexts.split(",") if context.strip()}
-    else:
-        expected_contexts = set(CONTEXTS if args.selected_context == "all" else [args.selected_context])
+
+def resolve_expected_contexts(selected_context: str, expected_contexts_arg: str) -> set[str]:
+    if expected_contexts_arg:
+        return {context.strip() for context in expected_contexts_arg.split(",") if context.strip()}
+    return set(CONTEXTS if selected_context == "all" else [selected_context])
+
+
+def build_context_rows(artifacts_dir: pathlib.Path, expected_contexts: set[str]) -> list[list[str]]:
     rows = []
 
     for context in CONTEXTS:
@@ -104,7 +116,11 @@ def main() -> int:
             ]
         )
 
-    report = "\n".join(
+    return rows
+
+
+def build_report(rows: list[list[str]]) -> str:
+    return "\n".join(
         [
             "## SonarQube contextual consolidado",
             "",
@@ -116,11 +132,35 @@ def main() -> int:
         ]
     )
 
+
+def write_report(report: str, output: str) -> None:
+    if not output:
+        return
+
+    output_path = resolve_output_file(
+        output,
+        artifacts_root(),
+        base_dir=repo_root(),
+        label="arquivo de saida do resumo Sonar contextual",
+    )
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(report, encoding="utf-8")
+
+
+def main() -> int:
+    args = parse_args()
+    artifacts_dir = resolve_existing_dir(
+        args.artifacts_dir,
+        downloaded_sonar_artifacts_root(),
+        base_dir=repo_root(),
+        label="diretorio de artifacts Sonar contextual",
+    )
+    expected_contexts = resolve_expected_contexts(args.selected_context, args.expected_contexts)
+    rows = build_context_rows(artifacts_dir, expected_contexts)
+    report = build_report(rows)
+
     print(report)
-    if args.output:
-        output = pathlib.Path(args.output)
-        output.parent.mkdir(parents=True, exist_ok=True)
-        output.write_text(report, encoding="utf-8")
+    write_report(report, args.output)
 
     return 0
 

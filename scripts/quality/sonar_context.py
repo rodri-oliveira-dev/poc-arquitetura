@@ -4,6 +4,8 @@ import json
 import pathlib
 import sys
 
+from path_security import quality_scripts_root, repo_root, resolve_existing_file
+
 
 ENV_KEYS = {
     "context": "SONAR_CONTEXT",
@@ -16,12 +18,14 @@ ENV_KEYS = {
 }
 
 
-def repo_root() -> pathlib.Path:
-    return pathlib.Path(__file__).resolve().parents[2]
-
-
 def load_contexts(path: pathlib.Path) -> dict:
-    with path.open(encoding="utf-8") as file:
+    config_path = resolve_existing_file(
+        path,
+        quality_scripts_root(),
+        base_dir=repo_root(),
+        label="arquivo de configuracao Sonar",
+    )
+    with config_path.open(encoding="utf-8") as file:
         contexts = json.load(file)
 
     required = set(ENV_KEYS) - {"context"}

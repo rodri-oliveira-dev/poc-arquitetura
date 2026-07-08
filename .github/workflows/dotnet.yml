@@ -43,6 +43,7 @@ env:
   SONAR_HOST_URL: https://sonarcloud.io
   SONAR_PROJECT_KEY: rodri-oliveira-dev_poc-arquitetura
   SONAR_PROJECT_NAME: poc-arquitetura
+  SONAR_PULL_REQUEST: ${{ github.event.pull_request.number || '' }}
   SONAR_REPORT_DIR: ./artifacts/sonarqube
   SONAR_OPENCOVER_REPORTS_PATHS: ./artifacts/test-results/**/coverage.opencover.xml
   SOLUTION_PATH: ./PocArquitetura.slnx

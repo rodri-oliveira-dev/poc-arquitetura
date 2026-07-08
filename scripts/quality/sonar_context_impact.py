@@ -6,6 +6,7 @@ import pathlib
 import sys
 
 from sonar_context import load_contexts, normalize_path, repo_root
+from path_security import resolve_existing_file
 
 
 CONTEXTS = ["ledger", "balance", "transfer", "identity", "audit", "shared"]
@@ -50,58 +51,78 @@ def load_files(path: pathlib.Path | None) -> list[str]:
     if path is None:
         lines = sys.stdin.read().splitlines()
     else:
-        lines = path.read_text(encoding="utf-8").splitlines()
+        files_path = resolve_existing_file(
+            path,
+            repo_root(),
+            base_dir=repo_root(),
+            label="arquivo de changed files",
+        )
+        lines = files_path.read_text(encoding="utf-8").splitlines()
 
     return [line.strip().lstrip("\ufeff").lstrip("\xef\xbb\xbf").replace("\\", "/") for line in lines if line.strip()]
 
 
-def resolve_contexts(event_name: str, selected_context: str, files: list[str]) -> tuple[dict[str, bool], bool, list[dict]]:
-    selected = {context: False for context in CONTEXTS}
+def all_contexts_selected() -> dict[str, bool]:
+    return dict.fromkeys(CONTEXTS, True)
+
+
+def no_contexts_selected() -> dict[str, bool]:
+    return dict.fromkeys(CONTEXTS, False)
+
+
+def resolve_push_contexts() -> tuple[dict[str, bool], bool, list[dict]]:
+    return all_contexts_selected(), True, [{"path": "<push-main>", "reason": "main executa todos"}]
+
+
+def resolve_dispatch_contexts(selected_context: str) -> tuple[dict[str, bool], bool, list[dict]]:
+    if selected_context == "all":
+        return all_contexts_selected(), True, [{"path": "<workflow_dispatch>", "reason": "all selecionado"}]
+
+    if selected_context not in CONTEXTS:
+        available = ", ".join(["all", *CONTEXTS])
+        raise ValueError(f"Contexto invalido para workflow_dispatch: {selected_context}. Disponiveis: {available}")
+
+    selected = no_contexts_selected()
+    selected[selected_context] = True
+    return selected, False, [{"path": "<workflow_dispatch>", "reason": f"{selected_context} selecionado"}]
+
+
+def apply_changed_file_impact(changed_file: str, selected: dict[str, bool]) -> list[dict]:
+    if matches(changed_file, DOC_PATTERNS):
+        return [{"path": changed_file, "reason": "documentacao sem Sonar contextual"}]
+
+    if matches(changed_file, GLOBAL_PATTERNS):
+        selected.update(all_contexts_selected())
+        return [{"path": changed_file, "reason": "global Sonar contextual"}]
+
+    if matches(changed_file, EVENT_CONTRACT_PATTERNS):
+        return [{"path": changed_file, "reason": "contrato de evento sem ownership Sonar contextual"}]
+
+    reasons = []
+    for context, patterns in CONTEXT_PATTERNS.items():
+        if matches(changed_file, patterns):
+            selected[context] = True
+            reasons.append({"path": changed_file, "reason": f"{context} Sonar contextual"})
+
+    return reasons or [{"path": changed_file, "reason": "sem impacto Sonar contextual conhecido"}]
+
+
+def resolve_pull_request_contexts(files: list[str]) -> tuple[dict[str, bool], bool, list[dict]]:
+    selected = no_contexts_selected()
     reasons = []
 
-    if event_name == "push":
-        return {context: True for context in CONTEXTS}, True, [{"path": "<push-main>", "reason": "main executa todos"}]
-
-    if event_name == "workflow_dispatch":
-        if selected_context == "all":
-            return {context: True for context in CONTEXTS}, True, [{"path": "<workflow_dispatch>", "reason": "all selecionado"}]
-        if selected_context not in CONTEXTS:
-            available = ", ".join(["all", *CONTEXTS])
-            raise ValueError(f"Contexto invalido para workflow_dispatch: {selected_context}. Disponiveis: {available}")
-        selected[selected_context] = True
-        return selected, False, [{"path": "<workflow_dispatch>", "reason": f"{selected_context} selecionado"}]
-
     for changed_file in files:
-        if matches(changed_file, DOC_PATTERNS):
-            reasons.append({"path": changed_file, "reason": "documentacao sem Sonar contextual"})
-            continue
-
-        if matches(changed_file, GLOBAL_PATTERNS):
-            for context in CONTEXTS:
-                selected[context] = True
-            reasons.append({"path": changed_file, "reason": "global Sonar contextual"})
-            continue
-
-        if matches(changed_file, EVENT_CONTRACT_PATTERNS):
-            reasons.append(
-                {
-                    "path": changed_file,
-                    "reason": "contrato de evento sem ownership Sonar contextual",
-                }
-            )
-            continue
-
-        matched_context = False
-        for context, patterns in CONTEXT_PATTERNS.items():
-            if matches(changed_file, patterns):
-                selected[context] = True
-                matched_context = True
-                reasons.append({"path": changed_file, "reason": f"{context} Sonar contextual"})
-
-        if not matched_context:
-            reasons.append({"path": changed_file, "reason": "sem impacto Sonar contextual conhecido"})
+        reasons.extend(apply_changed_file_impact(changed_file, selected))
 
     return selected, all(selected.values()), reasons
+
+
+def resolve_contexts(event_name: str, selected_context: str, files: list[str]) -> tuple[dict[str, bool], bool, list[dict]]:
+    if event_name == "push":
+        return resolve_push_contexts()
+    if event_name == "workflow_dispatch":
+        return resolve_dispatch_contexts(selected_context)
+    return resolve_pull_request_contexts(files)
 
 
 def build_matrix(selected: dict[str, bool], config_path: pathlib.Path) -> dict:
