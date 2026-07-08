@@ -74,7 +74,7 @@ Resumo:
 
 - `commit-msg`: valida Conventional Commits;
 - `post-merge`: restaura tools e dependencias;
-- `pre-push`: executa validacoes completas quando houver arquivos impactantes.
+- `pre-push`: executa validacoes rapidas contextuais quando houver arquivos impactantes; a matriz detalhada fica em [Git hooks locais](git-hooks.md).
 
 ## Workflows
 

@@ -1,0 +1,253 @@
+name: sonarqube-context
+
+on:
+  workflow_call:
+    inputs:
+      context:
+        required: true
+        type: string
+      solution:
+        required: true
+        type: string
+      project-key:
+        required: true
+        type: string
+      project-name:
+        required: true
+        type: string
+      results-dir:
+        required: true
+        type: string
+      sonar-dir:
+        required: true
+        type: string
+      artifact-name:
+        required: true
+        type: string
+    secrets:
+      SONAR_TOKEN:
+        required: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+env:
+  CI: true
+  DOTNET_NOLOGO: true
+  BUILD_CONFIGURATION: Release
+  SONAR_ORGANIZATION_KEY: rodri-oliveira-dev
+  SONAR_HOST_URL: https://sonarcloud.io
+  SONAR_CONTEXT: ${{ inputs.context }}
+  SONAR_PULL_REQUEST: ${{ github.event.pull_request.number || '' }}
+  SOLUTION_PATH: ${{ inputs.solution }}
+  SONAR_PROJECT_KEY: ${{ inputs['project-key'] }}
+  SONAR_PROJECT_NAME: ${{ inputs['project-name'] }}
+  TEST_RESULTS_DIR: ${{ inputs['results-dir'] }}
+  SONAR_REPORT_DIR: ${{ inputs['sonar-dir'] }}
+  SONAR_OPENCOVER_REPORTS_PATHS: ${{ inputs['results-dir'] }}/**/coverage.opencover.xml
+
+jobs:
+  analyze:
+    name: SonarQube ${{ inputs.context }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: ./.github/actions/setup-dotnet
+        with:
+          restore-tools: "true"
+
+      - name: Prepare isolated artifacts
+        shell: bash
+        run: |
+          rm -rf ./artifacts/test-results
+          rm -rf "$SONAR_REPORT_DIR"
+
+      - name: Validate contextual configuration
+        shell: bash
+        run: |
+          python scripts/quality/sonar_context.py "$SONAR_CONTEXT" --format json > resolved-sonar-context.json
+          python - <<'PY'
+          import json
+          import os
+          import sys
+
+          with open("resolved-sonar-context.json", encoding="utf-8") as file:
+              resolved = json.load(file)
+
+          expected = {
+              "context": os.environ["SONAR_CONTEXT"],
+              "solution": os.environ["SOLUTION_PATH"],
+              "projectKey": os.environ["SONAR_PROJECT_KEY"],
+              "projectName": os.environ["SONAR_PROJECT_NAME"],
+              "resultsDir": os.environ["TEST_RESULTS_DIR"],
+              "sonarReportDir": os.environ["SONAR_REPORT_DIR"],
+              "coverageReportPattern": os.environ["SONAR_OPENCOVER_REPORTS_PATHS"],
+          }
+
+          errors = []
+          for key, value in expected.items():
+              if resolved.get(key) != value:
+                  errors.append(f"{key}: esperado {value!r}, resolvido {resolved.get(key)!r}")
+
+          if errors:
+              print("Configuracao contextual Sonar divergente:", file=sys.stderr)
+              print("\n".join(errors), file=sys.stderr)
+              sys.exit(1)
+          PY
+
+      - name: Restore dependencies
+        run: >
+          dotnet restore $SOLUTION_PATH
+          -p:NuGetAuditMode=all
+          -p:RestoreEnablePackagePruning=true
+
+      - name: Validate SonarQube Cloud token
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        shell: bash
+        run: |
+          if [ -z "${SONAR_TOKEN:-}" ]; then
+            echo "SONAR_TOKEN is not configured. Create the GitHub Actions repository secret before running SonarQube Cloud analysis." >&2
+            exit 1
+          fi
+
+      - name: SonarQube Cloud begin
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_PLACEHOLDER_SECRET_LINE_REGEX: ".*(PASSWORD|[Pp]assword|PWD|PGPASSWORD|CLIENT_SECRET|[Cc]lient[_-]?[Ss]ecret|SECRET|[Ss]ecret|TOKEN|[Tt]oken|API[_-]?KEY|[Aa]pi[_-]?[Kk]ey).*<[A-Z0-9_]*(PASSWORD|SECRET|TOKEN|API_KEY)[A-Z0-9_]*>.*"
+        shell: bash
+        run: |
+          sonar_exclusion_args=()
+          if [ "$SONAR_CONTEXT" != "shared" ]; then
+            sonar_exclusion_args=(/d:sonar.exclusions="src/Shared/**,tests/Shared/**")
+          fi
+
+          dotnet tool run dotnet-sonarscanner begin \
+            /k:"$SONAR_PROJECT_KEY" \
+            /n:"$SONAR_PROJECT_NAME" \
+            /o:"$SONAR_ORGANIZATION_KEY" \
+            /d:sonar.token="$SONAR_TOKEN" \
+            /d:sonar.host.url="$SONAR_HOST_URL" \
+            /d:sonar.cs.opencover.reportsPaths="$SONAR_OPENCOVER_REPORTS_PATHS" \
+            /d:sonar.issue.ignore.block=placeholderSecrets \
+            /d:sonar.issue.ignore.block.placeholderSecrets.beginBlockRegexp="$SONAR_PLACEHOLDER_SECRET_LINE_REGEX" \
+            /d:sonar.issue.ignore.block.placeholderSecrets.endBlockRegexp="$SONAR_PLACEHOLDER_SECRET_LINE_REGEX" \
+            /d:sonar.coverage.exclusions=".github/**,docs/**,infra/**,loadtests/**,scripts/**,**/Program.cs,**/Migrations/*.cs,**/*.g.cs,**/*.g.*.cs" \
+            "${sonar_exclusion_args[@]}" \
+            /d:sonar.qualitygate.wait=true
+
+      - name: Build
+        run: dotnet build $SOLUTION_PATH --configuration $BUILD_CONFIGURATION --no-restore
+
+      - name: Test with coverage
+        run: >
+          dotnet test $SOLUTION_PATH
+          --configuration $BUILD_CONFIGURATION
+          --no-build
+          --logger "trx;LogFilePrefix=test-results"
+          --results-directory $TEST_RESULTS_DIR
+          --collect:"XPlat Code Coverage"
+          --settings ./coverlet.runsettings
+
+      - name: Validate coverage files
+        if: ${{ success() }}
+        shell: bash
+        run: |
+          if ! find "$TEST_RESULTS_DIR" -name coverage.cobertura.xml -print -quit | grep -q .; then
+            echo "Testes de $SONAR_CONTEXT finalizaram com sucesso, mas nenhum coverage.cobertura.xml foi gerado." >&2
+            exit 1
+          fi
+
+          if ! find "$TEST_RESULTS_DIR" -name coverage.opencover.xml -print -quit | grep -q .; then
+            echo "Testes de $SONAR_CONTEXT finalizaram com sucesso, mas nenhum coverage.opencover.xml foi gerado para o SonarQube Cloud." >&2
+            exit 1
+          fi
+
+          unexpected="$(find ./artifacts/test-results -name coverage.opencover.xml ! -path "$TEST_RESULTS_DIR/*" -print || true)"
+          if [ -n "$unexpected" ]; then
+            echo "Cobertura OpenCover fora do contexto $SONAR_CONTEXT encontrada:" >&2
+            echo "$unexpected" >&2
+            exit 1
+          fi
+
+      - name: SonarQube Cloud end
+        if: ${{ success() }}
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: >
+          dotnet tool run dotnet-sonarscanner end
+          /d:sonar.token="$SONAR_TOKEN"
+
+      - name: Generate SonarQube Cloud report
+        if: ${{ always() }}
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        shell: bash
+        run: |
+          python scripts/quality/sonarqube_cloud_report.py
+          cat "$SONAR_REPORT_DIR/sonarqube-cloud-report.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Generate coverage summary
+        if: ${{ success() }}
+        run: >
+          dotnet tool run reportgenerator
+          -reports:"$TEST_RESULTS_DIR/**/coverage.cobertura.xml"
+          -targetdir:"$TEST_RESULTS_DIR/coverage-report"
+          -reporttypes:"JsonSummary;TextSummary"
+
+      - name: Write contextual summary
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          import os
+          import pathlib
+
+          test_results = pathlib.Path(os.environ["TEST_RESULTS_DIR"])
+          coverage_summary = test_results / "coverage-report" / "Summary.json"
+
+          print(f"## SonarQube {os.environ['SONAR_CONTEXT']}")
+          print()
+          print(f"- Projeto Sonar: `{os.environ['SONAR_PROJECT_KEY']}`")
+          print(f"- Solution: `{os.environ['SOLUTION_PATH']}`")
+          print(f"- OpenCover importado: `{os.environ['SONAR_OPENCOVER_REPORTS_PATHS']}`")
+          print(f"- Artifact: `${{ inputs['artifact-name'] }}`")
+          if os.environ["SONAR_CONTEXT"] != "shared":
+              print("- Shared source: excluido deste projeto contextual; analisado no contexto `shared`.")
+
+          if not coverage_summary.exists():
+              print(f"- Resumo de cobertura {os.environ['SONAR_CONTEXT']}: nao encontrado.")
+              raise SystemExit(0)
+
+          with coverage_summary.open(encoding="utf-8") as file:
+              payload = json.load(file)
+
+          data = payload["summary"]
+          print(f"- Cobertura de linhas: {data['linecoverage']}%")
+          print(f"- Cobertura de branches: {data['branchcoverage']}%")
+          print(f"- Cobertura de metodos: {data['methodcoverage']}%")
+          PY
+
+      - name: Upload contextual artifact
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ inputs['artifact-name'] }}
+          path: |
+            ${{ env.TEST_RESULTS_DIR }}/**/*.trx
+            ${{ env.TEST_RESULTS_DIR }}/**/coverage.cobertura.xml
+            ${{ env.TEST_RESULTS_DIR }}/**/coverage.opencover.xml
+            ${{ env.TEST_RESULTS_DIR }}/coverage-report/Summary.json
+            ${{ env.TEST_RESULTS_DIR }}/coverage-report/Summary.txt
+            ${{ env.SONAR_REPORT_DIR }}/**
+          if-no-files-found: warn
+          retention-days: 7

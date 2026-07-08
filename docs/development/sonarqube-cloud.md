@@ -2,57 +2,79 @@
 
 ## Objetivo
 
-O projeto usa SonarQube Cloud para complementar as validacoes locais e do GitHub Actions com analise estatica, quality gate, cobertura de testes, bugs, code smells, vulnerabilidades e acompanhamento historico de qualidade.
+O projeto usa SonarQube Cloud para complementar as validacoes locais e do GitHub Actions com analise estatica, Quality Gate, cobertura de testes, bugs, code smells, vulnerabilidades e acompanhamento historico de qualidade.
 
 Essa integracao nao substitui build, testes automatizados, gate local de cobertura, revisao de codigo ou validacoes de seguranca do repositorio. Ela consolida sinais de qualidade em um servico externo.
 
-## Modelo adotado
+## Modelo oficial atual
 
-O modelo adotado e analise via GitHub Actions, usando o workflow `.github/workflows/dotnet.yml`.
+O modelo oficial operacional e analise consolidada via GitHub Actions, usando o workflow `.github/workflows/dotnet.yml`.
 
 Automatic Analysis deve ficar desabilitada no SonarQube Cloud. Automatic Analysis e CI Analysis nao devem ficar ativas ao mesmo tempo para o mesmo projeto, porque podem gerar analises duplicadas, resultados inconsistentes e conflitos de configuracao.
 
 A analise via CI e a abordagem correta neste repositorio porque a cobertura .NET precisa ser gerada durante `dotnet test` e importada explicitamente pelo scanner.
 
-## Configuracao no SonarQube Cloud
+Configuracao oficial:
 
-- Project Key: `rodri-oliveira-dev_poc-arquitetura`
-- Organization Key: `rodri-oliveira-dev`
-- Analysis Method: GitHub Actions / CI Analysis
-- Automatic Analysis: desabilitada
+| Item | Valor |
+| --- | --- |
+| Organization Key | `rodri-oliveira-dev` |
+| Project Key | `rodri-oliveira-dev_poc-arquitetura` |
+| Project Name | `poc-arquitetura` |
+| Solution | `./PocArquitetura.slnx` |
+| Test results | `./artifacts/test-results` |
+| Sonar report | `./artifacts/sonarqube` |
+| OpenCover | `./artifacts/test-results/**/coverage.opencover.xml` |
+| Artifact | `test-results-coverage-and-sonarqube` |
 
-O token de analise deve ser criado no SonarQube Cloud e salvo somente como secret no GitHub Actions. O token nao deve ser commitado, exibido em logs, documentado com valor real ou colocado em arquivos locais versionados.
+O projeto global `rodri-oliveira-dev_poc-arquitetura` e o unico projeto SonarQube Cloud oficial ativo neste momento. Nao crie projetos remotos, nao altere secrets, nao altere Quality Gates e nao habilite projetos contextuais sem decisao explicita.
 
-## Configuracao no GitHub
+## Fluxo do CI
 
-Crie o secret do repositorio em:
+O workflow `main-dotnet-ci` roda em:
+
+- `pull_request` para `main`;
+- `push` para `main`;
+- `workflow_dispatch`.
+
+O fluxo executado e sempre consolidado:
 
 ```text
-Settings > Secrets and variables > Actions > New repository secret > SONAR_TOKEN
+GitHub Event
+  -> main-dotnet-ci
+  -> restore ./PocArquitetura.slnx
+  -> SonarQube Cloud begin
+  -> build ./PocArquitetura.slnx
+  -> test ./PocArquitetura.slnx + coverage
+  -> coverage.cobertura.xml e coverage.opencover.xml
+  -> SonarQube Cloud end
+  -> Quality Gate consolidado
+  -> consulta API SonarQube Cloud
+  -> relatorio consolidado
+  -> ReportGenerator
+  -> gate local de cobertura
+  -> artifact consolidado
 ```
 
-O workflow le o token exclusivamente de `secrets.SONAR_TOKEN` e falha com mensagem clara quando o secret esta ausente ou vazio.
-
-## Pipeline
-
-A ordem correta no workflow principal e:
-
-1. checkout com historico completo (`fetch-depth: 0`);
-2. setup .NET;
-3. restore das tools locais;
-4. restore das dependencias;
-5. validacao do `SONAR_TOKEN`;
-6. SonarQube Cloud begin;
-7. build;
-8. testes com cobertura;
-9. validacao dos arquivos de cobertura;
-10. SonarQube Cloud end;
-11. geracao do relatorio resumido do SonarQube Cloud no GitHub Actions;
-12. geracao do relatorio de cobertura;
-13. gate local de cobertura;
-14. upload de artifacts.
-
 O `begin` do SonarQube Cloud precisa ocorrer antes do build. O `end` precisa ocorrer depois dos testes com cobertura para que o scanner consiga enviar a analise e importar o relatorio OpenCover.
+
+O workflow limpa `./artifacts/test-results` e `./artifacts/sonarqube` antes da execucao consolidada. Isso evita reaproveitar arquivos de cobertura ou relatorios de execucoes anteriores, inclusive de experimentos contextuais locais.
+
+## Infraestrutura contextual preservada e inativa
+
+Existe infraestrutura versionada para uma possivel evolucao futura de SonarQube por contexto:
+
+- `.github/workflows/sonarqube-context.yml`;
+- `scripts/quality/sonar-contexts.json`;
+- `scripts/quality/sonar_context.py`;
+- `scripts/quality/sonar_context_impact.py`;
+- `scripts/quality/sonarqube_context_summary.py`;
+- suporte parametrizado em `scripts/quality/sonarqube_cloud_report.py`;
+- suporte opcional em `scripts/quality/sonar-analyze.sh <contexto>`.
+
+Essa infraestrutura permanece no repositorio porque e reutilizavel, mas esta inativa operacionalmente: o workflow oficial nao chama a matrix contextual, nao publica artifacts `sonar-*`, nao espera Quality Gates contextuais e nao executa projetos Sonar por Ledger, Balance, Transfer, Identity, Audit ou Shared.
+
+Para retomar esse modelo no futuro, sera necessaria uma decisao explicita e validacao remota previa dos projetos, tokens, Quality Gates, New Code Definition, custos de runner, artifacts e branch protection. A ausencia de uma variavel ou configuracao remota nao deve ativar execucao contextual.
 
 ## Cobertura de testes
 
@@ -69,30 +91,30 @@ sonar.cs.opencover.reportsPaths="./artifacts/test-results/**/coverage.opencover.
 
 Nao use cobertura generica do Sonar para este caso. Para C#/.NET, a importacao deve usar `sonar.cs.opencover.reportsPaths` apontando para os arquivos OpenCover gerados pelo Coverlet.
 
-O scanner mantem a deteccao geral de credenciais hard-coded ativa, mas ignora issues somente em linhas cujo contexto pareca credencial e cujo valor seja um placeholder uppercase de secret entre `<...>`, como `Password=<LEDGER_DB_PASSWORD>`, `KEYCLOAK_CLIENT_SECRET=<KEYCLOAK_CLIENT_SECRET>` ou `--token "<TOKEN>"`. Essa supressao cobre os placeholders versionados em `.env.example`, `.env.local.example`, `appsettings*.json` e exemplos operacionais em `docs/`, sem excluir arquivos inteiros da analise. O trade-off e que o Sonar ignora todas as issues na linha que casar com esse padrao, por isso o regex e restrito a placeholders uppercase com sufixo de secret. Valores reais ou literais, como `Password=postgres`, `Password=123456`, `Password=localpassword` ou `Password=my-secret`, continuam fora desse padrao e devem ser tratados como achados reais.
-
-O scanner exclui da metrica de cobertura do SonarQube Cloud os diretorios `.github/`, `docs/`, `infra/`, `loadtests/` e `scripts/`. Esses arquivos continuam analisados por regras de qualidade e seguranca quando suportado pelo Sonar, mas nao entram no denominador de cobertura porque a cobertura oficial do repositorio vem dos testes .NET via OpenCover.
+O scanner exclui da metrica de cobertura do SonarQube Cloud os diretorios `.github/`, `docs/`, `infra/`, `loadtests/` e `scripts/`, alem de `Program.cs`, migrations EF e arquivos gerados. Esses arquivos continuam analisados por regras de qualidade e seguranca quando suportado pelo Sonar, mas nao entram no denominador de cobertura porque a cobertura oficial do repositorio vem dos testes .NET via OpenCover.
 
 Nao use essa exclusao para esconder codigo produtivo .NET sem testes. Se um arquivo C# de `src/` precisar sair da cobertura, registre uma justificativa localizada e revise se o `coverlet.runsettings` tambem precisa ser ajustado.
 
 ## Quality Gate
 
-O SonarQube Cloud aplica seu proprio quality gate com base nas regras configuradas no projeto e na organizacao.
+O SonarQube Cloud aplica seu proprio Quality Gate com base nas regras configuradas no projeto global.
 
 O workflow tambem possui um gate local de cobertura, hoje com minimo de 85% para cobertura total de linhas e para os assemblies `LedgerService.Worker` e `BalanceService.Worker`.
 
 Esses gates tem responsabilidades diferentes:
 
 - o gate local verifica cobertura a partir do relatorio Cobertura consolidado pelo ReportGenerator;
-- o quality gate do Sonar avalia a analise enviada ao SonarQube Cloud, incluindo cobertura importada, bugs, code smells, vulnerabilidades e regras configuradas no servico.
+- o Quality Gate do Sonar avalia a analise enviada ao SonarQube Cloud, incluindo cobertura importada, bugs, code smells, vulnerabilidades e regras configuradas no servico.
 
-O parametro `sonar.qualitygate.wait=true` faz sentido para este projeto porque transforma a decisao do quality gate remoto em feedback do workflow. O custo e aguardar a avaliacao do SonarQube Cloud durante o job.
+O parametro `sonar.qualitygate.wait=true` permanece ativo para transformar a decisao do Quality Gate remoto em feedback do workflow.
+
+Nao ajuste thresholds remotamente como parte de manutencao de YAML. Divergencias de Quality Gate, New Code Definition ou regras devem ser registradas e corrigidas no SonarQube Cloud como uma decisao operacional explicita.
 
 ## Relatorio no GitHub Actions
 
-Apos o step `SonarQube Cloud end`, o workflow executa o step `Generate SonarQube Cloud report`.
+Apos o step `SonarQube Cloud end`, o workflow executa `Generate SonarQube Cloud report`.
 
-Esse step consulta a API do SonarQube Cloud com `secrets.SONAR_TOKEN`, sem imprimir o token em logs, e grava um snapshot da execucao em:
+Esse step chama `scripts/quality/sonarqube_cloud_report.py`, consulta a API do SonarQube Cloud com `secrets.SONAR_TOKEN`, sem imprimir o token em logs, e grava um snapshot da execucao em:
 
 ```text
 artifacts/sonarqube/
@@ -100,30 +122,26 @@ artifacts/sonarqube/
 
 Arquivos gerados:
 
-- `quality-gate.json`: retorno bruto do endpoint de quality gate;
+- `quality-gate.json`: retorno bruto do endpoint de Quality Gate;
 - `measures.json`: retorno bruto das metricas principais do projeto;
 - `issues.json`: retorno bruto das issues abertas retornadas pela API;
-- `sonarqube-cloud-report.md`: resumo em Markdown com dashboard, quality gate, metricas, condicoes e issues.
-
-O mesmo conteudo de `sonarqube-cloud-report.md` e adicionado ao GitHub Step Summary do job. Para consultar:
-
-1. abra a execucao do workflow no GitHub Actions;
-2. entre no job `Build, test and coverage`;
-3. veja a aba ou secao `Summary` da execucao.
-
-Se `SONAR_TOKEN` estiver ausente ou se a API do SonarQube Cloud nao responder, o step registra uma mensagem clara, gera arquivos de erro em `artifacts/sonarqube` e nao quebra o restante do job. O quality gate remoto continua sendo aplicado pelo scanner quando `SonarQube Cloud end` executa com sucesso.
+- `sonarqube-cloud-report.md`: resumo em Markdown com dashboard, Quality Gate, metricas, condicoes e issues;
+- `report.md`: alias do resumo em Markdown para uso por automacoes futuras.
 
 Em eventos de pull request, o relatorio consulta a API com `pullRequest=<numero>`. Isso evita confundir o status do projeto principal com o Quality Gate especifico do PR.
 
+O script aceita parametros para uso futuro, mas o workflow oficial usa o project key global e o output global:
+
+```bash
+python scripts/quality/sonarqube_cloud_report.py \
+  --project-key rodri-oliveira-dev_poc-arquitetura \
+  --organization-key rodri-oliveira-dev \
+  --output-dir artifacts/sonarqube
+```
+
 ## Artifact do GitHub Actions
 
-O workflow publica o artifact `test-results-coverage-and-sonarqube` por 7 dias.
-
-Para baixar:
-
-1. abra a execucao do workflow no GitHub Actions;
-2. role ate `Artifacts`;
-3. baixe `test-results-coverage-and-sonarqube`.
+O workflow publica o artifact consolidado `test-results-coverage-and-sonarqube` por 7 dias.
 
 Esse artifact contem:
 
@@ -132,70 +150,45 @@ Esse artifact contem:
 - arquivos `coverage.opencover.xml` importados pelo SonarQube Cloud;
 - summaries de cobertura `coverage-report/Summary.json` e `coverage-report/Summary.txt`;
 - resumo do SonarQube Cloud em `artifacts/sonarqube/sonarqube-cloud-report.md`;
+- alias do resumo em `artifacts/sonarqube/report.md`;
 - JSONs retornados pela API do SonarQube Cloud em `artifacts/sonarqube/*.json`.
 
-O relatorio do GitHub Actions e apenas um snapshot da execucao do CI. Ele facilita triagem no proprio workflow, mas nao substitui o dashboard oficial do SonarQube Cloud, que continua sendo a fonte principal para historico, detalhes navegaveis, configuracao de quality gate, regras, tendencias e estado mais recente do projeto.
+O workflow oficial nao publica automaticamente `sonar-ledger`, `sonar-balance`, `sonar-transfer`, `sonar-identity`, `sonar-audit`, `sonar-shared` ou `sonar-summary`.
 
-## Workflow atual
+## Scripts locais
 
-O workflow `main-dotnet-ci` roda em:
+Para SonarQube local:
 
-- `push` para `main`;
-- `pull_request` para `main`;
-- `workflow_dispatch`.
-
-As permissoes declaradas sao minimas para leitura do repositorio e contexto do pull request:
-
-- `contents: read`;
-- `pull-requests: read`.
-
-O workflow publica o artifact `test-results-coverage-and-sonarqube` por 7 dias com resultados `.trx`, arquivos `coverage.cobertura.xml`, arquivos `coverage.opencover.xml`, summaries do ReportGenerator e o snapshot resumido do SonarQube Cloud.
-
-## Ferramentas locais
-
-As tools usadas pelo fluxo estao declaradas em `.config/dotnet-tools.json`:
-
-- `dotnet-sonarscanner`;
-- `dotnet-reportgenerator-globaltool`.
-
-O `dotnet tool restore` executado pela composite action `.github/actions/setup-dotnet` e suficiente para disponibilizar essas ferramentas no workflow.
-
-## Exclusoes de cobertura
-
-O `coverlet.runsettings` mantem OpenCover e Cobertura habilitados:
-
-```xml
-<Format>cobertura,opencover</Format>
+```bash
+./scripts/quality/sonar-analyze.sh
 ```
 
-As exclusoes atuais cobrem atributos explicitos de exclusao, codigo gerado pelo compilador, state machines async, `Program.cs`, migrations EF Core e arquivos `.g.cs`. Essas exclusoes sao aceitaveis para evitar que composicao de host, migrations e codigo gerado distorcam o denominador de cobertura.
+Por default, o script usa o contexto `global`, que resolve para `PocArquitetura.slnx` e para o project key global configurado em `scripts/quality/sonar-contexts.json`. O modo por contexto continua disponivel para experimento local ou retomada futura, mas nao faz parte do fluxo oficial de CI.
 
-Nao adicione novas exclusoes apenas para elevar percentual. Qualquer nova exclusao deve ter justificativa tecnica localizada.
+## Tratativas de erro
 
-## Troubleshooting
-
-### Erro: sonar.token= is invalid
+### Erro: cobertura duplicada ou residual
 
 Causa:
 
-`SONAR_TOKEN` vazio ou ausente.
+Arquivos antigos em `artifacts/test-results` podem contaminar globs do scanner ou do ReportGenerator.
 
 Correcao:
 
-Crie o secret `SONAR_TOKEN` no GitHub Actions.
+O workflow oficial ja limpa `artifacts/test-results` e `artifacts/sonarqube`. Em execucao local, remova `artifacts/test-results` antes de investigar falhas de importacao.
 
-### Erro: Automatic Analysis is enabled
+### Erro: Automatic Analysis
 
 Causa:
 
-O projeto esta com Automatic Analysis ativa no SonarQube Cloud e ao mesmo tempo tentando executar analise via CI.
+Automatic Analysis habilitada no SonarQube Cloud junto com CI Analysis.
 
 Correcao:
 
-Desabilite Automatic Analysis em:
+Mantenha Automatic Analysis desabilitada no projeto global:
 
 ```text
-SonarQube Cloud > Project > Administration > Analysis Method > Automatic Analysis
+Administration > Analysis Method > Automatic Analysis
 ```
 
 ### Erro: coverage.opencover.xml nao encontrado
@@ -218,15 +211,35 @@ Depois confirme se o workflow esta usando:
 ./artifacts/test-results/**/coverage.opencover.xml
 ```
 
+### Erro: Quality Gate timeout
+
+Causa:
+
+O scanner aguardou a avaliacao remota por causa de `sonar.qualitygate.wait=true`, mas o SonarQube Cloud nao respondeu dentro do tempo esperado.
+
+Correcao:
+
+Reexecute o job se houver incidente temporario no servico. Se for recorrente, registre evidencia antes de avaliar timeout maior ou mudanca de estrategia.
+
+### Relatorio API indisponivel
+
+Causa:
+
+`scripts/quality/sonarqube_cloud_report.py` nao conseguiu consultar a API por token ausente, autorizacao, indisponibilidade ou falta de dados do PR/projeto.
+
+Correcao:
+
+Use o dashboard do SonarQube Cloud como fonte principal e o artifact gerado como diagnostico. Esse caso nao deve ser tratado como ausencia de bugs, vulnerabilidades ou code smells.
+
 ## Criterios de aceite
 
-- O workflow executa restore, build e testes com cobertura com sucesso.
-- O SonarQube Cloud recebe a analise do projeto.
-- O SonarQube Cloud exibe cobertura de testes importada via OpenCover.
+- O workflow executa restore, build e testes com cobertura usando `./PocArquitetura.slnx`.
+- O SonarQube Cloud recebe uma unica analise do projeto global por execucao.
+- O SonarQube Cloud exibe cobertura de testes importada via OpenCover consolidado.
 - O GitHub Step Summary exibe o resumo do SonarQube Cloud quando a API pode ser consultada.
-- O artifact do workflow contem `artifacts/sonarqube`.
+- O artifact `test-results-coverage-and-sonarqube` contem `artifacts/sonarqube`.
 - O workflow falha com mensagem clara quando `SONAR_TOKEN` nao esta configurado.
 - O workflow falha com mensagem clara quando `coverage.opencover.xml` nao e gerado.
-- A documentacao explica como manter, corrigir e evoluir a integracao.
+- Nenhum job contextual roda automaticamente em PR, `main` ou `workflow_dispatch`.
 - Nenhum secret ou token e exposto no repositorio.
 - As validacoes de cobertura existentes permanecem preservadas.

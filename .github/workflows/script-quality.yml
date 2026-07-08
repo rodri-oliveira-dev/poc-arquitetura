@@ -149,3 +149,12 @@ jobs:
             echo "Checking Node syntax: ${file}"
             node --check "${file}"
           done
+
+      - name: Validate Python scripts
+        shell: bash
+        run: |
+          python -m compileall scripts/quality
+          python -m unittest discover \
+            -s scripts/quality/tests \
+            -p "test_*.py" \
+            -v

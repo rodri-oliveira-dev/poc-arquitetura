@@ -8,7 +8,9 @@ Artifacts podem expor nomes de testes, paths internos do repositorio, stack trac
 
 Workflow: `.github/workflows/dotnet.yml`
 
-Artifact: `test-results-coverage-and-sonarqube`
+Artifacts:
+
+- `test-results-coverage-and-sonarqube`
 
 Retencao: 7 dias
 
@@ -22,7 +24,8 @@ Conteudo publicado:
 - `artifacts/sonarqube/quality-gate.json`;
 - `artifacts/sonarqube/measures.json`;
 - `artifacts/sonarqube/issues.json`;
-- `artifacts/sonarqube/sonarqube-cloud-report.md`.
+- `artifacts/sonarqube/sonarqube-cloud-report.md`;
+- `artifacts/sonarqube/report.md`.
 
 Motivo:
 
@@ -31,6 +34,8 @@ Motivo:
 - o XML OpenCover permite diagnosticar falhas de importacao de cobertura pelo SonarQube Cloud;
 - o resumo Markdown e os JSONs do SonarQube Cloud permitem analisar no GitHub Actions um snapshot da execucao do CI sem depender apenas da interface externa durante a triagem;
 - o relatorio HTML completo do ReportGenerator nao e publicado como artifact, porque os summaries e o XML ja atendem ao diagnostico principal com menor exposicao de paths e trechos renderizados.
+
+O workflow oficial nao publica automaticamente `sonar-ledger`, `sonar-balance`, `sonar-transfer`, `sonar-identity`, `sonar-audit`, `sonar-shared` ou `sonar-summary`. A infraestrutura contextual permanece versionada para evolucao futura, mas inativa no fluxo operacional atual.
 
 Risco residual:
 
