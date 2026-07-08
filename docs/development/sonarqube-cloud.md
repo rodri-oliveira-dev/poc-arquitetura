@@ -39,7 +39,7 @@ O resolvedor reutilizavel e:
 scripts/quality/sonar_context.py
 ```
 
-O workflow principal ainda executa somente o contexto `global`. Essa parametrizacao existe para permitir um piloto incremental futuro sem duplicar seis blocos extensos de YAML e sem misturar cobertura entre contextos.
+O workflow principal executa a analise global e, durante o piloto incremental, tambem executa uma analise isolada do contexto `transfer`. Os demais contextos permanecem apenas configurados no mapa e nao rodam analise propria nesta etapa.
 
 | Contexto | Solution | Project Key proposto | Results Dir | Sonar Report Dir |
 | --- | --- | --- | --- | --- |
@@ -51,7 +51,19 @@ O workflow principal ainda executa somente o contexto `global`. Essa parametriza
 | `audit` | `AuditService.slnx` | `rodri-oliveira-dev_poc-arquitetura-audit` | `artifacts/test-results/audit` | `artifacts/sonarqube/audit` |
 | `shared` | `PocArquitetura.Shared.slnx` | `rodri-oliveira-dev_poc-arquitetura-shared` | `artifacts/test-results/shared` | `artifacts/sonarqube/shared` |
 
-Os projetos contextuais ainda precisam existir no SonarQube Cloud antes de qualquer analise real desses contextos. Nao habilite Automatic Analysis nesses projetos; mantenha CI Analysis como metodo esperado.
+Os projetos contextuais precisam existir no SonarQube Cloud antes de qualquer analise real desses contextos. Nao habilite Automatic Analysis nesses projetos; mantenha CI Analysis como metodo esperado.
+
+Para o piloto Transfer, valide externamente antes de exigir o job como gate obrigatorio:
+
+- projeto SonarQube Cloud criado com Project Key `rodri-oliveira-dev_poc-arquitetura-transfer`;
+- Organization Key `rodri-oliveira-dev`;
+- Automatic Analysis desabilitada;
+- Quality Gate organizacional/padrao configurado;
+- New Code Definition configurada;
+- token em `secrets.SONAR_TOKEN` com permissao de Execute Analysis para o projeto Transfer, ou token apropriado equivalente;
+- PR binding funcional entre GitHub e SonarQube Cloud.
+
+O workflow nao cria projeto remoto, nao altera permissoes e nao muda configuracao do Quality Gate. Se qualquer item acima ainda nao existir no SonarQube Cloud, o piloto fica bloqueado externamente ate a configuracao ser concluida.
 
 ## Configuracao no GitHub
 
@@ -65,7 +77,7 @@ O workflow le o token exclusivamente de `secrets.SONAR_TOKEN` e falha com mensag
 
 ## Pipeline
 
-A ordem correta no workflow principal e:
+A ordem correta do job global no workflow principal e:
 
 1. checkout com historico completo (`fetch-depth: 0`);
 2. setup .NET;
@@ -83,6 +95,24 @@ A ordem correta no workflow principal e:
 14. upload de artifacts.
 
 O `begin` do SonarQube Cloud precisa ocorrer antes do build. O `end` precisa ocorrer depois dos testes com cobertura para que o scanner consiga enviar a analise e importar o relatorio OpenCover.
+
+O job piloto `sonar-transfer-pilot` preserva o mesmo boundary para Transfer:
+
+1. checkout com historico completo (`fetch-depth: 0`);
+2. setup .NET e restore das tools locais;
+3. resolucao do contexto `transfer` em `scripts/quality/sonar-contexts.json`;
+4. restore de `TransferService.slnx`;
+5. validacao de `SONAR_TOKEN`;
+6. SonarQube Cloud begin com Project Key `rodri-oliveira-dev_poc-arquitetura-transfer`;
+7. build de `TransferService.slnx`;
+8. testes de `TransferService.slnx` com cobertura em `artifacts/test-results/transfer`;
+9. validacao de Cobertura e OpenCover contextuais;
+10. SonarQube Cloud end com `sonar.qualitygate.wait=true`;
+11. geracao do report da API em `artifacts/sonarqube/transfer`;
+12. geracao de summary contextual de cobertura sem aplicar threshold;
+13. upload do artifact `sonar-transfer`.
+
+O build usado pela analise Transfer acontece dentro do boundary do scanner Transfer. O job roda em workspace isolado do job global; nao ha duas analises Sonar abertas no mesmo workspace.
 
 ## Cobertura de testes
 
@@ -106,6 +136,14 @@ sonar.cs.opencover.reportsPaths="./artifacts/test-results/transfer/**/coverage.o
 ```
 
 Evite glob global em analises contextuais para nao importar cobertura de outra solution.
+
+No piloto Transfer, o scanner usa somente:
+
+```text
+sonar.cs.opencover.reportsPaths="./artifacts/test-results/transfer/**/coverage.opencover.xml"
+```
+
+O job tambem falha se encontrar `coverage.opencover.xml` fora de `artifacts/test-results/transfer` dentro do workspace do piloto. Isso protege a validacao contra contaminacao por cobertura global ou de outro contexto.
 
 O scanner mantem a deteccao geral de credenciais hard-coded ativa, mas ignora issues somente em linhas cujo contexto pareca credencial e cujo valor seja um placeholder uppercase de secret entre `<...>`, como `Password=<LEDGER_DB_PASSWORD>`, `KEYCLOAK_CLIENT_SECRET=<KEYCLOAK_CLIENT_SECRET>` ou `--token "<TOKEN>"`. Essa supressao cobre os placeholders versionados em `.env.example`, `.env.local.example`, `appsettings*.json` e exemplos operacionais em `docs/`, sem excluir arquivos inteiros da analise. O trade-off e que o Sonar ignora todas as issues na linha que casar com esse padrao, por isso o regex e restrito a placeholders uppercase com sufixo de secret. Valores reais ou literais, como `Password=postgres`, `Password=123456`, `Password=localpassword` ou `Password=my-secret`, continuam fora desse padrao e devem ser tratados como achados reais.
 
@@ -167,7 +205,7 @@ Por default, o workflow passa esses valores por variaveis resolvidas a partir de
 
 ## Artifact do GitHub Actions
 
-O workflow publica o artifact `test-results-coverage-and-sonarqube` por 7 dias.
+O workflow publica o artifact global `test-results-coverage-and-sonarqube` por 7 dias.
 
 Para baixar:
 
@@ -185,6 +223,19 @@ Esse artifact contem:
 - alias do resumo em `artifacts/sonarqube/report.md`;
 - JSONs retornados pela API do SonarQube Cloud em `artifacts/sonarqube/*.json`.
 
+Durante o piloto, o job `sonar-transfer-pilot` tambem publica o artifact `sonar-transfer` por 7 dias, contendo:
+
+- resultados `.trx` de Transfer;
+- `coverage.cobertura.xml` de Transfer;
+- `coverage.opencover.xml` de Transfer;
+- `artifacts/test-results/transfer/coverage-report/Summary.json`;
+- `artifacts/test-results/transfer/coverage-report/Summary.txt`;
+- `artifacts/sonarqube/transfer/quality-gate.json`;
+- `artifacts/sonarqube/transfer/measures.json`;
+- `artifacts/sonarqube/transfer/issues.json`;
+- `artifacts/sonarqube/transfer/sonarqube-cloud-report.md`;
+- `artifacts/sonarqube/transfer/report.md`.
+
 O relatorio do GitHub Actions e apenas um snapshot da execucao do CI. Ele facilita triagem no proprio workflow, mas nao substitui o dashboard oficial do SonarQube Cloud, que continua sendo a fonte principal para historico, detalhes navegaveis, configuracao de quality gate, regras, tendencias e estado mais recente do projeto.
 
 ## Workflow atual
@@ -200,7 +251,36 @@ As permissoes declaradas sao minimas para leitura do repositorio e contexto do p
 - `contents: read`;
 - `pull-requests: read`.
 
-O workflow publica o artifact `test-results-coverage-and-sonarqube` por 7 dias com resultados `.trx`, arquivos `coverage.cobertura.xml`, arquivos `coverage.opencover.xml`, summaries do ReportGenerator e o snapshot resumido do SonarQube Cloud.
+O job global publica o artifact `test-results-coverage-and-sonarqube` por 7 dias com resultados `.trx`, arquivos `coverage.cobertura.xml`, arquivos `coverage.opencover.xml`, summaries do ReportGenerator e o snapshot resumido do SonarQube Cloud.
+
+O piloto Transfer roda nos mesmos triggers do workflow enquanto a comparacao estiver ativa:
+
+- `pull_request` para `main`, respeitando os `paths-ignore` atuais do workflow;
+- `workflow_dispatch`;
+- `push` para `main`.
+
+Nesta etapa nao ha selecao granular por paths de Transfer, porque o objetivo e validar o pipeline contextual antes de otimizar custo.
+
+## Comparacao do piloto Transfer
+
+Compare o artifact global `test-results-coverage-and-sonarqube`, o artifact `sonar-transfer` e os dashboards SonarQube Cloud dos projetos:
+
+- global: `rodri-oliveira-dev_poc-arquitetura`;
+- Transfer: `rodri-oliveira-dev_poc-arquitetura-transfer`.
+
+Pontos de comparacao:
+
+- arquivos source atribuidos a cada projeto;
+- cobertura importada em Transfer versus cobertura global;
+- issues abertas e severidade;
+- metricas principais em `measures.json`;
+- status e condicoes do Quality Gate;
+- tempo do job global versus `sonar-transfer-pilot`;
+- runner-minutes observaveis na execucao do GitHub Actions;
+- existencia de source duplicado inesperado;
+- ausencia de cobertura contaminada fora de `artifacts/test-results/transfer`.
+
+Os percentuais de cobertura nao precisam ser iguais. O projeto global usa a solution agregadora e tem denominador maior; o projeto Transfer usa `TransferService.slnx`, testes e fontes atribuiveis ao contexto Transfer.
 
 ## Ferramentas locais
 

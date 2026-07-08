@@ -8,7 +8,10 @@ Artifacts podem expor nomes de testes, paths internos do repositorio, stack trac
 
 Workflow: `.github/workflows/dotnet.yml`
 
-Artifact: `test-results-coverage-and-sonarqube`
+Artifacts:
+
+- `test-results-coverage-and-sonarqube`
+- `sonar-transfer` durante o piloto SonarQube Cloud contextual de Transfer
 
 Retencao: 7 dias
 
@@ -25,6 +28,19 @@ Conteudo publicado:
 - `artifacts/sonarqube/sonarqube-cloud-report.md`;
 - `artifacts/sonarqube/report.md`.
 
+Durante o piloto Transfer, o artifact `sonar-transfer` publica somente dados contextuais:
+
+- arquivos `.trx` de `TransferService.slnx`;
+- arquivos `coverage.cobertura.xml` gerados em `artifacts/test-results/transfer`;
+- arquivos `coverage.opencover.xml` gerados em `artifacts/test-results/transfer`;
+- `artifacts/test-results/transfer/coverage-report/Summary.json`;
+- `artifacts/test-results/transfer/coverage-report/Summary.txt`;
+- `artifacts/sonarqube/transfer/quality-gate.json`;
+- `artifacts/sonarqube/transfer/measures.json`;
+- `artifacts/sonarqube/transfer/issues.json`;
+- `artifacts/sonarqube/transfer/sonarqube-cloud-report.md`;
+- `artifacts/sonarqube/transfer/report.md`.
+
 Motivo:
 
 - os arquivos `.trx` ajudam a diagnosticar falhas de teste;
@@ -32,6 +48,7 @@ Motivo:
 - o XML OpenCover permite diagnosticar falhas de importacao de cobertura pelo SonarQube Cloud;
 - o resumo Markdown e os JSONs do SonarQube Cloud permitem analisar no GitHub Actions um snapshot da execucao do CI sem depender apenas da interface externa durante a triagem;
 - o relatorio HTML completo do ReportGenerator nao e publicado como artifact, porque os summaries e o XML ja atendem ao diagnostico principal com menor exposicao de paths e trechos renderizados.
+- o artifact `sonar-transfer` permite comparar temporariamente o projeto Sonar global com o projeto Transfer sem misturar cobertura, issues, metricas ou Quality Gate.
 
 Risco residual:
 
