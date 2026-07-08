@@ -42,22 +42,51 @@ O `pre-push` nao executa Trivy localmente por padrao. Os scans bloqueantes de Do
 
 O hook executa restore, `dotnet format whitespace --verify-no-changes` somente para arquivos `.cs` alterados, build e testes unitarios rapidos sem cobertura quando encontra arquivos .NET impactantes. A escolha de solution e contextual:
 
-| Alteracao | Validacao local |
+| Alteracao | Validacao rapida local |
 | --- | --- |
-| `src/ledger/**`, `tests/ledger/**`, `LedgerService.slnx`, `tools/ComposeEnvGen/**` | `LedgerService.slnx` |
-| `src/balance/**`, `tests/balance/**`, `BalanceService.slnx` | `BalanceService.slnx` |
-| `src/transfer/**`, `tests/transfer/**`, `TransferService.slnx` | `TransferService.slnx` |
-| `src/identity/**`, `tests/identity/**`, `IdentityService.slnx` | `IdentityService.slnx` |
-| `src/audit/**`, `tests/audit/**`, `AuditService.slnx` | `AuditService.slnx` |
-| `src/Shared/**`, `tests/Shared/**`, `PocArquitetura.Shared.slnx` | `PocArquitetura.Shared.slnx` |
-| `tests/Architecture.Tests/**`, `PocArquitetura.slnx` | `PocArquitetura.slnx` |
-| Global .NET | `PocArquitetura.Shared.slnx` e `PocArquitetura.slnx` |
-| Multiplos contextos | Somente as solutions dos contextos afetados, sem duplicar a agregadora |
-| Diff inseguro | Fallback global seguro com `PocArquitetura.Shared.slnx` e `PocArquitetura.slnx` |
+| Ledger | `LedgerService.slnx` |
+| Balance | `BalanceService.slnx` |
+| Transfer | `TransferService.slnx` |
+| Identity | `IdentityService.slnx` |
+| Audit | `AuditService.slnx` |
+| Shared | `PocArquitetura.Shared.slnx` |
+| Architecture.Tests | `PocArquitetura.slnx` |
+| ComposeEnvGen | `LedgerService.slnx` |
+| Event Contracts | Ledger + Balance |
+| Global build/packages | Agregadora + Shared |
+| Tool manifest | `dotnet tool restore` |
+| Coverage config | nenhuma validacao rapida |
+| docs-only | nenhuma validacao local |
+| Terraform | `terraform fmt -check` |
+| diff inseguro | Agregadora + Shared |
 
-Arquivos globais .NET incluem `global.json`, `NuGet.config`, `Directory.Build.props`, `Directory.Build.targets`, `Directory.Packages.props`, `dotnet-tools.json`, `.config/dotnet-tools.json`, `.editorconfig`, `.globalconfig`, `coverlet.runsettings`, `test.sh`, `test.ps1`, `.github/actions/setup-dotnet/` e `.githooks/pre-push`.
+Os caminhos de contexto sao `src/<contexto>/**`, `tests/<contexto>/**` e a solution do contexto. `tests/Architecture.Tests/**` permanece transversal e seleciona a solution agregadora. `tools/ComposeEnvGen/**` seleciona Ledger porque o tooling e necessario aos testes desse contexto.
+
+Arquivos globais .NET incluem `global.json`, `NuGet.config`, `Directory.Build.props`, `Directory.Build.targets`, `Directory.Packages.props` e `.githooks/pre-push`. Esses arquivos selecionam `PocArquitetura.Shared.slnx` e `PocArquitetura.slnx`; se tambem houver arquivos de contexto no mesmo diff, a validacao global substitui as contextuais para evitar execucao redundante.
+
+Configuracoes de analyzer como `.editorconfig` e `.globalconfig` tambem selecionam `PocArquitetura.Shared.slnx` e `PocArquitetura.slnx`, mas nao inventam uma lista de arquivos C# para `dotnet format`. Quando a alteracao e somente desse tipo, o hook executa restore, build e formatacao contextual vazia/ignorada, mas pula testes rapidos.
+
+Mudancas em `.config/dotnet-tools.json` ou `dotnet-tools.json` executam apenas `dotnet tool restore`. Mudancas isoladas em `coverlet.runsettings`, `test.sh` ou `test.ps1` nao disparam restore, build ou testes rapidos no modo padrao; cobertura e validacao completa continuam pertencendo a `./test.sh`, `./test.ps1` e ao Pull Request.
 
 Quando apenas uma solution contextual e impactada, somente ela passa por restore, build e testes unitarios rapidos. Quando ha impacto em varios contextos, o hook acumula as respectivas solutions em ordem deterministica: Shared, Audit, Identity, Ledger, Balance, Transfer e agregadora. Arquivos `.cs` alterados sao formatados separadamente contra a solution do proprio contexto.
+
+Exemplo de multiplos contextos:
+
+```text
+Ledger + Transfer
+-> LedgerService.slnx
+-> TransferService.slnx
+```
+
+Exemplo de global + contexto:
+
+```text
+Directory.Packages.props + Ledger
+-> PocArquitetura.Shared.slnx
+-> PocArquitetura.slnx
+```
+
+`contracts/events/**` seleciona Ledger e Balance porque esses contexts produzem e consomem schemas versionados usados nos fluxos principais. Uma mudanca de source em Shared seleciona apenas `PocArquitetura.Shared.slnx` no pre-push porque os servicos consomem Shared por pacotes; a validacao de todos os servicos continua no fluxo global/PR quando aplicavel.
 
 O hook pula restore, formatacao, build e testes quando todas as alteracoes sao claramente nao impactantes para validacao local, como Markdown, arquivos em `docs/`, imagens de documentacao (`png`, `jpg`, `jpeg`, `gif`, `svg`, `webp`), diagramas Mermaid/LikeC4 e notas textuais que nao entram no build. Mudancas em Dockerfile, Compose e Trivy sao validadas no Pull Request pelo workflow de infraestrutura quando seus filtros se aplicam.
 
@@ -87,7 +116,7 @@ Para executar a validacao completa oficial durante o push, use:
 FULL_TESTS=true git push
 ```
 
-Nesse modo, depois do restore e da etapa local de formatacao dos arquivos `.cs` alterados quando ela estiver dentro do limite, o hook executa `./test.sh` com o `CONFIGURATION` e o `COVERAGE_THRESHOLD` configurados no ambiente. O padrao continua sendo `Release` e cobertura minima de `85%`. O modo completo continua delegado ao `./test.sh`; ele nao muda automaticamente para a matriz de solutions do modo rapido. Esse modo pode executar testes de integracao/container e, portanto, pode exigir Docker-compatible API.
+Nesse modo, o hook delega para `./test.sh` com o `CONFIGURATION` e o `COVERAGE_THRESHOLD` configurados no ambiente. O padrao continua sendo `Release` e cobertura minima de `85%`. O modo completo continua delegado ao `./test.sh`; ele nao muda automaticamente para a matriz de solutions do modo rapido. Esse modo pode executar testes de integracao/container e, portanto, pode exigir Docker-compatible API.
 
 ## Padrao de commit
 

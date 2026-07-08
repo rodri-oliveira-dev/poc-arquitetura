@@ -63,6 +63,22 @@ run_full_tests() {
   bash ./test.sh "$CONFIGURATION" "$COVERAGE_THRESHOLD"
 }
 
+is_full_tests_requested() {
+  case "$FULL_TESTS" in
+    true|TRUE|1|yes|YES)
+      return 0
+      ;;
+  esac
+
+  return 1
+}
+
+run_requested_full_tests() {
+  echo "==> pre-push: FULL_TESTS=true; executando validacao completa oficial com cobertura"
+  run_timed "testes completos com cobertura" run_full_tests
+  echo "==> pre-push: validacao completa aprovada"
+}
+
 if command -v mktemp >/dev/null 2>&1; then
   changed_files="$(mktemp "${TMPDIR:-/tmp}/pre-push-changed.XXXXXX")"
   audit_dotnet_format_files="$(mktemp "${TMPDIR:-/tmp}/pre-push-audit-format.XXXXXX")"
@@ -95,7 +111,7 @@ trap 'rm -f "$changed_files" "$audit_dotnet_format_files" "$balance_dotnet_forma
 
 is_shared_path() {
   case "$1" in
-    src/Shared/*|tests/Shared/*|PocArquitetura.Shared.slnx)
+    src/Shared/*|tests/Shared/*|PocArquitetura.Shared.slnx|src/Shared/Directory.*)
       return 0
       ;;
   esac
@@ -163,15 +179,9 @@ is_aggregate_path() {
   return 1
 }
 
-is_global_path() {
+is_event_contracts_path() {
   case "$1" in
-    global.json|NuGet.config|Directory.Build.props|Directory.Build.targets|Directory.Packages.props)
-      return 0
-      ;;
-    dotnet-tools.json|.config/dotnet-tools.json|.editorconfig|.globalconfig|coverlet.runsettings)
-      return 0
-      ;;
-    test.sh|test.ps1|.github/actions/setup-dotnet/*|.githooks/pre-push)
+    contracts/events/*)
       return 0
       ;;
   esac
@@ -179,9 +189,39 @@ is_global_path() {
   return 1
 }
 
-is_shared_global_path() {
+is_global_dotnet_path() {
   case "$1" in
-    src/Shared/Directory.Build.props|src/Shared/Directory.Packages.props)
+    global.json|NuGet.config|Directory.Build.props|Directory.Build.targets|Directory.Packages.props)
+      return 0
+      ;;
+  esac
+
+  return 1
+}
+
+is_analyzer_config_path() {
+  case "$1" in
+    .editorconfig|.globalconfig)
+      return 0
+      ;;
+  esac
+
+  return 1
+}
+
+is_dotnet_tool_manifest_path() {
+  case "$1" in
+    dotnet-tools.json|.config/dotnet-tools.json)
+      return 0
+      ;;
+  esac
+
+  return 1
+}
+
+is_pre_push_hook_path() {
+  case "$1" in
+    .githooks/pre-push)
       return 0
       ;;
   esac
@@ -198,6 +238,20 @@ append_dotnet_format_file() {
       printf '%s\n' "$changed_file" >>"$format_files_path"
       ;;
   esac
+}
+
+append_context_dotnet_format_files_to_aggregate() {
+  for format_files_path in \
+    "$audit_dotnet_format_files" \
+    "$balance_dotnet_format_files" \
+    "$identity_dotnet_format_files" \
+    "$ledger_dotnet_format_files" \
+    "$transfer_dotnet_format_files"
+  do
+    if [ -s "$format_files_path" ]; then
+      cat "$format_files_path" >>"$aggregate_dotnet_format_files"
+    fi
+  done
 }
 
 run_dotnet_format_context() {
@@ -420,6 +474,11 @@ echo "==> pre-push: analisando alteracoes pendentes de push"
 
 while read -r local_ref local_sha remote_ref remote_sha
 do
+  [ -n "$local_ref" ] || continue
+  [ -n "$local_sha" ] || continue
+  [ -n "$remote_ref" ] || continue
+  [ -n "$remote_sha" ] || continue
+
   stdin_seen=true
 
   if [ "$local_sha" = "$ZERO_SHA" ]; then
@@ -457,6 +516,10 @@ transfer_changes=false
 shared_changes=false
 aggregate_changes=false
 terraform_changes=false
+global_dotnet_changes=false
+analyzer_config_changes=false
+dotnet_tool_manifest_changes=false
+quick_tests_required=false
 dotnet_format_check=true
 
 if [ "$diff_is_safe" = false ]; then
@@ -470,22 +533,54 @@ if [ "$diff_is_safe" = false ]; then
   shared_changes=true
   aggregate_changes=true
   terraform_changes=true
+  quick_tests_required=true
   dotnet_format_check=false
 else
   while IFS= read -r changed_file
   do
     [ -n "$changed_file" ] || continue
 
-    if is_global_path "$changed_file"; then
+    if is_global_dotnet_path "$changed_file"; then
       dotnet_changes=true
+      global_dotnet_changes=true
       shared_changes=true
       aggregate_changes=true
       echo "==> pre-push: alteracao .NET global detectada em $changed_file"
     fi
 
-    if is_shared_path "$changed_file" || is_shared_global_path "$changed_file"; then
+    if is_analyzer_config_path "$changed_file"; then
+      dotnet_changes=true
+      analyzer_config_changes=true
+      shared_changes=true
+      aggregate_changes=true
+      echo "==> pre-push: alteracao de configuracao de analyzer detectada em $changed_file"
+    fi
+
+    if is_dotnet_tool_manifest_path "$changed_file"; then
+      dotnet_tool_manifest_changes=true
+      echo "==> pre-push: alteracao de manifesto de ferramenta .NET detectada em $changed_file"
+    fi
+
+    if is_pre_push_hook_path "$changed_file"; then
+      dotnet_changes=true
+      global_dotnet_changes=true
+      shared_changes=true
+      aggregate_changes=true
+      echo "==> pre-push: alteracao no pre-push detectada em $changed_file"
+    fi
+
+    if is_event_contracts_path "$changed_file"; then
+      dotnet_changes=true
+      ledger_changes=true
+      balance_changes=true
+      quick_tests_required=true
+      echo "==> pre-push: alteracao em contratos de evento detectada em $changed_file"
+    fi
+
+    if is_shared_path "$changed_file"; then
       dotnet_changes=true
       shared_changes=true
+      quick_tests_required=true
       echo "==> pre-push: alteracao Shared detectada em $changed_file"
       append_dotnet_format_file "$changed_file" "$shared_dotnet_format_files"
     fi
@@ -493,6 +588,7 @@ else
     if is_audit_path "$changed_file"; then
       dotnet_changes=true
       audit_changes=true
+      quick_tests_required=true
       echo "==> pre-push: alteracao Audit detectada em $changed_file"
       append_dotnet_format_file "$changed_file" "$audit_dotnet_format_files"
     fi
@@ -500,6 +596,7 @@ else
     if is_balance_path "$changed_file"; then
       dotnet_changes=true
       balance_changes=true
+      quick_tests_required=true
       echo "==> pre-push: alteracao Balance detectada em $changed_file"
       append_dotnet_format_file "$changed_file" "$balance_dotnet_format_files"
     fi
@@ -507,6 +604,7 @@ else
     if is_identity_path "$changed_file"; then
       dotnet_changes=true
       identity_changes=true
+      quick_tests_required=true
       echo "==> pre-push: alteracao Identity detectada em $changed_file"
       append_dotnet_format_file "$changed_file" "$identity_dotnet_format_files"
     fi
@@ -514,6 +612,7 @@ else
     if is_ledger_path "$changed_file"; then
       dotnet_changes=true
       ledger_changes=true
+      quick_tests_required=true
       echo "==> pre-push: alteracao Ledger detectada em $changed_file"
       append_dotnet_format_file "$changed_file" "$ledger_dotnet_format_files"
     fi
@@ -521,6 +620,7 @@ else
     if is_transfer_path "$changed_file"; then
       dotnet_changes=true
       transfer_changes=true
+      quick_tests_required=true
       echo "==> pre-push: alteracao Transfer detectada em $changed_file"
       append_dotnet_format_file "$changed_file" "$transfer_dotnet_format_files"
     fi
@@ -528,6 +628,7 @@ else
     if is_aggregate_path "$changed_file"; then
       dotnet_changes=true
       aggregate_changes=true
+      quick_tests_required=true
       echo "==> pre-push: alteracao agregadora detectada em $changed_file"
       append_dotnet_format_file "$changed_file" "$aggregate_dotnet_format_files"
     fi
@@ -538,7 +639,29 @@ else
     fi
   done <"$changed_files"
 
-  if [ "$dotnet_changes" = false ] && [ "$terraform_changes" = false ]; then
+  if [ "$global_dotnet_changes" = true ]; then
+    audit_changes=false
+    balance_changes=false
+    identity_changes=false
+    ledger_changes=false
+    transfer_changes=false
+    shared_changes=true
+    aggregate_changes=true
+    quick_tests_required=true
+    append_context_dotnet_format_files_to_aggregate
+    echo "==> pre-push: alteracao .NET global substitui validacoes contextuais por Shared e agregadora"
+  fi
+
+  if [ "$analyzer_config_changes" = true ] && [ "$quick_tests_required" = false ]; then
+    echo "==> pre-push: somente configuracao de analyzer detectada; testes rapidos serao ignorados"
+  fi
+
+  if [ "$dotnet_changes" = false ] && [ "$terraform_changes" = false ] && [ "$dotnet_tool_manifest_changes" = false ]; then
+    if is_full_tests_requested; then
+      run_requested_full_tests
+      exit 0
+    fi
+
     echo "==> pre-push: nenhuma alteracao localmente impactante detectada; pulando validacoes locais"
     echo "==> pre-push: gates pesados continuam no Pull Request/GitHub Actions"
     exit 0
@@ -554,7 +677,16 @@ if [ "$terraform_changes" = true ]; then
   fi
 fi
 
+if [ "$dotnet_tool_manifest_changes" = true ]; then
+  run_timed "restore de ferramentas .NET" dotnet tool restore
+fi
+
 if [ "$dotnet_changes" = false ]; then
+  if is_full_tests_requested; then
+    run_requested_full_tests
+    exit 0
+  fi
+
   echo "==> pre-push: sem alteracoes .NET; pulando restore, format, build e testes unitarios"
   exit 0
 fi
@@ -615,47 +747,70 @@ if [ "$aggregate_changes" = true ]; then
   run_dotnet_format_context "agregadora" ./PocArquitetura.slnx "$aggregate_dotnet_format_files"
 fi
 
-case "$FULL_TESTS" in
-  true|TRUE|1|yes|YES)
-    echo "==> pre-push: FULL_TESTS=true; executando validacao completa oficial com cobertura"
-    run_timed "testes completos com cobertura" run_full_tests
-    echo "==> pre-push: validacao completa aprovada"
-    exit 0
-    ;;
-esac
+if is_full_tests_requested; then
+  run_requested_full_tests
+  exit 0
+fi
 
 if [ "$shared_changes" = true ]; then
   build_solution "Shared" ./PocArquitetura.Shared.slnx
-  test_solution "Shared" ./PocArquitetura.Shared.slnx
 fi
 
 if [ "$audit_changes" = true ]; then
   build_solution "Audit" ./AuditService.slnx
-  test_solution "Audit" ./AuditService.slnx
 fi
 
 if [ "$identity_changes" = true ]; then
   build_solution "Identity" ./IdentityService.slnx
-  test_solution "Identity" ./IdentityService.slnx
 fi
 
 if [ "$ledger_changes" = true ]; then
   build_solution "Ledger" ./LedgerService.slnx
-  test_solution "Ledger" ./LedgerService.slnx
 fi
 
 if [ "$balance_changes" = true ]; then
   build_solution "Balance" ./BalanceService.slnx
-  test_solution "Balance" ./BalanceService.slnx
 fi
 
 if [ "$transfer_changes" = true ]; then
   build_solution "Transfer" ./TransferService.slnx
-  test_solution "Transfer" ./TransferService.slnx
 fi
 
 if [ "$aggregate_changes" = true ]; then
   build_solution "agregadora" ./PocArquitetura.slnx
+fi
+
+if [ "$quick_tests_required" = false ]; then
+  echo "==> pre-push: testes unitarios rapidos ignorados para alteracoes sem impacto de teste rapido local"
+  echo "==> pre-push: build e formatacao aprovados"
+  exit 0
+fi
+
+if [ "$shared_changes" = true ]; then
+  test_solution "Shared" ./PocArquitetura.Shared.slnx
+fi
+
+if [ "$audit_changes" = true ]; then
+  test_solution "Audit" ./AuditService.slnx
+fi
+
+if [ "$identity_changes" = true ]; then
+  test_solution "Identity" ./IdentityService.slnx
+fi
+
+if [ "$ledger_changes" = true ]; then
+  test_solution "Ledger" ./LedgerService.slnx
+fi
+
+if [ "$balance_changes" = true ]; then
+  test_solution "Balance" ./BalanceService.slnx
+fi
+
+if [ "$transfer_changes" = true ]; then
+  test_solution "Transfer" ./TransferService.slnx
+fi
+
+if [ "$aggregate_changes" = true ]; then
   test_solution "agregadora" ./PocArquitetura.slnx
 fi
 
