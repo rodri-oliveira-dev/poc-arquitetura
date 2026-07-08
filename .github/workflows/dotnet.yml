@@ -31,6 +31,20 @@ on:
       - "tests/Shared/**"
       - "PocArquitetura.Shared.slnx"
   workflow_dispatch:
+    inputs:
+      sonar_context:
+        description: Contexto SonarQube Cloud contextual a executar.
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - ledger
+          - balance
+          - transfer
+          - identity
+          - audit
+          - shared
 
 permissions:
   contents: read
@@ -58,6 +72,7 @@ env:
 jobs:
   build-test:
     name: Build, test and coverage
+    if: ${{ github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -303,179 +318,138 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
-  sonar-transfer-pilot:
-    name: SonarQube Transfer pilot
+  sonar-context-matrix:
+    name: Resolve SonarQube contextual matrix
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    env:
-      SONAR_CONTEXT: transfer
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+
+    steps:
+      - name: Resolve matrix
+        id: matrix
+        shell: bash
+        env:
+          SELECTED_CONTEXT: ${{ github.event_name == 'workflow_dispatch' && inputs.sonar_context || 'all' }}
+        run: |
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import os
+
+          contexts = [
+              {
+                  "context": "ledger",
+                  "solution": "./LedgerService.slnx",
+                  "project-key": "rodri-oliveira-dev_poc-arquitetura-ledger",
+                  "project-name": "poc-arquitetura-ledger",
+                  "results-dir": "./artifacts/test-results/ledger",
+                  "sonar-dir": "./artifacts/sonarqube/ledger",
+                  "artifact-name": "sonar-ledger",
+              },
+              {
+                  "context": "balance",
+                  "solution": "./BalanceService.slnx",
+                  "project-key": "rodri-oliveira-dev_poc-arquitetura-balance",
+                  "project-name": "poc-arquitetura-balance",
+                  "results-dir": "./artifacts/test-results/balance",
+                  "sonar-dir": "./artifacts/sonarqube/balance",
+                  "artifact-name": "sonar-balance",
+              },
+              {
+                  "context": "transfer",
+                  "solution": "./TransferService.slnx",
+                  "project-key": "rodri-oliveira-dev_poc-arquitetura-transfer",
+                  "project-name": "poc-arquitetura-transfer",
+                  "results-dir": "./artifacts/test-results/transfer",
+                  "sonar-dir": "./artifacts/sonarqube/transfer",
+                  "artifact-name": "sonar-transfer",
+              },
+              {
+                  "context": "identity",
+                  "solution": "./IdentityService.slnx",
+                  "project-key": "rodri-oliveira-dev_poc-arquitetura-identity",
+                  "project-name": "poc-arquitetura-identity",
+                  "results-dir": "./artifacts/test-results/identity",
+                  "sonar-dir": "./artifacts/sonarqube/identity",
+                  "artifact-name": "sonar-identity",
+              },
+              {
+                  "context": "audit",
+                  "solution": "./AuditService.slnx",
+                  "project-key": "rodri-oliveira-dev_poc-arquitetura-audit",
+                  "project-name": "poc-arquitetura-audit",
+                  "results-dir": "./artifacts/test-results/audit",
+                  "sonar-dir": "./artifacts/sonarqube/audit",
+                  "artifact-name": "sonar-audit",
+              },
+              {
+                  "context": "shared",
+                  "solution": "./PocArquitetura.Shared.slnx",
+                  "project-key": "rodri-oliveira-dev_poc-arquitetura-shared",
+                  "project-name": "poc-arquitetura-shared",
+                  "results-dir": "./artifacts/test-results/shared",
+                  "sonar-dir": "./artifacts/sonarqube/shared",
+                  "artifact-name": "sonar-shared",
+              },
+          ]
+
+          selected = os.environ["SELECTED_CONTEXT"]
+          if selected != "all":
+              contexts = [context for context in contexts if context["context"] == selected]
+
+          print("matrix=" + json.dumps({"include": contexts}, separators=(",", ":")))
+          PY
+
+  sonar-contextual:
+    name: SonarQube ${{ matrix.context }}
+    needs: [sonar-context-matrix]
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.sonar-context-matrix.outputs.matrix) }}
+    uses: ./.github/workflows/sonarqube-context.yml
+    with:
+      context: ${{ matrix.context }}
+      solution: ${{ matrix.solution }}
+      project-key: ${{ matrix['project-key'] }}
+      project-name: ${{ matrix['project-name'] }}
+      results-dir: ${{ matrix['results-dir'] }}
+      sonar-dir: ${{ matrix['sonar-dir'] }}
+      artifact-name: ${{ matrix['artifact-name'] }}
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  sonar-summary:
+    name: SonarQube contextual summary
+    if: ${{ always() }}
+    needs: [sonar-contextual]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
 
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Download contextual artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        continue-on-error: true
         with:
-          fetch-depth: 0
+          pattern: sonar-*
+          path: downloaded-sonar-artifacts
 
-      - name: Setup .NET
-        uses: ./.github/actions/setup-dotnet
-        with:
-          restore-tools: "true"
-
-      - name: Prepare isolated Transfer pilot artifacts
+      - name: Write consolidated SonarQube summary
         shell: bash
-        run: |
-          rm -rf ./artifacts/test-results
-          rm -rf ./artifacts/sonarqube/transfer
-
-      - name: Resolve SonarQube Transfer context
-        shell: bash
-        run: python scripts/quality/sonar_context.py "$SONAR_CONTEXT" --format github-env >> "$GITHUB_ENV"
-
-      - name: Validate SonarQube Transfer context
-        shell: bash
-        run: |
-          test "$SOLUTION_PATH" = "./TransferService.slnx"
-          test "$SONAR_PROJECT_KEY" = "rodri-oliveira-dev_poc-arquitetura-transfer"
-          test "$TEST_RESULTS_DIR" = "./artifacts/test-results/transfer"
-          test "$SONAR_REPORT_DIR" = "./artifacts/sonarqube/transfer"
-          test "$SONAR_OPENCOVER_REPORTS_PATHS" = "./artifacts/test-results/transfer/**/coverage.opencover.xml"
-
-      - name: Restore Transfer dependencies
-        run: >
-          dotnet restore $SOLUTION_PATH
-          -p:NuGetAuditMode=all
-          -p:RestoreEnablePackagePruning=true
-
-      - name: Validate SonarQube Cloud token
         env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        shell: bash
+          SELECTED_CONTEXT: ${{ github.event_name == 'workflow_dispatch' && inputs.sonar_context || 'all' }}
         run: |
-          if [ -z "${SONAR_TOKEN:-}" ]; then
-            echo "SONAR_TOKEN is not configured. Create the GitHub Actions repository secret before running SonarQube Cloud analysis." >&2
-            exit 1
-          fi
+          python scripts/quality/sonarqube_context_summary.py \
+            --artifacts-dir downloaded-sonar-artifacts \
+            --selected-context "$SELECTED_CONTEXT" \
+            --output artifacts/sonarqube/context-summary.md >> "$GITHUB_STEP_SUMMARY"
 
-      - name: SonarQube Transfer begin
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_PLACEHOLDER_SECRET_LINE_REGEX: ".*(PASSWORD|[Pp]assword|PWD|PGPASSWORD|CLIENT_SECRET|[Cc]lient[_-]?[Ss]ecret|SECRET|[Ss]ecret|TOKEN|[Tt]oken|API[_-]?KEY|[Aa]pi[_-]?[Kk]ey).*<[A-Z0-9_]*(PASSWORD|SECRET|TOKEN|API_KEY)[A-Z0-9_]*>.*"
-        run: >
-          dotnet tool run dotnet-sonarscanner begin
-          /k:"$SONAR_PROJECT_KEY"
-          /n:"$SONAR_PROJECT_NAME"
-          /o:"$SONAR_ORGANIZATION_KEY"
-          /d:sonar.token="$SONAR_TOKEN"
-          /d:sonar.host.url="$SONAR_HOST_URL"
-          /d:sonar.cs.opencover.reportsPaths="$SONAR_OPENCOVER_REPORTS_PATHS"
-          /d:sonar.issue.ignore.block=placeholderSecrets
-          /d:sonar.issue.ignore.block.placeholderSecrets.beginBlockRegexp="$SONAR_PLACEHOLDER_SECRET_LINE_REGEX"
-          /d:sonar.issue.ignore.block.placeholderSecrets.endBlockRegexp="$SONAR_PLACEHOLDER_SECRET_LINE_REGEX"
-          /d:sonar.coverage.exclusions=".github/**,docs/**,infra/**,loadtests/**,scripts/**,**/Program.cs,**/Migrations/*.cs,**/*.g.cs,**/*.g.*.cs"
-          /d:sonar.qualitygate.wait=true
-
-      - name: Build Transfer
-        run: dotnet build $SOLUTION_PATH --configuration $BUILD_CONFIGURATION --no-restore
-
-      - name: Test Transfer with coverage
-        run: >
-          dotnet test $SOLUTION_PATH
-          --configuration $BUILD_CONFIGURATION
-          --no-build
-          --logger "trx;LogFilePrefix=test-results"
-          --results-directory $TEST_RESULTS_DIR
-          --collect:"XPlat Code Coverage"
-          --settings ./coverlet.runsettings
-
-      - name: Validate Transfer coverage files
-        if: ${{ success() }}
-        shell: bash
-        run: |
-          if ! find "$TEST_RESULTS_DIR" -name coverage.cobertura.xml -print -quit | grep -q .; then
-            echo "Testes de Transfer finalizaram com sucesso, mas nenhum coverage.cobertura.xml foi gerado." >&2
-            exit 1
-          fi
-
-          if ! find "$TEST_RESULTS_DIR" -name coverage.opencover.xml -print -quit | grep -q .; then
-            echo "Testes de Transfer finalizaram com sucesso, mas nenhum coverage.opencover.xml foi gerado para o SonarQube Cloud." >&2
-            exit 1
-          fi
-
-          unexpected="$(find ./artifacts/test-results -name coverage.opencover.xml ! -path './artifacts/test-results/transfer/*' -print || true)"
-          if [ -n "$unexpected" ]; then
-            echo "Cobertura OpenCover fora do contexto Transfer encontrada:" >&2
-            echo "$unexpected" >&2
-            exit 1
-          fi
-
-      - name: SonarQube Transfer end
-        if: ${{ success() }}
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: >
-          dotnet tool run dotnet-sonarscanner end
-          /d:sonar.token="$SONAR_TOKEN"
-
-      - name: Generate SonarQube Transfer report
-        if: ${{ always() }}
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        shell: bash
-        run: |
-          python scripts/quality/sonarqube_cloud_report.py
-          cat "$SONAR_REPORT_DIR/sonarqube-cloud-report.md" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Generate Transfer coverage summary
-        if: ${{ success() }}
-        run: >
-          dotnet tool run reportgenerator
-          -reports:"$TEST_RESULTS_DIR/**/coverage.cobertura.xml"
-          -targetdir:"$TEST_RESULTS_DIR/coverage-report"
-          -reporttypes:"JsonSummary;TextSummary"
-
-      - name: Write Transfer pilot summary
-        if: ${{ always() }}
-        shell: bash
-        run: |
-          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
-          import json
-          import os
-          import pathlib
-
-          test_results = pathlib.Path(os.environ["TEST_RESULTS_DIR"])
-          coverage_summary = test_results / "coverage-report" / "Summary.json"
-
-          print("## Piloto SonarQube Transfer")
-          print()
-          print(f"- Projeto Sonar: `{os.environ['SONAR_PROJECT_KEY']}`")
-          print(f"- Solution: `{os.environ['SOLUTION_PATH']}`")
-          print(f"- OpenCover importado: `{os.environ['SONAR_OPENCOVER_REPORTS_PATHS']}`")
-          print(f"- Artifact: `sonar-transfer`")
-
-          if not coverage_summary.exists():
-              print("- Resumo de cobertura Transfer: nao encontrado.")
-              raise SystemExit(0)
-
-          with coverage_summary.open(encoding="utf-8") as f:
-              payload = json.load(f)
-
-          data = payload["summary"]
-          print(f"- Cobertura de linhas Transfer: {data['linecoverage']}%")
-          print(f"- Cobertura de branches Transfer: {data['branchcoverage']}%")
-          print(f"- Cobertura de metodos Transfer: {data['methodcoverage']}%")
-          PY
-
-      - name: Upload SonarQube Transfer pilot artifact
+      - name: Upload consolidated SonarQube summary
         if: ${{ always() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: sonar-transfer
-          path: |
-            ${{ env.TEST_RESULTS_DIR }}/**/*.trx
-            ${{ env.TEST_RESULTS_DIR }}/**/coverage.cobertura.xml
-            ${{ env.TEST_RESULTS_DIR }}/**/coverage.opencover.xml
-            ${{ env.TEST_RESULTS_DIR }}/coverage-report/Summary.json
-            ${{ env.TEST_RESULTS_DIR }}/coverage-report/Summary.txt
-            ${{ env.SONAR_REPORT_DIR }}/**
+          name: sonar-summary
+          path: artifacts/sonarqube/context-summary.md
           if-no-files-found: warn
           retention-days: 7

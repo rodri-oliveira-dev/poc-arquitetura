@@ -23,7 +23,7 @@ A analise via CI e a abordagem correta neste repositorio porque a cobertura .NET
 
 O token de analise deve ser criado no SonarQube Cloud e salvo somente como secret no GitHub Actions. O token nao deve ser commitado, exibido em logs, documentado com valor real ou colocado em arquivos locais versionados.
 
-## Preparacao para analise por contexto
+## Analise por contexto
 
 A fonte de verdade versionada para a configuracao de analise Sonar por contexto fica em:
 
@@ -31,7 +31,7 @@ A fonte de verdade versionada para a configuracao de analise Sonar por contexto 
 scripts/quality/sonar-contexts.json
 ```
 
-Ela define `solution`, `projectKey`, `projectName`, `resultsDir`, `sonarReportDir` e `coverageReportPattern` para o projeto global atual e para os contextos futuros `ledger`, `balance`, `transfer`, `identity`, `audit` e `shared`.
+Ela define `solution`, `projectKey`, `projectName`, `resultsDir`, `sonarReportDir` e `coverageReportPattern` para o projeto global atual e para os contextos `ledger`, `balance`, `transfer`, `identity`, `audit` e `shared`.
 
 O resolvedor reutilizavel e:
 
@@ -39,7 +39,9 @@ O resolvedor reutilizavel e:
 scripts/quality/sonar_context.py
 ```
 
-O workflow principal executa a analise global e, durante o piloto incremental, tambem executa uma analise isolada do contexto `transfer`. Os demais contextos permanecem apenas configurados no mapa e nao rodam analise propria nesta etapa.
+O workflow principal executa a analise contextual por matrix chamando o reusable workflow `.github/workflows/sonarqube-context.yml`. Cada contexto roda em job isolado, com solution, Project Key, diretorio de resultados, diretorio Sonar e artifact proprios.
+
+O projeto global permanece temporariamente para comparacao durante a migracao. Para evitar custo excessivo enquanto a matrix contextual roda completa, a analise global em `.github/workflows/dotnet.yml` roda apenas em `push` para `main` e em `workflow_dispatch`; em PR, o workflow executa todos os contextos temporariamente ate a etapa futura de selecao por paths.
 
 | Contexto | Solution | Project Key proposto | Results Dir | Sonar Report Dir |
 | --- | --- | --- | --- | --- |
@@ -53,17 +55,17 @@ O workflow principal executa a analise global e, durante o piloto incremental, t
 
 Os projetos contextuais precisam existir no SonarQube Cloud antes de qualquer analise real desses contextos. Nao habilite Automatic Analysis nesses projetos; mantenha CI Analysis como metodo esperado.
 
-Para o piloto Transfer, valide externamente antes de exigir o job como gate obrigatorio:
+Valide externamente antes de exigir os jobs contextuais como gates obrigatorios:
 
-- projeto SonarQube Cloud criado com Project Key `rodri-oliveira-dev_poc-arquitetura-transfer`;
+- projetos SonarQube Cloud criados com os seis Project Keys contextuais listados na tabela;
 - Organization Key `rodri-oliveira-dev`;
 - Automatic Analysis desabilitada;
-- Quality Gate organizacional/padrao configurado;
-- New Code Definition configurada;
-- token em `secrets.SONAR_TOKEN` com permissao de Execute Analysis para o projeto Transfer, ou token apropriado equivalente;
+- mesmo Quality Gate inicial configurado para os seis projetos;
+- New Code Definition coerente entre os seis projetos;
+- token em `secrets.SONAR_TOKEN` com permissao de Execute Analysis para os seis projetos, ou token apropriado equivalente;
 - PR binding funcional entre GitHub e SonarQube Cloud.
 
-O workflow nao cria projeto remoto, nao altera permissoes e nao muda configuracao do Quality Gate. Se qualquer item acima ainda nao existir no SonarQube Cloud, o piloto fica bloqueado externamente ate a configuracao ser concluida.
+O workflow nao cria projeto remoto, nao altera permissoes e nao muda configuracao do Quality Gate. Se qualquer item acima ainda nao existir no SonarQube Cloud, a analise contextual correspondente fica bloqueada externamente ate a configuracao ser concluida.
 
 ## Configuracao no GitHub
 
@@ -96,23 +98,23 @@ A ordem correta do job global no workflow principal e:
 
 O `begin` do SonarQube Cloud precisa ocorrer antes do build. O `end` precisa ocorrer depois dos testes com cobertura para que o scanner consiga enviar a analise e importar o relatorio OpenCover.
 
-O job piloto `sonar-transfer-pilot` preserva o mesmo boundary para Transfer:
+Cada job contextual preserva o mesmo boundary:
 
 1. checkout com historico completo (`fetch-depth: 0`);
 2. setup .NET e restore das tools locais;
-3. resolucao do contexto `transfer` em `scripts/quality/sonar-contexts.json`;
-4. restore de `TransferService.slnx`;
+3. validacao da configuracao recebida contra `scripts/quality/sonar-contexts.json`;
+4. restore da solution contextual;
 5. validacao de `SONAR_TOKEN`;
-6. SonarQube Cloud begin com Project Key `rodri-oliveira-dev_poc-arquitetura-transfer`;
-7. build de `TransferService.slnx`;
-8. testes de `TransferService.slnx` com cobertura em `artifacts/test-results/transfer`;
+6. SonarQube Cloud begin com o Project Key contextual;
+7. build da solution contextual;
+8. testes da solution contextual com cobertura no diretorio contextual;
 9. validacao de Cobertura e OpenCover contextuais;
 10. SonarQube Cloud end com `sonar.qualitygate.wait=true`;
-11. geracao do report da API em `artifacts/sonarqube/transfer`;
+11. geracao do report da API no diretorio Sonar contextual;
 12. geracao de summary contextual de cobertura sem aplicar threshold;
-13. upload do artifact `sonar-transfer`.
+13. upload do artifact contextual.
 
-O build usado pela analise Transfer acontece dentro do boundary do scanner Transfer. O job roda em workspace isolado do job global; nao ha duas analises Sonar abertas no mesmo workspace.
+O build usado por cada analise acontece dentro do boundary do scanner daquele contexto. Cada job roda em workspace isolado; nao ha duas analises Sonar abertas no mesmo workspace.
 
 ## Cobertura de testes
 
@@ -129,7 +131,7 @@ sonar.cs.opencover.reportsPaths="./artifacts/test-results/**/coverage.opencover.
 
 Nao use cobertura generica do Sonar para este caso. Para C#/.NET, a importacao deve usar `sonar.cs.opencover.reportsPaths` apontando para os arquivos OpenCover gerados pelo Coverlet.
 
-Para analises contextuais futuras, use o padrao isolado do respectivo contexto, por exemplo:
+Para analises contextuais, use o padrao isolado do respectivo contexto, por exemplo:
 
 ```text
 sonar.cs.opencover.reportsPaths="./artifacts/test-results/transfer/**/coverage.opencover.xml"
@@ -137,13 +139,15 @@ sonar.cs.opencover.reportsPaths="./artifacts/test-results/transfer/**/coverage.o
 
 Evite glob global em analises contextuais para nao importar cobertura de outra solution.
 
-No piloto Transfer, o scanner usa somente:
+No contexto Transfer, o scanner usa somente:
 
 ```text
 sonar.cs.opencover.reportsPaths="./artifacts/test-results/transfer/**/coverage.opencover.xml"
 ```
 
-O job tambem falha se encontrar `coverage.opencover.xml` fora de `artifacts/test-results/transfer` dentro do workspace do piloto. Isso protege a validacao contra contaminacao por cobertura global ou de outro contexto.
+O reusable workflow falha se encontrar `coverage.opencover.xml` fora do diretorio contextual dentro do workspace do job. Isso protege a validacao contra contaminacao por cobertura global ou de outro contexto.
+
+Os contextos de servico excluem `src/Shared/**` e `tests/Shared/**` de `sonar.exclusions`; o contexto `shared` e o dono explicito da analise desses sources. Essa regra evita duplicar ownership de Shared em Ledger, Balance, Transfer, Identity e Audit enquanto preserva a analise independente de `PocArquitetura.Shared.slnx`.
 
 O scanner mantem a deteccao geral de credenciais hard-coded ativa, mas ignora issues somente em linhas cujo contexto pareca credencial e cujo valor seja um placeholder uppercase de secret entre `<...>`, como `Password=<LEDGER_DB_PASSWORD>`, `KEYCLOAK_CLIENT_SECRET=<KEYCLOAK_CLIENT_SECRET>` ou `--token "<TOKEN>"`. Essa supressao cobre os placeholders versionados em `.env.example`, `.env.local.example`, `appsettings*.json` e exemplos operacionais em `docs/`, sem excluir arquivos inteiros da analise. O trade-off e que o Sonar ignora todas as issues na linha que casar com esse padrao, por isso o regex e restrito a placeholders uppercase com sufixo de secret. Valores reais ou literais, como `Password=postgres`, `Password=123456`, `Password=localpassword` ou `Password=my-secret`, continuam fora desse padrao e devem ser tratados como achados reais.
 
@@ -205,7 +209,7 @@ Por default, o workflow passa esses valores por variaveis resolvidas a partir de
 
 ## Artifact do GitHub Actions
 
-O workflow publica o artifact global `test-results-coverage-and-sonarqube` por 7 dias.
+O workflow publica o artifact global `test-results-coverage-and-sonarqube` por 7 dias quando a analise global roda.
 
 Para baixar:
 
@@ -223,18 +227,36 @@ Esse artifact contem:
 - alias do resumo em `artifacts/sonarqube/report.md`;
 - JSONs retornados pela API do SonarQube Cloud em `artifacts/sonarqube/*.json`.
 
-Durante o piloto, o job `sonar-transfer-pilot` tambem publica o artifact `sonar-transfer` por 7 dias, contendo:
+Os jobs contextuais publicam artifacts independentes por 7 dias:
 
-- resultados `.trx` de Transfer;
-- `coverage.cobertura.xml` de Transfer;
-- `coverage.opencover.xml` de Transfer;
-- `artifacts/test-results/transfer/coverage-report/Summary.json`;
-- `artifacts/test-results/transfer/coverage-report/Summary.txt`;
-- `artifacts/sonarqube/transfer/quality-gate.json`;
-- `artifacts/sonarqube/transfer/measures.json`;
-- `artifacts/sonarqube/transfer/issues.json`;
-- `artifacts/sonarqube/transfer/sonarqube-cloud-report.md`;
-- `artifacts/sonarqube/transfer/report.md`.
+- `sonar-ledger`;
+- `sonar-balance`;
+- `sonar-transfer`;
+- `sonar-identity`;
+- `sonar-audit`;
+- `sonar-shared`.
+
+Cada artifact contem:
+
+- resultados `.trx` do contexto;
+- `coverage.cobertura.xml` do contexto;
+- `coverage.opencover.xml` do contexto;
+- `coverage-report/Summary.json`;
+- `coverage-report/Summary.txt`;
+- `quality-gate.json`;
+- `measures.json`;
+- `issues.json`;
+- `sonarqube-cloud-report.md`;
+- `report.md`.
+
+O job final `sonar-summary` baixa os artifacts `sonar-*` disponiveis e publica uma tabela consolidada com Contexto, Quality Gate, Coverage, Bugs, Vulnerabilities e Code Smells. O resumo distingue:
+
+- `PASSED`: Quality Gate remoto OK;
+- `FAILED`: Quality Gate remoto reprovado;
+- `SKIPPED`: contexto nao selecionado em `workflow_dispatch`;
+- `UNAVAILABLE`: artifact ou API indisponivel.
+
+O summary e diagnostico; a falha de qualquer job contextual continua falhando o workflow por meio do resultado normal da matrix.
 
 O relatorio do GitHub Actions e apenas um snapshot da execucao do CI. Ele facilita triagem no proprio workflow, mas nao substitui o dashboard oficial do SonarQube Cloud, que continua sendo a fonte principal para historico, detalhes navegaveis, configuracao de quality gate, regras, tendencias e estado mais recente do projeto.
 
@@ -251,36 +273,36 @@ As permissoes declaradas sao minimas para leitura do repositorio e contexto do p
 - `contents: read`;
 - `pull-requests: read`.
 
-O job global publica o artifact `test-results-coverage-and-sonarqube` por 7 dias com resultados `.trx`, arquivos `coverage.cobertura.xml`, arquivos `coverage.opencover.xml`, summaries do ReportGenerator e o snapshot resumido do SonarQube Cloud.
+O job global publica o artifact `test-results-coverage-and-sonarqube` por 7 dias com resultados `.trx`, arquivos `coverage.cobertura.xml`, arquivos `coverage.opencover.xml`, summaries do ReportGenerator e o snapshot resumido do SonarQube Cloud. Ele fica restrito a `push` para `main` e `workflow_dispatch` durante a janela de comparacao.
 
-O piloto Transfer roda nos mesmos triggers do workflow enquanto a comparacao estiver ativa:
+A matrix contextual roda em:
 
-- `pull_request` para `main`, respeitando os `paths-ignore` atuais do workflow;
-- `workflow_dispatch`;
-- `push` para `main`.
+- `pull_request` para `main`, respeitando os `paths-ignore` atuais do workflow e executando todos os seis contextos temporariamente;
+- `workflow_dispatch`, executando todos os contextos ou um contexto selecionado pelo input `sonar_context`;
+- `push` para `main`, executando todos os seis contextos.
 
-Nesta etapa nao ha selecao granular por paths de Transfer, porque o objetivo e validar o pipeline contextual antes de otimizar custo.
+Nesta etapa nao ha selecao granular por paths no PR, porque o objetivo e validar o pipeline contextual antes de otimizar custo. Essa otimizacao pertence a etapa seguinte da migracao.
 
-## Comparacao do piloto Transfer
+## Comparacao durante a migracao
 
-Compare o artifact global `test-results-coverage-and-sonarqube`, o artifact `sonar-transfer` e os dashboards SonarQube Cloud dos projetos:
+Compare o artifact global `test-results-coverage-and-sonarqube`, os artifacts contextuais `sonar-*` e os dashboards SonarQube Cloud dos projetos:
 
 - global: `rodri-oliveira-dev_poc-arquitetura`;
-- Transfer: `rodri-oliveira-dev_poc-arquitetura-transfer`.
+- contextuais: `rodri-oliveira-dev_poc-arquitetura-ledger`, `rodri-oliveira-dev_poc-arquitetura-balance`, `rodri-oliveira-dev_poc-arquitetura-transfer`, `rodri-oliveira-dev_poc-arquitetura-identity`, `rodri-oliveira-dev_poc-arquitetura-audit` e `rodri-oliveira-dev_poc-arquitetura-shared`.
 
 Pontos de comparacao:
 
 - arquivos source atribuidos a cada projeto;
-- cobertura importada em Transfer versus cobertura global;
+- cobertura importada em cada contexto versus cobertura global;
 - issues abertas e severidade;
 - metricas principais em `measures.json`;
 - status e condicoes do Quality Gate;
-- tempo do job global versus `sonar-transfer-pilot`;
+- tempo do job global versus jobs contextuais;
 - runner-minutes observaveis na execucao do GitHub Actions;
 - existencia de source duplicado inesperado;
-- ausencia de cobertura contaminada fora de `artifacts/test-results/transfer`.
+- ausencia de cobertura contaminada fora de `artifacts/test-results/{context}`.
 
-Os percentuais de cobertura nao precisam ser iguais. O projeto global usa a solution agregadora e tem denominador maior; o projeto Transfer usa `TransferService.slnx`, testes e fontes atribuiveis ao contexto Transfer.
+Os percentuais de cobertura nao precisam ser iguais. O projeto global usa a solution agregadora e tem denominador maior; cada projeto contextual usa sua solution, testes e fontes atribuiveis ao proprio contexto.
 
 ## Ferramentas locais
 
