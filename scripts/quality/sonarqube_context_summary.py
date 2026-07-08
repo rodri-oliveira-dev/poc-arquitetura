@@ -77,10 +77,14 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Consolida artifacts SonarQube contextuais.")
     parser.add_argument("--artifacts-dir", default="downloaded-sonar-artifacts", type=pathlib.Path)
     parser.add_argument("--selected-context", default="all")
+    parser.add_argument("--expected-contexts", default="")
     parser.add_argument("--output", default="")
     args = parser.parse_args()
 
-    expected_contexts = set(CONTEXTS if args.selected_context == "all" else [args.selected_context])
+    if args.expected_contexts:
+        expected_contexts = {context.strip() for context in args.expected_contexts.split(",") if context.strip()}
+    else:
+        expected_contexts = set(CONTEXTS if args.selected_context == "all" else [args.selected_context])
     rows = []
 
     for context in CONTEXTS:
@@ -91,11 +95,12 @@ def main() -> int:
         rows.append(
             [
                 context.capitalize(),
+                "RUN" if expected else "SKIPPED",
                 quality_gate_status(quality_gate, expected),
-                metric_value(measures, "coverage") if expected else "SKIPPED",
-                metric_value(measures, "bugs") if expected else "SKIPPED",
-                metric_value(measures, "vulnerabilities") if expected else "SKIPPED",
-                metric_value(measures, "code_smells") if expected else "SKIPPED",
+                metric_value(measures, "coverage") if expected else "-",
+                metric_value(measures, "bugs") if expected else "-",
+                metric_value(measures, "vulnerabilities") if expected else "-",
+                metric_value(measures, "code_smells") if expected else "-",
             ]
         )
 
@@ -103,10 +108,10 @@ def main() -> int:
         [
             "## SonarQube contextual consolidado",
             "",
-            markdown_table(["Contexto", "Quality Gate", *METRICS.values()], rows),
+            markdown_table(["Contexto", "Execucao", "Quality Gate", *METRICS.values()], rows),
             "",
             "Estados: `PASSED` significa Quality Gate OK; `FAILED` significa Quality Gate remoto reprovado; "
-            "`SKIPPED` significa contexto nao selecionado nesta execucao manual; `UNAVAILABLE` significa artifact ou API indisponivel.",
+            "`SKIPPED` significa contexto nao selecionado nesta execucao; `UNAVAILABLE` significa artifact ou API indisponivel.",
             "",
         ]
     )

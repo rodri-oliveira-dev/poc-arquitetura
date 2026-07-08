@@ -41,7 +41,7 @@ scripts/quality/sonar_context.py
 
 O workflow principal executa a analise contextual por matrix chamando o reusable workflow `.github/workflows/sonarqube-context.yml`. Cada contexto roda em job isolado, com solution, Project Key, diretorio de resultados, diretorio Sonar e artifact proprios.
 
-O projeto global permanece temporariamente para comparacao durante a migracao. Para evitar custo excessivo enquanto a matrix contextual roda completa, a analise global em `.github/workflows/dotnet.yml` roda apenas em `push` para `main` e em `workflow_dispatch`; em PR, o workflow executa todos os contextos temporariamente ate a etapa futura de selecao por paths.
+O projeto global permanece temporariamente para comparacao durante a migracao. Para evitar custo excessivo, a analise global em `.github/workflows/dotnet.yml` roda apenas em `push` para `main` e em `workflow_dispatch` com `sonar_context=all`. Em PR, o workflow executa somente os contextos Sonar impactados pelos paths alterados.
 
 | Contexto | Solution | Project Key proposto | Results Dir | Sonar Report Dir |
 | --- | --- | --- | --- | --- |
@@ -66,6 +66,28 @@ Valide externamente antes de exigir os jobs contextuais como gates obrigatorios:
 - PR binding funcional entre GitHub e SonarQube Cloud.
 
 O workflow nao cria projeto remoto, nao altera permissoes e nao muda configuracao do Quality Gate. Se qualquer item acima ainda nao existir no SonarQube Cloud, a analise contextual correspondente fica bloqueada externamente ate a configuracao ser concluida.
+
+## Selecao contextual em Pull Requests
+
+O job `detect-sonar-contexts` calcula a matriz contextual de PRs com `scripts/quality/sonar_context_impact.py`. O script reutiliza `scripts/quality/sonar-contexts.json` para montar solution, Project Key, diretorios de resultado e artifact de cada contexto, evitando uma segunda matriz Sonar hardcoded no workflow.
+
+Matriz de paths para ownership Sonar em PR:
+
+| Paths | Contexto Sonar |
+| --- | --- |
+| `src/ledger/**`, `tests/ledger/**`, `LedgerService.slnx`, `tools/ComposeEnvGen/**` | `ledger` |
+| `src/balance/**`, `tests/balance/**`, `BalanceService.slnx` | `balance` |
+| `src/transfer/**`, `tests/transfer/**`, `TransferService.slnx` | `transfer` |
+| `src/identity/**`, `tests/identity/**`, `IdentityService.slnx` | `identity` |
+| `src/audit/**`, `tests/audit/**`, `AuditService.slnx` | `audit` |
+| `src/Shared/**`, `tests/Shared/**`, `PocArquitetura.Shared.slnx`, `src/Shared/Directory.*` | `shared` |
+| `global.json`, `NuGet.config`, `Directory.Build.props`, `Directory.Build.targets`, `Directory.Packages.props`, `.editorconfig`, `.globalconfig`, `coverlet.runsettings`, `.github/actions/setup-dotnet/**`, `.github/workflows/dotnet.yml`, `.github/workflows/sonarqube-context.yml`, `scripts/quality/sonar-contexts.json`, `scripts/quality/sonar_context.py`, `scripts/quality/sonar_context_impact.py`, `scripts/quality/sonarqube_cloud_report.py`, `scripts/quality/sonarqube_context_summary.py` | todos |
+| `contracts/events/**` | nenhum ownership Sonar contextual automatico |
+| `docs/**`, `*.md`, imagens de documentacao | nenhum |
+
+Mudancas em Shared executam apenas o projeto Sonar `shared` em PR. Os consumidores nao sao propagados automaticamente porque a execucao completa em `main` mantem dashboards de Ledger, Balance, Transfer, Identity e Audit atualizados sem duplicar ownership de source compartilhado.
+
+Mudancas em `contracts/events/**` continuam separadas conceitualmente: a validacao de schema fica no workflow `event-contract-validation`, e o build/test impactante e coberto pelo gate `pr-build-and-test` via solution agregadora. Esses paths nao selecionam Ledger ou Balance para analise Sonar contextual, evitando atribuir artificialmente ownership Sonar dos contratos a dois projetos.
 
 ## Configuracao no GitHub
 
@@ -277,11 +299,11 @@ O job global publica o artifact `test-results-coverage-and-sonarqube` por 7 dias
 
 A matrix contextual roda em:
 
-- `pull_request` para `main`, respeitando os `paths-ignore` atuais do workflow e executando todos os seis contextos temporariamente;
+- `pull_request` para `main`, respeitando os `paths-ignore` documentais e executando apenas os contextos impactados;
 - `workflow_dispatch`, executando todos os contextos ou um contexto selecionado pelo input `sonar_context`;
 - `push` para `main`, executando todos os seis contextos.
 
-Nesta etapa nao ha selecao granular por paths no PR, porque o objetivo e validar o pipeline contextual antes de otimizar custo. Essa otimizacao pertence a etapa seguinte da migracao.
+Em `push` para `main` nao ha seletividade: os seis contextos rodam para manter dashboards, historico e Quality Gates recentes mesmo quando algum PR anterior executou apenas parte da matriz.
 
 ## Comparacao durante a migracao
 

@@ -12,9 +12,6 @@ on:
       - "**/*.gif"
       - "**/*.svg"
       - "**/*.webp"
-      - "src/Shared/**"
-      - "tests/Shared/**"
-      - "PocArquitetura.Shared.slnx"
   pull_request:
     branches: ["main"]
     types: [opened, synchronize, reopened]
@@ -27,9 +24,6 @@ on:
       - "**/*.gif"
       - "**/*.svg"
       - "**/*.webp"
-      - "src/Shared/**"
-      - "tests/Shared/**"
-      - "PocArquitetura.Shared.slnx"
   workflow_dispatch:
     inputs:
       sonar_context:
@@ -72,7 +66,7 @@ env:
 jobs:
   build-test:
     name: Build, test and coverage
-    if: ${{ github.event_name != 'pull_request' }}
+    if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.sonar_context == 'all') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -318,93 +312,85 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
-  sonar-context-matrix:
-    name: Resolve SonarQube contextual matrix
+  detect-sonar-contexts:
+    name: Detect SonarQube contextual impact
     runs-on: ubuntu-latest
     outputs:
-      matrix: ${{ steps.matrix.outputs.matrix }}
+      ledger: ${{ steps.detect.outputs.ledger }}
+      balance: ${{ steps.detect.outputs.balance }}
+      transfer: ${{ steps.detect.outputs.transfer }}
+      identity: ${{ steps.detect.outputs.identity }}
+      audit: ${{ steps.detect.outputs.audit }}
+      shared: ${{ steps.detect.outputs.shared }}
+      all: ${{ steps.detect.outputs.all }}
+      has_contexts: ${{ steps.detect.outputs.has_contexts }}
+      selected_contexts: ${{ steps.detect.outputs.selected_contexts }}
+      matrix: ${{ steps.detect.outputs.matrix }}
+      summary_json: ${{ steps.detect.outputs.summary_json }}
 
     steps:
-      - name: Resolve matrix
-        id: matrix
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Detect changed files
+        if: ${{ github.event_name == 'pull_request' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! gh api --paginate "repos/$REPOSITORY/pulls/$PR_NUMBER/files" --jq '.[] | .filename, (.previous_filename // empty)' > changed-files.txt; then
+            echo "Could not detect pull request files. Running all contextual SonarQube analyses."
+            echo ".github/workflows/dotnet.yml" > changed-files.txt
+          fi
+
+      - name: Resolve contextual impact
+        id: detect
         shell: bash
         env:
+          EVENT_NAME: ${{ github.event_name }}
           SELECTED_CONTEXT: ${{ github.event_name == 'workflow_dispatch' && inputs.sonar_context || 'all' }}
         run: |
-          python - <<'PY' >> "$GITHUB_OUTPUT"
+          args=(--event-name "$EVENT_NAME" --selected-context "$SELECTED_CONTEXT" --format github-output)
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            args+=(--files-from changed-files.txt)
+          fi
+
+          python scripts/quality/sonar_context_impact.py "${args[@]}" >> "$GITHUB_OUTPUT"
+
+      - name: Write impact summary
+        shell: bash
+        env:
+          SUMMARY_JSON: ${{ steps.detect.outputs.summary_json }}
+        run: |
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
           import json
           import os
 
-          contexts = [
-              {
-                  "context": "ledger",
-                  "solution": "./LedgerService.slnx",
-                  "project-key": "rodri-oliveira-dev_poc-arquitetura-ledger",
-                  "project-name": "poc-arquitetura-ledger",
-                  "results-dir": "./artifacts/test-results/ledger",
-                  "sonar-dir": "./artifacts/sonarqube/ledger",
-                  "artifact-name": "sonar-ledger",
-              },
-              {
-                  "context": "balance",
-                  "solution": "./BalanceService.slnx",
-                  "project-key": "rodri-oliveira-dev_poc-arquitetura-balance",
-                  "project-name": "poc-arquitetura-balance",
-                  "results-dir": "./artifacts/test-results/balance",
-                  "sonar-dir": "./artifacts/sonarqube/balance",
-                  "artifact-name": "sonar-balance",
-              },
-              {
-                  "context": "transfer",
-                  "solution": "./TransferService.slnx",
-                  "project-key": "rodri-oliveira-dev_poc-arquitetura-transfer",
-                  "project-name": "poc-arquitetura-transfer",
-                  "results-dir": "./artifacts/test-results/transfer",
-                  "sonar-dir": "./artifacts/sonarqube/transfer",
-                  "artifact-name": "sonar-transfer",
-              },
-              {
-                  "context": "identity",
-                  "solution": "./IdentityService.slnx",
-                  "project-key": "rodri-oliveira-dev_poc-arquitetura-identity",
-                  "project-name": "poc-arquitetura-identity",
-                  "results-dir": "./artifacts/test-results/identity",
-                  "sonar-dir": "./artifacts/sonarqube/identity",
-                  "artifact-name": "sonar-identity",
-              },
-              {
-                  "context": "audit",
-                  "solution": "./AuditService.slnx",
-                  "project-key": "rodri-oliveira-dev_poc-arquitetura-audit",
-                  "project-name": "poc-arquitetura-audit",
-                  "results-dir": "./artifacts/test-results/audit",
-                  "sonar-dir": "./artifacts/sonarqube/audit",
-                  "artifact-name": "sonar-audit",
-              },
-              {
-                  "context": "shared",
-                  "solution": "./PocArquitetura.Shared.slnx",
-                  "project-key": "rodri-oliveira-dev_poc-arquitetura-shared",
-                  "project-name": "poc-arquitetura-shared",
-                  "results-dir": "./artifacts/test-results/shared",
-                  "sonar-dir": "./artifacts/sonarqube/shared",
-                  "artifact-name": "sonar-shared",
-              },
-          ]
+          payload = json.loads(os.environ["SUMMARY_JSON"])
+          selected = payload["selectedContexts"]
+          skipped = payload["skippedContexts"]
 
-          selected = os.environ["SELECTED_CONTEXT"]
-          if selected != "all":
-              contexts = [context for context in contexts if context["context"] == selected]
-
-          print("matrix=" + json.dumps({"include": contexts}, separators=(",", ":")))
+          print("## Impacto SonarQube contextual")
+          print()
+          print("- Executados: " + (", ".join(selected) if selected else "nenhum"))
+          print("- Skipped: " + (", ".join(skipped) if skipped else "nenhum"))
+          print()
+          print("| Path | Decisao |")
+          print("| --- | --- |")
+          for reason in payload["reasons"]:
+              print(f"| `{reason['path']}` | {reason['reason']} |")
           PY
 
   sonar-contextual:
     name: SonarQube ${{ matrix.context }}
-    needs: [sonar-context-matrix]
+    if: ${{ needs.detect-sonar-contexts.outputs.has_contexts == 'true' }}
+    needs: [detect-sonar-contexts]
     strategy:
       fail-fast: false
-      matrix: ${{ fromJson(needs.sonar-context-matrix.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.detect-sonar-contexts.outputs.matrix) }}
     uses: ./.github/workflows/sonarqube-context.yml
     with:
       context: ${{ matrix.context }}
@@ -420,7 +406,7 @@ jobs:
   sonar-summary:
     name: SonarQube contextual summary
     if: ${{ always() }}
-    needs: [sonar-contextual]
+    needs: [detect-sonar-contexts, sonar-contextual]
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
@@ -439,10 +425,12 @@ jobs:
         shell: bash
         env:
           SELECTED_CONTEXT: ${{ github.event_name == 'workflow_dispatch' && inputs.sonar_context || 'all' }}
+          EXPECTED_CONTEXTS: ${{ needs.detect-sonar-contexts.outputs.selected_contexts }}
         run: |
           python scripts/quality/sonarqube_context_summary.py \
             --artifacts-dir downloaded-sonar-artifacts \
             --selected-context "$SELECTED_CONTEXT" \
+            --expected-contexts "$EXPECTED_CONTEXTS" \
             --output artifacts/sonarqube/context-summary.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload consolidated SonarQube summary
