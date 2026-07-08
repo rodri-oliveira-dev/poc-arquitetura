@@ -1,0 +1,58 @@
+{
+  "global": {
+    "solution": "PocArquitetura.slnx",
+    "projectKey": "rodri-oliveira-dev_poc-arquitetura",
+    "projectName": "poc-arquitetura",
+    "resultsDir": "artifacts/test-results",
+    "sonarReportDir": "artifacts/sonarqube",
+    "coverageReportPattern": "artifacts/test-results/**/coverage.opencover.xml"
+  },
+  "ledger": {
+    "solution": "LedgerService.slnx",
+    "projectKey": "rodri-oliveira-dev_poc-arquitetura-ledger",
+    "projectName": "poc-arquitetura-ledger",
+    "resultsDir": "artifacts/test-results/ledger",
+    "sonarReportDir": "artifacts/sonarqube/ledger",
+    "coverageReportPattern": "artifacts/test-results/ledger/**/coverage.opencover.xml"
+  },
+  "balance": {
+    "solution": "BalanceService.slnx",
+    "projectKey": "rodri-oliveira-dev_poc-arquitetura-balance",
+    "projectName": "poc-arquitetura-balance",
+    "resultsDir": "artifacts/test-results/balance",
+    "sonarReportDir": "artifacts/sonarqube/balance",
+    "coverageReportPattern": "artifacts/test-results/balance/**/coverage.opencover.xml"
+  },
+  "transfer": {
+    "solution": "TransferService.slnx",
+    "projectKey": "rodri-oliveira-dev_poc-arquitetura-transfer",
+    "projectName": "poc-arquitetura-transfer",
+    "resultsDir": "artifacts/test-results/transfer",
+    "sonarReportDir": "artifacts/sonarqube/transfer",
+    "coverageReportPattern": "artifacts/test-results/transfer/**/coverage.opencover.xml"
+  },
+  "identity": {
+    "solution": "IdentityService.slnx",
+    "projectKey": "rodri-oliveira-dev_poc-arquitetura-identity",
+    "projectName": "poc-arquitetura-identity",
+    "resultsDir": "artifacts/test-results/identity",
+    "sonarReportDir": "artifacts/sonarqube/identity",
+    "coverageReportPattern": "artifacts/test-results/identity/**/coverage.opencover.xml"
+  },
+  "audit": {
+    "solution": "AuditService.slnx",
+    "projectKey": "rodri-oliveira-dev_poc-arquitetura-audit",
+    "projectName": "poc-arquitetura-audit",
+    "resultsDir": "artifacts/test-results/audit",
+    "sonarReportDir": "artifacts/sonarqube/audit",
+    "coverageReportPattern": "artifacts/test-results/audit/**/coverage.opencover.xml"
+  },
+  "shared": {
+    "solution": "PocArquitetura.Shared.slnx",
+    "projectKey": "rodri-oliveira-dev_poc-arquitetura-shared",
+    "projectName": "poc-arquitetura-shared",
+    "resultsDir": "artifacts/test-results/shared",
+    "sonarReportDir": "artifacts/sonarqube/shared",
+    "coverageReportPattern": "artifacts/test-results/shared/**/coverage.opencover.xml"
+  }
+}

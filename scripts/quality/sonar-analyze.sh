@@ -7,14 +7,19 @@ SCRIPTS_LIB_DIR="$SCRIPT_DIR/../lib"
 . "$SCRIPTS_LIB_DIR/common.sh"
 REPO_ROOT="$(resolve_repo_root "$SCRIPT_DIR")"
 
-PROJECT_KEY="poc-arquitetura"
-PROJECT_NAME="poc-arquitetura"
-SOLUTION_PATH="$REPO_ROOT/PocArquitetura.slnx"
+SONAR_CONTEXT="${1:-${SONAR_CONTEXT:-global}}"
+CONTEXT_ENV="$(python "$SCRIPT_DIR/sonar_context.py" "$SONAR_CONTEXT" --format shell)"
+eval "$CONTEXT_ENV"
+
+PROJECT_KEY="${SONAR_PROJECT_KEY:-poc-arquitetura}"
+PROJECT_NAME="${SONAR_PROJECT_NAME:-poc-arquitetura}"
+SOLUTION_PATH="$REPO_ROOT/${SOLUTION_PATH#./}"
 RUNSETTINGS_PATH="$REPO_ROOT/coverlet.runsettings"
 BUILD_CONFIGURATION="${BUILD_CONFIGURATION:-Release}"
 SONAR_HOST_URL="${SONAR_HOST_URL:-http://localhost:9000}"
 DEFAULT_TEST_RESULTS_DIR="$REPO_ROOT/artifacts/test-results"
-TEST_RESULTS_DIR="${TEST_RESULTS_DIR:-$DEFAULT_TEST_RESULTS_DIR}"
+TEST_RESULTS_DIR="${TEST_RESULTS_DIR:-$REPO_ROOT/${TEST_RESULTS_DIR#./}}"
+SONAR_OPENCOVER_REPORTS_PATHS="${SONAR_OPENCOVER_REPORTS_PATHS:-${TEST_RESULTS_DIR}/**/coverage.opencover.xml}"
 SONAR_PLACEHOLDER_SECRET_LINE_REGEX='.*(PASSWORD|[Pp]assword|PWD|PGPASSWORD|CLIENT_SECRET|[Cc]lient[_-]?[Ss]ecret|SECRET|[Ss]ecret|TOKEN|[Tt]oken|API[_-]?KEY|[Aa]pi[_-]?[Kk]ey).*<[A-Z0-9_]*(PASSWORD|SECRET|TOKEN|API_KEY)[A-Z0-9_]*>.*'
 
 if [[ -z "${SONAR_TOKEN:-}" ]]; then
@@ -54,7 +59,7 @@ dotnet sonarscanner begin \
   /d:sonar.issue.ignore.block=placeholderSecrets \
   /d:sonar.issue.ignore.block.placeholderSecrets.beginBlockRegexp="$SONAR_PLACEHOLDER_SECRET_LINE_REGEX" \
   /d:sonar.issue.ignore.block.placeholderSecrets.endBlockRegexp="$SONAR_PLACEHOLDER_SECRET_LINE_REGEX" \
-  /d:sonar.cs.opencover.reportsPaths="$TEST_RESULTS_DIR/**/coverage.opencover.xml"
+  /d:sonar.cs.opencover.reportsPaths="$SONAR_OPENCOVER_REPORTS_PATHS"
 
 echo "==> Building $SOLUTION_PATH with configuration $BUILD_CONFIGURATION"
 dotnet build "$SOLUTION_PATH" \

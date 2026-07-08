@@ -22,7 +22,8 @@ Conteudo publicado:
 - `artifacts/sonarqube/quality-gate.json`;
 - `artifacts/sonarqube/measures.json`;
 - `artifacts/sonarqube/issues.json`;
-- `artifacts/sonarqube/sonarqube-cloud-report.md`.
+- `artifacts/sonarqube/sonarqube-cloud-report.md`;
+- `artifacts/sonarqube/report.md`.
 
 Motivo:
 

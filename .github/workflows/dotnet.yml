@@ -44,6 +44,13 @@ env:
   CI: true
   DOTNET_NOLOGO: true
   BUILD_CONFIGURATION: Release
+  SONAR_CONTEXT: global
+  SONAR_ORGANIZATION_KEY: rodri-oliveira-dev
+  SONAR_HOST_URL: https://sonarcloud.io
+  SONAR_PROJECT_KEY: rodri-oliveira-dev_poc-arquitetura
+  SONAR_PROJECT_NAME: poc-arquitetura
+  SONAR_REPORT_DIR: ./artifacts/sonarqube
+  SONAR_OPENCOVER_REPORTS_PATHS: ./artifacts/test-results/**/coverage.opencover.xml
   SOLUTION_PATH: ./PocArquitetura.slnx
   TEST_RESULTS_DIR: ./artifacts/test-results
   COVERAGE_THRESHOLD: "85"
@@ -64,6 +71,10 @@ jobs:
         uses: ./.github/actions/setup-dotnet
         with:
           restore-tools: "true"
+
+      - name: Resolve SonarQube analysis context
+        shell: bash
+        run: python scripts/quality/sonar_context.py "$SONAR_CONTEXT" --format github-env >> "$GITHUB_ENV"
 
       - name: Restore dependencies
         run: >
@@ -132,11 +143,12 @@ jobs:
           SONAR_PLACEHOLDER_SECRET_LINE_REGEX: ".*(PASSWORD|[Pp]assword|PWD|PGPASSWORD|CLIENT_SECRET|[Cc]lient[_-]?[Ss]ecret|SECRET|[Ss]ecret|TOKEN|[Tt]oken|API[_-]?KEY|[Aa]pi[_-]?[Kk]ey).*<[A-Z0-9_]*(PASSWORD|SECRET|TOKEN|API_KEY)[A-Z0-9_]*>.*"
         run: >
           dotnet tool run dotnet-sonarscanner begin
-          /k:"rodri-oliveira-dev_poc-arquitetura"
-          /o:"rodri-oliveira-dev"
+          /k:"$SONAR_PROJECT_KEY"
+          /n:"$SONAR_PROJECT_NAME"
+          /o:"$SONAR_ORGANIZATION_KEY"
           /d:sonar.token="$SONAR_TOKEN"
-          /d:sonar.host.url="https://sonarcloud.io"
-          /d:sonar.cs.opencover.reportsPaths="${{ env.TEST_RESULTS_DIR }}/**/coverage.opencover.xml"
+          /d:sonar.host.url="$SONAR_HOST_URL"
+          /d:sonar.cs.opencover.reportsPaths="$SONAR_OPENCOVER_REPORTS_PATHS"
           /d:sonar.issue.ignore.block=placeholderSecrets
           /d:sonar.issue.ignore.block.placeholderSecrets.beginBlockRegexp="$SONAR_PLACEHOLDER_SECRET_LINE_REGEX"
           /d:sonar.issue.ignore.block.placeholderSecrets.endBlockRegexp="$SONAR_PLACEHOLDER_SECRET_LINE_REGEX"
@@ -157,18 +169,22 @@ jobs:
           --settings ./coverlet.runsettings
 
       - name: Validate coverage files
-        if: ${{ success() && hashFiles('artifacts/test-results/**/coverage.cobertura.xml') == '' }}
+        if: ${{ success() }}
         shell: bash
         run: |
-          echo "Testes finalizaram com sucesso, mas nenhum arquivo coverage.cobertura.xml foi gerado." >&2
-          exit 1
+          if ! find "$TEST_RESULTS_DIR" -name coverage.cobertura.xml -print -quit | grep -q .; then
+            echo "Testes finalizaram com sucesso, mas nenhum arquivo coverage.cobertura.xml foi gerado." >&2
+            exit 1
+          fi
 
       - name: Validate SonarQube coverage files
-        if: ${{ success() && hashFiles('artifacts/test-results/**/coverage.opencover.xml') == '' }}
+        if: ${{ success() }}
         shell: bash
         run: |
-          echo "Testes finalizaram com sucesso, mas nenhum arquivo coverage.opencover.xml foi gerado para o SonarQube Cloud." >&2
-          exit 1
+          if ! find "$TEST_RESULTS_DIR" -name coverage.opencover.xml -print -quit | grep -q .; then
+            echo "Testes finalizaram com sucesso, mas nenhum arquivo coverage.opencover.xml foi gerado para o SonarQube Cloud." >&2
+            exit 1
+          fi
 
       - name: SonarQube Cloud end
         if: ${{ success() }}
@@ -184,270 +200,27 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         shell: bash
         run: |
-          mkdir -p artifacts/sonarqube
-
-          python - <<'PY'
-          import base64
-          import json
-          import os
-          import pathlib
-          import sys
-          import urllib.error
-          import urllib.parse
-          import urllib.request
-
-          output_dir = pathlib.Path("artifacts/sonarqube")
-          quality_gate_path = output_dir / "quality-gate.json"
-          measures_path = output_dir / "measures.json"
-          issues_path = output_dir / "issues.json"
-          report_path = output_dir / "sonarqube-cloud-report.md"
-
-          project_key = "rodri-oliveira-dev_poc-arquitetura"
-          organization_key = "rodri-oliveira-dev"
-          sonar_token = os.environ.get("SONAR_TOKEN", "")
-          github_event_name = os.environ.get("GITHUB_EVENT_NAME", "")
-          github_event_path = os.environ.get("GITHUB_EVENT_PATH", "")
-
-          def get_pull_request_number():
-              if github_event_name != "pull_request" or not github_event_path:
-                  return None
-
-              try:
-                  with open(github_event_path, encoding="utf-8") as event_file:
-                      event = json.load(event_file)
-                  number = event.get("pull_request", {}).get("number") or event.get("number")
-                  return str(number) if number else None
-              except Exception:
-                  return None
-
-          pull_request_number = get_pull_request_number()
-          sonar_context_query = {"pullRequest": pull_request_number} if pull_request_number else {}
-          dashboard_query = {"id": project_key, **sonar_context_query}
-          dashboard_url = "https://sonarcloud.io/project/overview?" + urllib.parse.urlencode(dashboard_query)
-
-          metric_keys = [
-              "coverage",
-              "new_coverage",
-              "bugs",
-              "new_bugs",
-              "vulnerabilities",
-              "new_vulnerabilities",
-              "code_smells",
-              "new_code_smells",
-              "security_hotspots",
-              "new_security_hotspots",
-              "new_security_hotspots_reviewed",
-              "duplicated_lines_density",
-              "new_duplicated_lines_density",
-              "ncloc",
-              "reliability_rating",
-              "new_reliability_rating",
-              "security_rating",
-              "new_security_rating",
-              "sqale_rating",
-              "new_maintainability_rating",
-          ]
-
-          def write_json(path, payload):
-              path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-
-          def markdown_table(headers, rows):
-              lines = [
-                  "| " + " | ".join(headers) + " |",
-                  "| " + " | ".join("---" for _ in headers) + " |",
-              ]
-              for row in rows:
-                  lines.append("| " + " | ".join(str(cell) for cell in row) + " |")
-              return lines
-
-          def escape_cell(value):
-              return str(value if value is not None else "").replace("|", "\\|").replace("\n", " ")
-
-          def request_json(path, query):
-              url = "https://sonarcloud.io/api/" + path + "?" + urllib.parse.urlencode(query)
-              credentials = base64.b64encode(f"{sonar_token}:".encode("utf-8")).decode("ascii")
-              request = urllib.request.Request(
-                  url,
-                  headers={
-                      "Authorization": f"Basic {credentials}",
-                      "Accept": "application/json",
-                  },
-              )
-              with urllib.request.urlopen(request, timeout=30) as response:
-                  return json.loads(response.read().decode("utf-8"))
-
-          def build_report(quality_gate=None, measures=None, issues=None, error=None):
-              lines = [
-                  "# SonarQube Cloud Report",
-                  "",
-                  f"- Projeto: `{project_key}`",
-                  f"- Organizacao: `{organization_key}`",
-                  f"- Contexto: `pullRequest={pull_request_number}`" if pull_request_number else "- Contexto: `project`",
-                  f"- Dashboard: [{project_key}]({dashboard_url})",
-                  "",
-              ]
-
-              if error:
-                  lines.extend(
-                      [
-                          "## Status",
-                          "",
-                          f"Relatorio SonarQube Cloud nao gerado: {error}",
-                          "",
-                          "O workflow preservou os artifacts disponiveis e esta etapa nao bloqueou o job.",
-                          "",
-                      ]
-                  )
-                  return "\n".join(lines) + "\n"
-
-              project_status = (quality_gate or {}).get("projectStatus", {})
-              lines.extend(
-                  [
-                      "## Quality Gate",
-                      "",
-                      f"Status: **{project_status.get('status', 'UNKNOWN')}**",
-                      "",
-                      "## Metricas principais",
-                      "",
-                  ]
-              )
-
-              measures_by_key = {
-                  item.get("metric"): item.get("value", next((period.get("value", "") for period in item.get("periods", [])), ""))
-                  for item in (measures or {}).get("component", {}).get("measures", [])
-              }
-              lines.extend(markdown_table(["Metrica", "Valor"], [[key, measures_by_key.get(key, "")] for key in metric_keys]))
-              lines.extend(["", "## Condicoes do Quality Gate", ""])
-
-              condition_rows = []
-              for condition in project_status.get("conditions", []):
-                  condition_rows.append(
-                      [
-                          escape_cell(condition.get("metricKey", "")),
-                          escape_cell(condition.get("status", "")),
-                          escape_cell(condition.get("actualValue", "")),
-                          escape_cell(condition.get("comparator", "")),
-                          escape_cell(condition.get("errorThreshold", "")),
-                      ]
-                  )
-              if condition_rows:
-                  lines.extend(markdown_table(["Metrica", "Status", "Valor", "Comparador", "Limite"], condition_rows))
-              else:
-                  lines.append("Nenhuma condicao retornada pela API.")
-
-              total_issues = (issues or {}).get("total", 0)
-              lines.extend(["", "## Issues abertas", "", f"Total: **{total_issues}**", ""])
-
-              facets = {
-                  facet.get("property"): facet.get("values", [])
-                  for facet in (issues or {}).get("facets", [])
-              }
-
-              severity_rows = [
-                  [escape_cell(item.get("val", "")), escape_cell(item.get("count", 0))]
-                  for item in facets.get("severities", [])
-              ]
-              lines.extend(["### Por severidade", ""])
-              lines.extend(markdown_table(["Severidade", "Total"], severity_rows) if severity_rows else ["Nenhuma issue aberta por severidade."])
-
-              type_rows = [
-                  [escape_cell(item.get("val", "")), escape_cell(item.get("count", 0))]
-                  for item in facets.get("types", [])
-              ]
-              lines.extend(["", "### Por tipo", ""])
-              lines.extend(markdown_table(["Tipo", "Total"], type_rows) if type_rows else ["Nenhuma issue aberta por tipo."])
-
-              issue_rows = []
-              for issue in (issues or {}).get("issues", [])[:20]:
-                  component = issue.get("component", "")
-                  file_path = component.split(":", 1)[-1] if ":" in component else component
-                  issue_rows.append(
-                      [
-                          escape_cell(issue.get("severity", "")),
-                          escape_cell(issue.get("type", "")),
-                          escape_cell(file_path),
-                          escape_cell(issue.get("line", "")),
-                          escape_cell(issue.get("message", "")),
-                      ]
-                  )
-
-              lines.extend(["", "### Top 20 issues abertas", ""])
-              if issue_rows:
-                  lines.extend(markdown_table(["Severidade", "Tipo", "Arquivo", "Linha", "Mensagem"], issue_rows))
-              else:
-                  lines.append("Nenhuma issue aberta retornada pela API.")
-
-              return "\n".join(lines) + "\n"
-
-          try:
-              if not sonar_token:
-                  message = "SONAR_TOKEN nao esta configurado; pulando consulta a API do SonarQube Cloud."
-                  write_json(quality_gate_path, {"error": message})
-                  write_json(measures_path, {"error": message})
-                  write_json(issues_path, {"error": message})
-                  report = build_report(error=message)
-                  report_path.write_text(report, encoding="utf-8")
-                  print(message)
-                  sys.exit(0)
-
-              quality_gate = request_json(
-                  "qualitygates/project_status",
-                  {"projectKey": project_key, **sonar_context_query},
-              )
-              measures = request_json(
-                  "measures/component",
-                  {
-                      "component": project_key,
-                      "metricKeys": ",".join(metric_keys),
-                      **sonar_context_query,
-                  },
-              )
-              issues = request_json(
-                  "issues/search",
-                  {
-                      "componentKeys": project_key,
-                      "resolved": "false",
-                      "facets": "severities,types",
-                      "ps": "100",
-                      **sonar_context_query,
-                  },
-              )
-
-              write_json(quality_gate_path, quality_gate)
-              write_json(measures_path, measures)
-              write_json(issues_path, issues)
-
-              report = build_report(quality_gate=quality_gate, measures=measures, issues=issues)
-              report_path.write_text(report, encoding="utf-8")
-          except Exception as exc:
-              message = f"{type(exc).__name__}: {exc}"
-              write_json(quality_gate_path, {"error": message})
-              write_json(measures_path, {"error": message})
-              write_json(issues_path, {"error": message})
-              report = build_report(error=message)
-              report_path.write_text(report, encoding="utf-8")
-              print(f"SonarQube Cloud report could not be generated: {message}")
-          PY
-
-          cat artifacts/sonarqube/sonarqube-cloud-report.md >> "$GITHUB_STEP_SUMMARY"
+          python scripts/quality/sonarqube_cloud_report.py
+          cat "$SONAR_REPORT_DIR/sonarqube-cloud-report.md" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Generate coverage report
-        if: ${{ success() && hashFiles('artifacts/test-results/**/coverage.cobertura.xml') != '' }}
+        if: ${{ success() }}
         run: >
           dotnet tool run reportgenerator
-          -reports:"${{ env.TEST_RESULTS_DIR }}/**/coverage.cobertura.xml"
-          -targetdir:"${{ env.TEST_RESULTS_DIR }}/coverage-report"
+          -reports:"$TEST_RESULTS_DIR/**/coverage.cobertura.xml"
+          -targetdir:"$TEST_RESULTS_DIR/coverage-report"
           -reporttypes:"HtmlInline;JsonSummary;TextSummary"
 
       - name: Enforce coverage threshold
-        if: ${{ success() && hashFiles('artifacts/test-results/coverage-report/Summary.json') != '' }}
+        if: ${{ success() }}
         shell: bash
         run: |
           python - <<'PY'
           import json
           import sys
+          import os
 
-          path = "./artifacts/test-results/coverage-report/Summary.json"
+          path = os.path.join(os.environ["TEST_RESULTS_DIR"], "coverage-report", "Summary.json")
           with open(path, encoding="utf-8") as f:
               data = json.load(f)
 
@@ -485,9 +258,10 @@ jobs:
         run: |
           python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
           import json
+          import os
           import pathlib
 
-          path = pathlib.Path("./artifacts/test-results/coverage-report/Summary.json")
+          path = pathlib.Path(os.environ["TEST_RESULTS_DIR"]) / "coverage-report" / "Summary.json"
           print("## Resumo do CI")
           print()
 
@@ -525,6 +299,6 @@ jobs:
             ${{ env.TEST_RESULTS_DIR }}/**/coverage.opencover.xml
             ${{ env.TEST_RESULTS_DIR }}/coverage-report/Summary.json
             ${{ env.TEST_RESULTS_DIR }}/coverage-report/Summary.txt
-            artifacts/sonarqube/**
+            ${{ env.SONAR_REPORT_DIR }}/**
           if-no-files-found: warn
           retention-days: 7

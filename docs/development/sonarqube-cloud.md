@@ -23,6 +23,36 @@ A analise via CI e a abordagem correta neste repositorio porque a cobertura .NET
 
 O token de analise deve ser criado no SonarQube Cloud e salvo somente como secret no GitHub Actions. O token nao deve ser commitado, exibido em logs, documentado com valor real ou colocado em arquivos locais versionados.
 
+## Preparacao para analise por contexto
+
+A fonte de verdade versionada para a configuracao de analise Sonar por contexto fica em:
+
+```text
+scripts/quality/sonar-contexts.json
+```
+
+Ela define `solution`, `projectKey`, `projectName`, `resultsDir`, `sonarReportDir` e `coverageReportPattern` para o projeto global atual e para os contextos futuros `ledger`, `balance`, `transfer`, `identity`, `audit` e `shared`.
+
+O resolvedor reutilizavel e:
+
+```text
+scripts/quality/sonar_context.py
+```
+
+O workflow principal ainda executa somente o contexto `global`. Essa parametrizacao existe para permitir um piloto incremental futuro sem duplicar seis blocos extensos de YAML e sem misturar cobertura entre contextos.
+
+| Contexto | Solution | Project Key proposto | Results Dir | Sonar Report Dir |
+| --- | --- | --- | --- | --- |
+| `global` | `PocArquitetura.slnx` | `rodri-oliveira-dev_poc-arquitetura` | `artifacts/test-results` | `artifacts/sonarqube` |
+| `ledger` | `LedgerService.slnx` | `rodri-oliveira-dev_poc-arquitetura-ledger` | `artifacts/test-results/ledger` | `artifacts/sonarqube/ledger` |
+| `balance` | `BalanceService.slnx` | `rodri-oliveira-dev_poc-arquitetura-balance` | `artifacts/test-results/balance` | `artifacts/sonarqube/balance` |
+| `transfer` | `TransferService.slnx` | `rodri-oliveira-dev_poc-arquitetura-transfer` | `artifacts/test-results/transfer` | `artifacts/sonarqube/transfer` |
+| `identity` | `IdentityService.slnx` | `rodri-oliveira-dev_poc-arquitetura-identity` | `artifacts/test-results/identity` | `artifacts/sonarqube/identity` |
+| `audit` | `AuditService.slnx` | `rodri-oliveira-dev_poc-arquitetura-audit` | `artifacts/test-results/audit` | `artifacts/sonarqube/audit` |
+| `shared` | `PocArquitetura.Shared.slnx` | `rodri-oliveira-dev_poc-arquitetura-shared` | `artifacts/test-results/shared` | `artifacts/sonarqube/shared` |
+
+Os projetos contextuais ainda precisam existir no SonarQube Cloud antes de qualquer analise real desses contextos. Nao habilite Automatic Analysis nesses projetos; mantenha CI Analysis como metodo esperado.
+
 ## Configuracao no GitHub
 
 Crie o secret do repositorio em:
@@ -69,6 +99,14 @@ sonar.cs.opencover.reportsPaths="./artifacts/test-results/**/coverage.opencover.
 
 Nao use cobertura generica do Sonar para este caso. Para C#/.NET, a importacao deve usar `sonar.cs.opencover.reportsPaths` apontando para os arquivos OpenCover gerados pelo Coverlet.
 
+Para analises contextuais futuras, use o padrao isolado do respectivo contexto, por exemplo:
+
+```text
+sonar.cs.opencover.reportsPaths="./artifacts/test-results/transfer/**/coverage.opencover.xml"
+```
+
+Evite glob global em analises contextuais para nao importar cobertura de outra solution.
+
 O scanner mantem a deteccao geral de credenciais hard-coded ativa, mas ignora issues somente em linhas cujo contexto pareca credencial e cujo valor seja um placeholder uppercase de secret entre `<...>`, como `Password=<LEDGER_DB_PASSWORD>`, `KEYCLOAK_CLIENT_SECRET=<KEYCLOAK_CLIENT_SECRET>` ou `--token "<TOKEN>"`. Essa supressao cobre os placeholders versionados em `.env.example`, `.env.local.example`, `appsettings*.json` e exemplos operacionais em `docs/`, sem excluir arquivos inteiros da analise. O trade-off e que o Sonar ignora todas as issues na linha que casar com esse padrao, por isso o regex e restrito a placeholders uppercase com sufixo de secret. Valores reais ou literais, como `Password=postgres`, `Password=123456`, `Password=localpassword` ou `Password=my-secret`, continuam fora desse padrao e devem ser tratados como achados reais.
 
 O scanner exclui da metrica de cobertura do SonarQube Cloud os diretorios `.github/`, `docs/`, `infra/`, `loadtests/` e `scripts/`. Esses arquivos continuam analisados por regras de qualidade e seguranca quando suportado pelo Sonar, mas nao entram no denominador de cobertura porque a cobertura oficial do repositorio vem dos testes .NET via OpenCover.
@@ -92,7 +130,7 @@ O parametro `sonar.qualitygate.wait=true` faz sentido para este projeto porque t
 
 Apos o step `SonarQube Cloud end`, o workflow executa o step `Generate SonarQube Cloud report`.
 
-Esse step consulta a API do SonarQube Cloud com `secrets.SONAR_TOKEN`, sem imprimir o token em logs, e grava um snapshot da execucao em:
+Esse step chama `scripts/quality/sonarqube_cloud_report.py`, consulta a API do SonarQube Cloud com `secrets.SONAR_TOKEN`, sem imprimir o token em logs, e grava um snapshot da execucao em:
 
 ```text
 artifacts/sonarqube/
@@ -104,6 +142,7 @@ Arquivos gerados:
 - `measures.json`: retorno bruto das metricas principais do projeto;
 - `issues.json`: retorno bruto das issues abertas retornadas pela API;
 - `sonarqube-cloud-report.md`: resumo em Markdown com dashboard, quality gate, metricas, condicoes e issues.
+- `report.md`: alias do resumo em Markdown para uso por automacoes contextuais futuras.
 
 O mesmo conteudo de `sonarqube-cloud-report.md` e adicionado ao GitHub Step Summary do job. Para consultar:
 
@@ -114,6 +153,17 @@ O mesmo conteudo de `sonarqube-cloud-report.md` e adicionado ao GitHub Step Summ
 Se `SONAR_TOKEN` estiver ausente ou se a API do SonarQube Cloud nao responder, o step registra uma mensagem clara, gera arquivos de erro em `artifacts/sonarqube` e nao quebra o restante do job. O quality gate remoto continua sendo aplicado pelo scanner quando `SonarQube Cloud end` executa com sucesso.
 
 Em eventos de pull request, o relatorio consulta a API com `pullRequest=<numero>`. Isso evita confundir o status do projeto principal com o Quality Gate especifico do PR.
+
+O script aceita parametros para uso futuro por contexto:
+
+```bash
+python scripts/quality/sonarqube_cloud_report.py \
+  --project-key rodri-oliveira-dev_poc-arquitetura-transfer \
+  --organization-key rodri-oliveira-dev \
+  --output-dir artifacts/sonarqube/transfer
+```
+
+Por default, o workflow passa esses valores por variaveis resolvidas a partir de `scripts/quality/sonar-contexts.json`.
 
 ## Artifact do GitHub Actions
 
@@ -132,6 +182,7 @@ Esse artifact contem:
 - arquivos `coverage.opencover.xml` importados pelo SonarQube Cloud;
 - summaries de cobertura `coverage-report/Summary.json` e `coverage-report/Summary.txt`;
 - resumo do SonarQube Cloud em `artifacts/sonarqube/sonarqube-cloud-report.md`;
+- alias do resumo em `artifacts/sonarqube/report.md`;
 - JSONs retornados pela API do SonarQube Cloud em `artifacts/sonarqube/*.json`.
 
 O relatorio do GitHub Actions e apenas um snapshot da execucao do CI. Ele facilita triagem no proprio workflow, mas nao substitui o dashboard oficial do SonarQube Cloud, que continua sendo a fonte principal para historico, detalhes navegaveis, configuracao de quality gate, regras, tendencias e estado mais recente do projeto.
@@ -159,6 +210,20 @@ As tools usadas pelo fluxo estao declaradas em `.config/dotnet-tools.json`:
 - `dotnet-reportgenerator-globaltool`.
 
 O `dotnet tool restore` executado pela composite action `.github/actions/setup-dotnet` e suficiente para disponibilizar essas ferramentas no workflow.
+
+O script local `scripts/quality/sonar-analyze.sh` continua executando a analise global por default:
+
+```bash
+bash scripts/quality/sonar-analyze.sh
+```
+
+Ele tambem aceita um contexto preparado no mapa, sem executar todos os contextos automaticamente:
+
+```bash
+bash scripts/quality/sonar-analyze.sh transfer
+```
+
+Esse modo contextual depende de o projeto correspondente ja existir no SonarQube usado pela analise e de o token possuir permissao para enviar analises.
 
 ## Exclusoes de cobertura
 
