@@ -51,6 +51,7 @@ Evolucao futura documentada:
 - [ADR-0095: Evolucao futura do envio de e-mails do IdentityService](../adrs/0095-evolucao-futura-email-identity-service.md)
 - [ADR-0097: Bounded context de auditoria funcional](../adrs/0097-functional-audit-service.md)
 - [ADR-0099: Estrategia de integracao assincrona do AuditService](../adrs/0099-audit-async-integration-strategy.md)
+- [ADR-0100: Organizacao de solutions por contexto e agregadora](../adrs/0100-organizacao-solutions-contexto-agregadora.md)
 
 ## Visualizacao
 

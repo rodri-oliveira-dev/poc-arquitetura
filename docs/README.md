@@ -93,6 +93,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [Baseline de evolucao produtiva](architecture/production-readiness.md): requisitos recomendados para evolucao futura fora do laboratorio local, ainda sem implementacao produtiva.
 - [Roadmap arquitetural consolidado](roadmap.md): leitura consolidada das frentes feitas, parciais, proximos passos e itens fora de escopo por enquanto.
 - [ADRs](adrs/README.md): historico de decisoes arquiteturais e pontos de melhoria.
+- [Organizacao de solutions por contexto](adrs/0100-organizacao-solutions-contexto-agregadora.md): registra a agregadora `PocArquitetura.slnx`, as solutions contextuais e a diferenca entre organizacao de desenvolvimento e topologia runtime.
 - [Terraform state local e backend remoto](adrs/0079-terraform-state-local-e-backend-remoto.md): registra os riscos do state local, gatilhos e estrategia que antecederam a adocao do backend remoto GCS.
 - [Backend remoto GCS para Terraform dev](adrs/0080-backend-remoto-gcs-terraform-dev.md): registra a adocao do backend remoto parcial em GCS, separacao por ambiente e migracao manual de state.
 - [Mensageria por ports and adapters](adrs/0075-mensageria-ports-adapters-kafka-provider.md): historico da introducao do boundary quando Kafka ainda era o provider atual.

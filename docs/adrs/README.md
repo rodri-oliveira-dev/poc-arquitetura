@@ -15,6 +15,7 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 
 | ADR                                                                   | Status      | Resumo                                                                                           |
 | --------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------ |
+| [ADR-0100](./0100-organizacao-solutions-contexto-agregadora.md) | Aceito | Define solutions por contexto, `PocArquitetura.slnx` como agregadora global e regras de uso em validacoes. |
 | [ADR-0099](./0099-audit-async-integration-strategy.md) | Proposto | Define a estrategia futura de integracao do AuditService por Outbox transacional local e Kafka, sem implementar integracao nesta etapa. |
 | [ADR-0098](./0098-audit-service-ingestao-futura.md) | Aceito | Define contratos canonicos internos e portas para ingestao futura do AuditService, sem integracao ativa, worker ou Kafka. |
 | [ADR-0097](./0097-functional-audit-service.md) | Aceito | Define o AuditService como bounded context separado de auditoria funcional, com schema `audit`, contrato HTTP canonico e sem integracao inicial. |

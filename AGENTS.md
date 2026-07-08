@@ -50,6 +50,8 @@ Solutions por contexto:
 
 `tests/Architecture.Tests` e transversal e deve permanecer na solution agregadora, sem ser atribuido artificialmente a um contexto especifico.
 
+Use `PocArquitetura.slnx` para validacoes globais, cobertura consolidada, workflows gerais, alteracoes transversais e testes arquiteturais. Use uma solution contextual somente quando a mudanca estiver restrita ao respectivo contexto e a validacao contextual for suficiente para o ciclo local. Use `PocArquitetura.Shared.slnx` para alteracoes restritas aos projetos Shared e seus testes.
+
 ## Regras obrigatorias
 
 - Faca a menor mudanca possivel para resolver o problema.

@@ -29,6 +29,12 @@ Este documento resume convencoes de build, estilo, ferramentas e manutencao do r
 
 `tests/Architecture.Tests` e transversal e fica somente na agregadora.
 
+Use `PocArquitetura.slnx` para validacoes globais, cobertura consolidada,
+workflows gerais, alteracoes transversais e testes arquiteturais. Use uma
+solution contextual quando a mudanca estiver restrita ao contexto e a validacao
+contextual for suficiente para o ciclo local. A decisao esta registrada na
+[ADR-0100](../adrs/0100-organizacao-solutions-contexto-agregadora.md).
+
 ## Central Package Management
 
 O repositorio usa Central Package Management. Projetos `.csproj` devem referenciar pacotes sem `Version=`.

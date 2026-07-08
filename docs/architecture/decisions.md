@@ -6,6 +6,12 @@ A arquitetura atual esta mais proxima de Clean Architecture/DDD por bounded cont
 
 A recomendacao e nao aumentar o numero de camadas agora. O melhor caminho e preservar a estrutura atual, corrigir assimetrias pontuais e fortalecer contratos/eventos/documentacao antes de qualquer reestruturacao.
 
+A organizacao de desenvolvimento usa `PocArquitetura.slnx` como solution
+agregadora global e solutions contextuais para Ledger, Balance, Transfer,
+Identity, Audit e Shared. Essa organizacao orienta build, testes e experiencia
+local, mas nao implica separacao automatica de deployment, ownership,
+repositorios, bancos ou topologia runtime.
+
 ## Avaliacao real por servico
 
 ### LedgerService
