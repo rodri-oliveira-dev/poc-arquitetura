@@ -12,7 +12,7 @@ O target e idempotente, roda apos o build, ignora CI (`CI=true`) e nao falha o b
 
 - `commit-msg`: valida a primeira linha da mensagem de commit com Conventional Commits.
 - `post-merge`: apos `git merge` ou `git pull`, restaura as tools locais e as dependencias da solution.
-- `pre-push`: executa validacoes locais leves quando houver alteracoes impactantes: Terraform `fmt -check` para arquivos Terraform, restore, formatacao dos arquivos `.cs` alterados, build e testes unitarios rapidos sem cobertura. Para .NET, escolhe `PocArquitetura.slnx`, `PocArquitetura.Shared.slnx` ou ambas conforme os arquivos alterados. Testes de integracao/container, cobertura, SonarQube, Trivy e Terraform validate completo ficam no Pull Request/GitHub Actions. Se `FULL_TESTS=true`, o hook reaproveita `./test.sh` para executar a validacao completa oficial com cobertura antes do push.
+- `pre-push`: executa validacoes locais leves quando houver alteracoes impactantes: Terraform `fmt -check` para arquivos Terraform, restore, formatacao dos arquivos `.cs` alterados, build e testes unitarios rapidos sem cobertura. Para .NET, escolhe as solutions dos contextos impactados, `PocArquitetura.Shared.slnx` e/ou `PocArquitetura.slnx` conforme os arquivos alterados. Testes de integracao/container, cobertura, SonarQube, Trivy e Terraform validate completo ficam no Pull Request/GitHub Actions. Se `FULL_TESTS=true`, o hook reaproveita `./test.sh` para executar a validacao completa oficial com cobertura antes do push.
 
 ## Politica do post-merge
 
@@ -40,15 +40,24 @@ Quando existem alteracoes em `*.tf` ou `*.tfvars`, o hook executa apenas `terraf
 
 O `pre-push` nao executa Trivy localmente por padrao. Os scans bloqueantes de Dockerfile, Terraform, misconfigurations, secrets e filesystem rodam no GitHub Actions pelo workflow `infra-security-and-terraform-validation` quando ha mudancas em Terraform, Dockerfiles, Compose, na action de Trivy ou no proprio workflow. Consulte [validacao de seguranca com Trivy](trivy-security-scan.md).
 
-O hook executa restore, `dotnet format whitespace --verify-no-changes` somente para arquivos `.cs` alterados, build e testes unitarios rapidos sem cobertura quando encontra arquivos .NET impactantes. A escolha de solution e feita assim:
+O hook executa restore, `dotnet format whitespace --verify-no-changes` somente para arquivos `.cs` alterados, build e testes unitarios rapidos sem cobertura quando encontra arquivos .NET impactantes. A escolha de solution e contextual:
 
-- alteracoes em `src/Shared/`, `tests/Shared/` ou `PocArquitetura.Shared.slnx` validam `PocArquitetura.Shared.slnx`;
-- alteracoes em `src/audit/`, `src/identity/`, `src/balance/`, `src/transfer/`, `src/ledger/`, `tests/audit/`, `tests/identity/`, `tests/balance/`, `tests/transfer/`, `tests/ledger/`, `tests/Architecture.Tests/`, `PocArquitetura.slnx` ou alguma solution de contexto de servico validam `PocArquitetura.slnx`;
-- alteracoes globais em `global.json`, `NuGet.config`, `Directory.Build.props`, `Directory.Build.targets`, `Directory.Packages.props`, `dotnet-tools.json`, `.config/dotnet-tools.json`, `.editorconfig`, `.globalconfig`, `coverlet.runsettings`, `test.sh`, `test.ps1`, `.github/actions/setup-dotnet/` ou `.githooks/pre-push` validam ambas;
-- alteracoes em `src/Shared/Directory.Build.props` ou `src/Shared/Directory.Packages.props` validam Shared;
-- quando o diff nao pode ser determinado com seguranca, ambas as solutions sao validadas.
+| Alteracao | Validacao local |
+| --- | --- |
+| `src/ledger/**`, `tests/ledger/**`, `LedgerService.slnx`, `tools/ComposeEnvGen/**` | `LedgerService.slnx` |
+| `src/balance/**`, `tests/balance/**`, `BalanceService.slnx` | `BalanceService.slnx` |
+| `src/transfer/**`, `tests/transfer/**`, `TransferService.slnx` | `TransferService.slnx` |
+| `src/identity/**`, `tests/identity/**`, `IdentityService.slnx` | `IdentityService.slnx` |
+| `src/audit/**`, `tests/audit/**`, `AuditService.slnx` | `AuditService.slnx` |
+| `src/Shared/**`, `tests/Shared/**`, `PocArquitetura.Shared.slnx` | `PocArquitetura.Shared.slnx` |
+| `tests/Architecture.Tests/**`, `PocArquitetura.slnx` | `PocArquitetura.slnx` |
+| Global .NET | `PocArquitetura.Shared.slnx` e `PocArquitetura.slnx` |
+| Multiplos contextos | Somente as solutions dos contextos afetados, sem duplicar a agregadora |
+| Diff inseguro | Fallback global seguro com `PocArquitetura.Shared.slnx` e `PocArquitetura.slnx` |
 
-Quando apenas uma solution e impactada, somente ela passa por restore, build e testes unitarios rapidos. Quando ha impacto em Shared e servicos, o hook executa as duas validacoes. Arquivos `.cs` alterados sao formatados separadamente por solution: Shared usa `PocArquitetura.Shared.slnx` e servicos usam `PocArquitetura.slnx`.
+Arquivos globais .NET incluem `global.json`, `NuGet.config`, `Directory.Build.props`, `Directory.Build.targets`, `Directory.Packages.props`, `dotnet-tools.json`, `.config/dotnet-tools.json`, `.editorconfig`, `.globalconfig`, `coverlet.runsettings`, `test.sh`, `test.ps1`, `.github/actions/setup-dotnet/` e `.githooks/pre-push`.
+
+Quando apenas uma solution contextual e impactada, somente ela passa por restore, build e testes unitarios rapidos. Quando ha impacto em varios contextos, o hook acumula as respectivas solutions em ordem deterministica: Shared, Audit, Identity, Ledger, Balance, Transfer e agregadora. Arquivos `.cs` alterados sao formatados separadamente contra a solution do proprio contexto.
 
 O hook pula restore, formatacao, build e testes quando todas as alteracoes sao claramente nao impactantes para validacao local, como Markdown, arquivos em `docs/`, imagens de documentacao (`png`, `jpg`, `jpeg`, `gif`, `svg`, `webp`), diagramas Mermaid/LikeC4 e notas textuais que nao entram no build. Mudancas em Dockerfile, Compose e Trivy sao validadas no Pull Request pelo workflow de infraestrutura quando seus filtros se aplicam.
 
@@ -154,15 +163,25 @@ Validar `post-merge` manualmente:
 Para executar a validacao rapida manualmente sem passar pelo hook, use os comandos equivalentes:
 
 ```bash
-dotnet restore ./PocArquitetura.slnx
-dotnet format whitespace ./PocArquitetura.slnx --verify-no-changes --no-restore --verbosity minimal --include <arquivos-cs-alterados>
-dotnet build ./PocArquitetura.slnx --configuration Release --no-restore
-dotnet test ./PocArquitetura.slnx --configuration Release --no-build --no-restore --filter "Category!=Integration&Category!=Container&Category!=Contract"
+dotnet restore ./LedgerService.slnx
+dotnet format whitespace ./LedgerService.slnx --verify-no-changes --no-restore --verbosity minimal --include <arquivos-cs-ledger-alterados>
+dotnet build ./LedgerService.slnx --configuration Release --no-restore
+dotnet test ./LedgerService.slnx --configuration Release --no-build --no-restore --filter "Category!=Integration&Category!=Container&Category!=Contract"
+
+dotnet restore ./BalanceService.slnx
+dotnet format whitespace ./BalanceService.slnx --verify-no-changes --no-restore --verbosity minimal --include <arquivos-cs-balance-alterados>
+dotnet build ./BalanceService.slnx --configuration Release --no-restore
+dotnet test ./BalanceService.slnx --configuration Release --no-build --no-restore --filter "Category!=Integration&Category!=Container&Category!=Contract"
 
 dotnet restore ./PocArquitetura.Shared.slnx
 dotnet format whitespace ./PocArquitetura.Shared.slnx --verify-no-changes --no-restore --verbosity minimal --include <arquivos-cs-shared-alterados>
 dotnet build ./PocArquitetura.Shared.slnx --configuration Release --no-restore
 dotnet test ./PocArquitetura.Shared.slnx --configuration Release --no-build --no-restore --filter "Category!=Integration&Category!=Container&Category!=Contract"
+
+dotnet restore ./PocArquitetura.slnx
+dotnet format whitespace ./PocArquitetura.slnx --verify-no-changes --no-restore --verbosity minimal --include <arquivos-cs-transversais-alterados>
+dotnet build ./PocArquitetura.slnx --configuration Release --no-restore
+dotnet test ./PocArquitetura.slnx --configuration Release --no-build --no-restore --filter "Category!=Integration&Category!=Container&Category!=Contract"
 ```
 
 Para a validacao completa com cobertura, use `./test.sh` ou `./test.ps1`. Esses comandos podem executar testes de integracao/container e, portanto, precisam de Docker-compatible API quando a suite completa exigir Testcontainers.
