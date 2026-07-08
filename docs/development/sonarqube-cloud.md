@@ -14,14 +14,15 @@ Automatic Analysis deve ficar desabilitada no SonarQube Cloud. Automatic Analysi
 
 A analise via CI e a abordagem correta neste repositorio porque a cobertura .NET precisa ser gerada durante `dotnet test` e importada explicitamente pelo scanner.
 
-## Configuracao no SonarQube Cloud
+## Organizacao no SonarQube Cloud
 
-- Project Key: `rodri-oliveira-dev_poc-arquitetura`
-- Organization Key: `rodri-oliveira-dev`
-- Analysis Method: GitHub Actions / CI Analysis
-- Automatic Analysis: desabilitada
+O repositorio usa uma organizacao SonarQube Cloud e multiplos projetos:
 
-O token de analise deve ser criado no SonarQube Cloud e salvo somente como secret no GitHub Actions. O token nao deve ser commitado, exibido em logs, documentado com valor real ou colocado em arquivos locais versionados.
+- Organization Key: `rodri-oliveira-dev`;
+- projetos contextuais para Ledger, Balance, Transfer, Identity, Audit e Shared;
+- projeto global `rodri-oliveira-dev_poc-arquitetura` mantido temporariamente para comparacao da migracao.
+
+Todos os projetos devem usar GitHub Actions / CI Analysis. Automatic Analysis deve permanecer desabilitada para evitar analises duplicadas, resultados inconsistentes e conflito com a cobertura .NET importada via OpenCover.
 
 ## Analise por contexto
 
@@ -43,7 +44,7 @@ O workflow principal executa a analise contextual por matrix chamando o reusable
 
 O projeto global permanece temporariamente para comparacao durante a migracao. Para evitar custo excessivo, a analise global em `.github/workflows/dotnet.yml` roda apenas em `push` para `main` e em `workflow_dispatch` com `sonar_context=all`. Em PR, o workflow executa somente os contextos Sonar impactados pelos paths alterados.
 
-| Contexto | Solution | Project Key proposto | Results Dir | Sonar Report Dir |
+| Contexto | Solution | Project Key | Results Dir | Sonar Report Dir |
 | --- | --- | --- | --- | --- |
 | `global` | `PocArquitetura.slnx` | `rodri-oliveira-dev_poc-arquitetura` | `artifacts/test-results` | `artifacts/sonarqube` |
 | `ledger` | `LedgerService.slnx` | `rodri-oliveira-dev_poc-arquitetura-ledger` | `artifacts/test-results/ledger` | `artifacts/sonarqube/ledger` |
@@ -67,6 +68,32 @@ Valide externamente antes de exigir os jobs contextuais como gates obrigatorios:
 
 O workflow nao cria projeto remoto, nao altera permissoes e nao muda configuracao do Quality Gate. Se qualquer item acima ainda nao existir no SonarQube Cloud, a analise contextual correspondente fica bloqueada externamente ate a configuracao ser concluida.
 
+## Arquitetura final do CI Sonar
+
+O fluxo esperado e:
+
+```text
+PR
+  -> contextos impactados
+  -> Sonar contextual
+  -> Quality Gate contextual
+  -> summary consolidado
+
+main
+  -> todos os contextos
+  -> dashboards contextuais atualizados
+
+workflow_dispatch
+  -> todos ou contexto escolhido
+```
+
+Em PR, o job `detect-sonar-contexts` escolhe a matrix contextual por paths. Em `push` para `main`, nao ha seletividade: os seis contextos rodam para manter dashboards e historico recentes. Em `workflow_dispatch`, o input `sonar_context` permite `all` ou um contexto especifico.
+
+`tests/Architecture.Tests` permanece como validacao arquitetural global dentro de `PocArquitetura.slnx` e dos gates globais de teste. Ele nao possui projeto Sonar dedicado, porque nao representa um bounded context nem ownership de source produtivo. A diferenca de governanca e:
+
+- validacao arquitetural global: garante regras transversais do repositorio por testes;
+- analise Sonar contextual: mede qualidade, issues, cobertura e Quality Gate por contexto de ownership.
+
 ## Selecao contextual em Pull Requests
 
 O job `detect-sonar-contexts` calcula a matriz contextual de PRs com `scripts/quality/sonar_context_impact.py`. O script reutiliza `scripts/quality/sonar-contexts.json` para montar solution, Project Key, diretorios de resultado e artifact de cada contexto, evitando uma segunda matriz Sonar hardcoded no workflow.
@@ -89,6 +116,8 @@ Mudancas em Shared executam apenas o projeto Sonar `shared` em PR. Os consumidor
 
 Mudancas em `contracts/events/**` continuam separadas conceitualmente: a validacao de schema fica no workflow `event-contract-validation`, e o build/test impactante e coberto pelo gate `pr-build-and-test` via solution agregadora. Esses paths nao selecionam Ledger ou Balance para analise Sonar contextual, evitando atribuir artificialmente ownership Sonar dos contratos a dois projetos.
 
+Os contratos versionados em `contracts/events/**` tem ownership compartilhado de governanca de contratos, nao ownership Sonar de um contexto unico. O workflow `event-contract-validation` valida JSON Schemas e exemplos em `pull_request`, `push` para `main` e `workflow_dispatch` quando paths relacionados mudam. O gate `pr-build-and-test` continua validando build/test conforme a classificacao do PR. Como os schemas nao entram em projeto Sonar contextual automatico, evita-se duplicar issues e LOC de contrato em Ledger e Balance.
+
 ## Configuracao no GitHub
 
 Crie o secret do repositorio em:
@@ -98,6 +127,17 @@ Settings > Secrets and variables > Actions > New repository secret > SONAR_TOKEN
 ```
 
 O workflow le o token exclusivamente de `secrets.SONAR_TOKEN` e falha com mensagem clara quando o secret esta ausente ou vazio.
+
+O modelo atual documentado e token unico no secret `SONAR_TOKEN`, com permissao de Execute Analysis para os projetos envolvidos. O valor nunca deve ser replicado em documentacao, logs ou arquivos versionados.
+
+Trade-offs do token unico:
+
+- escopo operacional simples para a POC e para a matrix de seis contextos;
+- blast radius maior que tokens por contexto, porque um vazamento permitiria analise nos projetos cobertos pelo token;
+- ownership centralizado na configuracao de Actions do repositorio;
+- rotacao feita substituindo o secret `SONAR_TOKEN` no GitHub e revogando o token anterior no SonarQube Cloud.
+
+Tokens por contexto podem reduzir blast radius no futuro, mas aumentam quantidade de secrets, matriz de configuracao e manutencao. Nao foram adotados nesta etapa porque nao ha evidencia de necessidade operacional na POC. SOT/PAT de administracao nao devem ser usados pelo workflow de analise; se existirem para operacao manual, ficam fora do pipeline e seguem politica de menor privilegio.
 
 ## Pipeline
 
@@ -190,6 +230,10 @@ Esses gates tem responsabilidades diferentes:
 
 O parametro `sonar.qualitygate.wait=true` faz sentido para este projeto porque transforma a decisao do quality gate remoto em feedback do workflow. O custo e aguardar a avaliacao do SonarQube Cloud durante o job.
 
+Os seis projetos contextuais devem iniciar com o mesmo Quality Gate e New Code Definition coerente. A aplicacao e independente por projeto: uma falha de Quality Gate em Ledger nao altera o dashboard de Balance, mas falha o job contextual correspondente. A strategy da matrix usa `fail-fast: false`, entao uma falha contextual nao cancela os demais contextos; isso preserva diagnostico completo no summary.
+
+Nao ajuste thresholds remotamente como parte de manutencao de YAML. Divergencias de Quality Gate, New Code Definition ou regras entre projetos devem ser registradas e corrigidas no SonarQube Cloud como uma decisao operacional explicita.
+
 ## Relatorio no GitHub Actions
 
 Apos o step `SonarQube Cloud end`, o workflow executa o step `Generate SonarQube Cloud report`.
@@ -271,12 +315,14 @@ Cada artifact contem:
 - `sonarqube-cloud-report.md`;
 - `report.md`.
 
-O job final `sonar-summary` baixa os artifacts `sonar-*` disponiveis e publica uma tabela consolidada com Contexto, Quality Gate, Coverage, Bugs, Vulnerabilities e Code Smells. O resumo distingue:
+O job final `sonar-summary` baixa os artifacts `sonar-*` disponiveis e publica uma tabela consolidada com Contexto, Execucao, Quality Gate, Coverage, Bugs, Vulnerabilities e Code Smells. O resumo distingue:
 
 - `PASSED`: Quality Gate remoto OK;
 - `FAILED`: Quality Gate remoto reprovado;
-- `SKIPPED`: contexto nao selecionado em `workflow_dispatch`;
+- `SKIPPED`: contexto nao selecionado nesta execucao;
 - `UNAVAILABLE`: artifact ou API indisponivel.
+
+Contexto pulado deve aparecer como `SKIPPED`, nao como sucesso. API ou artifact indisponivel deve aparecer como `UNAVAILABLE`, nao como zero, para evitar falso sinal de ausencia de bugs, vulnerabilidades ou code smells.
 
 O summary e diagnostico; a falha de qualquer job contextual continua falhando o workflow por meio do resultado normal da matrix.
 
@@ -305,9 +351,30 @@ A matrix contextual roda em:
 
 Em `push` para `main` nao ha seletividade: os seis contextos rodam para manter dashboards, historico e Quality Gates recentes mesmo quando algum PR anterior executou apenas parte da matriz.
 
-## Comparacao durante a migracao
+## Projeto global
 
-Compare o artifact global `test-results-coverage-and-sonarqube`, os artifacts contextuais `sonar-*` e os dashboards SonarQube Cloud dos projetos:
+Decisao atual: `MANTER TEMPORARIAMENTE`.
+
+Justificativa:
+
+- o projeto global duplica parte dos sources e issues ja atribuiveis aos projetos contextuais;
+- a duplicacao permanente piora clareza de ownership, LOC contabilizada e custo de analise;
+- o dashboard global ainda tem valor temporario para comparar baseline, cobertura consolidada e historico durante a transicao;
+- `tests/Architecture.Tests` nao justifica criar ou preservar um projeto Sonar global permanente, porque a validacao arquitetural continua melhor representada como gate de teste global;
+- as execucoes remotas acessiveis mais recentes ainda mostram o workflow global anterior, sem evidencia publica suficiente de uma execucao contextual estavel em PR, `main` e `workflow_dispatch`.
+
+O destino preferencial e aposentar a analise global depois de evidenciar:
+
+- pelo menos uma execucao de PR contextual simples com summary correto;
+- pelo menos uma execucao de PR multi-contexto com matrix correta;
+- pelo menos uma execucao completa em `main` com os seis contextos e artifacts `sonar-*`;
+- pelo menos uma execucao `workflow_dispatch` com `all` ou contexto especifico;
+- comportamento observado de falha de Quality Gate em job contextual;
+- ausencia conhecida de contaminacao de cobertura fora de `artifacts/test-results/{context}`.
+
+Quando esses criterios estiverem atendidos, remova a analise global do workflow em uma mudanca propria, atualize badges/documentacao e preserve o historico remoto conforme as opcoes da plataforma. Nao exclua projeto remoto automaticamente pelo CI.
+
+Enquanto o projeto global existir, compare o artifact global `test-results-coverage-and-sonarqube`, os artifacts contextuais `sonar-*` e os dashboards SonarQube Cloud dos projetos:
 
 - global: `rodri-oliveira-dev_poc-arquitetura`;
 - contextuais: `rodri-oliveira-dev_poc-arquitetura-ledger`, `rodri-oliveira-dev_poc-arquitetura-balance`, `rodri-oliveira-dev_poc-arquitetura-transfer`, `rodri-oliveira-dev_poc-arquitetura-identity`, `rodri-oliveira-dev_poc-arquitetura-audit` e `rodri-oliveira-dev_poc-arquitetura-shared`.
@@ -325,6 +392,25 @@ Pontos de comparacao:
 - ausencia de cobertura contaminada fora de `artifacts/test-results/{context}`.
 
 Os percentuais de cobertura nao precisam ser iguais. O projeto global usa a solution agregadora e tem denominador maior; cada projeto contextual usa sua solution, testes e fontes atribuiveis ao proprio contexto.
+
+## Onboarding de novo contexto
+
+Processo minimo para adicionar um novo contexto Sonar:
+
+1. Criar ou atualizar a solution `.slnx` do contexto.
+2. Criar o projeto no SonarQube Cloud.
+3. Definir `projectKey` e `projectName`.
+4. Desabilitar Automatic Analysis no projeto.
+5. Configurar Quality Gate e New Code Definition coerentes com os demais projetos.
+6. Adicionar o contexto em `scripts/quality/sonar-contexts.json`.
+7. Definir paths de ownership em `scripts/quality/sonar_context_impact.py`.
+8. Definir `resultsDir` contextual em `artifacts/test-results/{context}`.
+9. Definir artifact `sonar-{context}`.
+10. Validar um PR que impacte somente esse contexto.
+11. Validar uma execucao em `main`.
+12. Atualizar esta documentacao e referencias de coverage/artifacts quando necessario.
+
+Nao adicione projeto Sonar novo para testes transversais sem ownership de source produtivo. Use a solution agregadora e os gates globais para validacoes arquiteturais.
 
 ## Ferramentas locais
 
@@ -373,6 +459,26 @@ Correcao:
 
 Crie o secret `SONAR_TOKEN` no GitHub Actions.
 
+### Erro: project not found
+
+Causa:
+
+O `projectKey` contextual ainda nao existe no SonarQube Cloud, foi digitado incorretamente em `scripts/quality/sonar-contexts.json` ou o token nao tem acesso ao projeto.
+
+Correcao:
+
+Crie ou corrija o projeto remoto, mantenha Automatic Analysis desabilitada e confirme permissao de Execute Analysis para o token usado pelo workflow.
+
+### Erro: token unauthorized
+
+Causa:
+
+`SONAR_TOKEN` existe, mas nao possui permissao para o projeto ou foi revogado.
+
+Correcao:
+
+Rotacione o token no SonarQube Cloud, atualize o secret `SONAR_TOKEN` no GitHub Actions e reexecute o workflow.
+
 ### Erro: Automatic Analysis is enabled
 
 Causa:
@@ -406,6 +512,38 @@ Depois confirme se o workflow esta usando:
 ```text
 ./artifacts/test-results/**/coverage.opencover.xml
 ```
+
+Em analise contextual, o caminho deve apontar para o contexto, como `./artifacts/test-results/ledger/**/coverage.opencover.xml`.
+
+### Erro: Quality Gate timeout
+
+Causa:
+
+O scanner aguardou a avaliacao remota por causa de `sonar.qualitygate.wait=true`, mas o SonarQube Cloud nao respondeu dentro do tempo esperado.
+
+Correcao:
+
+Reexecute o job se houver incidente temporario no servico. Se for recorrente, registre evidencia antes de avaliar timeout maior ou mudanca de estrategia.
+
+### Relatorio API indisponivel
+
+Causa:
+
+`scripts/quality/sonarqube_cloud_report.py` nao conseguiu consultar a API por token ausente, autorizacao, indisponibilidade ou falta de dados do PR/projeto.
+
+Correcao:
+
+Use o dashboard do SonarQube Cloud como fonte principal e o artifact gerado como diagnostico. No summary consolidado, esse caso deve aparecer como `UNAVAILABLE`, nunca como zero.
+
+### Projeto skipped
+
+Causa:
+
+O contexto nao foi selecionado pelo PR ou por `workflow_dispatch` com contexto especifico.
+
+Correcao:
+
+Verifique o resumo do job `Detect SonarQube contextual impact`. `SKIPPED` e um estado esperado para contexto nao impactado; nao trate como sucesso de Quality Gate.
 
 ## Criterios de aceite
 

@@ -52,7 +52,7 @@ def load_files(path: pathlib.Path | None) -> list[str]:
     else:
         lines = path.read_text(encoding="utf-8").splitlines()
 
-    return [line.strip().lstrip("\ufeff").replace("\\", "/") for line in lines if line.strip()]
+    return [line.strip().lstrip("\ufeff").lstrip("\xef\xbb\xbf").replace("\\", "/") for line in lines if line.strip()]
 
 
 def resolve_contexts(event_name: str, selected_context: str, files: list[str]) -> tuple[dict[str, bool], bool, list[dict]]:

@@ -8,6 +8,8 @@
 
 Projeto de estudos arquiteturais em .NET para evoluir Clean Architecture, DDD, PostgreSQL, Outbox, mensageria por ports and adapters com Kafka como default dos workers principais e Pub/Sub explicito/legado, autenticacao JWT/OIDC com Keycloak e JWKS, observabilidade, contratos e testes automatizados. Nasceu como POC de microservicos e evoluiu para um laboratorio continuo de arquitetura, contratos, seguranca, observabilidade, testes e operacao.
 
+Os badges SonarQube Cloud do topo continuam apontando para o projeto global enquanto ele e mantido temporariamente para comparacao da migracao contextual. A governanca atual usa projetos Sonar por contexto para Ledger, Balance, Transfer, Identity, Audit e Shared, documentados em [SonarQube Cloud](docs/development/sonarqube-cloud.md), sem adicionar seis badges contextuais ao README.
+
 ## Problema
 
 O projeto modela um cenario comum em sistemas financeiros: registrar lancamentos de forma transacional, publicar eventos de forma confiavel e manter uma projecao de saldo separada para consulta. A solucao tambem cobre preocupacoes de revisao tecnica que costumam aparecer nesse tipo de arquitetura: idempotencia, autorizacao por merchant, consistencia eventual, reprocessamento, estorno, observabilidade e validacao automatizada.
