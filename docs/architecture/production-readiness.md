@@ -42,7 +42,6 @@ Fora do escopo desta etapa:
 | DLQ, replay e rebuild | Documentado, mas nao automatizado como producao | Runbooks em `docs/operations/` | Criar automacao controlada, auditoria e permissoes antes de uso produtivo. |
 | OpenAPI e contratos de eventos | Ja existe no projeto | `docs/openapi/`, `docs/events/`, `contracts/events/` | Manter validacao de contrato como requisito de mudanca. |
 | Terraform produtivo | Pendente | Terraform atual e dev/controlado | Criar desenho separado somente depois de decisao de ambiente. |
-| Auth.Api legado | Fora de escopo | README e ADRs indicam Keycloak como caminho principal local | Nao recolocar no baseline produtivo. |
 
 ## Seguranca de secrets
 

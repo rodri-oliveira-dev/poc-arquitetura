@@ -12,7 +12,6 @@ fi
 ROOT_DIR="$(resolve_repo_root "$SCRIPT_DIR")"
 
 USE_NGINX=false
-AUTH_URL=""
 LEDGER_URL=""
 BALANCE_URL=""
 ZAP_IMAGE="ghcr.io/zaproxy/zaproxy:stable"
@@ -25,7 +24,6 @@ SWAGGER_PATH="/swagger/v1/swagger.json"
 ACTIVE_SCAN=false
 FAIL_ON_ALERTS=false
 USE_AUTHENTICATION=false
-INCLUDE_LEGACY_AUTH=false
 TOKEN=""
 CONTAINER_NAME="poc-arquitetura-zap"
 ZAP_OPTIONS="-config connection.sslAcceptAll=true"
@@ -35,7 +33,6 @@ usage() {
 Uso: ./scripts/security/run-owasp-zap.sh [opcoes]
 
 Opcoes:
-  --auth-url URL       Sobrescreve a URL do Auth.Api.
   --ledger-url URL     Sobrescreve a URL do LedgerService.Api.
   --balance-url URL    Sobrescreve a URL do BalanceService.Api.
   --use-nginx          Usa URLs HTTPS via Nginx local.
@@ -47,7 +44,6 @@ Opcoes:
   --health-interval N  Intervalo entre tentativas de /health em segundos.
   --swagger-path PATH  Caminho do documento OpenAPI/Swagger em cada API.
   --use-authentication Injeta Authorization Bearer obtido por scripts/validation/get-token.sh.
-  --include-legacy-auth Inclui o Auth.Api legado nos health checks e no scan.
   --token TOKEN        Token Bearer manual para usar com --use-authentication.
   --active-scan        Executa zap-api-scan.py sem modo seguro. Pode gerar trafego mais invasivo.
   --fail-on-alerts     Propaga alertas do ZAP como falha do script.
@@ -57,14 +53,6 @@ EOF
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --auth-url)
-      require_option_value "$1" "${2:-}" || {
-        usage
-        exit 2
-      }
-      AUTH_URL="${2:-}"
-      shift 2
-      ;;
     --ledger-url)
       require_option_value "$1" "${2:-}" || {
         usage
@@ -137,10 +125,6 @@ while [[ $# -gt 0 ]]; do
       USE_AUTHENTICATION=true
       shift
       ;;
-    --include-legacy-auth)
-      INCLUDE_LEGACY_AUTH=true
-      shift
-      ;;
     --token)
       require_option_value "$1" "${2:-}" || {
         usage
@@ -169,9 +153,6 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ -z "$AUTH_URL" ]]; then
-  AUTH_URL="http://localhost:5030"
-fi
 if [[ -z "$LEDGER_URL" ]]; then
   if [[ "$USE_NGINX" == true ]]; then LEDGER_URL="https://ledger.localhost:7443"; else LEDGER_URL="http://localhost:5226"; fi
 fi
@@ -353,9 +334,6 @@ docker_host_args() {
   local host
 
   local urls=("$LEDGER_URL" "$BALANCE_URL")
-  if [[ "$INCLUDE_LEGACY_AUTH" == true ]]; then
-    urls+=("$AUTH_URL")
-  fi
 
   for url in "${urls[@]}"; do
     host="$(url_host "$url")"
@@ -500,9 +478,6 @@ if [[ "$START_STACK" == true ]]; then
   start_local_stack_for_zap
 fi
 
-if [[ "$INCLUDE_LEGACY_AUTH" == true ]]; then
-  assert_health "Auth.Api" "$AUTH_URL"
-fi
 assert_health "LedgerService.Api" "$LEDGER_URL"
 assert_health "BalanceService.Api" "$BALANCE_URL"
 
@@ -514,11 +489,7 @@ ensure_zap_image
 
 mkdir -p "$OUTPUT_DIR"
 
-if [[ "$INCLUDE_LEGACY_AUTH" == true ]]; then
-  run_zap_scan "Auth.Api" "auth-api" "$AUTH_URL"
-fi
 run_zap_scan "LedgerService.Api" "ledger-service-api" "$LEDGER_URL"
 run_zap_scan "BalanceService.Api" "balance-service-api" "$BALANCE_URL"
 
 echo "OK. Relatorios OWASP ZAP em: $OUTPUT_DIR" >&2
-

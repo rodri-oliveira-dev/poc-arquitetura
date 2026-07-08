@@ -13,7 +13,27 @@ Este documento resume convencoes de build, estilo, ferramentas e manutencao do r
 | `global.json` | Fixa o SDK .NET esperado. |
 | `coverlet.runsettings` | Define coleta e exclusoes de cobertura. |
 | `.config/dotnet-tools.json` | Versiona ferramentas locais do .NET. |
-| `LedgerService.slnx` | Solution principal do repositorio. |
+| `PocArquitetura.slnx` | Solution agregadora/principal do repositorio. |
+
+## Solutions
+
+| Solution | Escopo |
+| --- | --- |
+| `PocArquitetura.slnx` | Agregadora global com contextos, Shared, `tests/Architecture.Tests` e tooling necessario para fechamento das dependencias. |
+| `LedgerService.slnx` | Projetos em `src/ledger/`, testes em `tests/ledger/` e `tools/ComposeEnvGen`, usado pelos testes do Ledger. |
+| `BalanceService.slnx` | Projetos em `src/balance/` e testes em `tests/balance/`. |
+| `TransferService.slnx` | Projetos em `src/transfer/` e testes em `tests/transfer/`. |
+| `IdentityService.slnx` | Projetos em `src/identity/` e testes em `tests/identity/`. |
+| `AuditService.slnx` | Projetos em `src/audit/` e testes em `tests/audit/`. |
+| `PocArquitetura.Shared.slnx` | Projetos em `src/Shared/` e testes em `tests/Shared/`. |
+
+`tests/Architecture.Tests` e transversal e fica somente na agregadora.
+
+Use `PocArquitetura.slnx` para validacoes globais, cobertura consolidada,
+workflows gerais, alteracoes transversais e testes arquiteturais. Use uma
+solution contextual quando a mudanca estiver restrita ao contexto e a validacao
+contextual for suficiente para o ciclo local. A decisao esta registrada na
+[ADR-0100](../adrs/0100-organizacao-solutions-contexto-agregadora.md).
 
 ## Central Package Management
 
@@ -27,9 +47,9 @@ Comandos baseline:
 
 ```bash
 dotnet tool restore
-dotnet restore ./LedgerService.slnx
-dotnet build ./LedgerService.slnx --configuration Release --no-restore
-dotnet test ./LedgerService.slnx --configuration Release --no-build --settings ./coverlet.runsettings
+dotnet restore ./PocArquitetura.slnx
+dotnet build ./PocArquitetura.slnx --configuration Release --no-restore
+dotnet test ./PocArquitetura.slnx --configuration Release --no-build --settings ./coverlet.runsettings
 ```
 
 Para cobertura com gate, use:

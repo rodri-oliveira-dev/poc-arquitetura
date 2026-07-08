@@ -65,18 +65,33 @@ run_full_tests() {
 
 if command -v mktemp >/dev/null 2>&1; then
   changed_files="$(mktemp "${TMPDIR:-/tmp}/pre-push-changed.XXXXXX")"
+  audit_dotnet_format_files="$(mktemp "${TMPDIR:-/tmp}/pre-push-audit-format.XXXXXX")"
+  balance_dotnet_format_files="$(mktemp "${TMPDIR:-/tmp}/pre-push-balance-format.XXXXXX")"
+  identity_dotnet_format_files="$(mktemp "${TMPDIR:-/tmp}/pre-push-identity-format.XXXXXX")"
+  ledger_dotnet_format_files="$(mktemp "${TMPDIR:-/tmp}/pre-push-ledger-format.XXXXXX")"
+  transfer_dotnet_format_files="$(mktemp "${TMPDIR:-/tmp}/pre-push-transfer-format.XXXXXX")"
   shared_dotnet_format_files="$(mktemp "${TMPDIR:-/tmp}/pre-push-shared-format.XXXXXX")"
-  services_dotnet_format_files="$(mktemp "${TMPDIR:-/tmp}/pre-push-services-format.XXXXXX")"
+  aggregate_dotnet_format_files="$(mktemp "${TMPDIR:-/tmp}/pre-push-aggregate-format.XXXXXX")"
 else
   changed_files="${TMPDIR:-/tmp}/pre-push-changed.$$"
+  audit_dotnet_format_files="${TMPDIR:-/tmp}/pre-push-audit-format.$$"
+  balance_dotnet_format_files="${TMPDIR:-/tmp}/pre-push-balance-format.$$"
+  identity_dotnet_format_files="${TMPDIR:-/tmp}/pre-push-identity-format.$$"
+  ledger_dotnet_format_files="${TMPDIR:-/tmp}/pre-push-ledger-format.$$"
+  transfer_dotnet_format_files="${TMPDIR:-/tmp}/pre-push-transfer-format.$$"
   shared_dotnet_format_files="${TMPDIR:-/tmp}/pre-push-shared-format.$$"
-  services_dotnet_format_files="${TMPDIR:-/tmp}/pre-push-services-format.$$"
+  aggregate_dotnet_format_files="${TMPDIR:-/tmp}/pre-push-aggregate-format.$$"
   : >"$changed_files"
+  : >"$audit_dotnet_format_files"
+  : >"$balance_dotnet_format_files"
+  : >"$identity_dotnet_format_files"
+  : >"$ledger_dotnet_format_files"
+  : >"$transfer_dotnet_format_files"
   : >"$shared_dotnet_format_files"
-  : >"$services_dotnet_format_files"
+  : >"$aggregate_dotnet_format_files"
 fi
 
-trap 'rm -f "$changed_files" "$shared_dotnet_format_files" "$services_dotnet_format_files"' EXIT
+trap 'rm -f "$changed_files" "$audit_dotnet_format_files" "$balance_dotnet_format_files" "$identity_dotnet_format_files" "$ledger_dotnet_format_files" "$transfer_dotnet_format_files" "$shared_dotnet_format_files" "$aggregate_dotnet_format_files"' EXIT
 
 is_shared_path() {
   case "$1" in
@@ -88,15 +103,59 @@ is_shared_path() {
   return 1
 }
 
-is_services_path() {
+is_audit_path() {
   case "$1" in
-    src/audit/*|src/Auth.Api/*|src/identity/*|src/balance/*|src/transfer/*|src/ledger/*)
+    src/audit/*|tests/audit/*|AuditService.slnx)
       return 0
       ;;
-    tests/audit/*|tests/Auth.*|tests/identity/*|tests/balance/*|tests/transfer/*|tests/ledger/*|tests/Architecture.Tests/*)
+  esac
+
+  return 1
+}
+
+is_balance_path() {
+  case "$1" in
+    src/balance/*|tests/balance/*|BalanceService.slnx)
       return 0
       ;;
-    LedgerService.slnx)
+  esac
+
+  return 1
+}
+
+is_identity_path() {
+  case "$1" in
+    src/identity/*|tests/identity/*|IdentityService.slnx)
+      return 0
+      ;;
+  esac
+
+  return 1
+}
+
+is_ledger_path() {
+  case "$1" in
+    src/ledger/*|tests/ledger/*|LedgerService.slnx|tools/ComposeEnvGen/*)
+      return 0
+      ;;
+  esac
+
+  return 1
+}
+
+is_transfer_path() {
+  case "$1" in
+    src/transfer/*|tests/transfer/*|TransferService.slnx)
+      return 0
+      ;;
+  esac
+
+  return 1
+}
+
+is_aggregate_path() {
+  case "$1" in
+    tests/Architecture.Tests/*|PocArquitetura.slnx)
       return 0
       ;;
   esac
@@ -128,6 +187,61 @@ is_shared_global_path() {
   esac
 
   return 1
+}
+
+append_dotnet_format_file() {
+  changed_file="$1"
+  format_files_path="$2"
+
+  case "$changed_file" in
+    *.cs)
+      printf '%s\n' "$changed_file" >>"$format_files_path"
+      ;;
+  esac
+}
+
+run_dotnet_format_context() {
+  context_name="$1"
+  solution_path="$2"
+  format_files_path="$3"
+
+  if [ "$dotnet_format_check" = true ] && [ -s "$format_files_path" ]; then
+    dotnet_format_file_count="$(count_dotnet_format_files "$format_files_path")"
+    if [ "$dotnet_format_file_count" -gt "$DOTNET_FORMAT_FILE_LIMIT" ]; then
+      echo "==> pre-push: $dotnet_format_file_count arquivos .cs $context_name alterados excedem o limite local de $DOTNET_FORMAT_FILE_LIMIT; formatacao .NET $context_name local ignorada"
+    else
+      run_timed "formatacao dos arquivos .cs $context_name alterados" run_dotnet_format_changed_files "$solution_path" "$format_files_path"
+    fi
+  elif [ "$dotnet_format_check" = false ]; then
+    echo "==> pre-push: diff inseguro; formatacao .NET $context_name local ignorada"
+  else
+    echo "==> pre-push: sem arquivos .cs $context_name alterados; formatacao .NET $context_name local ignorada"
+  fi
+}
+
+restore_solution() {
+  context_name="$1"
+  solution_path="$2"
+
+  run_timed "restore .NET $context_name" dotnet restore "$solution_path"
+}
+
+build_solution() {
+  context_name="$1"
+  solution_path="$2"
+
+  run_timed "build .NET $context_name ($CONFIGURATION)" dotnet build "$solution_path" --configuration "$CONFIGURATION" --no-restore
+}
+
+test_solution() {
+  context_name="$1"
+  solution_path="$2"
+
+  run_timed "testes unitarios rapidos $context_name sem cobertura" dotnet test "$solution_path" \
+    --configuration "$CONFIGURATION" \
+    --no-build \
+    --no-restore \
+    --filter "$UNIT_TEST_FILTER"
 }
 
 is_terraform_impacting_path() {
@@ -335,16 +449,26 @@ if [ "$stdin_seen" = false ]; then
 fi
 
 dotnet_changes=false
+audit_changes=false
+balance_changes=false
+identity_changes=false
+ledger_changes=false
+transfer_changes=false
 shared_changes=false
-services_changes=false
+aggregate_changes=false
 terraform_changes=false
 dotnet_format_check=true
 
 if [ "$diff_is_safe" = false ]; then
   echo "==> pre-push: validacoes serao executadas por seguranca"
   dotnet_changes=true
+  audit_changes=false
+  balance_changes=false
+  identity_changes=false
+  ledger_changes=false
+  transfer_changes=false
   shared_changes=true
-  services_changes=true
+  aggregate_changes=true
   terraform_changes=true
   dotnet_format_check=false
 else
@@ -355,7 +479,7 @@ else
     if is_global_path "$changed_file"; then
       dotnet_changes=true
       shared_changes=true
-      services_changes=true
+      aggregate_changes=true
       echo "==> pre-push: alteracao .NET global detectada em $changed_file"
     fi
 
@@ -363,22 +487,49 @@ else
       dotnet_changes=true
       shared_changes=true
       echo "==> pre-push: alteracao Shared detectada em $changed_file"
-      case "$changed_file" in
-        *.cs)
-          printf '%s\n' "$changed_file" >>"$shared_dotnet_format_files"
-          ;;
-      esac
+      append_dotnet_format_file "$changed_file" "$shared_dotnet_format_files"
     fi
 
-    if is_services_path "$changed_file"; then
+    if is_audit_path "$changed_file"; then
       dotnet_changes=true
-      services_changes=true
-      echo "==> pre-push: alteracao de servicos detectada em $changed_file"
-      case "$changed_file" in
-        *.cs)
-          printf '%s\n' "$changed_file" >>"$services_dotnet_format_files"
-          ;;
-      esac
+      audit_changes=true
+      echo "==> pre-push: alteracao Audit detectada em $changed_file"
+      append_dotnet_format_file "$changed_file" "$audit_dotnet_format_files"
+    fi
+
+    if is_balance_path "$changed_file"; then
+      dotnet_changes=true
+      balance_changes=true
+      echo "==> pre-push: alteracao Balance detectada em $changed_file"
+      append_dotnet_format_file "$changed_file" "$balance_dotnet_format_files"
+    fi
+
+    if is_identity_path "$changed_file"; then
+      dotnet_changes=true
+      identity_changes=true
+      echo "==> pre-push: alteracao Identity detectada em $changed_file"
+      append_dotnet_format_file "$changed_file" "$identity_dotnet_format_files"
+    fi
+
+    if is_ledger_path "$changed_file"; then
+      dotnet_changes=true
+      ledger_changes=true
+      echo "==> pre-push: alteracao Ledger detectada em $changed_file"
+      append_dotnet_format_file "$changed_file" "$ledger_dotnet_format_files"
+    fi
+
+    if is_transfer_path "$changed_file"; then
+      dotnet_changes=true
+      transfer_changes=true
+      echo "==> pre-push: alteracao Transfer detectada em $changed_file"
+      append_dotnet_format_file "$changed_file" "$transfer_dotnet_format_files"
+    fi
+
+    if is_aggregate_path "$changed_file"; then
+      dotnet_changes=true
+      aggregate_changes=true
+      echo "==> pre-push: alteracao agregadora detectada em $changed_file"
+      append_dotnet_format_file "$changed_file" "$aggregate_dotnet_format_files"
     fi
 
     if is_terraform_impacting_path "$changed_file"; then
@@ -409,37 +560,59 @@ if [ "$dotnet_changes" = false ]; then
 fi
 
 if [ "$shared_changes" = true ]; then
-  run_timed "restore .NET Shared" dotnet restore ./PocArquitetura.Shared.slnx
+  restore_solution "Shared" ./PocArquitetura.Shared.slnx
 fi
 
-if [ "$services_changes" = true ]; then
-  run_timed "restore .NET servicos" dotnet restore ./LedgerService.slnx
+if [ "$audit_changes" = true ]; then
+  restore_solution "Audit" ./AuditService.slnx
 fi
 
-if [ "$dotnet_format_check" = true ] && [ -s "$shared_dotnet_format_files" ]; then
-  shared_dotnet_format_file_count="$(count_dotnet_format_files "$shared_dotnet_format_files")"
-  if [ "$shared_dotnet_format_file_count" -gt "$DOTNET_FORMAT_FILE_LIMIT" ]; then
-    echo "==> pre-push: $shared_dotnet_format_file_count arquivos .cs Shared alterados excedem o limite local de $DOTNET_FORMAT_FILE_LIMIT; formatacao .NET Shared local ignorada"
-  else
-    run_timed "formatacao dos arquivos .cs Shared alterados" run_dotnet_format_changed_files ./PocArquitetura.Shared.slnx "$shared_dotnet_format_files"
-  fi
-elif [ "$dotnet_format_check" = false ]; then
-  echo "==> pre-push: diff inseguro; formatacao .NET Shared local ignorada"
-else
-  echo "==> pre-push: sem arquivos .cs Shared alterados; formatacao .NET Shared local ignorada"
+if [ "$identity_changes" = true ]; then
+  restore_solution "Identity" ./IdentityService.slnx
 fi
 
-if [ "$dotnet_format_check" = true ] && [ -s "$services_dotnet_format_files" ]; then
-  services_dotnet_format_file_count="$(count_dotnet_format_files "$services_dotnet_format_files")"
-  if [ "$services_dotnet_format_file_count" -gt "$DOTNET_FORMAT_FILE_LIMIT" ]; then
-    echo "==> pre-push: $services_dotnet_format_file_count arquivos .cs de servicos alterados excedem o limite local de $DOTNET_FORMAT_FILE_LIMIT; formatacao .NET servicos local ignorada"
-  else
-    run_timed "formatacao dos arquivos .cs de servicos alterados" run_dotnet_format_changed_files ./LedgerService.slnx "$services_dotnet_format_files"
-  fi
-elif [ "$dotnet_format_check" = false ]; then
-  echo "==> pre-push: diff inseguro; formatacao .NET servicos local ignorada"
-else
-  echo "==> pre-push: sem arquivos .cs de servicos alterados; formatacao .NET servicos local ignorada"
+if [ "$ledger_changes" = true ]; then
+  restore_solution "Ledger" ./LedgerService.slnx
+fi
+
+if [ "$balance_changes" = true ]; then
+  restore_solution "Balance" ./BalanceService.slnx
+fi
+
+if [ "$transfer_changes" = true ]; then
+  restore_solution "Transfer" ./TransferService.slnx
+fi
+
+if [ "$aggregate_changes" = true ]; then
+  restore_solution "agregadora" ./PocArquitetura.slnx
+fi
+
+if [ "$shared_changes" = true ]; then
+  run_dotnet_format_context "Shared" ./PocArquitetura.Shared.slnx "$shared_dotnet_format_files"
+fi
+
+if [ "$audit_changes" = true ]; then
+  run_dotnet_format_context "Audit" ./AuditService.slnx "$audit_dotnet_format_files"
+fi
+
+if [ "$identity_changes" = true ]; then
+  run_dotnet_format_context "Identity" ./IdentityService.slnx "$identity_dotnet_format_files"
+fi
+
+if [ "$ledger_changes" = true ]; then
+  run_dotnet_format_context "Ledger" ./LedgerService.slnx "$ledger_dotnet_format_files"
+fi
+
+if [ "$balance_changes" = true ]; then
+  run_dotnet_format_context "Balance" ./BalanceService.slnx "$balance_dotnet_format_files"
+fi
+
+if [ "$transfer_changes" = true ]; then
+  run_dotnet_format_context "Transfer" ./TransferService.slnx "$transfer_dotnet_format_files"
+fi
+
+if [ "$aggregate_changes" = true ]; then
+  run_dotnet_format_context "agregadora" ./PocArquitetura.slnx "$aggregate_dotnet_format_files"
 fi
 
 case "$FULL_TESTS" in
@@ -452,23 +625,38 @@ case "$FULL_TESTS" in
 esac
 
 if [ "$shared_changes" = true ]; then
-  run_timed "build .NET Shared ($CONFIGURATION)" dotnet build ./PocArquitetura.Shared.slnx --configuration "$CONFIGURATION" --no-restore
-
-  run_timed "testes unitarios rapidos Shared sem cobertura" dotnet test ./PocArquitetura.Shared.slnx \
-    --configuration "$CONFIGURATION" \
-    --no-build \
-    --no-restore \
-    --filter "$UNIT_TEST_FILTER"
+  build_solution "Shared" ./PocArquitetura.Shared.slnx
+  test_solution "Shared" ./PocArquitetura.Shared.slnx
 fi
 
-if [ "$services_changes" = true ]; then
-  run_timed "build .NET servicos ($CONFIGURATION)" dotnet build ./LedgerService.slnx --configuration "$CONFIGURATION" --no-restore
+if [ "$audit_changes" = true ]; then
+  build_solution "Audit" ./AuditService.slnx
+  test_solution "Audit" ./AuditService.slnx
+fi
 
-  run_timed "testes unitarios rapidos servicos sem cobertura" dotnet test ./LedgerService.slnx \
-    --configuration "$CONFIGURATION" \
-    --no-build \
-    --no-restore \
-    --filter "$UNIT_TEST_FILTER"
+if [ "$identity_changes" = true ]; then
+  build_solution "Identity" ./IdentityService.slnx
+  test_solution "Identity" ./IdentityService.slnx
+fi
+
+if [ "$ledger_changes" = true ]; then
+  build_solution "Ledger" ./LedgerService.slnx
+  test_solution "Ledger" ./LedgerService.slnx
+fi
+
+if [ "$balance_changes" = true ]; then
+  build_solution "Balance" ./BalanceService.slnx
+  test_solution "Balance" ./BalanceService.slnx
+fi
+
+if [ "$transfer_changes" = true ]; then
+  build_solution "Transfer" ./TransferService.slnx
+  test_solution "Transfer" ./TransferService.slnx
+fi
+
+if [ "$aggregate_changes" = true ]; then
+  build_solution "agregadora" ./PocArquitetura.slnx
+  test_solution "agregadora" ./PocArquitetura.slnx
 fi
 
 echo "==> pre-push: build, formatacao e testes unitarios aprovados"

@@ -253,4 +253,4 @@ Esse smoke nao usa Pub/Sub e nao depende de `BalanceService` para decidir a Saga
 
 Se o status final for `Failed` com `401 Unauthorized`, a falha deve ser tratada como erro real do fluxo service-to-service. Verifique `KEYCLOAK_CLIENT_SECRET`, `TransferService:Worker:Ledger:Auth:*`, audience `ledger-api`, scope `ledger.write`, `merchant_id` do token e os logs do `transfer-worker` com `CorrelationId` e a idempotency key UUID da etapa. O runner nao deve aceitar `Failed` como sucesso no fluxo feliz.
 
-Use o provider padrao `TOKEN_PROVIDER=keycloak` ou informe `TOKEN` manualmente com `transfer.write`, `transfer.read`, audience `transfer-api` e `merchant_id` contendo os merchants testados. O `Auth.Api` legado nao e o caminho recomendado para esses modos porque seu catalogo historico nao cobre os scopes do TransferService.
+Use o provider padrao `TOKEN_PROVIDER=keycloak` ou informe `TOKEN` manualmente com `transfer.write`, `transfer.read`, audience `transfer-api` e `merchant_id` contendo os merchants testados.

@@ -5,7 +5,7 @@
         }
     ],
     "settings": {
-        "dotnet.defaultSolution": "LedgerService.slnx",
+        "dotnet.defaultSolution": "PocArquitetura.slnx",
         "dotnet.server.useOmnisharp": false,
         "editor.formatOnSave": true,
         "editor.codeActionsOnSave": {

@@ -6,6 +6,12 @@ A arquitetura atual esta mais proxima de Clean Architecture/DDD por bounded cont
 
 A recomendacao e nao aumentar o numero de camadas agora. O melhor caminho e preservar a estrutura atual, corrigir assimetrias pontuais e fortalecer contratos/eventos/documentacao antes de qualquer reestruturacao.
 
+A organizacao de desenvolvimento usa `PocArquitetura.slnx` como solution
+agregadora global e solutions contextuais para Ledger, Balance, Transfer,
+Identity, Audit e Shared. Essa organizacao orienta build, testes e experiencia
+local, mas nao implica separacao automatica de deployment, ownership,
+repositorios, bancos ou topologia runtime.
+
 ## Avaliacao real por servico
 
 ### LedgerService
@@ -48,11 +54,11 @@ Simplificacoes recomendadas:
 
 Keycloak e o IdP principal; IdentityService e o bounded context de usuarios.
 
-Keycloak emite JWT RS256 por OIDC e publica JWKS para validacao offline pelas APIs. O `IdentityService.Api` cria usuarios no Keycloak via Admin API, define senha no provider, gera `MerchantId`, persiste o vinculo local no schema `identity` e envia e-mail de boas-vindas por domain event depois do commit. O `Auth.Api` foi depreciado e permanece apenas como legado por overlay explicito. Enquanto o projeto legado existir, manter seus testes e o projeto unico e mais simples do que introduzir camadas artificiais.
+Keycloak emite JWT RS256 por OIDC e publica JWKS para validacao offline pelas APIs. O `IdentityService.Api` cria usuarios no Keycloak via Admin API, define senha no provider, gera `MerchantId`, persiste o vinculo local no schema `identity` e envia e-mail de boas-vindas por domain event depois do commit. O `Auth.Api` legado foi removido da stack operacional; referencias restantes ficam em ADRs e relatorios historicos.
 
 Excessos ou sinais de atencao:
 
-- o fallback `Auth.Api` nao deve voltar para a stack principal sem nova decisao;
+- um fallback local proprio de autenticacao nao deve voltar para a stack principal sem nova decisao;
 - o IdentityService nao deve virar emissor de tokens nem absorver regras de autorizacao dos servicos financeiros;
 - o envio atual de e-mail nao tem Outbox, retry duravel ou DLQ; ADR-0095 registra essa evolucao apenas como futura.
 
@@ -60,8 +66,7 @@ Simplificacoes recomendadas:
 
 - manter Keycloak como provedor principal;
 - manter IdentityService focado em cadastro, MerchantId, vinculo com Keycloak e e-mail de boas-vindas;
-- manter `Auth.Api` pequeno, testado e fora do compose principal enquanto houver necessidade de compatibilidade;
-- remover completamente `Auth.Api` apenas em etapa futura dedicada.
+- manter Keycloak como unico emissor operacional local.
 
 ## Problemas principais encontrados
 
@@ -78,11 +83,9 @@ Simplificacoes recomendadas:
 - Risco de interfaces artificiais em services de Application com uma unica implementacao.
 - MediatR no Balance pode ser mais estrutura do que necessidade atual, embora esteja bem aplicado.
 - Outbox como entidade de Domain pode ser mais "arquitetural" que negocio.
-- Auth.Api legado nao precisa ganhar as mesmas quatro camadas dos outros servicos.
 
 ## Principais simplificacoes recomendadas
 
-- Manter Auth.Api legado em projeto unico enquanto ele existir.
 - Nao padronizar MediatR em todos os servicos sem necessidade.
 - Nao criar shared libraries para contratos antes de decidir governanca de versionamento.
 - Nao quebrar `CreateLancamentoService` agora; observar crescimento e extrair com criterio.
@@ -94,7 +97,6 @@ Simplificacoes recomendadas:
 - Defaults legados, como fallback `BRL` para `LedgerEntryCreated.v1`, podem ser confundidos com regra atual se a documentacao de depreciacao nao continuar clara.
 - Duplicidade de padroes entre Ledger e Balance pode confundir contribuidores.
 - Acoplamento operacional no `Program.cs` pode virar composicao dificil de testar.
-- Auth.Api legado pode ser confundido com caminho operacional se voltar a aparecer na stack principal.
 - IdentityService pode ser confundido com IdP se a documentacao nao deixar claro que tokens continuam sendo emitidos pelo Keycloak.
 - E-mail de boas-vindas no IdentityService e side effect pos-commit sem garantia duravel; isso e aceitavel para a POC, mas deve ser reavaliado se virar requisito critico.
 - Outbox/DLQ exigem operacao cuidadosa de reprocessamento; ja existem runbooks e casos de uso internos, mas ainda nao ha automacao operacional completa para todos os cenarios produtivos.
@@ -127,7 +129,6 @@ O roadmap consolidado por areas de maturidade fica em [docs/roadmap.md](../roadm
 
 ### Longo prazo
 
-- Remover o projeto Auth.Api legado quando nao houver mais necessidade de compatibilidade.
 - Evoluir e-mail do IdentityService para Outbox/worker/DLQ apenas se houver necessidade concreta de entrega duravel ou reprocessamento operacional.
 - Evoluir replay/redrive de DLQ e reconstrucao de projecoes de runbooks e casos de uso internos para operacao mais automatizada quando houver necessidade real.
 - Avaliar .NET Aspire apenas se a operacao local/orquestracao se tornar gargalo real.
@@ -140,6 +141,5 @@ Adotar arquitetura minimalista e pragmatica, robusta onde a complexidade e real:
 - LedgerService e BalanceService continuam com camadas `Api`, `Application`, `Domain` e `Infrastructure`.
 - IdentityService continua com camadas `Api`, `Application`, `Domain` e `Infrastructure`, sem Worker ou mensageria nesta etapa.
 - `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker` sao processos separados, com composition roots explicitos e `ServiceName` proprio.
-- Auth.Api legado continua como projeto simples fora da stack principal enquanto existir.
 - Boundaries devem ser reforcados por documentacao, testes de contrato e revisao de dependencias, nao por novas camadas preventivas.
 - Refactors estruturais devem ser planejados em etapas pequenas, com motivo concreto e ADR propria quando alterarem a decisao.

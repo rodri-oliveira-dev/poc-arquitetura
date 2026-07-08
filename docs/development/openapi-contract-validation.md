@@ -16,7 +16,7 @@ Eles sao gerados a partir dos assemblies Release das APIs, usando o documento Sw
 Fluxo local:
 
 ```bash
-dotnet build ./LedgerService.slnx --configuration Release --no-restore
+dotnet build ./PocArquitetura.slnx --configuration Release --no-restore
 ./scripts/contracts/openapi/generate.sh
 ```
 

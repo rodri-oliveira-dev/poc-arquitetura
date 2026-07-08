@@ -19,11 +19,12 @@ Consulte estes arquivos quando forem relevantes para a tarefa:
 7. `.editorconfig`
 8. `global.json`
 9. `coverlet.runsettings`
-10. `LedgerService.slnx`
+10. `PocArquitetura.slnx`
+11. Solutions de contexto (`LedgerService.slnx`, `BalanceService.slnx`, `TransferService.slnx`, `IdentityService.slnx`, `AuditService.slnx`) e `PocArquitetura.Shared.slnx`
 
 ## Escopo principal
 
-A solution principal e `LedgerService.slnx`.
+A solution agregadora/principal do repositorio e `PocArquitetura.slnx`.
 
 Componentes principais:
 
@@ -37,7 +38,19 @@ Componentes principais:
 - `src/balance/BalanceService.Infrastructure`
 - `tests/*`
 
-`src/Auth.Api` permanece apenas como legado de autenticacao de POC, fora da stack principal, com testes proprios enquanto o projeto existir.
+Solutions por contexto:
+
+- `LedgerService.slnx`: projetos em `src/ledger/`, testes em `tests/ledger/` e o tooling `tools/ComposeEnvGen` necessario aos testes do Ledger.
+- `BalanceService.slnx`: projetos em `src/balance/` e testes em `tests/balance/`.
+- `TransferService.slnx`: projetos em `src/transfer/` e testes em `tests/transfer/`.
+- `IdentityService.slnx`: projetos em `src/identity/` e testes em `tests/identity/`.
+- `AuditService.slnx`: projetos em `src/audit/` e testes em `tests/audit/`.
+- `PocArquitetura.Shared.slnx`: projetos em `src/Shared/` e testes em `tests/Shared/`.
+- `PocArquitetura.slnx`: agregadora global com contextos, Shared, `tests/Architecture.Tests` e tooling necessario para fechamento das dependencias.
+
+`tests/Architecture.Tests` e transversal e deve permanecer na solution agregadora, sem ser atribuido artificialmente a um contexto especifico.
+
+Use `PocArquitetura.slnx` para validacoes globais, cobertura consolidada, workflows gerais, alteracoes transversais e testes arquiteturais. Use uma solution contextual somente quando a mudanca estiver restrita ao respectivo contexto e a validacao contextual for suficiente para o ciclo local. Use `PocArquitetura.Shared.slnx` para alteracoes restritas aos projetos Shared e seus testes.
 
 ## Regras obrigatorias
 
@@ -170,9 +183,9 @@ Em caso de conflito entre este arquivo e uma skill, preserve este arquivo como o
 
 ```bash
 dotnet tool restore
-dotnet restore ./LedgerService.slnx
-dotnet build ./LedgerService.slnx --configuration Release --no-restore
-dotnet test ./LedgerService.slnx --configuration Release --no-build --settings ./coverlet.runsettings
+dotnet restore ./PocArquitetura.slnx
+dotnet build ./PocArquitetura.slnx --configuration Release --no-restore
+dotnet test ./PocArquitetura.slnx --configuration Release --no-build --settings ./coverlet.runsettings
 ```
 
 Para cobertura com gate:
@@ -191,7 +204,7 @@ Testes com Testcontainers/PostgreSQL precisam acessar uma Docker-compatible API.
 
 ```powershell
 $env:DOCKER_HOST='npipe://./pipe/docker_engine'
-dotnet test ./LedgerService.slnx --configuration Release --no-build --settings ./coverlet.runsettings
+dotnet test ./PocArquitetura.slnx --configuration Release --no-build --settings ./coverlet.runsettings
 ```
 
 ## Commits
@@ -217,7 +230,7 @@ $csFiles = @(
   git diff --name-only --diff-filter=ACMRT HEAD -- '*.cs'
   git ls-files --others --exclude-standard -- '*.cs'
 ) | Sort-Object -Unique
-if ($csFiles) { dotnet format ./LedgerService.slnx --include $csFiles --verify-no-changes }
+if ($csFiles) { dotnet format ./PocArquitetura.slnx --include $csFiles --verify-no-changes }
 ```
 
 Se a verificacao falhar, corrija a formatacao e repita a validacao antes de criar ou emendar o commit. Evite deixar churn de `dotnet format` em arquivos fora do escopo; quando uma execucao ampla tocar arquivos nao relacionados, restaure o ruido e mantenha apenas as mudancas necessarias.

@@ -78,8 +78,6 @@ function normalizeConfig(cfg) {
     const ledgerBaseUrl = cleanBaseUrl(cfg.LEDGER_BASE_URL || cfg.BASE_URL_LEDGER);
     const balanceBaseUrl = cleanBaseUrl(cfg.BALANCE_BASE_URL || cfg.BASE_URL_BALANCE);
     const transferBaseUrl = cleanBaseUrl(cfg.TRANSFER_BASE_URL || cfg.BASE_URL_TRANSFER);
-    const authBaseUrl = cleanBaseUrl(cfg.AUTH_BASE_URL || cfg.BASE_URL_AUTH);
-
     return {
         ...cfg,
         TOKEN: cleanString(cfg.TOKEN),
@@ -90,8 +88,6 @@ function normalizeConfig(cfg) {
         BALANCE_BASE_URL: balanceBaseUrl,
         BASE_URL_TRANSFER: transferBaseUrl,
         TRANSFER_BASE_URL: transferBaseUrl,
-        BASE_URL_AUTH: authBaseUrl,
-        AUTH_BASE_URL: authBaseUrl,
         LEDGER_POST_PATH: cleanPath(cfg.LEDGER_POST_PATH),
         BALANCE_DAILY_PATH: cleanPath(cfg.BALANCE_DAILY_PATH),
         BALANCE_PERIOD_PATH: cleanPath(cfg.BALANCE_PERIOD_PATH),
@@ -108,7 +104,6 @@ export function loadConfig() {
         BASE_URL_LEDGER: 'http://localhost:5226',
         BASE_URL_BALANCE: 'http://localhost:5228',
         BASE_URL_TRANSFER: 'http://localhost:5230',
-        BASE_URL_AUTH: 'http://localhost:8081',
         MESSAGING_PROVIDER: 'Kafka',
         KAFKA_BOOTSTRAP_SERVERS: 'localhost:19092',
         LEDGER_POST_PATH: '/api/v1/lancamentos',

@@ -30,7 +30,7 @@ public sealed class JwtTransportSecurityTests
     {
         var services = new ServiceCollection();
 
-        var act = () => services.AddApiJwtAuth(CreateConfiguration("https://auth-api/jwks.json", requireHttpsMetadata: false), CreateEnvironment(Environments.Production));
+        var act = () => services.AddApiJwtAuth(CreateConfiguration("https://issuer.example/jwks.json", requireHttpsMetadata: false), CreateEnvironment(Environments.Production));
 
         var ex = Assert.Throws<InvalidOperationException>(act);
         Assert.Matches("^.*RequireHttpsMetadata=false.*Development/Local.*$", ex.Message);
@@ -41,7 +41,7 @@ public sealed class JwtTransportSecurityTests
     {
         var services = new ServiceCollection();
 
-        var act = () => services.AddApiJwtAuth(CreateConfiguration("http://auth-api/jwks.json", requireHttpsMetadata: true), CreateEnvironment(Environments.Production));
+        var act = () => services.AddApiJwtAuth(CreateConfiguration("http://issuer.example/jwks.json", requireHttpsMetadata: true), CreateEnvironment(Environments.Production));
 
         var ex = Assert.Throws<InvalidOperationException>(act);
         Assert.Matches("^.*JwksUrl.*HTTPS.*Development/Local.*$", ex.Message);
@@ -52,7 +52,7 @@ public sealed class JwtTransportSecurityTests
         return new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["Jwt:Issuer"] = "https://auth-api",
+                ["Jwt:Issuer"] = "https://issuer.example",
                 ["Jwt:Audience"] = "balance-api",
                 ["Jwt:JwksUrl"] = jwksUrl,
                 ["Jwt:RequireHttpsMetadata"] = requireHttpsMetadata.ToString()

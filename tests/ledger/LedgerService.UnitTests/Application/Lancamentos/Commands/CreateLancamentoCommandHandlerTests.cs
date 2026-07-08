@@ -1,9 +1,9 @@
 using System.Diagnostics;
 
-using LedgerService.Application.Lancamentos.Events;
 using LedgerService.Application.Common.Exceptions;
 using LedgerService.Application.Common.Models;
 using LedgerService.Application.Lancamentos.Commands;
+using LedgerService.Application.Lancamentos.Events;
 using LedgerService.Application.Lancamentos.Inputs.CreateLancamento;
 using LedgerService.Application.Lancamentos.Services;
 using LedgerService.Domain.Entities;
@@ -66,29 +66,29 @@ public sealed class CreateLancamentoCommandHandlerTests
         Assert.False(string.IsNullOrWhiteSpace(result.OccurredAt));
         Assert.False(string.IsNullOrWhiteSpace(result.CreatedAt));
         Assert.NotNull(createdEntry);
-        Assert.Equal(input.MerchantId, createdEntry!.MerchantId);
-        Assert.Equal(LedgerEntryType.Credit, createdEntry!.Type);
-        Assert.Equal(10.00m, createdEntry!.Amount);
+        Assert.Equal(input.MerchantId, createdEntry.MerchantId);
+        Assert.Equal(LedgerEntryType.Credit, createdEntry.Type);
+        Assert.Equal(10.00m, createdEntry.Amount);
         Assert.NotNull(createdIdem);
-        Assert.Equal(input.MerchantId, createdIdem!.MerchantId);
-        Assert.Equal(input.IdempotencyKey, createdIdem!.IdempotencyKey);
-        Assert.Equal(201, createdIdem!.ResponseStatusCode);
-        Assert.Equal(createdEntry!.Id, createdIdem!.LedgerEntryId);
-        Assert.False(string.IsNullOrWhiteSpace(createdIdem!.ResponseBody));
+        Assert.Equal(input.MerchantId, createdIdem.MerchantId);
+        Assert.Equal(input.IdempotencyKey, createdIdem.IdempotencyKey);
+        Assert.Equal(201, createdIdem.ResponseStatusCode);
+        Assert.Equal(createdEntry.Id, createdIdem.LedgerEntryId);
+        Assert.False(string.IsNullOrWhiteSpace(createdIdem.ResponseBody));
         Assert.Equal(clock.UtcNow.UtcDateTime, createdEntry.CreatedAt);
         Assert.Equal(DateTimeKind.Utc, createdEntry.CreatedAt.Kind);
         Assert.Equal(clock.UtcNow.UtcDateTime, createdIdem.CreatedAt);
         Assert.Equal(clock.UtcNow.UtcDateTime.AddDays(7), createdIdem.ExpiresAt);
         Assert.NotNull(createdOutbox);
-        Assert.Equal("LedgerEntry", createdOutbox!.AggregateType);
-        Assert.Equal(createdEntry!.Id, createdOutbox!.AggregateId);
-        Assert.Equal(LedgerEntryCreatedV2.EventType, createdOutbox!.EventType);
-        Assert.Contains("\"merchantId\"", createdOutbox!.Payload);
-        Assert.Equal(Guid.Parse(input.CorrelationId), createdOutbox!.CorrelationId);
+        Assert.Equal("LedgerEntry", createdOutbox.AggregateType);
+        Assert.Equal(createdEntry.Id, createdOutbox.AggregateId);
+        Assert.Equal(LedgerEntryCreatedV2.EventType, createdOutbox.EventType);
+        Assert.Contains("\"merchantId\"", createdOutbox.Payload);
+        Assert.Equal(Guid.Parse(input.CorrelationId), createdOutbox.CorrelationId);
         Assert.Equal(clock.UtcNow.UtcDateTime, createdOutbox.OccurredAt);
         var outboxEvent = System.Text.Json.JsonSerializer.Deserialize<LedgerEntryCreatedV2>(createdOutbox.Payload, JsonOptions);
         Assert.NotNull(outboxEvent);
-        Assert.Equal(result.Id, outboxEvent!.Id);
+        Assert.Equal(result.Id, outboxEvent.Id);
         Assert.Equal("CREDIT", outboxEvent.Type);
         Assert.Equal("10.00", outboxEvent.Amount);
         Assert.Equal("BRL", outboxEvent.Currency);
@@ -112,14 +112,14 @@ public sealed class CreateLancamentoCommandHandlerTests
         using var listener = new ActivityListener
         {
             ShouldListenTo = _ => true,
-            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded
+            Sample = (ref _) => ActivitySamplingResult.AllDataAndRecorded
         };
         ActivitySource.AddActivityListener(listener);
 
         using var source = new ActivitySource("LedgerService.UnitTests");
         using var activity = source.StartActivity("http.request", ActivityKind.Server);
         Assert.NotNull(activity);
-        activity!.TraceStateString = "vendor=value";
+        activity.TraceStateString = "vendor=value";
         activity.AddBaggage("tenant", "poc");
 
         var ledgerRepo = new Mock<ILedgerEntryRepository>(MockBehavior.Strict);
@@ -152,7 +152,7 @@ public sealed class CreateLancamentoCommandHandlerTests
 
         await sut.Handle(new CreateLancamentoCommand(input), CancellationToken.None);
         Assert.NotNull(createdOutbox);
-        Assert.Equal(activity.Id, createdOutbox!.TraceParent);
+        Assert.Equal(activity.Id, createdOutbox.TraceParent);
         Assert.Equal("vendor=value", createdOutbox.TraceState);
         Assert.Equal("tenant=poc", createdOutbox.Baggage);
     }
@@ -196,12 +196,12 @@ public sealed class CreateLancamentoCommandHandlerTests
         Assert.Equal("DEBIT", result.Type);
         Assert.Equal("-15.50", result.Amount);
         Assert.NotNull(createdEntry);
-        Assert.Equal(LedgerEntryType.Debit, createdEntry!.Type);
+        Assert.Equal(LedgerEntryType.Debit, createdEntry.Type);
         Assert.Equal(-15.50m, createdEntry.Amount);
         Assert.NotNull(createdOutbox);
-        var outboxEvent = System.Text.Json.JsonSerializer.Deserialize<LedgerEntryCreatedV2>(createdOutbox!.Payload, JsonOptions);
+        var outboxEvent = System.Text.Json.JsonSerializer.Deserialize<LedgerEntryCreatedV2>(createdOutbox.Payload, JsonOptions);
         Assert.NotNull(outboxEvent);
-        Assert.Equal("DEBIT", outboxEvent!.Type);
+        Assert.Equal("DEBIT", outboxEvent.Type);
         Assert.Equal("-15.50", outboxEvent.Amount);
         Assert.Equal("BRL", outboxEvent.Currency);
         ledgerRepo.VerifyAll();
@@ -243,9 +243,12 @@ public sealed class CreateLancamentoCommandHandlerTests
 
         var sut = CreateSut(ledgerRepo.Object, idemRepo.Object, outboxRepo.Object, uow.Object);
 
-        var act = async () => await sut.Handle(new CreateLancamentoCommand(input), CancellationToken.None);
+        async Task<LancamentoDto> act()
+        {
+            return await sut.Handle(new CreateLancamentoCommand(input), CancellationToken.None);
+        }
 
-        var ex = await Assert.ThrowsAsync<ConflictException>(act);
+        var ex = await Assert.ThrowsAsync<ConflictException>((Func<Task<LancamentoDto>>)act);
         Assert.Contains("Idempotency-Key already used with a different payload", ex.Message);
     }
 
@@ -289,9 +292,12 @@ public sealed class CreateLancamentoCommandHandlerTests
 
         var sut = CreateSut(ledgerRepo.Object, idemRepo.Object, outboxRepo.Object, uow.Object);
 
-        var act = async () => await sut.Handle(new CreateLancamentoCommand(changedInput), CancellationToken.None);
+        async Task<LancamentoDto> act()
+        {
+            return await sut.Handle(new CreateLancamentoCommand(changedInput), CancellationToken.None);
+        }
 
-        var ex = await Assert.ThrowsAsync<ConflictException>(act);
+        var ex = await Assert.ThrowsAsync<ConflictException>((Func<Task<LancamentoDto>>)act);
         Assert.Contains("Idempotency-Key already used with a different payload", ex.Message);
     }
 
@@ -311,7 +317,7 @@ public sealed class CreateLancamentoCommandHandlerTests
 
         var expectedHash = ComputeRequestHash(input);
 
-        var replayJson = "{\"id\":\"lan_12345678\",\"merchantId\":\"m1\",\"type\":\"CREDIT\",\"amount\":\"10.00\",\"occurredAt\":\"2026-02-16T00:00:00.0000000Z\",\"description\":null,\"externalReference\":null,\"createdAt\":\"2026-02-16T00:00:00.0000000Z\"}";
+        var replayJson = /*lang=json,strict*/ "{\"id\":\"lan_12345678\",\"merchantId\":\"m1\",\"type\":\"CREDIT\",\"amount\":\"10.00\",\"occurredAt\":\"2026-02-16T00:00:00.0000000Z\",\"description\":null,\"externalReference\":null,\"createdAt\":\"2026-02-16T00:00:00.0000000Z\"}";
 
         var existing = new IdempotencyRecord(
             merchantId: input.MerchantId,
@@ -367,9 +373,12 @@ public sealed class CreateLancamentoCommandHandlerTests
 
         var sut = CreateSut(ledgerRepo.Object, idemRepo.Object, outboxRepo.Object, uow.Object);
 
-        var act = async () => await sut.Handle(new CreateLancamentoCommand(input), CancellationToken.None);
+        async Task<LancamentoDto> act()
+        {
+            return await sut.Handle(new CreateLancamentoCommand(input), CancellationToken.None);
+        }
 
-        var ex = await Assert.ThrowsAsync<ConflictException>(act);
+        var ex = await Assert.ThrowsAsync<ConflictException>((Func<Task<LancamentoDto>>)act);
         Assert.Contains("Unable to replay idempotent response", ex.Message);
     }
 
@@ -497,7 +506,7 @@ public sealed class CreateLancamentoCommandHandlerTests
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null)
         {
-            if (File.Exists(Path.Combine(directory.FullName, "LedgerService.slnx")))
+            if (File.Exists(Path.Combine(directory.FullName, "PocArquitetura.slnx")))
                 return directory.FullName;
 
             directory = directory.Parent;

@@ -1,6 +1,6 @@
 {
   "stryker-config": {
-    "solution": "../../../LedgerService.slnx",
+    "solution": "../../../BalanceService.slnx",
     "project": "BalanceService.Application.csproj",
     "mutation-level": "Standard",
     "coverage-analysis": "perTest",

@@ -72,9 +72,6 @@ infra/nginx/certs/*
 coverage/
 coverage.*
 
-# Auth.Api (POC) - chave RSA persistida localmente (NÃO versionar)
-# (o caminho real do projeto é src/Auth.Api)
-src/Auth.Api/data/
 
 # Diretório local opcional usado pelo compose para persistir a chave (não versionar)
 data/

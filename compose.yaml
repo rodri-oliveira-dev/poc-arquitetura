@@ -271,7 +271,6 @@ services:
 
       # Auth (JWT Bearer via JWKS)
       # Por padrao, valida tokens Keycloak com issuer publico do realm e JWKS interno.
-      # Para usar o Auth.Api legado, sobrescreva JWT_ISSUER e JWT_JWKS_URL no .env.
       # HTTP/JWKS é aceito somente porque o compose local roda em Local.
       Jwt__Issuer: "${JWT_ISSUER:-http://localhost:8081/realms/poc}"
       Jwt__JwksUrl: "${JWT_JWKS_URL:-http://keycloak:8080/realms/poc/protocol/openid-connect/certs}"
@@ -351,7 +350,6 @@ services:
 
       # Auth (JWT Bearer via JWKS)
       # Por padrao, valida tokens Keycloak com issuer publico do realm e JWKS interno.
-      # Para usar o Auth.Api legado, sobrescreva JWT_ISSUER e JWT_JWKS_URL no .env.
       # HTTP/JWKS é aceito somente porque o compose local roda em Local.
       Jwt__Issuer: "${JWT_ISSUER:-http://localhost:8081/realms/poc}"
       Jwt__JwksUrl: "${JWT_JWKS_URL:-http://keycloak:8080/realms/poc/protocol/openid-connect/certs}"

@@ -9,7 +9,7 @@
       "installDockerBuildx": true
     }
   },
-  "postCreateCommand": "dotnet --info && dotnet tool restore && dotnet restore ./LedgerService.slnx",
+  "postCreateCommand": "dotnet --info && dotnet tool restore && dotnet restore ./PocArquitetura.slnx",
   "customizations": {
     "vscode": {
       "extensions": [

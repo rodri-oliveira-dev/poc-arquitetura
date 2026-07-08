@@ -3,7 +3,6 @@ using System.Text.Json;
 using Json.Schema;
 
 using LedgerService.Application.Abstractions.Time;
-using LedgerService.Application.Common.Models;
 using LedgerService.Application.Lancamentos.Commands;
 using LedgerService.Application.Lancamentos.Events;
 using LedgerService.Application.Lancamentos.Services;
@@ -72,7 +71,8 @@ public sealed class LedgerEntryCreatedProducerContractTests
         {
             {
                 "required currency is missing",
-                """
+                /*lang=json,strict*/
+                                     """
                 {
                   "id": "lan_12345678",
                   "type": "CREDIT",
@@ -86,7 +86,8 @@ public sealed class LedgerEntryCreatedProducerContractTests
             },
             {
                 "required merchantId is missing",
-                """
+                /*lang=json,strict*/
+                                     """
                 {
                   "id": "lan_12345678",
                   "type": "CREDIT",
@@ -100,7 +101,8 @@ public sealed class LedgerEntryCreatedProducerContractTests
             },
             {
                 "amount must be a string",
-                """
+                /*lang=json,strict*/
+                                     """
                 {
                   "id": "lan_12345678",
                   "type": "CREDIT",
@@ -115,7 +117,8 @@ public sealed class LedgerEntryCreatedProducerContractTests
             },
             {
                 "event name is not part of the payload contract",
-                """
+                /*lang=json,strict*/
+                                     """
                 {
                   "id": "lan_12345678",
                   "type": "CREDIT",
@@ -131,7 +134,8 @@ public sealed class LedgerEntryCreatedProducerContractTests
             },
             {
                 "event version is not part of the payload contract",
-                """
+                /*lang=json,strict*/
+                                     """
                 {
                   "id": "lan_12345678",
                   "type": "CREDIT",
@@ -193,7 +197,7 @@ public sealed class LedgerEntryCreatedProducerContractTests
         await sut.Handle(new CreateLancamentoCommand(input), CancellationToken.None);
 
         Assert.NotNull(createdOutbox);
-        return createdOutbox!;
+        return createdOutbox;
     }
 
     private static JsonElement ParsePayload(string payload)
@@ -237,7 +241,7 @@ public sealed class LedgerEntryCreatedProducerContractTests
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null)
         {
-            if (File.Exists(Path.Combine(directory.FullName, "LedgerService.slnx")))
+            if (File.Exists(Path.Combine(directory.FullName, "PocArquitetura.slnx")))
                 return directory.FullName;
 
             directory = directory.Parent;

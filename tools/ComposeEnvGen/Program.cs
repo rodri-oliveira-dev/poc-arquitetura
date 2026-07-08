@@ -9,191 +9,155 @@ internal static class Program
 {
     public static int Main(string[] args)
     {
-        var argsList = args.ToList();
-        string? composePath = null;
-        string? outPath = null;
+        var options = CommandLineOptions.Parse(args);
 
-        for (var i = 0; i < argsList.Count; i++)
+        var readResult = ComposeReader.TryRead(options.ComposePath, out var composeContent);
+        if (readResult != ExitCodes.Ok)
         {
-            var a = argsList[i];
-            if (string.Equals(a, "--compose", StringComparison.OrdinalIgnoreCase) && i + 1 < argsList.Count)
-            {
-                composePath = argsList[++i];
-                continue;
-            }
-            if (string.Equals(a, "--out", StringComparison.OrdinalIgnoreCase) && i + 1 < argsList.Count)
-            {
-                outPath = argsList[++i];
-                continue;
-            }
+            return readResult;
         }
 
-        composePath ??= "compose.yaml";
-        outPath ??= ".env.k6.auto";
-
-        string composeContent;
-        try
+        var parseResult = ComposeReader.TryReadServices(composeContent, out var servicesNode);
+        if (parseResult != ExitCodes.Ok)
         {
-            composeContent = File.ReadAllText(composePath);
-        }
-        catch (IOException ex)
-        {
-            Console.Error.WriteLine($"[ComposeEnvGen] Falha ao ler '{composePath}': {ex.Message}");
-            return ExitCodes.ComposeReadFailed;
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            Console.Error.WriteLine($"[ComposeEnvGen] Falha ao ler '{composePath}': {ex.Message}");
-            return ExitCodes.ComposeReadFailed;
-        }
-        catch (ArgumentException ex)
-        {
-            Console.Error.WriteLine($"[ComposeEnvGen] Falha ao ler '{composePath}': {ex.Message}");
-            return ExitCodes.ComposeReadFailed;
-        }
-        catch (NotSupportedException ex)
-        {
-            Console.Error.WriteLine($"[ComposeEnvGen] Falha ao ler '{composePath}': {ex.Message}");
-            return ExitCodes.ComposeReadFailed;
+            return parseResult;
         }
 
-        YamlStream yaml;
-        try
+        var discoveryResult = ServiceDiscovery.TryResolveEndpoints(servicesNode, out var endpoints);
+        if (discoveryResult != ExitCodes.Ok)
         {
-            yaml = new YamlStream();
-            yaml.Load(new StringReader(composeContent));
+            return discoveryResult;
         }
-        catch (YamlException ex)
-        {
-            Console.Error.WriteLine($"[ComposeEnvGen] Falha ao parsear YAML: {ex.Message}");
-            return ExitCodes.ComposeParseFailed;
-        }
-
-        var root = yaml.Documents.FirstOrDefault()?.RootNode as YamlMappingNode;
-        if (root is null)
-        {
-            Console.Error.WriteLine("[ComposeEnvGen] YAML sem root mapping.");
-            return ExitCodes.ComposeParseFailed;
-        }
-
-        var servicesNode = ComposeHelpers.GetChild(root, "services") as YamlMappingNode;
-        if (servicesNode is null)
-        {
-            Console.Error.WriteLine("[ComposeEnvGen] 'services' não encontrado no compose.");
-            return ExitCodes.ComposeParseFailed;
-        }
-
-        var serviceNames = servicesNode.Children.Keys
-            .OfType<YamlScalarNode>()
-            .Select(x => x.Value)
-            .Where(x => !string.IsNullOrWhiteSpace(x))
-            .Select(x => x!)
-            .ToList();
-
-        var ledgerServiceName = ServiceDiscovery.PickBestService(servicesNode, serviceNames, ["ledger"]);
-        var balanceServiceName = ServiceDiscovery.PickBestService(servicesNode, serviceNames, ["balance", "consolid"]);
-        var transferServiceName = ServiceDiscovery.PickBestService(servicesNode, serviceNames, ["transfer"]);
-        var authServiceName = ServiceDiscovery.PickBestService(servicesNode, serviceNames, ["auth", "keycloak", "identity"]);
-
-        if (ledgerServiceName is null)
-        {
-            Console.Error.WriteLine("[ComposeEnvGen] Não foi possível inferir o service do Ledger (keyword: ledger).");
-            return ExitCodes.ComposeParseFailed;
-        }
-        if (balanceServiceName is null)
-        {
-            Console.Error.WriteLine("[ComposeEnvGen] Não foi possível inferir o service do Balance (keywords: balance|consolid).");
-            return ExitCodes.ComposeParseFailed;
-        }
-        if (transferServiceName is null)
-        {
-            Console.Error.WriteLine("[ComposeEnvGen] Nao foi possivel inferir o service do Transfer (keyword: transfer).");
-            return ExitCodes.ComposeParseFailed;
-        }
-        if (authServiceName is null)
-        {
-            Console.Error.WriteLine("[ComposeEnvGen] Não foi possível inferir o service de Auth (keywords: auth|keycloak|identity).");
-            return ExitCodes.ComposeParseFailed;
-        }
-
-        var ledgerService = servicesNode.Children[new YamlScalarNode(ledgerServiceName)] as YamlMappingNode;
-        var balanceService = servicesNode.Children[new YamlScalarNode(balanceServiceName)] as YamlMappingNode;
-        var transferService = servicesNode.Children[new YamlScalarNode(transferServiceName)] as YamlMappingNode;
-        var authService = servicesNode.Children[new YamlScalarNode(authServiceName)] as YamlMappingNode;
-
-        if (ledgerService is null || balanceService is null || transferService is null || authService is null)
-        {
-            Console.Error.WriteLine("[ComposeEnvGen] Erro interno: service mapping não encontrado.");
-            return ExitCodes.ComposeParseFailed;
-        }
-
-        var ledgerPort = ServiceDiscovery.DetermineInternalHttpPort(ledgerService);
-        var balancePort = ServiceDiscovery.DetermineInternalHttpPort(balanceService);
-        var transferPort = ServiceDiscovery.DetermineInternalHttpPort(transferService);
-        var authPort = ServiceDiscovery.DetermineInternalHttpPort(authService);
 
         var envLines = new List<string>
         {
             "# Arquivo gerado automaticamente. NAO versionar.",
             "# Gerado a partir do compose.yaml para rodar k6 dentro da rede do compose.",
             "",
-            $"LEDGER_SERVICE_NAME={ledgerServiceName}",
-            $"BALANCE_SERVICE_NAME={balanceServiceName}",
-            $"TRANSFER_SERVICE_NAME={transferServiceName}",
-            $"AUTH_SERVICE_NAME={authServiceName}",
+            $"LEDGER_SERVICE_NAME={endpoints.Ledger.Name}",
+            $"BALANCE_SERVICE_NAME={endpoints.Balance.Name}",
+            $"TRANSFER_SERVICE_NAME={endpoints.Transfer.Name}",
             "",
-            $"BASE_URL_LEDGER=http://{ledgerServiceName}:{ledgerPort}",
-            $"BASE_URL_BALANCE=http://{balanceServiceName}:{balancePort}",
-            $"BASE_URL_TRANSFER=http://{transferServiceName}:{transferPort}",
-            $"AUTH_BASE_URL=http://{authServiceName}:{authPort}",
+            $"BASE_URL_LEDGER=http://{endpoints.Ledger.Name}:{endpoints.Ledger.Port}",
+            $"BASE_URL_BALANCE=http://{endpoints.Balance.Name}:{endpoints.Balance.Port}",
+            $"BASE_URL_TRANSFER=http://{endpoints.Transfer.Name}:{endpoints.Transfer.Port}",
             "",
-            // Paths inferidos do README atual (rotas estáveis)
-            "TOKEN_URL=/auth/login",
+            // Paths inferidos do README atual (rotas estaveis).
             "LEDGER_POST_PATH=/api/v1/lancamentos",
             "BALANCE_DAILY_PATH=/api/v1/consolidados/diario",
             "BALANCE_PERIOD_PATH=/api/v1/consolidados/periodo",
             "TRANSFER_PATH=/api/v1/transferencias",
             "",
-            "# Credenciais locais ficticias - podem ser sobrescritas por env no get-token",
-            "AUTH_POC_USERNAME=local_user",
-            "AUTH_POC_PASSWORD=local_password",
-            "AUTH_POC_SCOPE=ledger.write balance.read",
-            "USERNAME=local_user",
-            "PASSWORD=local_password",
-            "SCOPE=ledger.write balance.read",
             "MERCHANT_ID=tese",
             "SOURCE_MERCHANT_ID=m1",
             "DESTINATION_MERCHANT_ID=m2",
         };
 
-        try
+        var writeResult = EnvFile.TryWrite(options.OutputPath, envLines);
+        if (writeResult != ExitCodes.Ok)
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outPath)) ?? ".");
-            File.WriteAllLines(outPath, envLines.Select(l => EnvFile.EscapeValue(l)));
-        }
-        catch (IOException ex)
-        {
-            Console.Error.WriteLine($"[ComposeEnvGen] Falha ao escrever '{outPath}': {ex.Message}");
-            return ExitCodes.OutputWriteFailed;
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            Console.Error.WriteLine($"[ComposeEnvGen] Falha ao escrever '{outPath}': {ex.Message}");
-            return ExitCodes.OutputWriteFailed;
-        }
-        catch (ArgumentException ex)
-        {
-            Console.Error.WriteLine($"[ComposeEnvGen] Falha ao escrever '{outPath}': {ex.Message}");
-            return ExitCodes.OutputWriteFailed;
-        }
-        catch (NotSupportedException ex)
-        {
-            Console.Error.WriteLine($"[ComposeEnvGen] Falha ao escrever '{outPath}': {ex.Message}");
-            return ExitCodes.OutputWriteFailed;
+            return writeResult;
         }
 
-        Console.WriteLine($"[ComposeEnvGen] OK: {outPath}");
+        Console.WriteLine($"[ComposeEnvGen] OK: {options.OutputPath}");
         return ExitCodes.Ok;
+    }
+}
+
+internal sealed record CommandLineOptions(string ComposePath, string OutputPath)
+{
+    public static CommandLineOptions Parse(string[] args)
+    {
+        string? composePath = null;
+        string? outputPath = null;
+        var index = 0;
+
+        while (index < args.Length)
+        {
+            var nextIndex = index + 1;
+            if (nextIndex < args.Length && IsOption(args[index], "--compose"))
+            {
+                composePath = args[nextIndex];
+                index += 2;
+                continue;
+            }
+
+            if (nextIndex < args.Length && IsOption(args[index], "--out"))
+            {
+                outputPath = args[nextIndex];
+                index += 2;
+                continue;
+            }
+
+            index++;
+        }
+
+        return new CommandLineOptions(composePath ?? "compose.yaml", outputPath ?? ".env.k6.auto");
+    }
+
+    private static bool IsOption(string value, string option)
+    {
+        return string.Equals(value, option, StringComparison.OrdinalIgnoreCase);
+    }
+}
+
+internal static class ComposeReader
+{
+    public static int TryRead(string composePath, out string composeContent)
+    {
+        try
+        {
+            composeContent = File.ReadAllText(composePath);
+            return ExitCodes.Ok;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            Console.Error.WriteLine($"[ComposeEnvGen] Falha ao ler '{composePath}': {ex.Message}");
+            composeContent = string.Empty;
+            return ExitCodes.ComposeReadFailed;
+        }
+    }
+
+    public static int TryReadServices(string composeContent, out YamlMappingNode servicesNode)
+    {
+        servicesNode = [];
+
+        var parseResult = TryParseYaml(composeContent, out var yaml);
+        if (parseResult != ExitCodes.Ok)
+        {
+            return parseResult;
+        }
+
+        if (yaml.Documents.FirstOrDefault()?.RootNode is not YamlMappingNode root)
+        {
+            Console.Error.WriteLine("[ComposeEnvGen] YAML sem root mapping.");
+            return ExitCodes.ComposeParseFailed;
+        }
+
+        if (ComposeHelpers.GetChild(root, "services") is not YamlMappingNode services)
+        {
+            Console.Error.WriteLine("[ComposeEnvGen] 'services' nao encontrado no compose.");
+            return ExitCodes.ComposeParseFailed;
+        }
+
+        servicesNode = services;
+        return ExitCodes.Ok;
+    }
+
+    private static int TryParseYaml(string composeContent, out YamlStream yaml)
+    {
+        try
+        {
+            yaml = [];
+            yaml.Load(new StringReader(composeContent));
+            return ExitCodes.Ok;
+        }
+        catch (YamlException ex)
+        {
+            Console.Error.WriteLine($"[ComposeEnvGen] Falha ao parsear YAML: {ex.Message}");
+            yaml = [];
+            return ExitCodes.ComposeParseFailed;
+        }
     }
 }
 
@@ -210,8 +174,22 @@ internal static class EnvFile
 {
     public static string EscapeValue(string value)
     {
-        // Mantém simples: grava cru. Se tiver CR/LF, substitui por espaço.
         return value.Replace("\r", " ").Replace("\n", " ");
+    }
+
+    public static int TryWrite(string outputPath, IEnumerable<string> envLines)
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outputPath)) ?? ".");
+            File.WriteAllLines(outputPath, envLines.Select(EscapeValue));
+            return ExitCodes.Ok;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            Console.Error.WriteLine($"[ComposeEnvGen] Falha ao escrever '{outputPath}': {ex.Message}");
+            return ExitCodes.OutputWriteFailed;
+        }
     }
 }
 
@@ -219,99 +197,120 @@ internal static class ComposeHelpers
 {
     public static YamlNode? GetChild(YamlMappingNode map, string key)
     {
-        if (!map.Children.TryGetValue(new YamlScalarNode(key), out var node))
-            return null;
-        return node;
+        return map.Children.TryGetValue(new YamlScalarNode(key), out var node) ? node : null;
     }
 
     public static IEnumerable<string> GetStringSequence(YamlMappingNode map, string key)
     {
         var node = GetChild(map, key);
         if (node is not YamlSequenceNode seq)
+        {
             yield break;
+        }
+
         foreach (var item in seq)
         {
-            if (item is YamlScalarNode s && !string.IsNullOrWhiteSpace(s.Value))
-                yield return s.Value!;
+            if (item is YamlScalarNode scalar && !string.IsNullOrWhiteSpace(scalar.Value))
+            {
+                yield return scalar.Value;
+            }
         }
     }
 
     public static IDictionary<string, string> GetEnvironment(YamlMappingNode service)
     {
-        // docker compose aceita environment como mapping ou sequence KEY=VALUE.
-        var envNode = GetChild(service, "environment");
         var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var envNode = GetChild(service, "environment");
         if (envNode is YamlMappingNode envMap)
         {
-            foreach (var kv in envMap.Children)
-            {
-                var k = (kv.Key as YamlScalarNode)?.Value;
-                if (string.IsNullOrWhiteSpace(k))
-                    continue;
-                var v = (kv.Value as YamlScalarNode)?.Value ?? string.Empty;
-                dict[k!] = v;
-            }
+            AddEnvironmentMapping(dict, envMap);
         }
         else if (envNode is YamlSequenceNode envSeq)
         {
-            foreach (var item in envSeq.Children)
-            {
-                if (item is not YamlScalarNode s || string.IsNullOrWhiteSpace(s.Value))
-                    continue;
-                var parts = s.Value!.Split('=', 2);
-                dict[parts[0]] = parts.Length == 2 ? parts[1] : string.Empty;
-            }
+            AddEnvironmentSequence(dict, envSeq);
         }
+
         return dict;
+    }
+
+    private static void AddEnvironmentMapping(Dictionary<string, string> dict, YamlMappingNode envMap)
+    {
+        foreach (var kv in envMap.Children)
+        {
+            var key = (kv.Key as YamlScalarNode)?.Value;
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                continue;
+            }
+
+            dict[key] = (kv.Value as YamlScalarNode)?.Value ?? string.Empty;
+        }
+    }
+
+    private static void AddEnvironmentSequence(Dictionary<string, string> dict, YamlSequenceNode envSeq)
+    {
+        foreach (var item in envSeq.Children)
+        {
+            if (item is not YamlScalarNode scalar || string.IsNullOrWhiteSpace(scalar.Value))
+            {
+                continue;
+            }
+
+            var parts = scalar.Value.Split('=', 2);
+            dict[parts[0]] = parts.Length == 2 ? parts[1] : string.Empty;
+        }
     }
 
     public static int? TryParseContainerPortFromPorts(IEnumerable<string> ports)
     {
-        // formatos comuns:
-        // - "5226:8080"
-        // - "5226:8080/tcp"
-        // - "8080" (container-only)
-        foreach (var p in ports)
+        foreach (var port in ports)
         {
-            var v = p.Trim();
-            if (string.IsNullOrEmpty(v))
+            var value = port.Trim();
+            if (string.IsNullOrEmpty(value))
+            {
                 continue;
-            // remove /proto
-            var noProto = v.Split('/', 2)[0];
-            var parts = noProto.Split(':');
-            if (parts.Length == 1)
-            {
-                if (int.TryParse(parts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out var containerOnly))
-                    return containerOnly;
             }
-            else
+
+            var noProto = value.Split('/', 2)[0];
+            var parts = noProto.Split(':');
+            var containerPart = parts.Length == 1 ? parts[0] : parts[^1];
+            if (int.TryParse(containerPart, NumberStyles.Integer, CultureInfo.InvariantCulture, out var containerPort))
             {
-                var containerPart = parts[^1];
-                if (int.TryParse(containerPart, NumberStyles.Integer, CultureInfo.InvariantCulture, out var container))
-                    return container;
+                return containerPort;
             }
         }
+
         return null;
     }
 
     public static int? TryParseHttpPortFromAspNetCoreUrls(string? urls)
     {
-        // Ex.: http://+:8080;https://+:8443
         if (string.IsNullOrWhiteSpace(urls))
-            return null;
-        var tokens = urls.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        foreach (var t in tokens)
         {
-            if (!t.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
-                continue;
-            // http://+:8080 or http://0.0.0.0:8080
-            var idx = t.LastIndexOf(':');
-            if (idx <= 0)
-                continue;
-            var portStr = t[(idx + 1)..];
-            if (int.TryParse(portStr, NumberStyles.Integer, CultureInfo.InvariantCulture, out var port))
-                return port;
+            return null;
         }
+
+        var tokens = urls.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        foreach (var token in tokens)
+        {
+            if (!token.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var index = token.LastIndexOf(':');
+            if (index <= 0)
+            {
+                continue;
+            }
+
+            var portText = token[(index + 1)..];
+            if (int.TryParse(portText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var port))
+            {
+                return port;
+            }
+        }
+
         return null;
     }
 }
@@ -320,67 +319,58 @@ internal static class ServiceDiscovery
 {
     private static readonly int[] NonHttpContainerPorts = [5432, 9092, 9093];
 
+    public static int TryResolveEndpoints(YamlMappingNode servicesNode, out ServiceEndpoints endpoints)
+    {
+        endpoints = default;
+
+        var serviceNames = GetServiceNames(servicesNode);
+        if (!TryPickEndpoint(servicesNode, serviceNames, ["ledger"], "Ledger (keyword: ledger)", out var ledger))
+        {
+            return ExitCodes.ComposeParseFailed;
+        }
+
+        if (!TryPickEndpoint(servicesNode, serviceNames, ["balance", "consolid"], "Balance (keywords: balance|consolid)", out var balance))
+        {
+            return ExitCodes.ComposeParseFailed;
+        }
+
+        if (!TryPickEndpoint(servicesNode, serviceNames, ["transfer"], "Transfer (keyword: transfer)", out var transfer))
+        {
+            return ExitCodes.ComposeParseFailed;
+        }
+
+        endpoints = new ServiceEndpoints(ledger, balance, transfer);
+        return ExitCodes.Ok;
+    }
+
     public static string? PickBestService(
         YamlMappingNode servicesNode,
         IEnumerable<string> serviceNames,
         string[] includeKeywords)
     {
         var candidates = serviceNames
-            .Where(n => includeKeywords.Any(kw => n.Contains(kw, StringComparison.OrdinalIgnoreCase)))
+            .Where(n => includeKeywords.Any(kw => Contains(n, kw)))
             .ToList();
 
         if (candidates.Count == 0)
+        {
             return null;
+        }
 
         (string Name, int Score) best = (candidates[0], int.MinValue);
 
         foreach (var name in candidates)
         {
-            if (servicesNode.Children[new YamlScalarNode(name)] is not YamlMappingNode svc)
-                continue;
-
-            var score = 0;
-
-            // Nome
-            if (name.Contains("service", StringComparison.OrdinalIgnoreCase))
-                score += 30;
-            if (name.Contains("api", StringComparison.OrdinalIgnoreCase))
-                score += 30;
-            if (name.Contains("db", StringComparison.OrdinalIgnoreCase))
-                score -= 50;
-            if (name.Contains("postgres", StringComparison.OrdinalIgnoreCase))
-                score -= 50;
-            if (name.Contains("kafka", StringComparison.OrdinalIgnoreCase))
-                score -= 50;
-            if (name.Contains("init", StringComparison.OrdinalIgnoreCase))
-                score -= 20;
-
-            // Indícios de HTTP app
-            var env = ComposeHelpers.GetEnvironment(svc);
-            if (env.ContainsKey("ASPNETCORE_URLS"))
-                score += 100;
-
-            var ports = ComposeHelpers.GetStringSequence(svc, "ports").ToArray();
-            var containerPort = ComposeHelpers.TryParseContainerPortFromPorts(ports);
-            if (containerPort.HasValue)
+            if (servicesNode.Children[new YamlScalarNode(name)] is not YamlMappingNode service)
             {
-                if (containerPort.Value is 80 or 8080 or 5000 or 5001)
-                    score += 50;
-                if (NonHttpContainerPorts.Contains(containerPort.Value))
-                    score -= 100;
+                continue;
             }
 
-            // Build tende a ser nosso serviço local
-            if (ComposeHelpers.GetChild(svc, "build") is not null)
-                score += 20;
-
-            // Evita escolher DB por engano
-            var image = (ComposeHelpers.GetChild(svc, "image") as YamlScalarNode)?.Value ?? string.Empty;
-            if (image.Contains("postgres", StringComparison.OrdinalIgnoreCase))
-                score -= 200;
-
+            var score = ScoreServiceName(name) + ScoreServiceConfiguration(service);
             if (score > best.Score)
+            {
                 best = (name, score);
+            }
         }
 
         return best.Score == int.MinValue ? null : best.Name;
@@ -388,29 +378,115 @@ internal static class ServiceDiscovery
 
     public static int DetermineInternalHttpPort(YamlMappingNode service)
     {
-        // 1) ports:
         var ports = ComposeHelpers.GetStringSequence(service, "ports").ToArray();
         var fromPorts = ComposeHelpers.TryParseContainerPortFromPorts(ports);
         if (fromPorts.HasValue)
+        {
             return fromPorts.Value;
+        }
 
-        // 2) ASPNETCORE_URLS
         var env = ComposeHelpers.GetEnvironment(service);
         if (env.TryGetValue("ASPNETCORE_URLS", out var urls))
         {
             var fromUrls = ComposeHelpers.TryParseHttpPortFromAspNetCoreUrls(urls);
             if (fromUrls.HasValue)
+            {
                 return fromUrls.Value;
+            }
         }
 
-        // 3) PORT / HTTP_PORT / etc.
         foreach (var key in new[] { "HTTP_PORT", "PORT" })
         {
-            if (env.TryGetValue(key, out var v) && int.TryParse(v, out var port))
+            if (env.TryGetValue(key, out var value) && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var port))
+            {
                 return port;
+            }
         }
 
-        // 4) fallback
         return 8080;
     }
+
+    private static List<string> GetServiceNames(YamlMappingNode servicesNode)
+    {
+        return
+        [
+            .. servicesNode.Children.Keys
+            .OfType<YamlScalarNode>()
+            .Select(x => x.Value)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x!),
+        ];
+    }
+
+    private static bool TryPickEndpoint(
+        YamlMappingNode servicesNode,
+        IReadOnlyList<string> serviceNames,
+        string[] includeKeywords,
+        string errorLabel,
+        out ServiceEndpoint endpoint)
+    {
+        endpoint = default;
+
+        var serviceName = PickBestService(servicesNode, serviceNames, includeKeywords);
+        if (serviceName is null)
+        {
+            Console.Error.WriteLine($"[ComposeEnvGen] Nao foi possivel inferir o service do {errorLabel}.");
+            return false;
+        }
+
+        if (servicesNode.Children[new YamlScalarNode(serviceName)] is not YamlMappingNode service)
+        {
+            Console.Error.WriteLine("[ComposeEnvGen] Erro interno: service mapping nao encontrado.");
+            return false;
+        }
+
+        endpoint = new ServiceEndpoint(serviceName, DetermineInternalHttpPort(service));
+        return true;
+    }
+
+    private static int ScoreServiceName(string name)
+    {
+        var score = 0;
+        score += Contains(name, "service") ? 30 : 0;
+        score += Contains(name, "api") ? 30 : 0;
+        score -= Contains(name, "db") ? 50 : 0;
+        score -= Contains(name, "postgres") ? 50 : 0;
+        score -= Contains(name, "kafka") ? 50 : 0;
+        score -= Contains(name, "init") ? 20 : 0;
+        return score;
+    }
+
+    private static int ScoreServiceConfiguration(YamlMappingNode service)
+    {
+        var env = ComposeHelpers.GetEnvironment(service);
+        var score = env.ContainsKey("ASPNETCORE_URLS") ? 100 : 0;
+        score += ScoreContainerPort(service);
+        score += ComposeHelpers.GetChild(service, "build") is not null ? 20 : 0;
+
+        var image = (ComposeHelpers.GetChild(service, "image") as YamlScalarNode)?.Value ?? string.Empty;
+        score -= Contains(image, "postgres") ? 200 : 0;
+        return score;
+    }
+
+    private static int ScoreContainerPort(YamlMappingNode service)
+    {
+        var ports = ComposeHelpers.GetStringSequence(service, "ports").ToArray();
+        var containerPort = ComposeHelpers.TryParseContainerPortFromPorts(ports);
+        if (!containerPort.HasValue)
+        {
+            return 0;
+        }
+
+        var score = containerPort.Value is 80 or 8080 or 5000 or 5001 ? 50 : 0;
+        return NonHttpContainerPorts.Contains(containerPort.Value) ? score - 100 : score;
+    }
+
+    private static bool Contains(string value, string expected)
+    {
+        return value.Contains(expected, StringComparison.OrdinalIgnoreCase);
+    }
 }
+
+internal readonly record struct ServiceEndpoint(string Name, int Port);
+
+internal readonly record struct ServiceEndpoints(ServiceEndpoint Ledger, ServiceEndpoint Balance, ServiceEndpoint Transfer);

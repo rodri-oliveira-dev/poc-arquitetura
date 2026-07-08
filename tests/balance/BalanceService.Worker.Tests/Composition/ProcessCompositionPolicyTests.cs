@@ -170,7 +170,7 @@ public sealed class ProcessCompositionPolicyTests
         var values = new Dictionary<string, string?>
         {
             ["ConnectionStrings:DefaultConnection"] = "Host=unused;Database=ignore;Username=ignore;Password=ignore",
-            ["Jwt:Issuer"] = "https://auth-api",
+            ["Jwt:Issuer"] = "https://issuer.example",
             ["Jwt:Audience"] = "balance-api",
             ["Jwt:JwksUrl"] = "https://localhost/jwks.json",
             ["Kafka:Enabled"] = "true",

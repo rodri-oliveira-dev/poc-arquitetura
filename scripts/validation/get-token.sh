@@ -3,7 +3,6 @@ set -euo pipefail
 
 # Output: imprime SOMENTE o token em stdout.
 # Provider padrao: Keycloak via client_credentials.
-# Fallback legado: TOKEN_PROVIDER=auth-api usa Auth.Api em POST /auth/login.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPTS_LIB_DIR="$SCRIPT_DIR/lib"
@@ -173,58 +172,6 @@ request_keycloak_token() {
   extract_token "$resp"
 }
 
-request_auth_api_token() {
-  local auth_base_url
-  local use_envfile_auth_base_url
-  local token_url
-  local auth_poc_username
-  local auth_poc_password
-  local auth_poc_scope
-  local username
-  local password
-  local scope
-  local url
-  local resp
-
-  auth_base_url="${AUTH_BASE_URL:-}"
-  use_envfile_auth_base_url="$(config_value USE_ENVFILE_AUTH_BASE_URL false)"
-  if [[ -z "$auth_base_url" && "${use_envfile_auth_base_url,,}" == "true" ]]; then
-    auth_base_url="$(read_env_value "$ENV_FILE" AUTH_BASE_URL)"
-  fi
-
-  token_url="$(config_value TOKEN_URL /auth/login)"
-  auth_poc_username="$(config_value AUTH_POC_USERNAME)"
-  auth_poc_password="$(config_value AUTH_POC_PASSWORD)"
-  auth_poc_scope="$(config_value AUTH_POC_SCOPE)"
-  username="$(config_value USERNAME)"
-  password="$(config_value PASSWORD)"
-  scope="$(config_value SCOPE)"
-
-  # USERNAME pode existir no ambiente do SO. O par legado USERNAME/PASSWORD so
-  # vale como override quando ambos estao preenchidos.
-  if [[ -n "$username" && -z "$password" ]]; then
-    username=""
-  fi
-  if [[ -n "$password" && -z "$username" ]]; then
-    password=""
-  fi
-
-  username="${username:-${auth_poc_username:-local_user}}"
-  password="${password:-$auth_poc_password}"
-  [[ -n "$password" ]] || fail "AUTH_POC_PASSWORD ou PASSWORD nao informado"
-  scope="${scope:-${auth_poc_scope:-ledger.write balance.read}}"
-  auth_base_url="${auth_base_url:-http://localhost:5030}"
-  url="$(combine_url "$auth_base_url" "$token_url")"
-
-  resp="$(
-    request_json_or_fail "Auth.Api" "$url" \
-      -X POST \
-      -H "Content-Type: application/json" \
-      -d "{\"username\":\"$username\",\"password\":\"$password\",\"scope\":\"$scope\"}"
-  )"
-  extract_token "$resp"
-}
-
 if [[ -n "${TOKEN:-}" ]]; then
   printf '%s' "$TOKEN"
   exit 0
@@ -237,10 +184,7 @@ case "$provider" in
   keycloak)
     request_keycloak_token
     ;;
-  auth-api)
-    request_auth_api_token
-    ;;
   *)
-    fail "TOKEN_PROVIDER invalido: '$provider'. Valores aceitos: keycloak|auth-api"
+    fail "TOKEN_PROVIDER invalido: '$provider'. Valor aceito: keycloak"
     ;;
 esac

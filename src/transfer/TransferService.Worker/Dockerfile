@@ -4,7 +4,6 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 # Copia csproj primeiro para aproveitar cache
-COPY LedgerService.slnx ./
 COPY Directory.Packages.props ./
 COPY Directory.Build.props ./
 COPY src/transfer/TransferService.Worker/TransferService.Worker.csproj src/transfer/TransferService.Worker/

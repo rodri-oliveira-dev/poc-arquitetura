@@ -17,7 +17,7 @@ Os scripts nao sobem a stack principal automaticamente, nao executam build, test
 
 Quando quiser um comando unico para ambiente local ainda parado, use `-StartStack` ou `--start-stack`. Esse modo chama os scripts oficiais `scripts/local/start-stack.*` antes dos health checks. Ele e explicito porque pode restaurar ferramentas, aplicar migrations e subir containers da POC.
 
-Por padrao o scan importa OpenAPI sem autenticacao. Quando quiser exercitar endpoints protegidos com Bearer token, use `-UseAuthentication` ou `--use-authentication`; o runner chama `scripts/validation/get-token.*`, que usa Keycloak local por padrao e preserva o fallback `TOKEN_PROVIDER=auth-api` somente quando a stack tambem estiver configurada para o emissor legado.
+Por padrao o scan importa OpenAPI sem autenticacao. Quando quiser exercitar endpoints protegidos com Bearer token, use `-UseAuthentication` ou `--use-authentication`; o runner chama `scripts/validation/get-token.*`, que usa Keycloak local por padrao.
 
 ## Alvos
 
@@ -30,8 +30,6 @@ Com Nginx local, use as URLs HTTPS:
 
 - LedgerService.Api: `https://ledger.localhost:7443`
 - BalanceService.Api: `https://balance.localhost:7443`
-
-O `Auth.Api` legado nao e analisado por padrao. Para inclui-lo, suba `compose.auth-legacy.yaml` e use `-IncludeLegacyAuth` ou `--include-legacy-auth`; nesse caso a URL direta padrao do legado e `http://localhost:5030`.
 
 Antes do scan, cada script chama `GET /health` em todas as APIs. Se alguma API estiver indisponivel, a execucao falha com a URL usada e uma sugestao para subir a stack local ou a stack completa.
 
@@ -80,7 +78,6 @@ Sobrescrevendo URLs ou imagem:
 
 ```powershell
 ./scripts/security/run-owasp-zap.ps1 `
-  -AuthUrl http://localhost:5030 `
   -LedgerUrl http://localhost:5226 `
   -BalanceUrl http://localhost:5228 `
   -ZapImage ghcr.io/zaproxy/zaproxy:stable
@@ -96,13 +93,6 @@ Com token Bearer obtido pelo provider local configurado:
 
 ```powershell
 ./scripts/security/run-owasp-zap.ps1 -UseAuthentication
-```
-
-Incluindo o Auth.Api legado:
-
-```powershell
-docker compose -f compose.yaml -f compose.auth-legacy.yaml --profile legacy-auth up -d --build auth-api
-./scripts/security/run-owasp-zap.ps1 -IncludeLegacyAuth
 ```
 
 Com token manual, quando voce ja obteve um JWT valido:
@@ -141,7 +131,6 @@ Sobrescrevendo URLs ou imagem:
 
 ```bash
 ./scripts/security/run-owasp-zap.sh \
-  --auth-url http://localhost:5030 \
   --ledger-url http://localhost:5226 \
   --balance-url http://localhost:5228 \
   --zap-image ghcr.io/zaproxy/zaproxy:stable
@@ -157,13 +146,6 @@ Com token Bearer obtido pelo provider local configurado:
 
 ```bash
 ./scripts/security/run-owasp-zap.sh --use-authentication
-```
-
-Incluindo o Auth.Api legado:
-
-```bash
-docker compose -f compose.yaml -f compose.auth-legacy.yaml --profile legacy-auth up -d --build auth-api
-./scripts/security/run-owasp-zap.sh --include-legacy-auth
 ```
 
 Com token manual, quando voce ja obteve um JWT valido:
@@ -186,8 +168,6 @@ Arquivos esperados:
 - `balance-service-api.html`, `balance-service-api.json`, `balance-service-api.md`
 - `summary.md`
 
-Quando `Auth.Api` legado for incluido, os arquivos `auth-api.html`, `auth-api.json` e `auth-api.md` tambem serao gerados.
-
 O `summary.md` registra data/hora, imagem ZAP, URLs analisadas, alvo visto pelo container, arquivos gerados e status final por API. A pasta `zap-reports/` e ignorada pelo Git; relatorios gerados nao devem ser versionados.
 
 Quando o modo autenticado estiver ativo, o summary registra apenas que `Authorization: Bearer` foi injetado via ZAP Replacer. O token nao e gravado no summary.
@@ -208,7 +188,7 @@ O workflow aplica migrations dos bancos antes de iniciar as APIs e aguarda `/hea
 - `http://localhost:5226/health`;
 - `http://localhost:5228/health`.
 
-Workers, Kafka, Pub/Sub emulator legado, Nginx local e `Auth.Api` legado ficam fora do escopo padrao porque o baseline atual analisa a superficie HTTP descrita por `/swagger/v1/swagger.json` das APIs principais. Se uma evolucao futura passar a validar endpoints autenticados, fluxos assincronos ponta a ponta, Nginx ou o emissor legado, o workflow deve ser ajustado junto com o criterio de falha e a documentacao.
+Workers, Kafka, Pub/Sub emulator legado e Nginx local ficam fora do escopo padrao porque o baseline atual analisa a superficie HTTP descrita por `/swagger/v1/swagger.json` das APIs principais. Se uma evolucao futura passar a validar endpoints autenticados, fluxos assincronos ponta a ponta ou Nginx, o workflow deve ser ajustado junto com o criterio de falha e a documentacao.
 
 Depois do scan, o workflow publica o artifact `owasp-zap-baseline-reports` com retencao de 7 dias. O artifact inclui, quando gerados pelo ZAP:
 

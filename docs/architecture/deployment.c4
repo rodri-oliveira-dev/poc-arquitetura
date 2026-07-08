@@ -37,16 +37,6 @@ deployment {
         }
       }
 
-      composeService authApiLegacy "auth-api" {
-        technology "Docker container / ASP.NET Core"
-        description "Servico legado opcional definido em compose.auth-legacy.yaml e habilitado apenas pelo profile legacy-auth."
-
-        api = instanceOf legacyAuth.authApi {
-          title "poc-auth-api"
-          description "Container local legado exposto na porta 5030 do host quando o overlay/profile legacy-auth e usado; fora da stack principal."
-        }
-      }
-
       composeService mailpit "mailpit" {
         technology "Mailpit"
         description "Servico Docker Compose local para capturar e-mails enviados pelo IdentityService.Api."

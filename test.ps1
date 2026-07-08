@@ -7,13 +7,18 @@ $ErrorActionPreference = "Stop"
 
 Write-Host "==> Running solution tests with coverage gate (line >= $Threshold%)" -ForegroundColor Cyan
 
-$resultsDir = Join-Path $PSScriptRoot "TestResults"
+. (Join-Path $PSScriptRoot "scripts\lib\common.ps1")
+$repoRoot = Resolve-RepositoryRoot -StartPath $PSScriptRoot
+Push-Location $repoRoot
+try {
+
+$resultsDir = Join-Path $repoRoot "TestResults"
 if (Test-Path $resultsDir) {
   Remove-Item -Recurse -Force $resultsDir
 }
 New-Item -ItemType Directory -Force -Path $resultsDir | Out-Null
 
-dotnet test .\LedgerService.slnx -c $Configuration `
+dotnet test .\PocArquitetura.slnx -c $Configuration `
   --collect:"XPlat Code Coverage" `
   --settings .\coverlet.runsettings `
   --results-directory $resultsDir
@@ -67,3 +72,7 @@ Assert-AssemblyCoverage -Summary $summary -AssemblyName "LedgerService.Worker" -
 Assert-AssemblyCoverage -Summary $summary -AssemblyName "BalanceService.Worker" -Threshold $Threshold
 
 Write-Host "==> Done" -ForegroundColor Green
+}
+finally {
+  Pop-Location
+}

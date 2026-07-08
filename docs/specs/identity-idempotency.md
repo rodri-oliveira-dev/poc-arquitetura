@@ -382,7 +382,7 @@ Contrato atual esperado no OpenAPI:
 Validacao:
 
 ```powershell
-dotnet build ./LedgerService.slnx --configuration Release --no-restore
+dotnet build ./PocArquitetura.slnx --configuration Release --no-restore
 ./scripts/contracts/openapi/generate.ps1
 npm run openapi:lint
 git diff --exit-code -- docs/openapi

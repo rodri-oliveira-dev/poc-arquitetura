@@ -4,7 +4,7 @@ Esta pasta registra a leitura arquitetural atual da POC e o modelo LikeC4 usado 
 
 Arquivos principais:
 
-- `model.c4`: modelo estrutural do ecossistema, containers e componentes reais, incluindo IdentityService, Keycloak, Auth.Api legado, PostgreSQL por schemas, Kafka default, Pub/Sub explicito/legado, Mailpit, Resend e observabilidade.
+- `model.c4`: modelo estrutural do ecossistema, containers e componentes reais, incluindo IdentityService, Keycloak, PostgreSQL por schemas, Kafka default, Pub/Sub explicito/legado, Mailpit, Resend e observabilidade.
 - `audit-service.md`: papel arquitetural do AuditService como bounded context de auditoria funcional isolado, com schema `audit`, contrato canonico, ausencia de integracao inicial e estrategia futura por Outbox + Kafka.
 - `deployment.c4`: modelo de deployment local que associa servicos do `compose.yaml` e overlays locais aos elementos logicos com `instanceOf`, alimentando a aba `Deployments` do LikeC4.
 - `views.c4`: views LikeC4 para contexto, containers, fluxo de cadastro no IdentityService, fluxo Kafka, Pub/Sub explicito/legado, observabilidade local e componentes por processo.
@@ -13,7 +13,7 @@ Arquivos principais:
 - `production-readiness.md`: baseline recomendado para uma evolucao futura em GCP mais proxima de producao, sem declarar prontidao produtiva nem implementar infraestrutura nova.
 - [`../README.md`](../README.md): indice geral da documentacao.
 
-Classificacao atual: arquitetura hibrida, com predominancia de Clean Architecture/DDD nos bounded contexts principais. `IdentityService` isola cadastro de usuarios, `MerchantId`, vinculo local com Keycloak e envio de e-mail de boas-vindas; `LedgerService` escreve fatos financeiros e Outbox; `BalanceService` mantem projecao de leitura; `TransferService` orquestra Saga com Worker e Outbox Kafka; `AuditService` registra auditoria funcional por contrato HTTP canonico, ainda sem integracao com os demais dominios; `Auth.Api` permanece legado e fora da stack principal.
+Classificacao atual: arquitetura hibrida, com predominancia de Clean Architecture/DDD nos bounded contexts principais. `IdentityService` isola cadastro de usuarios, `MerchantId`, vinculo local com Keycloak e envio de e-mail de boas-vindas; `LedgerService` escreve fatos financeiros e Outbox; `BalanceService` mantem projecao de leitura; `TransferService` orquestra Saga com Worker e Outbox Kafka; `AuditService` registra auditoria funcional por contrato HTTP canonico, ainda sem integracao com os demais dominios.
 
 ## Leitura rapida
 
@@ -23,7 +23,6 @@ Classificacao atual: arquitetura hibrida, com predominancia de Clean Architectur
 - Kafka e o provider padrao dos fluxos principais de mensageria. Pub/Sub continua explicito/legado para Ledger/Balance quando configurado.
 - O `IdentityService.Api` cria usuarios no Keycloak, persiste o vinculo local no schema `identity`, despacha domain events depois do commit e envia e-mail por Mailpit no local ou Resend em ambiente real configurado.
 - O `AuditService.Api` cria e consulta registros de auditoria funcional no schema `audit`, com `Idempotency-Key`, scopes `audit.*` e contrato agnostico ao chamador, sem worker ou Kafka nesta etapa; a integracao futura proposta usa Outbox + Kafka fora do caminho critico financeiro.
-- O `Auth.Api` legado nao deve receber novos fluxos de identidade; use apenas cenarios compativeis antigos por overlay/profile explicito.
 
 ## Estado atual e evolucao futura
 
@@ -52,6 +51,7 @@ Evolucao futura documentada:
 - [ADR-0095: Evolucao futura do envio de e-mails do IdentityService](../adrs/0095-evolucao-futura-email-identity-service.md)
 - [ADR-0097: Bounded context de auditoria funcional](../adrs/0097-functional-audit-service.md)
 - [ADR-0099: Estrategia de integracao assincrona do AuditService](../adrs/0099-audit-async-integration-strategy.md)
+- [ADR-0100: Organizacao de solutions por contexto e agregadora](../adrs/0100-organizacao-solutions-contexto-agregadora.md)
 
 ## Visualizacao
 

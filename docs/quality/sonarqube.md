@@ -42,7 +42,7 @@ export SONAR_HOST_URL="http://localhost:9000"
 ./scripts/quality/sonar-analyze.sh
 ```
 
-O script restaura as tools locais, inicia o SonarScanner for .NET, compila `LedgerService.slnx`, executa os testes com `coverlet.runsettings` e finaliza o envio para o SonarQube.
+O script restaura as tools locais, inicia o SonarScanner for .NET, compila `PocArquitetura.slnx`, executa os testes com `coverlet.runsettings` e finaliza o envio para o SonarQube.
 
 A cobertura para o SonarQube usa o formato OpenCover, consumido por `sonar.cs.opencover.reportsPaths`. O mesmo `coverlet.runsettings` tambem gera Cobertura, preservando o formato usado pelo fluxo de cobertura existente do CI.
 

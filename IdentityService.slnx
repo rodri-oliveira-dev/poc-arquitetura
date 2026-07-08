@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/identity/">
+    <Project Path="src/identity/IdentityService.Api/IdentityService.Api.csproj" />
+    <Project Path="src/identity/IdentityService.Application/IdentityService.Application.csproj" />
+    <Project Path="src/identity/IdentityService.Domain/IdentityService.Domain.csproj" />
+    <Project Path="src/identity/IdentityService.Infrastructure/IdentityService.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/identity/">
+    <Project Path="tests/identity/IdentityService.IntegrationTests/IdentityService.IntegrationTests.csproj" />
+    <Project Path="tests/identity/IdentityService.UnitTests/IdentityService.UnitTests.csproj" />
+  </Folder>
+</Solution>

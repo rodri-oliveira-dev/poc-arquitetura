@@ -628,7 +628,7 @@ if [[ "$is_transfer_mode" == true ]]; then
     docker_compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_K6_FILE" up -d --no-build --force-recreate transfer-service
   fi
 else
-  docker_compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_K6_FILE" up -d --no-build --force-recreate ledger-service balance-service
+  docker_compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_K6_FILE" up -d --no-build --force-recreate ledger-service ledger-worker balance-service balance-worker
 fi
 
 wait_compose_service_healthy keycloak

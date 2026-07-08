@@ -141,7 +141,6 @@ Consolidar a maturidade documental da POC, alinhando autenticacao/autorizacao, s
 ### O que continua pendente
 
 - Executar e registrar DAST/OWASP ZAP ou pentest quando houver necessidade de validacao dinamica.
-- Remover definitivamente o `Auth.Api` legado quando nao houver mais necessidade de compatibilidade; o fluxo operacional local ja usa Keycloak, incluindo `ledger.read`.
 - Definir baseline produtivo para secrets, TLS interno, Kafka autenticado, bancos, scans de imagem e rate limits por identidade antes de qualquer promocao fora da POC local.
 - Definir thresholds formais de latencia p95/p99 para k6 somente apos linha de base local reprodutivel.
 

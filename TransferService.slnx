@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/src/transfer/">
+    <Project Path="src/transfer/TransferService.Api/TransferService.Api.csproj" />
+    <Project Path="src/transfer/TransferService.Application/TransferService.Application.csproj" />
+    <Project Path="src/transfer/TransferService.Domain/TransferService.Domain.csproj" />
+    <Project Path="src/transfer/TransferService.Infrastructure/TransferService.Infrastructure.csproj" />
+    <Project Path="src/transfer/TransferService.Worker/TransferService.Worker.csproj" />
+  </Folder>
+  <Folder Name="/tests/transfer/">
+    <Project Path="tests/transfer/TransferService.IntegrationTests/TransferService.IntegrationTests.csproj" />
+    <Project Path="tests/transfer/TransferService.UnitTests/TransferService.UnitTests.csproj" />
+    <Project Path="tests/transfer/TransferService.Worker.Tests/TransferService.Worker.Tests.csproj" />
+  </Folder>
+</Solution>

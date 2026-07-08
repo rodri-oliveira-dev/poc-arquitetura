@@ -1,12 +1,8 @@
 ﻿[CmdletBinding()]
 param(
-  [string]$AuthBaseUrl = "http://localhost:5030",
   [string]$LedgerBaseUrl = "http://localhost:5226",
   [string]$BalanceBaseUrl = "http://localhost:5228",
   [string]$JaegerBaseUrl = "http://localhost:16686",
-  [string]$Username = "local_user",
-  [string]$Password = "",
-  [string]$Scope = "ledger.write balance.read",
   [string]$MerchantId = "tese",
   [ValidateSet("CREDIT", "DEBIT")]
   [string]$Type = "CREDIT",
@@ -21,8 +17,7 @@ $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 . (Join-Path $scriptDir "..\lib\common-validation.ps1")
 
 Write-Host "Obtendo token pelo provider local configurado..."
-$credential = [pscredential]::new($Username, (ConvertTo-LocalSecureString $Password))
-$token = Get-ValidationToken $AuthBaseUrl $credential $Scope
+$token = Get-ValidationToken
 
 $correlationId = [Guid]::NewGuid().ToString()
 $idempotencyKey = [Guid]::NewGuid().ToString()

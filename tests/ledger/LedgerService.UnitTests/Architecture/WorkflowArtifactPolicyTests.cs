@@ -34,7 +34,10 @@ public sealed partial class WorkflowArtifactPolicyTests
         var workflow = File.ReadAllText(Path.Combine(repositoryRoot.FullName, workflowPath));
 
         var yaml = new YamlStream();
-        var act = () => yaml.Load(new StringReader(workflow));
+        void act()
+        {
+            yaml.Load(new StringReader(workflow));
+        }
 
         act();
     }
@@ -95,7 +98,6 @@ public sealed partial class WorkflowArtifactPolicyTests
         var regex = PlaceholderSecretLineRegex();
         Assert.Matches(regex, "DefaultConnection=Host=127.0.0.1;Password=<LEDGER_DB_PASSWORD>");
         Assert.Matches(regex, "KEYCLOAK_CLIENT_SECRET=<KEYCLOAK_CLIENT_SECRET>");
-        Assert.Matches(regex, "  -d \"password=<AUTH_POC_PASSWORD>\"");
         Assert.Matches(regex, "  --token \"<TOKEN>\"");
         Assert.Matches(regex, "ApiKey=<SOME_SECRET>");
 
@@ -116,7 +118,7 @@ public sealed partial class WorkflowArtifactPolicyTests
         Assert.Contains("tests/balance/BalanceService.UnitTests/StrykerOutput/**/reports/mutation-report.html", workflow);
         Assert.DoesNotMatch(OldLedgerStrykerOutputPathRegex(), workflow);
         Assert.DoesNotMatch(OldBalanceStrykerOutputPathRegex(), workflow);
-        Assert.True(RetentionDaysSevenRegex().Matches(workflow).Count >= 2);
+        Assert.True(RetentionDaysSevenRegex().Count(workflow) >= 2);
     }
 
     public static TheoryData<string> GetWorkflowsWithPublishedArtifacts()
@@ -161,9 +163,9 @@ public sealed partial class WorkflowArtifactPolicyTests
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
 
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "LedgerService.slnx")))
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "PocArquitetura.slnx")))
             directory = directory.Parent;
         Assert.NotNull(directory);
-        return directory!;
+        return directory;
     }
 }

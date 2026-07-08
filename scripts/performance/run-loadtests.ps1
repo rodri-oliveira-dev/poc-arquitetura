@@ -506,7 +506,7 @@ if ($isTransferMode) {
   }
 }
 else {
-  & docker @(Get-ComposeArguments -IncludeK6) up -d --no-build --force-recreate ledger-service balance-service
+  & docker @(Get-ComposeArguments -IncludeK6) up -d --no-build --force-recreate ledger-service ledger-worker balance-service balance-worker
 }
 if ($LASTEXITCODE -ne 0) { throw "docker compose falhou ao aplicar override k6: $LASTEXITCODE" }
 

@@ -19,59 +19,9 @@ $script:LedgerDbName = Get-LocalConfigValue -Name "LEDGER_DB_NAME" -DefaultValue
 $script:BalanceDbUser = Get-LocalConfigValue -Name "BALANCE_DB_USER" -DefaultValue "balance_read_user"
 $script:BalanceDbName = Get-LocalConfigValue -Name "BALANCE_DB_NAME" -DefaultValue "appdb"
 
-function Invoke-WithEnv([hashtable]$Values, [scriptblock]$Script) {
-  $previous = @{}
-
-  foreach ($key in $Values.Keys) {
-    $previous[$key] = [System.Environment]::GetEnvironmentVariable($key, "Process")
-    [System.Environment]::SetEnvironmentVariable($key, $Values[$key], "Process")
-  }
-
-  try {
-    & $Script
-  }
-  finally {
-    foreach ($key in $Values.Keys) {
-      [System.Environment]::SetEnvironmentVariable($key, $previous[$key], "Process")
-    }
-  }
-}
-
-function ConvertFrom-SecureStringToPlainText([securestring]$SecureString) {
-  $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecureString)
-  try {
-    return [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
-  }
-  finally {
-    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
-  }
-}
-
-function ConvertTo-LocalSecureString([string]$Value) {
-  $secureString = [securestring]::new()
-  foreach ($character in $Value.ToCharArray()) {
-    $secureString.AppendChar($character)
-  }
-
-  $secureString.MakeReadOnly()
-  return $secureString
-}
-
-function Get-ValidationToken(
-  [string]$AuthBaseUrl,
-  [pscredential]$Credential,
-  [string]$Scope
-) {
+function Get-ValidationToken {
   Write-Host "Obtendo token pelo provider local configurado..."
-  $password = ConvertFrom-SecureStringToPlainText $Credential.Password
-  $token = Invoke-WithEnv @{
-    AUTH_BASE_URL = $AuthBaseUrl
-    USERNAME = $Credential.UserName
-    PASSWORD = $password
-    SCOPE = $Scope
-  } {
-    & $script:GetTokenScript
-  }
+  $token = & $script:GetTokenScript
 
   if ([string]::IsNullOrWhiteSpace($token)) {
     throw "Token vazio retornado por $script:GetTokenScript"

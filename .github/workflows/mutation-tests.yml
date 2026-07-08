@@ -37,7 +37,7 @@ env:
   CI: true
   DOTNET_NOLOGO: true
   BUILD_CONFIGURATION: Release
-  SOLUTION_PATH: ./LedgerService.slnx
+  SOLUTION_PATH: ./PocArquitetura.slnx
 
 jobs:
   mutation-tests:

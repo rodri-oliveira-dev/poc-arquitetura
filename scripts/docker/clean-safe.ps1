@@ -12,7 +12,6 @@ $composeObservabilityFile = Join-Path $root "compose.observability.yaml"
 $composeKafkaFile = Join-Path $root "compose.kafka.yaml"
 $composeNginxFile = Join-Path $root "compose.nginx.yaml"
 $composeK6File = Join-Path $root "compose.k6.yaml"
-$composeAuthLegacyFile = Join-Path $root "compose.auth-legacy.yaml"
 $composeSonarFile = Join-Path $root "compose.sonar.yaml"
 
 function Invoke-Docker([string[]]$Arguments) {
@@ -45,11 +44,9 @@ try {
     "-f", $composeKafkaFile,
     "-f", $composeNginxFile,
     "-f", $composeK6File,
-    "-f", $composeAuthLegacyFile,
     "--profile", "observability",
     "--profile", "direct-ledger",
     "--profile", "k6",
-    "--profile", "legacy-auth",
     "--profile", "legacy-pubsub",
     "down",
     "--remove-orphans"

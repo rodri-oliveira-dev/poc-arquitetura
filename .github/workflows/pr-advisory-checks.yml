@@ -16,7 +16,7 @@ env:
   CI: true
   DOTNET_NOLOGO: true
   BUILD_CONFIGURATION: Release
-  LEDGER_SOLUTION_PATH: ./LedgerService.slnx
+  AGGREGATE_SOLUTION_PATH: ./PocArquitetura.slnx
   SHARED_SOLUTION_PATH: ./PocArquitetura.Shared.slnx
 
 jobs:
@@ -52,7 +52,7 @@ jobs:
 
           count="$(wc -l < changed-csharp-files.txt | tr -d ' ')"
           echo "count=$count" >> "$GITHUB_OUTPUT"
-          run_ledger=false
+          run_aggregate=false
           run_shared=false
 
           while IFS= read -r file; do
@@ -60,23 +60,23 @@ jobs:
 
             case "$normalized" in
               global.json|nuget.config|directory.build.props|directory.packages.props|test.sh|test.ps1|.github/actions/setup-dotnet/*|.github/workflows/*)
-                run_ledger=true
+                run_aggregate=true
                 run_shared=true
                 ;;
               pocarquitetura.shared.slnx|src/shared/*|tests/shared/*)
                 run_shared=true
                 ;;
-              ledgerservice.slnx|src/audit/*|src/auth.api/*|src/identity/*|src/balance/*|src/transfer/*|src/ledger/*|tests/audit/*|tests/auth.*|tests/identity/*|tests/balance/*|tests/transfer/*|tests/ledger/*|tests/architecture.tests/*)
-                run_ledger=true
+              pocarquitetura.slnx|auditservice.slnx|balanceservice.slnx|identityservice.slnx|ledgerservice.slnx|transferservice.slnx|src/audit/*|src/identity/*|src/balance/*|src/transfer/*|src/ledger/*|tests/audit/*|tests/identity/*|tests/balance/*|tests/transfer/*|tests/ledger/*|tests/architecture.tests/*)
+                run_aggregate=true
                 ;;
               *.cs)
-                run_ledger=true
+                run_aggregate=true
                 run_shared=true
                 ;;
             esac
           done < changed-files.txt
 
-          echo "run_ledger=$run_ledger" >> "$GITHUB_OUTPUT"
+          echo "run_aggregate=$run_aggregate" >> "$GITHUB_OUTPUT"
           echo "run_shared=$run_shared" >> "$GITHUB_OUTPUT"
 
           if [ "$count" -eq 0 ]; then
@@ -89,24 +89,24 @@ jobs:
             } >> "$GITHUB_STEP_SUMMARY"
           fi
 
-      - name: Restore LedgerService dependencies
-        if: ${{ steps.changed_files.outputs.run_ledger == 'true' }}
+      - name: Restore aggregate dependencies
+        if: ${{ steps.changed_files.outputs.run_aggregate == 'true' }}
         shell: bash
-        run: dotnet restore "$LEDGER_SOLUTION_PATH"
+        run: dotnet restore "$AGGREGATE_SOLUTION_PATH"
 
       - name: Restore Shared dependencies
         if: ${{ steps.changed_files.outputs.run_shared == 'true' }}
         shell: bash
         run: dotnet restore "$SHARED_SOLUTION_PATH"
 
-      - name: Run .NET analyzers as LedgerService recommendations
-        if: ${{ steps.changed_files.outputs.run_ledger == 'true' }}
-        id: ledger_analyzers
+      - name: Run .NET analyzers as aggregate recommendations
+        if: ${{ steps.changed_files.outputs.run_aggregate == 'true' }}
+        id: aggregate_analyzers
         shell: bash
         run: |
           set +e
 
-          dotnet build "$LEDGER_SOLUTION_PATH" \
+          dotnet build "$AGGREGATE_SOLUTION_PATH" \
             --configuration "$BUILD_CONFIGURATION" \
             --no-restore \
             /p:AnalysisMode=AllEnabledByDefault \
@@ -152,7 +152,7 @@ jobs:
           exit 0
 
       - name: Publish analyzer recommendations
-        if: ${{ (steps.changed_files.outputs.run_ledger == 'true' || steps.changed_files.outputs.run_shared == 'true') && always() }}
+        if: ${{ (steps.changed_files.outputs.run_aggregate == 'true' || steps.changed_files.outputs.run_shared == 'true') && always() }}
         shell: bash
         run: |
           python - <<'PY'

@@ -8,9 +8,9 @@ Abra o repositorio normalmente no host e use os comandos atuais:
 
 ```bash
 dotnet tool restore
-dotnet restore ./LedgerService.slnx
-dotnet build ./LedgerService.slnx --configuration Release --no-restore
-dotnet test ./LedgerService.slnx --configuration Release --no-build --settings ./coverlet.runsettings
+dotnet restore ./PocArquitetura.slnx
+dotnet build ./PocArquitetura.slnx --configuration Release --no-restore
+dotnet test ./PocArquitetura.slnx --configuration Release --no-build --settings ./coverlet.runsettings
 ```
 
 Os scripts existentes continuam sendo a fonte principal para execucao local:
@@ -40,7 +40,7 @@ Durante a criacao do container, o `postCreateCommand` executa somente comandos s
 ```bash
 dotnet --info
 dotnet tool restore
-dotnet restore ./LedgerService.slnx
+dotnet restore ./PocArquitetura.slnx
 ```
 
 O recurso Docker outside of Docker instala a CLI Docker e encaminha o socket do Docker do host para permitir comandos como:
@@ -75,7 +75,7 @@ Dentro do Dev Container, valide o ambiente com:
 ```bash
 dotnet --info
 dotnet tool restore
-dotnet restore ./LedgerService.slnx
+dotnet restore ./PocArquitetura.slnx
 docker version
 docker compose version
 ```
@@ -83,6 +83,6 @@ docker compose version
 Build e testes continuam usando os mesmos comandos do host:
 
 ```bash
-dotnet build ./LedgerService.slnx --configuration Release
-dotnet test ./LedgerService.slnx --configuration Release --settings ./coverlet.runsettings
+dotnet build ./PocArquitetura.slnx --configuration Release
+dotnet test ./PocArquitetura.slnx --configuration Release --settings ./coverlet.runsettings
 ```

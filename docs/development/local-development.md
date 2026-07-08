@@ -117,8 +117,6 @@ Variaveis nao sensiveis ou identificadores locais continuam com defaults no comp
 
 O Docker Compose roda os containers com ambiente `Local` e usa hostnames internos da rede Docker, como `postgres-db:5432`, `kafka:9092`, `keycloak:8080` e `mailpit:1025`. Debug ou `dotnet run` no host usa ambiente `Development` e deve apontar para as portas publicadas no host: `127.0.0.1:15432`, `127.0.0.1:19092`, `http://localhost:8081` e `localhost:1025`.
 
-As variaveis `AUTH_POC_USERNAME`, `AUTH_POC_PASSWORD` e `AUTH_POC_SCOPE` continuam aceitas apenas pelo overlay legado `compose.auth-legacy.yaml`.
-
 O mesmo `KEYCLOAK_CLIENT_SECRET` alimenta o client local `poc-automation` usado pelos scripts e pelo `TransferService.Worker` quando ele chama o `LedgerService.Api`, e o client local `identity-service-admin` usado pelo `IdentityService.Api` para administrar usuarios no realm `poc`. O scope service-to-service do worker fica em `TRANSFER_WORKER_LEDGER_AUTH_SCOPE`, com default `ledger.write`.
 
 O compose executa o job idempotente `keycloak-identity-admin-init` depois que o Keycloak fica healthy. Esse job usa `kcadm.sh` para atribuir `realm-management:manage-users` e `realm-management:view-users` a service account do client `identity-service-admin`; ele deve terminar com sucesso antes do `IdentityService.Api` iniciar.
@@ -161,7 +159,7 @@ Os scripts `scripts/local/start-stack.*` sobem por padrao o core funcional de de
 - job idempotente de inicializacao dos topicos Kafka de Ledger, Balance e Transfer.
 - Mailpit para capturar e-mails locais sem envio real.
 
-Esse modo tambem pode ser chamado de Dev Lite quando o foco for reduzir consumo local: ele significa core funcional sem observabilidade, SonarQube, k6, Nginx overlay e `Auth.Api` legado. Dev Lite nao significa "sem workers"; `LedgerService.Worker`, `BalanceService.Worker` e `TransferService.Worker` continuam no fluxo padrao porque validam Outbox, Kafka, projecao e processamento de Saga ponta a ponta.
+Esse modo tambem pode ser chamado de Dev Lite quando o foco for reduzir consumo local: ele significa core funcional sem observabilidade, SonarQube, k6 e Nginx overlay. Dev Lite nao significa "sem workers"; `LedgerService.Worker`, `BalanceService.Worker` e `TransferService.Worker` continuam no fluxo padrao porque validam Outbox, Kafka, projecao e processamento de Saga ponta a ponta.
 
 Componentes opcionais ficam em arquivos Compose separados. Eles complementam o `compose.yaml`; nao substituem a stack principal nem duplicam banco, Kafka ou servicos .NET:
 
@@ -169,13 +167,12 @@ Componentes opcionais ficam em arquivos Compose separados. Eles complementam o `
 - `compose.k6.yaml` com profile `k6`: container k6;
 - `compose.nginx.yaml`: borda local Nginx opcional;
 - `compose.sonar.yaml` com profile `quality`: SonarQube local;
-- `compose.auth-legacy.yaml` com profile `legacy-auth`: `Auth.Api` legado.
 - `compose.yaml`: stack principal com Kafka, init idempotente dos topicos e workers configurados com `Messaging:Provider=Kafka`.
 - `compose.pubsub.yaml` com profile `legacy-pubsub`: caminho explicito/legado para Pub/Sub emulator, `pubsub-init` e overrides dos workers de Ledger/Balance para `Messaging:Provider=PubSub`.
 - `compose.kafka.yaml`: overlay mantido apenas como alias compativel; Kafka ja faz parte do compose principal.
 - `compose.cloudsql.yaml`: overlay de smoke manual/local com Cloud SQL Auth Proxy, trocando `postgres-db:5432` por `cloud-sql-proxy:5432` dentro dos containers.
 
-Tambem existe um overlay opcional `compose.nginx.yaml` para adicionar uma borda local com Nginx e HTTPS em desenvolvimento. Ele nao faz parte do core funcional e nao altera as APIs, que continuam rodando internamente em HTTP com `ASPNETCORE_URLS=http://+:8080`. Quando o overlay e usado, o Nginx cria um upstream local `ledger_api` com duas instancias da `LedgerService.Api` e algoritmo `least_conn`. O `Auth.Api` foi removido do core funcional e permanece apenas no overlay legado `compose.auth-legacy.yaml`.
+Tambem existe um overlay opcional `compose.nginx.yaml` para adicionar uma borda local com Nginx e HTTPS em desenvolvimento. Ele nao faz parte do core funcional e nao altera as APIs, que continuam rodando internamente em HTTP com `ASPNETCORE_URLS=http://+:8080`. Quando o overlay e usado, o Nginx cria um upstream local `ledger_api` com duas instancias da `LedgerService.Api` e algoritmo `least_conn`.
 
 A observabilidade completa inclui:
 
@@ -489,7 +486,7 @@ O realm local importado se chama `poc` e expoe:
 - scopes: `ledger.write`, `ledger.read`, `balance.read`, `transfer.write`, `transfer.read` e `outbox.admin`;
 - claim `merchant_id`: `tese m1 m2`.
 
-As APIs continuam usando `Jwt:JwksUrl` direto, sem introspeccao por request e sem consumir discovery metadata nesta etapa. No compose, `JWT_ISSUER` deve corresponder ao `iss` publico do token (`http://localhost:8081/realms/poc`) e `JWT_JWKS_URL` deve apontar para o endpoint de certificados acessivel pela rede interna (`http://keycloak:8080/realms/poc/protocol/openid-connect/certs`). Para voltar temporariamente ao emissor legado, suba `compose.auth-legacy.yaml` e configure `JWT_ISSUER=https://auth-api`, `JWT_JWKS_URL=http://auth-api:8080/.well-known/jwks.json` e `TOKEN_PROVIDER=auth-api`.
+As APIs continuam usando `Jwt:JwksUrl` direto, sem introspeccao por request e sem consumir discovery metadata nesta etapa. No compose, `JWT_ISSUER` deve corresponder ao `iss` publico do token (`http://localhost:8081/realms/poc`) e `JWT_JWKS_URL` deve apontar para o endpoint de certificados acessivel pela rede interna (`http://keycloak:8080/realms/poc/protocol/openid-connect/certs`).
 
 O segredo dos clients `poc-automation` e `identity-service-admin` vem de `KEYCLOAK_CLIENT_SECRET` no ambiente do container. O arquivo de realm usa placeholder resolvido pelo Keycloak durante `start-dev --import-realm`, mantendo o valor real fora do repositorio.
 
@@ -540,31 +537,12 @@ curl -s -X POST http://localhost:8081/realms/poc/protocol/openid-connect/token \
 
 Troque `client_id`, `username` e `password` para `poc-local-balance-debug` / `local_balance_user` ou `poc-local-admin-debug` / `local_admin_user` quando quiser validar os demais perfis. O token deve manter `iss=http://localhost:8081/realms/poc`, `aud` com as APIs autorizadas, `merchant_id` conforme o perfil e a claim `scope` conforme o perfil escolhido. Para testar `TransferService.Api`, use o token do `poc-automation` ou `poc-local-admin-debug`, que inclui `transfer-api`, `transfer.write`, `transfer.read` e merchants `m1 m2`.
 
-Para usar temporariamente tokens emitidos pelo `Auth.Api`, suba o overlay legado e sobrescreva tambem a configuracao JWT das APIs para apontar para o emissor legado:
-
-```bash
-JWT_ISSUER=https://auth-api \
-JWT_JWKS_URL=http://auth-api:8080/.well-known/jwks.json \
-TOKEN_PROVIDER=auth-api ./scripts/validation/get-token.sh
-```
-
-No Windows:
-
-```powershell
-$env:TOKEN_PROVIDER = "auth-api"
-$env:JWT_ISSUER = "https://auth-api"
-$env:JWT_JWKS_URL = "http://auth-api:8080/.well-known/jwks.json"
-./scripts/validation/get-token.ps1
-```
-
 Para validar discovery e JWKS:
 
 ```bash
 curl -s http://localhost:8081/realms/poc/.well-known/openid-configuration
 curl -s http://localhost:8081/realms/poc/protocol/openid-connect/certs
 ```
-
-Nesta etapa, `Auth.Api` continua funcional apenas como legado por overlay, mas a origem padrao do JWKS usada por `LedgerService.Api` e `BalanceService.Api` no compose local e o Keycloak.
 
 ### Stack completa com observabilidade e Nginx
 
@@ -899,16 +877,6 @@ O compose sobrescreve configuracoes por variaveis de ambiente para usar hosts in
 
 Prometheus tambem carrega regras locais em `observability/prometheus/rules/` e envia alertas para o Alertmanager local. A UI do Alertmanager fica em `http://localhost:9093/` e nao possui integracao externa configurada.
 
-### Auth.Api legado
-
-O `Auth.Api` permanece no repositorio para compatibilidade e testes do emissor legado, mas nao sobe na stack principal. Quando precisar validar esse caminho, use:
-
-```bash
-docker compose -f compose.yaml -f compose.auth-legacy.yaml --profile legacy-auth up -d --build auth-api
-```
-
-No modo legado, as portas e variaveis antigas continuam as mesmas: `http://localhost:5030/`, `AUTH_POC_USERNAME`, `AUTH_POC_PASSWORD`, `AUTH_POC_SCOPE` e `TOKEN_PROVIDER=auth-api`.
-
 ## Migrations via compose
 
 O compose nao aplica migrations automaticamente. Na primeira execucao com banco vazio, e sempre que houver mudanca de schema, aplique as migrations pelo host usando as portas expostas.
@@ -1087,7 +1055,7 @@ dotnet test
 Para separar os perfis de validacao local:
 
 ```powershell
-dotnet test LedgerService.slnx -c Release --no-build --filter "Category!=Integration&Category!=Container&Category!=Contract"
+dotnet test PocArquitetura.slnx -c Release --no-build --filter "Category!=Integration&Category!=Container&Category!=Contract"
 dotnet test tests/transfer/TransferService.IntegrationTests/TransferService.IntegrationTests.csproj -c Release --no-build
 dotnet test tests/ledger/LedgerService.IntegrationTests/LedgerService.IntegrationTests.csproj -c Release --no-build
 ```
@@ -1199,7 +1167,7 @@ Para abrir:
 2. Selecione `poc-arquitetura.code-workspace`.
 3. Instale as extensoes sugeridas.
 
-As configuracoes do VS Code sao opcionais e apenas facilitam comandos que continuam funcionando pelo terminal. A solution padrao e `LedgerService.slnx`; as exclusoes do workspace escondem diretorios gerados como `bin`, `obj`, `TestResults`, `artifacts/k6`, relatorios de cobertura e `StrykerOutput`.
+As configuracoes do VS Code sao opcionais e apenas facilitam comandos que continuam funcionando pelo terminal. A solution padrao e `PocArquitetura.slnx`; as exclusoes do workspace escondem diretorios gerados como `bin`, `obj`, `TestResults`, `artifacts/k6`, relatorios de cobertura e `StrykerOutput`.
 
 Tasks uteis:
 
@@ -1214,7 +1182,7 @@ Tasks uteis:
 
 As tasks de stack e k6 chamam os scripts versionados (`scripts/local/start-stack.*` e `scripts/performance/run-loadtests.*`) para evitar duplicar logica. Elas nao executam teardown destrutivo nem migrations fora do fluxo ja definido pelos scripts.
 
-As configuracoes de debug rodam processos no host em `Development` para `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker`. O `Auth.Api` legado tambem possui configuracao propria, mas deve ser usado apenas quando o fluxo legado for explicitamente validado. Os nomes indicam que dependencias locais podem ser necessarias quando banco, Kafka, Pub/Sub emulator legado ou JWKS forem usados. Se a stack completa do compose estiver em execucao, pare o container equivalente antes de depurar o mesmo processo no host para evitar conflito de porta ou processamento duplicado.
+As configuracoes de debug rodam processos no host em `Development` para `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker`. Os nomes indicam que dependencias locais podem ser necessarias quando banco, Kafka, Pub/Sub emulator legado ou JWKS forem usados. Se a stack completa do compose estiver em execucao, pare o container equivalente antes de depurar o mesmo processo no host para evitar conflito de porta ou processamento duplicado.
 
 O arquivo `src/ledger/LedgerService.Api/LedgerService.Api.http` pode ser usado com a extensao REST Client. Nao coloque segredos em `.vscode/rest-client.env.json`.
 
@@ -1259,7 +1227,7 @@ Os modos `transfer-smoke-kafka` e `transfer-load-kafka` usam a mesma infraestrut
 
 O modo `transfer-fullstack-kafka` e o smoke manual da Saga completa. Ele usa o compose padrao com Kafka, sobe ou recria `kafka`, `kafka-init-topics`, `ledger-service`, `transfer-service` e `transfer-worker`, aguarda a transferencia chegar a `Completed` com polling controlado e valida pelos offsets e pela amostra Kafka que os eventos principais foram publicados com `message key = transferenciaId` e `correlationId` esperado. A DLQ `transfer.transferencia.dlq` nao pode crescer no fluxo feliz. Esse modo nao usa Pub/Sub para o TransferService. Se a Saga ficar `Failed` por `401 Unauthorized`, valide a configuracao `TransferService__Worker__Ledger__Auth__*`, o segredo local do Keycloak, audience `ledger-api`, scope `ledger.write` e `merchant_id` do token do worker.
 
-O token usado nos cenarios k6 e obtido pelos runners com `scripts/validation/get-token.*`. O fluxo oficial local e `TOKEN_PROVIDER=keycloak`, usando `KEYCLOAK_CLIENT_ID`, `KEYCLOAK_CLIENT_SECRET`, `KEYCLOAK_REALM` e `KEYCLOAK_BASE_URL`/`KEYCLOAK_HOST_PORT`. Para usar temporariamente o fallback `Auth.Api`, suba `compose.auth-legacy.yaml` e configure tambem as APIs de negocio com `JWT_ISSUER=https://auth-api`, `JWT_JWKS_URL=http://auth-api:8080/.well-known/jwks.json` e `TOKEN_PROVIDER=auth-api`, conforme [autenticacao e autorizacao](authentication.md).
+O token usado nos cenarios k6 e obtido pelos runners com `scripts/validation/get-token.*`. O fluxo oficial local e `TOKEN_PROVIDER=keycloak`, usando `KEYCLOAK_CLIENT_ID`, `KEYCLOAK_CLIENT_SECRET`, `KEYCLOAK_REALM` e `KEYCLOAK_BASE_URL`/`KEYCLOAK_HOST_PORT`.
 
 Para validar manualmente a configuracao efetiva do k6:
 
@@ -1270,7 +1238,7 @@ docker compose -f compose.yaml -f compose.k6.yaml --profile k6 config --services
 
 ## OWASP ZAP local
 
-Os scripts versionados de ZAP executam DAST local em container contra `LedgerService.Api` e `BalanceService.Api` por padrao. Eles assumem que a stack ja esta rodando, validam `GET /health` antes do scan, importam `/swagger/v1/swagger.json` de cada API, salvam relatorios em `zap-reports/<timestamp>/` e removem apenas o container temporario `poc-arquitetura-zap` ao final. Para incluir o `Auth.Api` legado, suba `compose.auth-legacy.yaml` e use a opcao documentada em [OWASP ZAP local](owasp-zap.md).
+Os scripts versionados de ZAP executam DAST local em container contra `LedgerService.Api` e `BalanceService.Api`. Eles assumem que a stack ja esta rodando, validam `GET /health` antes do scan, importam `/swagger/v1/swagger.json` de cada API, salvam relatorios em `zap-reports/<timestamp>/` e removem apenas o container temporario `poc-arquitetura-zap` ao final.
 
 URLs diretas:
 
@@ -1302,7 +1270,7 @@ Via Nginx local:
 ./scripts/security/run-owasp-zap.sh --use-nginx
 ```
 
-Por padrao o ZAP importa os documentos OpenAPI sem injetar token. Para executar o scan com `Authorization: Bearer <token>`, use o fluxo autenticado; o token e obtido por `scripts/validation/get-token.*`, portanto segue o mesmo padrao Keycloak e o mesmo fallback documentado para `Auth.Api`:
+Por padrao o ZAP importa os documentos OpenAPI sem injetar token. Para executar o scan com `Authorization: Bearer <token>`, use o fluxo autenticado; o token e obtido por `scripts/validation/get-token.*`, portanto segue o mesmo padrao Keycloak:
 
 ```powershell
 ./scripts/security/run-owasp-zap.ps1 -UseAuthentication

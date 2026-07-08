@@ -5,7 +5,6 @@ public sealed class ContainerSecurityPolicyTests
 {
     private static readonly string[] _apiDockerfiles =
     [
-        "src/Auth.Api/Dockerfile",
         "src/ledger/LedgerService.Api/Dockerfile",
         "src/balance/BalanceService.Api/Dockerfile",
     ];
@@ -27,15 +26,6 @@ public sealed class ContainerSecurityPolicyTests
         var dockerfile = File.ReadAllText(Path.Combine(repositoryRoot.FullName, dockerfilePath));
         Assert.Contains("COPY --from=build --chown=$APP_UID:0 /app/publish ./", dockerfile);
         Assert.Contains("USER $APP_UID", dockerfile);
-    }
-
-    [Fact]
-    public void Auth_api_dockerfile_should_prepare_writable_data_directory_for_non_root_user()
-    {
-        var repositoryRoot = GetRepositoryRoot();
-        var dockerfile = File.ReadAllText(Path.Combine(repositoryRoot.FullName, "src/Auth.Api/Dockerfile"));
-        Assert.Contains("mkdir -p /data", dockerfile);
-        Assert.Contains("chown -R $APP_UID:0 /app /data", dockerfile);
     }
 
     [Fact]
@@ -81,20 +71,6 @@ public sealed class ContainerSecurityPolicyTests
         Assert.DoesNotContain("GOOGLE_APPLICATION_CREDENTIALS", compose, StringComparison.Ordinal);
         Assert.DoesNotContain("Host=cloud-sql-proxy", compose, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("/cloudsql", compose, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public void Legacy_auth_compose_service_should_define_local_resource_limits()
-    {
-        var repositoryRoot = GetRepositoryRoot();
-        var compose = File.ReadAllText(Path.Combine(repositoryRoot.FullName, "compose.auth-legacy.yaml"));
-        var serviceBlock = GetServiceBlock(compose, "auth-api");
-        Assert.Contains("deploy:", serviceBlock);
-        Assert.Contains("resources:", serviceBlock);
-        Assert.Contains("limits:", serviceBlock);
-        Assert.Contains("cpus:", serviceBlock);
-        Assert.Contains("memory:", serviceBlock);
-        Assert.Contains("pids:", serviceBlock);
     }
 
     [Fact]
@@ -149,7 +125,7 @@ public sealed class ContainerSecurityPolicyTests
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
 
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "LedgerService.slnx")))
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "PocArquitetura.slnx")))
         {
             directory = directory.Parent;
         }
