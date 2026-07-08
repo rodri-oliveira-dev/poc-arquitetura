@@ -78,6 +78,40 @@ class SonarQubeCloudReportMainTests(unittest.TestCase):
     def tearDown(self) -> None:
         shutil.rmtree(self.output_dir, ignore_errors=True)
 
+    def test_resolve_report_paths_accepts_fixed_artifacts_inside_allowed_root(self) -> None:
+        paths = report.resolve_report_paths("artifacts/unit-sonarqube-report")
+
+        self.assertEqual(self.output_dir / "quality-gate.json", paths.quality_gate)
+        self.assertEqual(self.output_dir / "measures.json", paths.measures)
+        self.assertEqual(self.output_dir / "issues.json", paths.issues)
+        self.assertEqual(self.output_dir / "sonarqube-cloud-report.md", paths.report)
+        self.assertEqual(self.output_dir / "report.md", paths.report_alias)
+        for artifact_path in (
+            paths.quality_gate,
+            paths.measures,
+            paths.issues,
+            paths.report,
+            paths.report_alias,
+        ):
+            artifact_path.relative_to(self.output_dir)
+
+    def test_resolve_report_paths_rejects_traversal_output_dir(self) -> None:
+        with self.assertRaisesRegex(ValueError, "fora da raiz permitida"):
+            report.resolve_report_paths("artifacts/../../outside")
+
+    def test_resolve_report_paths_rejects_absolute_external_output_dir(self) -> None:
+        outside = pathlib.Path(tempfile.gettempdir()) / "outside-sonar-report"
+        with self.assertRaisesRegex(ValueError, "fora da raiz permitida"):
+            report.resolve_report_paths(outside)
+
+    def test_artifact_filenames_are_fixed_by_production_api(self) -> None:
+        self.assertFalse(hasattr(report, "write_text_artifact"))
+        self.assertFalse(hasattr(report, "write_json"))
+        paths = report.resolve_report_paths("artifacts/unit-sonarqube-report")
+
+        self.assertNotEqual(self.output_dir / "arbitrary.txt", paths.report)
+        self.assertNotEqual(self.output_dir / "../../escape.txt", paths.report_alias)
+
     @mock.patch.dict("os.environ", {"SONAR_TOKEN": "secret-token"}, clear=False)
     @mock.patch("sonarqube_cloud_report.request_json")
     def test_main_generates_artifacts_inside_allowed_root(self, request_json: mock.Mock) -> None:

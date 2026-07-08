@@ -101,8 +101,8 @@ def build_context_rows(artifacts_dir: pathlib.Path, expected_contexts: set[str])
 
     for context in CONTEXTS:
         expected = context in expected_contexts
-        quality_gate = load_json(find_sonar_file(args.artifacts_dir, context, "quality-gate.json"))
-        measures = load_json(find_sonar_file(args.artifacts_dir, context, "measures.json"))
+        quality_gate = load_json(find_sonar_file(artifacts_dir, context, "quality-gate.json"))
+        measures = load_json(find_sonar_file(artifacts_dir, context, "measures.json"))
 
         rows.append(
             [

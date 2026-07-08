@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import base64
+from dataclasses import dataclass
 import json
 import os
 import pathlib
@@ -8,7 +9,7 @@ import sys
 import urllib.parse
 import urllib.request
 
-from path_security import PathSecurityError, artifacts_root, repo_root, resolve_output_dir, resolve_output_file
+from path_security import artifacts_root, repo_root, resolve_output_dir
 
 
 METRIC_KEYS = [
@@ -43,6 +44,51 @@ ALLOWED_API_ENDPOINTS = frozenset(
     }
 )
 
+QUALITY_GATE_FILE = "quality-gate.json"
+MEASURES_FILE = "measures.json"
+ISSUES_FILE = "issues.json"
+REPORT_FILE = "sonarqube-cloud-report.md"
+REPORT_ALIAS_FILE = "report.md"
+REPORT_ARTIFACT_LABEL = "relatorio Markdown SonarQube Cloud"
+REPORT_ALIAS_ARTIFACT_LABEL = "alias Markdown SonarQube Cloud"
+MARKDOWN_ARTIFACT_FILES = {
+    REPORT_ARTIFACT_LABEL: REPORT_FILE,
+    REPORT_ALIAS_ARTIFACT_LABEL: REPORT_ALIAS_FILE,
+}
+
+
+@dataclass(frozen=True)
+class SonarReportPaths:
+    quality_gate: pathlib.Path
+    measures: pathlib.Path
+    issues: pathlib.Path
+    report: pathlib.Path
+    report_alias: pathlib.Path
+
+    @property
+    def output_dir(self) -> pathlib.Path:
+        return self.report.parent
+
+
+def resolve_report_paths(configured_output_dir: str | pathlib.Path) -> SonarReportPaths:
+    output_dir = resolve_output_dir(
+        configured_output_dir,
+        artifacts_root(),
+        base_dir=repo_root(),
+        label="diretorio de saida SonarQube Cloud",
+    )
+    markdown_paths = {
+        label: output_dir / file_name
+        for label, file_name in MARKDOWN_ARTIFACT_FILES.items()
+    }
+    return SonarReportPaths(
+        quality_gate=output_dir / QUALITY_GATE_FILE,
+        measures=output_dir / MEASURES_FILE,
+        issues=output_dir / ISSUES_FILE,
+        report=markdown_paths[REPORT_ARTIFACT_LABEL],
+        report_alias=markdown_paths[REPORT_ALIAS_ARTIFACT_LABEL],
+    )
+
 
 def validate_sonarcloud_host_url(host_url: str) -> str:
     parsed = urllib.parse.urlparse(host_url)
@@ -65,17 +111,18 @@ def validate_api_endpoint(path: str) -> str:
     return path
 
 
-def write_text_artifact(path: pathlib.Path, content: str, label: str) -> None:
-    safe_path = resolve_output_file(path, artifacts_root(), base_dir=repo_root(), label=label)
-    safe_path.write_text(content, encoding="utf-8")
+def write_json_artifacts(paths: SonarReportPaths, quality_gate: dict, measures: dict, issues: dict) -> None:
+    for artifact_path, payload in (
+        (paths.quality_gate, quality_gate),
+        (paths.measures, measures),
+        (paths.issues, issues),
+    ):
+        artifact_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
-def write_json(path: pathlib.Path, payload: dict) -> None:
-    write_text_artifact(
-        path,
-        json.dumps(payload, indent=2, sort_keys=True) + "\n",
-        "arquivo JSON de saida SonarQube Cloud",
-    )
+def write_markdown_artifacts(paths: SonarReportPaths, report: str) -> None:
+    paths.report.write_text(report, encoding="utf-8")
+    paths.report_alias.write_text(report, encoding="utf-8")
 
 
 def markdown_table(headers: list[str], rows: list[list[str]]) -> list[str]:
@@ -253,23 +300,13 @@ def main_with_args(argv: list[str] | None = None) -> int:
         return 2
 
     try:
-        output_dir = resolve_output_dir(
-            args.output_dir,
-            artifacts_root(),
-            base_dir=repo_root(),
-            label="diretorio de saida SonarQube Cloud",
-        )
+        report_paths = resolve_report_paths(args.output_dir)
         host_url = validate_sonarcloud_host_url(args.host_url)
-    except (PathSecurityError, ValueError) as exc:
+    except ValueError as exc:
         print(exc, file=sys.stderr)
         return 2
 
-    output_dir.mkdir(parents=True, exist_ok=True)
-    quality_gate_path = output_dir / "quality-gate.json"
-    measures_path = output_dir / "measures.json"
-    issues_path = output_dir / "issues.json"
-    report_path = output_dir / "sonarqube-cloud-report.md"
-    report_alias_path = output_dir / "report.md"
+    report_paths.output_dir.mkdir(parents=True, exist_ok=True)
 
     sonar_token = os.environ.get(args.token_env, "")
     pull_request_number = args.pull_request or None
@@ -280,12 +317,9 @@ def main_with_args(argv: list[str] | None = None) -> int:
     try:
         if not sonar_token:
             message = f"{args.token_env} nao esta configurado; pulando consulta a API do SonarQube Cloud."
-            write_json(quality_gate_path, {"error": message})
-            write_json(measures_path, {"error": message})
-            write_json(issues_path, {"error": message})
+            write_json_artifacts(report_paths, {"error": message}, {"error": message}, {"error": message})
             report = build_report(args.project_key, args.organization_key, dashboard_url, pull_request_number, error=message)
-            write_text_artifact(report_path, report, "relatorio Markdown SonarQube Cloud")
-            write_text_artifact(report_alias_path, report, "alias Markdown SonarQube Cloud")
+            write_markdown_artifacts(report_paths, report)
             print(message)
             return 0
 
@@ -318,21 +352,15 @@ def main_with_args(argv: list[str] | None = None) -> int:
             },
         )
 
-        write_json(quality_gate_path, quality_gate)
-        write_json(measures_path, measures)
-        write_json(issues_path, issues)
+        write_json_artifacts(report_paths, quality_gate, measures, issues)
 
         report = build_report(args.project_key, args.organization_key, dashboard_url, pull_request_number, quality_gate, measures, issues)
-        write_text_artifact(report_path, report, "relatorio Markdown SonarQube Cloud")
-        write_text_artifact(report_alias_path, report, "alias Markdown SonarQube Cloud")
+        write_markdown_artifacts(report_paths, report)
     except Exception as exc:
         message = f"{type(exc).__name__}: {exc}"
-        write_json(quality_gate_path, {"error": message})
-        write_json(measures_path, {"error": message})
-        write_json(issues_path, {"error": message})
+        write_json_artifacts(report_paths, {"error": message}, {"error": message}, {"error": message})
         report = build_report(args.project_key, args.organization_key, dashboard_url, pull_request_number, error=message)
-        write_text_artifact(report_path, report, "relatorio Markdown SonarQube Cloud")
-        write_text_artifact(report_alias_path, report, "alias Markdown SonarQube Cloud")
+        write_markdown_artifacts(report_paths, report)
         print(f"SonarQube Cloud report could not be generated: {message}")
 
     return 0
