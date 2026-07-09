@@ -362,18 +362,18 @@ model {
   }
 
   payment = softwareSystem "PaymentService" {
-    description "Bounded context inicial de pagamentos externos. Nesta etapa registra e consulta Payments locais, sem Stripe real, webhook, Inbox, Kafka, Ledger ou Balance."
+    description "Bounded context de pagamentos externos. Nesta etapa cria Payments locais e PaymentIntent no provider configurado, sem webhook, Inbox, Kafka, Ledger ou Balance."
 
     paymentApi = container "PaymentService.Api" {
       technology "ASP.NET Core"
-      description "Composition root HTTP do PaymentService. Expoe criacao local e consulta de Payments, com idempotencia e autorizacao por merchant."
+      description "Composition root HTTP do PaymentService. Expoe criacao de Payment com intencao externa e consulta local, com idempotencia e autorizacao por merchant."
 
       paymentApiLayer = component "API Layer" {
         description "Controllers, contracts, binders, mappers, Swagger, JWT/JWKS, policies payment.write/payment.read, correlation id e middlewares."
       }
 
       paymentApplication = component "Application Layer" {
-        description "Handlers de criacao e consulta, portas IPaymentRepository, IPaymentIdempotencyService, IUnitOfWork e porta futura IPaymentGateway sem implementacao Stripe nesta etapa."
+        description "Handlers de criacao e consulta, portas IPaymentRepository, IPaymentIdempotencyService, IUnitOfWork e IPaymentGateway com modelos internos da ACL."
       }
 
       paymentDomain = component "Domain Layer" {
@@ -381,7 +381,7 @@ model {
       }
 
       paymentInfrastructure = component "Infrastructure Layer" {
-        description "PaymentDbContext, migrations do schema payment, repository concreto e idempotencia persistida."
+        description "PaymentDbContext, migrations do schema payment, repositories, idempotencia persistida, provider fake e adapter HTTP Stripe."
       }
     }
 
@@ -398,6 +398,10 @@ model {
       technology "PostgreSQL"
       description "Schema payment no PostgreSQL local unico ou boundary equivalente por ambiente: payments e idempotency_records."
     }
+  }
+
+  stripe = softwareSystem "Stripe" {
+    description "Provider externo de pagamentos usado pelo PaymentService para criar PaymentIntent quando PaymentGateway:Provider=Stripe."
   }
 
   kafka = softwareSystem "Kafka" {
@@ -496,7 +500,7 @@ model {
   customer -> identityService.identityApi "Cadastra usuarios e recebe MerchantId" "HTTP + JWT"
   customer -> ledger.ledgerApi "Cria lancamentos e solicita/consulta estornos e reprocessamentos" "HTTP + JWT"
   customer -> balance.balanceApi "Consulta consolidados" "HTTP + JWT"
-  customer -> payment.paymentApi "Cria e consulta Payments locais" "HTTP + JWT"
+  customer -> payment.paymentApi "Cria Payments externos e consulta estado local" "HTTP + JWT"
   customer -> edge.nginx "Acessa portal e Swaggers locais opcionais" "HTTPS"
   edge.nginx -> ledger.ledgerApi "Encaminha ledger.localhost:7443 para o upstream ledger_api com least_conn" "HTTP interno"
   edge.nginx -> balance.balanceApi "Encaminha balance.localhost:7443" "HTTP interno"
@@ -527,6 +531,7 @@ model {
   balance.balanceApi -> identity.keycloak "Baixa/cacheia JWKS e valida JWT offline com iss, aud, scopes e merchant_id" "HTTP cacheado"
   transfer.transferApi -> identity.keycloak "Baixa/cacheia JWKS e valida JWT offline com iss, aud, scopes e merchant_id" "HTTP cacheado"
   payment.paymentApi -> identity.keycloak "Baixa/cacheia JWKS e valida JWT offline com iss, aud, scopes e merchant_id" "HTTP cacheado"
+  payment.paymentApi.paymentInfrastructure -> stripe "Cria PaymentIntent com idempotencia externa deterministica" "HTTPS"
 
   ledger.ledgerApi -> ledger.ledgerDb "Persiste lancamento, estorno, reprocessamento, idempotencia e outbox" "EF Core"
   ledger.ledgerWorker.ledgerWorkerComposition -> ledger.ledgerWorker.ledgerWorkerApplication "Registra casos de uso e handlers" "DI / MediatR"

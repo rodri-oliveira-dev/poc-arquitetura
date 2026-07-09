@@ -46,6 +46,7 @@ public static class ServiceCollectionExtensions
             options => options.OtlpEndpoint,
             tracing => tracing
                 .AddSource("PaymentService.Api")
-                .AddSource("PaymentService.Application"));
+                .AddSource("PaymentService.Application")
+                .AddSource("PaymentService.Infrastructure.PaymentGateway"));
     }
 }

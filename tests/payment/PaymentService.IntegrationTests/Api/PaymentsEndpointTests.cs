@@ -59,6 +59,10 @@ public sealed class PaymentsEndpointTests(PostgresPaymentFixture fixture) : ICla
         Assert.Equal("m1", body.MerchantId);
         Assert.Equal(100m, body.Amount);
         Assert.Equal("BRL", body.Currency);
+        Assert.Equal("Fake", body.Provider);
+        Assert.StartsWith("pi_fake_", body.ProviderPaymentId, StringComparison.Ordinal);
+        Assert.Equal("requires_payment_method", body.ProviderStatus);
+        Assert.NotNull(body.ClientSecret);
         Assert.Equal($"/api/v1/payments/{body.PaymentId}", body.StatusUrl);
         Assert.Equal(body.StatusUrl, res.Headers.Location?.ToString());
 
@@ -67,7 +71,8 @@ public sealed class PaymentsEndpointTests(PostgresPaymentFixture fixture) : ICla
             x => x.PaymentId == new PaymentId(body.PaymentId),
             TestContext.Current.CancellationToken);
         Assert.NotNull(saved);
-        Assert.Equal("Pending", saved.Status.ToString());
+        Assert.Equal("RequiresAction", saved.Status.ToString());
+        Assert.StartsWith("pi_fake_", saved.ExternalPaymentReference?.Value, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -87,7 +92,10 @@ public sealed class PaymentsEndpointTests(PostgresPaymentFixture fixture) : ICla
         Assert.NotNull(replayBody);
 
         Assert.Equal(HttpStatusCode.Accepted, replayRes.StatusCode);
-        Assert.Equivalent(firstBody, replayBody);
+        Assert.Equivalent(firstBody with
+        {
+            ClientSecret = null
+        }, replayBody);
     }
 
     [Fact]
@@ -164,8 +172,9 @@ public sealed class PaymentsEndpointTests(PostgresPaymentFixture fixture) : ICla
         var body = await res.Content.ReadFromJsonAsync<PaymentResponse>(TestContext.Current.CancellationToken);
         Assert.NotNull(body);
         Assert.Equal(created.PaymentId, body.PaymentId);
-        Assert.Equal("Pending", body.Status);
-        Assert.Null(body.ExternalPaymentReference);
+        Assert.Equal("RequiresAction", body.Status);
+        Assert.Equal("Fake", body.Provider);
+        Assert.StartsWith("pi_fake_", body.ProviderPaymentId, StringComparison.Ordinal);
         Assert.Null(body.LedgerEntryId);
     }
 

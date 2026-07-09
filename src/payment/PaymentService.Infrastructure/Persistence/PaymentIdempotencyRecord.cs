@@ -58,4 +58,12 @@ public sealed class PaymentIdempotencyRecord
     {
         get; private set;
     }
+
+    public void UpdateResponse(string responseBody)
+    {
+        if (string.IsNullOrWhiteSpace(responseBody))
+            throw new ArgumentException("Response body de idempotencia nao pode ser vazio.", nameof(responseBody));
+
+        ResponseBody = responseBody;
+    }
 }

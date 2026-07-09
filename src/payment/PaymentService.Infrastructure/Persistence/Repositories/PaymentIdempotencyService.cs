@@ -57,4 +57,19 @@ public sealed class PaymentIdempotencyService(PaymentDbContext context, IClock c
 
         await _context.IdempotencyRecords.AddAsync(record, cancellationToken);
     }
+
+    public async Task UpdateResponseAsync(
+        string merchantId,
+        string idempotencyKey,
+        CreatePaymentResult response,
+        CancellationToken cancellationToken)
+    {
+        var record = await _context.IdempotencyRecords
+            .FirstOrDefaultAsync(
+                x => x.MerchantId == merchantId && x.IdempotencyKey == idempotencyKey,
+                cancellationToken)
+            ?? throw new InvalidOperationException("Registro de idempotencia nao encontrado para atualizar resposta.");
+
+        record.UpdateResponse(JsonSerializer.Serialize(response, JsonOptions));
+    }
 }

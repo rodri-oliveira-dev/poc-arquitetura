@@ -5,6 +5,7 @@ public sealed record CreateExternalPaymentRequest(
     string MerchantId,
     decimal Amount,
     string Currency,
+    string? Description,
     string? ExternalReference,
     string IdempotencyKey,
     string? CorrelationId);

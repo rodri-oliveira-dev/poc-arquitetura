@@ -13,4 +13,10 @@ public interface IPaymentIdempotencyService
         CreatePaymentResult response,
         DateTimeOffset expiresAt,
         CancellationToken cancellationToken);
+
+    Task UpdateResponseAsync(
+        string merchantId,
+        string idempotencyKey,
+        CreatePaymentResult response,
+        CancellationToken cancellationToken);
 }

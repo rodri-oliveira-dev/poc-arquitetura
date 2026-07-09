@@ -4,6 +4,7 @@ using System.Text.Json;
 
 using MediatR;
 
+using PaymentService.Application.Abstractions.Gateway;
 using PaymentService.Application.Abstractions.Persistence;
 using PaymentService.Application.Abstractions.Time;
 using PaymentService.Application.Common.Exceptions;
@@ -14,6 +15,7 @@ namespace PaymentService.Application.Payments.Commands;
 public sealed class CreatePaymentCommandHandler(
     IPaymentRepository paymentRepository,
     IPaymentIdempotencyService idempotencyService,
+    IPaymentGateway paymentGateway,
     IUnitOfWork unitOfWork,
     IClock clock)
         : IRequestHandler<CreatePaymentCommand, CreatePaymentResult>
@@ -22,6 +24,7 @@ public sealed class CreatePaymentCommandHandler(
 
     private readonly IPaymentRepository _paymentRepository = paymentRepository;
     private readonly IPaymentIdempotencyService _idempotencyService = idempotencyService;
+    private readonly IPaymentGateway _paymentGateway = paymentGateway;
     private readonly IUnitOfWork _unitOfWork = unitOfWork;
     private readonly IClock _clock = clock;
 
@@ -41,12 +44,30 @@ public sealed class CreatePaymentCommandHandler(
         var existing = await _idempotencyService.GetAsync(merchantId, idempotencyKey, cancellationToken);
         if (existing is not null)
         {
-            return string.Equals(existing.RequestHash, requestHash, StringComparison.Ordinal)
-                ? existing.Response with
+            if (!string.Equals(existing.RequestHash, requestHash, StringComparison.Ordinal))
+                throw new ConflictException("Idempotency-Key already used with a different payload.");
+
+            if (!string.IsNullOrWhiteSpace(existing.Response.ExternalPaymentReference))
+            {
+                return existing.Response with
                 {
-                    IdempotentReplay = true
-                }
-                : throw new ConflictException("Idempotency-Key already used with a different payload.");
+                    IdempotentReplay = true,
+                    ClientSecret = null
+                };
+            }
+
+            var existingPayment = await _paymentRepository.GetByIdAsync(
+                    new PaymentId(existing.Response.PaymentId),
+                    cancellationToken)
+                ?? throw new ConflictException("Payment idempotente ainda nao esta disponivel para replay.");
+
+            return await CompleteExternalCreationAsync(
+                existingPayment,
+                idempotencyKey,
+                requestHash,
+                request.CorrelationId,
+                idempotentReplay: true,
+                cancellationToken);
         }
 
         var now = _clock.UtcNow;
@@ -73,7 +94,13 @@ public sealed class CreatePaymentCommandHandler(
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
-        return response;
+        return await CompleteExternalCreationAsync(
+            payment,
+            idempotencyKey,
+            requestHash,
+            request.CorrelationId,
+            idempotentReplay: false,
+            cancellationToken);
     }
 
     private static CreatePaymentResult ToResult(Payment payment, bool idempotentReplay)
@@ -83,13 +110,122 @@ public sealed class CreatePaymentCommandHandler(
             payment.MerchantId.Value,
             payment.Amount.Amount,
             payment.Amount.Currency.Code,
+            payment.Provider.ToString(),
             payment.Description,
             payment.ExternalReference?.Value,
             payment.ExternalPaymentReference?.Value,
+            payment.ProviderStatus,
+            null,
             payment.LedgerEntryReference?.Value,
             payment.CreatedAt,
             payment.UpdatedAt,
             idempotentReplay);
+
+    private async Task<CreatePaymentResult> CompleteExternalCreationAsync(
+        Payment payment,
+        string idempotencyKey,
+        string requestHash,
+        string? correlationId,
+        bool idempotentReplay,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var externalIdempotencyKey = BuildExternalIdempotencyKey(payment.PaymentId.Value);
+            var externalResult = await _paymentGateway.CreatePaymentIntentAsync(
+                new CreateExternalPaymentRequest(
+                    payment.PaymentId.Value,
+                    payment.MerchantId.Value,
+                    payment.Amount.Amount,
+                    payment.Amount.Currency.Code,
+                    payment.Description,
+                    payment.ExternalReference?.Value,
+                    externalIdempotencyKey,
+                    correlationId),
+                cancellationToken);
+
+            ApplyExternalResult(payment, externalResult, _clock.UtcNow);
+
+            var response = ToResult(payment, idempotentReplay) with
+            {
+                ClientSecret = externalResult.ClientSecret
+            };
+
+            await _idempotencyService.UpdateResponseAsync(
+                payment.MerchantId.Value,
+                idempotencyKey,
+                response with
+                {
+                    ClientSecret = null,
+                    IdempotentReplay = false
+                },
+                cancellationToken);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            return response;
+        }
+        catch (PaymentGatewayException ex)
+        {
+            if (!ex.IsTransient)
+            {
+                payment.MarkFailed(_clock.UtcNow, ex.Code ?? ex.Category.ToString());
+                var failedResponse = ToResult(payment, idempotentReplay: false);
+                await _idempotencyService.UpdateResponseAsync(
+                    payment.MerchantId.Value,
+                    idempotencyKey,
+                    failedResponse,
+                    cancellationToken);
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+            }
+
+            throw new ExternalPaymentProviderException(
+                ex.Category,
+                BuildSafeProviderMessage(ex.Category),
+                ex.RetryAfter,
+                ex);
+        }
+    }
+
+    public static string BuildExternalIdempotencyKey(Guid paymentId)
+        => $"payment:{paymentId:N}:stripe:create-payment-intent";
+
+    private static void ApplyExternalResult(
+        Payment payment,
+        CreateExternalPaymentResult externalResult,
+        DateTimeOffset now)
+    {
+        var reference = new ExternalPaymentReference(externalResult.ExternalPaymentReference);
+        var providerStatus = externalResult.RawStatus ?? externalResult.ProviderStatus;
+
+        if (externalResult.RequiresAction)
+        {
+            payment.MarkRequiresAction(now, reference, providerStatus);
+            return;
+        }
+
+        if (string.Equals(externalResult.ProviderStatus, "processing", StringComparison.OrdinalIgnoreCase))
+        {
+            payment.MarkProcessing(now, reference, providerStatus);
+            return;
+        }
+
+        payment.RegisterProviderIntent(now, reference, providerStatus);
+    }
+
+#pragma warning disable IDE0072 // Categorias futuras devem cair na mensagem generica segura.
+    private static string BuildSafeProviderMessage(PaymentGatewayErrorCategory category)
+        => category switch
+        {
+            PaymentGatewayErrorCategory.RateLimited => "Provider de pagamentos limitou a criacao da intencao externa.",
+            PaymentGatewayErrorCategory.AuthenticationFailed => "Provider de pagamentos recusou a autenticacao configurada.",
+            PaymentGatewayErrorCategory.InvalidRequest => "Provider de pagamentos recusou a criacao da intencao externa.",
+            PaymentGatewayErrorCategory.PaymentRejected => "Provider de pagamentos rejeitou a criacao da intencao externa.",
+            PaymentGatewayErrorCategory.Conflict => "Provider de pagamentos retornou conflito para a operacao externa.",
+            PaymentGatewayErrorCategory.UnknownResult => "Timeout ao criar intencao externa; o resultado pode ter sido aplicado pelo provider.",
+            PaymentGatewayErrorCategory.CircuitOpen => "Circuito do provider de pagamentos esta aberto.",
+            _ => "Falha ao criar intencao externa no provider de pagamentos."
+        };
+#pragma warning restore IDE0072
 
     private static string GenerateRequestHash(
         string merchantId,

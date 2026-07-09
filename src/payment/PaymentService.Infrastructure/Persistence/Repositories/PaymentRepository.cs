@@ -11,7 +11,6 @@ public sealed class PaymentRepository(PaymentDbContext context) : IPaymentReposi
 
     public Task<Payment?> GetByIdAsync(PaymentId paymentId, CancellationToken cancellationToken)
         => _context.Payments
-            .AsNoTracking()
             .FirstOrDefaultAsync(x => x.PaymentId == paymentId, cancellationToken);
 
     public async Task AddAsync(Payment payment, CancellationToken cancellationToken)

@@ -32,9 +32,9 @@ public sealed class PaymentsController(
     [Authorize(Policy = ScopePolicies.PaymentWritePolicy)]
     [SwaggerOperation(
         OperationId = "CreatePayment",
-        Summary = "Registra um payment local.",
-        Description = "Cria um Payment interno em Pending. Nesta etapa nao cria PaymentIntent na Stripe e nao executa efeito financeiro no Ledger.")]
-    [SwaggerResponse(StatusCodes.Status202Accepted, "Payment registrado para confirmacao assincrona.", typeof(CreatePaymentResponse))]
+        Summary = "Cria um payment externo.",
+        Description = "Cria um Payment interno e solicita a criacao de uma intencao externa no provider configurado. A resposta sincrona nao confirma efeito financeiro final nem executa Ledger.")]
+    [SwaggerResponse(StatusCodes.Status202Accepted, "Payment aceito para confirmacao assincrona.", typeof(CreatePaymentResponse))]
     [SwaggerResponse(StatusCodes.Status400BadRequest, "Request invalido.", typeof(ValidationErrorResponse))]
     [SwaggerResponse(StatusCodes.Status401Unauthorized, "Token ausente ou invalido.")]
     [SwaggerResponse(StatusCodes.Status403Forbidden, "Scope insuficiente ou token sem autorizacao para o merchant.")]
@@ -42,6 +42,9 @@ public sealed class PaymentsController(
     [SwaggerResponse(StatusCodes.Status413PayloadTooLarge, "Body acima do limite configurado.", typeof(ProblemDetails))]
     [SwaggerResponse(StatusCodes.Status422UnprocessableEntity, "Violacao de regra de dominio.", typeof(ProblemDetails))]
     [SwaggerResponse(StatusCodes.Status429TooManyRequests, "Limite de requisicoes excedido.")]
+    [SwaggerResponse(StatusCodes.Status502BadGateway, "Provider externo recusou a operacao.", typeof(ProblemDetails))]
+    [SwaggerResponse(StatusCodes.Status503ServiceUnavailable, "Provider externo indisponivel.", typeof(ProblemDetails))]
+    [SwaggerResponse(StatusCodes.Status504GatewayTimeout, "Timeout com resultado externo desconhecido.", typeof(ProblemDetails))]
     [SwaggerResponse(StatusCodes.Status500InternalServerError, "Erro interno.", typeof(ProblemDetails))]
     public async Task<ActionResult<CreatePaymentResponse>> Create(
         [SwaggerParameter(Description = "Chave de idempotencia em formato UUID. Deve ser unica por operacao logica.")]

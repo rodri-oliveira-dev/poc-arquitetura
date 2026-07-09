@@ -6,5 +6,9 @@ public sealed record CreatePaymentResponse(
     string MerchantId,
     decimal Amount,
     string Currency,
+    string Provider,
+    string? ProviderPaymentId,
+    string? ProviderStatus,
+    string? ClientSecret,
     string? ExternalReference,
     string StatusUrl);

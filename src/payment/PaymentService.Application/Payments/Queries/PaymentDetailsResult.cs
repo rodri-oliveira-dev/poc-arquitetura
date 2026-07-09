@@ -6,6 +6,7 @@ public sealed record PaymentDetailsResult(
     string MerchantId,
     decimal Amount,
     string Currency,
+    string Provider,
     string? Description,
     string? ExternalReference,
     string? ExternalPaymentReference,

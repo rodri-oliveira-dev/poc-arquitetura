@@ -118,6 +118,16 @@ public sealed class Payment : Entity, IAggregateRoot
             providerStatus,
             "ProviderRequiresAction");
 
+    public bool RegisterProviderIntent(DateTimeOffset now, ExternalPaymentReference reference, string? providerStatus = null)
+    {
+        if (IsFinal(Status))
+            throw new DomainException($"Payment em estado final {Status} nao pode registrar referencia externa.");
+
+        ApplyProviderData(reference, providerStatus);
+        UpdatedAt = now;
+        return true;
+    }
+
     public bool MarkProcessing(DateTimeOffset now, ExternalPaymentReference? reference = null, string? providerStatus = null)
         => MoveByProviderEvent(
             [PaymentStatus.Pending, PaymentStatus.RequiresAction],

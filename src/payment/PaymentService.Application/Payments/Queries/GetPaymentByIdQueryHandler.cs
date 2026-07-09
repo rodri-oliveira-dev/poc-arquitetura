@@ -28,6 +28,7 @@ public sealed class GetPaymentByIdQueryHandler(IPaymentRepository paymentReposit
             payment.MerchantId.Value,
             payment.Amount.Amount,
             payment.Amount.Currency.Code,
+            payment.Provider.ToString(),
             payment.Description,
             payment.ExternalReference?.Value,
             payment.ExternalPaymentReference?.Value,

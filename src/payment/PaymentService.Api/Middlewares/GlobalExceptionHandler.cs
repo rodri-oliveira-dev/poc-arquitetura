@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
 using PaymentService.Api.Contracts.Responses;
+using PaymentService.Application.Abstractions.Gateway;
 using PaymentService.Application.Common.Exceptions;
 using PaymentService.Domain.Exceptions;
 
@@ -17,7 +18,7 @@ public sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logge
         ValidationErrorResponseFactory.Create)
 {
     protected override bool IsHandledException(Exception exception)
-        => exception is FluentValidation.ValidationException or ForbiddenException or ConflictException or NotFoundException or DomainException
+        => exception is FluentValidation.ValidationException or ForbiddenException or ConflictException or NotFoundException or DomainException or ExternalPaymentProviderException
             || IsPaymentUniqueViolation(exception);
 
     protected override (int statusCode, string title, string detail) MapException(Exception exception)
@@ -29,6 +30,7 @@ public sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logge
             FluentValidation.ValidationException => (StatusCodes.Status400BadRequest, "Invalid request", "One or more validation errors occurred."),
             ForbiddenException => (StatusCodes.Status403Forbidden, "Forbidden", exception.Message),
             ConflictException => (StatusCodes.Status409Conflict, "Conflict", exception.Message),
+            ExternalPaymentProviderException providerException => MapProviderException(providerException),
             _ when IsPaymentUniqueViolation(exception) => (
                 StatusCodes.Status409Conflict,
                 "Conflict",
@@ -46,4 +48,27 @@ public sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logge
                 postgresException.ConstraintName,
                 "ux_payment_idempotency_merchant_key",
                 StringComparison.Ordinal);
+
+#pragma warning disable IDE0072 // Categorias futuras devem cair em 502 com mensagem sanitizada.
+    private static (int statusCode, string title, string detail) MapProviderException(ExternalPaymentProviderException exception)
+        => exception.Category switch
+        {
+            PaymentGatewayErrorCategory.RateLimited => (
+                StatusCodes.Status429TooManyRequests,
+                "Provider rate limited",
+                exception.Message),
+            PaymentGatewayErrorCategory.UnknownResult => (
+                StatusCodes.Status504GatewayTimeout,
+                "Provider timeout",
+                exception.Message),
+            PaymentGatewayErrorCategory.Transient or PaymentGatewayErrorCategory.CircuitOpen or PaymentGatewayErrorCategory.Unknown => (
+                StatusCodes.Status503ServiceUnavailable,
+                "Provider indisponivel",
+                exception.Message),
+            _ => (
+                StatusCodes.Status502BadGateway,
+                "Provider recusou a operacao",
+                exception.Message)
+        };
+#pragma warning restore IDE0072
 }

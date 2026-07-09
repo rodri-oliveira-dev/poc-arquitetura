@@ -1,9 +1,14 @@
+using HttpResilienceDefaults;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 
+using PaymentService.Application.Abstractions.Gateway;
 using PaymentService.Application.Abstractions.Persistence;
+using PaymentService.Infrastructure.Gateway;
 using PaymentService.Infrastructure.Persistence;
 using PaymentService.Infrastructure.Persistence.Repositories;
 
@@ -22,7 +27,8 @@ public static class DependencyInjection
 
         services
             .AddPaymentPersistence(configuration)
-            .AddPaymentRepositories();
+            .AddPaymentRepositories()
+            .AddPaymentGateway(configuration, environment);
 
         return services;
     }
@@ -53,6 +59,52 @@ public static class DependencyInjection
 
         services.AddScoped<IPaymentRepository, PaymentRepository>();
         services.AddScoped<IPaymentIdempotencyService, PaymentIdempotencyService>();
+
+        return services;
+    }
+
+    public static IServiceCollection AddPaymentGateway(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        IHostEnvironment environment)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
+        ArgumentNullException.ThrowIfNull(environment);
+
+        services.AddOptions<PaymentGatewayOptions>()
+            .Bind(configuration.GetSection(PaymentGatewayOptions.SectionName))
+            .Validate(options =>
+                string.Equals(options.Provider, PaymentGatewayProviders.Fake, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(options.Provider, PaymentGatewayProviders.Stripe, StringComparison.OrdinalIgnoreCase),
+                "PaymentGateway:Provider deve ser Fake ou Stripe.")
+            .Validate(options =>
+                !string.Equals(options.Provider, PaymentGatewayProviders.Stripe, StringComparison.OrdinalIgnoreCase)
+                || !string.IsNullOrWhiteSpace(options.Stripe.ApiKey),
+                "PaymentGateway:Stripe:ApiKey deve ser configurada quando PaymentGateway:Provider=Stripe.")
+            .Validate(options =>
+                !string.Equals(options.Provider, PaymentGatewayProviders.Stripe, StringComparison.OrdinalIgnoreCase)
+                || options.Stripe.Timeout > TimeSpan.Zero,
+                "PaymentGateway:Stripe:Timeout deve ser maior que zero.")
+            .ValidateOnStart();
+
+        services.AddSingleton<PaymentGatewayTelemetry>();
+        services.AddScoped<FakePaymentGateway>();
+        services.AddHttpClient<StripePaymentGateway>((sp, client) =>
+        {
+            var options = sp.GetRequiredService<IOptions<PaymentGatewayOptions>>().Value.Stripe;
+            client.BaseAddress = options.ApiBaseUrl;
+            client.Timeout = options.Timeout;
+        })
+            .AddConfiguredHttpResilience(configuration, "Stripe");
+
+        services.AddScoped<IPaymentGateway>(sp =>
+        {
+            var options = sp.GetRequiredService<IOptions<PaymentGatewayOptions>>().Value;
+            return string.Equals(options.Provider, PaymentGatewayProviders.Stripe, StringComparison.OrdinalIgnoreCase)
+                ? sp.GetRequiredService<StripePaymentGateway>()
+                : sp.GetRequiredService<FakePaymentGateway>();
+        });
 
         return services;
     }

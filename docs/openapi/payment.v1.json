@@ -52,8 +52,8 @@
         "tags": [
           "Payments"
         ],
-        "summary": "Registra um payment local.",
-        "description": "Cria um Payment interno em Pending. Nesta etapa nao cria PaymentIntent na Stripe e nao executa efeito financeiro no Ledger.\n\n<b>Autorizacao</b>: requer scope(s): <c>payment.write</c>. (claim <c>scope</c> do JWT)",
+        "summary": "Cria um payment externo.",
+        "description": "Cria um Payment interno e solicita a criacao de uma intencao externa no provider configurado. A resposta sincrona nao confirma efeito financeiro final nem executa Ledger.\n\n<b>Autorizacao</b>: requer scope(s): <c>payment.write</c>. (claim <c>scope</c> do JWT)",
         "operationId": "CreatePayment",
         "parameters": [
           {
@@ -94,7 +94,7 @@
         },
         "responses": {
           "202": {
-            "description": "Payment registrado para confirmacao assincrona.",
+            "description": "Payment aceito para confirmacao assincrona.",
             "content": {
               "text/plain": {
                 "schema": {
@@ -201,6 +201,66 @@
           },
           "429": {
             "description": "Limite de requisicoes excedido."
+          },
+          "502": {
+            "description": "Provider externo recusou a operacao.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Provider externo indisponivel.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Timeout com resultado externo desconhecido.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           },
           "500": {
             "description": "Erro interno.",
@@ -381,6 +441,22 @@
             "type": "string",
             "nullable": true
           },
+          "provider": {
+            "type": "string",
+            "nullable": true
+          },
+          "providerPaymentId": {
+            "type": "string",
+            "nullable": true
+          },
+          "providerStatus": {
+            "type": "string",
+            "nullable": true
+          },
+          "clientSecret": {
+            "type": "string",
+            "nullable": true
+          },
           "externalReference": {
             "type": "string",
             "nullable": true
@@ -415,6 +491,10 @@
             "type": "string",
             "nullable": true
           },
+          "provider": {
+            "type": "string",
+            "nullable": true
+          },
           "description": {
             "type": "string",
             "nullable": true
@@ -423,7 +503,7 @@
             "type": "string",
             "nullable": true
           },
-          "externalPaymentReference": {
+          "providerPaymentId": {
             "type": "string",
             "nullable": true
           },

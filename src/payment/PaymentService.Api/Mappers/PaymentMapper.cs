@@ -34,6 +34,10 @@ public static class PaymentMapper
             result.MerchantId,
             result.Amount,
             result.Currency,
+            result.Provider,
+            result.ExternalPaymentReference,
+            result.ProviderStatus,
+            result.IdempotentReplay ? null : result.ClientSecret,
             result.ExternalReference,
             $"/api/v1/payments/{result.PaymentId}");
     }
@@ -48,6 +52,7 @@ public static class PaymentMapper
             result.MerchantId,
             result.Amount,
             result.Currency,
+            result.Provider,
             result.Description,
             result.ExternalReference,
             result.ExternalPaymentReference,

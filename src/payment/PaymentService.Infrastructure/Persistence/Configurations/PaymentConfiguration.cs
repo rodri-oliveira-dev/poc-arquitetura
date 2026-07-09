@@ -105,5 +105,10 @@ public sealed class PaymentConfiguration : IEntityTypeConfiguration<Payment>
 
         builder.HasIndex(x => x.Status)
             .HasDatabaseName("idx_payment_payments_status");
+
+        builder.HasIndex(x => new { x.Provider, x.ExternalPaymentReference })
+            .IsUnique()
+            .HasDatabaseName("ux_payment_payments_provider_external_reference")
+            .HasFilter("external_payment_reference IS NOT NULL");
     }
 }
