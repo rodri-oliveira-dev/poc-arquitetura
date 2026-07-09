@@ -362,7 +362,7 @@ model {
   }
 
   payment = softwareSystem "PaymentService" {
-    description "Bounded context de pagamentos externos. Cria Payments locais, cria PaymentIntent no provider configurado e recebe webhooks Stripe assinados em Inbox duravel, sem Worker funcional, Kafka, Ledger ou Balance."
+    description "Bounded context de pagamentos externos. Cria Payments locais, cria PaymentIntent no provider configurado, recebe webhooks Stripe assinados em Inbox duravel e processa a Inbox no Worker, sem Kafka, Ledger ou Balance nesta etapa."
 
     paymentApi = container "PaymentService.Api" {
       technology "ASP.NET Core"
@@ -373,7 +373,7 @@ model {
       }
 
       paymentApplication = component "Application Layer" {
-        description "Handlers de criacao, consulta e recebimento de webhook, portas IPaymentRepository, IPaymentIdempotencyService, IPaymentInboxRepository, IUnitOfWork e IPaymentGateway com modelos internos da ACL."
+        description "Handlers de criacao, consulta, recebimento de webhook e processamento da Inbox, portas IPaymentRepository, IPaymentIdempotencyService, IPaymentInboxRepository, IUnitOfWork e IPaymentGateway com modelos internos da ACL."
       }
 
       paymentDomain = component "Domain Layer" {
@@ -387,10 +387,18 @@ model {
 
     paymentWorker = container "PaymentService.Worker" {
       technology ".NET Worker Service"
-      description "Worker estrutural sem HostedServices funcionais nesta etapa; existe para composition root futura de processamento da Inbox e integracao com Ledger."
+      description "Worker dedicado sem HTTP que faz polling da Inbox, claim concorrente, lease, retry persistido, backoff, DeadLetter logico e aplica eventos Stripe suportados na state machine do Payment."
 
       paymentWorkerComposition = component "Worker composition root" {
-        description "Registra Application e Infrastructure. Nao executa polling, claim, processamento da Inbox, Kafka ou Ledger."
+        description "Registra Application, Infrastructure, observabilidade e PaymentInboxWorkerService. Nao registra controllers, Swagger, Kafka ou client Ledger."
+      }
+
+      paymentInboxWorker = component "PaymentInboxWorkerService" {
+        description "BackgroundService que reclama mensagens elegiveis da Inbox, processa lote sequencial, respeita cancellation token e agenda retry ou DeadLetter por mensagem."
+      }
+
+      paymentProviderEventMapper = component "StripeInboxProviderEventMapper" {
+        description "Traduz evento Stripe persistido na Inbox para evento interno de provider sem expor tipos Stripe ao dominio."
       }
     }
 
@@ -633,4 +641,8 @@ model {
   payment.paymentApi -> payment.paymentDb "Persiste Payment, registros de idempotencia e Inbox de webhooks" "EF Core"
   payment.paymentWorker.paymentWorkerComposition -> payment.paymentApplication "Registra Application"
   payment.paymentWorker.paymentWorkerComposition -> payment.paymentInfrastructure "Registra Infrastructure"
+  payment.paymentWorker.paymentInboxWorker -> payment.paymentDb "Faz claim da Inbox, atualiza Inbox e Payment na mesma transacao local" "EF Core / SQL"
+  payment.paymentWorker.paymentInboxWorker -> payment.paymentApplication "Envia ProcessPaymentInboxMessageCommand" "MediatR"
+  payment.paymentApplication -> payment.paymentProviderEventMapper "Traduz Inbox para evento interno de provider"
+  payment.paymentProviderEventMapper -> payment.paymentDomain "Entrega evento traduzido para state machine via Application"
 }

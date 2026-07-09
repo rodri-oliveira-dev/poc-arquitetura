@@ -21,6 +21,10 @@ views {
     include balance.balanceApi
     include balance.balanceWorker
     include balance.balanceDb
+    include payment.paymentApi
+    include payment.paymentWorker
+    include payment.paymentDb
+    include stripe
     include kafka.ledgerTopic
     include kafka.ledgerEstornoTopic
     include kafka.ledgerReprocessamentoTopic
@@ -136,6 +140,8 @@ views {
     include ledger.ledgerWorker
     include balance.balanceApi
     include balance.balanceWorker
+    include payment.paymentApi
+    include payment.paymentWorker
     include observability.collector
     include observability.jaeger
     include observability.prometheus
@@ -248,6 +254,18 @@ views {
     title "Component View - Keycloak IdP"
     include identity.oidcEndpoints
     include identity.realmConfig
+    autoLayout LeftRight
+  }
+
+  view paymentWorkerComponents of payment.paymentWorker {
+    title "Component View - PaymentService.Worker"
+    include payment.paymentWorkerComposition
+    include payment.paymentInboxWorker
+    include payment.paymentProviderEventMapper
+    include payment.paymentApplication
+    include payment.paymentDomain
+    include payment.paymentInfrastructure
+    include payment.paymentDb
     autoLayout LeftRight
   }
 }

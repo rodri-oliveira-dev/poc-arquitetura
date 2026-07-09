@@ -36,6 +36,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [Baseline de evolucao produtiva](architecture/production-readiness.md): referencia arquitetural para secrets, identidade de workload, TLS, Pub/Sub real, Cloud SQL, imagens, WAF, observabilidade, operacao e governanca, sem declarar prontidao produtiva.
 - [Operacao do Pub/Sub](operations/pubsub.md): selecionar provider, subir emulator, aplicar Terraform dev manualmente, configurar workers e diagnosticar falhas comuns.
 - [Operacao do AuditService.Worker](operations/audit-worker.md): retry, DLQ, logs, metricas e validacao isolada do consumer `AuditRecordRequested.v1`.
+- [Operacao do PaymentService.Worker](operations/payment-worker.md): polling da Inbox Stripe, claim concorrente, lease, retry persistido, DeadLetter logico, metricas e troubleshooting.
 - [Runbook de recuperacao de eventos](operations/event-recovery-runbook.md): consolidar investigacao de DLQ, retry, replay, descarte, rebuild de projecao e relatorio de divergencia.
 - [Replay e DLQ orientados por contrato](operations/event-replay-and-dlq.md): inspecionar DLQ, validar schema por versao, decidir discard, ack, nack ou redrive e preservar idempotencia.
 - [Estrategia operacional de DLQ](operations/dlq-strategy.md): classificar falhas, decidir discard, retry ou replay/redrive em Pub/Sub e Kafka, preservar idempotencia e orientar observabilidade.
@@ -52,7 +53,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [LedgerService API](development/ledger-api.md): contratos HTTP de escrita, headers, idempotencia, estornos e reprocessamentos.
 - [BalanceService API](development/balance-api.md): contratos HTTP de leitura de consolidados diarios e por periodo.
 - [TransferService API](development/transfer-api.md): contratos HTTP para solicitacao e consulta de sagas de transferencia.
-- [PaymentService API](development/payment-api.md): contratos HTTP para criacao de pagamento externo via provider fake/Stripe, consulta local, webhook Stripe assinado, Inbox duravel, idempotencia e limites atuais sem Worker, Ledger ou Kafka.
+- [PaymentService API](development/payment-api.md): contratos HTTP para criacao de pagamento externo via provider fake/Stripe, consulta local, webhook Stripe assinado, Inbox duravel, idempotencia e processamento assincrono pelo Worker sem Ledger ou Kafka.
 - [IdentityService API](development/identity-api.md): contrato HTTP de cadastro de usuarios, `Idempotency-Key`, retries e conflitos.
 - [AuditService API](development/audit-api.md): contrato HTTP de criacao e consulta de registros funcionais de auditoria, agnostico ao servico chamador.
 - [Spec SDD de idempotencia do IdentityService](specs/identity-idempotency.md): comportamento esperado para `Idempotency-Key` opcional em `POST /api/v1/users`.
@@ -94,7 +95,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 
 - [Documentacao arquitetural](architecture/README.md): modelo LikeC4 e publicacao no GitHub Pages.
 - [Arquitetura do AuditService](architecture/audit-service.md): papel do bounded context, schema `audit`, contrato canonico, seguranca, metadata e limites da etapa sem integracao.
-- [Arquitetura do PaymentService](architecture/payment-service.md): estrutura, state machine, schema `payment`, ACL Stripe/fake provider e limites atuais sem webhook, Inbox ou Ledger.
+- [Arquitetura do PaymentService](architecture/payment-service.md): estrutura, state machine, schema `payment`, ACL Stripe/fake provider, webhook, Inbox e Worker, preservando limites sem Ledger/Kafka/refund.
 - [Boundaries arquiteturais](architecture/boundaries.md): responsabilidades de `Api`, `Application`, `Domain` e `Infrastructure`.
 - [Analise arquitetural e decisoes recomendadas](architecture/decisions.md): riscos, simplificacoes e roadmap pragmatico.
 - [Baseline de evolucao produtiva](architecture/production-readiness.md): requisitos recomendados para evolucao futura fora do laboratorio local, ainda sem implementacao produtiva.

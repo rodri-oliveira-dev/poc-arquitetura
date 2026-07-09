@@ -6,5 +6,12 @@ public interface IPaymentRepository
 {
     Task<Payment?> GetByIdAsync(PaymentId paymentId, CancellationToken cancellationToken);
 
+    Task<Payment?> GetByIdForUpdateAsync(PaymentId paymentId, CancellationToken cancellationToken);
+
+    Task<Payment?> GetByProviderReferenceForUpdateAsync(
+        PaymentProvider provider,
+        ExternalPaymentReference externalPaymentReference,
+        CancellationToken cancellationToken);
+
     Task AddAsync(Payment payment, CancellationToken cancellationToken);
 }

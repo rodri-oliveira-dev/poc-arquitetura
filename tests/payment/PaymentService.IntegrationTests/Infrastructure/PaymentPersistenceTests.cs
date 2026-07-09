@@ -189,4 +189,128 @@ public sealed class PaymentPersistenceTests(PostgresPaymentFixture fixture) : IC
         Assert.Equal(attempts - 1, results.Count(result => result == PaymentInboxStoreResult.Duplicate));
         Assert.Equal(1, await assertionDb.InboxMessages.CountAsync(TestContext.Current.CancellationToken));
     }
+
+    [Fact]
+    public async Task Inbox_repository_should_claim_each_message_once_with_concurrent_workers()
+    {
+        const int messages = 30;
+        var now = new DateTimeOffset(2026, 7, 9, 15, 0, 0, TimeSpan.Zero);
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            for (var i = 0; i < messages; i++)
+            {
+                db.InboxMessages.Add(PaymentInboxMessage.CreateStripe(
+                    $"evt_claim_{i}",
+                    "payment_intent.succeeded",
+                    StripeWebhookTestData.CreatePayload($"evt_claim_{i}"),
+                    now.AddSeconds(i),
+                    null,
+                    $"pi_{i}",
+                    null));
+            }
+
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        var claims = await Task.WhenAll(
+            ClaimAsync("worker-a", now),
+            ClaimAsync("worker-b", now),
+            ClaimAsync("worker-c", now));
+
+        var claimedIds = claims.SelectMany(x => x).Select(x => x.Id).ToList();
+        Assert.Equal(claimedIds.Count, claimedIds.Distinct().Count());
+        Assert.Equal(messages, claimedIds.Count);
+
+        await using var assertionDb = _fixture.CreateDbContext();
+        Assert.Equal(messages, await assertionDb.InboxMessages.CountAsync(
+            x => x.Status == PaymentInboxStatus.Processing,
+            TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task Inbox_repository_should_respect_retry_eligibility()
+    {
+        var now = new DateTimeOffset(2026, 7, 9, 15, 0, 0, TimeSpan.Zero);
+        var future = PaymentInboxMessage.CreateStripe(
+            "evt_retry_future",
+            "payment_intent.succeeded",
+            StripeWebhookTestData.CreatePayload("evt_retry_future"),
+            now,
+            null,
+            "pi_future",
+            null);
+        future.MarkProcessing("worker-0", now.AddMinutes(-1), now.AddMinutes(-1));
+        future.ScheduleRetry(now.AddMinutes(-1), now.AddMinutes(5), "retry later");
+        var due = PaymentInboxMessage.CreateStripe(
+            "evt_retry_due",
+            "payment_intent.succeeded",
+            StripeWebhookTestData.CreatePayload("evt_retry_due"),
+            now,
+            null,
+            "pi_due",
+            null);
+        due.MarkProcessing("worker-0", now.AddMinutes(-2), now.AddMinutes(-1));
+        due.ScheduleRetry(now.AddMinutes(-2), now.AddMinutes(-1), "retry now");
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            db.InboxMessages.AddRange(future, due);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        var claimed = await ClaimAsync("worker-1", now);
+
+        Assert.Single(claimed);
+        Assert.Equal("evt_retry_due", claimed.Single().ProviderEventId);
+    }
+
+    [Fact]
+    public async Task Inbox_repository_should_recover_expired_lease_but_not_active_lease()
+    {
+        var now = new DateTimeOffset(2026, 7, 9, 15, 0, 0, TimeSpan.Zero);
+        var expired = PaymentInboxMessage.CreateStripe(
+            "evt_lease_expired",
+            "payment_intent.succeeded",
+            StripeWebhookTestData.CreatePayload("evt_lease_expired"),
+            now.AddMinutes(-10),
+            null,
+            "pi_expired",
+            null);
+        expired.MarkProcessing("worker-old", now.AddMinutes(-10), now.AddMinutes(-1));
+        var active = PaymentInboxMessage.CreateStripe(
+            "evt_lease_active",
+            "payment_intent.succeeded",
+            StripeWebhookTestData.CreatePayload("evt_lease_active"),
+            now.AddMinutes(-9),
+            null,
+            "pi_active",
+            null);
+        active.MarkProcessing("worker-current", now.AddMinutes(-1), now.AddMinutes(1));
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            db.InboxMessages.AddRange(expired, active);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        var claimed = await ClaimAsync("worker-new", now);
+
+        Assert.Single(claimed);
+        Assert.Equal("evt_lease_expired", claimed.Single().ProviderEventId);
+        Assert.Equal(2, claimed.Single().AttemptCount);
+    }
+
+    private async Task<IReadOnlyList<PaymentInboxMessage>> ClaimAsync(string owner, DateTimeOffset now)
+    {
+        await using var db = _fixture.CreateDbContext();
+        var repository = new PaymentInboxRepository(db);
+        var claimed = await repository.ClaimEligibleAsync(
+            10,
+            now,
+            owner,
+            TimeSpan.FromMinutes(1),
+            TestContext.Current.CancellationToken);
+        return claimed;
+    }
 }

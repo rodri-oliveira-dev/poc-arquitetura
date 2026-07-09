@@ -1,6 +1,6 @@
 # Observabilidade e operacao minima
 
-Este documento define o inventario operacional minimo da POC para Keycloak, `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker`.
+Este documento define o inventario operacional minimo da POC para Keycloak, `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api`, `BalanceService.Worker`, `PaymentService.Api` e `PaymentService.Worker`.
 
 OpenTelemetry fica desabilitado por padrao. A correlacao via `X-Correlation-Id` permanece sempre ativa nas APIs e e usada para conectar logs, respostas HTTP e mensagens do provider selecionado. O core funcional local usa `compose.yaml` para PostgreSQL, Kafka, Keycloak, APIs e workers; Pub/Sub emulator fica restrito ao modo explicito/legado. OpenTelemetry Collector, Jaeger, Prometheus, Loki, Grafana Alloy, Alertmanager e Grafana ficam no overlay `compose.observability.yaml` com profile `observability`, conforme documentado em [desenvolvimento local](development/local-development.md).
 
@@ -23,6 +23,7 @@ OpenTelemetry fica desabilitado por padrao. A correlacao via `X-Correlation-Id` 
 - Readiness: `GET /ready` em `LedgerService.Api` e `BalanceService.Api`.
 - Mensageria: Kafka local com topic principal `ledger.ledgerentry.created`, topicos operacionais do Ledger e DLQ de aplicacao `ledger.ledgerentry.created.dlq`; Pub/Sub emulator permanece como provider explicito/legado.
 - Outbox: publicacao assincrona do Ledger com polling, lock, tentativas e backoff configuraveis.
+- Payment Inbox: processamento assincrono de webhooks Stripe persistidos, com polling, claim concorrente, lease, retry persistido, backoff e DeadLetter logico.
 
 ## Endpoints operacionais
 
@@ -94,6 +95,8 @@ Use `ServiceName` conforme o servico:
 - `LedgerService.Worker`
 - `BalanceService.Api`
 - `BalanceService.Worker`
+- `PaymentService.Api`
+- `PaymentService.Worker`
 
 ## Ambientes
 
@@ -360,6 +363,7 @@ Meters customizados registrados no OpenTelemetry Metrics quando `Observability:O
 - `LedgerService.Outbox`, emitido pelo `LedgerService.Worker`;
 - `BalanceService.Domain`, emitido pelos casos de uso do Balance quando registrado no processo host;
 - `BalanceService.Kafka`, emitido pelo `BalanceService.Worker`;
+- `PaymentService.InboxWorker`, emitido pelo `PaymentService.Worker`;
 - `TransferService.Worker`, emitido pelo `TransferService.Worker`.
 
 Com OpenTelemetry desabilitado, os instrumentos continuam sendo chamados pela aplicacao, mas nao ha provider/exporter ativo coletando as series. O fluxo funcional permanece inalterado.

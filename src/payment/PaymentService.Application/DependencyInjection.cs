@@ -5,6 +5,7 @@ using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 
 using PaymentService.Application.Abstractions.Time;
+using PaymentService.Application.Payments.InboxProcessing;
 
 namespace PaymentService.Application;
 
@@ -20,6 +21,8 @@ public static class DependencyInjection
 
         services.AddValidatorsFromAssembly(typeof(DependencyInjection).Assembly);
         services.AddSingleton<IClock, SystemClock>();
+        services.AddSingleton<IProviderEventMapper, StripeInboxProviderEventMapper>();
+        services.AddSingleton(new PaymentInboxProcessingOptions());
 
         return services;
     }

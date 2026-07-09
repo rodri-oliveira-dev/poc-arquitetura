@@ -177,6 +177,65 @@ public sealed class PaymentInboxMessage
             paymentId);
     }
 
+    public void MarkProcessing(string lockOwner, DateTimeOffset now, DateTimeOffset lockedUntil)
+    {
+        LockOwner = NormalizeRequired(lockOwner, LockOwnerMaxLength, nameof(lockOwner));
+        ProcessingStartedAt = now;
+        LockedUntil = lockedUntil;
+        Status = PaymentInboxStatus.Processing;
+        AttemptCount++;
+        LastError = null;
+        NextRetryAt = null;
+        UpdatedAt = now;
+    }
+
+    public void MarkProcessed(DateTimeOffset processedAt)
+    {
+        Status = PaymentInboxStatus.Processed;
+        ProcessedAt = processedAt;
+        ClearProcessingState();
+        LastError = null;
+        NextRetryAt = null;
+        UpdatedAt = processedAt;
+    }
+
+    public void MarkIgnored(DateTimeOffset processedAt, string reason)
+    {
+        Status = PaymentInboxStatus.Ignored;
+        ProcessedAt = processedAt;
+        ClearProcessingState();
+        LastError = NormalizeOptional(reason, LastErrorMaxLength, nameof(reason));
+        NextRetryAt = null;
+        UpdatedAt = processedAt;
+    }
+
+    public void ScheduleRetry(DateTimeOffset now, DateTimeOffset nextRetryAt, string lastError)
+    {
+        Status = PaymentInboxStatus.RetryScheduled;
+        ProcessedAt = null;
+        ClearProcessingState();
+        LastError = NormalizeOptional(lastError, LastErrorMaxLength, nameof(lastError));
+        NextRetryAt = nextRetryAt;
+        UpdatedAt = now;
+    }
+
+    public void MarkDeadLetter(DateTimeOffset deadLetteredAt, string lastError)
+    {
+        Status = PaymentInboxStatus.DeadLetter;
+        ProcessedAt = deadLetteredAt;
+        ClearProcessingState();
+        LastError = NormalizeOptional(lastError, LastErrorMaxLength, nameof(lastError));
+        NextRetryAt = null;
+        UpdatedAt = deadLetteredAt;
+    }
+
+    private void ClearProcessingState()
+    {
+        ProcessingStartedAt = null;
+        LockOwner = null;
+        LockedUntil = null;
+    }
+
     private static string ComputeSha256(string payload)
     {
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(payload));

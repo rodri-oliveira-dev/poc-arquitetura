@@ -125,6 +125,9 @@ public sealed class PaymentInboxMessageConfiguration : IEntityTypeConfiguration<
         builder.HasIndex(x => new { x.Status, x.NextRetryAt })
             .HasDatabaseName("idx_payment_inbox_status_next_retry");
 
+        builder.HasIndex(x => new { x.Status, x.NextRetryAt, x.LockedUntil })
+            .HasDatabaseName("idx_payment_inbox_claim_eligibility");
+
         builder.HasIndex(x => x.ReceivedAt)
             .HasDatabaseName("idx_payment_inbox_received_at");
     }

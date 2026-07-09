@@ -138,6 +138,9 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
                     b.HasIndex("Status", "NextRetryAt")
                         .HasDatabaseName("idx_payment_inbox_status_next_retry");
 
+                    b.HasIndex("Status", "NextRetryAt", "LockedUntil")
+                        .HasDatabaseName("idx_payment_inbox_claim_eligibility");
+
                     b.ToTable("inbox_messages", "payment");
                 });
 

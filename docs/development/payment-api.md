@@ -121,8 +121,8 @@ Eventos MVP persistidos como `Pending`:
 Eventos conhecidos fora do MVP, como `charge.*`, `checkout.*`, `customer.*`,
 `invoice.*`, `payment_method.*` e `setup_intent.*`, sao persistidos como
 `Ignored`. Eventos desconhecidos tambem sao persistidos como `Ignored`, sem
-gerar retry infinito na Stripe. Essa classificacao preserva rastreabilidade sem
-marcar evento valido como `Processed` ou `DeadLetter` antes do Worker existir.
+gerar retry infinito na Stripe. Essa classificacao preserva rastreabilidade e
+impede que o Worker tente interpretar eventos fora do MVP.
 
 Respostas:
 
@@ -205,11 +205,48 @@ Exemplo para disparar evento de teste:
 stripe trigger payment_intent.succeeded
 ```
 
+## Worker de Inbox
+
+O processamento assincrono roda no `PaymentService.Worker`, nao no endpoint de
+webhook. O webhook termina quando a assinatura foi validada e a Inbox foi
+persistida; a state machine do Payment e aplicada posteriormente pelo Worker.
+
+Configuracao versionada em `src/payment/PaymentService.Worker/appsettings.json`:
+
+```json
+{
+  "PaymentService": {
+    "InboxWorker": {
+      "PollingInterval": "00:00:02",
+      "BatchSize": 20,
+      "MaxRetryCount": 5,
+      "BaseRetryDelay": "00:00:05",
+      "MaxRetryDelay": "00:05:00",
+      "ProcessingLeaseTimeout": "00:01:00"
+    }
+  }
+}
+```
+
+Execute localmente:
+
+```powershell
+dotnet run --project ./src/payment/PaymentService.Worker/PaymentService.Worker.csproj
+```
+
+O Worker processa somente:
+
+- `Pending`;
+- `RetryScheduled` com retry vencido;
+- `Processing` com lease expirado.
+
+Ele marca eventos suportados como `Processed` quando a state machine foi
+aplicada ou quando a transicao era idempotente/regressiva esperada. Falhas
+transitorias viram `RetryScheduled` com backoff exponencial persistido. Falhas
+definitivas e tentativas esgotadas viram `DeadLetter`.
+
 ## Limitacoes atuais
 
-- Nao ha Worker funcional de Payment.
-- Nao ha processamento assincrono da Inbox.
-- Nao ha alteracao de state machine a partir do webhook.
 - Nao ha integracao com Ledger ou Balance.
 - Nao ha refund.
 - Nao ha Kafka no PaymentService.

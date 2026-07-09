@@ -24,18 +24,26 @@ financeiro aceito/criado pelo Ledger (`Completed`).
 - observabilidade do webhook por spans `stripe webhook signature validation` e
   `payment inbox persist`, metricas `payment_webhook_*` e
   `payment_inbox_pending_total`;
+- `PaymentService.Worker` funcional para processamento assincrono da Inbox;
+- polling, batch size, claim concorrente, lease, retry persistido, backoff e
+  DeadLetter logico de `payment.inbox_messages`;
+- mapeamento explicito dos eventos Stripe suportados para eventos internos da
+  Application, sem tipos Stripe atravessando a Infrastructure;
+- aplicacao idempotente da state machine do aggregate `Payment` a partir da
+  Inbox;
+- observabilidade do Worker por spans `payment.inbox.poll` e
+  `payment.inbox.process`, meter `PaymentService.InboxWorker` e metricas
+  `payment_inbox_*`;
 - endpoints `POST /api/v1/payments`, `GET /api/v1/payments/{paymentId}` e
   `POST /api/v1/webhooks/stripe`;
 - scopes `payment.write` e `payment.read`;
 - autorizacao por `merchant_id`;
 - validacao de webhook Stripe por raw body, `Stripe-Signature`, signing secret e
   tolerancia temporal;
-- worker estrutural sem `BackgroundService` funcional.
+- worker dedicado sem superficie HTTP de negocio.
 
 ## Nao implementado nesta etapa
 
-- processamento assincrono da Inbox;
-- transicao de Payment acionada por webhook;
 - Kafka;
 - Outbox;
 - integracao com LedgerService;
@@ -54,8 +62,10 @@ financeiro aceito/criado pelo Ledger (`Completed`).
 - `PaymentService.Api` compoe autenticacao, autorizacao, ProblemDetails,
   Swagger/OpenAPI, health/readiness, controllers HTTP e validacao tecnica do
   webhook Stripe.
-- `PaymentService.Worker` existe como composition root futura, mas nao executa
-  processamento nesta etapa.
+- `PaymentService.Worker` compoe Application e Infrastructure, faz polling da
+  Inbox, reclama mensagens com lease e delega a state machine para Application
+  e Domain. Ele nao referencia a API, nao expoe controllers e nao chama Ledger
+  nesta etapa.
 
 ## Persistencia
 
@@ -75,8 +85,9 @@ Indices:
 - `ux_payment_payments_provider_external_reference`: unico por
   `provider + external_payment_reference` quando a referencia externa existe.
 - `ux_payment_inbox_provider_event`: unico por `provider + provider_event_id`;
-- `idx_payment_inbox_status_next_retry`: prepara claim futuro do Worker sem
-  implementar polling nesta etapa;
+- `idx_payment_inbox_status_next_retry`: suporte a consultas por retry;
+- `idx_payment_inbox_claim_eligibility`: suporte ao claim por status,
+  `next_retry_at_utc` e `locked_until_utc`;
 - `idx_payment_inbox_received_at`: suporte a diagnostico e retencao futura.
 
 Nao ha foreign keys para schemas de outros bounded contexts.
@@ -93,3 +104,52 @@ e eventos desconhecidos entram como `Ignored` para evitar retry infinito do
 provider. Duplicidade concorrente e resolvida pelo PostgreSQL via unique
 constraint; o segundo request retorna sucesso idempotente sem expor erro de
 constraint.
+
+## Processamento da Inbox
+
+O fluxo implementado nesta etapa e:
+
+```text
+Inbox Pending/RetryScheduled/Processing lease expirado
+-> claim atomico no PostgreSQL
+-> Processing com lock_owner e locked_until_utc
+-> mapeamento do evento externo
+-> carregamento do Payment com lock transacional curto
+-> state machine do aggregate
+-> commit local Payment + Inbox
+-> Processed, Ignored, RetryScheduled ou DeadLetter
+```
+
+Mensagens elegiveis:
+
+- `Pending`;
+- `RetryScheduled` com `next_retry_at_utc <= now`;
+- `Processing` com `locked_until_utc <= now`.
+
+Mensagens `Processed`, `Ignored` e `DeadLetter` nao sao reclamadas pelo polling.
+O claim usa `FOR UPDATE SKIP LOCKED` em PostgreSQL para suportar multiplas
+instancias do Worker sem duplo claim simultaneo. Cada mensagem e processada em
+unidade isolada; falha de uma mensagem nao impede o restante do lote.
+
+Eventos Stripe suportados:
+
+| Evento | Acao interna |
+| --- | --- |
+| `payment_intent.processing` | `Payment.MarkProcessing(...)` |
+| `payment_intent.succeeded` | `Payment.MarkSucceeded(...)` |
+| `payment_intent.payment_failed` | `Payment.MarkFailed(...)` |
+| `payment_intent.canceled` | `Payment.Cancel(...)` |
+
+Eventos idempotentes finalizam a Inbox como `Processed`. Eventos regressivos
+conhecidos, como `processing` apos `Succeeded`, nao alteram o Payment, nao
+fazem retry e tambem finalizam a Inbox como `Processed` com outcome operacional
+`regressive_ignored`.
+
+Payload deterministico invalido ou referencia de provider incoerente vao para
+`DeadLetter`. Payment ausente e tratado como falha transitoria limitada, porque
+o webhook pode chegar antes da persistencia local estar visivel; ao exceder o
+limite, a mensagem vai para `DeadLetter`.
+
+Nesta etapa, `Succeeded` significa sucesso confirmado pelo provider. A
+transicao para `Completed` e a criacao do credito no Ledger permanecem fora do
+escopo.
