@@ -26,6 +26,8 @@ public sealed class PostgresPaymentApiFactory : WebApplicationFactory<Program>, 
         SetProcessEnvironmentDefault("Jwt__JwksUrl", "https://localhost/jwks.json");
         SetProcessEnvironmentDefault("ApiLimits__MaxRequestBodySizeBytes", "1024");
         SetProcessEnvironmentDefault("ConnectionStrings__DefaultConnection", connectionString);
+        SetProcessEnvironmentDefault("PaymentGateway__Stripe__WebhookSigningSecret", StripeWebhookTestData.Secret);
+        SetProcessEnvironmentDefault("PaymentGateway__Stripe__WebhookSignatureTolerance", "00:05:00");
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -48,7 +50,9 @@ public sealed class PostgresPaymentApiFactory : WebApplicationFactory<Program>, 
                 ["Jwt:Audience"] = TestJwtTokenFactory.PaymentAudience,
                 ["Jwt:JwksUrl"] = "https://localhost/jwks.json",
                 ["ApiLimits:MaxRequestBodySizeBytes"] = "1024",
-                ["ConnectionStrings:DefaultConnection"] = _connectionString
+                ["ConnectionStrings:DefaultConnection"] = _connectionString,
+                ["PaymentGateway:Stripe:WebhookSigningSecret"] = StripeWebhookTestData.Secret,
+                ["PaymentGateway:Stripe:WebhookSignatureTolerance"] = "00:05:00"
             });
         });
 

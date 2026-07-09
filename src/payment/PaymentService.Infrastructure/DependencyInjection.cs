@@ -59,6 +59,7 @@ public static class DependencyInjection
 
         services.AddScoped<IPaymentRepository, PaymentRepository>();
         services.AddScoped<IPaymentIdempotencyService, PaymentIdempotencyService>();
+        services.AddScoped<IPaymentInboxRepository, PaymentInboxRepository>();
 
         return services;
     }
@@ -86,6 +87,9 @@ public static class DependencyInjection
                 !string.Equals(options.Provider, PaymentGatewayProviders.Stripe, StringComparison.OrdinalIgnoreCase)
                 || options.Stripe.Timeout > TimeSpan.Zero,
                 "PaymentGateway:Stripe:Timeout deve ser maior que zero.")
+            .Validate(options =>
+                options.Stripe.WebhookSignatureTolerance > TimeSpan.Zero,
+                "PaymentGateway:Stripe:WebhookSignatureTolerance deve ser maior que zero.")
             .ValidateOnStart();
 
         services.AddSingleton<PaymentGatewayTelemetry>();

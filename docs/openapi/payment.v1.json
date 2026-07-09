@@ -387,6 +387,147 @@
           }
         ]
       }
+    },
+    "/api/v1/webhooks/stripe": {
+      "post": {
+        "tags": [
+          "StripeWebhooks"
+        ],
+        "summary": "Recebe webhook Stripe.",
+        "description": "Recebe o raw body enviado pela Stripe, valida o header Stripe-Signature e persiste o evento na Inbox antes de responder. Este endpoint nao usa JWT; a autenticidade e a assinatura criptografica do provider.",
+        "operationId": "ReceiveStripeWebhook",
+        "parameters": [
+          {
+            "name": "Stripe-Signature",
+            "in": "header",
+            "description": "Assinatura enviada pela Stripe no formato t=<timestamp>,v1=<hmac>.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Raw JSON body enviado pela Stripe. A assinatura deve ser calculada sobre estes bytes sem normalizacao.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Evento persistido, ignorado de forma controlada ou duplicado reconhecido."
+          },
+          "400": {
+            "description": "Header de assinatura ausente/malformado ou payload invalido.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Assinatura invalida ou timestamp fora da tolerancia.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body acima do limite configurado.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Limite de requisicoes excedido."
+          },
+          "503": {
+            "description": "Webhook signing secret ausente ou Inbox indisponivel.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erro interno.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [ ]
+      }
     }
   },
   "components": {
@@ -613,6 +754,10 @@
     {
       "name": "Payments",
       "description": "Endpoints de criacao local e consulta de Payments."
+    },
+    {
+      "name": "StripeWebhooks",
+      "description": "Endpoint publico sem JWT para recepcao de webhooks Stripe protegidos por assinatura."
     }
   ]
 }

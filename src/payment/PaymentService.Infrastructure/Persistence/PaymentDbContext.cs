@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 
 using PaymentService.Application.Abstractions.Persistence;
+using PaymentService.Application.Payments.Webhooks;
 using PaymentService.Domain.Payments;
 
 namespace PaymentService.Infrastructure.Persistence;
@@ -9,6 +10,7 @@ public sealed class PaymentDbContext(DbContextOptions<PaymentDbContext> options)
 {
     public DbSet<Payment> Payments => Set<Payment>();
     public DbSet<PaymentIdempotencyRecord> IdempotencyRecords => Set<PaymentIdempotencyRecord>();
+    public DbSet<PaymentInboxMessage> InboxMessages => Set<PaymentInboxMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

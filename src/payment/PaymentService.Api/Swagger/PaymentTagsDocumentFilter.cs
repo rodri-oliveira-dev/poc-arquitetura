@@ -17,5 +17,10 @@ public sealed class PaymentTagsDocumentFilter : IDocumentFilter
         {
             tag.Description = "Endpoints de criacao local e consulta de Payments.";
         }
+
+        foreach (var tag in swaggerDoc.Tags.Where(tag => string.Equals(tag.Name, "StripeWebhooks", StringComparison.Ordinal)))
+        {
+            tag.Description = "Endpoint publico sem JWT para recepcao de webhooks Stripe protegidos por assinatura.";
+        }
     }
 }

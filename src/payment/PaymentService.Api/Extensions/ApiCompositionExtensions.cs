@@ -2,6 +2,7 @@ using ApiDefaults.Extensions;
 
 using PaymentService.Api.Contracts.Responses;
 using PaymentService.Api.Middlewares;
+using PaymentService.Api.Webhooks;
 using PaymentService.Application;
 using PaymentService.Infrastructure;
 
@@ -22,6 +23,8 @@ public static class ApiCompositionExtensions
         services.AddApiJwtAuth(configuration, environment);
         services.AddPaymentApplication();
         services.AddPaymentInfrastructure(configuration, environment);
+        services.AddScoped<StripeWebhookValidator>();
+        services.AddSingleton<PaymentWebhookTelemetry>();
 
         services.AddControllers()
             .ConfigureApiBehaviorOptions(options =>

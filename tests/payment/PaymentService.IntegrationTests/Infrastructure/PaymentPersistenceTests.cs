@@ -1,7 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 
+using PaymentService.Application.Abstractions.Persistence;
+using PaymentService.Application.Payments.Webhooks;
 using PaymentService.Domain.Payments;
 using PaymentService.Infrastructure.Persistence;
+using PaymentService.Infrastructure.Persistence.Repositories;
 
 namespace PaymentService.IntegrationTests.Infrastructure;
 
@@ -28,6 +31,7 @@ public sealed class PaymentPersistenceTests(PostgresPaymentFixture fixture) : IC
 
         Assert.Contains("payments", tables);
         Assert.Contains("idempotency_records", tables);
+        Assert.Contains("inbox_messages", tables);
     }
 
     [Fact]
@@ -91,5 +95,98 @@ public sealed class PaymentPersistenceTests(PostgresPaymentFixture fixture) : IC
             DateTimeOffset.UtcNow.AddDays(1)));
 
         await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task Inbox_messages_should_persist_payload_and_initial_status()
+    {
+        var payload = StripeWebhookTestData.CreatePayload();
+        var paymentId = PaymentId.New();
+        var message = PaymentInboxMessage.CreateStripe(
+            "evt_123",
+            "payment_intent.succeeded",
+            payload,
+            DateTimeOffset.UtcNow,
+            "correlation-1",
+            "pi_123",
+            paymentId);
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            await db.InboxMessages.AddAsync(message, TestContext.Current.CancellationToken);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var saved = await db.InboxMessages.SingleAsync(TestContext.Current.CancellationToken);
+            Assert.Equal("evt_123", saved.ProviderEventId);
+            Assert.Equal("payment_intent.succeeded", saved.EventType);
+            Assert.Equal(payload, saved.Payload);
+            Assert.Equal(PaymentInboxStatus.Pending, saved.Status);
+            Assert.Equal(StripeWebhookEventCategory.Supported, saved.EventCategory);
+            Assert.Equal("pi_123", saved.ProviderPaymentId);
+            Assert.Equal(paymentId, saved.PaymentId);
+            Assert.Equal(64, saved.PayloadSha256.Length);
+            Assert.Equal(0, saved.AttemptCount);
+        }
+    }
+
+    [Fact]
+    public async Task Inbox_repository_should_return_duplicate_for_same_provider_event()
+    {
+        await using var db = _fixture.CreateDbContext();
+        var repository = new PaymentInboxRepository(db);
+        var first = PaymentInboxMessage.CreateStripe(
+            "evt_duplicate",
+            "payment_intent.succeeded",
+            StripeWebhookTestData.CreatePayload("evt_duplicate"),
+            DateTimeOffset.UtcNow,
+            null,
+            null,
+            null);
+        var second = PaymentInboxMessage.CreateStripe(
+            "evt_duplicate",
+            "payment_intent.succeeded",
+            StripeWebhookTestData.CreatePayload("evt_duplicate"),
+            DateTimeOffset.UtcNow,
+            null,
+            null,
+            null);
+
+        var firstResult = await repository.StoreAsync(first, TestContext.Current.CancellationToken);
+        var secondResult = await repository.StoreAsync(second, TestContext.Current.CancellationToken);
+
+        Assert.Equal(PaymentInboxStoreResult.Inserted, firstResult);
+        Assert.Equal(PaymentInboxStoreResult.Duplicate, secondResult);
+        Assert.Equal(1, await db.InboxMessages.CountAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task Inbox_repository_should_deduplicate_concurrent_inserts()
+    {
+        const int attempts = 12;
+        var tasks = Enumerable.Range(0, attempts)
+            .Select(async _ =>
+            {
+                await using var db = _fixture.CreateDbContext();
+                var repository = new PaymentInboxRepository(db);
+                var message = PaymentInboxMessage.CreateStripe(
+                    "evt_concurrent",
+                    "payment_intent.succeeded",
+                    StripeWebhookTestData.CreatePayload("evt_concurrent"),
+                    DateTimeOffset.UtcNow,
+                    null,
+                    null,
+                    null);
+                return await repository.StoreAsync(message, TestContext.Current.CancellationToken);
+            });
+
+        var results = await Task.WhenAll(tasks);
+
+        await using var assertionDb = _fixture.CreateDbContext();
+        Assert.Equal(1, results.Count(result => result == PaymentInboxStoreResult.Inserted));
+        Assert.Equal(attempts - 1, results.Count(result => result == PaymentInboxStoreResult.Duplicate));
+        Assert.Equal(1, await assertionDb.InboxMessages.CountAsync(TestContext.Current.CancellationToken));
     }
 }

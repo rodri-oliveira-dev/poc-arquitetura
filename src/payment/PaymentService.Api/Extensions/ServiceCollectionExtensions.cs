@@ -28,6 +28,7 @@ public static class ServiceCollectionExtensions
                     Description = $"Autenticacao via JWT Bearer. Scopes relevantes nesta API: {ScopePolicies.PaymentWrite} (escrita) / {ScopePolicies.PaymentRead} (leitura)."
                 });
                 options.OperationFilter<AuthorizeOperationFilter>();
+                options.OperationFilter<StripeWebhookOperationFilter>();
                 options.DocumentFilter<PaymentTagsDocumentFilter>();
             });
     }

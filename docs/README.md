@@ -52,7 +52,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [LedgerService API](development/ledger-api.md): contratos HTTP de escrita, headers, idempotencia, estornos e reprocessamentos.
 - [BalanceService API](development/balance-api.md): contratos HTTP de leitura de consolidados diarios e por periodo.
 - [TransferService API](development/transfer-api.md): contratos HTTP para solicitacao e consulta de sagas de transferencia.
-- [PaymentService API](development/payment-api.md): contratos HTTP para criacao de pagamento externo via provider fake/Stripe, consulta local, idempotencia e limites atuais sem webhook, Inbox ou Ledger.
+- [PaymentService API](development/payment-api.md): contratos HTTP para criacao de pagamento externo via provider fake/Stripe, consulta local, webhook Stripe assinado, Inbox duravel, idempotencia e limites atuais sem Worker, Ledger ou Kafka.
 - [IdentityService API](development/identity-api.md): contrato HTTP de cadastro de usuarios, `Idempotency-Key`, retries e conflitos.
 - [AuditService API](development/audit-api.md): contrato HTTP de criacao e consulta de registros funcionais de auditoria, agnostico ao servico chamador.
 - [Spec SDD de idempotencia do IdentityService](specs/identity-idempotency.md): comportamento esperado para `Idempotency-Key` opcional em `POST /api/v1/users`.

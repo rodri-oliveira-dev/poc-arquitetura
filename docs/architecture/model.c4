@@ -362,18 +362,18 @@ model {
   }
 
   payment = softwareSystem "PaymentService" {
-    description "Bounded context de pagamentos externos. Nesta etapa cria Payments locais e PaymentIntent no provider configurado, sem webhook, Inbox, Kafka, Ledger ou Balance."
+    description "Bounded context de pagamentos externos. Cria Payments locais, cria PaymentIntent no provider configurado e recebe webhooks Stripe assinados em Inbox duravel, sem Worker funcional, Kafka, Ledger ou Balance."
 
     paymentApi = container "PaymentService.Api" {
       technology "ASP.NET Core"
-      description "Composition root HTTP do PaymentService. Expoe criacao de Payment com intencao externa e consulta local, com idempotencia e autorizacao por merchant."
+      description "Composition root HTTP do PaymentService. Expoe criacao de Payment, consulta local e webhook Stripe assinado com persistencia em Inbox."
 
       paymentApiLayer = component "API Layer" {
-        description "Controllers, contracts, binders, mappers, Swagger, JWT/JWKS, policies payment.write/payment.read, correlation id e middlewares."
+        description "Controllers, contracts, binders, mappers, Swagger, JWT/JWKS, policies payment.write/payment.read, correlation id, webhooks Stripe e middlewares."
       }
 
       paymentApplication = component "Application Layer" {
-        description "Handlers de criacao e consulta, portas IPaymentRepository, IPaymentIdempotencyService, IUnitOfWork e IPaymentGateway com modelos internos da ACL."
+        description "Handlers de criacao, consulta e recebimento de webhook, portas IPaymentRepository, IPaymentIdempotencyService, IPaymentInboxRepository, IUnitOfWork e IPaymentGateway com modelos internos da ACL."
       }
 
       paymentDomain = component "Domain Layer" {
@@ -381,27 +381,27 @@ model {
       }
 
       paymentInfrastructure = component "Infrastructure Layer" {
-        description "PaymentDbContext, migrations do schema payment, repositories, idempotencia persistida, provider fake e adapter HTTP Stripe."
+        description "PaymentDbContext, migrations do schema payment, repositories, idempotencia persistida, Inbox, provider fake e adapter HTTP Stripe."
       }
     }
 
     paymentWorker = container "PaymentService.Worker" {
       technology ".NET Worker Service"
-      description "Worker estrutural sem HostedServices funcionais nesta etapa; existe para composition root futura de Inbox/provider/Ledger."
+      description "Worker estrutural sem HostedServices funcionais nesta etapa; existe para composition root futura de processamento da Inbox e integracao com Ledger."
 
       paymentWorkerComposition = component "Worker composition root" {
-        description "Registra Application e Infrastructure. Nao executa polling, webhook, Inbox, Stripe, Kafka ou Ledger."
+        description "Registra Application e Infrastructure. Nao executa polling, claim, processamento da Inbox, Kafka ou Ledger."
       }
     }
 
     paymentDb = container "PostgreSQL schema payment" {
       technology "PostgreSQL"
-      description "Schema payment no PostgreSQL local unico ou boundary equivalente por ambiente: payments e idempotency_records."
+      description "Schema payment no PostgreSQL local unico ou boundary equivalente por ambiente: payments, idempotency_records e inbox_messages."
     }
   }
 
   stripe = softwareSystem "Stripe" {
-    description "Provider externo de pagamentos usado pelo PaymentService para criar PaymentIntent quando PaymentGateway:Provider=Stripe."
+    description "Provider externo de pagamentos usado pelo PaymentService para criar PaymentIntent e entregar webhooks assinados."
   }
 
   kafka = softwareSystem "Kafka" {
@@ -532,6 +532,7 @@ model {
   transfer.transferApi -> identity.keycloak "Baixa/cacheia JWKS e valida JWT offline com iss, aud, scopes e merchant_id" "HTTP cacheado"
   payment.paymentApi -> identity.keycloak "Baixa/cacheia JWKS e valida JWT offline com iss, aud, scopes e merchant_id" "HTTP cacheado"
   payment.paymentApi.paymentInfrastructure -> stripe "Cria PaymentIntent com idempotencia externa deterministica" "HTTPS"
+  stripe -> payment.paymentApi "Entrega webhooks Stripe assinados em /api/v1/webhooks/stripe" "HTTPS + Stripe-Signature"
 
   ledger.ledgerApi -> ledger.ledgerDb "Persiste lancamento, estorno, reprocessamento, idempotencia e outbox" "EF Core"
   ledger.ledgerWorker.ledgerWorkerComposition -> ledger.ledgerWorker.ledgerWorkerApplication "Registra casos de uso e handlers" "DI / MediatR"
@@ -629,7 +630,7 @@ model {
   payment.paymentApplication -> payment.paymentDomain "Cria Payment e aplica state machine"
   payment.paymentInfrastructure -> payment.paymentApplication "Implementa portas de persistencia"
   payment.paymentInfrastructure -> payment.paymentDomain "Mapeia aggregate e value objects"
-  payment.paymentApi -> payment.paymentDb "Persiste Payment e registros de idempotencia" "EF Core"
+  payment.paymentApi -> payment.paymentDb "Persiste Payment, registros de idempotencia e Inbox de webhooks" "EF Core"
   payment.paymentWorker.paymentWorkerComposition -> payment.paymentApplication "Registra Application"
   payment.paymentWorker.paymentWorkerComposition -> payment.paymentInfrastructure "Registra Infrastructure"
 }
