@@ -4,8 +4,9 @@ Esta pasta registra a leitura arquitetural atual da POC e o modelo LikeC4 usado 
 
 Arquivos principais:
 
-- `model.c4`: modelo estrutural do ecossistema, containers e componentes reais, incluindo IdentityService, Keycloak, PostgreSQL por schemas, Kafka default, Pub/Sub explicito/legado, Mailpit, Resend e observabilidade.
+- `model.c4`: modelo estrutural do ecossistema, containers e componentes reais, incluindo IdentityService, PaymentService inicial, Keycloak, PostgreSQL por schemas, Kafka default, Pub/Sub explicito/legado, Mailpit, Resend e observabilidade.
 - `audit-service.md`: papel arquitetural do AuditService como bounded context de auditoria funcional isolado, com schema `audit`, contrato canonico, ausencia de integracao inicial e estrategia futura por Outbox + Kafka.
+- `payment-service.md`: papel arquitetural do PaymentService inicial, schema `payment`, API minima, Worker estrutural e limites sem Stripe, Inbox ou Ledger.
 - `deployment.c4`: modelo de deployment local que associa servicos do `compose.yaml` e overlays locais aos elementos logicos com `instanceOf`, alimentando a aba `Deployments` do LikeC4.
 - `views.c4`: views LikeC4 para contexto, containers, fluxo de cadastro no IdentityService, fluxo Kafka, Pub/Sub explicito/legado, observabilidade local e componentes por processo.
 - `boundaries.md`: regras de fronteira entre camadas, responsabilidades e anti-patterns.
@@ -13,7 +14,7 @@ Arquivos principais:
 - `production-readiness.md`: baseline recomendado para uma evolucao futura em GCP mais proxima de producao, sem declarar prontidao produtiva nem implementar infraestrutura nova.
 - [`../README.md`](../README.md): indice geral da documentacao.
 
-Classificacao atual: arquitetura hibrida, com predominancia de Clean Architecture/DDD nos bounded contexts principais. `IdentityService` isola cadastro de usuarios, `MerchantId`, vinculo local com Keycloak e envio de e-mail de boas-vindas; `LedgerService` escreve fatos financeiros e Outbox; `BalanceService` mantem projecao de leitura; `TransferService` orquestra Saga com Worker e Outbox Kafka; `AuditService` registra auditoria funcional por contrato HTTP canonico, ainda sem integracao com os demais dominios.
+Classificacao atual: arquitetura hibrida, com predominancia de Clean Architecture/DDD nos bounded contexts principais. `IdentityService` isola cadastro de usuarios, `MerchantId`, vinculo local com Keycloak e envio de e-mail de boas-vindas; `LedgerService` escreve fatos financeiros e Outbox; `BalanceService` mantem projecao de leitura; `TransferService` orquestra Saga com Worker e Outbox Kafka; `PaymentService` registra pagamentos externos localmente em API minima, ainda sem Stripe, Inbox ou Ledger; `AuditService` registra auditoria funcional por contrato HTTP canonico, ainda sem integracao com os demais dominios.
 
 ## Leitura rapida
 

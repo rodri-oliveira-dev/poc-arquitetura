@@ -26,6 +26,13 @@
     <Project Path="src/ledger/LedgerService.Infrastructure/LedgerService.Infrastructure.csproj" />
     <Project Path="src/ledger/LedgerService.Worker/LedgerService.Worker.csproj" />
   </Folder>
+  <Folder Name="/src/payment/">
+    <Project Path="src/payment/PaymentService.Api/PaymentService.Api.csproj" />
+    <Project Path="src/payment/PaymentService.Application/PaymentService.Application.csproj" />
+    <Project Path="src/payment/PaymentService.Domain/PaymentService.Domain.csproj" />
+    <Project Path="src/payment/PaymentService.Infrastructure/PaymentService.Infrastructure.csproj" />
+    <Project Path="src/payment/PaymentService.Worker/PaymentService.Worker.csproj" />
+  </Folder>
   <Folder Name="/src/Shared/">
     <Project Path="src/Shared/ApiDefaults/ApiDefaults.csproj" />
     <Project Path="src/Shared/ApplicationDefaults/ApplicationDefaults.csproj" />
@@ -62,6 +69,10 @@
     <Project Path="tests/ledger/LedgerService.IntegrationTests/LedgerService.IntegrationTests.csproj" />
     <Project Path="tests/ledger/LedgerService.UnitTests/LedgerService.UnitTests.csproj" />
     <Project Path="tests/ledger/LedgerService.Worker.Tests/LedgerService.Worker.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tests/payment/">
+    <Project Path="tests/payment/PaymentService.IntegrationTests/PaymentService.IntegrationTests.csproj" />
+    <Project Path="tests/payment/PaymentService.UnitTests/PaymentService.UnitTests.csproj" />
   </Folder>
   <Folder Name="/tests/Shared/">
     <Project Path="tests/Shared/ApiDefaults.Tests/ApiDefaults.Tests.csproj" />

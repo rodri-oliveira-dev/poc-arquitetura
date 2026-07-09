@@ -28,11 +28,12 @@ Principais servicos:
 | `BalanceService.Api` | API de leitura de saldos consolidados projetados pelo Worker. |
 | `BalanceService.Worker` | Processo dedicado para consumir eventos financeiros do Ledger pelo provider selecionado e atualizar a projecao de saldos. |
 | `TransferService.Api` / `TransferService.Worker` | Bounded context de transferencias com Saga orquestrada, POST/consulta HTTP, persistencia EF Core, Outbox transacional e publicacao Kafka explicita dos eventos da Saga. |
+| `PaymentService.Api` / `PaymentService.Worker` | Bounded context inicial de pagamentos externos com API minima, dominio/state machine, persistencia no schema `payment` e Worker estrutural sem processamento Stripe/Inbox/Ledger nesta etapa. |
 | `AuditService.Api` / `AuditService.Worker` | Bounded context de auditoria funcional com contrato HTTP canonico, schema `audit`, idempotencia, consultas por operacao e consumer Kafka opcional de `AuditRecordRequested.v1`, ainda sem producers nos demais dominios. |
 
 ## Arquitetura
 
-`LedgerService`, `BalanceService`, `TransferService` e `AuditService` usam projetos por camada:
+`LedgerService`, `BalanceService`, `TransferService`, `PaymentService` e `AuditService` usam projetos por camada:
 
 - `Api`: entrada HTTP, autenticacao, autorizacao, Swagger, health/readiness e composicao via DI.
 - `Shared/ApiDefaults`: defaults HTTP tecnicos compartilhados pelas APIs de negocio, sem regras de dominio ou policies especificas.

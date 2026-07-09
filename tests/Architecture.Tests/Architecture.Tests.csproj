@@ -36,6 +36,11 @@
     <ProjectReference Include="..\..\src\ledger\LedgerService.Domain\LedgerService.Domain.csproj" />
     <ProjectReference Include="..\..\src\ledger\LedgerService.Infrastructure\LedgerService.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\ledger\LedgerService.Worker\LedgerService.Worker.csproj" />
+    <ProjectReference Include="..\..\src\payment\PaymentService.Api\PaymentService.Api.csproj" />
+    <ProjectReference Include="..\..\src\payment\PaymentService.Application\PaymentService.Application.csproj" />
+    <ProjectReference Include="..\..\src\payment\PaymentService.Domain\PaymentService.Domain.csproj" />
+    <ProjectReference Include="..\..\src\payment\PaymentService.Infrastructure\PaymentService.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\payment\PaymentService.Worker\PaymentService.Worker.csproj" />
   </ItemGroup>
 
 </Project>

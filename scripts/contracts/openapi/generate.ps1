@@ -88,16 +88,18 @@ function Invoke-SelectedOpenApiGeneration {
       Invoke-OpenApiGeneration "ledger\LedgerService.Api" "LedgerService.Api" "ledger.v1.json"
       Invoke-OpenApiGeneration "balance\BalanceService.Api" "BalanceService.Api" "balance.v1.json"
       Invoke-OpenApiGeneration "transfer\TransferService.Api" "TransferService.Api" "transfer.v1.json"
+      Invoke-OpenApiGeneration "payment\PaymentService.Api" "PaymentService.Api" "payment.v1.json"
       Invoke-OpenApiGeneration "identity\IdentityService.Api" "IdentityService.Api" "identity.v1.json"
       Invoke-OpenApiGeneration "audit\AuditService.Api" "AuditService.Api" "audit.v1.json"
     }
     "ledger" { Invoke-OpenApiGeneration "ledger\LedgerService.Api" "LedgerService.Api" "ledger.v1.json" }
     "balance" { Invoke-OpenApiGeneration "balance\BalanceService.Api" "BalanceService.Api" "balance.v1.json" }
     "transfer" { Invoke-OpenApiGeneration "transfer\TransferService.Api" "TransferService.Api" "transfer.v1.json" }
+    "payment" { Invoke-OpenApiGeneration "payment\PaymentService.Api" "PaymentService.Api" "payment.v1.json" }
     "identity" { Invoke-OpenApiGeneration "identity\IdentityService.Api" "IdentityService.Api" "identity.v1.json" }
     "audit" { Invoke-OpenApiGeneration "audit\AuditService.Api" "AuditService.Api" "audit.v1.json" }
     default {
-      throw "Servico OpenAPI desconhecido '$SelectedService'. Valores aceitos: ledger, balance, transfer, identity, audit."
+      throw "Servico OpenAPI desconhecido '$SelectedService'. Valores aceitos: ledger, balance, transfer, payment, identity, audit."
     }
   }
 }

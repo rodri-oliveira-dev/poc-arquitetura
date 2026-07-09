@@ -24,7 +24,7 @@ Variaveis aceitas:
   CONFIGURATION, FRAMEWORK, SWAGGER_DOCUMENT, OUTPUT_DIR, SERVICE
 
 Servicos aceitos em --service:
-  ledger, balance, transfer, identity, audit
+  ledger, balance, transfer, payment, identity, audit
 EOF
 }
 
@@ -124,6 +124,7 @@ generate_selected_contracts() {
       generate_contract "ledger/LedgerService.Api" "LedgerService.Api" "ledger.v1.json"
       generate_contract "balance/BalanceService.Api" "BalanceService.Api" "balance.v1.json"
       generate_contract "transfer/TransferService.Api" "TransferService.Api" "transfer.v1.json"
+      generate_contract "payment/PaymentService.Api" "PaymentService.Api" "payment.v1.json"
       generate_contract "identity/IdentityService.Api" "IdentityService.Api" "identity.v1.json"
       generate_contract "audit/AuditService.Api" "AuditService.Api" "audit.v1.json"
       ;;
@@ -135,6 +136,9 @@ generate_selected_contracts() {
       ;;
     transfer)
       generate_contract "transfer/TransferService.Api" "TransferService.Api" "transfer.v1.json"
+      ;;
+    payment)
+      generate_contract "payment/PaymentService.Api" "PaymentService.Api" "payment.v1.json"
       ;;
     identity)
       generate_contract "identity/IdentityService.Api" "IdentityService.Api" "identity.v1.json"

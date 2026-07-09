@@ -361,6 +361,45 @@ model {
     }
   }
 
+  payment = softwareSystem "PaymentService" {
+    description "Bounded context inicial de pagamentos externos. Nesta etapa registra e consulta Payments locais, sem Stripe real, webhook, Inbox, Kafka, Ledger ou Balance."
+
+    paymentApi = container "PaymentService.Api" {
+      technology "ASP.NET Core"
+      description "Composition root HTTP do PaymentService. Expoe criacao local e consulta de Payments, com idempotencia e autorizacao por merchant."
+
+      paymentApiLayer = component "API Layer" {
+        description "Controllers, contracts, binders, mappers, Swagger, JWT/JWKS, policies payment.write/payment.read, correlation id e middlewares."
+      }
+
+      paymentApplication = component "Application Layer" {
+        description "Handlers de criacao e consulta, portas IPaymentRepository, IPaymentIdempotencyService, IUnitOfWork e porta futura IPaymentGateway sem implementacao Stripe nesta etapa."
+      }
+
+      paymentDomain = component "Domain Layer" {
+        description "Aggregate Payment, value objects PaymentId, MerchantId, Money, Currency, ExternalReference, ExternalPaymentReference, LedgerEntryReference e state machine."
+      }
+
+      paymentInfrastructure = component "Infrastructure Layer" {
+        description "PaymentDbContext, migrations do schema payment, repository concreto e idempotencia persistida."
+      }
+    }
+
+    paymentWorker = container "PaymentService.Worker" {
+      technology ".NET Worker Service"
+      description "Worker estrutural sem HostedServices funcionais nesta etapa; existe para composition root futura de Inbox/provider/Ledger."
+
+      paymentWorkerComposition = component "Worker composition root" {
+        description "Registra Application e Infrastructure. Nao executa polling, webhook, Inbox, Stripe, Kafka ou Ledger."
+      }
+    }
+
+    paymentDb = container "PostgreSQL schema payment" {
+      technology "PostgreSQL"
+      description "Schema payment no PostgreSQL local unico ou boundary equivalente por ambiente: payments e idempotency_records."
+    }
+  }
+
   kafka = softwareSystem "Kafka" {
     description "Broker Kafka local em KRaft. Provider default de Ledger/Balance e transporte explicito da Saga do TransferService."
 
@@ -457,6 +496,7 @@ model {
   customer -> identityService.identityApi "Cadastra usuarios e recebe MerchantId" "HTTP + JWT"
   customer -> ledger.ledgerApi "Cria lancamentos e solicita/consulta estornos e reprocessamentos" "HTTP + JWT"
   customer -> balance.balanceApi "Consulta consolidados" "HTTP + JWT"
+  customer -> payment.paymentApi "Cria e consulta Payments locais" "HTTP + JWT"
   customer -> edge.nginx "Acessa portal e Swaggers locais opcionais" "HTTPS"
   edge.nginx -> ledger.ledgerApi "Encaminha ledger.localhost:7443 para o upstream ledger_api com least_conn" "HTTP interno"
   edge.nginx -> balance.balanceApi "Encaminha balance.localhost:7443" "HTTP interno"
@@ -486,6 +526,7 @@ model {
   ledger.ledgerApi -> identity.keycloak "Baixa/cacheia JWKS e valida JWT offline com iss, aud, scopes e merchant_id" "HTTP cacheado"
   balance.balanceApi -> identity.keycloak "Baixa/cacheia JWKS e valida JWT offline com iss, aud, scopes e merchant_id" "HTTP cacheado"
   transfer.transferApi -> identity.keycloak "Baixa/cacheia JWKS e valida JWT offline com iss, aud, scopes e merchant_id" "HTTP cacheado"
+  payment.paymentApi -> identity.keycloak "Baixa/cacheia JWKS e valida JWT offline com iss, aud, scopes e merchant_id" "HTTP cacheado"
 
   ledger.ledgerApi -> ledger.ledgerDb "Persiste lancamento, estorno, reprocessamento, idempotencia e outbox" "EF Core"
   ledger.ledgerWorker.ledgerWorkerComposition -> ledger.ledgerWorker.ledgerWorkerApplication "Registra casos de uso e handlers" "DI / MediatR"
@@ -538,6 +579,8 @@ model {
   balance.balanceWorker -> observability.collector "Exporta telemetria quando habilitado no compose" "OTLP"
   transfer.transferApi -> observability.collector "Exporta telemetria quando habilitado no compose" "OTLP"
   transfer.transferWorker -> observability.collector "Exporta telemetria quando habilitado no compose" "OTLP"
+  payment.paymentApi -> observability.collector "Exporta telemetria quando habilitado no compose" "OTLP"
+  payment.paymentWorker -> observability.collector "Exporta telemetria quando habilitado no compose" "OTLP"
   identityService.identityApi -> observability.collector "Exporta telemetria quando habilitado no compose" "OTLP"
   observability.collector -> observability.jaeger "Encaminha traces" "OTLP"
   observability.prometheus -> observability.collector "Coleta metricas tecnicas" "Prometheus scrape"
@@ -576,4 +619,12 @@ model {
   transfer.transferWorker.transferWorkerComposition -> ledger.ledgerApi "Cria debito, credito e compensacao via HTTP" "HTTP"
   transfer.transferWorker.transferWorkerComposition -> kafka.transferSagaTopics "Publica eventos da Saga com transferenciaId como key" "Kafka"
   transfer.transferWorker.transferWorkerComposition -> kafka.transferSagaDlq "Publica mensagens invalidas ou definitivas da Outbox" "Kafka DLQ"
+
+  payment.paymentApiLayer -> payment.paymentApplication "Envia comandos e queries via MediatR"
+  payment.paymentApplication -> payment.paymentDomain "Cria Payment e aplica state machine"
+  payment.paymentInfrastructure -> payment.paymentApplication "Implementa portas de persistencia"
+  payment.paymentInfrastructure -> payment.paymentDomain "Mapeia aggregate e value objects"
+  payment.paymentApi -> payment.paymentDb "Persiste Payment e registros de idempotencia" "EF Core"
+  payment.paymentWorker.paymentWorkerComposition -> payment.paymentApplication "Registra Application"
+  payment.paymentWorker.paymentWorkerComposition -> payment.paymentInfrastructure "Registra Infrastructure"
 }
