@@ -23,6 +23,7 @@ public sealed class PaymentTests
         Assert.Equal(Now, payment.UpdatedAt);
         Assert.Null(payment.ExternalPaymentReference);
         Assert.Null(payment.LedgerEntryReference);
+        Assert.Equal(LedgerIntegrationStatus.NotRequired, payment.LedgerIntegrationStatus);
     }
 
     [Theory]
@@ -100,14 +101,17 @@ public sealed class PaymentTests
 
         payment.MarkSucceeded(Now.AddMinutes(1));
         Assert.Equal(PaymentStatus.Succeeded, payment.Status);
+        Assert.Equal(LedgerIntegrationStatus.Pending, payment.LedgerIntegrationStatus);
         Assert.Null(payment.LedgerEntryReference);
 
         payment.MarkLedgerEntryRequested(Now.AddMinutes(2));
         Assert.Equal(PaymentStatus.LedgerPending, payment.Status);
+        Assert.Equal(LedgerIntegrationStatus.Processing, payment.LedgerIntegrationStatus);
         Assert.Null(payment.LedgerEntryReference);
 
         payment.MarkCompleted(Now.AddMinutes(3), new LedgerEntryReference(Guid.Parse("11111111-1111-1111-1111-111111111111")));
         Assert.Equal(PaymentStatus.Completed, payment.Status);
+        Assert.Equal(LedgerIntegrationStatus.Completed, payment.LedgerIntegrationStatus);
         Assert.Equal(Guid.Parse("11111111-1111-1111-1111-111111111111"), payment.LedgerEntryReference?.Value);
         Assert.Equal(Now.AddMinutes(3), payment.CompletedAt);
     }

@@ -55,6 +55,46 @@ public sealed class Payment : Entity, IAggregateRoot
         get; private set;
     }
 
+    public LedgerIntegrationStatus LedgerIntegrationStatus
+    {
+        get; private set;
+    }
+
+    public int LedgerIntegrationAttemptCount
+    {
+        get; private set;
+    }
+
+    public DateTimeOffset? LedgerNextRetryAt
+    {
+        get; private set;
+    }
+
+    public string? LedgerLastError
+    {
+        get; private set;
+    }
+
+    public DateTimeOffset? LedgerProcessingStartedAt
+    {
+        get; private set;
+    }
+
+    public DateTimeOffset? LedgerLockedUntil
+    {
+        get; private set;
+    }
+
+    public string? LedgerLockOwner
+    {
+        get; private set;
+    }
+
+    public string? LedgerCorrelationId
+    {
+        get; private set;
+    }
+
     public string? ProviderStatus
     {
         get; private set;
@@ -103,6 +143,7 @@ public sealed class Payment : Entity, IAggregateRoot
         Currency = amount.Currency;
         Provider = provider;
         Status = PaymentStatus.Pending;
+        LedgerIntegrationStatus = LedgerIntegrationStatus.NotRequired;
         Description = NormalizeOptional(description, DescriptionMaxLength, nameof(description));
         ExternalReference = externalReference;
         CreatedAt = now;
@@ -137,14 +178,28 @@ public sealed class Payment : Entity, IAggregateRoot
             providerStatus,
             "ProviderProcessing");
 
-    public bool MarkSucceeded(DateTimeOffset now, ExternalPaymentReference? reference = null, string? providerStatus = null)
-        => MoveByProviderEvent(
+    public bool MarkSucceeded(
+        DateTimeOffset now,
+        ExternalPaymentReference? reference = null,
+        string? providerStatus = null,
+        string? correlationId = null)
+    {
+        var changed = MoveByProviderEvent(
             [PaymentStatus.Pending, PaymentStatus.RequiresAction, PaymentStatus.Processing],
             PaymentStatus.Succeeded,
             now,
             reference,
             providerStatus,
             "ProviderSucceeded");
+
+        if (Status == PaymentStatus.Succeeded && LedgerEntryReference is null)
+        {
+            LedgerIntegrationStatus = LedgerIntegrationStatus.Pending;
+            LedgerCorrelationId ??= NormalizeOptional(correlationId, 100, nameof(correlationId));
+        }
+
+        return changed;
+    }
 
     public bool MarkFailed(DateTimeOffset now, string? providerStatus = null)
         => MoveToTerminalProviderState(
@@ -169,6 +224,38 @@ public sealed class Payment : Entity, IAggregateRoot
 
         EnsureStatus(PaymentStatus.Succeeded, "LedgerEntryRequested somente e permitido para Payment Succeeded.");
         MoveTo(PaymentStatus.LedgerPending, now);
+        LedgerIntegrationStatus = LedgerIntegrationStatus.Processing;
+        return true;
+    }
+
+    public bool ClaimLedgerIntegration(DateTimeOffset now, string lockOwner, DateTimeOffset lockedUntil)
+    {
+        if (LedgerEntryReference is not null || Status == PaymentStatus.Completed)
+            return false;
+
+        if (LedgerIntegrationStatus is LedgerIntegrationStatus.FailedDefinitive or LedgerIntegrationStatus.DeadLetter)
+            return false;
+
+        if (Status is not (PaymentStatus.Succeeded or PaymentStatus.LedgerPending))
+            return false;
+
+        if (LedgerLockedUntil is not null && LedgerLockedUntil > now)
+            return false;
+
+        if (LedgerNextRetryAt is not null && LedgerNextRetryAt > now)
+            return false;
+
+        if (Status == PaymentStatus.Succeeded)
+            MoveTo(PaymentStatus.LedgerPending, now);
+        else
+            UpdatedAt = now;
+
+        LedgerIntegrationStatus = LedgerIntegrationStatus.Processing;
+        LedgerIntegrationAttemptCount++;
+        LedgerProcessingStartedAt = now;
+        LedgerLockedUntil = lockedUntil;
+        LedgerLockOwner = NormalizeRequired(lockOwner, 200, nameof(lockOwner));
+        LedgerLastError = null;
         return true;
     }
 
@@ -186,8 +273,50 @@ public sealed class Payment : Entity, IAggregateRoot
 
         LedgerEntryReference = ledgerEntryReference;
         MoveTo(PaymentStatus.Completed, now);
+        LedgerIntegrationStatus = LedgerIntegrationStatus.Completed;
+        LedgerNextRetryAt = null;
+        LedgerLastError = null;
+        LedgerProcessingStartedAt = null;
+        LedgerLockedUntil = null;
+        LedgerLockOwner = null;
         CompletedAt = now;
         return true;
+    }
+
+    public void ScheduleLedgerRetry(DateTimeOffset now, DateTimeOffset nextRetryAt, string reason)
+    {
+        EnsureLedgerProcessing("Ledger retry somente pode ser agendado para integracao em processamento.");
+        LedgerIntegrationStatus = LedgerIntegrationStatus.RetryScheduled;
+        LedgerNextRetryAt = nextRetryAt;
+        LedgerLastError = NormalizeOptional(reason, 1000, nameof(reason));
+        LedgerProcessingStartedAt = null;
+        LedgerLockedUntil = null;
+        LedgerLockOwner = null;
+        UpdatedAt = now;
+    }
+
+    public void MarkLedgerDeadLetter(DateTimeOffset now, string reason)
+    {
+        EnsureLedgerProcessing("Ledger dead letter somente pode ser marcado para integracao em processamento.");
+        LedgerIntegrationStatus = LedgerIntegrationStatus.DeadLetter;
+        LedgerNextRetryAt = null;
+        LedgerLastError = NormalizeOptional(reason, 1000, nameof(reason));
+        LedgerProcessingStartedAt = null;
+        LedgerLockedUntil = null;
+        LedgerLockOwner = null;
+        UpdatedAt = now;
+    }
+
+    public void MarkLedgerDefinitiveFailure(DateTimeOffset now, string reason)
+    {
+        EnsureLedgerProcessing("Falha definitiva de Ledger somente pode ser marcada para integracao em processamento.");
+        LedgerIntegrationStatus = LedgerIntegrationStatus.FailedDefinitive;
+        LedgerNextRetryAt = null;
+        LedgerLastError = NormalizeOptional(reason, 1000, nameof(reason));
+        LedgerProcessingStartedAt = null;
+        LedgerLockedUntil = null;
+        LedgerLockOwner = null;
+        UpdatedAt = now;
     }
 
     private bool MoveByProviderEvent(
@@ -267,6 +396,12 @@ public sealed class Payment : Entity, IAggregateRoot
             throw new DomainException(message);
     }
 
+    private void EnsureLedgerProcessing(string message)
+    {
+        if (LedgerIntegrationStatus != LedgerIntegrationStatus.Processing)
+            throw new DomainException(message);
+    }
+
     private static int ProgressRank(PaymentStatus status)
         => status switch
         {
@@ -294,4 +429,8 @@ public sealed class Payment : Entity, IAggregateRoot
             ? throw new DomainException($"{fieldName} deve ter no maximo {maxLength} caracteres.")
             : normalized;
     }
+
+    private static string NormalizeRequired(string value, int maxLength, string fieldName)
+        => NormalizeOptional(value, maxLength, fieldName)
+            ?? throw new DomainException($"{fieldName} e obrigatorio.");
 }

@@ -127,7 +127,8 @@ public sealed class ProcessPaymentInboxMessageCommandHandler(
             PaymentProviderEventKind.Succeeded => payment.MarkSucceeded(
                 now,
                 providerEvent.ProviderPaymentReference,
-                providerEvent.ProviderStatus),
+                providerEvent.ProviderStatus,
+                providerEvent.CorrelationId),
             PaymentProviderEventKind.Failed => payment.MarkFailed(now, providerEvent.ProviderStatus),
             PaymentProviderEventKind.Cancelled => payment.Cancel(now, providerEvent.ProviderStatus),
             _ => throw new InvalidOperationException("Provider event kind nao suportado.")

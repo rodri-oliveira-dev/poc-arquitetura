@@ -67,10 +67,45 @@ public sealed class PaymentPersistenceTests(PostgresPaymentFixture fixture) : IC
             Assert.Equal("order-123", saved.ExternalReference?.Value);
             Assert.Equal("pi_123", saved.ExternalPaymentReference?.Value);
             Assert.Equal(Guid.Parse("11111111-1111-1111-1111-111111111111"), saved.LedgerEntryReference?.Value);
+            Assert.Equal(LedgerIntegrationStatus.Completed, saved.LedgerIntegrationStatus);
             Assert.Equal(now, saved.CreatedAt);
             Assert.Equal(now.AddMinutes(2), saved.UpdatedAt);
             Assert.Equal(now.AddMinutes(2), saved.CompletedAt);
         }
+    }
+
+    [Fact]
+    public async Task Payment_repository_should_claim_ledger_integration_once_with_concurrent_workers()
+    {
+        const int workers = 3;
+        var now = new DateTimeOffset(2026, 7, 9, 18, 0, 0, TimeSpan.Zero);
+        var payment = new Payment(
+            new PaymentId(Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")),
+            new MerchantId("m1"),
+            new Money(123.45m, Currency.Brl),
+            PaymentProvider.Stripe,
+            now.AddMinutes(-10),
+            "Pagamento",
+            new ExternalReference("order-123"));
+        payment.MarkSucceeded(now.AddMinutes(-5), new ExternalPaymentReference("pi_123"), "succeeded", "correlation-1");
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            await db.Payments.AddAsync(payment, TestContext.Current.CancellationToken);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        var claims = await Task.WhenAll(
+            Enumerable.Range(0, workers).Select(i => ClaimLedgerAsync($"worker-{i}", now)));
+
+        Assert.Equal(1, claims.Sum(x => x.Count));
+
+        await using var assertionDb = _fixture.CreateDbContext();
+        var saved = await assertionDb.Payments.SingleAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(PaymentStatus.LedgerPending, saved.Status);
+        Assert.Equal(LedgerIntegrationStatus.Processing, saved.LedgerIntegrationStatus);
+        Assert.Equal(1, saved.LedgerIntegrationAttemptCount);
+        Assert.NotNull(saved.LedgerLockedUntil);
     }
 
     [Fact]
@@ -312,5 +347,17 @@ public sealed class PaymentPersistenceTests(PostgresPaymentFixture fixture) : IC
             TimeSpan.FromMinutes(1),
             TestContext.Current.CancellationToken);
         return claimed;
+    }
+
+    private async Task<IReadOnlyList<Payment>> ClaimLedgerAsync(string owner, DateTimeOffset now)
+    {
+        await using var db = _fixture.CreateDbContext();
+        var repository = new PaymentRepository(db);
+        return await repository.ClaimLedgerIntegrationAsync(
+            10,
+            now,
+            owner,
+            TimeSpan.FromMinutes(1),
+            TestContext.Current.CancellationToken);
     }
 }

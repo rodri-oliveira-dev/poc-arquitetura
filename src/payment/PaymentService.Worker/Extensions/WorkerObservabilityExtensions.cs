@@ -22,6 +22,7 @@ public static class WorkerObservabilityExtensions
             .ValidateOnStart();
 
         services.AddSingleton<PaymentInboxWorkerMetrics>();
+        services.AddSingleton<PaymentLedgerWorkerMetrics>();
 
         var otelOptions = configuration.GetSection(OpenTelemetryOptions.SectionName).Get<OpenTelemetryOptions>()
             ?? new OpenTelemetryOptions();
@@ -33,6 +34,7 @@ public static class WorkerObservabilityExtensions
                 .WithTracing(tracing =>
                 {
                     tracing.AddSource(PaymentInboxWorkerService.ActivitySourceName);
+                    tracing.AddSource(PaymentLedgerWorkerService.ActivitySourceName);
 
                     if (otelOptions.UseConsoleExporter)
                         tracing.AddConsoleExporter();
@@ -44,7 +46,8 @@ public static class WorkerObservabilityExtensions
                 {
                     metrics
                         .AddRuntimeInstrumentation()
-                        .AddMeter(PaymentInboxWorkerMetrics.MeterName);
+                        .AddMeter(PaymentInboxWorkerMetrics.MeterName)
+                        .AddMeter(PaymentLedgerWorkerMetrics.MeterName);
 
                     if (otelOptions.UseConsoleExporter)
                         metrics.AddConsoleExporter();

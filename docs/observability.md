@@ -24,6 +24,7 @@ OpenTelemetry fica desabilitado por padrao. A correlacao via `X-Correlation-Id` 
 - Mensageria: Kafka local com topic principal `ledger.ledgerentry.created`, topicos operacionais do Ledger e DLQ de aplicacao `ledger.ledgerentry.created.dlq`; Pub/Sub emulator permanece como provider explicito/legado.
 - Outbox: publicacao assincrona do Ledger com polling, lock, tentativas e backoff configuraveis.
 - Payment Inbox: processamento assincrono de webhooks Stripe persistidos, com polling, claim concorrente, lease, retry persistido, backoff e DeadLetter logico.
+- Payment Ledger: materializacao assincrona de Payments `Succeeded` no `LedgerService.Api`, com claim persistido, client credentials `ledger.write`, timeout, circuit breaker, retry persistido e idempotencia deterministica.
 
 ## Endpoints operacionais
 
@@ -364,6 +365,7 @@ Meters customizados registrados no OpenTelemetry Metrics quando `Observability:O
 - `BalanceService.Domain`, emitido pelos casos de uso do Balance quando registrado no processo host;
 - `BalanceService.Kafka`, emitido pelo `BalanceService.Worker`;
 - `PaymentService.InboxWorker`, emitido pelo `PaymentService.Worker`;
+- `PaymentService.LedgerWorker`, emitido pelo `PaymentService.Worker`;
 - `TransferService.Worker`, emitido pelo `TransferService.Worker`.
 
 Com OpenTelemetry desabilitado, os instrumentos continuam sendo chamados pela aplicacao, mas nao ha provider/exporter ativo coletando as series. O fluxo funcional permanece inalterado.
@@ -390,8 +392,8 @@ Metricas tecnicas de resiliencia HTTP:
 
 Clientes instrumentados pela politica compartilhada:
 
-- `Ledger`: chamada service-to-service do `TransferService.Worker` para `LedgerService.Api`;
-- `Keycloak`: token provider client credentials usado pelo `TransferService.Worker`;
+- `Ledger`: chamada service-to-service do `TransferService.Worker` e do `PaymentService.Worker` para `LedgerService.Api`;
+- `Keycloak`: token provider client credentials usado pelos workers que chamam o Ledger;
 - `JWKS`: fetch das chaves publicas usadas pelas APIs para validacao JWT.
 
 Os logs da politica HTTP resiliente usam `Warning` para retry, abertura de circuito e chamada rejeitada por circuito aberto, e `Information` para half-open e fechamento do circuito. Eles registram apenas `client`, `operation`, duracao de break quando aplicavel e tipo de excecao pelo logging estruturado; nao registram token, client secret, payload nem URL completa.

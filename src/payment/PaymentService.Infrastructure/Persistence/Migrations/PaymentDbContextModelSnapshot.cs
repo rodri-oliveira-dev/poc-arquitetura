@@ -187,6 +187,43 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("ledger_entry_id");
 
+                    b.Property<int>("LedgerIntegrationAttemptCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("ledger_integration_attempt_count");
+
+                    b.Property<string>("LedgerIntegrationStatus")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("ledger_integration_status");
+
+                    b.Property<string>("LedgerLastError")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("ledger_last_error");
+
+                    b.Property<DateTimeOffset?>("LedgerLockedUntil")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ledger_locked_until_utc");
+
+                    b.Property<string>("LedgerLockOwner")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("ledger_lock_owner");
+
+                    b.Property<DateTimeOffset?>("LedgerNextRetryAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ledger_next_retry_at_utc");
+
+                    b.Property<DateTimeOffset?>("LedgerProcessingStartedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ledger_processing_started_at_utc");
+
+                    b.Property<string>("LedgerCorrelationId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("ledger_correlation_id");
+
                     b.Property<string>("MerchantId")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -218,6 +255,9 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("Status")
                         .HasDatabaseName("idx_payment_payments_status");
+
+                    b.HasIndex("Status", "LedgerIntegrationStatus", "LedgerNextRetryAt", "LedgerLockedUntil")
+                        .HasDatabaseName("idx_payment_payments_ledger_claim");
 
                     b.HasIndex("MerchantId", "ExternalReference")
                         .HasDatabaseName("idx_payment_payments_merchant_external_reference")

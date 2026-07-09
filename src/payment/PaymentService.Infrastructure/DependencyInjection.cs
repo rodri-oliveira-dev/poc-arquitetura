@@ -7,8 +7,10 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
 using PaymentService.Application.Abstractions.Gateway;
+using PaymentService.Application.Abstractions.Ledger;
 using PaymentService.Application.Abstractions.Persistence;
 using PaymentService.Infrastructure.Gateway;
+using PaymentService.Infrastructure.Ledger;
 using PaymentService.Infrastructure.Persistence;
 using PaymentService.Infrastructure.Persistence.Repositories;
 
@@ -28,7 +30,8 @@ public static class DependencyInjection
         services
             .AddPaymentPersistence(configuration)
             .AddPaymentRepositories()
-            .AddPaymentGateway(configuration, environment);
+            .AddPaymentGateway(configuration, environment)
+            .AddPaymentLedgerGateway(configuration);
 
         return services;
     }
@@ -109,6 +112,34 @@ public static class DependencyInjection
                 ? sp.GetRequiredService<StripePaymentGateway>()
                 : sp.GetRequiredService<FakePaymentGateway>();
         });
+
+        return services;
+    }
+
+    public static IServiceCollection AddPaymentLedgerGateway(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        services.AddOptions<PaymentLedgerOptions>()
+            .Bind(configuration.GetSection(PaymentLedgerOptions.SectionName));
+
+        services.AddSingleton(TimeProvider.System);
+        services.AddHttpClient<ILedgerAccessTokenProvider, ClientCredentialsLedgerAccessTokenProvider>()
+            .AddConfiguredHttpResilience(configuration, "Keycloak");
+        services.AddTransient<LedgerAuthenticationHandler>();
+        services.AddHttpClient<ILedgerEntryGateway, LedgerHttpGateway>((sp, client) =>
+        {
+            var options = sp.GetRequiredService<IOptions<PaymentLedgerOptions>>().Value;
+            if (options.BaseAddress is not null)
+                client.BaseAddress = options.BaseAddress;
+
+            client.Timeout = options.Timeout;
+        })
+            .AddConfiguredHttpResilience(configuration, "Ledger")
+            .AddHttpMessageHandler<LedgerAuthenticationHandler>();
 
         return services;
     }

@@ -81,6 +81,40 @@ public sealed class PaymentConfiguration : IEntityTypeConfiguration<Payment>
             .HasColumnName("ledger_entry_id")
             .HasConversion(ledgerEntryReferenceConverter);
 
+        builder.Property(x => x.LedgerIntegrationStatus)
+            .HasColumnName("ledger_integration_status")
+            .HasConversion<string>()
+            .HasMaxLength(50)
+            .IsRequired();
+
+        builder.Property(x => x.LedgerIntegrationAttemptCount)
+            .HasColumnName("ledger_integration_attempt_count")
+            .IsRequired();
+
+        builder.Property(x => x.LedgerNextRetryAt)
+            .HasColumnName("ledger_next_retry_at_utc")
+            .HasColumnType(PostgreSqlColumnTypes.TimestampWithTimeZone);
+
+        builder.Property(x => x.LedgerLastError)
+            .HasColumnName("ledger_last_error")
+            .HasMaxLength(1000);
+
+        builder.Property(x => x.LedgerProcessingStartedAt)
+            .HasColumnName("ledger_processing_started_at_utc")
+            .HasColumnType(PostgreSqlColumnTypes.TimestampWithTimeZone);
+
+        builder.Property(x => x.LedgerLockedUntil)
+            .HasColumnName("ledger_locked_until_utc")
+            .HasColumnType(PostgreSqlColumnTypes.TimestampWithTimeZone);
+
+        builder.Property(x => x.LedgerLockOwner)
+            .HasColumnName("ledger_lock_owner")
+            .HasMaxLength(200);
+
+        builder.Property(x => x.LedgerCorrelationId)
+            .HasColumnName("ledger_correlation_id")
+            .HasMaxLength(100);
+
         builder.Property(x => x.ProviderStatus)
             .HasColumnName("provider_status")
             .HasMaxLength(Payment.ProviderStatusMaxLength);
@@ -105,6 +139,9 @@ public sealed class PaymentConfiguration : IEntityTypeConfiguration<Payment>
 
         builder.HasIndex(x => x.Status)
             .HasDatabaseName("idx_payment_payments_status");
+
+        builder.HasIndex(x => new { x.Status, x.LedgerIntegrationStatus, x.LedgerNextRetryAt, x.LedgerLockedUntil })
+            .HasDatabaseName("idx_payment_payments_ledger_claim");
 
         builder.HasIndex(x => new { x.Provider, x.ExternalPaymentReference })
             .IsUnique()

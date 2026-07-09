@@ -257,11 +257,37 @@ views {
     autoLayout LeftRight
   }
 
+  view paymentLedgerFlow {
+    title "Fluxo Payment -> Ledger -> Kafka -> Balance"
+    include stripe
+    include payment.paymentApi
+    include payment.paymentWorker
+    include payment.paymentDb
+    include payment.paymentWorker.paymentLedgerWorker
+    include payment.paymentWorker.paymentLedgerProcessor
+    include payment.paymentWorker.ledgerHttpGateway
+    include identity.keycloak
+    include ledger.ledgerApi
+    include ledger.ledgerDb
+    include ledger.ledgerWorker
+    include ledger.ledgerOutbox
+    include ledger.ledgerKafkaOutboxPublisher
+    include kafka.ledgerTopic
+    include balance.balanceWorker
+    include balance.balanceConsumer
+    include balance.balanceMessageProcessor
+    include balance.balanceDb
+    autoLayout LeftRight
+  }
+
   view paymentWorkerComponents of payment.paymentWorker {
     title "Component View - PaymentService.Worker"
     include payment.paymentWorkerComposition
     include payment.paymentInboxWorker
     include payment.paymentProviderEventMapper
+    include payment.paymentWorker.paymentLedgerWorker
+    include payment.paymentWorker.paymentLedgerProcessor
+    include payment.paymentWorker.ledgerHttpGateway
     include payment.paymentApplication
     include payment.paymentDomain
     include payment.paymentInfrastructure

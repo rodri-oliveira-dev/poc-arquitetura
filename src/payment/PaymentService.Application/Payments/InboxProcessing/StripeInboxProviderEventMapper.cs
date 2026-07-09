@@ -30,7 +30,8 @@ public sealed class StripeInboxProviderEventMapper : IProviderEventMapper
             kind,
             inboxMessage.PaymentId,
             new ExternalPaymentReference(inboxMessage.ProviderPaymentId),
-            ResolveProviderStatus(inboxMessage.EventType)));
+            ResolveProviderStatus(inboxMessage.EventType),
+            inboxMessage.CorrelationId));
     }
 
     private static bool TryMapKind(string eventType, out PaymentProviderEventKind kind)

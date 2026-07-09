@@ -1,8 +1,9 @@
 # Operacao do PaymentService.Worker
 
-O `PaymentService.Worker` processa a Inbox persistida de webhooks Stripe. Ele
-nao expoe HTTP, nao chama controllers, nao integra com Ledger nesta etapa e nao
-usa Kafka.
+O `PaymentService.Worker` processa a Inbox persistida de webhooks Stripe e
+materializa no `LedgerService.Api` o credito financeiro de pagamentos
+confirmados externamente. Ele nao expoe HTTP, nao chama controllers, nao grava
+schema do Ledger e nao usa Kafka proprio.
 
 Fluxo atual:
 
@@ -12,6 +13,9 @@ Webhook
 -> PaymentService.Worker
 -> state machine do Payment
 -> Processed / Ignored / RetryScheduled / DeadLetter
+-> Payment Succeeded
+-> Ledger CREDIT
+-> Payment Completed
 ```
 
 ## Claim e lease
@@ -83,6 +87,53 @@ sao labels.
 
 Traces usam `ActivitySource` `PaymentService.InboxWorker` com spans
 `payment.inbox.poll` e `payment.inbox.process`.
+
+## Integracao com Ledger
+
+O processor de Ledger busca Payments elegiveis:
+
+- `Status` em `Succeeded` ou `LedgerPending`;
+- `ledger_entry_id` ausente;
+- retry vencido ou sem retry futuro;
+- lease ausente ou expirado;
+- estado operacional nao terminal.
+
+O claim local atualiza `status = LedgerPending`,
+`ledger_integration_status = Processing`, incrementa
+`ledger_integration_attempt_count` e grava `ledger_lock_owner`/
+`ledger_locked_until_utc`. Depois do commit local, o Worker chama
+`POST /api/v1/lancamentos` no Ledger usando a porta `ILedgerEntryGateway`.
+
+Campos persistidos em `payment.payments` para recovery:
+
+- `ledger_integration_status`;
+- `ledger_integration_attempt_count`;
+- `ledger_next_retry_at_utc`;
+- `ledger_last_error`;
+- `ledger_processing_started_at_utc`;
+- `ledger_locked_until_utc`;
+- `ledger_lock_owner`;
+- `ledger_correlation_id`;
+- `ledger_entry_id`.
+
+Timeout, rede, `408`, `429`, `5xx` e circuito aberto sao tratados como
+transitorios ou resultado desconhecido. O Worker agenda retry persistido e
+reutiliza a mesma `Idempotency-Key` deterministica por Payment. `400`, `401`,
+`403`, `404`, `409` e `422` sao falhas definitivas e nao entram em retry cego.
+
+Meter adicional: `PaymentService.LedgerWorker`.
+
+Metricas principais:
+
+- `payment_ledger_claim_total`;
+- `payment_ledger_request_total`;
+- `payment_ledger_success_total`;
+- `payment_ledger_failure_total`;
+- `payment_ledger_retry_scheduled_total`;
+- `payment_ledger_deadletter_total`;
+- `payment_ledger_processing_duration`.
+
+Labels usam baixa cardinalidade: `operation` e `error_category`.
 
 ## Troubleshooting
 

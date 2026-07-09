@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 using PaymentService.Application.Abstractions.Time;
 using PaymentService.Application.Payments.InboxProcessing;
+using PaymentService.Application.Payments.Ledger;
 
 namespace PaymentService.Application;
 
@@ -23,6 +24,8 @@ public static class DependencyInjection
         services.AddSingleton<IClock, SystemClock>();
         services.AddSingleton<IProviderEventMapper, StripeInboxProviderEventMapper>();
         services.AddSingleton(new PaymentInboxProcessingOptions());
+        services.AddSingleton(new PaymentLedgerProcessingOptions());
+        services.AddScoped<IPaymentLedgerProcessor, PaymentLedgerProcessor>();
 
         return services;
     }

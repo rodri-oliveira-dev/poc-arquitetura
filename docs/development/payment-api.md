@@ -5,7 +5,8 @@ bounded context de pagamentos. A API cria `Payment` localmente no schema
 `payment`, chama a porta `IPaymentGateway` para criar uma intencao externa no
 provider configurado (`Fake` ou `Stripe`) e recebe webhooks Stripe assinados,
 persistindo o evento validado em uma Inbox duravel antes de responder sucesso ao
-provider.
+provider. Depois que o provider confirma sucesso, o `PaymentService.Worker`
+materializa o efeito financeiro chamando o contrato publico do `LedgerService.Api`.
 
 ## Autenticacao e autorizacao
 
@@ -245,9 +246,52 @@ aplicada ou quando a transicao era idempotente/regressiva esperada. Falhas
 transitorias viram `RetryScheduled` com backoff exponencial persistido. Falhas
 definitivas e tentativas esgotadas viram `DeadLetter`.
 
+## Integracao Payment -> Ledger
+
+Pagamentos em `Succeeded` e sem `ledgerEntryId` sao processados por um processor
+dedicado no `PaymentService.Worker`. A chamada ao Ledger nao ocorre dentro da
+transacao que processa o webhook.
+
+Fluxo implementado:
+
+```text
+Payment Succeeded
+-> claim de integracao Ledger
+-> POST /api/v1/lancamentos no LedgerService.Api
+-> CREDIT com amount positivo
+-> ledgerEntryId persistido
+-> Payment Completed
+```
+
+A Application depende da porta `ILedgerEntryGateway`; o adapter concreto
+`LedgerHttpGateway` fica em `PaymentService.Infrastructure`.
+
+Request enviado ao Ledger:
+
+- `merchantId`: merchant do Payment;
+- `type`: `CREDIT`;
+- `amount`: valor positivo do Payment;
+- `description`: `Payment captured`;
+- `externalReference`: `payment:{paymentId}`;
+- `Idempotency-Key`: UUID deterministico derivado de
+  `payment:{paymentId:N}:ledger-credit`;
+- `X-Correlation-Id`: correlation id preservado do webhook quando disponivel.
+
+O Worker usa client credentials para obter token service-to-service com escopo
+minimo `ledger.write`. O token e mantido em cache ate a janela de refresh
+configurada por `PaymentService:Ledger:Auth:RefreshSkew`.
+
+Falhas transitórias (`timeout`, `408`, `429`, `5xx`, rede e circuito aberto)
+mantem o Payment em `LedgerPending` e agendam retry persistido com backoff. O
+mesmo Payment sempre reutiliza a mesma `Idempotency-Key`; por isso um timeout
+de resultado desconhecido pode ser reexecutado com segurança pelo replay
+idempotente do Ledger. Falhas definitivas (`400`, `401`, `403`, `404`, `409`,
+`422`) param o processamento automatico e ficam registradas no estado
+operacional da integracao sem transformar o Payment em `Failed`.
+
 ## Limitacoes atuais
 
-- Nao ha integracao com Ledger ou Balance.
+- Nao ha integracao direta com Balance.
 - Nao ha refund.
 - Nao ha Kafka no PaymentService.
 

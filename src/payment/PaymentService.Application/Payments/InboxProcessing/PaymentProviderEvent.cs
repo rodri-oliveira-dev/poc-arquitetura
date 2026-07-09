@@ -9,4 +9,5 @@ public sealed record PaymentProviderEvent(
     PaymentProviderEventKind Kind,
     PaymentId? PaymentId,
     ExternalPaymentReference ProviderPaymentReference,
-    string ProviderStatus);
+    string ProviderStatus,
+    string? CorrelationId);

@@ -34,6 +34,17 @@ financeiro aceito/criado pelo Ledger (`Completed`).
 - observabilidade do Worker por spans `payment.inbox.poll` e
   `payment.inbox.process`, meter `PaymentService.InboxWorker` e metricas
   `payment_inbox_*`;
+- integracao Payment -> Ledger por porta `ILedgerEntryGateway` e adapter
+  `LedgerHttpGateway` em `Infrastructure`;
+- worker dedicado para materializar Payments `Succeeded` no Ledger com
+  `CREDIT`, `ledger.write`, `Idempotency-Key` deterministica,
+  `X-Correlation-Id`, retry persistido, lease, backoff e tratamento de timeout
+  de resultado desconhecido;
+- persistencia de `ledgerEntryId` e transicao `Succeeded`/`LedgerPending` ->
+  `Completed` somente apos resposta aceita do Ledger;
+- observabilidade da integracao Ledger por ActivitySource
+  `PaymentService.LedgerWorker`, meter `PaymentService.LedgerWorker` e
+  metricas `payment_ledger_*`;
 - endpoints `POST /api/v1/payments`, `GET /api/v1/payments/{paymentId}` e
   `POST /api/v1/webhooks/stripe`;
 - scopes `payment.write` e `payment.read`;
@@ -46,7 +57,6 @@ financeiro aceito/criado pelo Ledger (`Completed`).
 
 - Kafka;
 - Outbox;
-- integracao com LedgerService;
 - integracao com BalanceService;
 - refund.
 
@@ -54,18 +64,20 @@ financeiro aceito/criado pelo Ledger (`Completed`).
 
 - `PaymentService.Domain` contem o aggregate e as invariantes, sem EF Core,
   HTTP, Kafka, Stripe ou referencias a outros bounded contexts.
-- `PaymentService.Application` coordena criacao e consulta, define portas de
-  persistencia e a porta `IPaymentGateway` com modelos internos da ACL.
+- `PaymentService.Application` coordena criacao, consulta, processamento de
+  Inbox e materializacao financeira, define portas de persistencia,
+  `IPaymentGateway` e `ILedgerEntryGateway` com modelos internos.
 - `PaymentService.Infrastructure` implementa EF Core, migrations, repositories
-  do schema `payment`, provider fake e adapter Stripe. Tipos e contratos
-  externos da Stripe nao atravessam a Infrastructure.
+  do schema `payment`, provider fake, adapter Stripe, client HTTP do Ledger e
+  token client-credentials. Tipos e contratos externos nao atravessam a
+  Infrastructure.
 - `PaymentService.Api` compoe autenticacao, autorizacao, ProblemDetails,
   Swagger/OpenAPI, health/readiness, controllers HTTP e validacao tecnica do
   webhook Stripe.
 - `PaymentService.Worker` compoe Application e Infrastructure, faz polling da
-  Inbox, reclama mensagens com lease e delega a state machine para Application
-  e Domain. Ele nao referencia a API, nao expoe controllers e nao chama Ledger
-  nesta etapa.
+  Inbox, reclama mensagens com lease, delega a state machine para Application e
+  Domain e roda o processor Payment -> Ledger. Ele nao referencia a API, nao
+  expoe controllers e nao integra diretamente com Balance.
 
 ## Persistencia
 
@@ -74,7 +86,8 @@ Schema: `payment`.
 Tabelas:
 
 - `payments`: estado interno do aggregate, merchant, amount, currency, provider,
-  status, referencias externa/provider/Ledger e timestamps;
+  status, referencias externa/provider/Ledger, metadados persistidos de
+  integracao Ledger, lease/retry e timestamps;
 - `idempotency_records`: replay seguro do `POST /api/v1/payments`.
 - `inbox_messages`: eventos Stripe recebidos com `provider`, `provider_event_id`,
   `event_type`, payload bruto validado, `payload_sha256`, status, categoria,
@@ -88,6 +101,8 @@ Indices:
 - `idx_payment_inbox_status_next_retry`: suporte a consultas por retry;
 - `idx_payment_inbox_claim_eligibility`: suporte ao claim por status,
   `next_retry_at_utc` e `locked_until_utc`;
+- `idx_payment_payments_ledger_claim`: suporte ao claim de Payments aguardando
+  materializacao no Ledger;
 - `idx_payment_inbox_received_at`: suporte a diagnostico e retencao futura.
 
 Nao ha foreign keys para schemas de outros bounded contexts.
@@ -150,6 +165,37 @@ Payload deterministico invalido ou referencia de provider incoerente vao para
 o webhook pode chegar antes da persistencia local estar visivel; ao exceder o
 limite, a mensagem vai para `DeadLetter`.
 
-Nesta etapa, `Succeeded` significa sucesso confirmado pelo provider. A
-transicao para `Completed` e a criacao do credito no Ledger permanecem fora do
-escopo.
+Nesta etapa, `Succeeded` significa sucesso confirmado pelo provider.
+`LedgerPending` significa materializacao financeira pendente/em retry.
+`Completed` significa que o Ledger aceitou/criou o lancamento.
+
+## Integracao Payment -> Ledger
+
+Fluxo runtime:
+
+```text
+Payment Succeeded
+-> claim local da integracao Ledger
+-> LedgerHttpGateway
+-> LedgerService.Api POST /api/v1/lancamentos
+-> CREDIT
+-> ledgerEntryId persistido
+-> Payment Completed
+-> Ledger Outbox
+-> Kafka
+-> BalanceService.Worker
+```
+
+O `PaymentService` termina sua responsabilidade quando o Ledger confirma a
+criacao/replay idempotente do lancamento. O saldo continua sendo atualizado
+somente pelo fluxo Ledger Outbox -> Kafka -> Balance.
+
+A idempotencia usa UUID deterministico derivado de:
+
+```text
+payment:{paymentId:N}:ledger-credit
+```
+
+O mesmo Payment e a mesma operacao logica produzem sempre a mesma chave, entre
+processos e maquinas. Em timeout de resultado desconhecido, o Worker agenda
+retry persistido e reenvia o mesmo payload com a mesma chave.

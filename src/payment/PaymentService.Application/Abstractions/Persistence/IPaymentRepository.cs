@@ -13,5 +13,12 @@ public interface IPaymentRepository
         ExternalPaymentReference externalPaymentReference,
         CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<Payment>> ClaimLedgerIntegrationAsync(
+        int batchSize,
+        DateTimeOffset now,
+        string lockOwner,
+        TimeSpan leaseTimeout,
+        CancellationToken cancellationToken);
+
     Task AddAsync(Payment payment, CancellationToken cancellationToken);
 }
