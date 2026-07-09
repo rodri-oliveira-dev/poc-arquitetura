@@ -13,7 +13,6 @@ views {
     include edge.nginx
     include edge.nginx.portal
     include identity.keycloak
-    include legacyAuth.authApi
     include identityService.identityApi
     include identityService.identityDb
     include ledger.ledgerApi

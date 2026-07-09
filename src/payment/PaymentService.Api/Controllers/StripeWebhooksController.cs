@@ -135,9 +135,9 @@ public sealed class StripeWebhooksController(
         {
             StripeWebhookValidationFailure.MissingSecret => StatusCodes.Status503ServiceUnavailable,
             StripeWebhookValidationFailure.InvalidSignature or StripeWebhookValidationFailure.TimestampOutsideTolerance => StatusCodes.Status401Unauthorized,
-            StripeWebhookValidationFailure.MissingSignatureHeader => throw new NotImplementedException(),
-            StripeWebhookValidationFailure.MalformedSignatureHeader => throw new NotImplementedException(),
-            StripeWebhookValidationFailure.InvalidPayload => throw new NotImplementedException(),
+            StripeWebhookValidationFailure.MissingSignatureHeader
+                or StripeWebhookValidationFailure.MalformedSignatureHeader
+                or StripeWebhookValidationFailure.InvalidPayload => StatusCodes.Status400BadRequest,
             _ => StatusCodes.Status400BadRequest
         };
 

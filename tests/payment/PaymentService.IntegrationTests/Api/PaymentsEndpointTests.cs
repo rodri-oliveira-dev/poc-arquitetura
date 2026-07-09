@@ -55,11 +55,11 @@ public sealed class PaymentsEndpointTests(PostgresPaymentFixture fixture) : ICla
         var body = await res.Content.ReadFromJsonAsync<CreatePaymentResponse>(TestContext.Current.CancellationToken);
         Assert.NotNull(body);
         Assert.NotEqual(Guid.Empty, body.PaymentId);
-        Assert.Equal("Pending", body.Status);
+        Assert.Equal("RequiresAction", body.Status);
         Assert.Equal("m1", body.MerchantId);
         Assert.Equal(100m, body.Amount);
         Assert.Equal("BRL", body.Currency);
-        Assert.Equal("Fake", body.Provider);
+        Assert.Equal("Stripe", body.Provider);
         Assert.StartsWith("pi_fake_", body.ProviderPaymentId, StringComparison.Ordinal);
         Assert.Equal("requires_payment_method", body.ProviderStatus);
         Assert.NotNull(body.ClientSecret);
@@ -173,7 +173,7 @@ public sealed class PaymentsEndpointTests(PostgresPaymentFixture fixture) : ICla
         Assert.NotNull(body);
         Assert.Equal(created.PaymentId, body.PaymentId);
         Assert.Equal("RequiresAction", body.Status);
-        Assert.Equal("Fake", body.Provider);
+        Assert.Equal("Stripe", body.Provider);
         Assert.StartsWith("pi_fake_", body.ProviderPaymentId, StringComparison.Ordinal);
         Assert.Null(body.LedgerEntryId);
     }
