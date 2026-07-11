@@ -98,33 +98,8 @@ public sealed class ConsolidadosEndpointsTests : IClassFixture<BalanceApiFactory
 
             var now = DateTimeOffset.UtcNow;
             var balance = new DailyBalance(merchantId, date, "BRL", now);
-            balance.Apply(
-                new LedgerEntryCreatedEvent(
-                    Id: Guid.NewGuid().ToString("N"),
-                    Type: "CREDIT",
-                    Amount: "150.00",
-                    Currency: "BRL",
-                    CreatedAt: now,
-                    MerchantId: merchantId,
-                    OccurredAt: now,
-                    Description: "seed-it",
-                    CorrelationId: Guid.NewGuid().ToString("N"),
-                    ExternalReference: null),
-                now);
-
-            balance.Apply(
-                new LedgerEntryCreatedEvent(
-                    Id: Guid.NewGuid().ToString("N"),
-                    Type: "DEBIT",
-                    Amount: "-20.00",
-                    Currency: "BRL",
-                    CreatedAt: now,
-                    MerchantId: merchantId,
-                    OccurredAt: now,
-                    Description: "seed-it",
-                    CorrelationId: Guid.NewGuid().ToString("N"),
-                    ExternalReference: null),
-                now);
+            balance.Apply(Movement(merchantId, date, BalanceMovementType.Credit, 150m, now), now);
+            balance.Apply(Movement(merchantId, date, BalanceMovementType.Debit, -20m, now), now);
 
             db.DailyBalances.Add(balance);
             await db.SaveChangesAsync(TestContext.Current.CancellationToken);
@@ -170,34 +145,10 @@ public sealed class ConsolidadosEndpointsTests : IClassFixture<BalanceApiFactory
             var now = DateTimeOffset.UtcNow;
 
             var day1 = new DailyBalance(merchantId, from, "BRL", now);
-            day1.Apply(
-                new LedgerEntryCreatedEvent(
-                    Id: Guid.NewGuid().ToString("N"),
-                    Type: "DEBIT",
-                    Amount: "-20.00",
-                    Currency: "BRL",
-                    CreatedAt: now,
-                    MerchantId: merchantId,
-                    OccurredAt: now,
-                    Description: "seed-it",
-                    CorrelationId: Guid.NewGuid().ToString("N"),
-                    ExternalReference: null),
-                now);
+            day1.Apply(Movement(merchantId, from, BalanceMovementType.Debit, -20m, now), now);
 
             var day2 = new DailyBalance(merchantId, to, "BRL", now);
-            day2.Apply(
-                new LedgerEntryCreatedEvent(
-                    Id: Guid.NewGuid().ToString("N"),
-                    Type: "CREDIT",
-                    Amount: "150.00",
-                    Currency: "BRL",
-                    CreatedAt: now,
-                    MerchantId: merchantId,
-                    OccurredAt: now,
-                    Description: "seed-it",
-                    CorrelationId: Guid.NewGuid().ToString("N"),
-                    ExternalReference: null),
-                now);
+            day2.Apply(Movement(merchantId, to, BalanceMovementType.Credit, 150m, now), now);
 
             db.DailyBalances.AddRange(day1, day2);
             await db.SaveChangesAsync(TestContext.Current.CancellationToken);
@@ -246,4 +197,18 @@ public sealed class ConsolidadosEndpointsTests : IClassFixture<BalanceApiFactory
         Assert.False(string.IsNullOrWhiteSpace(body.CorrelationId));
         return body;
     }
+
+    private static BalanceMovement Movement(
+        string merchantId,
+        DateOnly date,
+        BalanceMovementType type,
+        decimal amount,
+        DateTimeOffset occurredAt)
+        => new(
+            merchantId,
+            date,
+            new Currency("BRL"),
+            type,
+            new BalanceAmount(amount),
+            occurredAt);
 }

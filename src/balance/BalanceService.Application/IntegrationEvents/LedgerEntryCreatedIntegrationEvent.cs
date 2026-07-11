@@ -1,14 +1,11 @@
 using System.Text.Json.Serialization;
 
-namespace BalanceService.Domain.Balances;
+namespace BalanceService.Application.IntegrationEvents;
 
 /// <summary>
-/// Evento de criacao de lancamento recebido pelo Balance.
+/// Evento de integracao recebido do LedgerService.
 /// </summary>
-/// <remarks>
-/// Contrato atual (evidência: payload descrito na tarefa). Campos seguem JSON camelCase.
-/// </remarks>
-public sealed record LedgerEntryCreatedEvent(
+public sealed record LedgerEntryCreatedIntegrationEvent(
     [property: JsonPropertyName("id")] string Id,
     [property: JsonPropertyName("type")] string Type,
     [property: JsonPropertyName("amount")] string Amount,

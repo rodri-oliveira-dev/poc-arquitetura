@@ -2,6 +2,7 @@ using System.Globalization;
 
 using BalanceService.Application.Abstractions.Persistence;
 using BalanceService.Application.Abstractions.Time;
+using BalanceService.Application.IntegrationEvents;
 using BalanceService.Domain.Balances;
 using BalanceService.Domain.Exceptions;
 
@@ -196,7 +197,8 @@ public sealed partial class ProjectionRebuildDivergenceReportHandler
 
             try
             {
-                balance.DailyBalance.Apply(NormalizeEvent(evt), now);
+                var movement = LedgerEntryCreatedIntegrationEventMapper.ToBalanceMovement(NormalizeEvent(evt));
+                balance.DailyBalance.Apply(movement, now);
             }
             catch (DomainException ex)
             {
@@ -272,7 +274,7 @@ public sealed partial class ProjectionRebuildDivergenceReportHandler
             throw new ArgumentException("EventVersion is required.", nameof(filter));
     }
 
-    private static bool EventMatchesFilter(LedgerEntryCreatedEvent evt, PartialProjectionRebuildFilter filter)
+    private static bool EventMatchesFilter(LedgerEntryCreatedIntegrationEvent evt, PartialProjectionRebuildFilter filter)
         => string.Equals(evt.MerchantId, filter.MerchantId, StringComparison.Ordinal) &&
             evt.OccurredAt >= filter.OccurredFrom &&
             evt.OccurredAt <= filter.OccurredUntil;
@@ -291,13 +293,10 @@ public sealed partial class ProjectionRebuildDivergenceReportHandler
         if (!string.Equals(filter.Status, candidate.Status, StringComparison.Ordinal))
             return false;
 
-        if (candidate.OccurredAt < filter.OccurredFrom || candidate.OccurredAt > filter.OccurredUntil)
-            return false;
-
-        return true;
+        return !(candidate.OccurredAt < filter.OccurredFrom) && !(candidate.OccurredAt > filter.OccurredUntil);
     }
 
-    private static LedgerEntryCreatedEvent NormalizeEvent(LedgerEntryCreatedEvent evt)
+    private static LedgerEntryCreatedIntegrationEvent NormalizeEvent(LedgerEntryCreatedIntegrationEvent evt)
     {
         var currency = evt.Currency ?? throw new InvalidOperationException("Event currency is required.");
 
@@ -340,10 +339,9 @@ public sealed partial class ProjectionRebuildDivergenceReportHandler
         if (string.IsNullOrWhiteSpace(current))
             return next;
 
-        if (string.Equals(current, MultipleAccountIds, StringComparison.Ordinal))
-            return current;
-
-        return string.Equals(current, next, StringComparison.Ordinal) ? current : MultipleAccountIds;
+        return string.Equals(current, MultipleAccountIds, StringComparison.Ordinal)
+            ? current
+            : string.Equals(current, next, StringComparison.Ordinal) ? current : MultipleAccountIds;
     }
 
     private static string Describe(PartialProjectionRebuildFilter filter)
@@ -353,7 +351,7 @@ public sealed partial class ProjectionRebuildDivergenceReportHandler
 
     private sealed record EvaluatedCandidate(
         ProjectionRebuildEventItemResult Item,
-        LedgerEntryCreatedEvent? Event,
+        LedgerEntryCreatedIntegrationEvent? Event,
         string? AccountId);
 
     private sealed record ProjectionKey(

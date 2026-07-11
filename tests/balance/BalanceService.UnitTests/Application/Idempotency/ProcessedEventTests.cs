@@ -1,9 +1,9 @@
 using System.Globalization;
 
-using BalanceService.Domain.Balances;
+using BalanceService.Application.Idempotency;
 using BalanceService.Domain.Exceptions;
 
-namespace BalanceService.UnitTests.Domain.Balances;
+namespace BalanceService.UnitTests.Application.Idempotency;
 
 public sealed class ProcessedEventTests
 {
@@ -18,6 +18,7 @@ public sealed class ProcessedEventTests
             merchantId: "merchant-1",
             occurredAt: occurredAt,
             processedAt: processedAt);
+
         Assert.Equal("evt-1", processedEvent.EventId);
         Assert.Equal("merchant-1", processedEvent.MerchantId);
         Assert.Equal(occurredAt, processedEvent.OccurredAt);
@@ -34,9 +35,9 @@ public sealed class ProcessedEventTests
         var occurredAt = DateTimeOffset.Parse("2026-02-16T10:00:00-03:00", CultureInfo.InvariantCulture);
         var processedAt = DateTimeOffset.Parse("2026-02-16T13:00:05Z", CultureInfo.InvariantCulture);
 
-        var act = () => new ProcessedEvent(eventId, merchantId, occurredAt, processedAt);
+        ProcessedEvent act() => new ProcessedEvent(eventId, merchantId, occurredAt, processedAt);
 
-        var ex = Assert.Throws<DomainException>(act);
+        var ex = Assert.Throws<DomainException>((Func<ProcessedEvent>)act);
         Assert.Contains(expectedMessage, ex.Message);
     }
 }

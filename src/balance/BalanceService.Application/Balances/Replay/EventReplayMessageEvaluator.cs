@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 
 using BalanceService.Application.Abstractions.Persistence;
 using BalanceService.Application.Contracts.Events;
-using BalanceService.Domain.Balances;
+using BalanceService.Application.IntegrationEvents;
 
 namespace BalanceService.Application.Balances.Replay;
 
@@ -50,10 +50,10 @@ public sealed class EventReplayMessageEvaluator
                 $"Manual replay supports only '{SupportedEventName}'.");
         }
 
-        LedgerEntryCreatedEvent evt;
+        LedgerEntryCreatedIntegrationEvent evt;
         try
         {
-            evt = JsonSerializer.Deserialize<LedgerEntryCreatedEvent>(payload, JsonOptions)
+            evt = JsonSerializer.Deserialize<LedgerEntryCreatedIntegrationEvent>(payload, JsonOptions)
                 ?? throw new JsonException("Payload deserialized to null.");
         }
         catch (JsonException ex)
@@ -92,7 +92,7 @@ public sealed class EventReplayMessageEvaluator
             : EventReplayEvaluation.InvalidContract(eventId, errorMessage);
     }
 
-    private static LedgerEntryCreatedEvent NormalizeEvent(LedgerEntryCreatedEvent evt, string eventVersion)
+    private static LedgerEntryCreatedIntegrationEvent NormalizeEvent(LedgerEntryCreatedIntegrationEvent evt, string eventVersion)
     {
         if (string.Equals(eventVersion, "v1", StringComparison.Ordinal))
             return evt with

@@ -2,6 +2,8 @@ using System.Globalization;
 
 using BalanceService.Application.Abstractions.Persistence;
 using BalanceService.Application.Abstractions.Time;
+using BalanceService.Application.Idempotency;
+using BalanceService.Application.IntegrationEvents;
 using BalanceService.Domain.Balances;
 
 using MediatR;
@@ -109,7 +111,7 @@ public sealed partial class PartialProjectionRebuildHandler
             totalProcessedEventsDeleted = rebuildResult.TotalProcessedEventsDeleted;
             mutated = rebuildResult.Mutated;
 
-            items = items
+            items = [.. items
                 .Select(item => item.Status == PartialProjectionRebuildItemStatus.Eligible
                     ? item with
                     {
@@ -117,8 +119,7 @@ public sealed partial class PartialProjectionRebuildHandler
                         ? PartialProjectionRebuildItemStatus.Rebuilt
                         : PartialProjectionRebuildItemStatus.SkippedConcurrentDuplicate
                     }
-                    : item)
-                .ToList();
+                    : item)];
         }
 
         var result = new PartialProjectionRebuildResult(
@@ -247,15 +248,16 @@ public sealed partial class PartialProjectionRebuildHandler
         foreach (var evt in events)
         {
             var normalizedEvent = NormalizeEvent(evt);
+            var movement = LedgerEntryCreatedIntegrationEventMapper.ToBalanceMovement(normalizedEvent);
             var inserted = await _processedEventRepository.TryInsertAsync(
-                new ProcessedEvent(normalizedEvent.Id, normalizedEvent.MerchantId, normalizedEvent.OccurredAt, now),
+                new ProcessedEvent(normalizedEvent.Id, normalizedEvent.MerchantId, movement.OccurredAt, now),
                 cancellationToken);
 
             if (!inserted)
                 continue;
 
-            var date = DateOnly.FromDateTime(evt.OccurredAt.Date);
-            var currency = normalizedEvent.Currency!;
+            var date = movement.Date;
+            var currency = movement.Currency.Code;
             var dailyBalance = await _dailyBalanceRepository.GetByMerchantDateAndCurrencyAsync(
                 evt.MerchantId,
                 date,
@@ -268,7 +270,7 @@ public sealed partial class PartialProjectionRebuildHandler
                 await _dailyBalanceRepository.AddAsync(dailyBalance, cancellationToken);
             }
 
-            dailyBalance.Apply(normalizedEvent, now);
+            dailyBalance.Apply(movement, now);
             rebuiltEventIds.Add(evt.Id);
         }
 
@@ -295,7 +297,7 @@ public sealed partial class PartialProjectionRebuildHandler
             throw new ArgumentException("EventVersion is required.", nameof(filter));
     }
 
-    private static bool EventMatchesFilter(LedgerEntryCreatedEvent evt, PartialProjectionRebuildFilter filter)
+    private static bool EventMatchesFilter(LedgerEntryCreatedIntegrationEvent evt, PartialProjectionRebuildFilter filter)
         => string.Equals(evt.MerchantId, filter.MerchantId, StringComparison.Ordinal) &&
             evt.OccurredAt >= filter.OccurredFrom &&
             evt.OccurredAt <= filter.OccurredUntil;
@@ -314,13 +316,10 @@ public sealed partial class PartialProjectionRebuildHandler
         if (!string.Equals(filter.Status, candidate.Status, StringComparison.Ordinal))
             return false;
 
-        if (candidate.OccurredAt < filter.OccurredFrom || candidate.OccurredAt > filter.OccurredUntil)
-            return false;
-
-        return true;
+        return !(candidate.OccurredAt < filter.OccurredFrom) && !(candidate.OccurredAt > filter.OccurredUntil);
     }
 
-    private static LedgerEntryCreatedEvent NormalizeEvent(LedgerEntryCreatedEvent evt)
+    private static LedgerEntryCreatedIntegrationEvent NormalizeEvent(LedgerEntryCreatedIntegrationEvent evt)
     {
         var currency = evt.Currency ?? throw new InvalidOperationException("Event currency is required.");
 
@@ -361,7 +360,7 @@ public sealed partial class PartialProjectionRebuildHandler
 
     private sealed record EvaluatedCandidate(
         PartialProjectionRebuildItemResult Item,
-        LedgerEntryCreatedEvent? Event);
+        LedgerEntryCreatedIntegrationEvent? Event);
 
     private sealed record RebuildPersistenceResult(
         bool Mutated,

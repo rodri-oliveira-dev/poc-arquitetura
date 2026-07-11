@@ -3,6 +3,7 @@ using System.Globalization;
 using BalanceService.Application;
 using BalanceService.Application.Abstractions.Persistence;
 using BalanceService.Application.Abstractions.Time;
+using BalanceService.Application.Idempotency;
 using BalanceService.Domain.Balances;
 using BalanceService.Worker.Messaging.Abstractions;
 using BalanceService.Worker.Messaging.Contracts;

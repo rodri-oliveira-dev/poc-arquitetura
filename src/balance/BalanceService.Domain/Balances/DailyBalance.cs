@@ -1,12 +1,10 @@
 using BalanceService.Domain.Common;
 using BalanceService.Domain.Exceptions;
 
-using System.Globalization;
-
 namespace BalanceService.Domain.Balances;
 
 /// <summary>
-/// Consolidado diário por Merchant + Data + Moeda.
+/// Consolidado diario por Merchant + Data + Moeda.
 /// </summary>
 public sealed class DailyBalance : Entity, IAggregateRoot
 {
@@ -49,12 +47,11 @@ public sealed class DailyBalance : Entity, IAggregateRoot
         if (string.IsNullOrWhiteSpace(merchantId))
             throw new DomainException("MerchantId is required.");
 
-        if (string.IsNullOrWhiteSpace(currency) || currency.Trim().Length != 3)
-            throw new DomainException("Currency must be a 3-letter code.");
+        var normalizedCurrency = new Currency(currency);
 
         MerchantId = merchantId;
         Date = date;
-        Currency = currency.Trim().ToUpperInvariant();
+        Currency = normalizedCurrency.Code;
 
         TotalCredits = 0m;
         TotalDebits = 0m;
@@ -63,37 +60,27 @@ public sealed class DailyBalance : Entity, IAggregateRoot
         UpdatedAt = now;
     }
 
-    public void Apply(LedgerEntryCreatedEvent evt, DateTimeOffset now)
+    public void Apply(BalanceMovement movement, DateTimeOffset now)
     {
-        if (evt is null)
-            throw new DomainException("Event is required.");
+        if (movement is null)
+            throw new DomainException("Movement is required.");
 
-        if (!decimal.TryParse(evt.Amount, NumberStyles.Number, CultureInfo.InvariantCulture, out var parsedAmount))
-            throw new DomainException("Invalid amount format.");
-
-        if (parsedAmount == 0m)
-            throw new DomainException("Amount cannot be 0.");
-
-        // Regra: CREDIT soma em total_credits; DEBIT soma em total_debits.
-        // Observação: no LedgerService, o DEBIT tende a ser negativo. Para o consolidado,
-        // total_debits deve ser magnitude positiva.
-        var type = evt.Type.Trim().ToUpperInvariant();
-        switch (type)
+        switch (movement.Type)
         {
-            case "CREDIT":
-                TotalCredits += Math.Abs(parsedAmount);
+            case BalanceMovementType.Credit:
+                TotalCredits += movement.Amount.Magnitude;
                 break;
-            case "DEBIT":
-                TotalDebits += Math.Abs(parsedAmount);
+            case BalanceMovementType.Debit:
+                TotalDebits += movement.Amount.Magnitude;
                 break;
             default:
-                throw new DomainException("Type must be CREDIT or DEBIT.");
+                throw new DomainException("Type must be Credit or Debit.");
         }
 
         NetBalance = TotalCredits - TotalDebits;
 
-        if (evt.OccurredAt > AsOf)
-            AsOf = evt.OccurredAt;
+        if (movement.OccurredAt > AsOf)
+            AsOf = movement.OccurredAt;
 
         UpdatedAt = now;
     }

@@ -1,7 +1,7 @@
 using System.Globalization;
 
 using BalanceService.Application.Balances.Commands;
-using BalanceService.Domain.Balances;
+using BalanceService.Application.IntegrationEvents;
 using BalanceService.IntegrationTests.Infrastructure;
 
 using Microsoft.EntityFrameworkCore;
@@ -198,7 +198,7 @@ public sealed class ApplyLedgerEntryCreatedConcurrencyTests(PostgresBalanceFixtu
 
     private static async Task<ApplyLedgerEntryCreatedResult> ApplyAsync(
         IServiceProvider serviceProvider,
-        LedgerEntryCreatedEvent evt,
+        LedgerEntryCreatedIntegrationEvent evt,
         Task start)
     {
         await start;
@@ -209,7 +209,7 @@ public sealed class ApplyLedgerEntryCreatedConcurrencyTests(PostgresBalanceFixtu
         return await handler.Handle(new ApplyLedgerEntryCreatedCommand(evt), TestContext.Current.CancellationToken);
     }
 
-    private static LedgerEntryCreatedEvent CreateEvent(
+    private static LedgerEntryCreatedIntegrationEvent CreateEvent(
         string id,
         string merchantId,
         string type,

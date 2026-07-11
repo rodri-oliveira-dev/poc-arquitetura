@@ -1,4 +1,4 @@
-using BalanceService.Domain.Balances;
+using BalanceService.Application.Idempotency;
 
 namespace BalanceService.Application.Abstractions.Persistence;
 

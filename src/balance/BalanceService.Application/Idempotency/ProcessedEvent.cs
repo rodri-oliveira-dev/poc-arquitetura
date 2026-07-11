@@ -1,10 +1,10 @@
 using BalanceService.Domain.Common;
 using BalanceService.Domain.Exceptions;
 
-namespace BalanceService.Domain.Balances;
+namespace BalanceService.Application.Idempotency;
 
 /// <summary>
-/// Registro de idempotência para eventos processados pelo consumer.
+/// Registro tecnico de idempotencia do consumidor.
 /// </summary>
 public sealed class ProcessedEvent : Entity
 {

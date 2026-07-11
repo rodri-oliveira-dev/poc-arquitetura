@@ -21,6 +21,7 @@ public sealed class DailyBalanceReadRepositoryTests
         var sut = new DailyBalanceReadRepository(db);
 
         var res = await sut.GetDailyAsync("m1", new DateOnly(2026, 2, 10), TestContext.Current.CancellationToken);
+
         Assert.Null(res);
     }
 
@@ -35,26 +36,22 @@ public sealed class DailyBalanceReadRepositoryTests
         await using var db = new BalanceDbContext(options);
 
         var entity = new DailyBalance("m1", new DateOnly(2026, 2, 10), "BRL", now);
-        // Força valores não-zero via evento
-        entity.Apply(new LedgerEntryCreatedEvent(
-            Id: Guid.NewGuid().ToString(),
-            Type: "CREDIT",
-            Amount: "10.00",
-            Currency: "BRL",
-            CreatedAt: DateTimeOffset.Parse("2026-02-10T09:59:00Z", CultureInfo.InvariantCulture),
-            MerchantId: "m1",
-            OccurredAt: DateTimeOffset.Parse("2026-02-10T10:00:00Z", CultureInfo.InvariantCulture),
-            Description: null,
-            CorrelationId: Guid.NewGuid().ToString(),
-            ExternalReference: null), now);
+        entity.Apply(new BalanceMovement(
+            "m1",
+            new DateOnly(2026, 2, 10),
+            new Currency("BRL"),
+            BalanceMovementType.Credit,
+            new BalanceAmount(10m),
+            DateTimeOffset.Parse("2026-02-10T10:00:00Z", CultureInfo.InvariantCulture)), now);
 
         db.DailyBalances.Add(entity);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var sut = new DailyBalanceReadRepository(db);
         var res = await sut.GetDailyAsync("m1", new DateOnly(2026, 2, 10), TestContext.Current.CancellationToken);
+
         Assert.NotNull(res);
-        Assert.Equal("m1", res!.MerchantId);
+        Assert.Equal("m1", res.MerchantId);
         Assert.Equal(new DateOnly(2026, 2, 10), res.Date);
         Assert.Equal("BRL", res.Currency);
         Assert.Equal(10m, res.TotalCredits);
@@ -77,6 +74,7 @@ public sealed class DailyBalanceReadRepositoryTests
 
         var sut = new DailyBalanceReadRepository(db);
         var res = await sut.ListByPeriodAsync("m1", new DateOnly(2026, 2, 10), new DateOnly(2026, 2, 11), TestContext.Current.CancellationToken);
+
         Assert.Equal(2, res.Count);
         Assert.Equal(new DateOnly(2026, 2, 10), res[0].Date);
         Assert.Equal(new DateOnly(2026, 2, 11), res[1].Date);

@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 
 using BalanceService.Application.Balances.Commands;
-using BalanceService.Domain.Balances;
+using BalanceService.Application.IntegrationEvents;
 using BalanceService.Domain.Exceptions;
 using BalanceService.Worker.Messaging.Abstractions;
 using BalanceService.Worker.Messaging.Contracts;
@@ -122,14 +122,14 @@ public sealed partial class LedgerEntryCreatedMessageProcessor
         }
     }
 
-    private static LedgerEntryCreatedEvent DeserializeAndValidate(ReceivedMessage message)
+    private static LedgerEntryCreatedIntegrationEvent DeserializeAndValidate(ReceivedMessage message)
     {
         var contractVersion = LedgerEntryCreatedEventValidator.ValidateEventType(message);
-        var deserialized = JsonSerializer.Deserialize<LedgerEntryCreatedEvent>(message.Payload, JsonOptions);
+        var deserialized = JsonSerializer.Deserialize<LedgerEntryCreatedIntegrationEvent>(message.Payload, JsonOptions);
         return LedgerEntryCreatedEventValidator.Validate(deserialized, contractVersion);
     }
 
-    private IDisposable? BeginProcessingLogScope(ReceivedMessage message, LedgerEntryCreatedEvent evt)
+    private IDisposable? BeginProcessingLogScope(ReceivedMessage message, LedgerEntryCreatedIntegrationEvent evt)
         => _logger.BeginScope(new Dictionary<string, object?>
         {
             ["CorrelationId"] = evt.CorrelationId,
@@ -143,7 +143,7 @@ public sealed partial class LedgerEntryCreatedMessageProcessor
 
     private async Task<ApplyLedgerEntryCreatedResult> ProcessMessageAsync(
         string eventType,
-        LedgerEntryCreatedEvent evt,
+        LedgerEntryCreatedIntegrationEvent evt,
         CancellationToken ct)
     {
         using var scope = _serviceProvider.CreateScope();
@@ -218,7 +218,7 @@ public sealed partial class LedgerEntryCreatedMessageProcessor
         _metrics.RecordConsumerProcessingDuration(Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds, source, eventType, "dlq");
     }
 
-    private static Activity? StartConsumerActivity(ReceivedMessage message, LedgerEntryCreatedEvent evt)
+    private static Activity? StartConsumerActivity(ReceivedMessage message, LedgerEntryCreatedIntegrationEvent evt)
     {
         var activity = StartActivity(
             "message.process",
@@ -279,7 +279,7 @@ public sealed partial class LedgerEntryCreatedMessageProcessor
     private static bool IsNonRecoverableProcessingFailure(InvalidOperationException ex)
         => ex.Source?.Contains("EntityFramework", StringComparison.OrdinalIgnoreCase) != true;
 
-    private static bool IsValidAmountForType(LedgerEntryCreatedEvent evt, out decimal amount)
+    private static bool IsValidAmountForType(LedgerEntryCreatedIntegrationEvent evt, out decimal amount)
     {
         amount = default;
         return AmountPattern().IsMatch(evt.Amount) &&
@@ -320,8 +320,8 @@ public sealed partial class LedgerEntryCreatedMessageProcessor
             };
         }
 
-        public static LedgerEntryCreatedEvent Validate(
-            LedgerEntryCreatedEvent? evt,
+        public static LedgerEntryCreatedIntegrationEvent Validate(
+            LedgerEntryCreatedIntegrationEvent? evt,
             LedgerEntryCreatedContractVersion contractVersion)
         {
             if (evt is null)
@@ -337,7 +337,7 @@ public sealed partial class LedgerEntryCreatedMessageProcessor
             };
         }
 
-        private static void ValidateRequiredFields(LedgerEntryCreatedEvent evt)
+        private static void ValidateRequiredFields(LedgerEntryCreatedIntegrationEvent evt)
         {
             if (string.IsNullOrWhiteSpace(evt.Id))
                 throw new MessageValidationException("Message payload id is required.");
@@ -361,7 +361,7 @@ public sealed partial class LedgerEntryCreatedMessageProcessor
                 throw new MessageValidationException("Message payload correlationId is required.");
         }
 
-        private static void ValidateBusinessShape(LedgerEntryCreatedEvent evt)
+        private static void ValidateBusinessShape(LedgerEntryCreatedIntegrationEvent evt)
         {
             if (!EventIdPattern().IsMatch(evt.Id))
                 throw new MessageValidationException("Message payload id is invalid.");
@@ -377,7 +377,7 @@ public sealed partial class LedgerEntryCreatedMessageProcessor
     private static class LedgerEntryCreatedEventNormalizer
     {
         public static string NormalizeCurrency(
-            LedgerEntryCreatedEvent evt,
+            LedgerEntryCreatedIntegrationEvent evt,
             LedgerEntryCreatedContractVersion contractVersion)
         {
             var currency = ResolveCurrency(evt, contractVersion);
@@ -394,7 +394,7 @@ public sealed partial class LedgerEntryCreatedMessageProcessor
         }
 
         private static string? ResolveCurrency(
-            LedgerEntryCreatedEvent evt,
+            LedgerEntryCreatedIntegrationEvent evt,
             LedgerEntryCreatedContractVersion contractVersion)
         {
             if (contractVersion == LedgerEntryCreatedContractVersion.V1)

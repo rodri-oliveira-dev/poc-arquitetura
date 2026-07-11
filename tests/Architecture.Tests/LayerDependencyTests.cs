@@ -44,6 +44,22 @@ public sealed class LayerDependencyTests
         "Persistence",
         "Serialization"
     ];
+    private static readonly string[] _balanceDomainForbiddenTechnicalTerms =
+    [
+        "JsonPropertyName",
+        "Kafka",
+        "PubSub",
+        "Inbox",
+        "Outbox",
+        "ProcessedEvent",
+        "Consumer",
+        "LedgerEntryCreatedEvent"
+    ];
+    private static readonly string[] _balanceDomainForbiddenTechnicalTypeNames =
+    [
+        .. _balanceDomainForbiddenTechnicalTerms,
+        "Message"
+    ];
     private static readonly string[] _concreteKafkaProducerConsumerNames =
     [
         "KafkaOutboxMessagePublisher",
@@ -118,6 +134,23 @@ public sealed class LayerDependencyTests
             violations.Length == 0,
             "LedgerService.Domain must not define technical Outbox, Idempotency, provider, persistence or serialization concepts. "
             + $"Found: {string.Join(", ", violations.Select(type => type.FullName))}");
+    }
+
+    [Fact]
+    public void Balance_domain_should_not_define_integration_contract_or_inbox_concepts()
+    {
+        ReflectionType[] violations = [.. LoadAssembly("BalanceService.Domain")
+            .GetTypes()
+            .Where(type => type.FullName is not null)
+            .Where(type => _balanceDomainForbiddenTechnicalTypeNames.Any(term =>
+                type.FullName!.Contains(term, StringComparison.OrdinalIgnoreCase)))];
+
+        Assert.True(
+            violations.Length == 0,
+            "BalanceService.Domain must not define integration contracts, messaging, Inbox or idempotency concepts. "
+            + $"Found: {string.Join(", ", violations.Select(type => type.FullName))}");
+
+        AssertSourceFilesDoNotContain("BalanceService", "Domain", _balanceDomainForbiddenTechnicalTerms);
     }
 
     [Theory]
