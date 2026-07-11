@@ -12,6 +12,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [Manutencao Docker local](development/docker-maintenance.md): diagnostico de disco, cache BuildKit limitado a 5GB, classificacao de volumes e limpeza segura por retencao.
 - [Validacao dos contratos OpenAPI](development/openapi-contract-validation.md): geracao, lint, drift e diff de breaking changes contra a main.
 - [AuditService API](development/audit-api.md): contrato HTTP canonico de auditoria funcional, headers, scopes, idempotencia, filtros e limitacoes da etapa isolada.
+- [Validacao local de webhooks Stripe com Stripe CLI](development/stripe-cli-webhooks.md): instalacao/verificacao da CLI, `stripe listen`, `whsec_...`, eventos sinteticos, smoke correlacionado e troubleshooting do PaymentService.
 - [Politica de versionamento de contratos de eventos](development/event-contract-versioning.md): evoluir eventos versionados entre Ledger e Balance preservando compatibilidade em Pub/Sub e Kafka.
 - [FAQ](faq.md): respostas curtas para as duvidas mais provaveis de leitura tecnica.
 - [Maturidade tecnica do projeto](maturity.md): criterios atuais de documentacao, seguranca, testes, CI, observabilidade e pendencias.
@@ -54,6 +55,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [BalanceService API](development/balance-api.md): contratos HTTP de leitura de consolidados diarios e por periodo.
 - [TransferService API](development/transfer-api.md): contratos HTTP para solicitacao e consulta de sagas de transferencia.
 - [PaymentService API](development/payment-api.md): contratos HTTP para criacao de pagamento externo via provider fake/Stripe, consulta local, webhook Stripe assinado, Inbox duravel, idempotencia e materializacao assincrona no Ledger pelo Worker.
+- [Validacao local de webhooks Stripe com Stripe CLI](development/stripe-cli-webhooks.md): guia operacional opcional para testar `POST /api/v1/webhooks/stripe` em `http://localhost:5234` sem tornar a Stripe CLI dependencia de build.
 - [IdentityService API](development/identity-api.md): contrato HTTP de cadastro de usuarios, `Idempotency-Key`, retries e conflitos.
 - [AuditService API](development/audit-api.md): contrato HTTP de criacao e consulta de registros funcionais de auditoria, agnostico ao servico chamador.
 - [Spec SDD de idempotencia do IdentityService](specs/identity-idempotency.md): comportamento esperado para `Idempotency-Key` opcional em `POST /api/v1/users`.

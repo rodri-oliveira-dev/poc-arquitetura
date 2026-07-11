@@ -182,6 +182,11 @@ $env:PaymentGateway__Stripe__ApiKey = "<STRIPE_SECRET_KEY>"
 $env:PaymentGateway__Stripe__WebhookSigningSecret = "<STRIPE_WEBHOOK_SIGNING_SECRET>"
 ```
 
+`PaymentGateway:Stripe:ApiKey` recebe a API key de teste (`sk_test_...`) usada
+para chamadas da API Stripe. `PaymentGateway:Stripe:WebhookSigningSecret`
+recebe o signing secret do endpoint (`whsec_...`) usado exclusivamente para
+validar webhooks. Nao misture os dois valores.
+
 `PaymentGateway:Stripe:ApiBaseUrl` existe apenas para override controlado em
 testes/smoke. A suite automatizada nao depende da Stripe real.
 
@@ -190,11 +195,12 @@ Nao use tolerancia zero, pois isso removeria a protecao temporal contra replay.
 
 ### Stripe CLI local
 
-O Stripe CLI e opcional para desenvolvimento manual. A porta HTTP direta atual
-do `PaymentService.Api` e `5234`, conforme `launchSettings.json`:
+O Stripe CLI e opcional para desenvolvimento manual e nao faz parte do build,
+do CI ou dos testes automatizados. A porta HTTP direta atual do
+`PaymentService.Api` e `5234`, conforme `launchSettings.json`:
 
 ```bash
-stripe listen --forward-to localhost:5234/api/v1/webhooks/stripe
+stripe listen --forward-to http://localhost:5234/api/v1/webhooks/stripe
 ```
 
 O comando mostra um signing secret temporario (`whsec_...`). Configure esse
@@ -205,6 +211,15 @@ Exemplo para disparar evento de teste:
 ```bash
 stripe trigger payment_intent.succeeded
 ```
+
+Eventos sinteticos validam entrega HTTP, assinatura, raw body, Inbox e
+deduplicacao, mas nao provam associacao com Payment local nem integracao com
+Ledger. Para o fluxo completo, crie um Payment real pelo `PaymentService`,
+confirme o PaymentIntent correspondente no sandbox e receba o webhook
+correlacionado.
+
+O runbook completo fica em
+[Validacao local de webhooks Stripe com Stripe CLI](stripe-cli-webhooks.md).
 
 ## Worker de Inbox
 

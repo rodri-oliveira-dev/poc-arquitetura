@@ -225,7 +225,58 @@ Documentacao afetada:
 - `docs/observability.md`.
 - Runbook de reconciliacao Payment-Ledger.
 
-## 6. Refund e estorno
+## 6.5. Validacao local de webhook Stripe com Stripe CLI
+
+Objetivo: validar operacionalmente o fluxo local de webhook antes de introduzir
+refund no sandbox.
+
+Escopo:
+
+- Documentar instalacao/verificacao da Stripe CLI pelo metodo oficial do SO.
+- Documentar `stripe login` em sandbox/test mode.
+- Documentar `stripe listen --forward-to http://localhost:5234/api/v1/webhooks/stripe`.
+- Documentar obtencao e configuracao local de `whsec_...` em
+  `PaymentGateway:Stripe:WebhookSigningSecret`.
+- Diferenciar `sk_test_...` de `whsec_...`.
+- Documentar `stripe trigger` para eventos MVP suportados pela CLI.
+- Diferenciar evento sintetico de evento correlacionado a Payment real.
+- Criar scripts opcionais e seguros para iniciar `stripe listen`.
+- Documentar troubleshooting e smoke A/B.
+
+Fora de escopo:
+
+- Refund, estorno, Stripe Refund, webhook de refund, chargeback e dispute.
+- Mudanca na semantica de `Succeeded` e `Completed`.
+- Mudanca estrutural de Inbox, Worker ou integracao Payment -> Ledger.
+- Dependencia obrigatoria da Stripe CLI no build, CI ou testes automatizados.
+
+Dependencias:
+
+- Tasks 2 a 5 implementadas.
+- ADR-0103, ADR-0104 e ADR-0105.
+
+Criterios de aceite:
+
+- Rota canonica unica documentada: `POST /api/v1/webhooks/stripe`.
+- Porta local real documentada: `http://localhost:5234`.
+- `whsec_...` configurado apenas localmente, sem valor real versionado.
+- Smoke sintetico nao e tratado como E2E completo.
+- Prompt 7 so inicia apos webhook local, Inbox e Worker estarem validados.
+
+Testes obrigatorios:
+
+- Validar scripts com `--help`/comportamento sem Stripe CLI quando possivel.
+- Executar testes automatizados de webhook, Inbox, Worker e Payment -> Ledger
+  sem exigir Stripe CLI.
+
+Documentacao afetada:
+
+- `docs/development/stripe-cli-webhooks.md`.
+- `docs/development/payment-api.md`.
+- `docs/troubleshooting.md`.
+- `docs/specs/payment-stripe/integration-flows.md`.
+
+## 7. Refund e estorno
 
 Objetivo: evoluir refund externo e reflexo financeiro interno.
 
@@ -245,6 +296,7 @@ Fora de escopo:
 Dependencias:
 
 - Tasks 1 a 5.
+- Task 6.5 validada localmente.
 - Decisao de contrato HTTP de refund.
 
 Criterios de aceite:
@@ -264,7 +316,7 @@ Documentacao afetada:
 - Nova spec/ADR se a decisao de refund alterar modelo.
 - OpenAPI.
 
-## 7. Testes de integracao e smoke
+## 8. Testes de integracao e smoke
 
 Objetivo: validar o fluxo ponta a ponta controlado sem depender da Stripe real.
 
@@ -302,7 +354,7 @@ Documentacao afetada:
 - `loadtests/k6/README.md`.
 - `docs/development/local-development.md`.
 
-## 8. Hardening, observabilidade e revisao final
+## 9. Hardening, observabilidade e revisao final
 
 Objetivo: fechar riscos operacionais antes de tratar o fluxo como baseline da
 POC.

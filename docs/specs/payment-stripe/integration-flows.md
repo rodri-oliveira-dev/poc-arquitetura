@@ -191,6 +191,44 @@ Garantia: se o Ledger persistiu a primeira chamada, o retry com mesma key e
 mesmo payload nao cria segundo lancamento. Se o payload mudou, o `409 Conflict`
 indica bug ou corrupcao de determinismo e deve parar o fluxo automatico.
 
+## Validacao local via Stripe CLI
+
+```mermaid
+sequenceDiagram
+    participant StripeCli as Stripe CLI
+    participant PaymentApi as PaymentService.Api
+    participant Inbox as payment.inbox_messages
+    participant Worker as PaymentService.Worker
+    participant Payment as Payment aggregate
+    participant Ledger as LedgerService.Api
+
+    StripeCli->>StripeCli: stripe listen --forward-to http://localhost:5234/api/v1/webhooks/stripe
+    StripeCli-->>StripeCli: imprime whsec_... temporario
+    StripeCli->>PaymentApi: POST /api/v1/webhooks/stripe<br/>Stripe-Signature + raw body
+    PaymentApi->>PaymentApi: valida assinatura com PaymentGateway:Stripe:WebhookSigningSecret
+    PaymentApi->>Inbox: persiste evento ou reconhece duplicidade
+    PaymentApi-->>StripeCli: 200 OK
+    Worker->>Inbox: claim assincrono
+    Worker->>Payment: aplica evento quando houver Payment correlacionado
+    alt evento sintetico sem Payment local
+        Worker->>Inbox: retry/DeadLetter conforme politica de Payment ausente
+    else evento correlacionado e sucesso do provider
+        Worker->>Ledger: solicita CREDIT idempotente quando necessario
+    end
+```
+
+Decisoes:
+
+- Stripe CLI e ferramenta local opcional, fora do build e dos testes
+  automatizados.
+- O signing secret `whsec_...` do `stripe listen` e diferente da API key
+  `sk_test_...`.
+- Evento sintetico via `stripe trigger` valida intake, assinatura, raw body,
+  Inbox e deduplicacao, mas nao prova Payment correlacionado nem Ledger.
+- Fluxo correlacionado exige criar Payment pelo `PaymentService`, confirmar o
+  PaymentIntent correspondente no sandbox e receber webhook do mesmo objeto.
+- A validacao local deve acontecer antes do Prompt 7 de refund.
+
 ## Futuro refund
 
 ```mermaid

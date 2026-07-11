@@ -61,3 +61,17 @@ Wrappers temporarios mantidos por compatibilidade silenciosa e baixo custo:
 ### Elegiveis para remocao futura
 
 No momento, nao ha wrappers pendentes nessa classificacao.
+
+## Scripts opcionais de validacao Stripe
+
+Os scripts abaixo ajudam o smoke manual de webhooks do PaymentService e nao
+fazem parte do build, dos testes automatizados ou do CI:
+
+- `scripts/validation/stripe-listen-payment-webhook.ps1`
+- `scripts/validation/stripe-listen-payment-webhook.sh`
+
+Eles verificam se `stripe` esta disponivel, montam por padrao
+`http://localhost:5234/api/v1/webhooks/stripe`, executam `stripe listen` em
+primeiro plano e orientam o usuario a copiar o `whsec_...` para
+`PaymentGateway__Stripe__WebhookSigningSecret`. Eles nao instalam a Stripe CLI,
+nao salvam secrets e nao rodam processos em background.
