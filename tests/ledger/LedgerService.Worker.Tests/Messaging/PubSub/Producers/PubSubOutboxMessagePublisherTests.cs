@@ -1,6 +1,6 @@
 using Google.Cloud.PubSub.V1;
 
-using LedgerService.Domain.Entities;
+using LedgerService.Application.Abstractions.Messaging;
 using LedgerService.Worker.Messaging.Abstractions;
 using LedgerService.Worker.Messaging.PubSub.Configuration;
 using LedgerService.Worker.Messaging.PubSub.Producers;
@@ -99,7 +99,7 @@ public sealed class PubSubOutboxMessagePublisherTests
             ProjectId = "poc-project",
             DefaultTopicId = "ledger-events",
             EnableMessageOrdering = enableMessageOrdering,
-            TopicMap = topicMap ?? new Dictionary<string, string>()
+            TopicMap = topicMap ?? []
         };
 
         return new PubSubOutboxMessagePublisher(
@@ -116,6 +116,7 @@ public sealed class PubSubOutboxMessagePublisherTests
             "LedgerEntry",
             Guid.NewGuid(),
             "LedgerEntryCreated.v1",
+            /*lang=json,strict*/
             """{"amount":10}""",
             DateTime.UtcNow,
             correlationId,
@@ -135,7 +136,7 @@ public sealed class PubSubOutboxMessagePublisherTests
 
     private sealed class FakePubSubPublisherClient(Exception? failure = null) : IPubSubPublisherClient
     {
-        public List<PubsubMessage> PublishedMessages { get; } = new();
+        public List<PubsubMessage> PublishedMessages { get; } = [];
 
         public Task<string> PublishAsync(PubsubMessage message, CancellationToken cancellationToken)
         {

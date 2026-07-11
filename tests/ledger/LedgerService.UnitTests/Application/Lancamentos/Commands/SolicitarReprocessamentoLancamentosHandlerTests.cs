@@ -1,6 +1,8 @@
 using System.Text.Json;
 
+using LedgerService.Application.Abstractions.Messaging;
 using LedgerService.Application.Common.Exceptions;
+using LedgerService.Application.Idempotency;
 using LedgerService.Application.Lancamentos.Commands;
 using LedgerService.Application.Lancamentos.Events;
 using LedgerService.Domain.Entities;
@@ -58,16 +60,16 @@ public sealed class SolicitarReprocessamentoLancamentosHandlerTests
         Assert.Equal(ReprocessamentoLancamentosStatus.Pending.ToString(), result.Status);
         Assert.Equal($"/api/v1/lancamentos/reprocessamentos/{result.ReprocessamentoId}", result.StatusUrl);
         Assert.NotNull(createdReprocessamento);
-        Assert.Equal(ReprocessamentoLancamentosStatus.Pending, createdReprocessamento!.Status);
+        Assert.Equal(ReprocessamentoLancamentosStatus.Pending, createdReprocessamento.Status);
         Assert.Equal(command.Motivo, createdReprocessamento.Motivo);
         Assert.Equal(command.DataInicial, createdReprocessamento.DataInicial);
         Assert.Equal(command.DataFinal, createdReprocessamento.DataFinal);
         Assert.NotNull(createdIdem);
-        Assert.Equal(202, createdIdem!.ResponseStatusCode);
+        Assert.Equal(202, createdIdem.ResponseStatusCode);
         Assert.Equal(result.ReprocessamentoId, createdIdem.LedgerEntryId);
         Assert.Contains(result.ReprocessamentoId.ToString(), createdIdem.ResponseBody);
         Assert.NotNull(createdOutbox);
-        Assert.Equal("ReprocessamentoLancamentos", createdOutbox!.AggregateType);
+        Assert.Equal("ReprocessamentoLancamentos", createdOutbox.AggregateType);
         Assert.Equal(result.ReprocessamentoId, createdOutbox.AggregateId);
         Assert.Equal(ReprocessamentoLancamentosSolicitadoV1.EventType, createdOutbox.EventType);
         Assert.Equal(Guid.Parse(command.CorrelationId), createdOutbox.CorrelationId);
@@ -75,7 +77,7 @@ public sealed class SolicitarReprocessamentoLancamentosHandlerTests
             createdOutbox.Payload,
             JsonOptions);
         Assert.NotNull(outboxEvent);
-        Assert.Equal(result.ReprocessamentoId, outboxEvent!.ReprocessamentoId);
+        Assert.Equal(result.ReprocessamentoId, outboxEvent.ReprocessamentoId);
         Assert.Equal("Pending", outboxEvent.Status);
         Assert.Equal(command.Motivo, outboxEvent.Motivo);
     }
@@ -134,8 +136,12 @@ public sealed class SolicitarReprocessamentoLancamentosHandlerTests
         };
         var sut = CreateSut(reprocessamentoRepo, idemRepo, outboxRepo, uow);
 
-        var act = async () => await sut.Handle(command, CancellationToken.None);
-        await Assert.ThrowsAsync<ForbiddenException>(act);
+        async Task Act()
+        {
+            _ = await sut.Handle(command, CancellationToken.None);
+        }
+
+        await Assert.ThrowsAsync<ForbiddenException>(Act);
         uow.VerifyNoOtherCalls();
     }
 

@@ -35,6 +35,15 @@ public sealed class LayerDependencyTests
         "Stripe"
     ];
     private static readonly string[] _messagingProviderNames = ["Kafka", "PubSub"];
+    private static readonly string[] _ledgerDomainForbiddenTechnicalNames =
+    [
+        "Outbox",
+        "Idempotency",
+        "Kafka",
+        "PubSub",
+        "Persistence",
+        "Serialization"
+    ];
     private static readonly string[] _concreteKafkaProducerConsumerNames =
     [
         "KafkaOutboxMessagePublisher",
@@ -94,6 +103,21 @@ public sealed class LayerDependencyTests
     {
         AssertSourceFilesDoNotContainProviderNames(serviceName, "Domain");
         AssertSourceFilesDoNotContainProviderNames(serviceName, "Application");
+    }
+
+    [Fact]
+    public void Ledger_domain_should_not_define_technical_namespaces_or_types()
+    {
+        ReflectionType[] violations = [.. LoadAssembly("LedgerService.Domain")
+            .GetTypes()
+            .Where(type => type.FullName is not null)
+            .Where(type => _ledgerDomainForbiddenTechnicalNames.Any(term =>
+                type.FullName!.Contains(term, StringComparison.OrdinalIgnoreCase)))];
+
+        Assert.True(
+            violations.Length == 0,
+            "LedgerService.Domain must not define technical Outbox, Idempotency, provider, persistence or serialization concepts. "
+            + $"Found: {string.Join(", ", violations.Select(type => type.FullName))}");
     }
 
     [Theory]

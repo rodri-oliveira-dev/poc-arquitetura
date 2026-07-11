@@ -1,4 +1,4 @@
-using LedgerService.Domain.Entities;
+using LedgerService.Application.Abstractions.Messaging;
 using LedgerService.Infrastructure.Persistence;
 using LedgerService.Infrastructure.Persistence.Repositories;
 

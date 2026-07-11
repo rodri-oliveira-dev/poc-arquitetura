@@ -1,6 +1,4 @@
-using LedgerService.Domain.Entities;
-
-namespace LedgerService.Domain.Repositories;
+namespace LedgerService.Application.Abstractions.Messaging;
 
 public interface IOutboxMessageRepository
 {

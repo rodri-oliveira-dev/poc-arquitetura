@@ -2,8 +2,8 @@ extern alias LedgerWorker;
 
 using System.Collections.Concurrent;
 
+using LedgerService.Application.Abstractions.Messaging;
 using LedgerService.Application.Outbox.Retry;
-using LedgerService.Domain.Entities;
 using LedgerService.Domain.Repositories;
 using LedgerService.Infrastructure.Observability;
 using LedgerService.Infrastructure.Persistence;
@@ -29,7 +29,7 @@ namespace LedgerService.IntegrationTests.Outbox;
 public sealed class OutboxPublisherWorkerTests(PostgresLedgerFixture fixture)
 {
     private readonly PostgresLedgerFixture _fixture = fixture;
-    private static readonly string[] collection = new[] { "publisher-1", "publisher-2" };
+    private static readonly string[] collection = ["publisher-1", "publisher-2"];
 
     [Fact]
     public async Task Worker_should_mark_batch_as_processed_when_publish_succeeds()

@@ -1,17 +1,12 @@
-using LedgerService.Domain.Repositories;
+using LedgerService.Application.Abstractions.Messaging;
 
 using MediatR;
 
 namespace LedgerService.Application.Outbox.Queries;
 
-public sealed class GetDeadLettersHandler : IRequestHandler<GetDeadLettersQuery, GetDeadLettersResult>
+public sealed class GetDeadLettersHandler(IOutboxMessageRepository outboxMessageRepository) : IRequestHandler<GetDeadLettersQuery, GetDeadLettersResult>
 {
-    private readonly IOutboxMessageRepository _outboxMessageRepository;
-
-    public GetDeadLettersHandler(IOutboxMessageRepository outboxMessageRepository)
-    {
-        _outboxMessageRepository = outboxMessageRepository;
-    }
+    private readonly IOutboxMessageRepository _outboxMessageRepository = outboxMessageRepository;
 
     public async Task<GetDeadLettersResult> Handle(GetDeadLettersQuery request, CancellationToken cancellationToken)
     {
@@ -23,7 +18,7 @@ public sealed class GetDeadLettersHandler : IRequestHandler<GetDeadLettersQuery,
             cancellationToken);
 
         return new GetDeadLettersResult(
-            items.Select(x => new DeadLetterOutboxMessageDto(
+            [.. items.Select(x => new DeadLetterOutboxMessageDto(
                 x.Id,
                 x.AggregateType,
                 x.AggregateId,
@@ -32,7 +27,7 @@ public sealed class GetDeadLettersHandler : IRequestHandler<GetDeadLettersQuery,
                 x.RetryCount,
                 x.LastError,
                 x.CorrelationId,
-                x.TraceParent)).ToArray(),
+                x.TraceParent))],
             request.Page,
             request.PageSize,
             totalCount);

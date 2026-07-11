@@ -1,6 +1,8 @@
+using System.Diagnostics;
+
+using LedgerService.Application.Abstractions.Messaging;
 using LedgerService.Application.Abstractions.Time;
 using LedgerService.Application.Outbox.Retry;
-using LedgerService.Domain.Entities;
 using LedgerService.Domain.Repositories;
 using LedgerService.Infrastructure.Observability;
 using LedgerService.Infrastructure.Persistence;
@@ -8,39 +10,24 @@ using LedgerService.Worker.Messaging.Abstractions;
 using LedgerService.Worker.Observability;
 
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-
-using System.Diagnostics;
 
 namespace LedgerService.Worker.Outbox;
 
-public sealed class OutboxPublisherService : BackgroundService
+public sealed class OutboxPublisherService(
+    IServiceProvider serviceProvider,
+    IOptions<OutboxPublisherOptions> options,
+    IRetryStrategy retryStrategy,
+    ILogger<OutboxPublisherService> logger,
+    IClock? clock = null) : BackgroundService
 {
     private static readonly ActivitySource ActivitySource = new("LedgerService.OutboxPublisher");
-    private readonly IServiceProvider _serviceProvider;
-    private readonly IOptions<OutboxPublisherOptions> _options;
-    private readonly IRetryStrategy _retryStrategy;
-    private readonly ILogger<OutboxPublisherService> _logger;
-    private readonly IClock _clock;
-    private readonly string _lockOwner;
-
-    public OutboxPublisherService(
-        IServiceProvider serviceProvider,
-        IOptions<OutboxPublisherOptions> options,
-        IRetryStrategy retryStrategy,
-        ILogger<OutboxPublisherService> logger,
-        IClock? clock = null)
-    {
-        _serviceProvider = serviceProvider;
-        _options = options;
-        _retryStrategy = retryStrategy;
-        _logger = logger;
-        _clock = clock ?? new SystemClock();
-        _lockOwner = $"{Environment.MachineName}:{Guid.NewGuid():N}";
-    }
+    private readonly IServiceProvider _serviceProvider = serviceProvider;
+    private readonly IOptions<OutboxPublisherOptions> _options = options;
+    private readonly IRetryStrategy _retryStrategy = retryStrategy;
+    private readonly ILogger<OutboxPublisherService> _logger = logger;
+    private readonly IClock _clock = clock ?? new SystemClock();
+    private readonly string _lockOwner = $"{Environment.MachineName}:{Guid.NewGuid():N}";
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {

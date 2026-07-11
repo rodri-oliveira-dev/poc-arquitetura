@@ -1,6 +1,5 @@
+using LedgerService.Application.Abstractions.Messaging;
 using LedgerService.Application.Abstractions.Time;
-using LedgerService.Domain.Entities;
-using LedgerService.Domain.Repositories;
 using LedgerService.Infrastructure.Observability;
 
 using Microsoft.EntityFrameworkCore;
@@ -106,9 +105,7 @@ RETURNING o.*;
     {
         if (!_context.Database.IsRelational())
         {
-            var entity = await _context.OutboxMessages.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
-            if (entity is null)
-                throw new InvalidOperationException($"OutboxMessage {id} nao encontrada para MarkProcessed.");
+            var entity = await _context.OutboxMessages.FirstOrDefaultAsync(x => x.Id == id, cancellationToken) ?? throw new InvalidOperationException($"OutboxMessage {id} nao encontrada para MarkProcessed.");
 
             entity.MarkProcessed(processedAt);
             return;
@@ -138,9 +135,7 @@ RETURNING o.*;
     {
         if (!_context.Database.IsRelational())
         {
-            var entity = await _context.OutboxMessages.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
-            if (entity is null)
-                throw new InvalidOperationException($"OutboxMessage {id} nao encontrada para MarkFailedPublishAttempt.");
+            var entity = await _context.OutboxMessages.FirstOrDefaultAsync(x => x.Id == id, cancellationToken) ?? throw new InvalidOperationException($"OutboxMessage {id} nao encontrada para MarkFailedPublishAttempt.");
 
             entity.MarkFailedPublishAttempt(maxRetries, nextRetryAt, lastError);
             return entity.Status;
@@ -168,10 +163,9 @@ WHERE id = @p_id;
             new NpgsqlParameter("p_processed_at", NpgsqlDbType.TimestampTz) { Value = _clock.UtcNow.UtcDateTime },
             new NpgsqlParameter("p_id", NpgsqlDbType.Uuid) { Value = id });
 
-        if (affected == 0)
-            throw new InvalidOperationException($"OutboxMessage {id} nao encontrada para MarkFailedPublishAttempt.");
-
-        return await _context.OutboxMessages
+        return affected == 0
+            ? throw new InvalidOperationException($"OutboxMessage {id} nao encontrada para MarkFailedPublishAttempt.")
+            : await _context.OutboxMessages
             .Where(x => x.Id == id)
             .Select(x => x.Status)
             .SingleAsync(cancellationToken);

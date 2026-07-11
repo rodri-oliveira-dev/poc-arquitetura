@@ -2,9 +2,8 @@ using System.Text.Json;
 
 using LedgerService.Application.Common.Exceptions;
 using LedgerService.Application.Common.Models;
+using LedgerService.Application.Idempotency;
 using LedgerService.Application.Lancamentos.Services;
-using LedgerService.Domain.Entities;
-using LedgerService.Domain.Repositories;
 using LedgerService.UnitTests.Fixtures;
 
 using Moq;
@@ -19,7 +18,8 @@ public sealed class CreateLancamentoIdempotencyServiceTests
     public void GenerateRequestHash_should_preserve_current_optional_text_normalization()
     {
         var repository = new Mock<IIdempotencyRecordRepository>(MockBehavior.Strict);
-        var sut = new CreateLancamentoIdempotencyService(repository.Object);
+
+        _ = new CreateLancamentoIdempotencyService(repository.Object);
         var input = LancamentoFixture.ValidInput(type: "credit", amount: "10.00") with
         {
             Description = "  desc  ",
@@ -91,12 +91,15 @@ public sealed class CreateLancamentoIdempotencyServiceTests
             .ReturnsAsync(existing);
 
         var sut = new CreateLancamentoIdempotencyService(repository.Object);
-        var act = async () => await sut.TryReplayAsync(
-            input,
-            CreateLancamentoIdempotencyService.GenerateRequestHash(input),
-            CancellationToken.None);
+        async Task Act()
+        {
+            _ = await sut.TryReplayAsync(
+                input,
+                CreateLancamentoIdempotencyService.GenerateRequestHash(input),
+                CancellationToken.None);
+        }
 
-        var exception = await Assert.ThrowsAsync<ConflictException>(act);
+        var exception = await Assert.ThrowsAsync<ConflictException>(Act);
         Assert.Contains("Idempotency-Key already used with a different payload", exception.Message);
     }
 }

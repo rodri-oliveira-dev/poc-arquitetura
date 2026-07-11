@@ -1,19 +1,12 @@
-using Microsoft.EntityFrameworkCore;
+using LedgerService.Application.Idempotency;
 
-using LedgerService.Domain.Entities;
-using LedgerService.Domain.Repositories;
-using LedgerService.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 
 namespace LedgerService.Infrastructure.Persistence.Repositories;
 
-public sealed class IdempotencyRecordRepository : IIdempotencyRecordRepository
+public sealed class IdempotencyRecordRepository(AppDbContext context) : IIdempotencyRecordRepository
 {
-    private readonly AppDbContext _context;
-
-    public IdempotencyRecordRepository(AppDbContext context)
-    {
-        _context = context;
-    }
+    private readonly AppDbContext _context = context;
 
     public async Task<IdempotencyRecord?> GetByMerchantAndKeyAsync(string merchantId, string idempotencyKey, CancellationToken cancellationToken = default)
     {

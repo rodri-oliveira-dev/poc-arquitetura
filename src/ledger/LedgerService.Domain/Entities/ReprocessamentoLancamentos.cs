@@ -5,6 +5,15 @@ namespace LedgerService.Domain.Entities;
 
 public sealed class ReprocessamentoLancamentos : Entity, IAggregateRoot
 {
+    private static readonly ReprocessamentoLancamentosStatus[] FinalStatuses =
+    [
+        ReprocessamentoLancamentosStatus.Completed,
+        ReprocessamentoLancamentosStatus.CompletedWithWarnings,
+        ReprocessamentoLancamentosStatus.Failed,
+        ReprocessamentoLancamentosStatus.Rejected,
+        ReprocessamentoLancamentosStatus.Canceled
+    ];
+
     public string MerchantId
     {
         get; private set;
@@ -89,20 +98,17 @@ public sealed class ReprocessamentoLancamentos : Entity, IAggregateRoot
     }
 
     public bool IsFinal()
-        => Status is ReprocessamentoLancamentosStatus.Completed
-            or ReprocessamentoLancamentosStatus.CompletedWithWarnings
-            or ReprocessamentoLancamentosStatus.Failed
-            or ReprocessamentoLancamentosStatus.Rejected
-            or ReprocessamentoLancamentosStatus.Canceled;
+        => FinalStatuses.Contains(Status);
 
     public void MarkProcessing(DateTime now)
     {
-        if (IsFinal())
+        if (Status == ReprocessamentoLancamentosStatus.Processing)
+        {
+            ProcessingStartedAt ??= now;
             return;
+        }
 
-        if (Status is not ReprocessamentoLancamentosStatus.Pending
-            and not ReprocessamentoLancamentosStatus.Processing)
-            throw new DomainException("Solicitacao de reprocessamento nao esta pendente para processamento.");
+        EnsureCanTransitionTo(ReprocessamentoLancamentosStatus.Processing);
 
         Status = ReprocessamentoLancamentosStatus.Processing;
         ProcessingStartedAt ??= now;
@@ -110,13 +116,23 @@ public sealed class ReprocessamentoLancamentos : Entity, IAggregateRoot
         RejectionReason = null;
     }
 
+    public void Complete(int processedRecordsCount, DateTime now)
+    {
+        if (processedRecordsCount < 0)
+            throw new DomainException("Quantidade de lancamentos reprocessados nao pode ser negativa.");
+
+        if (processedRecordsCount == 0)
+        {
+            CompleteWithWarnings("Nenhum lancamento encontrado para o criterio informado.", now);
+            return;
+        }
+
+        Complete(now);
+    }
+
     public void Complete(DateTime now)
     {
-        if (Status == ReprocessamentoLancamentosStatus.Completed)
-            return;
-
-        if (Status != ReprocessamentoLancamentosStatus.Processing)
-            throw new DomainException("Solicitacao de reprocessamento deve estar em processamento para ser concluida.");
+        EnsureCanTransitionTo(ReprocessamentoLancamentosStatus.Completed);
 
         Status = ReprocessamentoLancamentosStatus.Completed;
         CompletedAt = now;
@@ -126,11 +142,7 @@ public sealed class ReprocessamentoLancamentos : Entity, IAggregateRoot
 
     public void CompleteWithWarnings(string reason, DateTime now)
     {
-        if (Status == ReprocessamentoLancamentosStatus.CompletedWithWarnings)
-            return;
-
-        if (Status != ReprocessamentoLancamentosStatus.Processing)
-            throw new DomainException("Solicitacao de reprocessamento deve estar em processamento para ser concluida com avisos.");
+        EnsureCanTransitionTo(ReprocessamentoLancamentosStatus.CompletedWithWarnings);
 
         Status = ReprocessamentoLancamentosStatus.CompletedWithWarnings;
         CompletedAt = now;
@@ -140,8 +152,7 @@ public sealed class ReprocessamentoLancamentos : Entity, IAggregateRoot
 
     public void Reject(string reason, DateTime now)
     {
-        if (Status == ReprocessamentoLancamentosStatus.Completed)
-            throw new DomainException("Solicitacao de reprocessamento concluida nao pode ser rejeitada.");
+        EnsureCanTransitionTo(ReprocessamentoLancamentosStatus.Rejected);
 
         Status = ReprocessamentoLancamentosStatus.Rejected;
         RejectionReason = NormalizeReason(reason);
@@ -150,12 +161,46 @@ public sealed class ReprocessamentoLancamentos : Entity, IAggregateRoot
 
     public void Fail(string reason, DateTime now)
     {
-        if (Status == ReprocessamentoLancamentosStatus.Completed)
-            throw new DomainException("Solicitacao de reprocessamento concluida nao pode ser marcada como falha.");
+        EnsureCanTransitionTo(ReprocessamentoLancamentosStatus.Failed);
 
         Status = ReprocessamentoLancamentosStatus.Failed;
         FailureReason = NormalizeReason(reason);
         FailedAt = now;
+    }
+
+    public void Cancel(string reason, DateTime now)
+    {
+        EnsureCanTransitionTo(ReprocessamentoLancamentosStatus.Canceled);
+
+        Status = ReprocessamentoLancamentosStatus.Canceled;
+        RejectionReason = NormalizeReason(reason);
+        RejectedAt = now;
+    }
+
+    private void EnsureCanTransitionTo(ReprocessamentoLancamentosStatus targetStatus)
+    {
+        if (Status == targetStatus)
+            throw new DomainException($"Solicitacao de reprocessamento ja esta em estado {targetStatus}.");
+
+        if (IsFinal())
+            throw new DomainException($"Solicitacao de reprocessamento em estado final {Status} nao pode mudar para {targetStatus}.");
+
+        var allowed = (Status, targetStatus) switch
+        {
+            (ReprocessamentoLancamentosStatus.Pending, ReprocessamentoLancamentosStatus.Processing) => true,
+            (ReprocessamentoLancamentosStatus.Pending, ReprocessamentoLancamentosStatus.Rejected) => true,
+            (ReprocessamentoLancamentosStatus.Pending, ReprocessamentoLancamentosStatus.Canceled) => true,
+            (ReprocessamentoLancamentosStatus.Pending, ReprocessamentoLancamentosStatus.Failed) => true,
+            (ReprocessamentoLancamentosStatus.Processing, ReprocessamentoLancamentosStatus.Completed) => true,
+            (ReprocessamentoLancamentosStatus.Processing, ReprocessamentoLancamentosStatus.CompletedWithWarnings) => true,
+            (ReprocessamentoLancamentosStatus.Processing, ReprocessamentoLancamentosStatus.Rejected) => true,
+            (ReprocessamentoLancamentosStatus.Processing, ReprocessamentoLancamentosStatus.Failed) => true,
+            (ReprocessamentoLancamentosStatus.Processing, ReprocessamentoLancamentosStatus.Canceled) => true,
+            _ => false
+        };
+
+        if (!allowed)
+            throw new DomainException($"Transicao de reprocessamento invalida de {Status} para {targetStatus}.");
     }
 
     private static string NormalizeReason(string reason)

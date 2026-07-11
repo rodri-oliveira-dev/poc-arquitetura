@@ -5,6 +5,13 @@ namespace LedgerService.Domain.Entities;
 
 public sealed class EstornoLancamento : Entity, IAggregateRoot
 {
+    private static readonly EstornoLancamentoStatus[] FinalStatuses =
+    [
+        EstornoLancamentoStatus.Completed,
+        EstornoLancamentoStatus.Rejected,
+        EstornoLancamentoStatus.Failed
+    ];
+
     public Guid LancamentoOriginalId
     {
         get; private set;
@@ -92,13 +99,18 @@ public sealed class EstornoLancamento : Entity, IAggregateRoot
     public bool IsCompleted()
         => Status == EstornoLancamentoStatus.Completed;
 
+    public bool IsFinal()
+        => FinalStatuses.Contains(Status);
+
     public void MarkProcessing(DateTime now)
     {
-        if (Status == EstornoLancamentoStatus.Completed)
+        if (Status == EstornoLancamentoStatus.Processing)
+        {
+            ProcessingStartedAt ??= now;
             return;
+        }
 
-        if (Status != EstornoLancamentoStatus.Pending && Status != EstornoLancamentoStatus.Processing)
-            throw new DomainException("Solicitacao de estorno nao esta pendente para processamento.");
+        EnsureCanTransitionTo(EstornoLancamentoStatus.Processing);
 
         Status = EstornoLancamentoStatus.Processing;
         ProcessingStartedAt ??= now;
@@ -111,11 +123,7 @@ public sealed class EstornoLancamento : Entity, IAggregateRoot
         if (lancamentoCompensatorioId == Guid.Empty)
             throw new DomainException("LancamentoCompensatorioId e obrigatorio.");
 
-        if (Status == EstornoLancamentoStatus.Completed)
-            return;
-
-        if (Status != EstornoLancamentoStatus.Processing)
-            throw new DomainException("Solicitacao de estorno deve estar em processamento para ser concluida.");
+        EnsureCanTransitionTo(EstornoLancamentoStatus.Completed);
 
         LancamentoCompensatorioId = lancamentoCompensatorioId;
         Status = EstornoLancamentoStatus.Completed;
@@ -126,8 +134,7 @@ public sealed class EstornoLancamento : Entity, IAggregateRoot
 
     public void Reject(string reason, DateTime now)
     {
-        if (Status == EstornoLancamentoStatus.Completed)
-            throw new DomainException("Solicitacao de estorno concluida nao pode ser rejeitada.");
+        EnsureCanTransitionTo(EstornoLancamentoStatus.Rejected);
 
         Status = EstornoLancamentoStatus.Rejected;
         RejectionReason = NormalizeReason(reason);
@@ -136,12 +143,34 @@ public sealed class EstornoLancamento : Entity, IAggregateRoot
 
     public void Fail(string reason, DateTime now)
     {
-        if (Status == EstornoLancamentoStatus.Completed)
-            throw new DomainException("Solicitacao de estorno concluida nao pode ser marcada como falha.");
+        EnsureCanTransitionTo(EstornoLancamentoStatus.Failed);
 
         Status = EstornoLancamentoStatus.Failed;
         FailureReason = NormalizeReason(reason);
         FailedAt = now;
+    }
+
+    private void EnsureCanTransitionTo(EstornoLancamentoStatus targetStatus)
+    {
+        if (Status == targetStatus)
+            throw new DomainException($"Solicitacao de estorno ja esta em estado {targetStatus}.");
+
+        if (IsFinal())
+            throw new DomainException($"Solicitacao de estorno em estado final {Status} nao pode mudar para {targetStatus}.");
+
+        var allowed = (Status, targetStatus) switch
+        {
+            (EstornoLancamentoStatus.Pending, EstornoLancamentoStatus.Processing) => true,
+            (EstornoLancamentoStatus.Pending, EstornoLancamentoStatus.Rejected) => true,
+            (EstornoLancamentoStatus.Pending, EstornoLancamentoStatus.Failed) => true,
+            (EstornoLancamentoStatus.Processing, EstornoLancamentoStatus.Completed) => true,
+            (EstornoLancamentoStatus.Processing, EstornoLancamentoStatus.Rejected) => true,
+            (EstornoLancamentoStatus.Processing, EstornoLancamentoStatus.Failed) => true,
+            _ => false
+        };
+
+        if (!allowed)
+            throw new DomainException($"Transicao de estorno invalida de {Status} para {targetStatus}.");
     }
 
     private static string NormalizeReason(string reason)

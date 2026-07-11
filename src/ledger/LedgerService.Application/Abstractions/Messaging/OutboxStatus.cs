@@ -1,4 +1,4 @@
-namespace LedgerService.Domain.Entities;
+namespace LedgerService.Application.Abstractions.Messaging;
 
 public enum OutboxStatus
 {

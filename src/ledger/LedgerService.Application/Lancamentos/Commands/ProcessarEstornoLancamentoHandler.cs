@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 
+using LedgerService.Application.Abstractions.Messaging;
 using LedgerService.Application.Abstractions.Time;
 using LedgerService.Application.Common.Exceptions;
 using LedgerService.Application.Common.Observability;
@@ -8,6 +9,7 @@ using LedgerService.Application.Lancamentos.Events;
 using LedgerService.Application.Lancamentos.Services;
 using LedgerService.Domain.Entities;
 using LedgerService.Domain.Exceptions;
+using LedgerService.Domain.Policies;
 using LedgerService.Domain.Repositories;
 
 using MediatR;
@@ -38,6 +40,7 @@ public sealed partial class ProcessarEstornoLancamentoHandler : IRequestHandler<
     private readonly IEstornoLancamentoRepository _estornoRepository;
     private readonly ILedgerEntryRepository _ledgerEntryRepository;
     private readonly IOutboxMessageRepository _outboxMessageRepository;
+    private readonly LedgerReversalPolicy _reversalPolicy;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<ProcessarEstornoLancamentoHandler> _logger;
     private readonly IClock _clock;
@@ -47,6 +50,7 @@ public sealed partial class ProcessarEstornoLancamentoHandler : IRequestHandler<
         IEstornoLancamentoRepository estornoRepository,
         ILedgerEntryRepository ledgerEntryRepository,
         IOutboxMessageRepository outboxMessageRepository,
+        LedgerReversalPolicy reversalPolicy,
         IUnitOfWork unitOfWork,
         ILogger<ProcessarEstornoLancamentoHandler> logger,
         IClock? clock = null,
@@ -55,12 +59,14 @@ public sealed partial class ProcessarEstornoLancamentoHandler : IRequestHandler<
         ArgumentNullException.ThrowIfNull(estornoRepository);
         ArgumentNullException.ThrowIfNull(ledgerEntryRepository);
         ArgumentNullException.ThrowIfNull(outboxMessageRepository);
+        ArgumentNullException.ThrowIfNull(reversalPolicy);
         ArgumentNullException.ThrowIfNull(unitOfWork);
         ArgumentNullException.ThrowIfNull(logger);
 
         _estornoRepository = estornoRepository;
         _ledgerEntryRepository = ledgerEntryRepository;
         _outboxMessageRepository = outboxMessageRepository;
+        _reversalPolicy = reversalPolicy;
         _unitOfWork = unitOfWork;
         _logger = logger;
         _clock = clock ?? new SystemClock();
@@ -94,9 +100,7 @@ public sealed partial class ProcessarEstornoLancamentoHandler : IRequestHandler<
     {
         await using var transaction = await _unitOfWork.BeginTransactionAsync(cancellationToken);
 
-        var estorno = await _estornoRepository.GetByIdForUpdateAsync(estornoId, cancellationToken);
-        if (estorno is null)
-            throw new NotFoundException("Solicitacao de estorno nao encontrada.");
+        var estorno = await _estornoRepository.GetByIdForUpdateAsync(estornoId, cancellationToken) ?? throw new NotFoundException("Solicitacao de estorno nao encontrada.");
 
         if (estorno.IsCompleted())
         {
@@ -116,16 +120,9 @@ public sealed partial class ProcessarEstornoLancamentoHandler : IRequestHandler<
         var now = _clock.UtcNow.UtcDateTime;
         estorno.MarkProcessing(now);
 
-        var lancamentoOriginal = await _ledgerEntryRepository.GetByIdAsync(estorno.LancamentoOriginalId, cancellationToken);
-        if (lancamentoOriginal is null)
-            throw new NotFoundException("Lancamento original nao encontrado.");
+        var lancamentoOriginal = await _ledgerEntryRepository.GetByIdAsync(estorno.LancamentoOriginalId, cancellationToken) ?? throw new NotFoundException("Lancamento original nao encontrado.");
 
-        var completedEstorno = await _estornoRepository.GetCompletedByLancamentoOriginalIdAsync(
-            estorno.LancamentoOriginalId,
-            cancellationToken);
-
-        if (completedEstorno is not null && completedEstorno.Id != estorno.Id)
-            throw new DomainException("Lancamento ja foi estornado.");
+        await _reversalPolicy.EnsureCanCompleteReversalAsync(estorno, cancellationToken);
 
         var compensatingEntry = await _ledgerEntryRepository.GetCompensatingEntryAsync(
             estorno.LancamentoOriginalId,
@@ -216,6 +213,8 @@ public sealed partial class ProcessarEstornoLancamentoHandler : IRequestHandler<
             EstornoLancamentoStatus.Completed => "completed",
             EstornoLancamentoStatus.Rejected => "rejected",
             EstornoLancamentoStatus.Failed => "failed",
+            EstornoLancamentoStatus.Pending => throw new NotImplementedException(),
+            EstornoLancamentoStatus.Processing => throw new NotImplementedException(),
             _ => "failed"
         };
 }

@@ -1,4 +1,4 @@
-using LedgerService.Domain.Entities;
+using LedgerService.Application.Abstractions.Messaging;
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;

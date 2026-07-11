@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
 
+using LedgerService.Application.Abstractions.Messaging;
 using LedgerService.Application.Abstractions.Time;
 using LedgerService.Application.Common.Exceptions;
 using LedgerService.Application.Common.Observability;
@@ -106,9 +107,7 @@ public sealed partial class ProcessarReprocessamentoLancamentosHandler
 
         var reprocessamento = await _reprocessamentoRepository.GetByIdForUpdateAsync(
             reprocessamentoId,
-            cancellationToken);
-        if (reprocessamento is null)
-            throw new NotFoundException("Solicitacao de reprocessamento nao encontrada.");
+            cancellationToken) ?? throw new NotFoundException("Solicitacao de reprocessamento nao encontrada.");
 
         if (reprocessamento.IsFinal())
         {
@@ -149,16 +148,7 @@ public sealed partial class ProcessarReprocessamentoLancamentosHandler
             await _outboxMessageRepository.AddAsync(outboxMessage, cancellationToken);
         }
 
-        if (entries.Count == 0)
-        {
-            reprocessamento.CompleteWithWarnings(
-                "Nenhum lancamento encontrado para o criterio informado.",
-                now);
-        }
-        else
-        {
-            reprocessamento.Complete(now);
-        }
+        reprocessamento.Complete(entries.Count, now);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
@@ -238,6 +228,9 @@ public sealed partial class ProcessarReprocessamentoLancamentosHandler
             ReprocessamentoLancamentosStatus.CompletedWithWarnings => "completed_with_warnings",
             ReprocessamentoLancamentosStatus.Rejected => "rejected",
             ReprocessamentoLancamentosStatus.Failed => "failed",
+            ReprocessamentoLancamentosStatus.Pending => throw new NotImplementedException(),
+            ReprocessamentoLancamentosStatus.Processing => throw new NotImplementedException(),
+            ReprocessamentoLancamentosStatus.Canceled => throw new NotImplementedException(),
             _ => "failed"
         };
 }

@@ -1,10 +1,10 @@
 using System.Text.Json;
 
+using LedgerService.Application.Abstractions.Messaging;
 using LedgerService.Application.Common.Models;
 using LedgerService.Application.Lancamentos.Events;
 using LedgerService.Application.Lancamentos.Services;
 using LedgerService.Domain.Entities;
-using LedgerService.Domain.Repositories;
 
 using Moq;
 
@@ -42,14 +42,14 @@ public sealed class LedgerEntryCreatedOutboxWriterTests
         await sut.WriteAsync(ledgerEntry, response, correlationId.ToString(), occurredAt, CancellationToken.None);
 
         Assert.NotNull(persisted);
-        Assert.Equal("LedgerEntry", persisted!.AggregateType);
+        Assert.Equal("LedgerEntry", persisted.AggregateType);
         Assert.Equal(ledgerEntry.Id, persisted.AggregateId);
         Assert.Equal(LedgerEntryCreatedV2.EventType, persisted.EventType);
         Assert.Equal(correlationId, persisted.CorrelationId);
         Assert.Equal(occurredAt, persisted.OccurredAt);
         var payload = JsonSerializer.Deserialize<LedgerEntryCreatedV2>(persisted.Payload, JsonOptions);
         Assert.NotNull(payload);
-        Assert.Equal(response.Id, payload!.Id);
+        Assert.Equal(response.Id, payload.Id);
         Assert.Equal(LedgerEntryCreatedEventFactory.SupportedCurrency, payload.Currency);
         Assert.Equal(correlationId.ToString(), payload.CorrelationId);
         repository.VerifyAll();

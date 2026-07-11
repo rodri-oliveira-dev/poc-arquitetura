@@ -2,11 +2,15 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
+using LedgerService.Application.Abstractions.Messaging;
 using LedgerService.Application.Abstractions.Time;
 using LedgerService.Application.Common.Exceptions;
 using LedgerService.Application.Common.Observability;
+using LedgerService.Application.Idempotency;
 using LedgerService.Application.Lancamentos.Events;
 using LedgerService.Domain.Entities;
+using LedgerService.Domain.Exceptions;
+using LedgerService.Domain.Policies;
 using LedgerService.Domain.Repositories;
 
 using MediatR;
@@ -22,6 +26,7 @@ public sealed class SolicitarEstornoLancamentoHandler
     private readonly IEstornoLancamentoRepository _estornoRepository;
     private readonly IIdempotencyRecordRepository _idempotencyRecordRepository;
     private readonly IOutboxMessageRepository _outboxMessageRepository;
+    private readonly LedgerReversalPolicy _reversalPolicy;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IClock _clock;
     private readonly LedgerDomainMetrics? _metrics;
@@ -31,6 +36,7 @@ public sealed class SolicitarEstornoLancamentoHandler
         IEstornoLancamentoRepository estornoRepository,
         IIdempotencyRecordRepository idempotencyRecordRepository,
         IOutboxMessageRepository outboxMessageRepository,
+        LedgerReversalPolicy reversalPolicy,
         IUnitOfWork unitOfWork,
         IClock? clock = null,
         LedgerDomainMetrics? metrics = null)
@@ -39,12 +45,14 @@ public sealed class SolicitarEstornoLancamentoHandler
         ArgumentNullException.ThrowIfNull(estornoRepository);
         ArgumentNullException.ThrowIfNull(idempotencyRecordRepository);
         ArgumentNullException.ThrowIfNull(outboxMessageRepository);
+        ArgumentNullException.ThrowIfNull(reversalPolicy);
         ArgumentNullException.ThrowIfNull(unitOfWork);
 
         _ledgerEntryRepository = ledgerEntryRepository;
         _estornoRepository = estornoRepository;
         _idempotencyRecordRepository = idempotencyRecordRepository;
         _outboxMessageRepository = outboxMessageRepository;
+        _reversalPolicy = reversalPolicy;
         _unitOfWork = unitOfWork;
         _clock = clock ?? new SystemClock();
         _metrics = metrics;
@@ -100,13 +108,14 @@ public sealed class SolicitarEstornoLancamentoHandler
             throw new ConflictException("Unable to replay idempotent response.");
         }
 
-        var activeEstorno = await _estornoRepository
-            .GetActiveByLancamentoOriginalIdAsync(request.LancamentoId, cancellationToken);
-
-        if (activeEstorno is not null)
+        try
+        {
+            await _reversalPolicy.EnsureCanRequestReversalAsync(lancamentoOriginal, cancellationToken);
+        }
+        catch (DomainException ex)
         {
             _metrics?.RecordReversalRequested("rejected");
-            throw new ConflictException("Lancamento ja possui solicitacao ativa de estorno.");
+            throw new ConflictException(ex.Message);
         }
 
         var estorno = new EstornoLancamento(

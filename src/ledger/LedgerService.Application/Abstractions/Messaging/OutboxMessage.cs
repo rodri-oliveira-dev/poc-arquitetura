@@ -1,9 +1,12 @@
-using LedgerService.Domain.Common;
+namespace LedgerService.Application.Abstractions.Messaging;
 
-namespace LedgerService.Domain.Entities;
-
-public sealed class OutboxMessage : Entity
+public sealed class OutboxMessage
 {
+    public Guid Id
+    {
+        get; private set;
+    } = Guid.NewGuid();
+
     public string AggregateType
     {
         get; private set;
@@ -87,6 +90,7 @@ public sealed class OutboxMessage : Entity
 
     private OutboxMessage()
     {
+        Id = Guid.Empty;
         AggregateType = string.Empty;
         EventType = string.Empty;
         Payload = string.Empty;

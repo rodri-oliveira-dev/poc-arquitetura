@@ -1,9 +1,12 @@
-using LedgerService.Domain.Common;
+namespace LedgerService.Application.Idempotency;
 
-namespace LedgerService.Domain.Entities;
-
-public sealed class IdempotencyRecord : Entity
+public sealed class IdempotencyRecord
 {
+    public Guid Id
+    {
+        get; private set;
+    } = Guid.NewGuid();
+
     public string MerchantId
     {
         get; private set;
@@ -39,6 +42,7 @@ public sealed class IdempotencyRecord : Entity
 
     private IdempotencyRecord()
     {
+        Id = Guid.Empty;
         MerchantId = string.Empty;
         IdempotencyKey = string.Empty;
         RequestHash = string.Empty;

@@ -1,8 +1,10 @@
 using System.Text.Json;
 
+using LedgerService.Application.Abstractions.Messaging;
 using LedgerService.Application.Lancamentos.Commands;
 using LedgerService.Application.Lancamentos.Events;
 using LedgerService.Domain.Entities;
+using LedgerService.Domain.Policies;
 using LedgerService.Domain.Repositories;
 
 using Microsoft.Extensions.Logging.Abstractions;
@@ -37,7 +39,7 @@ public sealed class ProcessarEstornoLancamentoHandlerTests
         Assert.Equal(compensating.Id, outbox.AggregateId);
         var evt = JsonSerializer.Deserialize<LedgerEntryCreatedV2>(outbox.Payload, JsonOptions);
         Assert.NotNull(evt);
-        Assert.Equal("DEBIT", evt!.Type);
+        Assert.Equal("DEBIT", evt.Type);
         Assert.Equal("-100.00", evt.Amount);
         Assert.Equal("BRL", evt.Currency);
         Assert.Equal(original.MerchantId, evt.MerchantId);
@@ -97,6 +99,7 @@ public sealed class ProcessarEstornoLancamentoHandlerTests
             new EstornoRepo(state),
             new LedgerRepo(state),
             new OutboxRepo(state),
+            new LedgerReversalPolicy(new EstornoRepo(state), new LedgerRepo(state)),
             new UnitOfWork(),
             NullLogger<ProcessarEstornoLancamentoHandler>.Instance);
 
@@ -109,16 +112,14 @@ public sealed class ProcessarEstornoLancamentoHandlerTests
         List<OutboxMessage> OutboxMessages)
     {
         public State(IEnumerable<LedgerEntry> ledgerEntries, IEnumerable<EstornoLancamento> estornos)
-            : this(ledgerEntries.ToList(), estornos.ToList(), [])
+            : this([.. ledgerEntries], [.. estornos], [])
         {
         }
     }
 
-    private sealed class LedgerRepo : ILedgerEntryRepository
+    private sealed class LedgerRepo(State state) : ILedgerEntryRepository
     {
-        private readonly State _state;
-
-        public LedgerRepo(State state) => _state = state;
+        private readonly State _state = state;
 
         public Task<LedgerEntry?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
             => Task.FromResult(_state.LedgerEntries.FirstOrDefault(x => x.Id == id));
@@ -132,9 +133,7 @@ public sealed class ProcessarEstornoLancamentoHandlerTests
             DateTime endExclusive,
             CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<LedgerEntry>>(
-                _state.LedgerEntries
-                    .Where(x => x.MerchantId == merchantId && x.OccurredAt >= startInclusive && x.OccurredAt < endExclusive)
-                    .ToList());
+                [.. _state.LedgerEntries.Where(x => x.MerchantId == merchantId && x.OccurredAt >= startInclusive && x.OccurredAt < endExclusive)]);
 
         public Task AddAsync(LedgerEntry ledgerEntry, CancellationToken cancellationToken = default)
         {
@@ -143,11 +142,9 @@ public sealed class ProcessarEstornoLancamentoHandlerTests
         }
     }
 
-    private sealed class EstornoRepo : IEstornoLancamentoRepository
+    private sealed class EstornoRepo(State state) : IEstornoLancamentoRepository
     {
-        private readonly State _state;
-
-        public EstornoRepo(State state) => _state = state;
+        private readonly State _state = state;
 
         public Task<EstornoLancamento?> GetByIdAsync(Guid estornoId, CancellationToken cancellationToken = default)
             => Task.FromResult(_state.Estornos.FirstOrDefault(x => x.Id == estornoId));
@@ -156,7 +153,7 @@ public sealed class ProcessarEstornoLancamentoHandlerTests
             => GetByIdAsync(estornoId, cancellationToken);
 
         public Task<IReadOnlyList<EstornoLancamento>> ClaimPendingAsync(int maxItems, CancellationToken cancellationToken = default)
-            => Task.FromResult<IReadOnlyList<EstornoLancamento>>(_state.Estornos.Where(x => x.Status == EstornoLancamentoStatus.Pending).Take(maxItems).ToList());
+            => Task.FromResult<IReadOnlyList<EstornoLancamento>>([.. _state.Estornos.Where(x => x.Status == EstornoLancamentoStatus.Pending).Take(maxItems)]);
 
         public Task<EstornoLancamento?> GetActiveByLancamentoOriginalIdAsync(Guid lancamentoOriginalId, CancellationToken cancellationToken = default)
             => Task.FromResult(_state.Estornos.FirstOrDefault(x => x.LancamentoOriginalId == lancamentoOriginalId && x.IsActive()));
@@ -171,11 +168,9 @@ public sealed class ProcessarEstornoLancamentoHandlerTests
         }
     }
 
-    private sealed class OutboxRepo : IOutboxMessageRepository
+    private sealed class OutboxRepo(State state) : IOutboxMessageRepository
     {
-        private readonly State _state;
-
-        public OutboxRepo(State state) => _state = state;
+        private readonly State _state = state;
 
         public Task AddAsync(OutboxMessage outboxMessage, CancellationToken cancellationToken = default)
         {

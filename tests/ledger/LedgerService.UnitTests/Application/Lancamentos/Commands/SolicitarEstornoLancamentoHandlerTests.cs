@@ -1,9 +1,12 @@
 using System.Text.Json;
 
+using LedgerService.Application.Abstractions.Messaging;
 using LedgerService.Application.Common.Exceptions;
+using LedgerService.Application.Idempotency;
 using LedgerService.Application.Lancamentos.Commands;
 using LedgerService.Application.Lancamentos.Events;
 using LedgerService.Domain.Entities;
+using LedgerService.Domain.Policies;
 using LedgerService.Domain.Repositories;
 
 using Moq;
@@ -35,6 +38,10 @@ public sealed class SolicitarEstornoLancamentoHandlerTests
             .ReturnsAsync((IdempotencyRecord?)null);
         estornoRepo.Setup(x => x.GetActiveByLancamentoOriginalIdAsync(command.LancamentoId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((EstornoLancamento?)null);
+        estornoRepo.Setup(x => x.GetCompletedByLancamentoOriginalIdAsync(command.LancamentoId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((EstornoLancamento?)null);
+        ledgerRepo.Setup(x => x.GetCompensatingEntryAsync(command.LancamentoId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((LedgerEntry?)null);
 
         EstornoLancamento? createdEstorno = null;
         estornoRepo.Setup(x => x.AddAsync(It.IsAny<EstornoLancamento>(), It.IsAny<CancellationToken>()))
@@ -64,21 +71,21 @@ public sealed class SolicitarEstornoLancamentoHandlerTests
         Assert.Equal($"/api/v1/lancamentos/estornos/{result.EstornoId}", result.StatusUrl);
         Assert.Equal(lancamento.MerchantId, result.MerchantId);
         Assert.NotNull(createdEstorno);
-        Assert.Equal(lancamento.Id, createdEstorno!.LancamentoOriginalId);
+        Assert.Equal(lancamento.Id, createdEstorno.LancamentoOriginalId);
         Assert.Equal(lancamento.MerchantId, createdEstorno.MerchantId);
         Assert.Equal(EstornoLancamentoStatus.Pending, createdEstorno.Status);
         Assert.NotNull(createdIdem);
-        Assert.Equal(202, createdIdem!.ResponseStatusCode);
+        Assert.Equal(202, createdIdem.ResponseStatusCode);
         Assert.Equal(lancamento.Id, createdIdem.LedgerEntryId);
         Assert.Contains(result.EstornoId.ToString(), createdIdem.ResponseBody);
         Assert.NotNull(createdOutbox);
-        Assert.Equal("LancamentoEstorno", createdOutbox!.AggregateType);
+        Assert.Equal("LancamentoEstorno", createdOutbox.AggregateType);
         Assert.Equal(result.EstornoId, createdOutbox.AggregateId);
         Assert.Equal(LancamentoEstornoSolicitadoV1.EventType, createdOutbox.EventType);
         Assert.Equal(Guid.Parse(command.CorrelationId), createdOutbox.CorrelationId);
         var outboxEvent = JsonSerializer.Deserialize<LancamentoEstornoSolicitadoV1>(createdOutbox.Payload, JsonOptions);
         Assert.NotNull(outboxEvent);
-        Assert.Equal(result.EstornoId, outboxEvent!.EstornoId);
+        Assert.Equal(result.EstornoId, outboxEvent.EstornoId);
         Assert.Equal(lancamento.Id, outboxEvent.LancamentoOriginalId);
         Assert.Equal("Pending", outboxEvent.Status);
         Assert.Equal(command.Motivo, outboxEvent.Motivo);
@@ -109,8 +116,12 @@ public sealed class SolicitarEstornoLancamentoHandlerTests
 
         var sut = CreateSut(ledgerRepo, estornoRepo, idemRepo, outboxRepo, uow);
 
-        var act = async () => await sut.Handle(command, CancellationToken.None);
-        await Assert.ThrowsAsync<NotFoundException>(act);
+        async Task Act()
+        {
+            _ = await sut.Handle(command, CancellationToken.None);
+        }
+
+        await Assert.ThrowsAsync<NotFoundException>(Act);
     }
 
     [Fact]
@@ -139,9 +150,12 @@ public sealed class SolicitarEstornoLancamentoHandlerTests
 
         var sut = CreateSut(ledgerRepo, estornoRepo, idemRepo, outboxRepo, uow);
 
-        var act = async () => await sut.Handle(command, CancellationToken.None);
+        async Task Act()
+        {
+            _ = await sut.Handle(command, CancellationToken.None);
+        }
 
-        var ex = await Assert.ThrowsAsync<ConflictException>(act);
+        var ex = await Assert.ThrowsAsync<ConflictException>(Act);
         Assert.Contains("solicitacao ativa", ex.Message);
     }
 
@@ -196,7 +210,13 @@ public sealed class SolicitarEstornoLancamentoHandlerTests
         Mock<IIdempotencyRecordRepository> idemRepo,
         Mock<IOutboxMessageRepository> outboxRepo,
         Mock<IUnitOfWork> uow)
-        => new(ledgerRepo.Object, estornoRepo.Object, idemRepo.Object, outboxRepo.Object, uow.Object);
+        => new(
+            ledgerRepo.Object,
+            estornoRepo.Object,
+            idemRepo.Object,
+            outboxRepo.Object,
+            new LedgerReversalPolicy(estornoRepo.Object, ledgerRepo.Object),
+            uow.Object);
 
     private static LedgerEntry ValidLedgerEntry()
         => new(
