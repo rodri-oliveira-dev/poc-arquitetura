@@ -135,6 +135,21 @@ public sealed class StripeWebhookValidatorTests
     }
 
     [Fact]
+    public void Validate_should_accept_valid_event_without_object_payload()
+    {
+        var payload = Encoding.UTF8.GetBytes(/*lang=json,strict*/ "{\"id\":\"evt_123\",\"type\":\"payment_intent.succeeded\"}");
+        var validator = CreateValidator();
+
+        var result = validator.Validate(payload, SignatureHeader(payload));
+
+        Assert.True(result.IsValid);
+        Assert.Equal("evt_123", result.ProviderEventId);
+        Assert.Equal("payment_intent.succeeded", result.EventType);
+        Assert.Null(result.ProviderPaymentId);
+        Assert.Null(result.PaymentId);
+    }
+
+    [Fact]
     public void Validate_should_accept_event_with_invalid_internal_payment_metadata_without_binding_payment()
     {
         var payload = ValidPayload(paymentIdRaw: "not-a-guid");
