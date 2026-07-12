@@ -1,3 +1,3 @@
 namespace PaymentService.Domain;
 
-public interface AssemblyMarker;
+public interface IAssemblyMarker;

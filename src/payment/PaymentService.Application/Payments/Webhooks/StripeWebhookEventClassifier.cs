@@ -29,9 +29,10 @@ public static class StripeWebhookEventClassifier
         if (string.IsNullOrWhiteSpace(eventType))
             return StripeWebhookEventCategory.Unknown;
 
-        return SupportedEvents.Contains(eventType)
-            ? StripeWebhookEventCategory.Supported
-            : KnownUnsupportedPrefixes.Any(prefix => eventType.StartsWith(prefix, StringComparison.Ordinal))
+        if (SupportedEvents.Contains(eventType))
+            return StripeWebhookEventCategory.Supported;
+
+        return KnownUnsupportedPrefixes.Any(prefix => eventType.StartsWith(prefix, StringComparison.Ordinal))
             ? StripeWebhookEventCategory.KnownUnsupported
             : StripeWebhookEventCategory.Unknown;
     }

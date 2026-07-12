@@ -206,11 +206,10 @@ public sealed class StripeWebhooksController(
 
     private static string GetTelemetryOutcome(ReceiveStripeWebhookResult result)
     {
-        return result.StoreResult == PaymentInboxStoreResult.Duplicate
-            ? "duplicate"
-            : result.InboxStatus == PaymentInboxStatus.Ignored
-            ? "ignored"
-            : "persisted";
+        if (result.StoreResult == PaymentInboxStoreResult.Duplicate)
+            return "duplicate";
+
+        return result.InboxStatus == PaymentInboxStatus.Ignored ? "ignored" : "persisted";
     }
 
     private static async Task<byte[]> ReadRawBodyAsync(HttpRequest request, CancellationToken cancellationToken)

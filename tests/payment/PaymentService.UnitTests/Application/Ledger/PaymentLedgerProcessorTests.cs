@@ -83,6 +83,63 @@ public sealed class PaymentLedgerProcessorTests
         Assert.Contains("idempotency conflict", payment.LedgerLastError);
     }
 
+    [Fact]
+    public async Task Processor_should_request_refund_reversal_and_complete_refund()
+    {
+        var payment = CreateRefundReadyPayment(out var refund);
+        var reversalId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+        var gateway = new FakeLedgerGateway(
+            _ => LedgerEntryCreationResult.Success(new LedgerEntryReference(Guid.NewGuid())),
+            _ => LedgerReversalRequestResult.Accepted(reversalId));
+        var processor = CreateProcessor(payment, gateway);
+
+        var result = await processor.ProcessBatchAsync(10, "worker-1", TimeSpan.FromMinutes(1), CancellationToken.None);
+
+        Assert.Equal(1, result.Claimed);
+        Assert.Equal(1, result.Completed);
+        Assert.Equal(RefundStatus.Completed, refund.Status);
+        Assert.Equal(LedgerIntegrationStatus.Completed, refund.LedgerReversalStatus);
+        Assert.Equal(reversalId, refund.LedgerReversalId);
+        Assert.Single(gateway.ReversalRequests);
+        Assert.Equal(payment.LedgerEntryReference, gateway.ReversalRequests.Single().OriginalLedgerEntryReference);
+        Assert.Equal(PaymentLedgerIdempotencyKeyFactory.CreateForRefundReversal(payment.PaymentId, refund.RefundId), gateway.ReversalRequests.Single().IdempotencyKey);
+    }
+
+    [Fact]
+    public async Task Processor_should_schedule_refund_reversal_retry_after_transient_failure()
+    {
+        var payment = CreateRefundReadyPayment(out var refund);
+        var gateway = new FakeLedgerGateway(
+            _ => LedgerEntryCreationResult.Success(new LedgerEntryReference(Guid.NewGuid())),
+            _ => LedgerReversalRequestResult.Transient(LedgerEntryFailureCategory.Timeout, "ledger timeout"));
+        var processor = CreateProcessor(payment, gateway);
+
+        var result = await processor.ProcessBatchAsync(10, "worker-1", TimeSpan.FromMinutes(1), CancellationToken.None);
+
+        Assert.Equal(1, result.RetryScheduled);
+        Assert.Equal(RefundStatus.LedgerReversalPending, refund.Status);
+        Assert.Equal(LedgerIntegrationStatus.RetryScheduled, refund.LedgerReversalStatus);
+        Assert.NotNull(refund.LedgerNextRetryAt);
+        Assert.Contains("ledger timeout", refund.LedgerLastError);
+    }
+
+    [Fact]
+    public async Task Processor_should_mark_refund_reversal_definitive_failure()
+    {
+        var payment = CreateRefundReadyPayment(out var refund);
+        var gateway = new FakeLedgerGateway(
+            _ => LedgerEntryCreationResult.Success(new LedgerEntryReference(Guid.NewGuid())),
+            _ => LedgerReversalRequestResult.Definitive(LedgerEntryFailureCategory.Validation, "ledger rejected"));
+        var processor = CreateProcessor(payment, gateway);
+
+        var result = await processor.ProcessBatchAsync(10, "worker-1", TimeSpan.FromMinutes(1), CancellationToken.None);
+
+        Assert.Equal(1, result.FailedDefinitive);
+        Assert.Equal(RefundStatus.Failed, refund.Status);
+        Assert.Equal(LedgerIntegrationStatus.FailedDefinitive, refund.LedgerReversalStatus);
+        Assert.Contains("ledger rejected", refund.LedgerLastError);
+    }
+
     private static PaymentLedgerProcessor CreateProcessor(Payment payment, FakeLedgerGateway gateway)
         => new(
             new FakePaymentRepository(payment),
@@ -110,6 +167,21 @@ public sealed class PaymentLedgerProcessorTests
         return payment;
     }
 
+    private static Payment CreateRefundReadyPayment(out PaymentRefund refund)
+    {
+        var payment = CreateSucceededPayment();
+        payment.MarkCompleted(Now.AddMinutes(-4), new LedgerEntryReference(Guid.Parse("11111111-1111-1111-1111-111111111111")));
+        refund = payment.RequestRefund(
+            new RefundId(Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")),
+            payment.Amount,
+            "requested_by_customer",
+            "refund-ext",
+            "correlation-1",
+            Now.AddMinutes(-3));
+        payment.MarkRefundProviderSucceeded(Now.AddMinutes(-2), refund.RefundId, "re_123", "succeeded");
+        return payment;
+    }
+
     private static LedgerCreditRequest BuildRequestForRetry(Payment payment)
         => new(
             payment.PaymentId,
@@ -120,11 +192,17 @@ public sealed class PaymentLedgerProcessorTests
             PaymentLedgerIdempotencyKeyFactory.CreateForCredit(payment.PaymentId),
             payment.LedgerCorrelationId);
 
-    private sealed class FakeLedgerGateway(Func<LedgerCreditRequest, LedgerEntryCreationResult> response) : ILedgerEntryGateway
+    private sealed class FakeLedgerGateway(
+        Func<LedgerCreditRequest, LedgerEntryCreationResult> response,
+        Func<LedgerReversalRequest, LedgerReversalRequestResult>? reversalResponse = null) : ILedgerEntryGateway
     {
         private readonly Func<LedgerCreditRequest, LedgerEntryCreationResult> _response = response;
+        private readonly Func<LedgerReversalRequest, LedgerReversalRequestResult> _reversalResponse =
+            reversalResponse ?? (_ => LedgerReversalRequestResult.Accepted(Guid.NewGuid()));
 
         public List<LedgerCreditRequest> Requests { get; } = [];
+
+        public List<LedgerReversalRequest> ReversalRequests { get; } = [];
 
         public Task<LedgerEntryCreationResult> CreateCreditAsync(LedgerCreditRequest request, CancellationToken cancellationToken)
         {
@@ -133,7 +211,10 @@ public sealed class PaymentLedgerProcessorTests
         }
 
         public Task<LedgerReversalRequestResult> RequestReversalAsync(LedgerReversalRequest request, CancellationToken cancellationToken)
-            => Task.FromResult(LedgerReversalRequestResult.Accepted(Guid.NewGuid()));
+        {
+            ReversalRequests.Add(request);
+            return Task.FromResult(_reversalResponse(request));
+        }
     }
 
     private sealed class FakePaymentRepository(Payment payment) : IPaymentRepository
@@ -172,7 +253,15 @@ public sealed class PaymentLedgerProcessorTests
             string lockOwner,
             TimeSpan leaseTimeout,
             CancellationToken cancellationToken)
-            => Task.FromResult<IReadOnlyList<Payment>>([]);
+        {
+            var claimedRefund = _payment.Refunds.FirstOrDefault(refund =>
+                _payment.ClaimRefundLedgerReversal(refund.RefundId, now, lockOwner, now.Add(leaseTimeout)));
+            var claimed = claimedRefund is null
+                ? []
+                : new List<Payment> { _payment };
+
+            return Task.FromResult<IReadOnlyList<Payment>>(claimed);
+        }
 
         public Task AddAsync(Payment payment, CancellationToken cancellationToken)
             => Task.CompletedTask;

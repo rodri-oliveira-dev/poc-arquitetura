@@ -36,9 +36,10 @@ public sealed class StripeWebhookValidator(
         if (IsOutsideTolerance(timestamp, _options.Value.Stripe.WebhookSignatureTolerance))
             return StripeWebhookValidationResult.Invalid(StripeWebhookValidationFailure.TimestampOutsideTolerance);
 
-        return !HasValidSignature(rawBody, timestamp, signatures, secret)
-            ? StripeWebhookValidationResult.Invalid(StripeWebhookValidationFailure.InvalidSignature)
-            : TryParsePayload(rawBody, out var result)
+        if (!HasValidSignature(rawBody, timestamp, signatures, secret))
+            return StripeWebhookValidationResult.Invalid(StripeWebhookValidationFailure.InvalidSignature);
+
+        return TryParsePayload(rawBody, out var result)
             ? result
             : StripeWebhookValidationResult.Invalid(StripeWebhookValidationFailure.InvalidPayload);
     }
@@ -171,11 +172,10 @@ public sealed class StripeWebhookValidator(
         if (!obj.TryGetProperty("metadata", out var metadata) || metadata.ValueKind != JsonValueKind.Object)
             return null;
 
-        return !TryGetRequiredString(metadata, "payment_id", out var paymentIdRaw)
-            ? null
-            : Guid.TryParse(paymentIdRaw, out var paymentId)
-            ? new PaymentId(paymentId)
-            : null;
+        if (!TryGetRequiredString(metadata, "payment_id", out var paymentIdRaw))
+            return null;
+
+        return Guid.TryParse(paymentIdRaw, out var paymentId) ? new PaymentId(paymentId) : null;
     }
 
     private static bool TryGetRequiredString(JsonElement element, string propertyName, out string value)

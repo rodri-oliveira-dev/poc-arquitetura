@@ -47,10 +47,9 @@ public sealed class RequestRefundCommandHandler(
         var existing = await _idempotencyService.GetRefundAsync(payment.MerchantId.Value, idempotencyKey, cancellationToken);
         if (existing is not null)
         {
-            if (!string.Equals(existing.RequestHash, requestHash, StringComparison.Ordinal))
-                throw new ConflictException("Idempotency-Key already used with a different refund payload.");
-
-            return IsIncompleteRefundReplay(existing.Response)
+            return !string.Equals(existing.RequestHash, requestHash, StringComparison.Ordinal)
+                ? throw new ConflictException("Idempotency-Key already used with a different refund payload.")
+                : IsIncompleteRefundReplay(existing.Response)
                 ? await CreateExternalRefundAsync(
                     new PaymentId(existing.Response.PaymentId),
                     new RefundId(existing.Response.RefundId),
@@ -58,9 +57,9 @@ public sealed class RequestRefundCommandHandler(
                     idempotentReplay: true,
                     cancellationToken)
                 : (existing.Response with
-            {
-                IdempotentReplay = true
-            });
+                {
+                    IdempotentReplay = true
+                });
         }
 
         await using var transaction = await _unitOfWork.BeginTransactionAsync(cancellationToken);
@@ -108,7 +107,7 @@ public sealed class RequestRefundCommandHandler(
     {
         var snapshot = await LoadRefundSnapshotAsync(paymentId, refundId, cancellationToken);
 
-        if (!snapshot.NeedsExternalCreation)
+        if (!snapshot.RequiresExternalCreation)
             return snapshot.Response with
             {
                 IdempotentReplay = idempotentReplay
@@ -334,6 +333,6 @@ public sealed class RequestRefundCommandHandler(
         string Reason,
         string? CorrelationId,
         string? ExternalReference,
-        bool NeedsExternalCreation,
+        bool RequiresExternalCreation,
         RequestRefundResult Response);
 }
