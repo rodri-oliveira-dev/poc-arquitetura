@@ -3,15 +3,30 @@
 views {
   view systemLandscape {
     title "System Landscape - poc-arquitetura"
-    include *
+    description "Mostra os sistemas e atores ao redor da POC. Use esta view para entender o ecossistema sem detalhes de classes, workers internos ou tabelas."
+    include customer
+    include edge
+    include identity
+    include identityService
+    include ledger
+    include balance
+    include transfer
+    include payment
+    include audit
+    include stripe
+    include kafka
+    include pubsubLocal
+    include pubsubGcp
+    include email
+    include observability
     autoLayout LeftRight
   }
 
   view containers {
     title "Container View - APIs, workers, bancos, Kafka, Pub/Sub e observabilidade"
+    description "Mostra os executaveis, schemas/boundaries de banco, brokers e sistemas externos que compoem a arquitetura atual. Schemas PostgreSQL representam isolamento logico por bounded context, nao necessariamente instancias fisicas separadas."
     include customer
     include edge.nginx
-    include edge.nginx.portal
     include identity.keycloak
     include identityService.identityApi
     include identityService.identityDb
@@ -21,15 +36,25 @@ views {
     include balance.balanceApi
     include balance.balanceWorker
     include balance.balanceDb
+    include transfer.transferApi
+    include transfer.transferWorker
+    include transfer.transferDb
     include payment.paymentApi
     include payment.paymentWorker
     include payment.paymentDb
+    include audit.auditApi
+    include audit.auditWorker
+    include audit.auditDb
     include stripe.stripeApi
     include stripe.stripeWebhooks
     include kafka.ledgerTopic
     include kafka.ledgerEstornoTopic
     include kafka.ledgerReprocessamentoTopic
     include kafka.ledgerDlq
+    include kafka.transferSagaTopics
+    include kafka.transferSagaDlq
+    include kafka.auditRecordTopic
+    include kafka.auditRecordDlq
     include email.mailpit
     include email.resend
     include pubsubLocal.ledgerTopic
@@ -47,30 +72,24 @@ views {
     include observability.alloy
     include observability.alertmanager
     include observability.grafana
-    include observability.grafana.dashboards
     autoLayout LeftRight
   }
 
-  view distributedFlow {
-    title "Fluxo distribuido principal - Keycloak, Ledger, Outbox, Kafka e Balance"
-    include customer
-    include identity.keycloak
-    include ledger.ledgerApi
-    include ledger.ledgerDb
-    include ledger.ledgerWorker
-    include ledger.ledgerOutbox
-    include ledger.ledgerKafkaOutboxPublisher
-    include kafka.ledgerTopic
-    include kafka.ledgerDlq
-    include balance.balanceWorker
-    include balance.balanceConsumer
-    include balance.balanceReceivedMessageMapper
-    include balance.balanceMessageProcessor
-    include balance.balanceDeadLetterPort
-    include balance.balanceDb
-    include balance.balanceApi
-    include observability.collector
-    include observability.jaeger
+  dynamic view ledgerBalanceProjectionFlow {
+    title "Dynamic View - lancamento financeiro vira saldo"
+    description "Estado atual: LedgerService.Api e dono do fato financeiro; LedgerService.Worker publica a Outbox no Kafka; BalanceService.Worker projeta saldo de forma idempotente."
+
+    customer -> identity.keycloak "1. Obtem JWT com audience ledger-api e scope adequado"
+    customer -> ledger.ledgerApi "2. Chama POST /api/v1/lancamentos com Idempotency-Key"
+    ledger.ledgerApi -> ledger.ledgerDb "3. Persiste LedgerEntry, idempotencia e Outbox na mesma transacao"
+    ledger.ledgerWorker.ledgerOutbox -> ledger.ledgerDb "4. Reclama outbox_messages pendentes"
+    ledger.ledgerWorker.ledgerKafkaOutboxPublisher -> kafka.ledgerTopic "5. Publica LedgerEntryCreated.v2"
+    balance.balanceWorker.balanceConsumer -> kafka.ledgerTopic "6. Consome evento financeiro do Ledger"
+    balance.balanceWorker.balanceReceivedMessageMapper -> balance.balanceWorker.balanceMessageProcessor "7. Mapeia transporte Kafka para ReceivedMessage"
+    balance.balanceWorker.balanceMessageProcessor -> balance.balanceDb "8. Atualiza daily_balances e processed_events"
+    customer -> balance.balanceApi "9. Consulta saldo projetado"
+    balance.balanceApi -> balance.balanceDb "10. Le projecao"
+
     autoLayout LeftRight
   }
 
@@ -119,7 +138,8 @@ views {
   }
 
   view kafkaFlow {
-    title "Fluxo Kafka default - Ledger, Balance e reprocessamento"
+    title "Kafka default - Ledger, Balance, Transfer e auditoria opcional"
+    description "Mostra onde Kafka e usado no runtime atual: fluxo financeiro Ledger/Balance, eventos da Saga do TransferService e consumer opcional do AuditService sem producers reais nesta etapa."
     include ledger.ledgerWorker
     include ledger.ledgerKafkaOutboxPublisher
     include ledger.ledgerReprocessamentoConsumer
@@ -130,6 +150,14 @@ views {
     include balance.balanceWorker
     include balance.balanceConsumer
     include balance.balanceDeadLetterPort
+    include transfer.transferWorker
+    include kafka.transferSagaTopics
+    include kafka.transferSagaDlq
+    include audit.auditWorker
+    include audit.auditRecordConsumer
+    include audit.auditDeadLetterPublisher
+    include kafka.auditRecordTopic
+    include kafka.auditRecordDlq
     autoLayout LeftRight
   }
 
@@ -141,8 +169,12 @@ views {
     include ledger.ledgerWorker
     include balance.balanceApi
     include balance.balanceWorker
+    include transfer.transferApi
+    include transfer.transferWorker
     include payment.paymentApi
     include payment.paymentWorker
+    include audit.auditApi
+    include audit.auditWorker
     include observability.collector
     include observability.jaeger
     include observability.prometheus
@@ -258,32 +290,6 @@ views {
     autoLayout LeftRight
   }
 
-  view paymentLedgerFlow {
-    title "Fluxo Payment -> Ledger -> Kafka -> Balance"
-    include stripe.stripeApi
-    include stripe.stripeWebhooks
-    include payment.paymentApi
-    include payment.paymentWorker
-    include payment.paymentDb
-    include payment.paymentInboxWorker
-    include payment.paymentWorker.paymentLedgerWorker
-    include payment.paymentWorker.paymentLedgerProcessor
-    include payment.paymentWorker.ledgerHttpGateway
-    include identity.keycloak
-    include ledger.ledgerApi
-    include ledger.ledgerDb
-    include ledger.ledgerWorker
-    include ledger.ledgerEstornoProcessor
-    include ledger.ledgerOutbox
-    include ledger.ledgerKafkaOutboxPublisher
-    include kafka.ledgerTopic
-    include balance.balanceWorker
-    include balance.balanceConsumer
-    include balance.balanceMessageProcessor
-    include balance.balanceDb
-    autoLayout LeftRight
-  }
-
   dynamic view paymentCreateFlow {
     title "Dynamic View - criacao de Payment"
     description "Estado atual: PaymentService.Api recebe comando autenticado, Application cria Payment local, Infrastructure chama Stripe/Fake via IPaymentGateway e persiste a referencia externa no schema payment."
@@ -364,6 +370,20 @@ views {
     autoLayout LeftRight
   }
 
+  view paymentApiComponents of payment.paymentApi {
+    title "Component View - PaymentService.Api"
+    include payment.paymentApiLayer
+    include payment.paymentApplication
+    include payment.paymentDomain
+    include payment.paymentInfrastructure
+    include payment.paymentProviderEventMapper
+    include payment.paymentDb
+    include identity.keycloak
+    include stripe.stripeApi
+    include stripe.stripeWebhooks
+    autoLayout LeftRight
+  }
+
   view paymentWorkerComponents of payment.paymentWorker {
     title "Component View - PaymentService.Worker"
     include payment.paymentWorkerComposition
@@ -376,6 +396,45 @@ views {
     include payment.paymentDomain
     include payment.paymentInfrastructure
     include payment.paymentDb
+    autoLayout LeftRight
+  }
+
+  view auditApiComponents of audit.auditApi {
+    title "Component View - AuditService.Api"
+    include audit.auditApiLayer
+    include audit.auditApplication
+    include audit.auditDomain
+    include audit.auditInfrastructure
+    include audit.auditDb
+    include identity.keycloak
+    autoLayout LeftRight
+  }
+
+  view auditWorkerComponents of audit.auditWorker {
+    title "Component View - AuditService.Worker"
+    include audit.auditWorkerComposition
+    include audit.auditRecordConsumer
+    include audit.auditRecordProcessor
+    include audit.auditDeadLetterPublisher
+    include audit.auditApplication
+    include audit.auditInfrastructure
+    include audit.auditDb
+    include kafka.auditRecordTopic
+    include kafka.auditRecordDlq
+    autoLayout LeftRight
+  }
+
+  dynamic view auditKafkaIngestionFlow {
+    title "Dynamic View - auditoria Kafka opcional"
+    description "Estado atual: AuditService.Worker pode consumir AuditRecordRequested.v1, mas Ledger, Balance, Transfer e Payment ainda nao publicam eventos reais de auditoria."
+
+    kafka.auditRecordTopic -> audit.auditWorker.auditRecordConsumer "1. Entrega AuditRecordRequested.v1 quando um producer futuro existir"
+    audit.auditWorker.auditRecordConsumer -> audit.auditWorker.auditRecordProcessor "2. Controla retry local e envia mensagem ao processor"
+    audit.auditWorker.auditRecordProcessor -> audit.auditApplication "3. Valida contrato canonico e envia CreateAuditRecordCommand"
+    audit.auditApplication -> audit.auditDb "4. Persiste functional_audit_records com source_event_id idempotente"
+    audit.auditWorker.auditRecordProcessor -> audit.auditWorker.auditDeadLetterPublisher "5. Encaminha JSON invalido, contrato incompativel ou conflito definitivo"
+    audit.auditWorker.auditDeadLetterPublisher -> kafka.auditRecordDlq "6. Publica DLQ de aplicacao minimizada antes do commit"
+
     autoLayout LeftRight
   }
 }

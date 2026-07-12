@@ -1,70 +1,324 @@
-# Documentacao arquitetural
+# Documentacao de Arquitetura
 
-Esta pasta registra a leitura arquitetural atual da POC e o modelo LikeC4 usado para visualizar o sistema.
+## Objetivo
+
+Esta pasta explica a arquitetura atual da POC e mantem o modelo LikeC4 usado
+para navegar pelos bounded contexts, containers, componentes e fluxos
+distribuidos.
+
+A documentacao aqui deve responder perguntas arquiteturais reais:
+
+- quais sistemas existem e como se relacionam;
+- quais APIs, workers, bancos, brokers e provedores externos compoem o runtime;
+- onde ficam as fronteiras entre Ledger, Balance, Transfer, Payment, Identity e
+  Audit;
+- como lancamentos, saldos, pagamentos, refunds, webhooks, Outbox, Inbox, Kafka
+  e autenticacao se conectam;
+- quais partes sao runtime atual, alternativas explicitas ou evolucao futura.
+
+Ela nao substitui ADRs, specs, runbooks nem contratos OpenAPI/eventos. O papel
+do LikeC4 e mostrar a arquitetura resultante dessas decisoes.
+
+## Como esta documentacao esta organizada
 
 Arquivos principais:
 
-- `model.c4`: modelo estrutural do ecossistema, containers e componentes reais, incluindo IdentityService, PaymentService, Keycloak, PostgreSQL por schemas, Kafka default, Pub/Sub explicito/legado, Mailpit, Resend e observabilidade.
-- `audit-service.md`: papel arquitetural do AuditService como bounded context de auditoria funcional isolado, com schema `audit`, contrato canonico, ausencia de integracao inicial e estrategia futura por Outbox + Kafka.
-- `payment-service.md`: papel arquitetural do PaymentService, schema `payment`, ACL fake/Stripe, webhook, Inbox, Worker e integracao idempotente com Ledger.
-- `deployment.c4`: modelo de deployment local que associa servicos do `compose.yaml` e overlays locais aos elementos logicos com `instanceOf`, alimentando a aba `Deployments` do LikeC4.
-- `views.c4`: views LikeC4 para contexto, containers, fluxo de cadastro no IdentityService, fluxo Kafka, Pub/Sub explicito/legado, observabilidade local e componentes por processo.
-- `boundaries.md`: regras de fronteira entre camadas, responsabilidades e anti-patterns.
-- `decisions.md`: avaliacao critica, riscos e roadmap pragmatico de evolucao.
-- `production-readiness.md`: baseline recomendado para uma evolucao futura em GCP mais proxima de producao, sem declarar prontidao produtiva nem implementar infraestrutura nova.
-- [`../README.md`](../README.md): indice geral da documentacao.
+- `model.c4`: elementos do modelo, relacionamentos e boundaries logicos.
+- `views.c4`: diagramas navegaveis gerados a partir do modelo.
+- `deployment.c4`: deployment local via Docker Compose para a aba
+  `Deployments` do LikeC4.
+- `boundaries.md`: regras de fronteira entre `Api`, `Application`, `Domain`,
+  `Infrastructure` e `Worker`.
+- `payment-service.md`: leitura arquitetural do PaymentService.
+- `audit-service.md`: leitura arquitetural do AuditService.
+- `decisions.md`: avaliacao critica e riscos arquiteturais.
+- `production-readiness.md`: baseline de evolucao produtiva futura.
 
-Classificacao atual: arquitetura hibrida, com predominancia de Clean Architecture/DDD nos bounded contexts principais. `IdentityService` isola cadastro de usuarios, `MerchantId`, vinculo local com Keycloak e envio de e-mail de boas-vindas; `LedgerService` escreve fatos financeiros e Outbox; `BalanceService` mantem projecao de leitura; `TransferService` orquestra Saga com Worker e Outbox Kafka; `PaymentService` registra pagamentos externos, recebe webhooks Stripe assinados, processa Inbox e materializa credito/estorno via Ledger; `AuditService` registra auditoria funcional por contrato HTTP canonico, ainda sem integracao com os demais dominios.
+## O que e C4 Model
 
-## Leitura rapida
+C4 e uma forma de ler arquitetura em niveis:
 
-- O sistema e uma POC de microservicos .NET para identidade, ledger, saldos, transferencias e auditoria funcional.
-- Clientes obtem tokens no Keycloak e chamam APIs HTTP protegidas por JWT, audience, scopes e autorizacao por merchant quando aplicavel.
-- O PostgreSQL local e unico, mas os servicos usam schemas e roles separados: `identity`, `ledger`, `balance`, `transfer` e `audit`.
-- Kafka e o provider padrao dos fluxos principais de mensageria. Pub/Sub continua explicito/legado para Ledger/Balance quando configurado.
-- O `IdentityService.Api` cria usuarios no Keycloak, persiste o vinculo local no schema `identity`, despacha domain events depois do commit e envia e-mail por Mailpit no local ou Resend em ambiente real configurado.
-- O `AuditService.Api` cria e consulta registros de auditoria funcional no schema `audit`, com `Idempotency-Key`, scopes `audit.*` e contrato agnostico ao chamador, sem worker ou Kafka nesta etapa; a integracao futura proposta usa Outbox + Kafka fora do caminho critico financeiro.
+- **System Context**: quem usa o sistema e quais sistemas externos existem.
+- **Container**: quais executaveis, bancos, brokers e provedores compoem o
+  sistema.
+- **Component**: quais blocos internos relevantes existem dentro de um container
+  ou bounded context.
+- **Dynamic / Flow**: como uma operacao acontece ao longo do tempo.
+- **Deployment / Runtime**: onde os elementos rodam em um ambiente concreto.
 
-## Estado atual e evolucao futura
+Neste repositorio, "container" no C4 nao significa necessariamente Docker
+container. Pode ser uma API, Worker, schema logico de banco, topico Kafka ou
+sistema externo.
 
-Estado atual:
+## O que e LikeC4
 
-- `IdentityService.Api` e API HTTP sincrona; nao ha Worker de identidade, Outbox de e-mail, fila de e-mail ou DLQ de identidade implementados.
-- O e-mail de boas-vindas e side effect intra-processo apos commit local. Falha de e-mail e logada e nao invalida o cadastro.
-- Mailpit e ferramenta local; Resend e provider externo real selecionado por configuracao e secret.
-- `AuditService.Api` e API HTTP sincrona e isolada; nao ha integracao inicial com Ledger, Balance ou Transfer, nao ha worker de auditoria e nao ha consumo Kafka.
+LikeC4 e a ferramenta que transforma os arquivos `.c4` em uma documentacao
+visual navegavel. O modelo fica em texto versionado, e as views sao geradas a
+partir desse modelo.
 
-Evolucao futura documentada:
+Na pratica:
 
-- ADR-0095 registra a possibilidade de evoluir e-mail do IdentityService para Outbox, mensageria, retry, DLQ e worker dedicado. Isso nao esta implementado.
-- ADR-0097 registra os criterios para evoluir o AuditService para integracao futura, incluindo quando avaliar Kafka, worker, catalogo de operacoes ou banco fisico proprio.
-- ADR-0099 registra Outbox transacional local + Kafka como estrategia futura para integrar auditoria funcional aos bounded contexts financeiros, sem implementacao ativa nesta etapa.
+- `model.c4` define os elementos e relacoes uma vez;
+- `views.c4` escolhe recortes do modelo para responder perguntas especificas;
+- `deployment.c4` mapeia elementos logicos para o ambiente local;
+- `npm run architecture:build` gera o site estatico em `dist/architecture`.
 
-## ADRs relacionadas
+## Como ler os diagramas
 
-- [ADR-0074: Keycloak como identidade principal e Auth.Api legado](../adrs/0074-keycloak-como-identidade-principal.md)
-- [ADR-0089: Novo bounded context IdentityService](../adrs/0089-bounded-context-identity-service.md)
-- [ADR-0090: Cadastro de usuarios no IdentityService](../adrs/0090-cadastro-usuarios-identity-service.md)
-- [ADR-0091: Domain Event Dispatcher no IdentityService](../adrs/0091-domain-event-dispatcher-identity-service.md)
-- [ADR-0092: Envio de e-mail no IdentityService](../adrs/0092-envio-email-identity-service.md)
-- [ADR-0093: Resend como provider de e-mail do IdentityService](../adrs/0093-resend-email-provider-identity-service.md)
-- [ADR-0094: Mailpit local para e-mails do IdentityService](../adrs/0094-mailpit-local-identity-service.md)
-- [ADR-0095: Evolucao futura do envio de e-mails do IdentityService](../adrs/0095-evolucao-futura-email-identity-service.md)
-- [ADR-0097: Bounded context de auditoria funcional](../adrs/0097-functional-audit-service.md)
-- [ADR-0099: Estrategia de integracao assincrona do AuditService](../adrs/0099-audit-async-integration-strategy.md)
-- [ADR-0100: Organizacao de solutions por contexto e agregadora](../adrs/0100-organizacao-solutions-contexto-agregadora.md)
+Comece pelo nivel da pergunta:
 
-## Visualizacao
+1. Se a duvida e "quais sistemas existem?", abra `systemLandscape`.
+2. Se a duvida e "quais processos, bancos e brokers existem?", abra
+   `containers`.
+3. Se a duvida e "como uma operacao acontece?", abra uma view `Dynamic View`.
+4. Se a duvida e "o que existe dentro de uma API ou Worker?", abra uma
+   `Component View`.
+5. Se a duvida e "o que sobe no Compose?", abra `localDeployment`.
 
-O site LikeC4 e publicado no GitHub Pages pelo workflow `architecture-pages`:
+Evite ler todas as views em sequencia como se fossem capitulos. Cada view deve
+ser usada como resposta a uma pergunta.
 
-<https://rodri-oliveira-dev.github.io/poc-arquitetura/>
+## Niveis usados neste repositorio
 
-Para gerar localmente:
+### System Context
+
+Mostra atores, bounded contexts, sistemas externos, broker e observabilidade em
+alto nivel. Nao deve mostrar controllers, handlers, repositories, DbContext,
+tabelas ou migrations.
+
+### Container
+
+Mostra APIs, Workers, schemas PostgreSQL, Kafka topics, Pub/Sub topics ou
+subscriptions e provedores externos. Schemas como `ledger`, `balance`,
+`transfer`, `payment`, `identity` e `audit` representam isolamento logico por
+bounded context. No ambiente local, eles usam um PostgreSQL compartilhado quando
+as migrations correspondentes sao aplicadas.
+
+### Component
+
+Mostra componentes internos relevantes de um container, respeitando camadas:
+`Api`, `Application`, `Domain`, `Infrastructure` e `Worker`. Nao deve substituir
+o codigo nem listar classes sem decisao arquitetural envolvida.
+
+### Dynamic / Flow
+
+Mostra a sequencia de uma operacao. Use para entender tempo, ownership,
+idempotencia, Inbox, Outbox, retry, DLQ e chamadas entre contexts.
+
+### Operational / Runtime
+
+Mostra runtime local, mensageria, observabilidade e deployment. Use para
+diagnostico operacional e para distinguir Compose local de arquitetura logica.
+
+## Diagramas disponiveis
+
+| Diagrama | Nivel | Quando consultar | O que responde |
+| --- | --- | --- | --- |
+| `systemLandscape` | System Context | Inicio da leitura | Quais sistemas, contexts e externos existem no ecossistema |
+| `containers` | Container | Entender APIs, Workers, schemas, brokers e provedores | Quais executaveis e recursos logicos compoem a POC |
+| `ledgerBalanceProjectionFlow` | Dynamic / Flow | Entender lancamento financeiro e saldo | Como Ledger grava o fato, publica Outbox no Kafka e Balance projeta saldo |
+| `identityRegistrationFlow` | Dynamic / Flow | Entender cadastro de usuario | Como IdentityService cria usuario no Keycloak, persiste vinculo local e envia e-mail |
+| `kafkaFlow` | Operational / Runtime | Entender Kafka default | Onde Kafka e usado por Ledger, Balance, Transfer e auditoria opcional |
+| `pubSubLegacyFlow` | Operational / Runtime | Entender modo Pub/Sub explicito/legado | Como Ledger e Balance usam Pub/Sub quando `Messaging:Provider=PubSub` |
+| `observabilityFlow` | Operational / Observability | Entender telemetria local | Como APIs, Workers, Collector, Jaeger, Prometheus, Loki, Alloy, Alertmanager e Grafana se conectam |
+| `localDeployment` | Deployment / Runtime | Entender Docker Compose local | Quais servicos do Compose atual existem e a que elementos logicos correspondem |
+| `ledgerApiComponents` | Component | Revisar LedgerService.Api | Como HTTP, Application, Domain, Infrastructure e schema ledger se separam |
+| `ledgerWorkerComponents` | Component | Revisar LedgerService.Worker | Como Outbox, Kafka/PubSub, estornos e reprocessamento ficam no Worker |
+| `balanceApiComponents` | Component | Revisar BalanceService.Api | Como a API consulta a projecao sem criar fatos financeiros |
+| `balanceWorkerComponents` | Component | Revisar BalanceService.Worker | Como eventos do Ledger viram saldos e DLQ |
+| `identityServiceComponents` | Component | Revisar IdentityService.Api | Como cadastro, Keycloak Admin API, Domain Event Dispatcher e e-mail se conectam |
+| `identityComponents` | Component | Revisar Keycloak local | Quais partes do IdP local importado importam para autenticacao |
+| `paymentApiComponents` | Component | Revisar PaymentService.Api | Como controllers, ACL Stripe/fake, Application, Domain, Infrastructure e Inbox se separam |
+| `paymentWorkerComponents` | Component | Revisar PaymentService.Worker | Como Inbox, state machine e materializacao no Ledger rodam fora da API |
+| `paymentCreateFlow` | Dynamic / Flow | Entender criacao de Payment | Como cliente, PaymentService.Api, provider externo e schema payment interagem |
+| `paymentWebhookInboxFlow` | Dynamic / Flow | Entender webhooks Stripe | Como Stripe entra pela API, e persistido na Inbox e processado pelo Worker |
+| `paymentLedgerMaterializationFlow` | Dynamic / Flow | Entender Payment -> Ledger -> Balance | Como pagamento confirmado vira lancamento Ledger e saldo projetado |
+| `paymentRefundFlow` | Dynamic / Flow | Entender refund total | Como refund Stripe vira estorno Ledger e evento compensatorio para Balance |
+| `auditApiComponents` | Component | Revisar AuditService.Api | Como o contrato HTTP canonico de auditoria persiste registros no schema audit |
+| `auditWorkerComponents` | Component | Revisar AuditService.Worker | Como o consumer Kafka opcional processa AuditRecordRequested.v1 |
+| `auditKafkaIngestionFlow` | Dynamic / Flow | Entender auditoria assincrona opcional | Como o Worker consome auditoria quando houver producer futuro, sem declarar producers atuais |
+
+## Principais bounded contexts
+
+### LedgerService
+
+Dono do fato financeiro. A API recebe comandos HTTP e grava lancamentos,
+idempotencia, estornos, reprocessamentos e Outbox no schema `ledger`. O Worker
+publica a Outbox, processa estornos e reprocessamentos. Ledger nao e projecao de
+saldo.
+
+### BalanceService
+
+Dono da projecao de saldo. O Worker consome eventos financeiros do Ledger e
+atualiza `daily_balances`/`processed_events` no schema `balance`. A API consulta
+a projecao. Balance nao cria fatos financeiros.
+
+### TransferService
+
+Dono da Saga de transferencia entre merchants. A API registra/consulta Sagas, o
+Worker chama LedgerService.Api para debito/credito/compensacao e publica eventos
+de Saga no Kafka. Transfer nao e PaymentService e nao usa Stripe.
+
+### PaymentService
+
+Dono do ciclo de vida de pagamentos externos. A API cria Payment/Refund,
+integra com provider fake/Stripe por ACL e recebe webhooks assinados. A Inbox e
+processada pelo Worker, que chama LedgerService.Api para materializar credito ou
+estorno. Payment nao grava Ledger DB, nao grava Balance DB e nao publica evento
+financeiro direto no Kafka.
+
+Observacao de deployment local: os projetos `src/payment` existem, mas
+`compose.yaml` atual ainda nao declara `payment-service` nem `payment-worker`.
+Use a documentacao de desenvolvimento do PaymentService para execucao direta no
+host quando necessario.
+
+### IdentityService e Keycloak
+
+Keycloak e o IdP local e emissor de JWT. IdentityService cadastra usuarios,
+cria vinculo local, gera `MerchantId` e envia e-mail de boas-vindas. Identity
+nao emite tokens e nao assume regra financeira.
+
+### AuditService
+
+Dono da trilha funcional de auditoria. A API HTTP canonica cria e consulta
+registros no schema `audit`. O Worker Kafka opcional consome
+`AuditRecordRequested.v1` quando habilitado, mas Ledger, Balance, Transfer e
+Payment ainda nao publicam eventos reais de auditoria.
+
+## Fluxos principais
+
+### Lancamento financeiro e saldo
+
+Veja `ledgerBalanceProjectionFlow`. A fonte de verdade e Ledger; Balance apenas
+projeta eventos do Ledger.
+
+### Transferencia
+
+Veja `containers` e `kafkaFlow`. TransferService orquestra a Saga e chama
+LedgerService.Api. Os eventos de Saga sao Kafka-only e nao alimentam saldo.
+
+### Pagamento externo com Stripe
+
+Veja `paymentCreateFlow`, `paymentWebhookInboxFlow` e
+`paymentLedgerMaterializationFlow`. Stripe nunca chama Worker, banco, Kafka ou
+Balance diretamente.
+
+### Refund
+
+Veja `paymentRefundFlow`. Refund total passa por PaymentService, Stripe,
+webhook/Inbox, Worker, LedgerService.Api, Outbox do Ledger, Kafka e Balance.
+
+### Autenticacao
+
+Veja `systemLandscape`, `containers`, `identityRegistrationFlow` e
+`identityComponents`. Keycloak e o emissor; APIs validam JWT/JWKS.
+
+### Observabilidade
+
+Veja `observabilityFlow`. A stack e local e inclui OpenTelemetry Collector,
+Jaeger, Prometheus, Loki, Grafana Alloy, Alertmanager e Grafana.
+
+## Como gerar os diagramas localmente
+
+Instale dependencias Node e gere o site estatico:
 
 ```bash
 npm ci
 npm run architecture:build
 ```
 
-Detalhes operacionais: [`docs/development/github-pages.md`](../development/github-pages.md).
+O build grava a saida em `dist/architecture`. A publicacao no GitHub Pages e
+feita pelo workflow `architecture-pages`:
+
+<https://rodri-oliveira-dev.github.io/poc-arquitetura/>
+
+Detalhes operacionais ficam em
+[`docs/development/github-pages.md`](../development/github-pages.md).
+
+## Como adicionar ou alterar diagramas
+
+Antes de criar uma view nova, escreva a pergunta que ela responde. So crie um
+novo diagrama se os diagramas existentes nao responderem essa pergunta.
+
+Bons motivos:
+
+- novo bounded context;
+- novo fluxo distribuido;
+- nova integracao externa critica;
+- nova decisao de runtime/deployment;
+- mudanca relevante em mensageria, seguranca, banco ou observabilidade.
+
+Maus motivos:
+
+- duplicar uma view existente;
+- mostrar uma classe isolada;
+- documentar detalhe que pertence ao codigo;
+- embelezar a documentacao;
+- criar variacao sem pergunta nova.
+
+Ao alterar diagramas, confira tambem:
+
+- ADRs relacionadas;
+- estrutura real em `src/<contexto>` e `tests/<contexto>`;
+- Compose, scripts e docs operacionais quando a mudanca afetar runtime;
+- contratos OpenAPI/eventos quando a mudanca afetar API ou mensageria.
+
+## Criterios para remover diagramas
+
+Remova ou consolide diagramas quando eles:
+
+- ficam obsoletos;
+- duplicam outro diagrama;
+- contradizem ADRs, specs, codigo ou Compose;
+- misturam niveis demais;
+- nao tem pergunta clara;
+- representam futuro como se fosse runtime atual;
+- confundem mais do que ajudam.
+
+Ao remover uma view, ajuste referencias no README, docs relacionados e valide o
+build LikeC4.
+
+## Relacao com ADRs
+
+Use esta regra:
+
+- ADRs registram decisoes.
+- LikeC4 mostra a arquitetura resultante dessas decisoes.
+- Specs detalham requisitos, fluxos e criterios de aceite.
+- Runbooks explicam operacao e troubleshooting.
+- README orienta navegacao.
+
+Nao reescreva ADR historica para parecer documentacao atual. Quando uma decisao
+evoluir, crie nova ADR ou registre a evolucao na ADR existente conforme o padrao
+do repositorio.
+
+ADRs mais relevantes para estes diagramas:
+
+- [ADR-0001: Ledger e Balance com projecao assincrona](../adrs/0001-separar-ledger-e-balance-com-projecao.md)
+- [ADR-0002: Clean Architecture + DDD por microservico](../adrs/0002-clean-architecture-ddd-por-servico.md)
+- [ADR-0003: Kafka com Outbox](../adrs/0003-integracao-assincrona-kafka-com-outbox.md)
+- [ADR-0074: Keycloak como identidade principal](../adrs/0074-keycloak-como-identidade-principal.md)
+- [ADR-0081: PostgreSQL local unico com schemas por servico](../adrs/0081-postgres-local-unico-com-schemas-por-servico.md)
+- [ADR-0087: TransferService com Saga orquestrada Kafka](../adrs/0087-saga-orquestrada-transfer-service-kafka.md)
+- [ADR-0088: Kafka como default dos workers principais](../adrs/0088-kafka-default-ledger-balance-workers.md)
+- [ADR-0089: IdentityService](../adrs/0089-bounded-context-identity-service.md)
+- [ADR-0097: AuditService](../adrs/0097-functional-audit-service.md)
+- [ADR-0099: Integracao assincrona futura do AuditService](../adrs/0099-audit-async-integration-strategy.md)
+- [ADR-0100: Solutions por contexto](../adrs/0100-organizacao-solutions-contexto-agregadora.md)
+- [ADR-0101 a ADR-0105: PaymentService e Stripe](../adrs/0101-payment-service-bounded-context.md)
+
+## Troubleshooting
+
+Se `npm run architecture:build` falhar:
+
+- confirme que executou `npm ci`;
+- verifique erros de referencia a elementos ou views removidas;
+- procure elementos sem correspondencia real em `src/`, `tests/`, Compose ou
+  documentacao operacional;
+- valide se uma relacao pertence ao nivel correto: contexto, container,
+  componente, fluxo ou deployment;
+- rode `git diff --check` para capturar whitespace antes do commit.
+
+Se uma view parecer grande demais, provavelmente esta misturando perguntas.
+Prefira uma view dinamica curta para fluxo e uma component view separada para
+detalhes internos.

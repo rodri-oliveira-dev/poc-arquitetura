@@ -420,6 +420,57 @@ model {
     }
   }
 
+  audit = softwareSystem "AuditService" {
+    description "Bounded context de auditoria funcional. Expoe contrato HTTP canonico para registrar/consultar trilhas auditaveis e possui Worker Kafka opcional para AuditRecordRequested.v1, ainda sem producers reais nos demais bounded contexts."
+
+    auditApi = container "AuditService.Api" {
+      technology "ASP.NET Core"
+      description "HTTP API canonica de auditoria funcional em /api/v1/audit-records, protegida por JWT Keycloak, scopes audit.write/audit.read/audit.admin, Idempotency-Key e autorizacao por merchant nas consultas."
+
+      auditApiLayer = component "API Layer" {
+        description "Controllers, contracts, Swagger/OpenAPI, JWT/JWKS, policies audit.*, filtros de consulta, ProblemDetails, health/readiness e composition root HTTP."
+      }
+
+      auditApplication = component "Application Layer" {
+        description "Casos de uso de criacao/consulta, idempotencia, validacao canonica, ingestion service e portas de persistencia sem conhecer Ledger, Balance, Transfer ou Payment."
+      }
+
+      auditDomain = component "Domain Layer" {
+        description "FunctionalAuditRecord, actor funcional, metadata minimizada, invariantes de operacao, merchant, status, reason e timestamps."
+      }
+
+      auditInfrastructure = component "Infrastructure Layer" {
+        description "AuditDbContext, migrations do schema audit, repositories, idempotencia por Idempotency-Key HTTP e por source_event_id quando a origem for Kafka."
+      }
+    }
+
+    auditWorker = container "AuditService.Worker" {
+      technology ".NET Worker Service"
+      description "Worker dedicado e opcional para consumir AuditRecordRequested.v1 no Kafka, validar contrato canonico, aplicar idempotencia por eventId/source_event_id e publicar DLQ de aplicacao para falhas definitivas. Nao possui producers reais nos demais contexts nesta etapa."
+
+      auditWorkerComposition = component "Worker composition root" {
+        description "Registra Application, Infrastructure, options do consumer Kafka, producer de DLQ e HostedServices somente quando AuditService:Worker:Enabled e Kafka:AuditRecordRequestedConsumer:Enabled estao habilitados."
+      }
+
+      auditRecordConsumer = component "AuditRecordRequestedConsumerService" {
+        description "BackgroundService Kafka que consome audit.record.requested, controla retry local, commit de offset e entrega mensagens validas ao processor canonico."
+      }
+
+      auditRecordProcessor = component "AuditRecordRequestedProcessor" {
+        description "Processor que desserializa AuditRecordRequested.v1, valida eventType/schemaVersion/payload, mapeia para CreateAuditRecordCommand e trata duplicidade idempotente."
+      }
+
+      auditDeadLetterPublisher = component "KafkaAuditRecordDeadLetterPublisher" {
+        description "Producer Kafka da DLQ audit.record.requested.dlq para JSON invalido, contrato incompativel ou conflito definitivo de idempotencia."
+      }
+    }
+
+    auditDb = container "PostgreSQL schema audit" {
+      technology "PostgreSQL"
+      description "Schema audit no PostgreSQL local unico ou boundary equivalente por ambiente: functional_audit_records e indices de idempotencia/consulta."
+    }
+  }
+
   stripe = softwareSystem "Stripe" {
     description "Provider externo de pagamentos usado pelo PaymentService para criar PaymentIntent/Refund e entregar webhooks assinados."
 
@@ -465,6 +516,16 @@ model {
     transferSagaDlq = container "transfer.transferencia.dlq" {
       technology "Kafka topic"
       description "DLQ de aplicacao da Outbox Kafka do TransferService."
+    }
+
+    auditRecordTopic = container "audit.record.requested" {
+      technology "Kafka topic"
+      description "Topico canonico opcional consumido pelo AuditService.Worker para AuditRecordRequested.v1. Ainda nao ha producers reais em Ledger, Balance, Transfer ou Payment."
+    }
+
+    auditRecordDlq = container "audit.record.requested.dlq" {
+      technology "Kafka topic"
+      description "DLQ de aplicacao do AuditService.Worker para mensagens de auditoria invalidas ou conflitos definitivos."
     }
   }
 
@@ -531,6 +592,7 @@ model {
   customer -> ledger.ledgerApi "Cria lancamentos e solicita/consulta estornos e reprocessamentos" "HTTP + JWT"
   customer -> balance.balanceApi "Consulta consolidados" "HTTP + JWT"
   customer -> payment.paymentApi "Cria Payments externos e consulta estado local" "HTTP + JWT"
+  customer -> audit.auditApi "Cria e consulta registros funcionais de auditoria" "HTTP + JWT"
   customer -> edge.nginx "Acessa portal e Swaggers locais opcionais" "HTTPS"
   edge.nginx -> ledger.ledgerApi "Encaminha ledger.localhost:7443 para o upstream ledger_api com least_conn" "HTTP interno"
   edge.nginx -> balance.balanceApi "Encaminha balance.localhost:7443" "HTTP interno"
@@ -561,8 +623,17 @@ model {
   balance.balanceApi -> identity.keycloak "Baixa/cacheia JWKS e valida JWT offline com iss, aud, scopes e merchant_id" "HTTP cacheado"
   transfer.transferApi -> identity.keycloak "Baixa/cacheia JWKS e valida JWT offline com iss, aud, scopes e merchant_id" "HTTP cacheado"
   payment.paymentApi -> identity.keycloak "Baixa/cacheia JWKS e valida JWT offline com iss, aud, scopes e merchant_id" "HTTP cacheado"
+  audit.auditApi -> identity.keycloak "Baixa/cacheia JWKS e valida JWT offline com iss, aud, scopes e merchant_id" "HTTP cacheado"
   payment.paymentApi.paymentInfrastructure -> stripe.stripeApi "Cria PaymentIntent e Refund com idempotencia externa deterministica" "HTTPS"
   stripe.stripeWebhooks -> payment.paymentApi "Entrega webhooks Stripe assinados em /api/v1/webhooks/stripe" "HTTPS + Stripe-Signature"
+  audit.auditApi -> audit.auditDb "Persiste registros funcionais e idempotencia HTTP" "EF Core"
+  audit.auditWorker.auditWorkerComposition -> audit.auditWorker.auditRecordConsumer "Registra consumer quando habilitado" "DI"
+  audit.auditWorker.auditRecordConsumer -> kafka.auditRecordTopic "Consome AuditRecordRequested.v1 opcionalmente; ainda sem producers reais" "Kafka"
+  audit.auditWorker.auditRecordConsumer -> audit.auditWorker.auditRecordProcessor "Entrega mensagem recebida" "processor"
+  audit.auditWorker.auditRecordProcessor -> audit.auditApplication "Mapeia para CreateAuditRecordCommand" "MediatR"
+  audit.auditWorker.auditRecordProcessor -> audit.auditDb "Persiste auditoria por source_event_id idempotente" "EF Core"
+  audit.auditWorker.auditRecordProcessor -> audit.auditWorker.auditDeadLetterPublisher "Classifica falhas definitivas" "DLQ"
+  audit.auditWorker.auditDeadLetterPublisher -> kafka.auditRecordDlq "Publica evidencia tecnica minimizada" "Kafka"
 
   ledger.ledgerApi -> ledger.ledgerDb "Persiste lancamento, estorno, reprocessamento, idempotencia e outbox" "EF Core"
   ledger.ledgerWorker.ledgerWorkerComposition -> ledger.ledgerWorker.ledgerWorkerApplication "Registra casos de uso e handlers" "DI / MediatR"
@@ -617,6 +688,8 @@ model {
   transfer.transferWorker -> observability.collector "Exporta telemetria quando habilitado no compose" "OTLP"
   payment.paymentApi -> observability.collector "Exporta telemetria quando habilitado no compose" "OTLP"
   payment.paymentWorker -> observability.collector "Exporta telemetria quando habilitado no compose" "OTLP"
+  audit.auditApi -> observability.collector "Exporta telemetria quando habilitado" "OTLP"
+  audit.auditWorker -> observability.collector "Exporta telemetria quando habilitado" "OTLP"
   identityService.identityApi -> observability.collector "Exporta telemetria quando habilitado no compose" "OTLP"
   observability.collector -> observability.jaeger "Encaminha traces" "OTLP"
   observability.prometheus -> observability.collector "Coleta metricas tecnicas" "Prometheus scrape"
@@ -672,4 +745,11 @@ model {
   payment.paymentWorker.ledgerHttpGateway -> ledger.ledgerApi "Cria CREDIT e solicita estornos em POST /api/v1/lancamentos/{id}/estornos com Idempotency-Key deterministica" "HTTP + JWT"
   payment.paymentApplication -> payment.paymentProviderEventMapper "Traduz Inbox para evento interno de provider"
   payment.paymentProviderEventMapper -> payment.paymentDomain "Entrega evento traduzido para state machine via Application"
+
+  audit.auditApiLayer -> audit.auditApplication "Envia comandos e queries de auditoria"
+  audit.auditApplication -> audit.auditDomain "Cria FunctionalAuditRecord e aplica invariantes"
+  audit.auditInfrastructure -> audit.auditApplication "Implementa persistencia e idempotencia"
+  audit.auditInfrastructure -> audit.auditDomain "Mapeia aggregate e value objects"
+  audit.auditWorker.auditWorkerComposition -> audit.auditApplication "Registra Application"
+  audit.auditWorker.auditWorkerComposition -> audit.auditInfrastructure "Registra Infrastructure"
 }

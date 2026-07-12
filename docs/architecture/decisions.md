@@ -2,13 +2,13 @@
 
 ## Resumo executivo
 
-A arquitetura atual esta mais proxima de Clean Architecture/DDD por bounded context, mas nao e pura. Na pratica, e uma arquitetura hibrida e coerente com um projeto de estudos arquiteturais que nasceu como POC: camadas internas nos servicos com dominio relevante, APIs HTTP e workers separados por processo, Outbox com Kafka default e Pub/Sub explicito/legado para consistencia eventual, Keycloak como IdP principal e IdentityService como bounded context de cadastro/vinculo local de usuarios.
+A arquitetura atual esta mais proxima de Clean Architecture/DDD por bounded context, mas nao e pura. Na pratica, e uma arquitetura hibrida e coerente com um projeto de estudos arquiteturais que nasceu como POC: camadas internas nos servicos com dominio relevante, APIs HTTP e workers separados por processo, Outbox com Kafka default e Pub/Sub explicito/legado para consistencia eventual, Keycloak como IdP principal, IdentityService como bounded context de cadastro/vinculo local de usuarios, PaymentService como bounded context de pagamentos externos e AuditService como bounded context de auditoria funcional.
 
 A recomendacao e nao aumentar o numero de camadas agora. O melhor caminho e preservar a estrutura atual, corrigir assimetrias pontuais e fortalecer contratos/eventos/documentacao antes de qualquer reestruturacao.
 
 A organizacao de desenvolvimento usa `PocArquitetura.slnx` como solution
 agregadora global e solutions contextuais para Ledger, Balance, Transfer,
-Identity, Audit e Shared. Essa organizacao orienta build, testes e experiencia
+Payment, Identity, Audit e Shared. Essa organizacao orienta build, testes e experiencia
 local, mas nao implica separacao automatica de deployment, ownership,
 repositorios, bancos ou topologia runtime.
 
@@ -68,6 +68,59 @@ Simplificacoes recomendadas:
 - manter IdentityService focado em cadastro, MerchantId, vinculo com Keycloak e e-mail de boas-vindas;
 - manter Keycloak como unico emissor operacional local.
 
+### PaymentService
+
+Camadas atuais: adequadas para o escopo implementado.
+
+O contexto isola pagamentos externos, state machine de Payment/Refund, ACL de
+provider fake/Stripe, webhook assinado, Inbox duravel e integracao idempotente
+com Ledger. A separacao em API e Worker e importante: o webhook apenas valida e
+persiste entrada confiavel; processamento da Inbox e materializacao financeira
+ficam fora do request HTTP.
+
+Excessos ou sinais de atencao:
+
+- as ADRs 0101-0105 nasceram como propostas, mas a branch atual ja contem a
+  implementacao inicial; a documentacao de arquitetura deve refletir o runtime
+  real e preservar ADRs como historico da decisao;
+- o `compose.yaml` ainda nao declara `payment-service` nem `payment-worker`,
+  entao deployment local via Compose nao deve mostrar esses containers como
+  ativos;
+- Payment nao deve ganhar Kafka financeiro proprio nem chamar Balance para
+  "adiantar" saldo.
+
+Simplificacoes recomendadas:
+
+- manter o provider fake para testes e desenvolvimento local;
+- manter Stripe atras da porta `IPaymentGateway`;
+- evoluir refund parcial, reconciliacao ou eventos proprios apenas quando houver
+  requisito e contrato claro.
+
+### AuditService
+
+Camadas atuais: adequadas, com uma ressalva operacional.
+
+O contexto possui API HTTP canonica, schema `audit`, contrato agnostico ao
+chamador e Worker Kafka opcional para `AuditRecordRequested.v1`. A implementacao
+do Worker nao significa que Ledger, Balance, Transfer ou Payment ja produzam
+eventos reais de auditoria; essa integracao continua dependente de decisao e
+producer futuro.
+
+Excessos ou sinais de atencao:
+
+- representar o topico `audit.record.requested` sem avisar que nao ha producer
+  real cria falsa sensacao de fluxo ativo;
+- misturar auditoria funcional com logs/traces/metricas confundiria ownership;
+- chamar AuditService sincronicamente de fluxos financeiros principais deve ser
+  decisao explicita, nao atalho acidental.
+
+Simplificacoes recomendadas:
+
+- manter a API HTTP canonica como contrato ativo;
+- manter o Worker como caminho opcional documentado;
+- conectar producers por Outbox + Kafka somente quando houver primeiro fluxo
+  produtor definido e contrato versionado.
+
 ## Problemas principais encontrados
 
 - Inconsistencia de posicao das portas de persistencia: Ledger coloca repositories no Domain; Balance coloca em Application.
@@ -99,6 +152,8 @@ Simplificacoes recomendadas:
 - Acoplamento operacional no `Program.cs` pode virar composicao dificil de testar.
 - IdentityService pode ser confundido com IdP se a documentacao nao deixar claro que tokens continuam sendo emitidos pelo Keycloak.
 - E-mail de boas-vindas no IdentityService e side effect pos-commit sem garantia duravel; isso e aceitavel para a POC, mas deve ser reavaliado se virar requisito critico.
+- PaymentService pode ser confundido com fonte de fato financeiro se os diagramas nao mostrarem que Ledger continua dono do lancamento e Balance continua derivado apenas dos eventos do Ledger.
+- AuditService pode parecer integrado aos fluxos financeiros se o consumer Kafka opcional for mostrado sem a ressalva de que ainda nao ha producers reais.
 - Outbox/DLQ exigem operacao cuidadosa de reprocessamento; ja existem runbooks e casos de uso internos, mas ainda nao ha automacao operacional completa para todos os cenarios produtivos.
 - Baseline produtivo GCP/seguranca foi consolidado como referencia arquitetural em [production-readiness.md](production-readiness.md), mas ainda precisa virar decisoes e automacoes especificas antes de tratar o projeto como referencia operacional fora do laboratorio local.
 - DAST/ZAP segue sem workflow ou gate automatizado.
@@ -116,6 +171,8 @@ O roadmap consolidado por areas de maturidade fica em [docs/roadmap.md](../roadm
 - Padronizar onde ficam portas de persistencia nos proximos servicos; nao mover agora sem refactor dedicado.
 - Manter OpenAPI automatizado como parte da validacao de contrato HTTP: geracao, lint, drift e diff de breaking changes.
 - Manter os diagramas do IdentityService sincronizados com as ADRs 0089-0095 e com o contrato `docs/openapi/identity.v1.json`.
+- Manter os diagramas do PaymentService sincronizados com `docs/architecture/payment-service.md`, `docs/development/payment-api.md` e os fluxos Stripe/Inbox/Ledger.
+- Manter AuditService separado de observabilidade tecnica e marcar claramente a ausencia de producers reais de auditoria.
 
 ### Medio prazo
 
@@ -140,6 +197,8 @@ Adotar arquitetura minimalista e pragmatica, robusta onde a complexidade e real:
 
 - LedgerService e BalanceService continuam com camadas `Api`, `Application`, `Domain` e `Infrastructure`.
 - IdentityService continua com camadas `Api`, `Application`, `Domain` e `Infrastructure`, sem Worker ou mensageria nesta etapa.
+- PaymentService continua com `Api`, `Application`, `Domain`, `Infrastructure` e `Worker`, sem Balance direto e sem Kafka financeiro proprio.
+- AuditService continua com `Api`, `Application`, `Domain`, `Infrastructure` e `Worker` opcional, sem producers reais nos demais contexts nesta etapa.
 - `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker` sao processos separados, com composition roots explicitos e `ServiceName` proprio.
 - Boundaries devem ser reforcados por documentacao, testes de contrato e revisao de dependencias, nao por novas camadas preventivas.
 - Refactors estruturais devem ser planejados em etapas pequenas, com motivo concreto e ADR propria quando alterarem a decisao.

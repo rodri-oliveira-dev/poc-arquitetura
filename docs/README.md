@@ -104,11 +104,11 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [Roadmap arquitetural consolidado](roadmap.md): leitura consolidada das frentes feitas, parciais, proximos passos e itens fora de escopo por enquanto.
 - [ADRs](adrs/README.md): historico de decisoes arquiteturais e pontos de melhoria.
 - [Organizacao de solutions por contexto](adrs/0100-organizacao-solutions-contexto-agregadora.md): registra a agregadora `PocArquitetura.slnx`, as solutions contextuais e a diferenca entre organizacao de desenvolvimento e topologia runtime.
-- [PaymentService como bounded context futuro](adrs/0101-payment-service-bounded-context.md): registra a proposta de contexto para pagamentos externos preservando Ledger e Balance.
-- [ACL Stripe para PaymentService](adrs/0102-stripe-anti-corruption-layer.md): registra a proposta de integrar Stripe por porta interna sem vazar tipos do SDK.
-- [Inbox Pattern para webhooks Stripe](adrs/0103-inbox-pattern-webhooks-stripe.md): registra a proposta de persistir e deduplicar webhooks antes do processamento assincrono.
-- [Integracao PaymentService -> LedgerService](adrs/0104-payment-ledger-integration.md): registra a proposta de criar efeito financeiro via contrato HTTP idempotente do Ledger.
-- [Ordenacao e deduplicacao de eventos externos de pagamento](adrs/0105-payment-provider-event-ordering-deduplication.md): registra a proposta de state machine monotona para eventos duplicados, atrasados e fora de ordem.
+- [PaymentService como bounded context](adrs/0101-payment-service-bounded-context.md): registra a decisao historica que originou o contexto de pagamentos externos preservando Ledger e Balance.
+- [ACL Stripe para PaymentService](adrs/0102-stripe-anti-corruption-layer.md): registra a decisao de integrar Stripe por porta interna sem vazar tipos do SDK.
+- [Inbox Pattern para webhooks Stripe](adrs/0103-inbox-pattern-webhooks-stripe.md): registra a decisao de persistir e deduplicar webhooks antes do processamento assincrono.
+- [Integracao PaymentService -> LedgerService](adrs/0104-payment-ledger-integration.md): registra a decisao de criar efeito financeiro via contrato HTTP idempotente do Ledger.
+- [Ordenacao e deduplicacao de eventos externos de pagamento](adrs/0105-payment-provider-event-ordering-deduplication.md): registra a decisao de state machine monotona para eventos duplicados, atrasados e fora de ordem.
 - [Terraform state local e backend remoto](adrs/0079-terraform-state-local-e-backend-remoto.md): registra os riscos do state local, gatilhos e estrategia que antecederam a adocao do backend remoto GCS.
 - [Backend remoto GCS para Terraform dev](adrs/0080-backend-remoto-gcs-terraform-dev.md): registra a adocao do backend remoto parcial em GCS, separacao por ambiente e migracao manual de state.
 - [Mensageria por ports and adapters](adrs/0075-mensageria-ports-adapters-kafka-provider.md): historico da introducao do boundary quando Kafka ainda era o provider atual.

@@ -297,9 +297,12 @@ entidade, merchant, actor, status, reason, metadata canonica e `occurredAt`.
   bounded context especifico.
 - Nao ha integracao inicial com `LedgerService`, `BalanceService` ou
   `TransferService`.
-- Nao ha worker, consumo Kafka, Outbox de auditoria ou DLQ de auditoria nesta
-  etapa.
-- O evento conceitual `AuditRecordRequested.v1` ainda nao e publicado por nenhum
-  servico e nao possui topico ativo.
+- O `AuditService.Worker` possui consumer Kafka opcional para
+  `AuditRecordRequested.v1`, mas nao ha producers reais em `LedgerService`,
+  `BalanceService`, `TransferService` ou `PaymentService`.
+- Nao ha Outbox de auditoria nos servicos de origem nem redrive automatico de
+  DLQ nesta etapa.
+- O evento `AuditRecordRequested.v1` ainda nao e publicado por nenhum servico no
+  runtime atual.
 - `metadata` deve conter apenas atributos funcionais pequenos e nao deve
   carregar payload bruto, dados sensiveis ou segredos.
