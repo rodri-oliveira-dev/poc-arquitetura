@@ -422,6 +422,16 @@ model {
 
   stripe = softwareSystem "Stripe" {
     description "Provider externo de pagamentos usado pelo PaymentService para criar PaymentIntent/Refund e entregar webhooks assinados."
+
+    stripeApi = container "Stripe API" {
+      technology "HTTPS / Stripe"
+      description "API externa usada pelo adapter Stripe do PaymentService.Infrastructure para criar PaymentIntent e Refund com idempotencia externa deterministica."
+    }
+
+    stripeWebhooks = container "Stripe Webhook" {
+      technology "HTTPS webhook"
+      description "Entrega eventos Stripe assinados ao endpoint publico de webhook do PaymentService.Api. Nao chama Worker, banco, Kafka ou servicos internos diretamente."
+    }
   }
 
   kafka = softwareSystem "Kafka" {
@@ -551,8 +561,8 @@ model {
   balance.balanceApi -> identity.keycloak "Baixa/cacheia JWKS e valida JWT offline com iss, aud, scopes e merchant_id" "HTTP cacheado"
   transfer.transferApi -> identity.keycloak "Baixa/cacheia JWKS e valida JWT offline com iss, aud, scopes e merchant_id" "HTTP cacheado"
   payment.paymentApi -> identity.keycloak "Baixa/cacheia JWKS e valida JWT offline com iss, aud, scopes e merchant_id" "HTTP cacheado"
-  payment.paymentApi.paymentInfrastructure -> stripe "Cria PaymentIntent com idempotencia externa deterministica" "HTTPS"
-  stripe -> payment.paymentApi "Entrega webhooks Stripe assinados em /api/v1/webhooks/stripe" "HTTPS + Stripe-Signature"
+  payment.paymentApi.paymentInfrastructure -> stripe.stripeApi "Cria PaymentIntent e Refund com idempotencia externa deterministica" "HTTPS"
+  stripe.stripeWebhooks -> payment.paymentApi "Entrega webhooks Stripe assinados em /api/v1/webhooks/stripe" "HTTPS + Stripe-Signature"
 
   ledger.ledgerApi -> ledger.ledgerDb "Persiste lancamento, estorno, reprocessamento, idempotencia e outbox" "EF Core"
   ledger.ledgerWorker.ledgerWorkerComposition -> ledger.ledgerWorker.ledgerWorkerApplication "Registra casos de uso e handlers" "DI / MediatR"
