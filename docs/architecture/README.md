@@ -167,10 +167,9 @@ processada pelo Worker, que chama LedgerService.Api para materializar credito ou
 estorno. Payment nao grava Ledger DB, nao grava Balance DB e nao publica evento
 financeiro direto no Kafka.
 
-Observacao de deployment local: os projetos `src/payment` existem, mas
-`compose.yaml` atual ainda nao declara `payment-service` nem `payment-worker`.
-Use a documentacao de desenvolvimento do PaymentService para execucao direta no
-host quando necessario.
+No ambiente local padrao, `payment-service` e `payment-worker` sobem pelo
+`compose.yaml` apos as migrations do schema `payment` serem aplicadas pelos
+scripts `scripts/local/start-stack.*`.
 
 ### IdentityService e Keycloak
 

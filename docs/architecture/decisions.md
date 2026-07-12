@@ -83,9 +83,9 @@ Excessos ou sinais de atencao:
 - as ADRs 0101-0105 nasceram como propostas, mas a branch atual ja contem a
   implementacao inicial; a documentacao de arquitetura deve refletir o runtime
   real e preservar ADRs como historico da decisao;
-- o `compose.yaml` ainda nao declara `payment-service` nem `payment-worker`,
-  entao deployment local via Compose nao deve mostrar esses containers como
-  ativos;
+- `payment-service` e `payment-worker` sobem no Compose local padrao, mas ainda
+  dependem de migrations aplicadas pelos scripts `scripts/local/start-stack.*`
+  antes dos containers iniciarem;
 - Payment nao deve ganhar Kafka financeiro proprio nem chamar Balance para
   "adiantar" saldo.
 

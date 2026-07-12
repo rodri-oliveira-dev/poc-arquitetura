@@ -74,6 +74,8 @@ BALANCE_DB_WRITE_PASSWORD=$(new_local_secret BALANCE_DB_WRITE_PASSWORD)
 BALANCE_DB_MIGRATOR_PASSWORD=$(new_local_secret BALANCE_DB_MIGRATOR_PASSWORD)
 TRANSFER_DB_PASSWORD=$(new_local_secret TRANSFER_DB_PASSWORD)
 TRANSFER_DB_MIGRATOR_PASSWORD=$(new_local_secret TRANSFER_DB_MIGRATOR_PASSWORD)
+PAYMENT_DB_PASSWORD=$(new_local_secret PAYMENT_DB_PASSWORD)
+PAYMENT_DB_MIGRATOR_PASSWORD=$(new_local_secret PAYMENT_DB_MIGRATOR_PASSWORD)
 IDENTITY_DB_PASSWORD=$(new_local_secret IDENTITY_DB_PASSWORD)
 IDENTITY_DB_MIGRATOR_PASSWORD=$(new_local_secret IDENTITY_DB_MIGRATOR_PASSWORD)
 
@@ -107,6 +109,7 @@ PUBSUB_LEDGER_EVENTS_DLQ_INSPECTION_SUBSCRIPTION_ID=ledger-events-application-dl
 
 # Services
 TRANSFER_SERVICE_HOST_PORT=5230
+PAYMENT_SERVICE_HOST_PORT=5234
 IDENTITY_SERVICE_HOST_PORT=5232
 
 # Mailpit/Resend
@@ -123,6 +126,11 @@ Resend__ApiKey=
 Resend__From=onboarding@seudominio.example
 Resend__FromName=POC Arquitetura
 Resend__ReplyTo=
+
+# PaymentService
+PaymentGateway__Provider=Fake
+PaymentGateway__Stripe__SecretKey=
+PaymentGateway__Stripe__WebhookSigningSecret=
 
 # Observability
 GRAFANA_ADMIN_PASSWORD=$(new_local_secret GRAFANA_ADMIN_PASSWORD)

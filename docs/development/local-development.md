@@ -119,11 +119,11 @@ Variaveis nao sensiveis ou identificadores locais continuam com defaults no comp
 
 O Docker Compose roda os containers com ambiente `Local` e usa hostnames internos da rede Docker, como `postgres-db:5432`, `kafka:9092`, `keycloak:8080` e `mailpit:1025`. Debug ou `dotnet run` no host usa ambiente `Development` e deve apontar para as portas publicadas no host: `127.0.0.1:15432`, `127.0.0.1:19092`, `http://localhost:8081` e `localhost:1025`.
 
-O mesmo `KEYCLOAK_CLIENT_SECRET` alimenta o client local `poc-automation` usado pelos scripts e pelo `TransferService.Worker` quando ele chama o `LedgerService.Api`, e o client local `identity-service-admin` usado pelo `IdentityService.Api` para administrar usuarios no realm `poc`. O scope service-to-service do worker fica em `TRANSFER_WORKER_LEDGER_AUTH_SCOPE`, com default `ledger.write`.
+O mesmo `KEYCLOAK_CLIENT_SECRET` alimenta o client local `poc-automation` usado pelos scripts e pelos workers de `TransferService` e `PaymentService` quando eles chamam o `LedgerService.Api`, e o client local `identity-service-admin` usado pelo `IdentityService.Api` para administrar usuarios no realm `poc`. Os scopes service-to-service dos workers ficam em `TRANSFER_WORKER_LEDGER_AUTH_SCOPE` e `PAYMENT_WORKER_LEDGER_AUTH_SCOPE`, ambos com default `ledger.write`.
 
 O compose executa o job idempotente `keycloak-identity-admin-init` depois que o Keycloak fica healthy. Esse job usa `kcadm.sh` para atribuir `realm-management:manage-users` e `realm-management:view-users` a service account do client `identity-service-admin`; ele deve terminar com sucesso antes do `IdentityService.Api` iniciar.
 
-O PostgreSQL local roda em um unico container `postgres-db`, com volume `postgres-data`, database `appdb`, schemas `ledger`, `balance`, `transfer` e `identity`, e usuarios separados por servico/responsabilidade. A inicializacao fica nos scripts versionados em `infra/postgres/init`. As connection strings dos servicos runtime no compose usam `postgres-db:5432/appdb`; as variaveis `LEDGER_DB_*`, `BALANCE_DB_*`, `TRANSFER_DB_*` e `IDENTITY_DB_*` configuram as senhas locais usadas pelo init do container e pelas connection strings do compose. Em volumes PostgreSQL existentes, alterar `.env.local` ou `compose.yaml` nao altera automaticamente roles, grants ou senhas ja gravadas no banco; para reaplicar o init, recrie conscientemente o volume local ou execute o SQL manualmente.
+O PostgreSQL local roda em um unico container `postgres-db`, com volume `postgres-data`, database `appdb`, schemas `ledger`, `balance`, `transfer`, `payment` e `identity`, e usuarios separados por servico/responsabilidade. A inicializacao fica nos scripts versionados em `infra/postgres/init`. As connection strings dos servicos runtime no compose usam `postgres-db:5432/appdb`; as variaveis `LEDGER_DB_*`, `BALANCE_DB_*`, `TRANSFER_DB_*`, `PAYMENT_DB_*` e `IDENTITY_DB_*` configuram as senhas locais usadas pelo init do container e pelas connection strings do compose. Em volumes PostgreSQL existentes, alterar `.env.local` ou `compose.yaml` nao altera automaticamente roles, grants ou senhas ja gravadas no banco; para reaplicar o init, recrie conscientemente o volume local ou execute o SQL manualmente.
 
 Topologia local de banco:
 
@@ -136,6 +136,8 @@ Topologia local de banco:
 | Migrations do BalanceService | `appdb.balance` | `balance_migrator_user` |
 | Runtime do TransferService.Api e TransferService.Worker | `appdb.transfer` | `transfer_app_user` |
 | Migrations do TransferService | `appdb.transfer` | `transfer_migrator_user` |
+| Runtime do PaymentService.Api e PaymentService.Worker | `appdb.payment` | `payment_app_user` |
+| Migrations do PaymentService | `appdb.payment` | `payment_migrator_user` |
 | Runtime do IdentityService.Api | `appdb.identity` | `identity_app_user` |
 | Migrations do IdentityService | `appdb.identity` | `identity_migrator_user` |
 
@@ -154,14 +156,16 @@ Os scripts `scripts/local/start-stack.*` sobem por padrao o core funcional de de
 - `BalanceService.Worker`;
 - `TransferService.Api`;
 - `TransferService.Worker`;
+- `PaymentService.Api`;
+- `PaymentService.Worker`;
 - `IdentityService.Api`;
 - job idempotente `keycloak-identity-admin-init` para permissao administrativa local do IdentityService no Keycloak;
-- PostgreSQL unico (`postgres-db`) com schemas `ledger`, `balance`, `transfer` e `identity`;
+- PostgreSQL unico (`postgres-db`) com schemas `ledger`, `balance`, `transfer`, `payment` e `identity`;
 - Kafka local;
 - job idempotente de inicializacao dos topicos Kafka de Ledger, Balance e Transfer.
 - Mailpit para capturar e-mails locais sem envio real.
 
-Esse modo tambem pode ser chamado de Dev Lite quando o foco for reduzir consumo local: ele significa core funcional sem observabilidade, SonarQube, k6 e Nginx overlay. Dev Lite nao significa "sem workers"; `LedgerService.Worker`, `BalanceService.Worker` e `TransferService.Worker` continuam no fluxo padrao porque validam Outbox, Kafka, projecao e processamento de Saga ponta a ponta.
+Esse modo tambem pode ser chamado de Dev Lite quando o foco for reduzir consumo local: ele significa core funcional sem observabilidade, SonarQube, k6 e Nginx overlay. Dev Lite nao significa "sem workers"; `LedgerService.Worker`, `BalanceService.Worker`, `TransferService.Worker` e `PaymentService.Worker` continuam no fluxo padrao porque validam Outbox, Kafka, projecao, processamento de Saga e materializacao Payment -> Ledger ponta a ponta.
 
 Componentes opcionais ficam em arquivos Compose separados. Eles complementam o `compose.yaml`; nao substituem a stack principal nem duplicam banco, Kafka ou servicos .NET:
 
@@ -884,13 +888,14 @@ Prometheus tambem carrega regras locais em `observability/prometheus/rules/` e e
 O compose nao aplica migrations automaticamente. Na primeira execucao com banco vazio, e sempre que houver mudanca de schema, aplique as migrations pelo host usando as portas expostas.
 
 Os `DbContext` usam schemas dedicados e tabelas de historico separadas:
-`ledger.__EFMigrationsHistory` para o Ledger e `balance.__EFMigrationsHistory`
-para o Balance. Como esta POC ja trata o PostgreSQL local como descartavel e
-os schemas sao criados pelo bootstrap em `infra/postgres/init`, as migrations
-atuais foram consolidadas em baselines iniciais por servico, em vez de uma
-cadeia incremental para mover objetos antigos do schema `public`.
+`ledger.__EFMigrationsHistory`, `balance.__EFMigrationsHistory`,
+`transfer.__EFMigrationsHistory`, `payment.__EFMigrationsHistory` e
+`identity.__EFMigrationsHistory`. Como esta POC ja trata o PostgreSQL local como
+descartavel e os schemas sao criados pelo bootstrap em `infra/postgres/init`, as
+migrations atuais foram consolidadas em baselines iniciais por servico, em vez
+de uma cadeia incremental para mover objetos antigos do schema `public`.
 
-Execute as migrations dos dois servicos sequencialmente. As invocacoes de
+Execute as migrations dos servicos sequencialmente. As invocacoes de
 `dotnet-ef` compilam projetos compartilhados da solution; executa-las em
 paralelo pode causar disputa por artefatos em `bin/` e `obj/`.
 
@@ -925,6 +930,17 @@ dotnet tool run dotnet-ef -- database update `
   -p src\transfer\TransferService.Infrastructure\TransferService.Infrastructure.csproj `
   -s src\transfer\TransferService.Api\TransferService.Api.csproj `
   -c TransferServiceDbContext
+```
+
+PaymentService:
+
+```powershell
+$env:PAYMENT_SERVICE_CONNECTION_STRING = "Host=127.0.0.1;Port=15432;Database=appdb;Username=payment_migrator_user;Password=<PAYMENT_DB_MIGRATOR_PASSWORD>"
+dotnet tool restore
+dotnet tool run dotnet-ef -- database update `
+  -p src\payment\PaymentService.Infrastructure\PaymentService.Infrastructure.csproj `
+  -s src\payment\PaymentService.Api\PaymentService.Api.csproj `
+  -c PaymentDbContext
 ```
 
 ## Execucao no host

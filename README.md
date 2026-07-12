@@ -386,7 +386,7 @@ No Linux/macOS:
 ./scripts/local/start-stack.sh
 ```
 
-Esse script sobe o core funcional local: PostgreSQL persistente unico com schemas `ledger`, `balance` e `transfer`, Kafka, Keycloak, APIs e workers, incluindo `TransferService.Worker`. Ele aplica migrations pelo host e inicia as APIs depois do schema estar pronto. O passo a passo manual fica em [desenvolvimento local](docs/development/local-development.md).
+Esse script sobe o core funcional local: PostgreSQL persistente unico com schemas `ledger`, `balance`, `transfer`, `payment` e `identity`, Kafka, Keycloak, APIs e workers, incluindo `TransferService.Worker` e `PaymentService.Worker`. Ele aplica migrations pelo host e inicia as APIs depois do schema estar pronto. O passo a passo manual fica em [desenvolvimento local](docs/development/local-development.md).
 
 Para incluir observabilidade local completa:
 

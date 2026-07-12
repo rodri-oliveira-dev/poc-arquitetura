@@ -264,23 +264,20 @@ Cenarios suportados: `Success`, `RequiresAction`, `Processing`,
 
 Os smokes desta etapa assumem que `PaymentService.Api`,
 `PaymentService.Worker`, `LedgerService.Api`, `LedgerService.Worker`,
-`BalanceService.Worker`, PostgreSQL e Kafka ja estao em execucao. O
-`compose.yaml` atual ainda nao declara containers `payment-service` e
-`payment-worker`; portanto a rota local recomendada para Payment nesta etapa e
-executar API/Worker via `dotnet run` ou perfil de IDE, mantendo Ledger/Balance
-no compose existente.
+`BalanceService.Worker`, PostgreSQL e Kafka ja estao em execucao. O caminho
+recomendado e subir a stack local padrao, que aplica migrations do schema
+`payment` e inicia `payment-service`/`payment-worker`.
 
-Infraestrutura interna:
+Stack local:
 
 ```powershell
-docker compose up -d postgres-db kafka kafka-init-topics keycloak ledger-service ledger-worker balance-service balance-worker
+./scripts/local/start-stack.ps1
 ```
 
-Payment em processos locais:
+No Linux/macOS:
 
-```powershell
-dotnet run --project ./src/payment/PaymentService.Api/PaymentService.Api.csproj
-dotnet run --project ./src/payment/PaymentService.Worker/PaymentService.Worker.csproj
+```bash
+./scripts/local/start-stack.sh
 ```
 
 Secrets locais para webhook controlado:
@@ -342,7 +339,6 @@ repositorio:
 ```powershell
 dotnet user-secrets set "PaymentGateway:Provider" "Stripe" --project ./src/payment/PaymentService.Api/PaymentService.Api.csproj
 dotnet user-secrets set "PaymentGateway:Stripe:SecretKey" "sk_test_xxx" --project ./src/payment/PaymentService.Api/PaymentService.Api.csproj
-dotnet user-secrets set "PaymentGateway:Stripe:SecretKey" "sk_test_xxx" --project ./src/payment/PaymentService.Worker/PaymentService.Worker.csproj
 dotnet user-secrets set "PaymentGateway:Stripe:WebhookSigningSecret" "<STRIPE_WEBHOOK_SIGNING_SECRET>" --project ./src/payment/PaymentService.Api/PaymentService.Api.csproj
 ```
 
@@ -358,8 +354,7 @@ $env:PaymentGateway__Stripe__WebhookSigningSecret = "<STRIPE_WEBHOOK_SIGNING_SEC
 para chamadas da API Stripe, incluindo PaymentIntent e Refund. O nome legado
 `PaymentGateway:Stripe:ApiKey` ainda e aceito como alias local, mas novas
 configuracoes devem usar `SecretKey`. O Worker nao chama a Stripe no fluxo
-atual de refund; portanto `SecretKey` no Worker e opcional hoje e fica
-documentado apenas para cenarios futuros/alternativos de reconciliacao.
+atual; ele processa Inbox e materializa efeitos no Ledger.
 `PaymentGateway:Stripe:WebhookSigningSecret`
 recebe o signing secret do endpoint (`whsec_...`) usado exclusivamente para
 validar webhooks. Nao misture os dois valores.
