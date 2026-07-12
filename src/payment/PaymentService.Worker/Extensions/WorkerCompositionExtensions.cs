@@ -20,7 +20,7 @@ public static class WorkerCompositionExtensions
         ArgumentNullException.ThrowIfNull(environment);
 
         services.AddPaymentApplication();
-        services.AddPaymentInfrastructure(configuration, environment);
+        services.AddPaymentWorkerInfrastructure(configuration);
         services.AddOptions<PaymentInboxWorkerOptions>()
             .Bind(configuration.GetSection(PaymentInboxWorkerOptions.SectionName))
             .Validate(options => options.BatchSize > 0, "PaymentService:InboxWorker:BatchSize deve ser maior que zero.")

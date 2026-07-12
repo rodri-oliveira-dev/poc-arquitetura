@@ -19,40 +19,6 @@ public sealed class PaymentInboxMessage
     {
     }
 
-    private PaymentInboxMessage(
-        Guid id,
-        PaymentProvider provider,
-        string providerEventId,
-        string eventType,
-        string payload,
-        string payloadSha256,
-        PaymentInboxStatus status,
-        StripeWebhookEventCategory eventCategory,
-        DateTimeOffset receivedAt,
-        DateTimeOffset createdAt,
-        DateTimeOffset updatedAt,
-        string? correlationId,
-        string? providerPaymentId,
-        PaymentId? paymentId)
-    {
-        Id = id;
-        Provider = provider;
-        ProviderEventId = NormalizeRequired(providerEventId, ProviderEventIdMaxLength, nameof(providerEventId));
-        EventType = NormalizeRequired(eventType, EventTypeMaxLength, nameof(eventType));
-        Payload = string.IsNullOrWhiteSpace(payload)
-            ? throw new ArgumentException("Payload da Inbox nao pode ser vazio.", nameof(payload))
-            : payload;
-        PayloadSha256 = NormalizeRequired(payloadSha256, HashMaxLength, nameof(payloadSha256));
-        Status = status;
-        EventCategory = eventCategory;
-        ReceivedAt = receivedAt;
-        CreatedAt = createdAt;
-        UpdatedAt = updatedAt;
-        CorrelationId = NormalizeOptional(correlationId, CorrelationIdMaxLength, nameof(correlationId));
-        ProviderPaymentId = NormalizeOptional(providerPaymentId, ProviderPaymentIdMaxLength, nameof(providerPaymentId));
-        PaymentId = paymentId;
-    }
-
     public Guid Id
     {
         get; private set;
@@ -160,21 +126,25 @@ public sealed class PaymentInboxMessage
             ? PaymentInboxStatus.Pending
             : PaymentInboxStatus.Ignored;
 
-        return new PaymentInboxMessage(
-            Guid.NewGuid(),
-            PaymentProvider.Stripe,
-            providerEventId,
-            eventType,
-            payload,
-            ComputeSha256(payload),
-            status,
-            category,
-            receivedAt,
-            receivedAt,
-            receivedAt,
-            correlationId,
-            providerPaymentId,
-            paymentId);
+        return new PaymentInboxMessage
+        {
+            Id = Guid.NewGuid(),
+            Provider = PaymentProvider.Stripe,
+            ProviderEventId = NormalizeRequired(providerEventId, ProviderEventIdMaxLength, nameof(providerEventId)),
+            EventType = NormalizeRequired(eventType, EventTypeMaxLength, nameof(eventType)),
+            Payload = string.IsNullOrWhiteSpace(payload)
+                ? throw new ArgumentException("Payload da Inbox nao pode ser vazio.", nameof(payload))
+                : payload,
+            PayloadSha256 = NormalizeRequired(ComputeSha256(payload), HashMaxLength, nameof(payload)),
+            Status = status,
+            EventCategory = category,
+            ReceivedAt = receivedAt,
+            CreatedAt = receivedAt,
+            UpdatedAt = receivedAt,
+            CorrelationId = NormalizeOptional(correlationId, CorrelationIdMaxLength, nameof(correlationId)),
+            ProviderPaymentId = NormalizeOptional(providerPaymentId, ProviderPaymentIdMaxLength, nameof(providerPaymentId)),
+            PaymentId = paymentId
+        };
     }
 
     public void MarkProcessing(string lockOwner, DateTimeOffset now, DateTimeOffset lockedUntil)

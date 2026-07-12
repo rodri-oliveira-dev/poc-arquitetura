@@ -25,11 +25,14 @@ public static class StripeWebhookEventClassifier
     ];
 
     public static StripeWebhookEventCategory Classify(string eventType)
-        => string.IsNullOrWhiteSpace(eventType)
-            ? StripeWebhookEventCategory.Unknown
-            : SupportedEvents.Contains(eventType)
+    {
+        if (string.IsNullOrWhiteSpace(eventType))
+            return StripeWebhookEventCategory.Unknown;
+
+        return SupportedEvents.Contains(eventType)
             ? StripeWebhookEventCategory.Supported
             : KnownUnsupportedPrefixes.Any(prefix => eventType.StartsWith(prefix, StringComparison.Ordinal))
             ? StripeWebhookEventCategory.KnownUnsupported
             : StripeWebhookEventCategory.Unknown;
+    }
 }

@@ -96,11 +96,12 @@ public sealed class ProcessarEstornoLancamentoHandlerTests
 
     private static ProcessarEstornoLancamentoHandler CreateSut(State state)
         => new(
-            new EstornoRepo(state),
-            new LedgerRepo(state),
-            new OutboxRepo(state),
+            new ProcessarEstornoLancamentoDependencies(
+                new EstornoRepo(state),
+                new LedgerRepo(state),
+                new OutboxRepo(state),
+                new UnitOfWork()),
             new LedgerReversalPolicy(new EstornoRepo(state), new LedgerRepo(state)),
-            new UnitOfWork(),
             NullLogger<ProcessarEstornoLancamentoHandler>.Instance);
 
     private static LedgerEntry NewLedgerEntry(LedgerEntryType type, decimal amount)

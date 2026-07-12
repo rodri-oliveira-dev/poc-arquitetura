@@ -11,11 +11,16 @@ public sealed class LedgerReversalPolicyTests
     public async Task Should_allow_first_reversal()
     {
         var original = NewLedgerEntry();
-        var policy = new LedgerReversalPolicy(
-            new EstornoRepo([]),
-            new LedgerRepo([original]));
+        var estornoRepo = new EstornoRepo([]);
+        var ledgerRepo = new LedgerRepo([original]);
+        var policy = new LedgerReversalPolicy(estornoRepo, ledgerRepo);
 
         await policy.EnsureCanRequestReversalAsync(original, TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, estornoRepo.ActiveLookupCount);
+        Assert.Equal(1, estornoRepo.CompletedLookupCount);
+        Assert.Equal(1, ledgerRepo.CompensatingLookupCount);
+        Assert.Equal("ext", original.ExternalReference);
     }
 
     [Fact]
@@ -122,19 +127,35 @@ public sealed class LedgerReversalPolicyTests
         public Task<EstornoLancamento?> GetActiveByLancamentoOriginalIdAsync(
             Guid lancamentoOriginalId,
             CancellationToken cancellationToken = default)
-            => Task.FromResult(
+        {
+            ActiveLookupCount++;
+            return Task.FromResult(
                 _estornos.FirstOrDefault(x => x.LancamentoOriginalId == lancamentoOriginalId && x.IsActive()));
+        }
 
         public Task<EstornoLancamento?> GetCompletedByLancamentoOriginalIdAsync(
             Guid lancamentoOriginalId,
             CancellationToken cancellationToken = default)
-            => Task.FromResult(
+        {
+            CompletedLookupCount++;
+            return Task.FromResult(
                 _estornos.FirstOrDefault(x =>
                     x.LancamentoOriginalId == lancamentoOriginalId &&
                     x.Status == EstornoLancamentoStatus.Completed));
+        }
 
         public Task AddAsync(EstornoLancamento estorno, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
+
+        public int ActiveLookupCount
+        {
+            get; private set;
+        }
+
+        public int CompletedLookupCount
+        {
+            get; private set;
+        }
     }
 
     private sealed class LedgerRepo(IReadOnlyList<LedgerEntry> entries) : ILedgerEntryRepository
@@ -147,8 +168,11 @@ public sealed class LedgerReversalPolicyTests
         public Task<LedgerEntry?> GetCompensatingEntryAsync(
             Guid lancamentoOriginalId,
             CancellationToken cancellationToken = default)
-            => Task.FromResult(
+        {
+            CompensatingLookupCount++;
+            return Task.FromResult(
                 _entries.FirstOrDefault(x => x.ExternalReference == $"estorno:{lancamentoOriginalId:N}"));
+        }
 
         public Task<IReadOnlyList<LedgerEntry>> ListByMerchantAndPeriodAsync(
             string merchantId,
@@ -164,5 +188,10 @@ public sealed class LedgerReversalPolicyTests
 
         public Task AddAsync(LedgerEntry ledgerEntry, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
+
+        public int CompensatingLookupCount
+        {
+            get; private set;
+        }
     }
 }

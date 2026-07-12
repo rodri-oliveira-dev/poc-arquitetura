@@ -77,7 +77,7 @@ public sealed class PaymentInboxWorkerService(
         using var scope = _serviceProvider.CreateScope();
 
         var inboxRepository = scope.ServiceProvider.GetRequiredService<IPaymentInboxRepository>();
-        var options = _options.Value;
+        var workerOptions = _options.Value;
         var now = _clock.UtcNow;
 
         var backlog = await inboxRepository.CountBacklogAsync(now, cancellationToken);
@@ -85,14 +85,14 @@ public sealed class PaymentInboxWorkerService(
 
         _logger.LogInformation(
             "Polling da Inbox de pagamentos iniciado. BatchSize {BatchSize}, Backlog {Backlog}.",
-            options.BatchSize,
+            workerOptions.BatchSize,
             backlog);
 
         var claimed = await inboxRepository.ClaimEligibleAsync(
-            options.BatchSize,
+            workerOptions.BatchSize,
             now,
             _lockOwner,
-            options.ProcessingLeaseTimeout,
+            workerOptions.ProcessingLeaseTimeout,
             cancellationToken);
 
         var recoveredLeaseCount = claimed.Count(x => x.AttemptCount > 1 && x.Status == PaymentInboxStatus.Processing);
@@ -164,17 +164,17 @@ public sealed class PaymentInboxWorkerService(
         using var scope = _serviceProvider.CreateScope();
         var inboxRepository = scope.ServiceProvider.GetRequiredService<IPaymentInboxRepository>();
         var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
-        var options = _options.Value;
+        var workerOptions = _options.Value;
         var now = _clock.UtcNow;
         var nextRetryAt = PaymentInboxRetryPolicy.CalculateNextRetryAt(
             now,
             1,
-            options.BaseRetryDelay,
-            options.MaxRetryDelay);
+            workerOptions.BaseRetryDelay,
+            workerOptions.MaxRetryDelay);
 
         var status = await inboxRepository.MarkFailedProcessingAttemptAsync(
             inboxMessageId,
-            options.MaxRetryCount,
+            workerOptions.MaxRetryCount,
             now,
             nextRetryAt,
             BuildSafeUnexpectedError(exception),

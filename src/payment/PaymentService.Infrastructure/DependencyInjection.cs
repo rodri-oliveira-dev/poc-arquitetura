@@ -36,6 +36,21 @@ public static class DependencyInjection
         return services;
     }
 
+    public static IServiceCollection AddPaymentWorkerInfrastructure(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        services
+            .AddPaymentPersistence(configuration)
+            .AddPaymentRepositories()
+            .AddPaymentLedgerGateway(configuration);
+
+        return services;
+    }
+
     public static IServiceCollection AddPaymentPersistence(
         this IServiceCollection services,
         IConfiguration configuration)

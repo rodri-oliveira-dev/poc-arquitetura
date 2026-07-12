@@ -35,24 +35,9 @@ public sealed class PaymentLedgerProcessor(
             leaseTimeout,
             cancellationToken);
 
-        var completed = 0;
-        var retryScheduled = 0;
-        var definitive = 0;
-        var deadLettered = 0;
+        var counters = new OutcomeCounters();
 
-        foreach (var payment in claimed)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            var request = BuildRequest(payment);
-            var result = await _ledgerEntryGateway.CreateCreditAsync(request, cancellationToken);
-            var outcome = await PersistResultAsync(payment.PaymentId, lockOwner, result, cancellationToken);
-
-            completed += outcome == PersistedOutcome.Completed ? 1 : 0;
-            retryScheduled += outcome == PersistedOutcome.RetryScheduled ? 1 : 0;
-            definitive += outcome == PersistedOutcome.FailedDefinitive ? 1 : 0;
-            deadLettered += outcome == PersistedOutcome.DeadLettered ? 1 : 0;
-        }
+        await ProcessClaimedPaymentsAsync(claimed, lockOwner, counters, cancellationToken);
 
         var refundClaimed = await _paymentRepository.ClaimRefundLedgerReversalAsync(
             batchSize,
@@ -61,6 +46,39 @@ public sealed class PaymentLedgerProcessor(
             leaseTimeout,
             cancellationToken);
 
+        await ProcessClaimedRefundsAsync(refundClaimed, lockOwner, counters, cancellationToken);
+
+        return new PaymentLedgerProcessorResult(
+            claimed.Count + refundClaimed.Count,
+            counters.Completed,
+            counters.RetryScheduled,
+            counters.FailedDefinitive,
+            counters.DeadLettered);
+    }
+
+    private async Task ProcessClaimedPaymentsAsync(
+        IEnumerable<Payment> claimed,
+        string lockOwner,
+        OutcomeCounters counters,
+        CancellationToken cancellationToken)
+    {
+        foreach (var payment in claimed)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var request = BuildRequest(payment);
+            var result = await _ledgerEntryGateway.CreateCreditAsync(request, cancellationToken);
+            var outcome = await PersistResultAsync(payment.PaymentId, lockOwner, result, cancellationToken);
+            counters.Record(outcome);
+        }
+    }
+
+    private async Task ProcessClaimedRefundsAsync(
+        IEnumerable<Payment> refundClaimed,
+        string lockOwner,
+        OutcomeCounters counters,
+        CancellationToken cancellationToken)
+    {
         foreach (var payment in refundClaimed)
         {
             foreach (var refund in payment.Refunds.Where(x =>
@@ -73,15 +91,9 @@ public sealed class PaymentLedgerProcessor(
                 var request = BuildReversalRequest(payment, refund);
                 var result = await _ledgerEntryGateway.RequestReversalAsync(request, cancellationToken);
                 var outcome = await PersistRefundResultAsync(payment.PaymentId, refund.RefundId, lockOwner, result, cancellationToken);
-
-                completed += outcome == PersistedOutcome.Completed ? 1 : 0;
-                retryScheduled += outcome == PersistedOutcome.RetryScheduled ? 1 : 0;
-                definitive += outcome == PersistedOutcome.FailedDefinitive ? 1 : 0;
-                deadLettered += outcome == PersistedOutcome.DeadLettered ? 1 : 0;
+                counters.Record(outcome);
             }
         }
-
-        return new PaymentLedgerProcessorResult(claimed.Count + refundClaimed.Count, completed, retryScheduled, definitive, deadLettered);
     }
 
     private static LedgerCreditRequest BuildRequest(Payment payment)
@@ -229,5 +241,51 @@ public sealed class PaymentLedgerProcessor(
         RetryScheduled,
         FailedDefinitive,
         DeadLettered
+    }
+
+    private sealed class OutcomeCounters
+    {
+        public int Completed
+        {
+            get; private set;
+        }
+
+        public int RetryScheduled
+        {
+            get; private set;
+        }
+
+        public int FailedDefinitive
+        {
+            get; private set;
+        }
+
+        public int DeadLettered
+        {
+            get; private set;
+        }
+
+        public void Record(PersistedOutcome outcome)
+        {
+            switch (outcome)
+            {
+                case PersistedOutcome.Completed:
+                    Completed++;
+                    break;
+                case PersistedOutcome.RetryScheduled:
+                    RetryScheduled++;
+                    break;
+                case PersistedOutcome.FailedDefinitive:
+                    FailedDefinitive++;
+                    break;
+                case PersistedOutcome.DeadLettered:
+                    DeadLettered++;
+                    break;
+                case PersistedOutcome.None:
+                    break;
+                default:
+                    break;
+            }
+        }
     }
 }

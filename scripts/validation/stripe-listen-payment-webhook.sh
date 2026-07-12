@@ -19,7 +19,7 @@ Opcoes:
 EOF
 }
 
-while [ "$#" -gt 0 ]; do
+while [[ "$#" -gt 0 ]]; do
   case "$1" in
     --port)
       port="${2:-}"
@@ -54,7 +54,7 @@ if ! command -v stripe >/dev/null 2>&1; then
   exit 127
 fi
 
-if [ -z "$forward_to" ]; then
+if [[ -z "$forward_to" ]]; then
   case "$path" in
     /*) ;;
     *) path="/$path" ;;
@@ -68,7 +68,7 @@ echo 'export PaymentGateway__Stripe__WebhookSigningSecret=whsec_xxx'
 echo "Este script nao salva secrets e nao executa em background."
 
 args=(listen --forward-to "$forward_to")
-if [ -n "$events" ]; then
+if [[ -n "$events" ]]; then
   args+=(--events "$events")
 fi
 

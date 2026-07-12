@@ -78,12 +78,12 @@ public sealed class OutboxPublisherService(
         var outboxRepo = scope.ServiceProvider.GetRequiredService<IOutboxMessageRepository>();
         var uow = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
 
-        var options = _options.Value;
+        var publisherOptions = _options.Value;
         var now = _clock.UtcNow.UtcDateTime;
-        var lockDuration = TimeSpan.FromSeconds(Math.Max(5, options.LockDurationSeconds));
+        var lockDuration = TimeSpan.FromSeconds(Math.Max(5, publisherOptions.LockDurationSeconds));
 
         var claimed = await outboxRepo.ClaimPendingAsync(
-            options.BatchSize,
+            publisherOptions.BatchSize,
             now,
             _lockOwner,
             lockDuration,
@@ -94,13 +94,13 @@ public sealed class OutboxPublisherService(
 
         await uow.SaveChangesAsync(cancellationToken);
 
-        _logger.OutboxMessagesClaimed(claimed.Count, _lockOwner, options.MaxParallelism);
+        _logger.OutboxMessagesClaimed(claimed.Count, _lockOwner, publisherOptions.MaxParallelism);
 
         await Parallel.ForEachAsync(
             claimed,
             new ParallelOptions
             {
-                MaxDegreeOfParallelism = Math.Max(1, options.MaxParallelism),
+                MaxDegreeOfParallelism = Math.Max(1, publisherOptions.MaxParallelism),
                 CancellationToken = cancellationToken
             },
             async (message, ct) => await PublishOneSafelyAsync(message.Id, ct));
@@ -132,7 +132,7 @@ public sealed class OutboxPublisherService(
         var publisher = scope.ServiceProvider.GetRequiredService<IOutboxMessagePublisher>();
         var metrics = scope.ServiceProvider.GetRequiredService<OutboxMetrics>();
 
-        var options = _options.Value;
+        var publisherOptions = _options.Value;
 
         var message = await db.OutboxMessages.FirstOrDefaultAsync(x => x.Id == outboxId, ct);
         if (message is null)
@@ -188,7 +188,7 @@ public sealed class OutboxPublisherService(
         }
         catch (MessagePublishException ex)
         {
-            await HandlePublishFailureAsync(repo, uow, metrics, message, topic, startedAt, options, ex, ct);
+            await HandlePublishFailureAsync(repo, uow, metrics, message, topic, startedAt, publisherOptions, ex, ct);
         }
     }
 

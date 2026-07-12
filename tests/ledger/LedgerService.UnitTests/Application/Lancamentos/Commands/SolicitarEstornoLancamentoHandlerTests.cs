@@ -211,12 +211,13 @@ public sealed class SolicitarEstornoLancamentoHandlerTests
         Mock<IOutboxMessageRepository> outboxRepo,
         Mock<IUnitOfWork> uow)
         => new(
-            ledgerRepo.Object,
-            estornoRepo.Object,
-            idemRepo.Object,
-            outboxRepo.Object,
-            new LedgerReversalPolicy(estornoRepo.Object, ledgerRepo.Object),
-            uow.Object);
+            new SolicitarEstornoLancamentoDependencies(
+                ledgerRepo.Object,
+                estornoRepo.Object,
+                idemRepo.Object,
+                outboxRepo.Object,
+                uow.Object),
+            new LedgerReversalPolicy(estornoRepo.Object, ledgerRepo.Object));
 
     private static LedgerEntry ValidLedgerEntry()
         => new(

@@ -1,6 +1,6 @@
 namespace PaymentService.Application.Payments.InboxProcessing;
 
-public sealed class PaymentInboxRetryPolicy
+public static class PaymentInboxRetryPolicy
 {
     public static DateTimeOffset CalculateNextRetryAt(
         DateTimeOffset now,

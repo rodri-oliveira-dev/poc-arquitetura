@@ -26,7 +26,7 @@ Opcoes:
 EOF
 }
 
-while [ "$#" -gt 0 ]; do
+while [[ "$#" -gt 0 ]]; do
   case "$1" in
     --payment-base-url) payment_base_url="${2:-}"; shift 2 ;;
     --merchant-id) merchant_id="${2:-}"; shift 2 ;;
@@ -49,11 +49,11 @@ for tool in curl jq openssl; do
 done
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-if [ -z "$bearer_token" ]; then
+if [[ -z "$bearer_token" ]]; then
   bearer_token="$("$repo_root/scripts/validation/get-token.sh")"
 fi
 
-if [ -z "$webhook_signing_secret" ]; then
+if [[ -z "$webhook_signing_secret" ]]; then
   echo "Defina PAYMENT_WEBHOOK_SIGNING_SECRET ou use --webhook-signing-secret. Use somente whsec de teste/local." >&2
   exit 2
 fi
@@ -79,7 +79,7 @@ create_status="$(curl -sS -o "$create_response" -w '%{http_code}' \
   -H "Content-Type: application/json" \
   --data "$create_body")"
 
-if [ "$create_status" != "202" ]; then
+if [[ "$create_status" != "202" ]]; then
   echo "POST /payments retornou HTTP $create_status." >&2
   exit 1
 fi
@@ -103,22 +103,22 @@ webhook_status="$(curl -sS -o /dev/null -w '%{http_code}' \
   -H "Content-Type: application/json" \
   --data "$payload")"
 
-if [ "$webhook_status" != "200" ]; then
+if [[ "$webhook_status" != "200" ]]; then
   echo "Webhook retornou HTTP $webhook_status." >&2
   exit 1
 fi
 
 deadline=$(( $(date +%s) + timeout_seconds ))
 last_status=""
-while [ "$(date +%s)" -lt "$deadline" ]; do
+while [[ "$(date +%s)" -lt "$deadline" ]]; do
   get_response="$(mktemp)"
   get_status="$(curl -sS -o "$get_response" -w '%{http_code}' \
     -H "Authorization: Bearer $bearer_token" \
     -H "X-Correlation-Id: $correlation_id" \
     "$payment_base_url/api/v1/payments/$payment_id")"
-  if [ "$get_status" = "200" ]; then
+  if [[ "$get_status" = "200" ]]; then
     last_status="$(jq -r '.status' "$get_response")"
-    if [ "$last_status" = "Completed" ]; then
+    if [[ "$last_status" = "Completed" ]]; then
       ledger_entry_id="$(jq -r '.ledgerEntryId' "$get_response")"
       echo "Payment Completed. ledgerEntryId=$ledger_entry_id"
       echo "Resumo: paymentId=$payment_id providerPaymentId=$provider_payment_id correlationId=$correlation_id"

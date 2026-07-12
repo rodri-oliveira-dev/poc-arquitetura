@@ -32,9 +32,7 @@ public sealed class RequestRefundCommandHandler(
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        await using var transaction = await _unitOfWork.BeginTransactionAsync(cancellationToken);
-
-        var payment = await _paymentRepository.GetByIdForUpdateAsync(new PaymentId(request.PaymentId), cancellationToken)
+        var payment = await _paymentRepository.GetByIdAsync(new PaymentId(request.PaymentId), cancellationToken)
             ?? throw new NotFoundException("Payment nao encontrado.");
 
         if (!request.AuthorizedMerchantIds.Contains(payment.MerchantId.Value))
@@ -52,8 +50,25 @@ public sealed class RequestRefundCommandHandler(
             if (!string.Equals(existing.RequestHash, requestHash, StringComparison.Ordinal))
                 throw new ConflictException("Idempotency-Key already used with a different refund payload.");
 
-            return existing.Response with { IdempotentReplay = true };
+            return IsIncompleteRefundReplay(existing.Response)
+                ? await CreateExternalRefundAsync(
+                    new PaymentId(existing.Response.PaymentId),
+                    new RefundId(existing.Response.RefundId),
+                    idempotencyKey,
+                    idempotentReplay: true,
+                    cancellationToken)
+                : (existing.Response with
+            {
+                IdempotentReplay = true
+            });
         }
+
+        await using var transaction = await _unitOfWork.BeginTransactionAsync(cancellationToken);
+        payment = await _paymentRepository.GetByIdForUpdateAsync(new PaymentId(request.PaymentId), cancellationToken)
+            ?? throw new NotFoundException("Payment nao encontrado.");
+
+        if (!request.AuthorizedMerchantIds.Contains(payment.MerchantId.Value))
+            throw new ForbiddenException("Token sem autorizacao para o merchant do Payment.");
 
         var now = _clock.UtcNow;
         var refund = payment.RequestRefund(
@@ -76,58 +91,62 @@ public sealed class RequestRefundCommandHandler(
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
-        return await CreateExternalRefundAsync(payment.PaymentId, refund.RefundId, idempotencyKey, cancellationToken);
+        return await CreateExternalRefundAsync(
+            payment.PaymentId,
+            refund.RefundId,
+            idempotencyKey,
+            idempotentReplay: false,
+            cancellationToken);
     }
 
     private async Task<RequestRefundResult> CreateExternalRefundAsync(
         PaymentId paymentId,
         RefundId refundId,
         string idempotencyKey,
+        bool idempotentReplay,
         CancellationToken cancellationToken)
     {
-        var payment = await _paymentRepository.GetByIdForUpdateAsync(paymentId, cancellationToken)
-            ?? throw new InvalidOperationException($"Payment {paymentId.Value} nao encontrado para refund.");
-        var refund = payment.FindRefund(refundId)
-            ?? throw new InvalidOperationException($"Refund {refundId.Value} nao encontrado.");
+        var snapshot = await LoadRefundSnapshotAsync(paymentId, refundId, cancellationToken);
 
-        if (payment.ExternalPaymentReference is null)
-            throw new ConflictException("Payment nao possui referencia externa para refund.");
+        if (!snapshot.NeedsExternalCreation)
+            return snapshot.Response with
+            {
+                IdempotentReplay = idempotentReplay
+            };
 
         try
         {
             var externalResult = await _paymentGateway.CreateRefundAsync(
                 new CreateExternalRefundRequest(
-                    payment.PaymentId.Value,
-                    refund.RefundId.Value,
-                    payment.ExternalPaymentReference.Value.Value,
-                    refund.Amount.Amount,
-                    refund.Amount.Currency.Code,
-                    refund.Reason,
-                    BuildExternalRefundIdempotencyKey(payment.PaymentId.Value, refund.RefundId.Value),
-                    refund.CorrelationId,
-                    refund.ExternalReference),
+                    snapshot.PaymentId.Value,
+                    snapshot.RefundId.Value,
+                    snapshot.ProviderPaymentId,
+                    snapshot.Amount.Amount,
+                    snapshot.Amount.Currency.Code,
+                    snapshot.Reason,
+                    BuildExternalRefundIdempotencyKey(snapshot.PaymentId.Value, snapshot.RefundId.Value),
+                    snapshot.CorrelationId,
+                    snapshot.ExternalReference),
                 cancellationToken);
 
-            if (string.Equals(externalResult.ProviderStatus, "failed", StringComparison.OrdinalIgnoreCase))
-                payment.MarkRefundProviderFailed(_clock.UtcNow, refundId, externalResult.ProviderRefundId, externalResult.RawStatus, "Provider reported refund failed.");
-            else if (string.Equals(externalResult.ProviderStatus, "succeeded", StringComparison.OrdinalIgnoreCase))
-                payment.MarkRefundProviderSucceeded(_clock.UtcNow, refundId, externalResult.ProviderRefundId, externalResult.RawStatus);
-            else
-                payment.RegisterRefundProviderCreated(_clock.UtcNow, refundId, externalResult.ProviderRefundId, externalResult.RawStatus);
-
-            var response = ToResult(payment, refund, idempotentReplay: false);
-            await _idempotencyService.UpdateRefundResponseAsync(payment.MerchantId.Value, idempotencyKey, response, cancellationToken);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-            return response;
+            return await ApplyExternalRefundResultAsync(
+                snapshot.PaymentId,
+                snapshot.RefundId,
+                idempotencyKey,
+                externalResult,
+                idempotentReplay,
+                cancellationToken);
         }
         catch (PaymentGatewayException ex)
         {
             if (!ex.IsTransient)
             {
-                payment.MarkRefundProviderFailed(_clock.UtcNow, refundId, refund.ProviderRefundId ?? $"refund:{refundId.Value:N}", ex.Code, "Provider refused refund.");
-                var failed = ToResult(payment, refund, idempotentReplay: false);
-                await _idempotencyService.UpdateRefundResponseAsync(payment.MerchantId.Value, idempotencyKey, failed, cancellationToken);
-                await _unitOfWork.SaveChangesAsync(cancellationToken);
+                await ApplyExternalRefundFailureAsync(
+                    snapshot.PaymentId,
+                    snapshot.RefundId,
+                    idempotencyKey,
+                    ex,
+                    cancellationToken);
             }
 
             throw new ExternalPaymentProviderException(
@@ -136,6 +155,89 @@ public sealed class RequestRefundCommandHandler(
                 ex.RetryAfter,
                 ex);
         }
+    }
+
+    private async Task<RefundCreationSnapshot> LoadRefundSnapshotAsync(
+        PaymentId paymentId,
+        RefundId refundId,
+        CancellationToken cancellationToken)
+    {
+        var payment = await _paymentRepository.GetByIdAsync(paymentId, cancellationToken)
+            ?? throw new InvalidOperationException($"Payment {paymentId.Value} nao encontrado para refund.");
+        var refund = payment.FindRefund(refundId)
+            ?? throw new InvalidOperationException($"Refund {refundId.Value} nao encontrado.");
+
+        return payment.ExternalPaymentReference is null
+            ? throw new ConflictException("Payment nao possui referencia externa para refund.")
+            : new RefundCreationSnapshot(
+            payment.PaymentId,
+            refund.RefundId,
+            payment.ExternalPaymentReference.Value.Value,
+            refund.Amount,
+            refund.Reason,
+            refund.CorrelationId,
+            refund.ExternalReference,
+            NeedsExternalCreation(refund),
+            ToResult(payment, refund, idempotentReplay: false));
+    }
+
+    private async Task<RequestRefundResult> ApplyExternalRefundResultAsync(
+        PaymentId paymentId,
+        RefundId refundId,
+        string idempotencyKey,
+        CreateExternalRefundResult externalResult,
+        bool idempotentReplay,
+        CancellationToken cancellationToken)
+    {
+        await using var transaction = await _unitOfWork.BeginTransactionAsync(cancellationToken);
+        var payment = await _paymentRepository.GetByIdForUpdateAsync(paymentId, cancellationToken)
+            ?? throw new InvalidOperationException($"Payment {paymentId.Value} nao encontrado para refund.");
+        var refund = payment.FindRefund(refundId)
+            ?? throw new InvalidOperationException($"Refund {refundId.Value} nao encontrado.");
+
+        ApplyExternalResult(payment, refund, externalResult);
+
+        var response = ToResult(payment, refund, idempotentReplay);
+        await _idempotencyService.UpdateRefundResponseAsync(
+            payment.MerchantId.Value,
+            idempotencyKey,
+            response with
+            {
+                IdempotentReplay = false
+            },
+            cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return response;
+    }
+
+    private async Task ApplyExternalRefundFailureAsync(
+        PaymentId paymentId,
+        RefundId refundId,
+        string idempotencyKey,
+        PaymentGatewayException exception,
+        CancellationToken cancellationToken)
+    {
+        await using var transaction = await _unitOfWork.BeginTransactionAsync(cancellationToken);
+        var payment = await _paymentRepository.GetByIdForUpdateAsync(paymentId, cancellationToken)
+            ?? throw new InvalidOperationException($"Payment {paymentId.Value} nao encontrado para refund.");
+        var refund = payment.FindRefund(refundId)
+            ?? throw new InvalidOperationException($"Refund {refundId.Value} nao encontrado.");
+
+        if (CanMarkProviderFailed(refund))
+        {
+            payment.MarkRefundProviderFailed(
+                _clock.UtcNow,
+                refundId,
+                refund.ProviderRefundId ?? $"refund:{refundId.Value:N}",
+                exception.Code,
+                "Provider refused refund.");
+        }
+
+        var failed = ToResult(payment, refund, idempotentReplay: false);
+        await _idempotencyService.UpdateRefundResponseAsync(payment.MerchantId.Value, idempotencyKey, failed, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
     }
 
     public static string BuildExternalRefundIdempotencyKey(Guid paymentId, Guid refundId)
@@ -157,6 +259,42 @@ public sealed class RequestRefundCommandHandler(
             refund.UpdatedAt,
             idempotentReplay);
 
+    private void ApplyExternalResult(
+        Payment payment,
+        PaymentRefund refund,
+        CreateExternalRefundResult externalResult)
+    {
+        if (!NeedsExternalCreation(refund))
+            return;
+
+        if (string.Equals(externalResult.ProviderStatus, "failed", StringComparison.OrdinalIgnoreCase))
+        {
+            if (CanMarkProviderFailed(refund))
+                payment.MarkRefundProviderFailed(_clock.UtcNow, refund.RefundId, externalResult.ProviderRefundId, externalResult.RawStatus, "Provider reported refund failed.");
+
+            return;
+        }
+
+        if (string.Equals(externalResult.ProviderStatus, "succeeded", StringComparison.OrdinalIgnoreCase))
+        {
+            payment.MarkRefundProviderSucceeded(_clock.UtcNow, refund.RefundId, externalResult.ProviderRefundId, externalResult.RawStatus);
+            return;
+        }
+
+        payment.RegisterRefundProviderCreated(_clock.UtcNow, refund.RefundId, externalResult.ProviderRefundId, externalResult.RawStatus);
+    }
+
+    private static bool IsIncompleteRefundReplay(RequestRefundResult response)
+        => string.IsNullOrWhiteSpace(response.ProviderRefundId)
+            && string.Equals(response.Status, RefundStatus.Requested.ToString(), StringComparison.Ordinal);
+
+    private static bool NeedsExternalCreation(PaymentRefund refund)
+        => string.IsNullOrWhiteSpace(refund.ProviderRefundId)
+            && refund.Status == RefundStatus.Requested;
+
+    private static bool CanMarkProviderFailed(PaymentRefund refund)
+        => refund.Status is RefundStatus.Requested or RefundStatus.ProviderPending;
+
     private static string GenerateRequestHash(Guid paymentId, decimal amount, string reason, string? externalReference)
     {
         var canonical = JsonSerializer.Serialize(new
@@ -171,6 +309,7 @@ public sealed class RequestRefundCommandHandler(
         return Convert.ToHexString(bytes).ToLowerInvariant();
     }
 
+#pragma warning disable IDE0072 // Categorias futuras devem cair na mensagem generica segura.
     private static string BuildSafeProviderMessage(PaymentGatewayErrorCategory category)
         => category switch
         {
@@ -182,7 +321,19 @@ public sealed class RequestRefundCommandHandler(
             PaymentGatewayErrorCategory.CircuitOpen => "Circuito do provider de pagamentos esta aberto.",
             _ => "Falha ao criar refund no provider de pagamentos."
         };
+#pragma warning restore IDE0072
 
     private static string? Normalize(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private sealed record RefundCreationSnapshot(
+        PaymentId PaymentId,
+        RefundId RefundId,
+        string ProviderPaymentId,
+        Money Amount,
+        string Reason,
+        string? CorrelationId,
+        string? ExternalReference,
+        bool NeedsExternalCreation,
+        RequestRefundResult Response);
 }

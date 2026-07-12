@@ -9,6 +9,8 @@ namespace PaymentService.Application.Payments.InboxProcessing;
 [SuppressMessage("Style", "IDE0046:Convert to conditional expression", Justification = "Guard clauses keep provider payload failures explicit.")]
 public sealed class StripeInboxProviderEventMapper : IProviderEventMapper
 {
+    private const string RefundUpdatedEventType = "refund.updated";
+
     public ProviderEventMappingResult Map(PaymentInboxMessage inboxMessage)
     {
         ArgumentNullException.ThrowIfNull(inboxMessage);
@@ -69,9 +71,9 @@ public sealed class StripeInboxProviderEventMapper : IProviderEventMapper
             var kind = inboxMessage.EventType switch
             {
                 "refund.failed" => PaymentProviderEventKind.RefundFailed,
-                "refund.updated" when string.Equals(status, "succeeded", StringComparison.OrdinalIgnoreCase) => PaymentProviderEventKind.RefundSucceeded,
-                "refund.updated" when string.Equals(status, "failed", StringComparison.OrdinalIgnoreCase) => PaymentProviderEventKind.RefundFailed,
-                "refund.updated" => PaymentProviderEventKind.RefundCreated,
+                RefundUpdatedEventType when string.Equals(status, "succeeded", StringComparison.OrdinalIgnoreCase) => PaymentProviderEventKind.RefundSucceeded,
+                RefundUpdatedEventType when string.Equals(status, "failed", StringComparison.OrdinalIgnoreCase) => PaymentProviderEventKind.RefundFailed,
+                RefundUpdatedEventType => PaymentProviderEventKind.RefundCreated,
                 "refund.created" when string.Equals(status, "succeeded", StringComparison.OrdinalIgnoreCase) => PaymentProviderEventKind.RefundSucceeded,
                 _ => PaymentProviderEventKind.RefundCreated
             };
@@ -130,7 +132,7 @@ public sealed class StripeInboxProviderEventMapper : IProviderEventMapper
         };
 
     private static bool IsRefundEvent(string eventType)
-        => eventType is "refund.created" or "refund.updated" or "refund.failed";
+        => eventType is "refund.created" or RefundUpdatedEventType or "refund.failed";
 
     private static RefundId? TryReadRefundId(JsonElement obj)
     {

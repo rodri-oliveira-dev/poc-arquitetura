@@ -24,15 +24,19 @@ public sealed class StripeWebhookValidator(
 
         var secret = _options.Value.Stripe.WebhookSigningSecret;
 
-        return string.IsNullOrWhiteSpace(signatureHeader)
-            ? StripeWebhookValidationResult.Invalid(StripeWebhookValidationFailure.MissingSignatureHeader)
-            : string.IsNullOrWhiteSpace(secret)
-            ? StripeWebhookValidationResult.Invalid(StripeWebhookValidationFailure.MissingSecret)
-            : !TryParseHeader(signatureHeader, out var timestamp, out var signatures)
-            ? StripeWebhookValidationResult.Invalid(StripeWebhookValidationFailure.MalformedSignatureHeader)
-            : IsOutsideTolerance(timestamp, _options.Value.Stripe.WebhookSignatureTolerance)
-            ? StripeWebhookValidationResult.Invalid(StripeWebhookValidationFailure.TimestampOutsideTolerance)
-            : !HasValidSignature(rawBody, timestamp, signatures, secret)
+        if (string.IsNullOrWhiteSpace(signatureHeader))
+            return StripeWebhookValidationResult.Invalid(StripeWebhookValidationFailure.MissingSignatureHeader);
+
+        if (string.IsNullOrWhiteSpace(secret))
+            return StripeWebhookValidationResult.Invalid(StripeWebhookValidationFailure.MissingSecret);
+
+        if (!TryParseHeader(signatureHeader, out var timestamp, out var signatures))
+            return StripeWebhookValidationResult.Invalid(StripeWebhookValidationFailure.MalformedSignatureHeader);
+
+        if (IsOutsideTolerance(timestamp, _options.Value.Stripe.WebhookSignatureTolerance))
+            return StripeWebhookValidationResult.Invalid(StripeWebhookValidationFailure.TimestampOutsideTolerance);
+
+        return !HasValidSignature(rawBody, timestamp, signatures, secret)
             ? StripeWebhookValidationResult.Invalid(StripeWebhookValidationFailure.InvalidSignature)
             : TryParsePayload(rawBody, out var result)
             ? result
@@ -164,9 +168,10 @@ public sealed class StripeWebhookValidator(
 
     private static PaymentId? TryReadPaymentIdFromMetadata(JsonElement obj)
     {
-        return !obj.TryGetProperty("metadata", out var metadata) || metadata.ValueKind != JsonValueKind.Object
-            ? null
-            : !TryGetRequiredString(metadata, "payment_id", out var paymentIdRaw)
+        if (!obj.TryGetProperty("metadata", out var metadata) || metadata.ValueKind != JsonValueKind.Object)
+            return null;
+
+        return !TryGetRequiredString(metadata, "payment_id", out var paymentIdRaw)
             ? null
             : Guid.TryParse(paymentIdRaw, out var paymentId)
             ? new PaymentId(paymentId)

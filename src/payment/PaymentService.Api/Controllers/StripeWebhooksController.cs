@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 
 using ApiDefaults.Middlewares;
 
@@ -27,6 +28,7 @@ public sealed class StripeWebhooksController(
     ISender sender,
     ILogger<StripeWebhooksController> logger) : ControllerBase
 {
+    private const string ProviderName = "Stripe";
     private const string StripeSignatureHeader = "Stripe-Signature";
 
     private static readonly Action<ILogger, string, string, string, Exception?> _logPersistFailure =
@@ -77,6 +79,7 @@ public sealed class StripeWebhooksController(
     [SwaggerResponse(StatusCodes.Status429TooManyRequests, "Limite de requisicoes excedido.")]
     [SwaggerResponse(StatusCodes.Status503ServiceUnavailable, "Webhook signing secret ausente ou Inbox indisponivel.", typeof(ProblemDetails))]
     [SwaggerResponse(StatusCodes.Status500InternalServerError, "Erro interno.", typeof(ProblemDetails))]
+    [SuppressMessage("Major Code Smell", "S6932:Use model binding instead of accessing raw request data", Justification = "Stripe signature verification requires the exact raw body and Stripe-Signature header.")]
     public async Task<IActionResult> Receive(CancellationToken cancellationToken)
     {
         var rawBody = await ReadRawBodyAsync(Request, cancellationToken);
@@ -116,7 +119,7 @@ public sealed class StripeWebhooksController(
             _telemetry.RecordPersistFailure();
             _logPersistFailure(
                 _logger,
-                "Stripe",
+                ProviderName,
                 validation.EventType,
                 validation.ProviderEventId,
                 null);
@@ -154,7 +157,7 @@ public sealed class StripeWebhooksController(
 
         _logRejected(
             _logger,
-            "Stripe",
+            ProviderName,
             failure,
             null);
 
@@ -163,9 +166,7 @@ public sealed class StripeWebhooksController(
 
     private void RecordSuccess(ReceiveStripeWebhookResult result, string providerEventId)
     {
-        var outcome = result.StoreResult == PaymentInboxStoreResult.Duplicate
-            ? "duplicate"
-            : result.InboxStatus == PaymentInboxStatus.Ignored ? "ignored" : "persisted";
+        var outcome = GetTelemetryOutcome(result);
 
         _telemetry.RecordReceived(outcome, result.EventCategory);
 
@@ -174,7 +175,7 @@ public sealed class StripeWebhooksController(
             _telemetry.RecordDuplicate(result.EventCategory);
             _logDuplicate(
                 _logger,
-                "Stripe",
+                ProviderName,
                 result.EventType,
                 providerEventId,
                 null);
@@ -186,7 +187,7 @@ public sealed class StripeWebhooksController(
             _telemetry.RecordIgnored(result.EventCategory);
             _logIgnored(
                 _logger,
-                "Stripe",
+                ProviderName,
                 result.EventType,
                 providerEventId,
                 result.EventCategory,
@@ -197,10 +198,19 @@ public sealed class StripeWebhooksController(
         _telemetry.RecordPending();
         _logPersisted(
             _logger,
-            "Stripe",
+            ProviderName,
             result.EventType,
             providerEventId,
             null);
+    }
+
+    private static string GetTelemetryOutcome(ReceiveStripeWebhookResult result)
+    {
+        return result.StoreResult == PaymentInboxStoreResult.Duplicate
+            ? "duplicate"
+            : result.InboxStatus == PaymentInboxStatus.Ignored
+            ? "ignored"
+            : "persisted";
     }
 
     private static async Task<byte[]> ReadRawBodyAsync(HttpRequest request, CancellationToken cancellationToken)

@@ -5,6 +5,8 @@ namespace PaymentService.Worker.Observability;
 public sealed class PaymentLedgerWorkerMetrics : IDisposable
 {
     public const string MeterName = "PaymentService.LedgerWorker";
+    private const string OperationTagName = "operation";
+    private const string CreditOperation = "credit";
 
     private readonly Meter _meter = new(MeterName);
     private readonly Counter<long> _claimTotal;
@@ -30,20 +32,20 @@ public sealed class PaymentLedgerWorkerMetrics : IDisposable
     {
         ArgumentNullException.ThrowIfNull(batch);
 
-        _claimTotal.Add(batch.Claimed, new KeyValuePair<string, object?>("operation", "credit"));
-        _requestTotal.Add(batch.Claimed, new KeyValuePair<string, object?>("operation", "credit"));
-        _successTotal.Add(batch.Completed, new KeyValuePair<string, object?>("operation", "credit"));
-        _retryScheduledTotal.Add(batch.RetryScheduled, new KeyValuePair<string, object?>("operation", "credit"));
-        _deadLetterTotal.Add(batch.DeadLettered, new KeyValuePair<string, object?>("operation", "credit"));
+        _claimTotal.Add(batch.Claimed, new KeyValuePair<string, object?>(OperationTagName, CreditOperation));
+        _requestTotal.Add(batch.Claimed, new KeyValuePair<string, object?>(OperationTagName, CreditOperation));
+        _successTotal.Add(batch.Completed, new KeyValuePair<string, object?>(OperationTagName, CreditOperation));
+        _retryScheduledTotal.Add(batch.RetryScheduled, new KeyValuePair<string, object?>(OperationTagName, CreditOperation));
+        _deadLetterTotal.Add(batch.DeadLettered, new KeyValuePair<string, object?>(OperationTagName, CreditOperation));
 
         if (batch.FailedDefinitive > 0)
-            _failureTotal.Add(batch.FailedDefinitive, new KeyValuePair<string, object?>("operation", "credit"), new KeyValuePair<string, object?>("error_category", "definitive"));
+            _failureTotal.Add(batch.FailedDefinitive, new KeyValuePair<string, object?>(OperationTagName, CreditOperation), new KeyValuePair<string, object?>("error_category", "definitive"));
 
-        _processingDuration.Record(elapsedMilliseconds, new KeyValuePair<string, object?>("operation", "credit"));
+        _processingDuration.Record(elapsedMilliseconds, new KeyValuePair<string, object?>(OperationTagName, CreditOperation));
     }
 
     public void RecordFailure(string errorCategory)
-        => _failureTotal.Add(1, new KeyValuePair<string, object?>("operation", "credit"), new KeyValuePair<string, object?>("error_category", errorCategory));
+        => _failureTotal.Add(1, new KeyValuePair<string, object?>(OperationTagName, CreditOperation), new KeyValuePair<string, object?>("error_category", errorCategory));
 
     public void Dispose()
         => _meter.Dispose();

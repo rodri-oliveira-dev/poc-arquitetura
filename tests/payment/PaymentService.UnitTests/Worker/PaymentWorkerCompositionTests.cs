@@ -1,7 +1,13 @@
+using System.Diagnostics.Metrics;
+
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
+using PaymentService.Application.Abstractions.Gateway;
+using PaymentService.Application.Abstractions.Ledger;
+using PaymentService.Application.Abstractions.Persistence;
+using PaymentService.Application.Payments.Ledger;
 using PaymentService.Worker.Extensions;
 using PaymentService.Worker.HostedServices;
 using PaymentService.Worker.Observability;
@@ -14,7 +20,10 @@ public sealed class PaymentWorkerCompositionTests
     public void AddPaymentWorkerComposition_should_register_worker_services_and_safe_observability_defaults()
     {
         var services = new ServiceCollection();
-        var configuration = BuildConfiguration(("Observability:OpenTelemetry:Enabled", "false"));
+        var configuration = BuildConfiguration(
+            ("Observability:OpenTelemetry:Enabled", "false"),
+            ("PaymentGateway:Provider", "Stripe"),
+            ("PaymentGateway:Stripe:SecretKey", ""));
 
         services.AddPaymentWorkerComposition(configuration, new TestHostEnvironment());
 
@@ -25,6 +34,10 @@ public sealed class PaymentWorkerCompositionTests
         Assert.Contains(hostedServices, service => service is PaymentLedgerWorkerService);
         Assert.NotNull(provider.GetRequiredService<PaymentInboxWorkerMetrics>());
         Assert.NotNull(provider.GetRequiredService<PaymentLedgerWorkerMetrics>());
+        Assert.NotNull(provider.GetService<IPaymentRepository>());
+        Assert.NotNull(provider.GetService<IPaymentLedgerProcessor>());
+        Assert.NotNull(provider.GetService<ILedgerEntryGateway>());
+        Assert.Null(provider.GetService<IPaymentGateway>());
     }
 
     [Fact]
@@ -48,6 +61,19 @@ public sealed class PaymentWorkerCompositionTests
     [Fact]
     public void Payment_worker_metrics_should_record_low_cardinality_outcomes()
     {
+        var measurements = new List<MetricMeasurement>();
+        using var listener = new MeterListener();
+        listener.InstrumentPublished = (instrument, meterListener) =>
+        {
+            if (instrument.Meter.Name is PaymentInboxWorkerMetrics.MeterName or PaymentLedgerWorkerMetrics.MeterName)
+                meterListener.EnableMeasurementEvents(instrument);
+        };
+        listener.SetMeasurementEventCallback<long>((instrument, measurement, _, _) =>
+            measurements.Add(new MetricMeasurement(instrument.Name, measurement)));
+        listener.SetMeasurementEventCallback<double>((instrument, measurement, _, _) =>
+            measurements.Add(new MetricMeasurement(instrument.Name, measurement)));
+        listener.Start();
+
         using var inboxMetrics = new PaymentInboxWorkerMetrics();
         using var ledgerMetrics = new PaymentLedgerWorkerMetrics();
 
@@ -68,6 +94,13 @@ public sealed class PaymentWorkerCompositionTests
                 DeadLettered: 0),
             elapsedMilliseconds: 20);
         ledgerMetrics.RecordFailure("unexpected_poll_error");
+
+        listener.RecordObservableInstruments();
+
+        Assert.Contains(measurements, x => x.Name == "payment_inbox_process_total" && x.Value == 1);
+        Assert.Contains(measurements, x => x.Name == "payment_inbox_deadletter_total" && x.Value == 1);
+        Assert.Contains(measurements, x => x.Name == "payment_ledger_success_total" && x.Value == 1);
+        Assert.Contains(measurements, x => x.Name == "payment_ledger_failure_total" && x.Value == 1);
     }
 
     private static IConfiguration BuildConfiguration(params (string Key, string Value)[] overrides)
@@ -133,4 +166,6 @@ public sealed class PaymentWorkerCompositionTests
             get; set;
         } = new Microsoft.Extensions.FileProviders.NullFileProvider();
     }
+
+    private sealed record MetricMeasurement(string Name, double Value);
 }

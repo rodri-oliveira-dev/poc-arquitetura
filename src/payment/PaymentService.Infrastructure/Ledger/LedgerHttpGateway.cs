@@ -41,13 +41,11 @@ public sealed class LedgerHttpGateway(HttpClient httpClient) : ILedgerEntryGatew
                 return await MapFailureAsync(response, cancellationToken);
 
             var body = await response.Content.ReadFromJsonAsync<LedgerEntryResponse>(JsonOptions, cancellationToken);
-            return body?.LancamentoId is { } lancamentoId
-                ? LedgerEntryCreationResult.Success(new LedgerEntryReference(lancamentoId))
-                : Guid.TryParse(body?.Id, out var legacyId)
-                    ? LedgerEntryCreationResult.Success(new LedgerEntryReference(legacyId))
-                    : LedgerEntryCreationResult.Definitive(
-                        LedgerEntryFailureCategory.UnexpectedResponse,
-                        "LedgerService.Api returned success without a valid ledger entry identifier.");
+            return TryReadLedgerEntryReference(body, out var ledgerEntryReference)
+                ? LedgerEntryCreationResult.Success(ledgerEntryReference)
+                : LedgerEntryCreationResult.Definitive(
+                    LedgerEntryFailureCategory.UnexpectedResponse,
+                    "LedgerService.Api returned success without a valid ledger entry identifier.");
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -200,6 +198,26 @@ public sealed class LedgerHttpGateway(HttpClient httpClient) : ILedgerEntryGatew
     {
         await response.Content.LoadIntoBufferAsync(cancellationToken);
         return fallback;
+    }
+
+    private static bool TryReadLedgerEntryReference(
+        LedgerEntryResponse? body,
+        out LedgerEntryReference ledgerEntryReference)
+    {
+        if (body?.LancamentoId is { } lancamentoId)
+        {
+            ledgerEntryReference = new LedgerEntryReference(lancamentoId);
+            return true;
+        }
+
+        if (Guid.TryParse(body?.Id, out var legacyId))
+        {
+            ledgerEntryReference = new LedgerEntryReference(legacyId);
+            return true;
+        }
+
+        ledgerEntryReference = default;
+        return false;
     }
 
     private static bool IsCircuitOpen(Exception exception)

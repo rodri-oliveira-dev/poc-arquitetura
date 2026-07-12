@@ -5,6 +5,8 @@ namespace PaymentService.Worker.Observability;
 public sealed class PaymentInboxWorkerMetrics : IDisposable
 {
     public const string MeterName = "PaymentService.InboxWorker";
+    private const string ProviderTagName = "provider";
+    private const string ProviderTagValue = "Stripe";
 
     private readonly Meter _meter = new(MeterName);
     private readonly Counter<long> _claimTotal;
@@ -34,28 +36,28 @@ public sealed class PaymentInboxWorkerMetrics : IDisposable
 
     public void RecordClaim(int count, int recoveredLeaseCount)
     {
-        _claimTotal.Add(count, new KeyValuePair<string, object?>("provider", "Stripe"));
+        _claimTotal.Add(count, new KeyValuePair<string, object?>(ProviderTagName, ProviderTagValue));
         if (recoveredLeaseCount > 0)
-            _recoveredLeaseTotal.Add(recoveredLeaseCount, new KeyValuePair<string, object?>("provider", "Stripe"));
+            _recoveredLeaseTotal.Add(recoveredLeaseCount, new KeyValuePair<string, object?>(ProviderTagName, ProviderTagValue));
     }
 
     public void RecordProcess(string outcome, double elapsedMilliseconds)
     {
-        _processTotal.Add(1, new KeyValuePair<string, object?>("provider", "Stripe"), new KeyValuePair<string, object?>("outcome", outcome));
-        _processingDuration.Record(elapsedMilliseconds, new KeyValuePair<string, object?>("provider", "Stripe"), new KeyValuePair<string, object?>("outcome", outcome));
+        _processTotal.Add(1, new KeyValuePair<string, object?>(ProviderTagName, ProviderTagValue), new KeyValuePair<string, object?>("outcome", outcome));
+        _processingDuration.Record(elapsedMilliseconds, new KeyValuePair<string, object?>(ProviderTagName, ProviderTagValue), new KeyValuePair<string, object?>("outcome", outcome));
 
         if (string.Equals(outcome, "retry_scheduled", StringComparison.Ordinal))
-            _retryScheduledTotal.Add(1, new KeyValuePair<string, object?>("provider", "Stripe"));
+            _retryScheduledTotal.Add(1, new KeyValuePair<string, object?>(ProviderTagName, ProviderTagValue));
         else if (string.Equals(outcome, "dead_letter", StringComparison.Ordinal))
-            _deadLetterTotal.Add(1, new KeyValuePair<string, object?>("provider", "Stripe"));
+            _deadLetterTotal.Add(1, new KeyValuePair<string, object?>(ProviderTagName, ProviderTagValue));
         else if (string.Equals(outcome, "regressive_ignored", StringComparison.Ordinal))
-            _regressiveEventTotal.Add(1, new KeyValuePair<string, object?>("provider", "Stripe"));
+            _regressiveEventTotal.Add(1, new KeyValuePair<string, object?>(ProviderTagName, ProviderTagValue));
         else if (string.Equals(outcome, "idempotent", StringComparison.Ordinal))
-            _idempotentTransitionTotal.Add(1, new KeyValuePair<string, object?>("provider", "Stripe"));
+            _idempotentTransitionTotal.Add(1, new KeyValuePair<string, object?>(ProviderTagName, ProviderTagValue));
     }
 
     public void RecordFailure(string errorCategory)
-        => _failureTotal.Add(1, new KeyValuePair<string, object?>("provider", "Stripe"), new KeyValuePair<string, object?>("error_category", errorCategory));
+        => _failureTotal.Add(1, new KeyValuePair<string, object?>(ProviderTagName, ProviderTagValue), new KeyValuePair<string, object?>("error_category", errorCategory));
 
     public void SetBacklog(int backlog)
         => _lastBacklog = Math.Max(0, backlog);

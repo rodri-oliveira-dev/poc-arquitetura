@@ -290,10 +290,9 @@ public sealed partial class ProjectionRebuildDivergenceReportHandler
         if (!string.Equals(filter.MerchantId, candidate.MerchantId, StringComparison.Ordinal))
             return false;
 
-        if (!string.Equals(filter.Status, candidate.Status, StringComparison.Ordinal))
-            return false;
-
-        return !(candidate.OccurredAt < filter.OccurredFrom) && !(candidate.OccurredAt > filter.OccurredUntil);
+        return !string.Equals(filter.Status, candidate.Status, StringComparison.Ordinal)
+            ? false
+            : !(candidate.OccurredAt < filter.OccurredFrom) && !(candidate.OccurredAt > filter.OccurredUntil);
     }
 
     private static LedgerEntryCreatedIntegrationEvent NormalizeEvent(LedgerEntryCreatedIntegrationEvent evt)
@@ -341,7 +340,9 @@ public sealed partial class ProjectionRebuildDivergenceReportHandler
 
         return string.Equals(current, MultipleAccountIds, StringComparison.Ordinal)
             ? current
-            : string.Equals(current, next, StringComparison.Ordinal) ? current : MultipleAccountIds;
+            : string.Equals(current, next, StringComparison.Ordinal)
+            ? current
+            : MultipleAccountIds;
     }
 
     private static string Describe(PartialProjectionRebuildFilter filter)

@@ -9,6 +9,8 @@ public sealed class PaymentWebhookTelemetry : IDisposable
 {
     public const string MeterName = "PaymentService.Webhooks";
     private const string ActivitySourceName = "PaymentService.Api";
+    private const string ProviderTagName = "provider";
+    private const string ProviderTagValue = "Stripe";
 
     private readonly ActivitySource _activitySource = new(ActivitySourceName);
     private readonly Meter _meter;
@@ -41,7 +43,7 @@ public sealed class PaymentWebhookTelemetry : IDisposable
     public void RecordReceived(string outcome, StripeWebhookEventCategory? category = null)
     {
         TagList tags = default;
-        tags.Add("provider", "Stripe");
+        tags.Add(ProviderTagName, ProviderTagValue);
         tags.Add("outcome", outcome);
         tags.Add("event_type_category", category?.ToString() ?? "unclassified");
         _receivedCounter.Add(1, tags);
@@ -50,7 +52,7 @@ public sealed class PaymentWebhookTelemetry : IDisposable
     public void RecordInvalidSignature(StripeWebhookValidationFailure reason)
     {
         TagList tags = default;
-        tags.Add("provider", "Stripe");
+        tags.Add(ProviderTagName, ProviderTagValue);
         tags.Add("reason", reason.ToString());
         _invalidSignatureCounter.Add(1, tags);
     }
@@ -58,7 +60,7 @@ public sealed class PaymentWebhookTelemetry : IDisposable
     public void RecordDuplicate(StripeWebhookEventCategory category)
     {
         TagList tags = default;
-        tags.Add("provider", "Stripe");
+        tags.Add(ProviderTagName, ProviderTagValue);
         tags.Add("event_type_category", category.ToString());
         _duplicateCounter.Add(1, tags);
     }
@@ -66,7 +68,7 @@ public sealed class PaymentWebhookTelemetry : IDisposable
     public void RecordIgnored(StripeWebhookEventCategory category)
     {
         TagList tags = default;
-        tags.Add("provider", "Stripe");
+        tags.Add(ProviderTagName, ProviderTagValue);
         tags.Add("event_type_category", category.ToString());
         _ignoredCounter.Add(1, tags);
     }
@@ -74,14 +76,14 @@ public sealed class PaymentWebhookTelemetry : IDisposable
     public void RecordPending()
     {
         TagList tags = default;
-        tags.Add("provider", "Stripe");
+        tags.Add(ProviderTagName, ProviderTagValue);
         _pendingCounter.Add(1, tags);
     }
 
     public void RecordPersistFailure()
     {
         TagList tags = default;
-        tags.Add("provider", "Stripe");
+        tags.Add(ProviderTagName, ProviderTagValue);
         _persistFailureCounter.Add(1, tags);
     }
 

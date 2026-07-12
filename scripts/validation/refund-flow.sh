@@ -26,7 +26,7 @@ Opcoes:
 EOF
 }
 
-while [ "$#" -gt 0 ]; do
+while [[ "$#" -gt 0 ]]; do
   case "$1" in
     --payment-base-url) payment_base_url="${2:-}"; shift 2 ;;
     --merchant-id) merchant_id="${2:-}"; shift 2 ;;
@@ -75,7 +75,7 @@ wait_payment_status() {
   local deadline=$(( $(date +%s) + timeout_seconds ))
   local last_status=""
 
-  while [ "$(date +%s)" -lt "$deadline" ]; do
+  while [[ "$(date +%s)" -lt "$deadline" ]]; do
     local output
     local status
     output="$(mktemp)"
@@ -83,9 +83,9 @@ wait_payment_status() {
       -H "Authorization: Bearer $bearer_token" \
       -H "X-Correlation-Id: $correlation_id" \
       "$payment_base_url/api/v1/payments/$payment_id")"
-    if [ "$status" = "200" ]; then
+    if [[ "$status" = "200" ]]; then
       last_status="$(jq -r '.status' "$output")"
-      if [ "$last_status" = "$expected" ]; then
+      if [[ "$last_status" = "$expected" ]]; then
         cat "$output"
         return 0
       fi
@@ -100,11 +100,11 @@ wait_payment_status() {
 }
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-if [ -z "$bearer_token" ]; then
+if [[ -z "$bearer_token" ]]; then
   bearer_token="$("$repo_root/scripts/validation/get-token.sh")"
 fi
 
-if [ -z "$webhook_signing_secret" ]; then
+if [[ -z "$webhook_signing_secret" ]]; then
   echo "Defina PAYMENT_WEBHOOK_SIGNING_SECRET ou use --webhook-signing-secret. Use somente whsec de teste/local." >&2
   exit 2
 fi
@@ -127,7 +127,7 @@ create_status="$(post_json "$payment_base_url/api/v1/payments" "$create_body" "$
   -H "Idempotency-Key: $payment_key" \
   -H "X-Correlation-Id: $correlation_id")"
 
-if [ "$create_status" != "202" ]; then
+if [[ "$create_status" != "202" ]]; then
   echo "POST /payments retornou HTTP $create_status." >&2
   exit 1
 fi
@@ -143,7 +143,7 @@ payment_payload="$(jq -cn \
 payment_webhook_status="$(post_json "$payment_base_url/api/v1/webhooks/stripe" "$payment_payload" /dev/null \
   -H "Stripe-Signature: $(sign_payload "$payment_payload")" \
   -H "X-Correlation-Id: $correlation_id")"
-if [ "$payment_webhook_status" != "200" ]; then
+if [[ "$payment_webhook_status" != "200" ]]; then
   echo "Webhook de Payment retornou HTTP $payment_webhook_status." >&2
   exit 1
 fi
@@ -164,7 +164,7 @@ refund_status="$(post_json "$payment_base_url/api/v1/payments/$payment_id/refund
   -H "Authorization: Bearer $bearer_token" \
   -H "Idempotency-Key: $refund_key" \
   -H "X-Correlation-Id: $correlation_id")"
-if [ "$refund_status" != "202" ]; then
+if [[ "$refund_status" != "202" ]]; then
   echo "POST refund retornou HTTP $refund_status." >&2
   exit 1
 fi
@@ -185,7 +185,7 @@ refund_payload="$(jq -cn \
 refund_webhook_status="$(post_json "$payment_base_url/api/v1/webhooks/stripe" "$refund_payload" /dev/null \
   -H "Stripe-Signature: $(sign_payload "$refund_payload")" \
   -H "X-Correlation-Id: $correlation_id")"
-if [ "$refund_webhook_status" != "200" ]; then
+if [[ "$refund_webhook_status" != "200" ]]; then
   echo "Webhook de Refund retornou HTTP $refund_webhook_status." >&2
   exit 1
 fi

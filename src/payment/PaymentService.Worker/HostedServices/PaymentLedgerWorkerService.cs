@@ -64,13 +64,13 @@ public sealed partial class PaymentLedgerWorkerService(
         using var activity = ActivitySource.StartActivity("payment.ledger.process", ActivityKind.Internal);
         using var scope = _serviceProvider.CreateScope();
         var processor = scope.ServiceProvider.GetRequiredService<IPaymentLedgerProcessor>();
-        var options = _options.Value;
+        var workerOptions = _options.Value;
         var startedAt = Stopwatch.GetTimestamp();
 
         var result = await processor.ProcessBatchAsync(
-            options.BatchSize,
+            workerOptions.BatchSize,
             _lockOwner,
-            options.ProcessingLeaseTimeout,
+            workerOptions.ProcessingLeaseTimeout,
             cancellationToken);
 
         var elapsed = Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds;

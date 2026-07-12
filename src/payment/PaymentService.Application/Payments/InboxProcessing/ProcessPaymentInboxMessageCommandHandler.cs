@@ -17,6 +17,8 @@ public sealed class ProcessPaymentInboxMessageCommandHandler(
     PaymentInboxProcessingOptions options)
     : IRequestHandler<ProcessPaymentInboxMessageCommand, ProcessPaymentInboxMessageResult>
 {
+    private const string DeadLetterOutcome = "dead_letter";
+
     private readonly IPaymentInboxRepository _inboxRepository = inboxRepository;
     private readonly IPaymentRepository _paymentRepository = paymentRepository;
     private readonly IUnitOfWork _unitOfWork = unitOfWork;
@@ -57,7 +59,7 @@ public sealed class ProcessPaymentInboxMessageCommandHandler(
             message.MarkDeadLetter(now, mapping.Reason ?? "Provider event payload is invalid.");
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
-            return new ProcessPaymentInboxMessageResult(message.Id, message.Status, "dead_letter", false);
+            return new ProcessPaymentInboxMessageResult(message.Id, message.Status, DeadLetterOutcome, false);
         }
 
         var providerEvent = mapping.Event;
@@ -77,7 +79,7 @@ public sealed class ProcessPaymentInboxMessageCommandHandler(
             message.MarkDeadLetter(now, "Provider reference does not match local Payment.");
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
-            return new ProcessPaymentInboxMessageResult(message.Id, message.Status, "dead_letter", false);
+            return new ProcessPaymentInboxMessageResult(message.Id, message.Status, DeadLetterOutcome, false);
         }
 
         var previousStatus = payment.Status;
@@ -101,7 +103,7 @@ public sealed class ProcessPaymentInboxMessageCommandHandler(
             message.MarkDeadLetter(now, BuildSafeDomainError(exception));
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
-            return new ProcessPaymentInboxMessageResult(message.Id, message.Status, "dead_letter", false);
+            return new ProcessPaymentInboxMessageResult(message.Id, message.Status, DeadLetterOutcome, false);
         }
     }
 
@@ -167,7 +169,7 @@ public sealed class ProcessPaymentInboxMessageCommandHandler(
     }
 
     private static string ResolveMissingPaymentOutcome(PaymentInboxMessage message)
-        => message.Status == PaymentInboxStatus.DeadLetter ? "dead_letter" : "retry_scheduled";
+        => message.Status == PaymentInboxStatus.DeadLetter ? DeadLetterOutcome : "retry_scheduled";
 
     private static string ResolveOutcome(
         PaymentStatus previousStatus,

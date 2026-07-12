@@ -22,38 +22,22 @@ public sealed class SolicitarEstornoLancamentoHandler
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    private readonly ILedgerEntryRepository _ledgerEntryRepository;
-    private readonly IEstornoLancamentoRepository _estornoRepository;
-    private readonly IIdempotencyRecordRepository _idempotencyRecordRepository;
-    private readonly IOutboxMessageRepository _outboxMessageRepository;
+    private readonly SolicitarEstornoLancamentoDependencies _dependencies;
     private readonly LedgerReversalPolicy _reversalPolicy;
-    private readonly IUnitOfWork _unitOfWork;
     private readonly IClock _clock;
     private readonly LedgerDomainMetrics? _metrics;
 
     public SolicitarEstornoLancamentoHandler(
-        ILedgerEntryRepository ledgerEntryRepository,
-        IEstornoLancamentoRepository estornoRepository,
-        IIdempotencyRecordRepository idempotencyRecordRepository,
-        IOutboxMessageRepository outboxMessageRepository,
+        SolicitarEstornoLancamentoDependencies dependencies,
         LedgerReversalPolicy reversalPolicy,
-        IUnitOfWork unitOfWork,
         IClock? clock = null,
         LedgerDomainMetrics? metrics = null)
     {
-        ArgumentNullException.ThrowIfNull(ledgerEntryRepository);
-        ArgumentNullException.ThrowIfNull(estornoRepository);
-        ArgumentNullException.ThrowIfNull(idempotencyRecordRepository);
-        ArgumentNullException.ThrowIfNull(outboxMessageRepository);
+        ArgumentNullException.ThrowIfNull(dependencies);
         ArgumentNullException.ThrowIfNull(reversalPolicy);
-        ArgumentNullException.ThrowIfNull(unitOfWork);
 
-        _ledgerEntryRepository = ledgerEntryRepository;
-        _estornoRepository = estornoRepository;
-        _idempotencyRecordRepository = idempotencyRecordRepository;
-        _outboxMessageRepository = outboxMessageRepository;
+        _dependencies = dependencies;
         _reversalPolicy = reversalPolicy;
-        _unitOfWork = unitOfWork;
         _clock = clock ?? new SystemClock();
         _metrics = metrics;
     }
@@ -68,9 +52,9 @@ public sealed class SolicitarEstornoLancamentoHandler
         var correlationId = Guid.Parse(request.CorrelationId);
         var now = _clock.UtcNow.UtcDateTime;
 
-        await using var transaction = await _unitOfWork.BeginTransactionAsync(cancellationToken);
+        await using var transaction = await _dependencies.UnitOfWork.BeginTransactionAsync(cancellationToken);
 
-        var lancamentoOriginal = await _ledgerEntryRepository.GetByIdAsync(request.LancamentoId, cancellationToken);
+        var lancamentoOriginal = await _dependencies.LedgerEntryRepository.GetByIdAsync(request.LancamentoId, cancellationToken);
         if (lancamentoOriginal is null)
         {
             _metrics?.RecordReversalRequested("not_found");
@@ -83,7 +67,7 @@ public sealed class SolicitarEstornoLancamentoHandler
             throw new ForbiddenException("Token sem autorizacao para o merchant do lancamento original.");
         }
 
-        var existing = await _idempotencyRecordRepository
+        var existing = await _dependencies.IdempotencyRecordRepository
             .GetByMerchantAndKeyAsync(lancamentoOriginal.MerchantId, request.IdempotencyKey, cancellationToken);
 
         if (existing is not null)
@@ -125,7 +109,7 @@ public sealed class SolicitarEstornoLancamentoHandler
             correlationId,
             now);
 
-        await _estornoRepository.AddAsync(estorno, cancellationToken);
+        await _dependencies.EstornoRepository.AddAsync(estorno, cancellationToken);
 
         var response = ToResponse(estorno);
         var responseJson = JsonSerializer.Serialize(response, JsonOptions);
@@ -140,7 +124,7 @@ public sealed class SolicitarEstornoLancamentoHandler
             now,
             now.AddDays(7));
 
-        await _idempotencyRecordRepository.AddAsync(idempotencyRecord, cancellationToken);
+        await _dependencies.IdempotencyRecordRepository.AddAsync(idempotencyRecord, cancellationToken);
 
         var outboxPayload = JsonSerializer.Serialize(
             new LancamentoEstornoSolicitadoV1(
@@ -165,9 +149,9 @@ public sealed class SolicitarEstornoLancamentoHandler
             traceContext.TraceState,
             traceContext.Baggage);
 
-        await _outboxMessageRepository.AddAsync(outboxMessage, cancellationToken);
+        await _dependencies.OutboxMessageRepository.AddAsync(outboxMessage, cancellationToken);
 
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await _dependencies.UnitOfWork.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
         _metrics?.RecordReversalRequested("success");
@@ -200,4 +184,22 @@ public sealed class SolicitarEstornoLancamentoHandler
 
     private static string NormalizeText(string value)
         => value.Trim();
+}
+
+public sealed class SolicitarEstornoLancamentoDependencies(
+    ILedgerEntryRepository ledgerEntryRepository,
+    IEstornoLancamentoRepository estornoRepository,
+    IIdempotencyRecordRepository idempotencyRecordRepository,
+    IOutboxMessageRepository outboxMessageRepository,
+    IUnitOfWork unitOfWork)
+{
+    public ILedgerEntryRepository LedgerEntryRepository { get; } = ledgerEntryRepository;
+
+    public IEstornoLancamentoRepository EstornoRepository { get; } = estornoRepository;
+
+    public IIdempotencyRecordRepository IdempotencyRecordRepository { get; } = idempotencyRecordRepository;
+
+    public IOutboxMessageRepository OutboxMessageRepository { get; } = outboxMessageRepository;
+
+    public IUnitOfWork UnitOfWork { get; } = unitOfWork;
 }

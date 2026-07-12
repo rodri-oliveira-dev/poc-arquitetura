@@ -25,4 +25,4 @@ app.MapApiHealthEndpoints(
 
 app.MapControllers().RequireRateLimiting("fixed");
 
-app.Run();
+await app.RunAsync();

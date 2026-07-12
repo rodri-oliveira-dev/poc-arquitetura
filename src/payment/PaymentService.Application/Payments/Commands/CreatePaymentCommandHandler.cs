@@ -64,7 +64,6 @@ public sealed class CreatePaymentCommandHandler(
             return await CompleteExternalCreationAsync(
                 existingPayment,
                 idempotencyKey,
-                requestHash,
                 request.CorrelationId,
                 idempotentReplay: true,
                 cancellationToken);
@@ -97,7 +96,6 @@ public sealed class CreatePaymentCommandHandler(
         return await CompleteExternalCreationAsync(
             payment,
             idempotencyKey,
-            requestHash,
             request.CorrelationId,
             idempotentReplay: false,
             cancellationToken);
@@ -124,7 +122,6 @@ public sealed class CreatePaymentCommandHandler(
     private async Task<CreatePaymentResult> CompleteExternalCreationAsync(
         Payment payment,
         string idempotencyKey,
-        string requestHash,
         string? correlationId,
         bool idempotentReplay,
         CancellationToken cancellationToken)
