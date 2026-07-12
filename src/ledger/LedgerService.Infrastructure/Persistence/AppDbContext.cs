@@ -1,3 +1,5 @@
+using LedgerService.Application.Abstractions.Messaging;
+using LedgerService.Application.Idempotency;
 using LedgerService.Domain.Entities;
 using LedgerService.Domain.Repositories;
 
@@ -5,17 +7,13 @@ using Microsoft.EntityFrameworkCore;
 
 namespace LedgerService.Infrastructure.Persistence;
 
-public sealed class AppDbContext : DbContext, IUnitOfWork
+public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options), IUnitOfWork
 {
     public DbSet<LedgerEntry> LedgerEntries => Set<LedgerEntry>();
     public DbSet<EstornoLancamento> EstornosLancamentos => Set<EstornoLancamento>();
     public DbSet<ReprocessamentoLancamentos> ReprocessamentosLancamentos => Set<ReprocessamentoLancamentos>();
     public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
-
-    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
-    {
-    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -33,5 +31,5 @@ public sealed class AppDbContext : DbContext, IUnitOfWork
     }
 
     Task<int> IUnitOfWork.SaveChangesAsync(CancellationToken cancellationToken)
-        => base.SaveChangesAsync(cancellationToken);
+        => SaveChangesAsync(cancellationToken);
 }

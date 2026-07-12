@@ -361,6 +361,79 @@ model {
     }
   }
 
+  payment = softwareSystem "PaymentService" {
+    description "Bounded context de pagamentos externos. Cria Payments locais, cria PaymentIntent e Refund no provider configurado, recebe webhooks Stripe assinados em Inbox duravel, processa a Inbox no Worker e materializa Payments/Refunds no Ledger via HTTP idempotente, sem Balance direto ou Kafka proprio."
+
+    paymentApi = container "PaymentService.Api" {
+      technology "ASP.NET Core"
+      description "Composition root HTTP do PaymentService. Expoe criacao de Payment, consulta local e webhook Stripe assinado com persistencia em Inbox."
+
+      paymentApiLayer = component "API Layer" {
+        description "Controllers, contracts, binders, mappers, Swagger, JWT/JWKS, policies payment.write/payment.read/payment.refund, correlation id, webhooks Stripe e middlewares."
+      }
+
+      paymentApplication = component "Application Layer" {
+        description "Handlers de criacao, consulta, refund, recebimento de webhook, processamento da Inbox e processor Payment/Refund -> Ledger; portas IPaymentRepository, IPaymentIdempotencyService, IPaymentInboxRepository, IUnitOfWork, IPaymentGateway e ILedgerEntryGateway com modelos internos."
+      }
+
+      paymentDomain = component "Domain Layer" {
+        description "Aggregate Payment com PaymentRefund, value objects PaymentId, RefundId, MerchantId, Money, Currency, ExternalReference, ExternalPaymentReference, LedgerEntryReference e state machines."
+      }
+
+      paymentInfrastructure = component "Infrastructure Layer" {
+        description "PaymentDbContext, migrations do schema payment, repositories, idempotencia persistida, Inbox, provider fake, adapter HTTP Stripe PaymentIntent/Refund, LedgerHttpGateway e client credentials para ledger.write."
+      }
+    }
+
+    paymentWorker = container "PaymentService.Worker" {
+      technology ".NET Worker Service"
+      description "Worker dedicado sem HTTP que faz polling da Inbox, claim concorrente, lease, retry persistido, backoff, DeadLetter logico, aplica eventos Stripe suportados na state machine do Payment/Refund e chama o Ledger para concluir pagamentos e estornos."
+
+      paymentWorkerComposition = component "Worker composition root" {
+        description "Registra Application, Infrastructure, observabilidade, PaymentInboxWorkerService e PaymentLedgerWorkerService. Nao registra controllers, Swagger ou Kafka proprio."
+      }
+
+      paymentInboxWorker = component "PaymentInboxWorkerService" {
+        description "BackgroundService que reclama mensagens elegiveis da Inbox, processa lote sequencial, respeita cancellation token e agenda retry ou DeadLetter por mensagem."
+      }
+
+      paymentProviderEventMapper = component "StripeInboxProviderEventMapper" {
+        description "Traduz evento Stripe persistido na Inbox para evento interno de provider sem expor tipos Stripe ao dominio."
+      }
+
+      paymentLedgerWorker = component "PaymentLedgerWorkerService" {
+        description "BackgroundService que coordena batches de materializacao financeira de Payments Succeeded/LedgerPending no Ledger, sem transacao local aberta durante a chamada HTTP."
+      }
+
+      paymentLedgerProcessor = component "PaymentLedgerProcessor" {
+        description "Application service que faz claim persistido, monta CREDIT ou estorno deterministico, interpreta resultado normalizado da porta ILedgerEntryGateway e persiste Completed, RetryScheduled, FailedDefinitive ou DeadLetter."
+      }
+
+      ledgerHttpGateway = component "LedgerHttpGateway" {
+        description "Adapter HTTP da porta ILedgerEntryGateway; chama POST /api/v1/lancamentos e POST /api/v1/lancamentos/{id}/estornos com token service-to-service ledger.write, Idempotency-Key deterministica e X-Correlation-Id."
+      }
+    }
+
+    paymentDb = container "PostgreSQL schema payment" {
+      technology "PostgreSQL"
+      description "Schema payment no PostgreSQL local unico ou boundary equivalente por ambiente: payments, payment_refunds, idempotency_records, inbox_messages e metadados de integracao Ledger."
+    }
+  }
+
+  stripe = softwareSystem "Stripe" {
+    description "Provider externo de pagamentos usado pelo PaymentService para criar PaymentIntent/Refund e entregar webhooks assinados."
+
+    stripeApi = container "Stripe API" {
+      technology "HTTPS / Stripe"
+      description "API externa usada pelo adapter Stripe do PaymentService.Infrastructure para criar PaymentIntent e Refund com idempotencia externa deterministica."
+    }
+
+    stripeWebhooks = container "Stripe Webhook" {
+      technology "HTTPS webhook"
+      description "Entrega eventos Stripe assinados ao endpoint publico de webhook do PaymentService.Api. Nao chama Worker, banco, Kafka ou servicos internos diretamente."
+    }
+  }
+
   kafka = softwareSystem "Kafka" {
     description "Broker Kafka local em KRaft. Provider default de Ledger/Balance e transporte explicito da Saga do TransferService."
 
@@ -457,6 +530,7 @@ model {
   customer -> identityService.identityApi "Cadastra usuarios e recebe MerchantId" "HTTP + JWT"
   customer -> ledger.ledgerApi "Cria lancamentos e solicita/consulta estornos e reprocessamentos" "HTTP + JWT"
   customer -> balance.balanceApi "Consulta consolidados" "HTTP + JWT"
+  customer -> payment.paymentApi "Cria Payments externos e consulta estado local" "HTTP + JWT"
   customer -> edge.nginx "Acessa portal e Swaggers locais opcionais" "HTTPS"
   edge.nginx -> ledger.ledgerApi "Encaminha ledger.localhost:7443 para o upstream ledger_api com least_conn" "HTTP interno"
   edge.nginx -> balance.balanceApi "Encaminha balance.localhost:7443" "HTTP interno"
@@ -486,6 +560,9 @@ model {
   ledger.ledgerApi -> identity.keycloak "Baixa/cacheia JWKS e valida JWT offline com iss, aud, scopes e merchant_id" "HTTP cacheado"
   balance.balanceApi -> identity.keycloak "Baixa/cacheia JWKS e valida JWT offline com iss, aud, scopes e merchant_id" "HTTP cacheado"
   transfer.transferApi -> identity.keycloak "Baixa/cacheia JWKS e valida JWT offline com iss, aud, scopes e merchant_id" "HTTP cacheado"
+  payment.paymentApi -> identity.keycloak "Baixa/cacheia JWKS e valida JWT offline com iss, aud, scopes e merchant_id" "HTTP cacheado"
+  payment.paymentApi.paymentInfrastructure -> stripe.stripeApi "Cria PaymentIntent e Refund com idempotencia externa deterministica" "HTTPS"
+  stripe.stripeWebhooks -> payment.paymentApi "Entrega webhooks Stripe assinados em /api/v1/webhooks/stripe" "HTTPS + Stripe-Signature"
 
   ledger.ledgerApi -> ledger.ledgerDb "Persiste lancamento, estorno, reprocessamento, idempotencia e outbox" "EF Core"
   ledger.ledgerWorker.ledgerWorkerComposition -> ledger.ledgerWorker.ledgerWorkerApplication "Registra casos de uso e handlers" "DI / MediatR"
@@ -538,6 +615,8 @@ model {
   balance.balanceWorker -> observability.collector "Exporta telemetria quando habilitado no compose" "OTLP"
   transfer.transferApi -> observability.collector "Exporta telemetria quando habilitado no compose" "OTLP"
   transfer.transferWorker -> observability.collector "Exporta telemetria quando habilitado no compose" "OTLP"
+  payment.paymentApi -> observability.collector "Exporta telemetria quando habilitado no compose" "OTLP"
+  payment.paymentWorker -> observability.collector "Exporta telemetria quando habilitado no compose" "OTLP"
   identityService.identityApi -> observability.collector "Exporta telemetria quando habilitado no compose" "OTLP"
   observability.collector -> observability.jaeger "Encaminha traces" "OTLP"
   observability.prometheus -> observability.collector "Coleta metricas tecnicas" "Prometheus scrape"
@@ -576,4 +655,21 @@ model {
   transfer.transferWorker.transferWorkerComposition -> ledger.ledgerApi "Cria debito, credito e compensacao via HTTP" "HTTP"
   transfer.transferWorker.transferWorkerComposition -> kafka.transferSagaTopics "Publica eventos da Saga com transferenciaId como key" "Kafka"
   transfer.transferWorker.transferWorkerComposition -> kafka.transferSagaDlq "Publica mensagens invalidas ou definitivas da Outbox" "Kafka DLQ"
+
+  payment.paymentApiLayer -> payment.paymentApplication "Envia comandos e queries via MediatR"
+  payment.paymentApplication -> payment.paymentDomain "Cria Payment e aplica state machine"
+  payment.paymentInfrastructure -> payment.paymentApplication "Implementa portas de persistencia"
+  payment.paymentInfrastructure -> payment.paymentDomain "Mapeia aggregate e value objects"
+  payment.paymentApi -> payment.paymentDb "Persiste Payment, registros de idempotencia e Inbox de webhooks" "EF Core"
+  payment.paymentWorker.paymentWorkerComposition -> payment.paymentApplication "Registra Application"
+  payment.paymentWorker.paymentWorkerComposition -> payment.paymentInfrastructure "Registra Infrastructure"
+  payment.paymentWorker.paymentInboxWorker -> payment.paymentDb "Faz claim da Inbox, atualiza Inbox e Payment na mesma transacao local" "EF Core / SQL"
+  payment.paymentWorker.paymentInboxWorker -> payment.paymentApplication "Envia ProcessPaymentInboxMessageCommand" "MediatR"
+  payment.paymentWorker.paymentLedgerWorker -> payment.paymentWorker.paymentLedgerProcessor "Coordena batches de materializacao financeira" "DI"
+  payment.paymentWorker.paymentLedgerProcessor -> payment.paymentDb "Faz claim persistido e salva ledgerEntryId/retry/deadletter" "EF Core / SQL"
+  payment.paymentWorker.paymentLedgerProcessor -> payment.paymentWorker.ledgerHttpGateway "Chama porta ILedgerEntryGateway" "porta"
+  payment.paymentWorker.ledgerHttpGateway -> identity.keycloak "Obtem token client_credentials com scope ledger.write" "HTTP"
+  payment.paymentWorker.ledgerHttpGateway -> ledger.ledgerApi "Cria CREDIT e solicita estornos em POST /api/v1/lancamentos/{id}/estornos com Idempotency-Key deterministica" "HTTP + JWT"
+  payment.paymentApplication -> payment.paymentProviderEventMapper "Traduz Inbox para evento interno de provider"
+  payment.paymentProviderEventMapper -> payment.paymentDomain "Entrega evento traduzido para state machine via Application"
 }

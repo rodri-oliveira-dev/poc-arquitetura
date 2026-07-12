@@ -103,7 +103,7 @@ namespace LedgerService.Infrastructure.Persistence.Migrations
                     b.ToTable("estornos_lancamentos", "ledger");
                 });
 
-            modelBuilder.Entity("LedgerService.Domain.Entities.IdempotencyRecord", b =>
+            modelBuilder.Entity("LedgerService.Application.Idempotency.IdempotencyRecord", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid")
@@ -215,7 +215,7 @@ namespace LedgerService.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("LedgerService.Domain.Entities.OutboxMessage", b =>
+            modelBuilder.Entity("LedgerService.Application.Abstractions.Messaging.OutboxMessage", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid")

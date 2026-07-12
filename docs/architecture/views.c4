@@ -13,7 +13,6 @@ views {
     include edge.nginx
     include edge.nginx.portal
     include identity.keycloak
-    include legacyAuth.authApi
     include identityService.identityApi
     include identityService.identityDb
     include ledger.ledgerApi
@@ -22,6 +21,11 @@ views {
     include balance.balanceApi
     include balance.balanceWorker
     include balance.balanceDb
+    include payment.paymentApi
+    include payment.paymentWorker
+    include payment.paymentDb
+    include stripe.stripeApi
+    include stripe.stripeWebhooks
     include kafka.ledgerTopic
     include kafka.ledgerEstornoTopic
     include kafka.ledgerReprocessamentoTopic
@@ -137,6 +141,8 @@ views {
     include ledger.ledgerWorker
     include balance.balanceApi
     include balance.balanceWorker
+    include payment.paymentApi
+    include payment.paymentWorker
     include observability.collector
     include observability.jaeger
     include observability.prometheus
@@ -249,6 +255,127 @@ views {
     title "Component View - Keycloak IdP"
     include identity.oidcEndpoints
     include identity.realmConfig
+    autoLayout LeftRight
+  }
+
+  view paymentLedgerFlow {
+    title "Fluxo Payment -> Ledger -> Kafka -> Balance"
+    include stripe.stripeApi
+    include stripe.stripeWebhooks
+    include payment.paymentApi
+    include payment.paymentWorker
+    include payment.paymentDb
+    include payment.paymentInboxWorker
+    include payment.paymentWorker.paymentLedgerWorker
+    include payment.paymentWorker.paymentLedgerProcessor
+    include payment.paymentWorker.ledgerHttpGateway
+    include identity.keycloak
+    include ledger.ledgerApi
+    include ledger.ledgerDb
+    include ledger.ledgerWorker
+    include ledger.ledgerEstornoProcessor
+    include ledger.ledgerOutbox
+    include ledger.ledgerKafkaOutboxPublisher
+    include kafka.ledgerTopic
+    include balance.balanceWorker
+    include balance.balanceConsumer
+    include balance.balanceMessageProcessor
+    include balance.balanceDb
+    autoLayout LeftRight
+  }
+
+  dynamic view paymentCreateFlow {
+    title "Dynamic View - criacao de Payment"
+    description "Estado atual: PaymentService.Api recebe comando autenticado, Application cria Payment local, Infrastructure chama Stripe/Fake via IPaymentGateway e persiste a referencia externa no schema payment."
+
+    customer -> identity.keycloak "1. Obtem token Keycloak com audience payment-api e scope payment.write"
+    customer -> payment.paymentApi.paymentApiLayer "2. Chama POST /api/v1/payments com JWT, Idempotency-Key e merchant_id autorizado"
+    payment.paymentApi.paymentApiLayer -> payment.paymentApi.paymentApiLayer "3. Valida contrato HTTP, scope payment.write, merchant_id e correlation id"
+    payment.paymentApi.paymentApiLayer -> payment.paymentApplication "4. Envia CreatePaymentCommand"
+    payment.paymentApplication -> payment.paymentDb "5. Reserva idempotencia e cria Payment Pending no schema payment"
+    payment.paymentApplication -> payment.paymentApi.paymentInfrastructure "6. Chama IPaymentGateway com modelos internos"
+    payment.paymentApi.paymentInfrastructure -> stripe.stripeApi "7. Cria PaymentIntent quando PaymentGateway:Provider=Stripe"
+    stripe.stripeApi -> payment.paymentApi.paymentInfrastructure "8. Retorna status externo traduzido"
+    payment.paymentApplication -> payment.paymentDb "9. Salva externalPaymentReference e providerStatus"
+    payment.paymentApi.paymentApiLayer -> customer "10. Retorna 202 Accepted e statusUrl sem prometer efeito financeiro"
+
+    autoLayout LeftRight
+  }
+
+  dynamic view paymentWebhookInboxFlow {
+    title "Dynamic View - webhook Stripe, Inbox e Worker"
+    description "Estado atual: webhook entra pela API, assinatura e raw body sao validados, evento e persistido na Inbox e o Worker processa assincronamente a state machine."
+
+    stripe.stripeWebhooks -> payment.paymentApi.paymentApiLayer "1. Entrega POST /api/v1/webhooks/stripe com Stripe-Signature e raw body"
+    payment.paymentApi.paymentApiLayer -> payment.paymentApi.paymentApiLayer "2. Valida assinatura, timestamp, payload e limite tecnico"
+    payment.paymentApi.paymentApiLayer -> payment.paymentApplication "3. Envia ReceiveStripeWebhookCommand"
+    payment.paymentApplication -> payment.paymentDb "4. Persiste Inbox ou reconhece duplicidade por provider + provider_event_id"
+    payment.paymentApi.paymentApiLayer -> stripe.stripeWebhooks "5. Responde 2xx apos assinatura valida e persistencia/duplicidade reconhecida"
+    payment.paymentWorker.paymentInboxWorker -> payment.paymentDb "6. Faz claim atomico de Inbox Pending/RetryScheduled/lease expirado"
+    payment.paymentWorker.paymentInboxWorker -> payment.paymentApplication "7. Envia ProcessPaymentInboxMessageCommand"
+    payment.paymentApplication -> payment.paymentProviderEventMapper "8. Traduz evento Stripe para modelo interno de provider"
+    payment.paymentApplication -> payment.paymentDomain "9. Aplica state machine monotona de Payment/Refund"
+    payment.paymentApplication -> payment.paymentDb "10. Salva Payment e resultado da Inbox como Processed, Ignored, RetryScheduled ou DeadLetter"
+
+    autoLayout LeftRight
+  }
+
+  dynamic view paymentLedgerMaterializationFlow {
+    title "Dynamic View - materializacao Payment no Ledger"
+    description "Estado atual: PaymentService.Worker chama LedgerService.Api; Ledger grava lancamento e Outbox; LedgerService.Worker publica no Kafka; BalanceService.Worker projeta o saldo."
+
+    payment.paymentWorker.paymentLedgerWorker -> payment.paymentWorker.paymentLedgerProcessor "1. Inicia batch de materializacao financeira"
+    payment.paymentWorker.paymentLedgerProcessor -> payment.paymentDb "2. Reclama Payment Succeeded/LedgerPending sem ledgerEntryId"
+    payment.paymentWorker.paymentLedgerProcessor -> payment.paymentWorker.ledgerHttpGateway "3. Monta CREDIT com Idempotency-Key deterministica"
+    payment.paymentWorker.ledgerHttpGateway -> identity.keycloak "4. Obtem token client_credentials com scope ledger.write"
+    payment.paymentWorker.ledgerHttpGateway -> ledger.ledgerApi "5. Chama POST /api/v1/lancamentos com JWT, Idempotency-Key e X-Correlation-Id"
+    ledger.ledgerApi -> ledger.ledgerDb "6. Persiste lancamento, idempotencia e Outbox"
+    ledger.ledgerApi -> payment.paymentWorker.ledgerHttpGateway "7. Retorna criacao ou replay idempotente"
+    payment.paymentWorker.paymentLedgerProcessor -> payment.paymentDb "8. Salva ledgerEntryId e transita Payment para Completed"
+    ledger.ledgerWorker.ledgerOutbox -> ledger.ledgerDb "9. Reclama outbox_messages pendentes"
+    ledger.ledgerWorker.ledgerKafkaOutboxPublisher -> kafka.ledgerTopic "10. Publica LedgerEntryCreated.v2"
+    balance.balanceWorker.balanceConsumer -> kafka.ledgerTopic "11. Consome evento financeiro do Ledger"
+    balance.balanceWorker.balanceMessageProcessor -> balance.balanceDb "12. Atualiza daily_balances e processed_events"
+
+    autoLayout LeftRight
+  }
+
+  dynamic view paymentRefundFlow {
+    title "Dynamic View - refund total e estorno Ledger"
+    description "Estado atual: refund total e implementado; refund parcial, chargeback, dispute, payout, split, Stripe Connect e reconciliacao completa permanecem fora do runtime atual."
+
+    customer -> payment.paymentApi.paymentApiLayer "1. Chama POST /api/v1/payments/{paymentId}/refunds com scope payment.refund"
+    payment.paymentApi.paymentApiLayer -> payment.paymentApplication "2. Envia RequestRefundCommand apos validar merchant"
+    payment.paymentApplication -> payment.paymentDb "3. Registra PaymentRefund no aggregate"
+    payment.paymentApplication -> payment.paymentApi.paymentInfrastructure "4. Chama IPaymentGateway para CreateRefundAsync"
+    payment.paymentApi.paymentInfrastructure -> stripe.stripeApi "5. Cria Refund total com idempotencia externa deterministica"
+    payment.paymentApi.paymentApiLayer -> customer "6. Retorna 202 Accepted"
+    stripe.stripeWebhooks -> payment.paymentApi.paymentApiLayer "7. Entrega webhook refund.created/refund.updated/refund.failed"
+    payment.paymentApi.paymentApiLayer -> payment.paymentDb "8. Persiste evento na Inbox duravel"
+    payment.paymentWorker.paymentInboxWorker -> payment.paymentApplication "9. Processa evento de refund confirmado"
+    payment.paymentWorker.paymentLedgerProcessor -> payment.paymentWorker.ledgerHttpGateway "10. Monta estorno com Idempotency-Key deterministica"
+    payment.paymentWorker.ledgerHttpGateway -> ledger.ledgerApi "11. Chama POST /api/v1/lancamentos/{ledgerEntryId}/estornos"
+    ledger.ledgerApi -> ledger.ledgerDb "12. Registra solicitacao de estorno, idempotencia e Outbox operacional"
+    ledger.ledgerWorker.ledgerEstornoProcessor -> ledger.ledgerDb "13. Busca estornos Pending e cria lancamento compensatorio idempotente"
+    ledger.ledgerWorker.ledgerOutbox -> ledger.ledgerDb "14. Reclama Outbox financeira do Ledger"
+    ledger.ledgerWorker.ledgerKafkaOutboxPublisher -> kafka.ledgerTopic "15. Publica LedgerEntryCreated.v2 compensatorio no Kafka"
+    balance.balanceWorker.balanceConsumer -> kafka.ledgerTopic "16. Projeta estorno no Balance DB"
+
+    autoLayout LeftRight
+  }
+
+  view paymentWorkerComponents of payment.paymentWorker {
+    title "Component View - PaymentService.Worker"
+    include payment.paymentWorkerComposition
+    include payment.paymentInboxWorker
+    include payment.paymentProviderEventMapper
+    include payment.paymentWorker.paymentLedgerWorker
+    include payment.paymentWorker.paymentLedgerProcessor
+    include payment.paymentWorker.ledgerHttpGateway
+    include payment.paymentApplication
+    include payment.paymentDomain
+    include payment.paymentInfrastructure
+    include payment.paymentDb
     autoLayout LeftRight
   }
 }

@@ -1,6 +1,8 @@
+using System.Diagnostics;
+
+using LedgerService.Application.Abstractions.Messaging;
 using LedgerService.Application.Abstractions.Time;
 using LedgerService.Application.Outbox.Retry;
-using LedgerService.Domain.Entities;
 using LedgerService.Domain.Repositories;
 using LedgerService.Infrastructure.Observability;
 using LedgerService.Infrastructure.Persistence;
@@ -8,39 +10,24 @@ using LedgerService.Worker.Messaging.Abstractions;
 using LedgerService.Worker.Observability;
 
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-
-using System.Diagnostics;
 
 namespace LedgerService.Worker.Outbox;
 
-public sealed class OutboxPublisherService : BackgroundService
+public sealed class OutboxPublisherService(
+    IServiceProvider serviceProvider,
+    IOptions<OutboxPublisherOptions> options,
+    IRetryStrategy retryStrategy,
+    ILogger<OutboxPublisherService> logger,
+    IClock? clock = null) : BackgroundService
 {
     private static readonly ActivitySource ActivitySource = new("LedgerService.OutboxPublisher");
-    private readonly IServiceProvider _serviceProvider;
-    private readonly IOptions<OutboxPublisherOptions> _options;
-    private readonly IRetryStrategy _retryStrategy;
-    private readonly ILogger<OutboxPublisherService> _logger;
-    private readonly IClock _clock;
-    private readonly string _lockOwner;
-
-    public OutboxPublisherService(
-        IServiceProvider serviceProvider,
-        IOptions<OutboxPublisherOptions> options,
-        IRetryStrategy retryStrategy,
-        ILogger<OutboxPublisherService> logger,
-        IClock? clock = null)
-    {
-        _serviceProvider = serviceProvider;
-        _options = options;
-        _retryStrategy = retryStrategy;
-        _logger = logger;
-        _clock = clock ?? new SystemClock();
-        _lockOwner = $"{Environment.MachineName}:{Guid.NewGuid():N}";
-    }
+    private readonly IServiceProvider _serviceProvider = serviceProvider;
+    private readonly IOptions<OutboxPublisherOptions> _options = options;
+    private readonly IRetryStrategy _retryStrategy = retryStrategy;
+    private readonly ILogger<OutboxPublisherService> _logger = logger;
+    private readonly IClock _clock = clock ?? new SystemClock();
+    private readonly string _lockOwner = $"{Environment.MachineName}:{Guid.NewGuid():N}";
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -91,12 +78,12 @@ public sealed class OutboxPublisherService : BackgroundService
         var outboxRepo = scope.ServiceProvider.GetRequiredService<IOutboxMessageRepository>();
         var uow = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
 
-        var options = _options.Value;
+        var publisherOptions = _options.Value;
         var now = _clock.UtcNow.UtcDateTime;
-        var lockDuration = TimeSpan.FromSeconds(Math.Max(5, options.LockDurationSeconds));
+        var lockDuration = TimeSpan.FromSeconds(Math.Max(5, publisherOptions.LockDurationSeconds));
 
         var claimed = await outboxRepo.ClaimPendingAsync(
-            options.BatchSize,
+            publisherOptions.BatchSize,
             now,
             _lockOwner,
             lockDuration,
@@ -107,13 +94,13 @@ public sealed class OutboxPublisherService : BackgroundService
 
         await uow.SaveChangesAsync(cancellationToken);
 
-        _logger.OutboxMessagesClaimed(claimed.Count, _lockOwner, options.MaxParallelism);
+        _logger.OutboxMessagesClaimed(claimed.Count, _lockOwner, publisherOptions.MaxParallelism);
 
         await Parallel.ForEachAsync(
             claimed,
             new ParallelOptions
             {
-                MaxDegreeOfParallelism = Math.Max(1, options.MaxParallelism),
+                MaxDegreeOfParallelism = Math.Max(1, publisherOptions.MaxParallelism),
                 CancellationToken = cancellationToken
             },
             async (message, ct) => await PublishOneSafelyAsync(message.Id, ct));
@@ -145,7 +132,7 @@ public sealed class OutboxPublisherService : BackgroundService
         var publisher = scope.ServiceProvider.GetRequiredService<IOutboxMessagePublisher>();
         var metrics = scope.ServiceProvider.GetRequiredService<OutboxMetrics>();
 
-        var options = _options.Value;
+        var publisherOptions = _options.Value;
 
         var message = await db.OutboxMessages.FirstOrDefaultAsync(x => x.Id == outboxId, ct);
         if (message is null)
@@ -201,7 +188,7 @@ public sealed class OutboxPublisherService : BackgroundService
         }
         catch (MessagePublishException ex)
         {
-            await HandlePublishFailureAsync(repo, uow, metrics, message, topic, startedAt, options, ex, ct);
+            await HandlePublishFailureAsync(repo, uow, metrics, message, topic, startedAt, publisherOptions, ex, ct);
         }
     }
 

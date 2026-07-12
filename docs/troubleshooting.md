@@ -253,6 +253,37 @@ No compose local, use `docker compose -f compose.yaml logs -f ledger-worker bala
 
 Detalhes ficam em [observabilidade](observability.md#readiness) e [Kafka, Outbox e DLQ](development/kafka-outbox.md).
 
+## Webhook Stripe local falha
+
+O endpoint canonico do PaymentService e:
+
+```text
+POST http://localhost:5234/api/v1/webhooks/stripe
+```
+
+Use `stripe listen` em modo manual:
+
+```bash
+stripe listen --forward-to http://localhost:5234/api/v1/webhooks/stripe
+```
+
+Erros comuns:
+
+| Sintoma | Causa provavel | Acao |
+| --- | --- | --- |
+| `stripe: command not found` | Stripe CLI ausente ou fora do `PATH`. | Instale pelo metodo oficial e valide com `stripe version`. |
+| `Webhook Stripe nao configurado` | `PaymentGateway:Stripe:WebhookSigningSecret` vazio no processo da API. | Copie o `whsec_...` impresso pelo `stripe listen` para user secrets ou variavel local. |
+| `No signatures found matching the expected signature for payload` | Secret errado, endpoint incorreto, body alterado, header ausente, proxy alterando payload ou variavel nao carregada. | Confirme `whsec_...`, URL `http://localhost:5234/api/v1/webhooks/stripe`, raw body e ambiente do processo. |
+| Evento chega, mas Payment nao muda | Evento sintetico sem `metadata.payment_id`, Payment local inexistente, Worker parado, retry ou DeadLetter. | Diferencie smoke sintetico de fluxo correlacionado e confira `payment.inbox_messages`. |
+| Evento chega, mas Ledger nao recebe | Evento nao corresponde a Payment real ou Payment ainda nao chegou ao estado adequado; Worker/integacao Ledger pode estar em retry. | Verifique Payment, Worker, estado de integracao Ledger, logs e metricas. |
+| Payment fica `Succeeded` ou `LedgerPending` | `PaymentService.Worker` nao conseguiu criar o CREDIT no Ledger. | Verifique `LedgerService.Api`, token service-to-service `ledger.write`, retry persistido em `payment.payments` e logs com `X-Correlation-Id`. |
+| Refund solicitado, mas Payment nao vira `Refunded` | Webhook `refund.updated` ausente, Worker parado ou estorno no Ledger pendente. | Confira `payment.payment_refunds`, `payment.inbox_messages`, `ledger_reversal_status`, retry e DeadLetter. |
+| Balance nao atualiza apos Payment/Refund | Payment nao chama Balance diretamente; o saldo depende do Ledger Outbox -> Kafka -> Balance Worker. | Verifique Outbox do Ledger, `ledger-worker`, Kafka, `balance-worker`, DLQ e tabela `balance.processed_events`. |
+| Smoke local falha com assinatura Stripe | `PAYMENT_WEBHOOK_SIGNING_SECRET` diferente de `PaymentGateway:Stripe:WebhookSigningSecret` ou raw body alterado. | Use o mesmo `whsec` local nos dois lados e nao passe por proxy que modifique o corpo. |
+| `stripe trigger` nao suporta determinado evento | A CLI nao possui fixture para o evento desejado. | Use evento suportado ou fluxo correlacionado real no sandbox. |
+
+Detalhes ficam em [validacao local de webhooks Stripe com Stripe CLI](development/stripe-cli-webhooks.md).
+
 ## password authentication failed for user "balance_write_user"
 
 Esse erro indica que uma API, worker, migration ou runner k6 tentou acessar o PostgreSQL local com as credenciais configuradas, mas o banco recusou a autenticacao.

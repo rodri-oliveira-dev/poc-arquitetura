@@ -4,6 +4,8 @@ using System.Globalization;
 using BalanceService.Application.Abstractions.Persistence;
 using BalanceService.Application.Abstractions.Time;
 using BalanceService.Application.Common.Observability;
+using BalanceService.Application.Idempotency;
+using BalanceService.Application.IntegrationEvents;
 using BalanceService.Domain.Balances;
 
 using MediatR;
@@ -63,22 +65,10 @@ public sealed partial class ApplyLedgerEntryCreatedHandler : IRequestHandler<App
 
         try
         {
-            // Importante: a consolidacao diaria deve usar o "dia" derivado do occurredAt no fuso recebido.
-            // Por isso, calculamos a DateOnly ANTES de normalizar timestamps para UTC.
-            var date = DateOnly.FromDateTime(evt.OccurredAt.Date);
-            var currency = evt.Currency ?? throw new InvalidOperationException("LedgerEntryCreated event currency is required.");
+            var movement = LedgerEntryCreatedIntegrationEventMapper.ToBalanceMovement(evt);
+            var date = movement.Date;
+            var currency = movement.Currency.Code;
             var now = _clock.UtcNow;
-
-            // Npgsql + timestamptz: DateTimeOffset precisa estar em UTC (Offset=0)
-            // para ser persistido. Mantemos a logica do "dia" usando o offset original.
-            var occurredAtUtc = evt.OccurredAt.ToUniversalTime();
-            var createdAtUtc = evt.CreatedAt.ToUniversalTime();
-            var normalizedEvent = evt with
-            {
-                OccurredAt = occurredAtUtc,
-                CreatedAt = createdAtUtc,
-                Currency = currency
-            };
 
             using var logScope = _logger.BeginScope(new Dictionary<string, object?>
             {
@@ -101,7 +91,7 @@ public sealed partial class ApplyLedgerEntryCreatedHandler : IRequestHandler<App
 
             await using var transaction = await _unitOfWork.BeginTransactionAsync(cancellationToken);
 
-            var processedEvent = new ProcessedEvent(evt.Id, evt.MerchantId, occurredAtUtc, now);
+            var processedEvent = new ProcessedEvent(evt.Id, evt.MerchantId, movement.OccurredAt, now);
             var inserted = await _processedEventRepository.TryInsertAsync(processedEvent, cancellationToken);
 
             if (!inserted)
@@ -130,7 +120,7 @@ public sealed partial class ApplyLedgerEntryCreatedHandler : IRequestHandler<App
                 await _dailyBalanceRepository.AddAsync(dailyBalance, cancellationToken);
             }
 
-            dailyBalance.Apply(normalizedEvent, now);
+            dailyBalance.Apply(movement, now);
 
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);

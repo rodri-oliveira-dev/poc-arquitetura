@@ -3,7 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 
 using LedgerService.Application.Common.Models;
-using LedgerService.Domain.Entities;
+using LedgerService.Application.Idempotency;
 using LedgerService.Infrastructure.Persistence;
 using LedgerService.IntegrationTests.Infrastructure;
 using LedgerService.IntegrationTests.Infrastructure.Security;

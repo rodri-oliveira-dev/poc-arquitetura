@@ -1,19 +1,19 @@
-using BalanceService.Domain.Balances;
+using BalanceService.Application.IntegrationEvents;
 
 namespace BalanceService.Application.Balances.Replay;
 
 public sealed record EventReplayEvaluation(
     EventReplayEvaluationStatus Status,
     string? EventId,
-    LedgerEntryCreatedEvent? Event,
+    LedgerEntryCreatedIntegrationEvent? Event,
     string? ErrorMessage)
 {
     public bool IsValid => Status is EventReplayEvaluationStatus.Eligible or EventReplayEvaluationStatus.AlreadyProcessed;
 
-    public static EventReplayEvaluation Eligible(string eventId, LedgerEntryCreatedEvent evt)
+    public static EventReplayEvaluation Eligible(string eventId, LedgerEntryCreatedIntegrationEvent evt)
         => new(EventReplayEvaluationStatus.Eligible, eventId, evt, null);
 
-    public static EventReplayEvaluation AlreadyProcessed(string eventId, LedgerEntryCreatedEvent evt)
+    public static EventReplayEvaluation AlreadyProcessed(string eventId, LedgerEntryCreatedIntegrationEvent evt)
         => new(EventReplayEvaluationStatus.AlreadyProcessed, eventId, evt, null);
 
     public static EventReplayEvaluation InvalidContract(string? eventId, string errorMessage)

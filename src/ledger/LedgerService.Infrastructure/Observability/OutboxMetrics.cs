@@ -1,7 +1,7 @@
 using System.Data.Common;
 using System.Diagnostics.Metrics;
 
-using LedgerService.Domain.Entities;
+using LedgerService.Application.Abstractions.Messaging;
 using LedgerService.Infrastructure.Persistence;
 
 using Microsoft.EntityFrameworkCore;
@@ -151,7 +151,7 @@ public sealed class OutboxMetrics : IDisposable
     private IEnumerable<Measurement<long>> ObserveOutboxStatus(OutboxStatus status)
     {
         if (_scopeFactory is null)
-            return Array.Empty<Measurement<long>>();
+            return [];
 
         try
         {
@@ -176,11 +176,11 @@ public sealed class OutboxMetrics : IDisposable
         // ObservableGauge callbacks must not fail collection when DI or the database is unavailable.
         catch (InvalidOperationException)
         {
-            return Array.Empty<Measurement<long>>();
+            return [];
         }
         catch (DbException)
         {
-            return Array.Empty<Measurement<long>>();
+            return [];
         }
     }
 }

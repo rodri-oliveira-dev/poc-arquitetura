@@ -1,4 +1,4 @@
-using LedgerService.Domain.Entities;
+using LedgerService.Application.Idempotency;
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;

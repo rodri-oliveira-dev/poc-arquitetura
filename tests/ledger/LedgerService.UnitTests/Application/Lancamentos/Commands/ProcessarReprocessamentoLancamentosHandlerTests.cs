@@ -1,5 +1,6 @@
 using System.Text.Json;
 
+using LedgerService.Application.Abstractions.Messaging;
 using LedgerService.Application.Lancamentos.Commands;
 using LedgerService.Application.Lancamentos.Events;
 using LedgerService.Domain.Entities;
@@ -34,7 +35,7 @@ public sealed class ProcessarReprocessamentoLancamentosHandlerTests
         Assert.Equal(LedgerEntryCreatedV2.EventType, outbox.EventType);
         var evt = JsonSerializer.Deserialize<LedgerEntryCreatedV2>(outbox.Payload, JsonOptions);
         Assert.NotNull(evt);
-        Assert.Equal($"lan_{inPeriod.Id.ToString("N")[..8]}", evt!.Id);
+        Assert.Equal($"lan_{inPeriod.Id.ToString("N")[..8]}", evt.Id);
         Assert.Equal("100.00", evt.Amount);
         Assert.Equal("BRL", evt.Currency);
         Assert.Equal("m1", evt.MerchantId);
@@ -109,7 +110,7 @@ public sealed class ProcessarReprocessamentoLancamentosHandlerTests
         List<OutboxMessage> OutboxMessages)
     {
         public State(IEnumerable<LedgerEntry> ledgerEntries, IEnumerable<ReprocessamentoLancamentos> reprocessamentos)
-            : this(ledgerEntries.ToList(), reprocessamentos.ToList(), [])
+            : this([.. ledgerEntries], [.. reprocessamentos], [])
         {
         }
 
@@ -119,11 +120,9 @@ public sealed class ProcessarReprocessamentoLancamentosHandlerTests
         }
     }
 
-    private sealed class ReprocessamentoRepo : IReprocessamentoLancamentosRepository
+    private sealed class ReprocessamentoRepo(State state) : IReprocessamentoLancamentosRepository
     {
-        private readonly State _state;
-
-        public ReprocessamentoRepo(State state) => _state = state;
+        private readonly State _state = state;
 
         public Task<ReprocessamentoLancamentos?> GetByIdAsync(Guid reprocessamentoId, CancellationToken cancellationToken = default)
             => Task.FromResult(_state.Reprocessamentos.FirstOrDefault(x => x.Id == reprocessamentoId));
@@ -138,11 +137,9 @@ public sealed class ProcessarReprocessamentoLancamentosHandlerTests
         }
     }
 
-    private sealed class LedgerRepo : ILedgerEntryRepository
+    private sealed class LedgerRepo(State state) : ILedgerEntryRepository
     {
-        private readonly State _state;
-
-        public LedgerRepo(State state) => _state = state;
+        private readonly State _state = state;
 
         public Task<LedgerEntry?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
             => Task.FromResult(_state.LedgerEntries.FirstOrDefault(x => x.Id == id));
@@ -156,14 +153,12 @@ public sealed class ProcessarReprocessamentoLancamentosHandlerTests
             DateTime endExclusive,
             CancellationToken cancellationToken = default)
         {
-            if (_state.ThrowWhenListingEntries)
-                throw new TimeoutException("DB timeout");
-
-            return Task.FromResult<IReadOnlyList<LedgerEntry>>(
-                _state.LedgerEntries
+            return _state.ThrowWhenListingEntries
+                ? throw new TimeoutException("DB timeout")
+                : Task.FromResult<IReadOnlyList<LedgerEntry>>(
+                [.. _state.LedgerEntries
                     .Where(x => x.MerchantId == merchantId && x.OccurredAt >= startInclusive && x.OccurredAt < endExclusive)
-                    .OrderBy(x => x.OccurredAt)
-                    .ToList());
+                    .OrderBy(x => x.OccurredAt)]);
         }
 
         public Task AddAsync(LedgerEntry ledgerEntry, CancellationToken cancellationToken = default)
@@ -173,11 +168,9 @@ public sealed class ProcessarReprocessamentoLancamentosHandlerTests
         }
     }
 
-    private sealed class OutboxRepo : IOutboxMessageRepository
+    private sealed class OutboxRepo(State state) : IOutboxMessageRepository
     {
-        private readonly State _state;
-
-        public OutboxRepo(State state) => _state = state;
+        private readonly State _state = state;
 
         public Task AddAsync(OutboxMessage outboxMessage, CancellationToken cancellationToken = default)
         {

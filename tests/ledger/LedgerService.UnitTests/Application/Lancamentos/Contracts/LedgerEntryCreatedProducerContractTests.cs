@@ -2,7 +2,9 @@ using System.Text.Json;
 
 using Json.Schema;
 
+using LedgerService.Application.Abstractions.Messaging;
 using LedgerService.Application.Abstractions.Time;
+using LedgerService.Application.Idempotency;
 using LedgerService.Application.Lancamentos.Commands;
 using LedgerService.Application.Lancamentos.Events;
 using LedgerService.Application.Lancamentos.Services;

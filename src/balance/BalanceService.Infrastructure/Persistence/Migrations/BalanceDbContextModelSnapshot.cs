@@ -75,7 +75,7 @@ namespace BalanceService.Infrastructure.Persistence.Migrations
                     b.ToTable("daily_balances", "balance");
                 });
 
-            modelBuilder.Entity("BalanceService.Domain.Balances.ProcessedEvent", b =>
+            modelBuilder.Entity("BalanceService.Application.Idempotency.ProcessedEvent", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid")

@@ -61,3 +61,27 @@ Wrappers temporarios mantidos por compatibilidade silenciosa e baixo custo:
 ### Elegiveis para remocao futura
 
 No momento, nao ha wrappers pendentes nessa classificacao.
+
+## Scripts opcionais de validacao Stripe
+
+Os scripts abaixo ajudam o smoke manual de webhooks do PaymentService e nao
+fazem parte do build, dos testes automatizados ou do CI:
+
+- `scripts/validation/stripe-listen-payment-webhook.ps1`
+- `scripts/validation/stripe-listen-payment-webhook.sh`
+- `scripts/validation/payment-flow.ps1`
+- `scripts/validation/payment-flow.sh`
+- `scripts/validation/refund-flow.ps1`
+- `scripts/validation/refund-flow.sh`
+
+Eles verificam se `stripe` esta disponivel, montam por padrao
+`http://localhost:5234/api/v1/webhooks/stripe`, executam `stripe listen` em
+primeiro plano e orientam o usuario a copiar o `whsec_...` para
+`PaymentGateway__Stripe__WebhookSigningSecret`. Eles nao instalam a Stripe CLI,
+nao salvam secrets e nao rodam processos em background.
+
+Os scripts `payment-flow.*` e `refund-flow.*` validam smoke local controlado
+contra servicos ja em execucao. Eles aceitam base URL, token e signing secret
+por parametro ou variavel de ambiente, geram `X-Correlation-Id` e
+`Idempotency-Key`, assinam webhooks localmente e usam polling com timeout. O
+modo padrao nao exige conta Stripe real.

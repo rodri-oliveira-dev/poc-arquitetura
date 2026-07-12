@@ -1,4 +1,4 @@
-using LedgerService.Domain.Entities;
+using LedgerService.Application.Abstractions.Messaging;
 
 namespace LedgerService.Worker.Messaging.Abstractions;
 

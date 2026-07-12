@@ -1,10 +1,10 @@
 using System.Text.Json;
 
+using LedgerService.Application.Abstractions.Messaging;
 using LedgerService.Application.Common.Models;
 using LedgerService.Application.Common.Observability;
 using LedgerService.Application.Lancamentos.Events;
 using LedgerService.Domain.Entities;
-using LedgerService.Domain.Repositories;
 
 namespace LedgerService.Application.Lancamentos.Services;
 

@@ -68,8 +68,50 @@ public sealed class LedgerEntry : Entity, IAggregateRoot
         CreatedAt = createdAt;
     }
 
+    public static LedgerEntry RegistrarCredito(
+        string merchantId,
+        decimal amount,
+        DateTime occurredAt,
+        string? description,
+        string? externalReference,
+        Guid correlationId,
+        DateTime createdAt)
+        => new(
+            merchantId,
+            LedgerEntryType.Credit,
+            amount,
+            occurredAt,
+            description,
+            externalReference,
+            correlationId,
+            createdAt);
+
+    public static LedgerEntry RegistrarDebito(
+        string merchantId,
+        decimal amount,
+        DateTime occurredAt,
+        string? description,
+        string? externalReference,
+        Guid correlationId,
+        DateTime createdAt)
+        => new(
+            merchantId,
+            LedgerEntryType.Debit,
+            amount,
+            occurredAt,
+            description,
+            externalReference,
+            correlationId,
+            createdAt);
+
     public LedgerEntry CreateCompensatingEntry(Guid correlationId, string motivo, DateTime now)
+        => CriarLancamentoCompensatorio(correlationId, motivo, now);
+
+    public LedgerEntry CriarLancamentoCompensatorio(Guid correlationId, string motivo, DateTime now)
     {
+        if (Id == Guid.Empty)
+            throw new DomainException("Lancamento original e obrigatorio para criar compensacao.");
+
         var compensatingType = Type == LedgerEntryType.Credit
             ? LedgerEntryType.Debit
             : LedgerEntryType.Credit;

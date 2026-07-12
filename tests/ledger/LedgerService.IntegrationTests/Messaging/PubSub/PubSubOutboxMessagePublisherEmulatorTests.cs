@@ -3,7 +3,7 @@ extern alias LedgerWorker;
 using Google.Api.Gax;
 using Google.Cloud.PubSub.V1;
 
-using LedgerService.Domain.Entities;
+using LedgerService.Application.Abstractions.Messaging;
 
 using Microsoft.Extensions.Options;
 

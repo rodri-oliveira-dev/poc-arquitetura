@@ -15,6 +15,11 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 
 | ADR                                                                   | Status      | Resumo                                                                                           |
 | --------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------ |
+| [ADR-0105](./0105-payment-provider-event-ordering-deduplication.md) | Proposto | Define politica futura de deduplicacao, ordenacao, regressao e replay seguro para eventos externos de pagamento. |
+| [ADR-0104](./0104-payment-ledger-integration.md) | Proposto | Define integracao futura do PaymentService com LedgerService via HTTP idempotente para criar o efeito financeiro. |
+| [ADR-0103](./0103-inbox-pattern-webhooks-stripe.md) | Proposto | Define Inbox Pattern para webhooks Stripe, com persistencia, deduplicacao e processamento assincrono. |
+| [ADR-0102](./0102-stripe-anti-corruption-layer.md) | Proposto | Define Anti-Corruption Layer para Stripe atras de porta interna, sem vazar tipos do SDK. |
+| [ADR-0101](./0101-payment-service-bounded-context.md) | Proposto | Define PaymentService como bounded context futuro para pagamentos externos preservando Ledger e Balance. |
 | [ADR-0100](./0100-organizacao-solutions-contexto-agregadora.md) | Aceito | Define solutions por contexto, `PocArquitetura.slnx` como agregadora global e regras de uso em validacoes. |
 | [ADR-0099](./0099-audit-async-integration-strategy.md) | Proposto | Define a estrategia futura de integracao do AuditService por Outbox transacional local e Kafka, sem implementar integracao nesta etapa. |
 | [ADR-0098](./0098-audit-service-ingestao-futura.md) | Aceito | Define contratos canonicos internos e portas para ingestao futura do AuditService, sem integracao ativa, worker ou Kafka. |

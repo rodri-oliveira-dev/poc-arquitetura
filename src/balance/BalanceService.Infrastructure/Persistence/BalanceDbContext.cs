@@ -1,4 +1,5 @@
 using BalanceService.Application.Abstractions.Persistence;
+using BalanceService.Application.Idempotency;
 using BalanceService.Domain.Balances;
 
 using Microsoft.EntityFrameworkCore;

@@ -1,12 +1,13 @@
 using System.Globalization;
 
+using BalanceService.Application.IntegrationEvents;
 using BalanceService.Domain.Balances;
 
 namespace BalanceService.UnitTests.Fixtures;
 
 public static class BalanceFixture
 {
-    public static LedgerEntryCreatedEvent Event(
+    public static LedgerEntryCreatedIntegrationEvent Event(
         string? id = null,
         string? type = null,
         string? amount = null,
@@ -26,4 +27,19 @@ public static class BalanceFixture
             Description: null,
             CorrelationId: correlationId ?? Guid.NewGuid().ToString(),
             ExternalReference: null);
+
+    public static BalanceMovement Movement(
+        string? merchantId = null,
+        DateOnly? date = null,
+        string? currency = null,
+        BalanceMovementType type = BalanceMovementType.Credit,
+        decimal amount = 10.00m,
+        DateTimeOffset? occurredAt = null)
+        => new(
+            merchantId ?? "m1",
+            date ?? new DateOnly(2026, 2, 16),
+            new Currency(currency ?? "BRL"),
+            type,
+            new BalanceAmount(amount),
+            occurredAt ?? DateTimeOffset.Parse("2026-02-16T03:00:00Z", CultureInfo.InvariantCulture));
 }

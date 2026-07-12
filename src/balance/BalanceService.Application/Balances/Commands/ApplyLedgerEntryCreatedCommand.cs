@@ -1,9 +1,9 @@
-using BalanceService.Domain.Balances;
+using BalanceService.Application.IntegrationEvents;
 
 using MediatR;
 
 namespace BalanceService.Application.Balances.Commands;
 
 public sealed record ApplyLedgerEntryCreatedCommand(
-    LedgerEntryCreatedEvent Event,
+    LedgerEntryCreatedIntegrationEvent Event,
     string EventType = "LedgerEntryCreated.v2") : IRequest<ApplyLedgerEntryCreatedResult>;

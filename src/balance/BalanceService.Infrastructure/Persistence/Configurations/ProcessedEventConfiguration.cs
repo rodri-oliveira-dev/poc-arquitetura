@@ -1,4 +1,4 @@
-using BalanceService.Domain.Balances;
+using BalanceService.Application.Idempotency;
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;

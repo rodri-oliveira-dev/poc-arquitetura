@@ -12,6 +12,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [Manutencao Docker local](development/docker-maintenance.md): diagnostico de disco, cache BuildKit limitado a 5GB, classificacao de volumes e limpeza segura por retencao.
 - [Validacao dos contratos OpenAPI](development/openapi-contract-validation.md): geracao, lint, drift e diff de breaking changes contra a main.
 - [AuditService API](development/audit-api.md): contrato HTTP canonico de auditoria funcional, headers, scopes, idempotencia, filtros e limitacoes da etapa isolada.
+- [Validacao local de webhooks Stripe com Stripe CLI](development/stripe-cli-webhooks.md): instalacao/verificacao da CLI, `stripe listen`, `whsec_...`, eventos sinteticos, smoke correlacionado e troubleshooting do PaymentService.
 - [Politica de versionamento de contratos de eventos](development/event-contract-versioning.md): evoluir eventos versionados entre Ledger e Balance preservando compatibilidade em Pub/Sub e Kafka.
 - [FAQ](faq.md): respostas curtas para as duvidas mais provaveis de leitura tecnica.
 - [Maturidade tecnica do projeto](maturity.md): criterios atuais de documentacao, seguranca, testes, CI, observabilidade e pendencias.
@@ -36,6 +37,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [Baseline de evolucao produtiva](architecture/production-readiness.md): referencia arquitetural para secrets, identidade de workload, TLS, Pub/Sub real, Cloud SQL, imagens, WAF, observabilidade, operacao e governanca, sem declarar prontidao produtiva.
 - [Operacao do Pub/Sub](operations/pubsub.md): selecionar provider, subir emulator, aplicar Terraform dev manualmente, configurar workers e diagnosticar falhas comuns.
 - [Operacao do AuditService.Worker](operations/audit-worker.md): retry, DLQ, logs, metricas e validacao isolada do consumer `AuditRecordRequested.v1`.
+- [Operacao do PaymentService.Worker](operations/payment-worker.md): polling da Inbox Stripe, claim concorrente, lease, retry persistido, DeadLetter logico, integracao Payment -> Ledger, metricas e troubleshooting.
 - [Runbook de recuperacao de eventos](operations/event-recovery-runbook.md): consolidar investigacao de DLQ, retry, replay, descarte, rebuild de projecao e relatorio de divergencia.
 - [Replay e DLQ orientados por contrato](operations/event-replay-and-dlq.md): inspecionar DLQ, validar schema por versao, decidir discard, ack, nack ou redrive e preservar idempotencia.
 - [Estrategia operacional de DLQ](operations/dlq-strategy.md): classificar falhas, decidir discard, retry ou replay/redrive em Pub/Sub e Kafka, preservar idempotencia e orientar observabilidade.
@@ -52,9 +54,16 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [LedgerService API](development/ledger-api.md): contratos HTTP de escrita, headers, idempotencia, estornos e reprocessamentos.
 - [BalanceService API](development/balance-api.md): contratos HTTP de leitura de consolidados diarios e por periodo.
 - [TransferService API](development/transfer-api.md): contratos HTTP para solicitacao e consulta de sagas de transferencia.
+- [PaymentService API](development/payment-api.md): contratos HTTP para criacao de pagamento externo via provider fake/Stripe, consulta local, webhook Stripe assinado, Inbox duravel, idempotencia e materializacao assincrona no Ledger pelo Worker.
+- [Validacao local de webhooks Stripe com Stripe CLI](development/stripe-cli-webhooks.md): guia operacional opcional para testar `POST /api/v1/webhooks/stripe` em `http://localhost:5234` sem tornar a Stripe CLI dependencia de build.
 - [IdentityService API](development/identity-api.md): contrato HTTP de cadastro de usuarios, `Idempotency-Key`, retries e conflitos.
 - [AuditService API](development/audit-api.md): contrato HTTP de criacao e consulta de registros funcionais de auditoria, agnostico ao servico chamador.
 - [Spec SDD de idempotencia do IdentityService](specs/identity-idempotency.md): comportamento esperado para `Idempotency-Key` opcional em `POST /api/v1/users`.
+- [Spec SDD PaymentService + Stripe - requisitos](specs/payment-stripe/requirements.md): contexto, objetivos, nao objetivos, atores, regras, riscos e criterios para o novo fluxo de pagamentos externos.
+- [Spec SDD PaymentService + Stripe - design](specs/payment-stripe/design.md): bounded context, ACL Stripe, Inbox, webhook security, integracao com Ledger, observabilidade, testes e configuracao futura.
+- [Spec SDD PaymentService + Stripe - state machine](specs/payment-stripe/state-machine.md): estados internos, transicoes, eventos duplicados, atrasados, fora de ordem e refund futuro.
+- [Spec SDD PaymentService + Stripe - fluxos](specs/payment-stripe/integration-flows.md): diagramas Mermaid para criacao, webhook, deduplicacao, Inbox, Ledger, retry, timeout desconhecido e refund futuro.
+- [Spec SDD PaymentService + Stripe - tasks](specs/payment-stripe/tasks.md): plano incremental de implementacao futura com escopo, criterios de aceite, testes e documentacao afetada.
 - [Spec SDD do AuditRecordRequested.v1](specs/audit/audit-record-requested-v1.md): contrato canonico futuro de auditoria funcional, com schema e exemplos, sem integracao ativa.
 - [Spec SDD do consumer AuditService.Worker](specs/audit/audit-service-worker-consumer.md): consumo Kafka de `AuditRecordRequested.v1`, idempotencia por `source_event_id` e validacoes isoladas.
 - [Spec SDD de hardening do AuditService.Worker](specs/audit/audit-service-worker-hardening.md): retry, DLQ, idempotencia, metricas e testes isolados do consumer de auditoria.
@@ -88,12 +97,18 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 
 - [Documentacao arquitetural](architecture/README.md): modelo LikeC4 e publicacao no GitHub Pages.
 - [Arquitetura do AuditService](architecture/audit-service.md): papel do bounded context, schema `audit`, contrato canonico, seguranca, metadata e limites da etapa sem integracao.
+- [Arquitetura do PaymentService](architecture/payment-service.md): estrutura, state machine, schema `payment`, ACL Stripe/fake provider, webhook, Inbox, Worker e integracao idempotente com Ledger para credito e estorno, preservando limites sem Balance direto/Kafka/refund parcial.
 - [Boundaries arquiteturais](architecture/boundaries.md): responsabilidades de `Api`, `Application`, `Domain` e `Infrastructure`.
 - [Analise arquitetural e decisoes recomendadas](architecture/decisions.md): riscos, simplificacoes e roadmap pragmatico.
 - [Baseline de evolucao produtiva](architecture/production-readiness.md): requisitos recomendados para evolucao futura fora do laboratorio local, ainda sem implementacao produtiva.
 - [Roadmap arquitetural consolidado](roadmap.md): leitura consolidada das frentes feitas, parciais, proximos passos e itens fora de escopo por enquanto.
 - [ADRs](adrs/README.md): historico de decisoes arquiteturais e pontos de melhoria.
 - [Organizacao de solutions por contexto](adrs/0100-organizacao-solutions-contexto-agregadora.md): registra a agregadora `PocArquitetura.slnx`, as solutions contextuais e a diferenca entre organizacao de desenvolvimento e topologia runtime.
+- [PaymentService como bounded context futuro](adrs/0101-payment-service-bounded-context.md): registra a proposta de contexto para pagamentos externos preservando Ledger e Balance.
+- [ACL Stripe para PaymentService](adrs/0102-stripe-anti-corruption-layer.md): registra a proposta de integrar Stripe por porta interna sem vazar tipos do SDK.
+- [Inbox Pattern para webhooks Stripe](adrs/0103-inbox-pattern-webhooks-stripe.md): registra a proposta de persistir e deduplicar webhooks antes do processamento assincrono.
+- [Integracao PaymentService -> LedgerService](adrs/0104-payment-ledger-integration.md): registra a proposta de criar efeito financeiro via contrato HTTP idempotente do Ledger.
+- [Ordenacao e deduplicacao de eventos externos de pagamento](adrs/0105-payment-provider-event-ordering-deduplication.md): registra a proposta de state machine monotona para eventos duplicados, atrasados e fora de ordem.
 - [Terraform state local e backend remoto](adrs/0079-terraform-state-local-e-backend-remoto.md): registra os riscos do state local, gatilhos e estrategia que antecederam a adocao do backend remoto GCS.
 - [Backend remoto GCS para Terraform dev](adrs/0080-backend-remoto-gcs-terraform-dev.md): registra a adocao do backend remoto parcial em GCS, separacao por ambiente e migracao manual de state.
 - [Mensageria por ports and adapters](adrs/0075-mensageria-ports-adapters-kafka-provider.md): historico da introducao do boundary quando Kafka ainda era o provider atual.

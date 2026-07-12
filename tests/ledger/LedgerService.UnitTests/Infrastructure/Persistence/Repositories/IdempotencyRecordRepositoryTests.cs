@@ -1,4 +1,4 @@
-using LedgerService.Domain.Entities;
+using LedgerService.Application.Idempotency;
 using LedgerService.Infrastructure.Persistence;
 using LedgerService.Infrastructure.Persistence.Repositories;
 
@@ -23,7 +23,7 @@ public sealed class IdempotencyRecordRepositoryTests
             requestHash: "hash-1",
             ledgerEntryId: ledgerEntryId,
             responseStatusCode: 201,
-            responseBody: """{"id":"entry-1"}""",
+            responseBody: /*lang=json,strict*/ """{"id":"entry-1"}""",
             createdAt: expiresAt.AddDays(-1),
             expiresAt: expiresAt);
         var otherMerchantSameKey = new IdempotencyRecord(
@@ -49,7 +49,7 @@ public sealed class IdempotencyRecordRepositoryTests
         Assert.Equal("hash-1", result.RequestHash);
         Assert.Equal(ledgerEntryId, result.LedgerEntryId);
         Assert.Equal(201, result.ResponseStatusCode);
-        Assert.Equal("""{"id":"entry-1"}""", result.ResponseBody);
+        Assert.Equal(/*lang=json,strict*/ """{"id":"entry-1"}""", result.ResponseBody);
         Assert.Equal(expiresAt, result.ExpiresAt);
         Assert.Empty(db.ChangeTracker.Entries<IdempotencyRecord>());
     }
@@ -68,7 +68,7 @@ public sealed class IdempotencyRecordRepositoryTests
             requestHash: "hash-2",
             ledgerEntryId: null,
             responseStatusCode: 409,
-            responseBody: """{"error":"conflict"}""",
+            responseBody: /*lang=json,strict*/ """{"error":"conflict"}""",
             createdAt: expiresAt.AddDays(-1),
             expiresAt: expiresAt);
 
@@ -82,7 +82,7 @@ public sealed class IdempotencyRecordRepositoryTests
         Assert.Equal("hash-2", saved.RequestHash);
         Assert.Null(saved.LedgerEntryId);
         Assert.Equal(409, saved.ResponseStatusCode);
-        Assert.Equal("""{"error":"conflict"}""", saved.ResponseBody);
+        Assert.Equal(/*lang=json,strict*/ """{"error":"conflict"}""", saved.ResponseBody);
         Assert.Equal(expiresAt, saved.ExpiresAt);
     }
 

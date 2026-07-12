@@ -3,6 +3,7 @@ using System.Globalization;
 using BalanceService.Application.Abstractions.Persistence;
 using BalanceService.Application.Abstractions.Time;
 using BalanceService.Application.Balances.Commands;
+using BalanceService.Application.Idempotency;
 using BalanceService.Domain.Balances;
 using BalanceService.UnitTests.Fixtures;
 
@@ -43,7 +44,7 @@ public sealed class ApplyLedgerEntryCreatedHandlerTests
 
         // Não chama repo/SaveChanges quando já processado.
         Assert.NotNull(processedEvent);
-        Assert.Equal(evt.Id, processedEvent!.EventId);
+        Assert.Equal(evt.Id, processedEvent.EventId);
         Assert.Equal(evt.MerchantId, processedEvent.MerchantId);
         Assert.Equal(evt.OccurredAt.ToUniversalTime(), processedEvent.OccurredAt);
         Assert.Equal(now, processedEvent.ProcessedAt);
@@ -102,18 +103,18 @@ public sealed class ApplyLedgerEntryCreatedHandlerTests
         Assert.NotNull(created);
         Assert.Equal(new DateOnly(2026, 2, 16), requestedDate);
         Assert.NotNull(processedEvent);
-        Assert.Equal(evt.Id, processedEvent!.EventId);
+        Assert.Equal(evt.Id, processedEvent.EventId);
         Assert.Equal(evt.MerchantId, processedEvent.MerchantId);
         Assert.Equal(evt.OccurredAt.ToUniversalTime(), processedEvent.OccurredAt);
         Assert.Equal(now, processedEvent.ProcessedAt);
-        Assert.Equal(evt.MerchantId, created!.MerchantId);
-        Assert.Equal(new DateOnly(2026, 2, 16), created!.Date);
-        Assert.Equal("BRL", created!.Currency);
-        Assert.Equal(10m, created!.TotalCredits);
-        Assert.Equal(0m, created!.TotalDebits);
-        Assert.Equal(10m, created!.NetBalance);
-        Assert.Equal(evt.OccurredAt.ToUniversalTime(), created!.AsOf);
-        Assert.Equal(now, created!.UpdatedAt);
+        Assert.Equal(evt.MerchantId, created.MerchantId);
+        Assert.Equal(new DateOnly(2026, 2, 16), created.Date);
+        Assert.Equal("BRL", created.Currency);
+        Assert.Equal(10m, created.TotalCredits);
+        Assert.Equal(0m, created.TotalDebits);
+        Assert.Equal(10m, created.NetBalance);
+        Assert.Equal(evt.OccurredAt.ToUniversalTime(), created.AsOf);
+        Assert.Equal(now, created.UpdatedAt);
         dailyRepo.VerifyAll();
         processedRepo.VerifyAll();
         uow.VerifyAll();

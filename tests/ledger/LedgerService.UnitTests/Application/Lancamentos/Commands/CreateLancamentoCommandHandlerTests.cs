@@ -1,7 +1,9 @@
 using System.Diagnostics;
 
+using LedgerService.Application.Abstractions.Messaging;
 using LedgerService.Application.Common.Exceptions;
 using LedgerService.Application.Common.Models;
+using LedgerService.Application.Idempotency;
 using LedgerService.Application.Lancamentos.Commands;
 using LedgerService.Application.Lancamentos.Events;
 using LedgerService.Application.Lancamentos.Inputs.CreateLancamento;

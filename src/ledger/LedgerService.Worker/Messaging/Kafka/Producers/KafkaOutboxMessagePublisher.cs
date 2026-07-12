@@ -3,7 +3,7 @@ using System.Text;
 
 using Confluent.Kafka;
 
-using LedgerService.Domain.Entities;
+using LedgerService.Application.Abstractions.Messaging;
 using LedgerService.Infrastructure.Observability;
 using LedgerService.Worker.Messaging.Abstractions;
 using LedgerService.Worker.Messaging.Kafka.Configuration;
@@ -72,9 +72,11 @@ public sealed partial class KafkaOutboxMessagePublisher : IOutboxMessagePublishe
         var topic = ResolveDestination(message);
         var key = message.AggregateId.ToString("N");
 
-        var headers = new Headers();
-        headers.Add(KafkaHeaderNames.EventId, Encoding.UTF8.GetBytes(message.Id.ToString()));
-        headers.Add(KafkaHeaderNames.EventType, Encoding.UTF8.GetBytes(message.EventType));
+        var headers = new Headers
+        {
+            { KafkaHeaderNames.EventId, Encoding.UTF8.GetBytes(message.Id.ToString()) },
+            { KafkaHeaderNames.EventType, Encoding.UTF8.GetBytes(message.EventType) }
+        };
         if (message.CorrelationId is not null)
             headers.Add(KafkaHeaderNames.CorrelationId, Encoding.UTF8.GetBytes(message.CorrelationId.Value.ToString()));
 
@@ -125,10 +127,9 @@ public sealed partial class KafkaOutboxMessagePublisher : IOutboxMessagePublishe
 
     public string ResolveDestination(OutboxMessage message)
     {
-        if (_options.TopicMap.TryGetValue(message.EventType, out var mapped) && !string.IsNullOrWhiteSpace(mapped))
-            return mapped;
-
-        return _options.DefaultTopic;
+        return _options.TopicMap.TryGetValue(message.EventType, out var mapped) && !string.IsNullOrWhiteSpace(mapped)
+            ? mapped
+            : _options.DefaultTopic;
     }
 
     private static Acks ParseAcks(string value)

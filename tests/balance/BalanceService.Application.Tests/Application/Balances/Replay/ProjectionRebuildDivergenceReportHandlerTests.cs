@@ -5,7 +5,7 @@ using BalanceService.Application.Abstractions.Time;
 using BalanceService.Application.Balances.Queries.Models;
 using BalanceService.Application.Balances.Replay;
 using BalanceService.Application.Contracts.Events;
-using BalanceService.Domain.Balances;
+using BalanceService.Application.Idempotency;
 
 using Microsoft.Extensions.Logging;
 
@@ -204,14 +204,9 @@ public sealed class ProjectionRebuildDivergenceReportHandlerTests
     private static DateTimeOffset Instant(string value)
         => DateTimeOffset.Parse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal);
 
-    private sealed class FakeReplaySource : IFilteredEventReplaySource
+    private sealed class FakeReplaySource(params EventReplaySourceCandidate[] candidates) : IFilteredEventReplaySource
     {
-        private readonly IReadOnlyList<EventReplaySourceCandidate> _candidates;
-
-        public FakeReplaySource(params EventReplaySourceCandidate[] candidates)
-        {
-            _candidates = candidates;
-        }
+        private readonly IReadOnlyList<EventReplaySourceCandidate> _candidates = candidates;
 
         public Task<IReadOnlyList<EventReplaySourceCandidate>> FindAsync(
             FilteredEventReplayFilter filter,
@@ -257,7 +252,7 @@ public sealed class ProjectionRebuildDivergenceReportHandlerTests
         }
 
         public DailyBalanceReadModel[] Snapshot()
-            => _items.ToArray();
+            => [.. _items];
     }
 
     private sealed class InMemoryProcessedEventRepository : IProcessedEventRepository

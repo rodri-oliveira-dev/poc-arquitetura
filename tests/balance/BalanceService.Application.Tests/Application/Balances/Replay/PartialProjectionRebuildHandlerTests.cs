@@ -4,6 +4,7 @@ using BalanceService.Application.Abstractions.Persistence;
 using BalanceService.Application.Abstractions.Time;
 using BalanceService.Application.Balances.Replay;
 using BalanceService.Application.Contracts.Events;
+using BalanceService.Application.Idempotency;
 using BalanceService.Domain.Balances;
 
 using Microsoft.Extensions.Logging;
@@ -174,19 +175,7 @@ public sealed class PartialProjectionRebuildHandlerTests
     {
         var now = Instant("2026-06-07T12:00:00Z");
         var balance = new DailyBalance(merchantId, new DateOnly(2026, 6, 6), "BRL", now);
-        balance.Apply(
-            new LedgerEntryCreatedEvent(
-                eventId,
-                type,
-                amount,
-                "BRL",
-                Instant("2026-06-06T12:00:00Z"),
-                merchantId,
-                Instant("2026-06-06T12:00:00Z"),
-                null,
-                Guid.NewGuid().ToString(),
-                null),
-            now);
+        balance.Apply(ToMovement(merchantId, type, amount), now);
 
         _dailyBalances.Items.Add(balance);
         _processedEvents.Seed(eventId);
@@ -241,14 +230,18 @@ public sealed class PartialProjectionRebuildHandlerTests
     private static DateTimeOffset Instant(string value)
         => DateTimeOffset.Parse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal);
 
-    private sealed class FakeReplaySource : IFilteredEventReplaySource
-    {
-        private readonly IReadOnlyList<EventReplaySourceCandidate> _candidates;
+    private static BalanceMovement ToMovement(string merchantId, string type, string amount)
+        => new(
+            merchantId,
+            new DateOnly(2026, 6, 6),
+            new Currency("BRL"),
+            type == "CREDIT" ? BalanceMovementType.Credit : BalanceMovementType.Debit,
+            BalanceAmount.ParseInvariant(amount),
+            Instant("2026-06-06T12:00:00Z"));
 
-        public FakeReplaySource(params EventReplaySourceCandidate[] candidates)
-        {
-            _candidates = candidates;
-        }
+    private sealed class FakeReplaySource(params EventReplaySourceCandidate[] candidates) : IFilteredEventReplaySource
+    {
+        private readonly IReadOnlyList<EventReplaySourceCandidate> _candidates = candidates;
 
         public Task<IReadOnlyList<EventReplaySourceCandidate>> FindAsync(
             FilteredEventReplayFilter filter,

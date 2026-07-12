@@ -5,9 +5,8 @@ using System.Text.Json;
 using LedgerService.Application.Common.Exceptions;
 using LedgerService.Application.Common.Models;
 using LedgerService.Application.Common.Observability;
+using LedgerService.Application.Idempotency;
 using LedgerService.Application.Lancamentos.Inputs.CreateLancamento;
-using LedgerService.Domain.Entities;
-using LedgerService.Domain.Repositories;
 
 namespace LedgerService.Application.Lancamentos.Services;
 

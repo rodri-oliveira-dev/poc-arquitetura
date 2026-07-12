@@ -13,14 +13,15 @@ namespace Architecture.Tests;
 
 public sealed class LayerDependencyTests
 {
-    private static readonly string[] _serviceNames = ["LedgerService", "BalanceService", "TransferService"];
-    private static readonly string[] _servicesWithPersistence = ["LedgerService", "BalanceService"];
+    private static readonly string[] _serviceNames = ["LedgerService", "BalanceService", "TransferService", "PaymentService"];
+    private static readonly string[] _servicesWithPersistence = ["LedgerService", "BalanceService", "PaymentService"];
     private static readonly string[] _domainForbiddenReferences =
     [
         "Microsoft.AspNetCore",
         "Microsoft.EntityFrameworkCore",
         "Confluent.Kafka",
-        "Google.Cloud.PubSub.V1"
+        "Google.Cloud.PubSub.V1",
+        "Stripe"
     ];
     private static readonly string[] _applicationForbiddenReferences =
     [
@@ -30,9 +31,35 @@ public sealed class LayerDependencyTests
         "Microsoft.OpenApi",
         "Swashbuckle.AspNetCore",
         "Confluent.Kafka",
-        "Google.Cloud.PubSub.V1"
+        "Google.Cloud.PubSub.V1",
+        "Stripe"
     ];
     private static readonly string[] _messagingProviderNames = ["Kafka", "PubSub"];
+    private static readonly string[] _ledgerDomainForbiddenTechnicalNames =
+    [
+        "Outbox",
+        "Idempotency",
+        "Kafka",
+        "PubSub",
+        "Persistence",
+        "Serialization"
+    ];
+    private static readonly string[] _balanceDomainForbiddenTechnicalTerms =
+    [
+        "JsonPropertyName",
+        "Kafka",
+        "PubSub",
+        "Inbox",
+        "Outbox",
+        "ProcessedEvent",
+        "Consumer",
+        "LedgerEntryCreatedEvent"
+    ];
+    private static readonly string[] _balanceDomainForbiddenTechnicalTypeNames =
+    [
+        .. _balanceDomainForbiddenTechnicalTerms,
+        "Message"
+    ];
     private static readonly string[] _concreteKafkaProducerConsumerNames =
     [
         "KafkaOutboxMessagePublisher",
@@ -94,6 +121,38 @@ public sealed class LayerDependencyTests
         AssertSourceFilesDoNotContainProviderNames(serviceName, "Application");
     }
 
+    [Fact]
+    public void Ledger_domain_should_not_define_technical_namespaces_or_types()
+    {
+        ReflectionType[] violations = [.. LoadAssembly("LedgerService.Domain")
+            .GetTypes()
+            .Where(type => type.FullName is not null)
+            .Where(type => _ledgerDomainForbiddenTechnicalNames.Any(term =>
+                type.FullName!.Contains(term, StringComparison.OrdinalIgnoreCase)))];
+
+        Assert.True(
+            violations.Length == 0,
+            "LedgerService.Domain must not define technical Outbox, Idempotency, provider, persistence or serialization concepts. "
+            + $"Found: {string.Join(", ", violations.Select(type => type.FullName))}");
+    }
+
+    [Fact]
+    public void Balance_domain_should_not_define_integration_contract_or_inbox_concepts()
+    {
+        ReflectionType[] violations = [.. LoadAssembly("BalanceService.Domain")
+            .GetTypes()
+            .Where(type => type.FullName is not null)
+            .Where(type => _balanceDomainForbiddenTechnicalTypeNames.Any(term =>
+                type.FullName!.Contains(term, StringComparison.OrdinalIgnoreCase)))];
+
+        Assert.True(
+            violations.Length == 0,
+            "BalanceService.Domain must not define integration contracts, messaging, Inbox or idempotency concepts. "
+            + $"Found: {string.Join(", ", violations.Select(type => type.FullName))}");
+
+        AssertSourceFilesDoNotContain("BalanceService", "Domain", _balanceDomainForbiddenTechnicalTerms);
+    }
+
     [Theory]
     [MemberData(nameof(Services))]
     public void Api_should_not_depend_on_concrete_repositories(string serviceName)
@@ -141,6 +200,35 @@ public sealed class LayerDependencyTests
         AssertProjectReferencesOnlyInternalLayers("TransferService", "Infrastructure", ["Application", "Domain"]);
         AssertProjectReferencesOnlyInternalLayers("TransferService", "Api", ["Application", "Infrastructure"]);
         AssertProjectReferencesOnlyInternalLayers("TransferService", "Worker", ["Application", "Infrastructure"]);
+    }
+
+    [Fact]
+    public void PaymentService_projects_should_reference_only_allowed_internal_layers()
+    {
+        AssertProjectReferencesOnlyInternalLayers("PaymentService", "Domain", []);
+        AssertProjectReferencesOnlyInternalLayers("PaymentService", "Application", ["Domain"]);
+        AssertProjectReferencesOnlyInternalLayers("PaymentService", "Infrastructure", ["Application", "Domain"]);
+        AssertProjectReferencesOnlyInternalLayers("PaymentService", "Api", ["Application", "Infrastructure"]);
+        AssertProjectReferencesOnlyInternalLayers("PaymentService", "Worker", ["Application", "Infrastructure"]);
+    }
+
+    [Fact]
+    public void PaymentService_should_not_use_messaging_or_stripe_sdk_in_prompt_2()
+    {
+        foreach (string layerName in new[] { "Api", "Application", "Domain", "Infrastructure", "Worker" })
+        {
+            AssertProjectHasNoForbiddenReferences("PaymentService", layerName, ["Confluent.Kafka", "Google.Cloud.PubSub.V1", "Stripe"]);
+            AssertSourceFilesDoNotContain("PaymentService", layerName, ["PubSub", "Pub/Sub", "Google.Cloud.PubSub"]);
+        }
+    }
+
+    [Fact]
+    public void PaymentService_should_not_reference_ledger_or_balance_infrastructure()
+    {
+        foreach (string layerName in new[] { "Api", "Application", "Domain", "Infrastructure", "Worker" })
+        {
+            AssertSourceFilesDoNotContain("PaymentService", layerName, ["LedgerService.Infrastructure", "BalanceService.Infrastructure"]);
+        }
     }
 
     [Fact]
@@ -372,6 +460,7 @@ public sealed class LayerDependencyTests
             "LedgerService" => "ledger",
             "BalanceService" => "balance",
             "TransferService" => "transfer",
+            "PaymentService" => "payment",
             _ => throw new ArgumentOutOfRangeException(nameof(serviceName), serviceName, "Unknown service name.")
         };
 

@@ -4,8 +4,10 @@ using FluentValidation;
 
 using LedgerService.Application.Abstractions.Time;
 using LedgerService.Application.Common.Observability;
+using LedgerService.Application.Lancamentos.Commands;
 using LedgerService.Application.Lancamentos.Services;
 using LedgerService.Application.Outbox.Retry;
+using LedgerService.Domain.Policies;
 
 using Microsoft.Extensions.DependencyInjection;
 
@@ -27,6 +29,9 @@ public static class DependencyInjection
         services.AddSingleton<LedgerDomainMetrics>();
         services.AddScoped<CreateLancamentoIdempotencyService>();
         services.AddScoped<LedgerEntryCreatedOutboxWriter>();
+        services.AddScoped<ProcessarEstornoLancamentoDependencies>();
+        services.AddScoped<SolicitarEstornoLancamentoDependencies>();
+        services.AddScoped<LedgerReversalPolicy>();
         services.AddSingleton<IJitterProvider, CryptographicJitterProvider>();
         services.AddSingleton<IRetryStrategy, ExponentialBackoffRetryStrategy>();
 

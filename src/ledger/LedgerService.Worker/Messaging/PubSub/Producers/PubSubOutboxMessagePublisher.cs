@@ -5,7 +5,7 @@ using Google.Api.Gax;
 using Google.Cloud.PubSub.V1;
 using Google.Protobuf;
 
-using LedgerService.Domain.Entities;
+using LedgerService.Application.Abstractions.Messaging;
 using LedgerService.Worker.Messaging.Abstractions;
 using LedgerService.Worker.Messaging.PubSub.Configuration;
 using LedgerService.Worker.Messaging.PubSub.Tracing;
@@ -57,13 +57,10 @@ public sealed class PubSubOutboxMessagePublisher : IOutboxMessagePublisher, IAsy
 
     public string ResolveDestination(OutboxMessage message)
     {
-        if (_options.TopicMap.TryGetValue(message.EventType, out string? mapped) &&
-            !string.IsNullOrWhiteSpace(mapped))
-        {
-            return mapped;
-        }
-
-        return _options.DefaultTopicId;
+        return _options.TopicMap.TryGetValue(message.EventType, out string? mapped) &&
+            !string.IsNullOrWhiteSpace(mapped)
+            ? mapped
+            : _options.DefaultTopicId;
     }
 
     public async ValueTask DisposeAsync()
