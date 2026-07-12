@@ -28,12 +28,50 @@ public sealed class StripeWebhookValidatorTests
     }
 
     [Fact]
+    public void Validate_should_reject_missing_webhook_secret()
+    {
+        var validator = CreateValidator(secret: string.Empty);
+
+        var result = validator.Validate(ValidPayload(), SignatureHeader(ValidPayload()));
+
+        Assert.False(result.IsValid);
+        Assert.Equal(StripeWebhookValidationFailure.MissingSecret, result.Failure);
+    }
+
+    [Theory]
+    [InlineData("v1=abcdef")]
+    [InlineData("t=123")]
+    [InlineData("not-a-stripe-signature")]
+    public void Validate_should_reject_malformed_signature_header(string signatureHeader)
+    {
+        ArgumentNullException.ThrowIfNull(signatureHeader);
+        var validator = CreateValidator();
+
+        var result = validator.Validate(ValidPayload(), signatureHeader);
+
+        Assert.False(result.IsValid);
+        Assert.Equal(StripeWebhookValidationFailure.MalformedSignatureHeader, result.Failure);
+    }
+
+    [Fact]
     public void Validate_should_reject_invalid_signature()
     {
         var payload = ValidPayload();
         var validator = CreateValidator();
 
         var result = validator.Validate(payload, SignatureHeader(payload, signature: "00"));
+
+        Assert.False(result.IsValid);
+        Assert.Equal(StripeWebhookValidationFailure.InvalidSignature, result.Failure);
+    }
+
+    [Fact]
+    public void Validate_should_ignore_non_hex_signature_and_reject_when_no_valid_signature_remains()
+    {
+        var payload = ValidPayload();
+        var validator = CreateValidator();
+
+        var result = validator.Validate(payload, SignatureHeader(payload, signature: "not-hex"));
 
         Assert.False(result.IsValid);
         Assert.Equal(StripeWebhookValidationFailure.InvalidSignature, result.Failure);
@@ -97,6 +135,19 @@ public sealed class StripeWebhookValidatorTests
     }
 
     [Fact]
+    public void Validate_should_accept_event_with_invalid_internal_payment_metadata_without_binding_payment()
+    {
+        var payload = ValidPayload(paymentIdRaw: "not-a-guid");
+        var validator = CreateValidator();
+
+        var result = validator.Validate(payload, SignatureHeader(payload));
+
+        Assert.True(result.IsValid);
+        Assert.Equal("pi_123", result.ProviderPaymentId);
+        Assert.Null(result.PaymentId);
+    }
+
+    [Fact]
     public void Validate_should_reject_invalid_json_payload()
     {
         var payload = Encoding.UTF8.GetBytes("{invalid-json");
@@ -108,13 +159,25 @@ public sealed class StripeWebhookValidatorTests
         Assert.Equal(StripeWebhookValidationFailure.InvalidPayload, result.Failure);
     }
 
-    private static StripeWebhookValidator CreateValidator()
+    [Fact]
+    public void Validate_should_reject_json_payload_without_required_event_fields()
+    {
+        var payload = Encoding.UTF8.GetBytes(/*lang=json,strict*/ "{\"data\":{\"object\":{\"id\":\"pi_123\"}}}");
+        var validator = CreateValidator();
+
+        var result = validator.Validate(payload, SignatureHeader(payload));
+
+        Assert.False(result.IsValid);
+        Assert.Equal(StripeWebhookValidationFailure.InvalidPayload, result.Failure);
+    }
+
+    private static StripeWebhookValidator CreateValidator(string secret = Secret)
         => new(
             Options.Create(new PaymentGatewayOptions
             {
                 Stripe = new StripePaymentGatewayOptions
                 {
-                    WebhookSigningSecret = Secret,
+                    WebhookSigningSecret = secret,
                     WebhookSignatureTolerance = TimeSpan.FromMinutes(5)
                 }
             }),
@@ -123,11 +186,13 @@ public sealed class StripeWebhookValidatorTests
     private static byte[] ValidPayload(
         string providerPaymentId = "pi_123",
         string eventType = "payment_intent.succeeded",
-        Guid? paymentId = null)
+        Guid? paymentId = null,
+        string? paymentIdRaw = null)
     {
-        var paymentIdJson = paymentId is null
+        var metadataPaymentId = paymentIdRaw ?? paymentId?.ToString("D");
+        var paymentIdJson = metadataPaymentId is null
             ? string.Empty
-            : $",\"metadata\":{{\"payment_id\":\"{paymentId.Value:D}\"}}";
+            : $",\"metadata\":{{\"payment_id\":\"{metadataPaymentId}\"}}";
 
         return Encoding.UTF8.GetBytes(
             "{\"id\":\"evt_123\",\"type\":\"" + eventType + "\",\"data\":{\"object\":{\"id\":\"" + providerPaymentId + "\"" + paymentIdJson + "}}}");
