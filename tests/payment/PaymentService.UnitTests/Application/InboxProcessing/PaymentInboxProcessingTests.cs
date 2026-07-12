@@ -173,6 +173,56 @@ public sealed class PaymentInboxProcessingTests
         Assert.Equal(PaymentInboxStatus.Processed, message.Status);
     }
 
+    [Theory]
+    [InlineData("payment_intent.payment_failed", PaymentStatus.Failed, "payment_failed")]
+    [InlineData("payment_intent.canceled", PaymentStatus.Cancelled, "canceled")]
+    public async Task Handler_should_apply_terminal_payment_intent_events(
+        string eventType,
+        PaymentStatus expectedStatus,
+        string expectedProviderStatus)
+    {
+        ArgumentNullException.ThrowIfNull(eventType);
+        ArgumentNullException.ThrowIfNull(expectedProviderStatus);
+
+        var payment = CreatePayment();
+        var message = CreateClaimedMessage(eventType);
+        var handler = CreateHandler(message, payment);
+
+        var result = await handler.Handle(new ProcessPaymentInboxMessageCommand(message.Id, "worker-1"), CancellationToken.None);
+
+        Assert.Equal("processed", result.Outcome);
+        Assert.True(result.PaymentChanged);
+        Assert.Equal(expectedStatus, payment.Status);
+        Assert.Equal(expectedProviderStatus, payment.ProviderStatus);
+        Assert.Equal(PaymentInboxStatus.Processed, message.Status);
+    }
+
+    [Fact]
+    public async Task Handler_should_apply_refund_succeeded_event_and_schedule_ledger_reversal()
+    {
+        var payment = CreatePayment();
+        payment.MarkSucceeded(Now.AddMinutes(-4), new ExternalPaymentReference("pi_123"), "succeeded");
+        payment.MarkCompleted(Now.AddMinutes(-3), new LedgerEntryReference(Guid.Parse("11111111-1111-1111-1111-111111111111")));
+        var refund = payment.RequestRefund(
+            new RefundId(Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")),
+            payment.Amount,
+            "requested_by_customer",
+            "refund-ext",
+            "correlation-1",
+            Now.AddMinutes(-2));
+        var message = CreateClaimedRefundMessage("refund.updated", "succeeded", refund.RefundId.Value);
+        var handler = CreateHandler(message, payment);
+
+        var result = await handler.Handle(new ProcessPaymentInboxMessageCommand(message.Id, "worker-1"), CancellationToken.None);
+
+        Assert.Equal("processed", result.Outcome);
+        Assert.True(result.PaymentChanged);
+        Assert.Equal(RefundStatus.LedgerReversalPending, refund.Status);
+        Assert.Equal(LedgerIntegrationStatus.Pending, refund.LedgerReversalStatus);
+        Assert.Equal("re_123", refund.ProviderRefundId);
+        Assert.Equal(PaymentInboxStatus.Processed, message.Status);
+    }
+
     [Fact]
     public async Task Handler_should_ignore_regressive_processing_event_after_succeeded()
     {
@@ -303,6 +353,13 @@ public sealed class PaymentInboxProcessingTests
     private static PaymentInboxMessage CreateClaimedMessage(string eventType)
     {
         var message = CreateMessage(eventType);
+        message.MarkProcessing("worker-1", Now, Now.AddMinutes(1));
+        return message;
+    }
+
+    private static PaymentInboxMessage CreateClaimedRefundMessage(string eventType, string status, Guid refundId)
+    {
+        var message = CreateRefundMessage(eventType, status, refundId);
         message.MarkProcessing("worker-1", Now, Now.AddMinutes(1));
         return message;
     }

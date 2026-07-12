@@ -342,9 +342,19 @@ public sealed partial class ProjectionRebuildDivergenceReportHandler
         if (string.IsNullOrWhiteSpace(current))
             return next;
 
-        return string.Equals(current, MultipleAccountIds, StringComparison.Ordinal)
-            ? current
-            : string.Equals(current, next, StringComparison.Ordinal) ? current : MultipleAccountIds;
+#pragma warning disable IDE0046, IDE0075 // Sonar S3358 rejeita o ternario encadeado sugerido pelo formatador.
+        if (string.Equals(current, MultipleAccountIds, StringComparison.Ordinal))
+        {
+            return current;
+        }
+
+        if (string.Equals(current, next, StringComparison.Ordinal))
+        {
+            return current;
+        }
+#pragma warning restore IDE0046, IDE0075
+
+        return MultipleAccountIds;
     }
 
     private static string Describe(PartialProjectionRebuildFilter filter)
