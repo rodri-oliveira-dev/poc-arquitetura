@@ -224,6 +224,56 @@ public sealed class PaymentInboxProcessingTests
     }
 
     [Fact]
+    public async Task Handler_should_return_claim_lost_when_message_is_not_locked_by_worker()
+    {
+        var message = CreateMessage("payment_intent.succeeded");
+        var handler = CreateHandler(message, CreatePayment());
+
+        var result = await handler.Handle(new ProcessPaymentInboxMessageCommand(message.Id, "worker-1"), CancellationToken.None);
+
+        Assert.Equal("claim_lost", result.Outcome);
+        Assert.False(result.PaymentChanged);
+        Assert.Equal(PaymentInboxStatus.Pending, result.Status);
+    }
+
+    [Fact]
+    public async Task Handler_should_mark_known_unsupported_event_as_ignored()
+    {
+        var message = PaymentInboxMessage.CreateStripe(
+            "evt_charge_refunded",
+            "charge.refunded",
+            Payload,
+            Now,
+            "correlation-1",
+            "pi_123",
+            new PaymentId(Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")));
+        message.MarkProcessing("worker-1", Now, Now.AddMinutes(1));
+        var handler = CreateHandler(message, CreatePayment());
+
+        var result = await handler.Handle(new ProcessPaymentInboxMessageCommand(message.Id, "worker-1"), CancellationToken.None);
+
+        Assert.Equal("ignored", result.Outcome);
+        Assert.False(result.PaymentChanged);
+        Assert.Equal(PaymentInboxStatus.Ignored, message.Status);
+    }
+
+    [Fact]
+    public async Task Handler_should_deadletter_when_provider_reference_does_not_match_payment()
+    {
+        var payment = CreatePayment();
+        payment.MarkProcessing(Now.AddMinutes(-1), new ExternalPaymentReference("pi_other"), "processing");
+        var message = CreateClaimedMessage("payment_intent.succeeded");
+        var handler = CreateHandler(message, payment);
+
+        var result = await handler.Handle(new ProcessPaymentInboxMessageCommand(message.Id, "worker-1"), CancellationToken.None);
+
+        Assert.Equal("dead_letter", result.Outcome);
+        Assert.False(result.PaymentChanged);
+        Assert.Equal(PaymentInboxStatus.DeadLetter, message.Status);
+        Assert.Contains("Provider reference does not match", message.LastError);
+    }
+
+    [Fact]
     public async Task Handler_should_ignore_regressive_processing_event_after_succeeded()
     {
         var payment = CreatePayment();
