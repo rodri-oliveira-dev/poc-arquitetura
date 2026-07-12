@@ -120,6 +120,77 @@ public sealed class RequestRefundCommandHandlerTests
     }
 
     [Fact]
+    public async Task Handle_should_mark_refund_ledger_reversal_pending_when_provider_succeeds()
+    {
+        var payment = CompletedPayment();
+        var idempotency = new Mock<IPaymentIdempotencyService>();
+        var gateway = CreateGateway("re_succeeded", "succeeded");
+        var handler = CreateHandler(payment, idempotency, gateway);
+
+        var result = await handler.Handle(Command(payment.PaymentId.Value), CancellationToken.None);
+
+        var refund = Assert.Single(payment.Refunds);
+        Assert.Equal("LedgerReversalPending", result.Status);
+        Assert.Equal(RefundStatus.LedgerReversalPending, refund.Status);
+        Assert.Equal(LedgerIntegrationStatus.Pending, refund.LedgerReversalStatus);
+        Assert.Equal("re_succeeded", result.ProviderRefundId);
+    }
+
+    [Fact]
+    public async Task Handle_should_throw_not_found_when_payment_does_not_exist()
+    {
+        var paymentId = Guid.NewGuid();
+        var repository = new Mock<IPaymentRepository>();
+        repository.Setup(x => x.GetByIdAsync(new PaymentId(paymentId), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Payment?)null);
+        var gateway = new Mock<IPaymentGateway>();
+        var handler = CreateHandler(repository, gateway: gateway);
+
+        await Assert.ThrowsAsync<NotFoundException>(
+            () => handler.Handle(Command(paymentId), CancellationToken.None));
+
+        gateway.Verify(x => x.CreateRefundAsync(It.IsAny<CreateExternalRefundRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_should_throw_forbidden_when_merchant_is_not_authorized()
+    {
+        var payment = CompletedPayment();
+        var gateway = new Mock<IPaymentGateway>();
+        var handler = CreateHandler(payment, gateway: gateway);
+
+        await Assert.ThrowsAsync<ForbiddenException>(
+            () => handler.Handle(Command(payment.PaymentId.Value, authorizedMerchantIds: ["another-merchant"]), CancellationToken.None));
+
+        Assert.Empty(payment.Refunds);
+        gateway.Verify(x => x.CreateRefundAsync(It.IsAny<CreateExternalRefundRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_should_mark_refund_failed_when_provider_rejects_request()
+    {
+        var payment = CompletedPayment();
+        var idempotency = new Mock<IPaymentIdempotencyService>();
+        var gateway = new Mock<IPaymentGateway>();
+        gateway.Setup(x => x.CreateRefundAsync(It.IsAny<CreateExternalRefundRequest>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new PaymentGatewayException(PaymentGatewayErrorCategory.InvalidRequest, "invalid_request", "invalid request"));
+        var handler = CreateHandler(payment, idempotency, gateway);
+
+        var exception = await Assert.ThrowsAsync<ExternalPaymentProviderException>(
+            () => handler.Handle(Command(payment.PaymentId.Value), CancellationToken.None));
+
+        var refund = Assert.Single(payment.Refunds);
+        Assert.Equal(PaymentGatewayErrorCategory.InvalidRequest, exception.Category);
+        Assert.Equal(RefundStatus.ProviderFailed, refund.Status);
+        Assert.StartsWith("refund:", refund.ProviderRefundId, StringComparison.Ordinal);
+        idempotency.Verify(x => x.UpdateRefundResponseAsync(
+            "merchant-001",
+            "refund-key",
+            It.Is<RequestRefundResult>(response => response.Status == "ProviderFailed"),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
     public async Task Handle_should_reject_same_idempotency_key_with_different_payload()
     {
         var payment = CompletedPayment();
@@ -265,7 +336,7 @@ public sealed class RequestRefundCommandHandlerTests
             refund.UpdatedAt,
             false);
 
-    private static RequestRefundCommand Command(Guid paymentId)
+    private static RequestRefundCommand Command(Guid paymentId, IReadOnlyCollection<string>? authorizedMerchantIds = null)
         => new(
             paymentId,
             "refund-key",
@@ -273,7 +344,7 @@ public sealed class RequestRefundCommandHandlerTests
             " requested_by_customer ",
             "refund-ext",
             "correlation-1",
-            ["merchant-001"]);
+            authorizedMerchantIds ?? ["merchant-001"]);
 
     private static Mock<IUnitOfWork> CreateUnitOfWork()
     {

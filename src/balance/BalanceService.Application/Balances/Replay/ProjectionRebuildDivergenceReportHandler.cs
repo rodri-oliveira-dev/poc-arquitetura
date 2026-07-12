@@ -287,9 +287,14 @@ public sealed partial class ProjectionRebuildDivergenceReportHandler
         if (!string.Equals(filter.EventVersion, candidate.EventVersion, StringComparison.Ordinal))
             return false;
 
-        return !string.Equals(filter.MerchantId, candidate.MerchantId, StringComparison.Ordinal)
-            ? false
-            : string.Equals(filter.Status, candidate.Status, StringComparison.Ordinal)
+#pragma warning disable IDE0046, IDE0075 // Sonar S1125 rejeita o ternario sugerido pelo formatador.
+        if (!string.Equals(filter.MerchantId, candidate.MerchantId, StringComparison.Ordinal))
+        {
+            return false;
+        }
+#pragma warning restore IDE0046, IDE0075
+
+        return string.Equals(filter.Status, candidate.Status, StringComparison.Ordinal)
             && !(candidate.OccurredAt < filter.OccurredFrom)
             && !(candidate.OccurredAt > filter.OccurredUntil);
     }
@@ -337,10 +342,9 @@ public sealed partial class ProjectionRebuildDivergenceReportHandler
         if (string.IsNullOrWhiteSpace(current))
             return next;
 
-        if (string.Equals(current, MultipleAccountIds, StringComparison.Ordinal))
-            return current;
-
-        return string.Equals(current, next, StringComparison.Ordinal) ? current : MultipleAccountIds;
+        return string.Equals(current, MultipleAccountIds, StringComparison.Ordinal)
+            ? current
+            : string.Equals(current, next, StringComparison.Ordinal) ? current : MultipleAccountIds;
     }
 
     private static string Describe(PartialProjectionRebuildFilter filter)

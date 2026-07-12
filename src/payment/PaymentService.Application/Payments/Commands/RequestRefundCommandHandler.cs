@@ -47,19 +47,27 @@ public sealed class RequestRefundCommandHandler(
         var existing = await _idempotencyService.GetRefundAsync(payment.MerchantId.Value, idempotencyKey, cancellationToken);
         if (existing is not null)
         {
-            return !string.Equals(existing.RequestHash, requestHash, StringComparison.Ordinal)
-                ? throw new ConflictException("Idempotency-Key already used with a different refund payload.")
-                : IsIncompleteRefundReplay(existing.Response)
-                ? await CreateExternalRefundAsync(
+#pragma warning disable IDE0046, IDE0075 // Sonar S3358 rejeita o ternario encadeado sugerido pelo formatador.
+            if (!string.Equals(existing.RequestHash, requestHash, StringComparison.Ordinal))
+            {
+                throw new ConflictException("Idempotency-Key already used with a different refund payload.");
+            }
+
+            if (IsIncompleteRefundReplay(existing.Response))
+            {
+                return await CreateExternalRefundAsync(
                     new PaymentId(existing.Response.PaymentId),
                     new RefundId(existing.Response.RefundId),
                     idempotencyKey,
                     idempotentReplay: true,
-                    cancellationToken)
-                : (existing.Response with
-                {
-                    IdempotentReplay = true
-                });
+                    cancellationToken);
+            }
+#pragma warning restore IDE0046, IDE0075
+
+            return existing.Response with
+            {
+                IdempotentReplay = true
+            };
         }
 
         await using var transaction = await _unitOfWork.BeginTransactionAsync(cancellationToken);
