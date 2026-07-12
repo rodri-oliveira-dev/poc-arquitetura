@@ -154,7 +154,7 @@ public sealed class PaymentRepository(PaymentDbContext context) : IPaymentReposi
             return candidates;
         }
 
-        var ids = await _context.PaymentRefunds
+        var claimedRefunds = await _context.PaymentRefunds
             .FromSqlRaw(
                 """
                 UPDATE payment.payment_refunds
@@ -183,8 +183,11 @@ public sealed class PaymentRepository(PaymentDbContext context) : IPaymentReposi
                 new NpgsqlParameter("p_lock_owner", NpgsqlDbType.Text) { Value = lockOwner },
                 new NpgsqlParameter("p_batch_size", NpgsqlDbType.Integer) { Value = batchSize })
             .AsTracking()
-            .Select(x => x.PaymentId)
             .ToListAsync(cancellationToken);
+
+        var ids = claimedRefunds
+            .Select(x => x.PaymentId)
+            .ToList();
 
         return ids.Count == 0
             ? []

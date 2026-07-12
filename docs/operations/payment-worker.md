@@ -59,6 +59,9 @@ Eventos processados:
 | `payment_intent.succeeded` | tenta mover Payment para `Succeeded`. |
 | `payment_intent.payment_failed` | tenta mover Payment para `Failed`. |
 | `payment_intent.canceled` | tenta mover Payment para `Cancelled`. |
+| `refund.created` | registra/enriquece provider refund id sem chamar Ledger. |
+| `refund.updated` | quando `status=succeeded`, habilita estorno no Ledger. |
+| `refund.failed` | marca falha do refund sem estorno interno. |
 
 Transicoes idempotentes finalizam como `Processed`. Regressao esperada, como
 `Processing` apos `Succeeded`, tambem finaliza como `Processed`, com metrica
@@ -170,3 +173,17 @@ LIMIT 20;
 
 Nao ha endpoint de redrive nesta etapa. Investigacao e redrive administrativo
 ficam para etapa futura explicita.
+
+## Smokes locais
+
+Os scripts de smoke ficam em `scripts/validation/`:
+
+- `payment-flow.ps1` e `payment-flow.sh`: cria Payment, envia webhook local
+  assinado e aguarda `Completed`.
+- `refund-flow.ps1` e `refund-flow.sh`: cria Payment base, envia webhook de sucesso, solicita
+  refund total, envia webhook `refund.updated` e aguarda `Refunded`.
+
+Eles exigem `PaymentGateway:Stripe:WebhookSigningSecret` no
+`PaymentService.Api` e o mesmo valor informado por
+`PAYMENT_WEBHOOK_SIGNING_SECRET` ou parametro. O valor deve ser `whsec` de
+teste/local, nunca secret real versionado.

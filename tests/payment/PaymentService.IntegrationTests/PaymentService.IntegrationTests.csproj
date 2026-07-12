@@ -26,6 +26,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\payment\PaymentService.Api\PaymentService.Api.csproj" />
     <ProjectReference Include="..\..\..\src\payment\PaymentService.Infrastructure\PaymentService.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\src\balance\BalanceService.Application\BalanceService.Application.csproj" />
   </ItemGroup>
 
   <ItemGroup>

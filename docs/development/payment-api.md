@@ -260,6 +260,80 @@ Cenarios suportados: `Success`, `RequiresAction`, `Processing`,
 `DefinitiveFailure`, `Timeout`, `RateLimit`, `TransientFailure`,
 `RefundPending` e `RefundFailed`.
 
+## Smoke local controlado com fake provider
+
+Os smokes desta etapa assumem que `PaymentService.Api`,
+`PaymentService.Worker`, `LedgerService.Api`, `LedgerService.Worker`,
+`BalanceService.Worker`, PostgreSQL e Kafka ja estao em execucao. O
+`compose.yaml` atual ainda nao declara containers `payment-service` e
+`payment-worker`; portanto a rota local recomendada para Payment nesta etapa e
+executar API/Worker via `dotnet run` ou perfil de IDE, mantendo Ledger/Balance
+no compose existente.
+
+Infraestrutura interna:
+
+```powershell
+docker compose up -d postgres-db kafka kafka-init-topics keycloak ledger-service ledger-worker balance-service balance-worker
+```
+
+Payment em processos locais:
+
+```powershell
+dotnet run --project ./src/payment/PaymentService.Api/PaymentService.Api.csproj
+dotnet run --project ./src/payment/PaymentService.Worker/PaymentService.Worker.csproj
+```
+
+Secrets locais para webhook controlado:
+
+```powershell
+$env:PAYMENT_WEBHOOK_SIGNING_SECRET = "whsec_local_smoke"
+$env:PaymentGateway__Stripe__WebhookSigningSecret = "whsec_local_smoke"
+```
+
+Token local:
+
+```powershell
+$env:PAYMENT_SMOKE_TOKEN = "<token-local-com-payment.write-payment.read-payment.refund>"
+```
+
+Smoke de Payment:
+
+```powershell
+./scripts/validation/payment-flow.ps1 -PaymentBaseUrl http://localhost:5234 -MerchantId m1
+```
+
+Equivalente Bash para Payment:
+
+```bash
+PAYMENT_WEBHOOK_SIGNING_SECRET=whsec_local_smoke \
+PAYMENT_SMOKE_TOKEN="$TOKEN" \
+./scripts/validation/payment-flow.sh --payment-base-url http://localhost:5234 --merchant-id m1
+```
+
+Smoke de Refund total:
+
+```powershell
+./scripts/validation/refund-flow.ps1 -PaymentBaseUrl http://localhost:5234 -MerchantId m1
+```
+
+Os scripts nao imprimem token, `sk_test_...`, `whsec_...`, `clientSecret` nem
+payload completo. Eles imprimem apenas identificadores operacionais como
+`paymentId`, `providerPaymentId`, `refundId`, `ledgerEntryId` e
+`correlationId`.
+
+Fluxos validados:
+
+```text
+Payment -> webhook assinado -> Inbox -> Worker -> Ledger CREDIT -> Balance eventual
+Refund -> webhook assinado -> Inbox -> Worker -> Ledger reversal -> Balance eventual
+```
+
+Para consistencia eventual, os scripts usam polling com timeout. Se o Payment
+ficar em `Succeeded`/`LedgerPending`, investigue o Worker de Ledger e a
+autenticacao service-to-service com `ledger.write`. Se o Payment ficar
+`Completed`, mas o Balance nao refletir o movimento, investigue Ledger Outbox,
+Kafka e `BalanceService.Worker`.
+
 ## Provider Stripe
 
 Para usar Stripe Sandbox, selecione o provider e injete a API key fora do

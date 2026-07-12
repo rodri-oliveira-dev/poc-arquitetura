@@ -17,10 +17,14 @@ public sealed class PostgresPaymentApiFactory : WebApplicationFactory<Program>, 
 {
     private readonly Dictionary<string, string?> _previousEnvironmentValues = new(StringComparer.Ordinal);
     private readonly string _connectionString;
+    private readonly Action<IServiceCollection>? _configureTestServices;
 
-    public PostgresPaymentApiFactory(string connectionString)
+    public PostgresPaymentApiFactory(
+        string connectionString,
+        Action<IServiceCollection>? configureTestServices = null)
     {
         _connectionString = connectionString;
+        _configureTestServices = configureTestServices;
         SetProcessEnvironmentDefault("Jwt__Issuer", TestJwtTokenFactory.KeycloakIssuer);
         SetProcessEnvironmentDefault("Jwt__Audience", TestJwtTokenFactory.PaymentAudience);
         SetProcessEnvironmentDefault("Jwt__JwksUrl", "https://localhost/jwks.json");
@@ -76,6 +80,8 @@ public sealed class PostgresPaymentApiFactory : WebApplicationFactory<Program>, 
                     KeyId = TestJwtKeys.Kid
                 };
             });
+
+            _configureTestServices?.Invoke(services);
         });
     }
 

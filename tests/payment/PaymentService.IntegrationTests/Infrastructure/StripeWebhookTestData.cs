@@ -36,6 +36,42 @@ internal static class StripeWebhookTestData
         });
     }
 
+    public static string CreateRefundPayload(
+        string eventId,
+        string eventType,
+        string paymentIntentId,
+        Guid paymentId,
+        Guid refundId,
+        string providerRefundId = "re_test_123",
+        string status = "succeeded",
+        long amountInCents = 10000,
+        string currency = "brl")
+    {
+        return JsonSerializer.Serialize(new
+        {
+            id = eventId,
+            @object = "event",
+            type = eventType,
+            data = new
+            {
+                @object = new
+                {
+                    id = providerRefundId,
+                    @object = "refund",
+                    payment_intent = paymentIntentId,
+                    amount = amountInCents,
+                    currency,
+                    status,
+                    metadata = new
+                    {
+                        payment_id = paymentId.ToString(),
+                        refund_id = refundId.ToString()
+                    }
+                }
+            }
+        });
+    }
+
     public static string CreateSignatureHeader(string payload, DateTimeOffset? timestamp = null, string secret = Secret)
     {
         var ts = (timestamp ?? DateTimeOffset.UtcNow).ToUnixTimeSeconds();
