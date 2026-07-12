@@ -55,6 +55,21 @@ public sealed class LedgerHttpGatewayTests
         Assert.Equal(expectedCategory, result.FailureCategory);
     }
 
+    [Fact]
+    public async Task CreateCreditAsync_should_not_persist_raw_error_body_from_ledger()
+    {
+        using var fixture = new LedgerGatewayFixture();
+        fixture.Handler.Enqueue(
+            HttpStatusCode.BadRequest,
+            /*lang=json,strict*/ """{ "detail": "stack trace or sensitive downstream payload" }""");
+
+        var result = await fixture.Gateway.CreateCreditAsync(CreateRequest(), TestContext.Current.CancellationToken);
+
+        Assert.DoesNotContain("stack trace", result.SafeError, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("sensitive downstream payload", result.SafeError, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("LedgerService.Api returned HTTP 400 (BadRequest).", result.SafeError);
+    }
+
     private static LedgerCreditRequest CreateRequest()
         => new(
             new PaymentId(Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")),

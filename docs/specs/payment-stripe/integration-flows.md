@@ -1,5 +1,10 @@
 # Specification SDD: PaymentService integrado a Stripe - fluxos
 
+> Nota de estado atual (Prompt 9): os fluxos de criacao, webhook, Inbox e Ledger
+> estao implementados na branch. O fluxo de refund deixou de ser futuro para o
+> caso de refund total; chargeback, dispute, payout, split e reconciliacao
+> completa permanecem fora do escopo.
+
 ## Criacao de pagamento
 
 ```mermaid
@@ -229,7 +234,7 @@ Decisoes:
   PaymentIntent correspondente no sandbox e receber webhook do mesmo objeto.
 - A validacao local deve acontecer antes do Prompt 7 de refund.
 
-## Futuro refund
+## Refund total
 
 ```mermaid
 sequenceDiagram
@@ -254,9 +259,10 @@ sequenceDiagram
     Worker->>Ledger: solicita estorno/lancamento compensatorio
 ```
 
-Fora de escopo agora:
+Fora de escopo:
 
-- Endpoint real de refund.
-- Tabelas de refund.
-- Eventos de refund.
-- Estorno automatico no Ledger.
+- refund parcial;
+- chargeback/dispute;
+- payout/split;
+- reconciliacao completa;
+- atualizacao direta de Balance pelo PaymentService.

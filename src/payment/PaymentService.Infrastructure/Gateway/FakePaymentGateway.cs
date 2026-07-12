@@ -10,6 +10,8 @@ public sealed partial class FakePaymentGateway(
     PaymentGatewayTelemetry telemetry,
     ILogger<FakePaymentGateway> logger) : IPaymentGateway
 {
+    private const string CreateOperation = "create";
+    private const string RefundOperation = "refund";
     private readonly FakePaymentGatewayOptions _options = options.Value.Fake;
 
     public async Task<CreateExternalPaymentResult> CreatePaymentIntentAsync(
@@ -38,13 +40,13 @@ public sealed partial class FakePaymentGateway(
                 _ => throw Failure(PaymentGatewayErrorCategory.InvalidRequest, "fake_scenario_invalid")
             };
 
-            telemetry.RecordSuccess("fake", Elapsed(start));
+            telemetry.RecordSuccess("fake", CreateOperation, Elapsed(start));
             LogFakeGatewaySuccess(logger, _options.Scenario);
             return result;
         }
         catch (PaymentGatewayException ex)
         {
-            telemetry.RecordFailure("fake", ex.Category, Elapsed(start));
+            telemetry.RecordFailure("fake", CreateOperation, ex.Category, Elapsed(start));
             LogFakeGatewayFailure(logger, _options.Scenario, ex.Category);
             throw;
         }
@@ -56,7 +58,7 @@ public sealed partial class FakePaymentGateway(
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        using var activity = telemetry.StartCreateActivity("fake");
+        using var activity = telemetry.StartRefundActivity("fake");
         var start = TimeProvider.System.GetTimestamp();
 
         if (_options.SimulatedDelay > TimeSpan.Zero)
@@ -74,13 +76,13 @@ public sealed partial class FakePaymentGateway(
                 _ => RefundSuccess(request, "succeeded")
             };
 
-            telemetry.RecordSuccess("fake", Elapsed(start));
+            telemetry.RecordSuccess("fake", RefundOperation, Elapsed(start));
             LogFakeGatewaySuccess(logger, _options.Scenario);
             return result;
         }
         catch (PaymentGatewayException ex)
         {
-            telemetry.RecordFailure("fake", ex.Category, Elapsed(start));
+            telemetry.RecordFailure("fake", RefundOperation, ex.Category, Elapsed(start));
             LogFakeGatewayFailure(logger, _options.Scenario, ex.Category);
             throw;
         }

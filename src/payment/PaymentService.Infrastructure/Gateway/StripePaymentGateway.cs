@@ -17,6 +17,8 @@ public sealed partial class StripePaymentGateway(
     ILogger<StripePaymentGateway> logger) : IPaymentGateway
 {
     private const string ProviderName = "stripe";
+    private const string CreateOperation = "create";
+    private const string RefundOperation = "refund";
     private readonly StripePaymentGatewayOptions _options = options.Value.Stripe;
 
     public async Task<CreateExternalPaymentResult> CreatePaymentIntentAsync(
@@ -43,14 +45,14 @@ public sealed partial class StripePaymentGateway(
 
             if (!response.IsSuccessStatusCode)
             {
-                var exception = MapHttpFailure(response.StatusCode, responseBody, response.Headers.RetryAfter);
-                telemetry.RecordFailure(ProviderName, exception.Category, Elapsed(start));
+                var exception = MapHttpFailure(response.StatusCode, responseBody, response.Headers.RetryAfter, "PaymentIntent");
+                telemetry.RecordFailure(ProviderName, CreateOperation, exception.Category, Elapsed(start));
                 LogStripeCreateFailed(logger, exception.Category, exception.Code);
                 throw exception;
             }
 
             var result = ParsePaymentIntent(responseBody);
-            telemetry.RecordSuccess(ProviderName, Elapsed(start));
+            telemetry.RecordSuccess(ProviderName, CreateOperation, Elapsed(start));
             LogStripeCreateSucceeded(logger, result.ProviderStatus);
             return result;
         }
@@ -61,7 +63,7 @@ public sealed partial class StripePaymentGateway(
                 "Timeout ao criar PaymentIntent na Stripe.",
                 "stripe_timeout",
                 innerException: ex);
-            telemetry.RecordFailure(ProviderName, exception.Category, Elapsed(start));
+            telemetry.RecordFailure(ProviderName, CreateOperation, exception.Category, Elapsed(start));
             LogStripeCreateFailed(logger, exception.Category, exception.Code);
             throw exception;
         }
@@ -72,7 +74,7 @@ public sealed partial class StripePaymentGateway(
                 "Falha transitoria de rede ao criar PaymentIntent na Stripe.",
                 "stripe_network_error",
                 innerException: ex);
-            telemetry.RecordFailure(ProviderName, exception.Category, Elapsed(start));
+            telemetry.RecordFailure(ProviderName, CreateOperation, exception.Category, Elapsed(start));
             LogStripeCreateFailed(logger, exception.Category, exception.Code);
             throw exception;
         }
@@ -83,7 +85,7 @@ public sealed partial class StripePaymentGateway(
                 "Circuit breaker aberto para a Stripe.",
                 "stripe_circuit_open",
                 innerException: ex);
-            telemetry.RecordFailure(ProviderName, exception.Category, Elapsed(start));
+            telemetry.RecordFailure(ProviderName, CreateOperation, exception.Category, Elapsed(start));
             LogStripeCreateFailed(logger, exception.Category, exception.Code);
             throw exception;
         }
@@ -95,7 +97,7 @@ public sealed partial class StripePaymentGateway(
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        using var activity = telemetry.StartCreateActivity(ProviderName);
+        using var activity = telemetry.StartRefundActivity(ProviderName);
         var start = TimeProvider.System.GetTimestamp();
 
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "refunds")
@@ -113,14 +115,14 @@ public sealed partial class StripePaymentGateway(
 
             if (!response.IsSuccessStatusCode)
             {
-                var exception = MapHttpFailure(response.StatusCode, responseBody, response.Headers.RetryAfter);
-                telemetry.RecordFailure(ProviderName, exception.Category, Elapsed(start));
-                LogStripeCreateFailed(logger, exception.Category, exception.Code);
+                var exception = MapHttpFailure(response.StatusCode, responseBody, response.Headers.RetryAfter, "Refund");
+                telemetry.RecordFailure(ProviderName, RefundOperation, exception.Category, Elapsed(start));
+                LogStripeRefundFailed(logger, exception.Category, exception.Code);
                 throw exception;
             }
 
             var result = ParseRefund(responseBody);
-            telemetry.RecordSuccess(ProviderName, Elapsed(start));
+            telemetry.RecordSuccess(ProviderName, RefundOperation, Elapsed(start));
             LogStripeRefundSucceeded(logger, result.ProviderStatus);
             return result;
         }
@@ -131,8 +133,8 @@ public sealed partial class StripePaymentGateway(
                 "Timeout ao criar Refund na Stripe.",
                 "stripe_refund_timeout",
                 innerException: ex);
-            telemetry.RecordFailure(ProviderName, exception.Category, Elapsed(start));
-            LogStripeCreateFailed(logger, exception.Category, exception.Code);
+            telemetry.RecordFailure(ProviderName, RefundOperation, exception.Category, Elapsed(start));
+            LogStripeRefundFailed(logger, exception.Category, exception.Code);
             throw exception;
         }
         catch (HttpRequestException ex)
@@ -142,8 +144,8 @@ public sealed partial class StripePaymentGateway(
                 "Falha transitoria de rede ao criar Refund na Stripe.",
                 "stripe_refund_network_error",
                 innerException: ex);
-            telemetry.RecordFailure(ProviderName, exception.Category, Elapsed(start));
-            LogStripeCreateFailed(logger, exception.Category, exception.Code);
+            telemetry.RecordFailure(ProviderName, RefundOperation, exception.Category, Elapsed(start));
+            LogStripeRefundFailed(logger, exception.Category, exception.Code);
             throw exception;
         }
         catch (Exception ex) when (IsCircuitOpen(ex))
@@ -153,8 +155,8 @@ public sealed partial class StripePaymentGateway(
                 "Circuit breaker aberto para a Stripe.",
                 "stripe_refund_circuit_open",
                 innerException: ex);
-            telemetry.RecordFailure(ProviderName, exception.Category, Elapsed(start));
-            LogStripeCreateFailed(logger, exception.Category, exception.Code);
+            telemetry.RecordFailure(ProviderName, RefundOperation, exception.Category, Elapsed(start));
+            LogStripeRefundFailed(logger, exception.Category, exception.Code);
             throw exception;
         }
     }
@@ -261,7 +263,8 @@ public sealed partial class StripePaymentGateway(
     private static PaymentGatewayException MapHttpFailure(
         HttpStatusCode statusCode,
         string responseBody,
-        RetryConditionHeaderValue? retryAfterHeader)
+        RetryConditionHeaderValue? retryAfterHeader,
+        string operationName)
     {
         var code = TryReadStripeErrorCode(responseBody) ?? $"stripe_http_{(int)statusCode}";
         var retryAfter = retryAfterHeader?.Delta;
@@ -281,7 +284,7 @@ public sealed partial class StripePaymentGateway(
 
         return new PaymentGatewayException(
             category,
-            "Stripe recusou ou nao concluiu a criacao do PaymentIntent.",
+            $"Stripe recusou ou nao concluiu a criacao de {operationName}.",
             code,
             retryAfter);
     }
@@ -337,4 +340,7 @@ public sealed partial class StripePaymentGateway(
 
     [LoggerMessage(EventId = 14, Level = LogLevel.Information, Message = "Refund criado na Stripe. ProviderStatus: {ProviderStatus}")]
     private static partial void LogStripeRefundSucceeded(ILogger logger, string providerStatus);
+
+    [LoggerMessage(EventId = 15, Level = LogLevel.Warning, Message = "Falha ao criar Refund na Stripe. Category: {Category}; Code: {Code}")]
+    private static partial void LogStripeRefundFailed(ILogger logger, PaymentGatewayErrorCategory category, string? code);
 }

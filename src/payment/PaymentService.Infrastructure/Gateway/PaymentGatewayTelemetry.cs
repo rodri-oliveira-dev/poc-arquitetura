@@ -27,29 +27,35 @@ public sealed class PaymentGatewayTelemetry : IDisposable
     }
 
     public Activity? StartCreateActivity(string provider)
+        => StartActivity(provider, "create", "payment.provider.create");
+
+    public Activity? StartRefundActivity(string provider)
+        => StartActivity(provider, "refund", "payment.provider.refund");
+
+    private Activity? StartActivity(string provider, string operation, string activityName)
     {
-        var activity = _activitySource.StartActivity("payment.provider.create", ActivityKind.Client);
+        var activity = _activitySource.StartActivity(activityName, ActivityKind.Client);
         activity?.SetTag("payment.provider", provider);
-        activity?.SetTag("payment.operation", "create");
+        activity?.SetTag("payment.operation", operation);
         return activity;
     }
 
-    public void RecordSuccess(string provider, long elapsedMilliseconds)
+    public void RecordSuccess(string provider, string operation, long elapsedMilliseconds)
     {
         TagList tags = default;
         tags.Add("provider", provider);
-        tags.Add("operation", "create");
+        tags.Add("operation", operation);
         tags.Add("outcome", "success");
 
         _requestCounter.Add(1, tags);
         _durationHistogram.Record(elapsedMilliseconds, tags);
     }
 
-    public void RecordFailure(string provider, PaymentGatewayErrorCategory category, long elapsedMilliseconds)
+    public void RecordFailure(string provider, string operation, PaymentGatewayErrorCategory category, long elapsedMilliseconds)
     {
         TagList tags = default;
         tags.Add("provider", provider);
-        tags.Add("operation", "create");
+        tags.Add("operation", operation);
         tags.Add("outcome", "failure");
         tags.Add("error_category", category.ToString());
 

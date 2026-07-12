@@ -1,5 +1,10 @@
 # Specification SDD: PaymentService integrado a Stripe - tasks futuras
 
+> Nota de estado atual (Prompt 9): as tarefas 1 a 8 foram executadas na branch
+> `feature/novo-servico`; esta etapa 9 fecha hardening, observabilidade,
+> documentacao e validacoes. A lista permanece como trilha SDD incremental e
+> historico do plano.
+
 ## Visao geral
 
 As tarefas abaixo sao incrementais e devem ser executadas em prompts/PRs

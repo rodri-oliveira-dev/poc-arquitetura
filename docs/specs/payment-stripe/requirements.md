@@ -1,5 +1,14 @@
 # Specification SDD: PaymentService integrado a Stripe - requisitos
 
+> Nota de estado atual (Prompt 9): este documento nasceu como specification
+> inicial/documental. As etapas posteriores da branch `feature/novo-servico`
+> implementaram o `PaymentService`, webhook, Inbox, Worker, integracao com
+> Ledger, smokes e refund total com estorno no Ledger. As restricoes historicas
+> de "nao implementar refund agora" permanecem como contexto da etapa inicial;
+> no baseline final, continuam fora do escopo refund parcial, chargeback,
+> dispute, payout, split, Stripe Connect, reconciliacao completa e UI
+> administrativa.
+
 ## Contexto
 
 O repositorio modela uma POC financeira distribuida com `LedgerService` como
@@ -77,7 +86,8 @@ Sem desenho explicito, ha risco de:
 - Definir seguranca de webhook com assinatura, raw body e replay protection.
 - Definir integracao Payment -> Ledger preservando idempotencia ponta a ponta.
 - Definir eventos realmente necessarios e quais permanecem internos.
-- Preparar o modelo para refund futuro sem implementar refund agora.
+- Preparar o modelo para refund e, no baseline final, suportar refund total com
+  estorno pelo Ledger.
 - Definir matriz de falhas, observabilidade, testes e configuracoes futuras.
 - Quebrar a implementacao futura em tarefas incrementais verificaveis.
 
@@ -90,7 +100,8 @@ Sem desenho explicito, ha risco de:
 - Alterar contratos OpenAPI versionados nesta etapa.
 - Alterar Ledger, Balance, Transfer, Identity ou Audit.
 - Criar producers/consumers Kafka do PaymentService nesta etapa.
-- Implementar refund.
+- Implementar refund parcial, chargeback, dispute, payout, split, Stripe
+  Connect, reconciliacao completa ou UI administrativa.
 - Criar shared library de pagamentos ou contratos antes de necessidade real.
 - Usar Stripe Sandbox como alvo de carga.
 
@@ -168,7 +179,8 @@ Sem desenho explicito, ha risco de:
 - Retry de chamada ao Ledger deve usar idempotency key deterministica.
 - Tipos Stripe (`PaymentIntent`, `Charge`, `Event`, `Refund`) nao atravessam a
   Infrastructure.
-- Refund e estorno ficam preparados conceitualmente, mas fora do MVP.
+- Refund total usa estorno no Ledger no baseline final; refund parcial continua
+  fora do MVP porque o contrato publico atual do Ledger suporta estorno total.
 
 ## Requisitos nao funcionais
 

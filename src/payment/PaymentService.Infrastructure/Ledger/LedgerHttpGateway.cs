@@ -198,8 +198,8 @@ public sealed class LedgerHttpGateway(HttpClient httpClient) : ILedgerEntryGatew
         string fallback,
         CancellationToken cancellationToken)
     {
-        var body = await response.Content.ReadAsStringAsync(cancellationToken);
-        return string.IsNullOrWhiteSpace(body) ? fallback : $"{fallback} Body: {body}";
+        await response.Content.LoadIntoBufferAsync(cancellationToken);
+        return fallback;
     }
 
     private static bool IsCircuitOpen(Exception exception)

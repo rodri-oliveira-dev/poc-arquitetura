@@ -1,5 +1,10 @@
 # Specification SDD: PaymentService integrado a Stripe - state machine
 
+> Nota de estado atual (Prompt 9): a state machine de Payment abaixo foi
+> estendida na branch para refund total. Estados `PartiallyRefunded` e
+> `Refunded` existem no modelo para representar o ciclo pos-Ledger; refund
+> parcial ainda e rejeitado no MVP.
+
 ## Principios
 
 - A state machine representa o estado interno do pagamento no
@@ -24,10 +29,11 @@
 | `Failed` | Sim | Provider falhou de forma definitiva antes de efeito financeiro. |
 | `Cancelled` | Sim | Payment cancelado antes de confirmacao financeira. |
 
-Estados avaliados e nao incluidos no MVP:
+Estados avaliados no desenho inicial:
 
 - `Created`: redundante com `Pending` se a criacao local e imediata.
-- `RefundPending`, `PartiallyRefunded`, `Refunded`: reservados para refund.
+- `RefundPending`, `PartiallyRefunded`, `Refunded`: reservados para refund no
+  desenho inicial; o baseline final implementa `Refunded` para refund total.
 - `Rejected`: pode ser categoria de falha de validacao antes de criar Payment,
   sem precisar virar estado persistido no aggregate inicial.
 
@@ -147,21 +153,25 @@ O aggregate deve diferenciar:
 `Succeeded` nao significa que o Balance ja foi atualizado. O Balance e eventual
 e depende de `LedgerEntryCreated.v2` publicado pelo Ledger.
 
-## Refund futuro
+## Refund total
 
-Estados futuros a considerar apenas quando refund entrar no escopo:
+Estados de refund usados no baseline final:
 
-| Estado futuro | Significado |
+| Estado | Significado |
 | --- | --- |
-| `RefundPending` | Refund solicitado no PaymentService ou provider. |
-| `PartiallyRefunded` | Parte do valor foi reembolsada externamente e refletida no Ledger. |
-| `Refunded` | Valor total foi reembolsado externamente e refletido no Ledger. |
-| `RefundFailed` | Refund falhou apos estado intermediario. |
+| `Requested` | Refund solicitado localmente. |
+| `ProviderPending` | Refund aceito/criado no provider, aguardando confirmacao final. |
+| `ProviderSucceeded` | Provider confirmou refund; estorno Ledger ainda pode estar pendente. |
+| `ProviderFailed` | Provider recusou/falhou o refund. |
+| `LedgerReversalPending` | Estorno no Ledger precisa ser solicitado ou esta em retry. |
+| `Completed` | Estorno no Ledger foi aceito/criado. |
+| `Failed` | Falha definitiva do refund. |
+| `DeadLetter` | Falha operacional isolada apos limite/classificacao. |
 
-Regras futuras:
+Regras:
 
 - Refund externo confirmado nao atualiza Balance diretamente.
 - Estorno interno deve ser solicitado ao Ledger com idempotency key por refund.
-- Refund parcial nao pode exceder valor capturado menos refunds anteriores.
+- Refund parcial e rejeitado no MVP.
 - Refund confirmado externamente, mas ainda sem Ledger, deve ficar pendente de
   estorno interno de forma semelhante a `LedgerPending`.

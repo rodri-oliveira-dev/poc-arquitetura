@@ -65,8 +65,7 @@ public sealed class ClientCredentialsLedgerAccessTokenProvider : ILedgerAccessTo
         using var response = await _httpClient.SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
-            var body = await response.Content.ReadAsStringAsync(cancellationToken);
-            throw new LedgerAuthenticationException($"Falha ao obter token para LedgerService.Api: HTTP {(int)response.StatusCode} ({response.StatusCode}). Resposta: {body}");
+            throw new LedgerAuthenticationException($"Falha ao obter token para LedgerService.Api: HTTP {(int)response.StatusCode} ({response.StatusCode}).");
         }
 
         var token = await response.Content.ReadFromJsonAsync<TokenResponse>(cancellationToken)

@@ -1,5 +1,11 @@
 # Specification SDD: PaymentService integrado a Stripe - design
 
+> Nota de estado atual (Prompt 9): o desenho abaixo preserva decisoes tomadas
+> para a introducao incremental do PaymentService. A branch atual ja implementa
+> refund total com webhook `refund.*`, Inbox, Worker e estorno via
+> `LedgerService.Api`; refund parcial e reconciliacao completa seguem fora do
+> escopo.
+
 ## Decisoes principais
 
 | Tema | Decisao | Classificacao |
@@ -10,7 +16,7 @@
 | Ledger | Chamar `LedgerService.Api`, nunca banco/tabelas | Necessaria para preservar ownership. |
 | Balance | Nao integrar diretamente | Necessaria para preservar CQRS/projecao. |
 | Kafka interno | Adiar ate existir consumidor real | Util, mas opcional no MVP de pagamentos. |
-| Refund | Preparar modelo, nao implementar | Util para evitar decisao incompativel. |
+| Refund | Implementar refund total por Stripe + estorno no Ledger; manter refund parcial fora do MVP | Necessario apos Prompt 7 e limitado pelo contrato publico atual do Ledger. |
 
 ## Bounded context
 
@@ -462,26 +468,23 @@ Topicos Kafka: nenhum no MVP. Futuro, se necessario, usar nomes como
 `event_id`, `event_type`, `correlation_id`, `traceparent`, `tracestate`,
 `baggage`, `causation_id`.
 
-## Refund futuro
+## Refund total
 
-Entrada futura: `POST /api/v1/payments/{paymentId}/refunds` ou comando interno
-equivalente, autenticado por `payment.write` e merchant autorizado.
+Entrada atual: `POST /api/v1/payments/{paymentId}/refunds`, autenticado por
+`payment.refund` e merchant autorizado.
 
 Desenho:
 
-1. PaymentService registra solicitacao de refund em estado intermediario.
-2. Adapter Stripe chama provider com idempotencia externa.
-3. Webhook de refund confirma resultado externo.
-4. Payment aplica estado de refund.
-5. Quando refund externo for confirmado, PaymentService solicita estorno ou
-   lancamento compensatorio ao Ledger com idempotency key deterministica.
-6. Refund parcial deve registrar valor acumulado reembolsado e nao permitir
-   exceder valor capturado.
+1. PaymentService registra solicitacao de refund no aggregate `Payment`.
+2. Adapter Stripe chama o provider com idempotencia externa deterministica por
+   `paymentId + refundId`.
+3. Webhook `refund.*` confirma ou falha o resultado externo.
+4. Worker aplica a state machine de refund.
+5. Quando o refund externo for confirmado, PaymentService solicita estorno total
+   ao Ledger com idempotency key deterministica por `paymentId + refundId`.
 
-Nao decidir agora se refund sera entidade interna do aggregate ou aggregate
-separado. Para o MVP, o `Payment` deve guardar dados minimos que evitem bloqueio:
-valor original, moeda, referencia externa do provider, ledger entry id e saldo
-refundavel conceitual.
+Refund parcial permanece fora do MVP porque o contrato publico atual do Ledger
+para estorno opera sobre o lancamento original inteiro.
 
 ## Falhas distribuidas
 
