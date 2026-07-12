@@ -8,6 +8,8 @@ public sealed class Payment : Entity, IAggregateRoot
     public const int DescriptionMaxLength = 500;
     public const int ProviderStatusMaxLength = 100;
 
+    private readonly List<PaymentRefund> _refunds = [];
+
     public PaymentId PaymentId
     {
         get; private set;
@@ -119,6 +121,8 @@ public sealed class Payment : Entity, IAggregateRoot
     {
         get; private set;
     }
+
+    public IReadOnlyCollection<PaymentRefund> Refunds => _refunds.AsReadOnly();
 
     private Payment()
     {
@@ -283,6 +287,113 @@ public sealed class Payment : Entity, IAggregateRoot
         return true;
     }
 
+    public PaymentRefund RequestRefund(
+        RefundId refundId,
+        Money amount,
+        string reason,
+        string? externalReference,
+        string? correlationId,
+        DateTimeOffset now)
+    {
+        if (Status != PaymentStatus.Completed)
+            throw new DomainException("Refund so pode ser solicitado para Payment Completed.");
+
+        if (LedgerEntryReference is null)
+            throw new DomainException("Refund exige lancamento original no Ledger.");
+
+        if (amount.Currency != Currency)
+            throw new DomainException("Refund deve usar a mesma moeda do Payment.");
+
+        if (amount.Amount != AmountValue)
+            throw new DomainException("Refund parcial ainda nao e suportado pelo contrato atual de estorno do Ledger.");
+
+        if (_refunds.Any(x => x.Status is RefundStatus.Requested or RefundStatus.ProviderPending or RefundStatus.ProviderSucceeded or RefundStatus.LedgerReversalPending))
+            throw new DomainException("Payment ja possui refund pendente.");
+
+        if (_refunds.Any(x => x.Status == RefundStatus.Completed))
+            throw new DomainException("Payment ja foi totalmente refunded.");
+
+        var refund = new PaymentRefund(refundId, PaymentId, amount, reason, externalReference, correlationId, now);
+        _refunds.Add(refund);
+        UpdatedAt = now;
+        return refund;
+    }
+
+    public bool RegisterRefundProviderCreated(
+        DateTimeOffset now,
+        RefundId refundId,
+        string providerRefundId,
+        string? providerStatus)
+    {
+        var changed = GetRefund(refundId).RegisterProviderCreated(now, providerRefundId, providerStatus);
+        UpdatedAt = now;
+        return changed;
+    }
+
+    public bool MarkRefundProviderSucceeded(
+        DateTimeOffset now,
+        RefundId refundId,
+        string providerRefundId,
+        string? providerStatus)
+    {
+        var changed = GetRefund(refundId).MarkProviderSucceeded(now, providerRefundId, providerStatus);
+        UpdatedAt = now;
+        return changed;
+    }
+
+    public bool MarkRefundProviderFailed(
+        DateTimeOffset now,
+        RefundId refundId,
+        string providerRefundId,
+        string? providerStatus,
+        string reason)
+    {
+        var changed = GetRefund(refundId).MarkProviderFailed(now, providerRefundId, providerStatus, reason);
+        UpdatedAt = now;
+        return changed;
+    }
+
+    public PaymentRefund? FindRefund(RefundId refundId)
+        => _refunds.FirstOrDefault(x => x.RefundId == refundId);
+
+    public PaymentRefund? FindRefundByProviderRefundId(string providerRefundId)
+        => _refunds.FirstOrDefault(x => string.Equals(x.ProviderRefundId, providerRefundId, StringComparison.Ordinal));
+
+    public bool ClaimRefundLedgerReversal(RefundId refundId, DateTimeOffset now, string lockOwner, DateTimeOffset lockedUntil)
+    {
+        var claimed = GetRefund(refundId).ClaimLedgerReversal(now, lockOwner, lockedUntil);
+        if (claimed)
+            UpdatedAt = now;
+
+        return claimed;
+    }
+
+    public void MarkRefundLedgerReversalAccepted(RefundId refundId, DateTimeOffset now, Guid ledgerReversalId)
+    {
+        GetRefund(refundId).MarkLedgerReversalAccepted(now, ledgerReversalId);
+        Status = PaymentStatus.Refunded;
+        CompletedAt = now;
+        UpdatedAt = now;
+    }
+
+    public void ScheduleRefundLedgerRetry(RefundId refundId, DateTimeOffset now, DateTimeOffset nextRetryAt, string reason)
+    {
+        GetRefund(refundId).ScheduleLedgerRetry(now, nextRetryAt, reason);
+        UpdatedAt = now;
+    }
+
+    public void MarkRefundLedgerDeadLetter(RefundId refundId, DateTimeOffset now, string reason)
+    {
+        GetRefund(refundId).MarkLedgerDeadLetter(now, reason);
+        UpdatedAt = now;
+    }
+
+    public void MarkRefundLedgerDefinitiveFailure(RefundId refundId, DateTimeOffset now, string reason)
+    {
+        GetRefund(refundId).MarkLedgerDefinitiveFailure(now, reason);
+        UpdatedAt = now;
+    }
+
     public void ScheduleLedgerRetry(DateTimeOffset now, DateTimeOffset nextRetryAt, string reason)
     {
         EnsureLedgerProcessing("Ledger retry somente pode ser agendado para integracao em processamento.");
@@ -411,13 +522,18 @@ public sealed class Payment : Entity, IAggregateRoot
             PaymentStatus.Succeeded => 4,
             PaymentStatus.LedgerPending => 5,
             PaymentStatus.Completed => 6,
+            PaymentStatus.PartiallyRefunded => 7,
+            PaymentStatus.Refunded => 8,
             PaymentStatus.Failed => throw new NotImplementedException(),
             PaymentStatus.Cancelled => throw new NotImplementedException(),
-            _ => 0
+            _ => throw new NotImplementedException()
         };
 
     private static bool IsFinal(PaymentStatus status)
-        => status is PaymentStatus.Completed or PaymentStatus.Failed or PaymentStatus.Cancelled;
+        => status is PaymentStatus.Completed or PaymentStatus.PartiallyRefunded or PaymentStatus.Refunded or PaymentStatus.Failed or PaymentStatus.Cancelled;
+
+    private PaymentRefund GetRefund(RefundId refundId)
+        => FindRefund(refundId) ?? throw new DomainException($"Refund {refundId} nao encontrado no Payment.");
 
     private static string? NormalizeOptional(string? value, int maxLength, string fieldName)
     {

@@ -84,8 +84,8 @@ public static class DependencyInjection
                 "PaymentGateway:Provider deve ser Fake ou Stripe.")
             .Validate(options =>
                 !string.Equals(options.Provider, PaymentGatewayProviders.Stripe, StringComparison.OrdinalIgnoreCase)
-                || !string.IsNullOrWhiteSpace(options.Stripe.ApiKey),
-                "PaymentGateway:Stripe:ApiKey deve ser configurada quando PaymentGateway:Provider=Stripe.")
+                || !string.IsNullOrWhiteSpace(options.Stripe.EffectiveSecretKey),
+                "PaymentGateway:Stripe:SecretKey deve ser configurada quando PaymentGateway:Provider=Stripe.")
             .Validate(options =>
                 !string.Equals(options.Provider, PaymentGatewayProviders.Stripe, StringComparison.OrdinalIgnoreCase)
                 || options.Stripe.Timeout > TimeSpan.Zero,

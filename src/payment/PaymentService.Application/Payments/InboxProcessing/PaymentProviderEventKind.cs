@@ -5,5 +5,8 @@ public enum PaymentProviderEventKind
     Processing,
     Succeeded,
     Failed,
-    Cancelled
+    Cancelled,
+    RefundCreated,
+    RefundSucceeded,
+    RefundFailed
 }

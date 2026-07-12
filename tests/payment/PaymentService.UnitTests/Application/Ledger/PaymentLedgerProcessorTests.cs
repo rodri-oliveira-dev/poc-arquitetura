@@ -131,6 +131,9 @@ public sealed class PaymentLedgerProcessorTests
             Requests.Add(request);
             return Task.FromResult(_response(request));
         }
+
+        public Task<LedgerReversalRequestResult> RequestReversalAsync(LedgerReversalRequest request, CancellationToken cancellationToken)
+            => Task.FromResult(LedgerReversalRequestResult.Accepted(Guid.NewGuid()));
     }
 
     private sealed class FakePaymentRepository(Payment payment) : IPaymentRepository
@@ -162,6 +165,14 @@ public sealed class PaymentLedgerProcessorTests
 
             return Task.FromResult<IReadOnlyList<Payment>>(claimed);
         }
+
+        public Task<IReadOnlyList<Payment>> ClaimRefundLedgerReversalAsync(
+            int batchSize,
+            DateTimeOffset now,
+            string lockOwner,
+            TimeSpan leaseTimeout,
+            CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<Payment>>([]);
 
         public Task AddAsync(Payment payment, CancellationToken cancellationToken)
             => Task.CompletedTask;

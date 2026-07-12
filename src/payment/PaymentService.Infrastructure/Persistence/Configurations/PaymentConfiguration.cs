@@ -147,5 +147,13 @@ public sealed class PaymentConfiguration : IEntityTypeConfiguration<Payment>
             .IsUnique()
             .HasDatabaseName("ux_payment_payments_provider_external_reference")
             .HasFilter("external_payment_reference IS NOT NULL");
+
+        builder.HasMany(x => x.Refunds)
+            .WithOne()
+            .HasForeignKey(x => x.PaymentId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Navigation(x => x.Refunds)
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }

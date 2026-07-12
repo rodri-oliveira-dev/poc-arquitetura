@@ -22,6 +22,12 @@ public static class ScopeAuthorizationExtensions
             policy.RequireScope(ScopePolicies.ClaimType, ScopePolicies.PaymentWrite);
         });
 
+        options.AddPolicy(ScopePolicies.PaymentRefundPolicy, policy =>
+        {
+            policy.RequireAuthenticatedUser();
+            policy.RequireScope(ScopePolicies.ClaimType, ScopePolicies.PaymentRefund);
+        });
+
         return options;
     }
 }

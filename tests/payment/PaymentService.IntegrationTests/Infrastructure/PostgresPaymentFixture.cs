@@ -28,7 +28,7 @@ public sealed class PostgresPaymentFixture : IAsyncLifetime
     {
         await using var db = CreateDbContext();
         await db.Database.ExecuteSqlRawAsync(
-            "TRUNCATE TABLE payment.inbox_messages, payment.idempotency_records, payment.payments;");
+            "TRUNCATE TABLE payment.inbox_messages, payment.idempotency_records, payment.payment_refunds, payment.payments;");
     }
 
     public PaymentDbContext CreateDbContext()

@@ -12,12 +12,16 @@ financeiro aceito/criado pelo Ledger (`Completed`).
 - aggregate `Payment`, value objects e state machine inicial;
 - persistencia EF Core/PostgreSQL no schema `payment`;
 - tabela `payment.payments`;
+- tabela `payment.payment_refunds` para solicitacoes de refund, estado do
+  provider e retry de estorno Ledger;
 - tabela `payment.idempotency_records` para idempotencia do endpoint interno;
 - tabela `payment.inbox_messages` para entrada duravel de webhooks Stripe;
 - Anti-Corruption Layer `IPaymentGateway` na Application;
 - provider fake configuravel para desenvolvimento e testes;
 - adapter HTTP Stripe em `Infrastructure` para criar PaymentIntent com
   idempotencia externa deterministica;
+- adapter HTTP Stripe em `Infrastructure` para criar Refund com `payment_intent`
+  e idempotencia externa deterministica por `paymentId + refundId`;
 - timeout, retry e circuit breaker via `PocArquitetura.HttpResilienceDefaults`;
 - observabilidade da chamada externa por span `payment.provider.create` e
   metricas `payment_provider_*`;
@@ -46,8 +50,9 @@ financeiro aceito/criado pelo Ledger (`Completed`).
   `PaymentService.LedgerWorker`, meter `PaymentService.LedgerWorker` e
   metricas `payment_ledger_*`;
 - endpoints `POST /api/v1/payments`, `GET /api/v1/payments/{paymentId}` e
+  `POST /api/v1/payments/{paymentId}/refunds` e
   `POST /api/v1/webhooks/stripe`;
-- scopes `payment.write` e `payment.read`;
+- scopes `payment.write`, `payment.read` e `payment.refund`;
 - autorizacao por `merchant_id`;
 - validacao de webhook Stripe por raw body, `Stripe-Signature`, signing secret e
   tolerancia temporal;
@@ -58,7 +63,7 @@ financeiro aceito/criado pelo Ledger (`Completed`).
 - Kafka;
 - Outbox;
 - integracao com BalanceService;
-- refund.
+- refund parcial, pois o contrato publico atual de estorno do Ledger e total.
 
 ## Fronteiras
 
@@ -88,6 +93,9 @@ Tabelas:
 - `payments`: estado interno do aggregate, merchant, amount, currency, provider,
   status, referencias externa/provider/Ledger, metadados persistidos de
   integracao Ledger, lease/retry e timestamps;
+- `payment_refunds`: refunds internos do aggregate, amount, currency, reason,
+  referencia externa, status do refund, provider refund id/status, estorno
+  Ledger, lease/retry e timestamps;
 - `idempotency_records`: replay seguro do `POST /api/v1/payments`.
 - `inbox_messages`: eventos Stripe recebidos com `provider`, `provider_event_id`,
   `event_type`, payload bruto validado, `payload_sha256`, status, categoria,
@@ -154,6 +162,9 @@ Eventos Stripe suportados:
 | `payment_intent.succeeded` | `Payment.MarkSucceeded(...)` |
 | `payment_intent.payment_failed` | `Payment.MarkFailed(...)` |
 | `payment_intent.canceled` | `Payment.Cancel(...)` |
+| `refund.created` | registra/enriquece provider refund id/status |
+| `refund.updated` | confirma sucesso quando status for `succeeded` e habilita estorno Ledger |
+| `refund.failed` | marca falha no provider sem chamar Ledger |
 
 Eventos idempotentes finalizam a Inbox como `Processed`. Eventos regressivos
 conhecidos, como `processing` apos `Succeeded`, nao alteram o Payment, nao
@@ -199,3 +210,32 @@ payment:{paymentId:N}:ledger-credit
 O mesmo Payment e a mesma operacao logica produzem sempre a mesma chave, entre
 processos e maquinas. Em timeout de resultado desconhecido, o Worker agenda
 retry persistido e reenvia o mesmo payload com a mesma chave.
+
+## Refund -> Ledger
+
+Fluxo runtime:
+
+```text
+Payment Completed
+-> POST /api/v1/payments/{paymentId}/refunds
+-> Stripe Refunds API
+-> webhook refund.*
+-> Inbox
+-> PaymentService.Worker
+-> claim local de estorno de refund
+-> LedgerService.Api POST /api/v1/lancamentos/{ledgerEntryId}/estornos
+-> Payment Refunded
+-> Ledger Outbox
+-> Kafka
+-> BalanceService.Worker
+```
+
+O PaymentService nao grava no schema `ledger` e nao atualiza Balance
+diretamente. A idempotencia do estorno usa UUID deterministico derivado de:
+
+```text
+payment:{paymentId:N}:refund:{refundId:N}:ledger-reversal
+```
+
+Refund parcial e rejeitado nesta etapa porque o endpoint publico atual do
+Ledger aceita apenas estorno total do lancamento original.

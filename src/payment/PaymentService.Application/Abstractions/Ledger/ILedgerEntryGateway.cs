@@ -7,6 +7,10 @@ public interface ILedgerEntryGateway
     Task<LedgerEntryCreationResult> CreateCreditAsync(
         LedgerCreditRequest request,
         CancellationToken cancellationToken);
+
+    Task<LedgerReversalRequestResult> RequestReversalAsync(
+        LedgerReversalRequest request,
+        CancellationToken cancellationToken);
 }
 
 public sealed record LedgerCreditRequest(
@@ -15,6 +19,14 @@ public sealed record LedgerCreditRequest(
     Money Amount,
     string Description,
     string ExternalReference,
+    Guid IdempotencyKey,
+    string? CorrelationId);
+
+public sealed record LedgerReversalRequest(
+    PaymentId PaymentId,
+    RefundId RefundId,
+    LedgerEntryReference OriginalLedgerEntryReference,
+    string Reason,
     Guid IdempotencyKey,
     string? CorrelationId);
 
@@ -64,4 +76,29 @@ public enum LedgerEntryFailureCategory
     UnexpectedResponse,
     CircuitOpen,
     Network
+}
+
+public sealed record LedgerReversalRequestResult(
+    LedgerEntryCreationOutcome Outcome,
+    Guid? LedgerReversalId,
+    LedgerEntryFailureCategory? FailureCategory,
+    string? SafeError,
+    TimeSpan? RetryAfter)
+{
+    public static LedgerReversalRequestResult Accepted(Guid ledgerReversalId)
+        => new(LedgerEntryCreationOutcome.Accepted, ledgerReversalId, null, null, null);
+
+    public static LedgerReversalRequestResult Transient(
+        LedgerEntryFailureCategory category,
+        string safeError,
+        TimeSpan? retryAfter = null)
+        => new(LedgerEntryCreationOutcome.TransientFailure, null, category, safeError, retryAfter);
+
+    public static LedgerReversalRequestResult UnknownResult(string safeError)
+        => new(LedgerEntryCreationOutcome.UnknownResult, null, LedgerEntryFailureCategory.Timeout, safeError, null);
+
+    public static LedgerReversalRequestResult Definitive(
+        LedgerEntryFailureCategory category,
+        string safeError)
+        => new(LedgerEntryCreationOutcome.DefinitiveFailure, null, category, safeError, null);
 }

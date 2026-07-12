@@ -65,6 +65,51 @@ public sealed class PaymentsController(
         return Accepted(response.StatusUrl, response);
     }
 
+    [HttpPost("{paymentId:guid}/refunds")]
+    [Authorize(Policy = ScopePolicies.PaymentRefundPolicy)]
+    [SwaggerOperation(
+        OperationId = "RequestPaymentRefund",
+        Summary = "Solicita refund de um payment.",
+        Description = "Registra uma solicitacao de refund, chama o provider configurado de forma idempotente e conclui o efeito financeiro interno de forma assincrona por webhook e estorno no Ledger. Refund parcial e rejeitado neste MVP porque o contrato atual do Ledger suporta apenas estorno total.")]
+    [SwaggerResponse(StatusCodes.Status202Accepted, "Refund aceito para processamento assincrono.", typeof(RequestRefundResponse))]
+    [SwaggerResponse(StatusCodes.Status400BadRequest, "Request invalido.", typeof(ValidationErrorResponse))]
+    [SwaggerResponse(StatusCodes.Status401Unauthorized, "Token ausente ou invalido.")]
+    [SwaggerResponse(StatusCodes.Status403Forbidden, "Scope insuficiente ou token sem autorizacao para o merchant.")]
+    [SwaggerResponse(StatusCodes.Status404NotFound, "Payment inexistente.", typeof(ProblemDetails))]
+    [SwaggerResponse(StatusCodes.Status409Conflict, "Conflito de idempotencia ou refund pendente.", typeof(ProblemDetails))]
+    [SwaggerResponse(StatusCodes.Status422UnprocessableEntity, "Violacao de regra de dominio.", typeof(ProblemDetails))]
+    [SwaggerResponse(StatusCodes.Status502BadGateway, "Provider externo recusou a operacao.", typeof(ProblemDetails))]
+    [SwaggerResponse(StatusCodes.Status503ServiceUnavailable, "Provider externo indisponivel.", typeof(ProblemDetails))]
+    [SwaggerResponse(StatusCodes.Status504GatewayTimeout, "Timeout com resultado externo desconhecido.", typeof(ProblemDetails))]
+    [SwaggerResponse(StatusCodes.Status500InternalServerError, "Erro interno.", typeof(ProblemDetails))]
+    public async Task<ActionResult<RequestRefundResponse>> RequestRefund(
+        [SwaggerParameter(Description = "Identificador do Payment.")]
+        [FromRoute] Guid paymentId,
+        [SwaggerParameter(Description = "Chave de idempotencia em formato UUID. Deve ser unica por operacao logica de refund.")]
+        [FromHeader(Name = "Idempotency-Key")] string idempotencyKey,
+        [SwaggerParameter(Description = "Correlation id opcional em formato UUID. Se ausente, a API gera e devolve um valor no response header.")]
+        [FromHeader(Name = CorrelationIdMiddleware.HeaderName)] string? correlationId,
+        [FromBody] RequestRefundRequest request,
+        CancellationToken cancellationToken)
+    {
+        var authorizedMerchantIds = _merchantAuthorizationService.GetAuthorizedMerchantIds(User);
+        if (authorizedMerchantIds.Count == 0)
+            return Forbid();
+
+        var command = RequestRefundBind.Bind(
+            HttpContext,
+            paymentId,
+            idempotencyKey,
+            correlationId,
+            request,
+            authorizedMerchantIds);
+
+        var result = await _sender.Send(command, cancellationToken);
+        var response = PaymentMapper.ToRefundResponse(result);
+
+        return Accepted(response.StatusUrl, response);
+    }
+
     [HttpGet("{paymentId:guid}")]
     [Authorize(Policy = ScopePolicies.PaymentReadPolicy)]
     [SwaggerOperation(

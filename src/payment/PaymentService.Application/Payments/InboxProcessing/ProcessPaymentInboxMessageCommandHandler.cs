@@ -131,6 +131,22 @@ public sealed class ProcessPaymentInboxMessageCommandHandler(
                 providerEvent.CorrelationId),
             PaymentProviderEventKind.Failed => payment.MarkFailed(now, providerEvent.ProviderStatus),
             PaymentProviderEventKind.Cancelled => payment.Cancel(now, providerEvent.ProviderStatus),
+            PaymentProviderEventKind.RefundCreated => payment.RegisterRefundProviderCreated(
+                now,
+                providerEvent.RefundId ?? throw new InvalidOperationException("RefundId ausente no evento de refund."),
+                providerEvent.ProviderRefundId ?? throw new InvalidOperationException("ProviderRefundId ausente no evento de refund."),
+                providerEvent.ProviderStatus),
+            PaymentProviderEventKind.RefundSucceeded => payment.MarkRefundProviderSucceeded(
+                now,
+                providerEvent.RefundId ?? throw new InvalidOperationException("RefundId ausente no evento de refund."),
+                providerEvent.ProviderRefundId ?? throw new InvalidOperationException("ProviderRefundId ausente no evento de refund."),
+                providerEvent.ProviderStatus),
+            PaymentProviderEventKind.RefundFailed => payment.MarkRefundProviderFailed(
+                now,
+                providerEvent.RefundId ?? throw new InvalidOperationException("RefundId ausente no evento de refund."),
+                providerEvent.ProviderRefundId ?? throw new InvalidOperationException("ProviderRefundId ausente no evento de refund."),
+                providerEvent.ProviderStatus,
+                "Provider reported refund failed."),
             _ => throw new InvalidOperationException("Provider event kind nao suportado.")
         };
 
@@ -168,7 +184,8 @@ public sealed class ProcessPaymentInboxMessageCommandHandler(
             PaymentProviderEventKind.Succeeded => PaymentStatus.Succeeded,
             PaymentProviderEventKind.Failed => PaymentStatus.Failed,
             PaymentProviderEventKind.Cancelled => PaymentStatus.Cancelled,
-            _ => currentStatus
+            PaymentProviderEventKind.RefundCreated or PaymentProviderEventKind.RefundSucceeded or PaymentProviderEventKind.RefundFailed => currentStatus,
+            _ => throw new InvalidOperationException("Provider event kind nao suportado.")
         };
 
         return previousStatus == target ? "idempotent" : "regressive_ignored";

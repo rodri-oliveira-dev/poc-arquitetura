@@ -362,32 +362,32 @@ model {
   }
 
   payment = softwareSystem "PaymentService" {
-    description "Bounded context de pagamentos externos. Cria Payments locais, cria PaymentIntent no provider configurado, recebe webhooks Stripe assinados em Inbox duravel, processa a Inbox no Worker e materializa Payments Succeeded no Ledger via HTTP idempotente, sem Balance direto, Kafka proprio ou refund nesta etapa."
+    description "Bounded context de pagamentos externos. Cria Payments locais, cria PaymentIntent e Refund no provider configurado, recebe webhooks Stripe assinados em Inbox duravel, processa a Inbox no Worker e materializa Payments/Refunds no Ledger via HTTP idempotente, sem Balance direto ou Kafka proprio."
 
     paymentApi = container "PaymentService.Api" {
       technology "ASP.NET Core"
       description "Composition root HTTP do PaymentService. Expoe criacao de Payment, consulta local e webhook Stripe assinado com persistencia em Inbox."
 
       paymentApiLayer = component "API Layer" {
-        description "Controllers, contracts, binders, mappers, Swagger, JWT/JWKS, policies payment.write/payment.read, correlation id, webhooks Stripe e middlewares."
+        description "Controllers, contracts, binders, mappers, Swagger, JWT/JWKS, policies payment.write/payment.read/payment.refund, correlation id, webhooks Stripe e middlewares."
       }
 
       paymentApplication = component "Application Layer" {
-        description "Handlers de criacao, consulta, recebimento de webhook, processamento da Inbox e processor Payment -> Ledger; portas IPaymentRepository, IPaymentIdempotencyService, IPaymentInboxRepository, IUnitOfWork, IPaymentGateway e ILedgerEntryGateway com modelos internos."
+        description "Handlers de criacao, consulta, refund, recebimento de webhook, processamento da Inbox e processor Payment/Refund -> Ledger; portas IPaymentRepository, IPaymentIdempotencyService, IPaymentInboxRepository, IUnitOfWork, IPaymentGateway e ILedgerEntryGateway com modelos internos."
       }
 
       paymentDomain = component "Domain Layer" {
-        description "Aggregate Payment, value objects PaymentId, MerchantId, Money, Currency, ExternalReference, ExternalPaymentReference, LedgerEntryReference e state machine."
+        description "Aggregate Payment com PaymentRefund, value objects PaymentId, RefundId, MerchantId, Money, Currency, ExternalReference, ExternalPaymentReference, LedgerEntryReference e state machines."
       }
 
       paymentInfrastructure = component "Infrastructure Layer" {
-        description "PaymentDbContext, migrations do schema payment, repositories, idempotencia persistida, Inbox, provider fake, adapter HTTP Stripe, LedgerHttpGateway e client credentials para ledger.write."
+        description "PaymentDbContext, migrations do schema payment, repositories, idempotencia persistida, Inbox, provider fake, adapter HTTP Stripe PaymentIntent/Refund, LedgerHttpGateway e client credentials para ledger.write."
       }
     }
 
     paymentWorker = container "PaymentService.Worker" {
       technology ".NET Worker Service"
-      description "Worker dedicado sem HTTP que faz polling da Inbox, claim concorrente, lease, retry persistido, backoff, DeadLetter logico, aplica eventos Stripe suportados na state machine do Payment e chama o Ledger para concluir pagamentos."
+      description "Worker dedicado sem HTTP que faz polling da Inbox, claim concorrente, lease, retry persistido, backoff, DeadLetter logico, aplica eventos Stripe suportados na state machine do Payment/Refund e chama o Ledger para concluir pagamentos e estornos."
 
       paymentWorkerComposition = component "Worker composition root" {
         description "Registra Application, Infrastructure, observabilidade, PaymentInboxWorkerService e PaymentLedgerWorkerService. Nao registra controllers, Swagger ou Kafka proprio."
@@ -406,22 +406,22 @@ model {
       }
 
       paymentLedgerProcessor = component "PaymentLedgerProcessor" {
-        description "Application service que faz claim persistido, monta CREDIT deterministico, interpreta resultado normalizado da porta ILedgerEntryGateway e persiste Completed, RetryScheduled, FailedDefinitive ou DeadLetter."
+        description "Application service que faz claim persistido, monta CREDIT ou estorno deterministico, interpreta resultado normalizado da porta ILedgerEntryGateway e persiste Completed, RetryScheduled, FailedDefinitive ou DeadLetter."
       }
 
       ledgerHttpGateway = component "LedgerHttpGateway" {
-        description "Adapter HTTP da porta ILedgerEntryGateway; chama POST /api/v1/lancamentos com token service-to-service ledger.write, Idempotency-Key deterministica e X-Correlation-Id."
+        description "Adapter HTTP da porta ILedgerEntryGateway; chama POST /api/v1/lancamentos e POST /api/v1/lancamentos/{id}/estornos com token service-to-service ledger.write, Idempotency-Key deterministica e X-Correlation-Id."
       }
     }
 
     paymentDb = container "PostgreSQL schema payment" {
       technology "PostgreSQL"
-      description "Schema payment no PostgreSQL local unico ou boundary equivalente por ambiente: payments, idempotency_records, inbox_messages e metadados de integracao Ledger em payments."
+      description "Schema payment no PostgreSQL local unico ou boundary equivalente por ambiente: payments, payment_refunds, idempotency_records, inbox_messages e metadados de integracao Ledger."
     }
   }
 
   stripe = softwareSystem "Stripe" {
-    description "Provider externo de pagamentos usado pelo PaymentService para criar PaymentIntent e entregar webhooks assinados."
+    description "Provider externo de pagamentos usado pelo PaymentService para criar PaymentIntent/Refund e entregar webhooks assinados."
   }
 
   kafka = softwareSystem "Kafka" {
@@ -659,7 +659,7 @@ model {
   payment.paymentWorker.paymentLedgerProcessor -> payment.paymentDb "Faz claim persistido e salva ledgerEntryId/retry/deadletter" "EF Core / SQL"
   payment.paymentWorker.paymentLedgerProcessor -> payment.paymentWorker.ledgerHttpGateway "Chama porta ILedgerEntryGateway" "porta"
   payment.paymentWorker.ledgerHttpGateway -> identity.keycloak "Obtem token client_credentials com scope ledger.write" "HTTP"
-  payment.paymentWorker.ledgerHttpGateway -> ledger.ledgerApi "Cria CREDIT em POST /api/v1/lancamentos com Idempotency-Key deterministica" "HTTP + JWT"
+  payment.paymentWorker.ledgerHttpGateway -> ledger.ledgerApi "Cria CREDIT e solicita estornos em POST /api/v1/lancamentos/{id}/estornos com Idempotency-Key deterministica" "HTTP + JWT"
   payment.paymentApplication -> payment.paymentProviderEventMapper "Traduz Inbox para evento interno de provider"
   payment.paymentProviderEventMapper -> payment.paymentDomain "Entrega evento traduzido para state machine via Application"
 }

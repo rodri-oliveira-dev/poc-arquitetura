@@ -75,6 +75,64 @@ public sealed class LedgerHttpGateway(HttpClient httpClient) : ILedgerEntryGatew
         }
     }
 
+    public async Task<LedgerReversalRequestResult> RequestReversalAsync(
+        LedgerReversalRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        try
+        {
+            using var httpRequest = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"api/v1/lancamentos/{request.OriginalLedgerEntryReference.Value:D}/estornos")
+            {
+                Content = JsonContent.Create(
+                    new RequestLedgerReversalPayload(request.Reason),
+                    options: JsonOptions)
+            };
+
+            httpRequest.Headers.TryAddWithoutValidation("Idempotency-Key", request.IdempotencyKey.ToString());
+            if (!string.IsNullOrWhiteSpace(request.CorrelationId))
+                httpRequest.Headers.TryAddWithoutValidation("X-Correlation-Id", request.CorrelationId);
+
+            using var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+                return await MapReversalFailureAsync(response, cancellationToken);
+
+            var body = await response.Content.ReadFromJsonAsync<LedgerReversalResponse>(JsonOptions, cancellationToken);
+            return body?.EstornoId is { } estornoId
+                ? LedgerReversalRequestResult.Accepted(estornoId)
+                : LedgerReversalRequestResult.Definitive(
+                    LedgerEntryFailureCategory.UnexpectedResponse,
+                    "LedgerService.Api returned success without a valid reversal identifier.");
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return LedgerReversalRequestResult.UnknownResult("LedgerService.Api reversal request timed out with unknown result.");
+        }
+        catch (HttpRequestException)
+        {
+            return LedgerReversalRequestResult.Transient(
+                LedgerEntryFailureCategory.Network,
+                "Network failure while requesting LedgerService.Api reversal.");
+        }
+        catch (LedgerAuthenticationException exception)
+        {
+            return LedgerReversalRequestResult.Transient(
+                LedgerEntryFailureCategory.Authentication,
+                string.IsNullOrWhiteSpace(exception.Message)
+                    ? "Service-to-service authentication failed before calling LedgerService.Api."
+                    : exception.Message);
+        }
+        catch (Exception exception) when (IsCircuitOpen(exception))
+        {
+            return LedgerReversalRequestResult.Transient(
+                LedgerEntryFailureCategory.CircuitOpen,
+                "LedgerService.Api circuit breaker is open.");
+        }
+    }
+
     private static async Task<LedgerEntryCreationResult> MapFailureAsync(
         HttpResponseMessage response,
         CancellationToken cancellationToken)
@@ -105,6 +163,36 @@ public sealed class LedgerHttpGateway(HttpClient httpClient) : ILedgerEntryGatew
 #pragma warning restore IDE0072
     }
 
+    private static async Task<LedgerReversalRequestResult> MapReversalFailureAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken)
+    {
+        var safeError = $"LedgerService.Api returned HTTP {(int)response.StatusCode} ({response.StatusCode}) for reversal.";
+        var retryAfter = response.Headers.RetryAfter?.Delta;
+
+        if (response.StatusCode == HttpStatusCode.RequestTimeout)
+            return LedgerReversalRequestResult.UnknownResult("LedgerService.Api reversal request timed out with unknown result.");
+
+        if (response.StatusCode == HttpStatusCode.TooManyRequests)
+            return LedgerReversalRequestResult.Transient(LedgerEntryFailureCategory.RateLimited, safeError, retryAfter);
+
+        if (response.StatusCode >= HttpStatusCode.InternalServerError)
+            return LedgerReversalRequestResult.Transient(LedgerEntryFailureCategory.ServiceUnavailable, safeError);
+
+        var detailedError = await ReadSafeErrorAsync(response, safeError, cancellationToken);
+#pragma warning disable IDE0072
+        return response.StatusCode switch
+        {
+            HttpStatusCode.Unauthorized => LedgerReversalRequestResult.Definitive(LedgerEntryFailureCategory.Authentication, detailedError),
+            HttpStatusCode.Forbidden => LedgerReversalRequestResult.Definitive(LedgerEntryFailureCategory.Authorization, detailedError),
+            HttpStatusCode.BadRequest or HttpStatusCode.UnprocessableEntity => LedgerReversalRequestResult.Definitive(LedgerEntryFailureCategory.Validation, detailedError),
+            HttpStatusCode.NotFound => LedgerReversalRequestResult.Definitive(LedgerEntryFailureCategory.NotFound, detailedError),
+            HttpStatusCode.Conflict => LedgerReversalRequestResult.Definitive(LedgerEntryFailureCategory.IdempotencyConflict, detailedError),
+            _ => LedgerReversalRequestResult.Definitive(LedgerEntryFailureCategory.UnexpectedResponse, safeError)
+        };
+#pragma warning restore IDE0072
+    }
+
     private static async Task<string> ReadSafeErrorAsync(
         HttpResponseMessage response,
         string fallback,
@@ -126,4 +214,8 @@ public sealed class LedgerHttpGateway(HttpClient httpClient) : ILedgerEntryGatew
         string ExternalReference);
 
     private sealed record LedgerEntryResponse(string? Id, Guid? LancamentoId);
+
+    private sealed record RequestLedgerReversalPayload(string Motivo);
+
+    private sealed record LedgerReversalResponse(Guid EstornoId);
 }

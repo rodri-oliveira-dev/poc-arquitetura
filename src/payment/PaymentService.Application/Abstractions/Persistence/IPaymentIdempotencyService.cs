@@ -19,4 +19,22 @@ public interface IPaymentIdempotencyService
         string idempotencyKey,
         CreatePaymentResult response,
         CancellationToken cancellationToken);
+
+    Task<PaymentRefundIdempotencyEntry?> GetRefundAsync(string merchantId, string idempotencyKey, CancellationToken cancellationToken);
+
+    Task AddRefundAsync(
+        string merchantId,
+        string idempotencyKey,
+        string requestHash,
+        RequestRefundResult response,
+        DateTimeOffset expiresAt,
+        CancellationToken cancellationToken);
+
+    Task UpdateRefundResponseAsync(
+        string merchantId,
+        string idempotencyKey,
+        RequestRefundResult response,
+        CancellationToken cancellationToken);
 }
+
+public sealed record PaymentRefundIdempotencyEntry(string RequestHash, RequestRefundResult Response);

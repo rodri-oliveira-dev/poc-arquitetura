@@ -106,26 +106,33 @@ Regras:
 
 Eles nao sao intercambiaveis.
 
-### API key Stripe
+### SecretKey Stripe
 
-Para criar PaymentIntent real no sandbox:
+Para criar PaymentIntent e Refund reais no sandbox:
 
 ```powershell
 dotnet user-secrets set "PaymentGateway:Provider" "Stripe" --project ./src/payment/PaymentService.Api/PaymentService.Api.csproj
-dotnet user-secrets set "PaymentGateway:Stripe:ApiKey" "sk_test_xxx" --project ./src/payment/PaymentService.Api/PaymentService.Api.csproj
+dotnet user-secrets set "PaymentGateway:Stripe:SecretKey" "sk_test_xxx" --project ./src/payment/PaymentService.Api/PaymentService.Api.csproj
+dotnet user-secrets set "PaymentGateway:Stripe:SecretKey" "sk_test_xxx" --project ./src/payment/PaymentService.Worker/PaymentService.Worker.csproj
 ```
 
 Ou na sessao:
 
 ```powershell
 $env:PaymentGateway__Provider = "Stripe"
-$env:PaymentGateway__Stripe__ApiKey = "sk_test_xxx"
+$env:PaymentGateway__Stripe__SecretKey = "sk_test_xxx"
 ```
 
 ```bash
 export PaymentGateway__Provider=Stripe
-export PaymentGateway__Stripe__ApiKey=sk_test_xxx
+export PaymentGateway__Stripe__SecretKey=sk_test_xxx
 ```
+
+`PaymentGateway:Stripe:SecretKey` e usado para chamadas da API Stripe. O nome
+legado `PaymentGateway:Stripe:ApiKey` ainda e aceito como alias local, mas novas
+configuracoes devem usar `SecretKey`. O Worker nao chama Stripe no desenho
+atual do refund; o secret no Worker e opcional hoje e fica registrado para
+cenarios futuros/alternativos de reconciliacao.
 
 ### Webhook signing secret
 
@@ -151,7 +158,7 @@ local ignorado pelo Git:
 
 ```env
 PaymentGateway__Provider=Stripe
-PaymentGateway__Stripe__ApiKey=sk_test_xxx
+PaymentGateway__Stripe__SecretKey=sk_test_xxx
 PaymentGateway__Stripe__WebhookSigningSecret=whsec_xxx
 ```
 
@@ -184,7 +191,7 @@ stripe listen --forward-to http://localhost:5234/api/v1/webhooks/stripe
 Para reduzir ruido durante o smoke do MVP:
 
 ```bash
-stripe listen --events payment_intent.processing,payment_intent.succeeded,payment_intent.payment_failed,payment_intent.canceled --forward-to http://localhost:5234/api/v1/webhooks/stripe
+stripe listen --events payment_intent.processing,payment_intent.succeeded,payment_intent.payment_failed,payment_intent.canceled,refund.created,refund.updated,refund.failed --forward-to http://localhost:5234/api/v1/webhooks/stripe
 ```
 
 A CLI imprime uma linha equivalente a:
@@ -262,7 +269,7 @@ Nao trate esse smoke como E2E completo.
 Para validar o fluxo completo:
 
 1. configure `PaymentGateway__Provider=Stripe`;
-2. configure `PaymentGateway__Stripe__ApiKey=sk_test_...`;
+2. configure `PaymentGateway__Stripe__SecretKey=sk_test_...`;
 3. configure `PaymentGateway__Stripe__WebhookSigningSecret=whsec_...`;
 4. crie Payment via `POST /api/v1/payments`;
 5. obtenha `providerPaymentId`;
@@ -317,7 +324,7 @@ Passos:
 
 1. suba PostgreSQL, Keycloak e servicos necessarios;
 2. configure `PaymentGateway__Provider=Stripe`;
-3. configure `PaymentGateway__Stripe__ApiKey=sk_test_...`;
+3. configure `PaymentGateway__Stripe__SecretKey=sk_test_...`;
 4. configure `PaymentGateway__Stripe__WebhookSigningSecret=whsec_...`;
 5. rode `PaymentService.Api`;
 6. rode `PaymentService.Worker`;
@@ -327,6 +334,35 @@ Passos:
 10. verifique Payment e Inbox;
 11. verifique Ledger;
 12. verifique Balance, se a stack de Ledger/Balance estiver ativa.
+
+## Smoke C - refund correlacionado
+
+Objetivo:
+
+```text
+Payment Completed -> POST refund -> Stripe Refund -> webhook refund -> Inbox -> Worker -> Ledger estorno
+```
+
+Passos:
+
+1. conclua o Smoke B ate o Payment ficar `Completed`;
+2. mantenha `stripe listen` apontando para `http://localhost:5234/api/v1/webhooks/stripe`;
+3. chame `POST /api/v1/payments/{paymentId}/refunds` com JWT que tenha scope
+   `payment.refund`, merchant autorizado, `Idempotency-Key` UUID e payload de
+   refund total;
+4. aguarde eventos reais `refund.created`, `refund.updated` ou `refund.failed`;
+5. verifique `payment.inbox_messages`;
+6. rode `PaymentService.Worker`;
+7. confirme que o refund chegou a `Completed` ou ficou pendente de estorno com
+   retry persistido;
+8. verifique no Ledger a solicitacao em
+   `POST /api/v1/lancamentos/{ledgerEntryId}/estornos`;
+9. verifique Balance apenas pela propagacao eventual do Ledger, se a stack
+   completa estiver ativa.
+
+Nao assuma que `stripe trigger refund.created` esta disponivel em todas as
+versoes da CLI. Valide com `stripe trigger --help`; se o trigger sintetico nao
+existir, use o refund real criado pelo PaymentService no sandbox.
 
 ## Pre-requisito para Prompt 7
 

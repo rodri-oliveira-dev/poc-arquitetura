@@ -7,11 +7,15 @@ public static class StripeWebhookEventClassifier
         "payment_intent.processing",
         "payment_intent.succeeded",
         "payment_intent.payment_failed",
-        "payment_intent.canceled"
+        "payment_intent.canceled",
+        "refund.created",
+        "refund.updated",
+        "refund.failed"
     };
 
     private static readonly string[] KnownUnsupportedPrefixes =
     [
+        "charge.refunded",
         "charge.",
         "checkout.",
         "customer.",

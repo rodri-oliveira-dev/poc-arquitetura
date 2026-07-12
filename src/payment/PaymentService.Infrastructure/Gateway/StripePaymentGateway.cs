@@ -32,7 +32,7 @@ public sealed partial class StripePaymentGateway(
         {
             Content = new FormUrlEncodedContent(CreateFormFields(request))
         };
-        httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _options.ApiKey);
+        httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _options.EffectiveSecretKey);
         httpRequest.Headers.TryAddWithoutValidation("Idempotency-Key", request.IdempotencyKey);
 
         try
@@ -89,6 +89,76 @@ public sealed partial class StripePaymentGateway(
         }
     }
 
+    public async Task<CreateExternalRefundResult> CreateRefundAsync(
+        CreateExternalRefundRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        using var activity = telemetry.StartCreateActivity(ProviderName);
+        var start = TimeProvider.System.GetTimestamp();
+
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "refunds")
+        {
+            Content = new FormUrlEncodedContent(CreateRefundFormFields(request))
+        };
+        httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _options.EffectiveSecretKey);
+        httpRequest.Headers.TryAddWithoutValidation("Idempotency-Key", request.IdempotencyKey);
+
+        try
+        {
+            LogStripeRefundStarted(logger);
+            using var response = await httpClient.SendAsync(httpRequest, cancellationToken);
+            var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var exception = MapHttpFailure(response.StatusCode, responseBody, response.Headers.RetryAfter);
+                telemetry.RecordFailure(ProviderName, exception.Category, Elapsed(start));
+                LogStripeCreateFailed(logger, exception.Category, exception.Code);
+                throw exception;
+            }
+
+            var result = ParseRefund(responseBody);
+            telemetry.RecordSuccess(ProviderName, Elapsed(start));
+            LogStripeRefundSucceeded(logger, result.ProviderStatus);
+            return result;
+        }
+        catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            var exception = new PaymentGatewayException(
+                PaymentGatewayErrorCategory.UnknownResult,
+                "Timeout ao criar Refund na Stripe.",
+                "stripe_refund_timeout",
+                innerException: ex);
+            telemetry.RecordFailure(ProviderName, exception.Category, Elapsed(start));
+            LogStripeCreateFailed(logger, exception.Category, exception.Code);
+            throw exception;
+        }
+        catch (HttpRequestException ex)
+        {
+            var exception = new PaymentGatewayException(
+                PaymentGatewayErrorCategory.Transient,
+                "Falha transitoria de rede ao criar Refund na Stripe.",
+                "stripe_refund_network_error",
+                innerException: ex);
+            telemetry.RecordFailure(ProviderName, exception.Category, Elapsed(start));
+            LogStripeCreateFailed(logger, exception.Category, exception.Code);
+            throw exception;
+        }
+        catch (Exception ex) when (IsCircuitOpen(ex))
+        {
+            var exception = new PaymentGatewayException(
+                PaymentGatewayErrorCategory.CircuitOpen,
+                "Circuit breaker aberto para a Stripe.",
+                "stripe_refund_circuit_open",
+                innerException: ex);
+            telemetry.RecordFailure(ProviderName, exception.Category, Elapsed(start));
+            LogStripeCreateFailed(logger, exception.Category, exception.Code);
+            throw exception;
+        }
+    }
+
     private static List<KeyValuePair<string, string>> CreateFormFields(CreateExternalPaymentRequest request)
     {
         var amountInMinorUnits = checked((long)(request.Amount * 100m));
@@ -106,6 +176,28 @@ public sealed partial class StripePaymentGateway(
 
         if (!string.IsNullOrWhiteSpace(request.ExternalReference))
             fields.Add(new("metadata[external_reference]", request.ExternalReference));
+
+        return fields;
+    }
+
+    private static List<KeyValuePair<string, string>> CreateRefundFormFields(CreateExternalRefundRequest request)
+    {
+        var amountInMinorUnits = checked((long)(request.Amount * 100m));
+        List<KeyValuePair<string, string>> fields =
+        [
+            new("payment_intent", request.ProviderPaymentId),
+            new("amount", amountInMinorUnits.ToString(CultureInfo.InvariantCulture)),
+            new("reason", NormalizeStripeRefundReason(request.Reason)),
+            new("metadata[payment_id]", request.PaymentId.ToString("D")),
+            new("metadata[refund_id]", request.RefundId.ToString("D")),
+            new("metadata[currency]", request.Currency)
+        ];
+
+        if (!string.IsNullOrWhiteSpace(request.ExternalReference))
+            fields.Add(new("metadata[external_reference]", request.ExternalReference));
+
+        if (!string.IsNullOrWhiteSpace(request.CorrelationId))
+            fields.Add(new("metadata[correlation_id]", request.CorrelationId));
 
         return fields;
     }
@@ -128,6 +220,43 @@ public sealed partial class StripePaymentGateway(
             IsActionRequired(status),
             status);
     }
+
+    private static CreateExternalRefundResult ParseRefund(string responseBody)
+    {
+        using var document = JsonDocument.Parse(responseBody);
+        var root = document.RootElement;
+        var id = GetRequiredString(root, "id");
+        var status = GetRequiredString(root, "status");
+        var paymentIntent = GetRequiredString(root, "payment_intent");
+        var amount = root.TryGetProperty("amount", out var amountProperty)
+            ? amountProperty.GetInt64() / 100m
+            : throw new PaymentGatewayException(
+                PaymentGatewayErrorCategory.Unknown,
+                "Stripe retornou Refund sem amount.",
+                "stripe_missing_amount");
+        var currency = GetRequiredString(root, "currency").ToUpperInvariant();
+        var createdAt = root.TryGetProperty("created", out var createdProperty)
+            ? DateTimeOffset.FromUnixTimeSeconds(createdProperty.GetInt64())
+            : DateTimeOffset.UtcNow;
+
+        return new CreateExternalRefundResult(
+            "Stripe",
+            id,
+            paymentIntent,
+            status,
+            amount,
+            currency,
+            createdAt,
+            status);
+    }
+
+    private static string NormalizeStripeRefundReason(string reason)
+        => reason.Trim().ToLowerInvariant() switch
+        {
+            "duplicate" => "duplicate",
+            "fraudulent" => "fraudulent",
+            _ => "requested_by_customer"
+        };
 
     private static PaymentGatewayException MapHttpFailure(
         HttpStatusCode statusCode,
@@ -202,4 +331,10 @@ public sealed partial class StripePaymentGateway(
 
     [LoggerMessage(EventId = 12, Level = LogLevel.Warning, Message = "Falha ao criar PaymentIntent na Stripe. Category: {Category}; Code: {Code}")]
     private static partial void LogStripeCreateFailed(ILogger logger, PaymentGatewayErrorCategory category, string? code);
+
+    [LoggerMessage(EventId = 13, Level = LogLevel.Information, Message = "Criando Refund na Stripe.")]
+    private static partial void LogStripeRefundStarted(ILogger logger);
+
+    [LoggerMessage(EventId = 14, Level = LogLevel.Information, Message = "Refund criado na Stripe. ProviderStatus: {ProviderStatus}")]
+    private static partial void LogStripeRefundSucceeded(ILogger logger, string providerStatus);
 }

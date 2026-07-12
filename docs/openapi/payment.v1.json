@@ -290,6 +290,256 @@
         ]
       }
     },
+    "/api/v1/payments/{paymentId}/refunds": {
+      "post": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "Solicita refund de um payment.",
+        "description": "Registra uma solicitacao de refund, chama o provider configurado de forma idempotente e conclui o efeito financeiro interno de forma assincrona por webhook e estorno no Ledger. Refund parcial e rejeitado neste MVP porque o contrato atual do Ledger suporta apenas estorno total.\n\n<b>Autorizacao</b>: requer scope(s): <c>payment.refund</c>. (claim <c>scope</c> do JWT)",
+        "operationId": "RequestPaymentRefund",
+        "parameters": [
+          {
+            "name": "paymentId",
+            "in": "path",
+            "description": "Identificador do Payment.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Chave de idempotencia em formato UUID. Deve ser unica por operacao logica de refund.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Correlation-Id",
+            "in": "header",
+            "description": "Correlation id opcional em formato UUID. Se ausente, a API gera e devolve um valor no response header.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestRefundRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestRefundRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestRefundRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Refund aceito para processamento assincrono.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestRefundResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestRefundResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestRefundResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request invalido.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente ou invalido."
+          },
+          "403": {
+            "description": "Scope insuficiente ou token sem autorizacao para o merchant."
+          },
+          "404": {
+            "description": "Payment inexistente.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflito de idempotencia ou refund pendente.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Violacao de regra de dominio.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Provider externo recusou a operacao.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Provider externo indisponivel.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Timeout com resultado externo desconhecido.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erro interno.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
     "/api/v1/payments/{paymentId}": {
       "get": {
         "tags": [
@@ -699,6 +949,76 @@
           }
         },
         "additionalProperties": { }
+      },
+      "RequestRefundRequest": {
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "number",
+            "description": "Valor do refund. Omitir para refund total. Refund parcial e rejeitado neste MVP.",
+            "format": "double",
+            "nullable": true
+          },
+          "reason": {
+            "type": "string",
+            "description": "Motivo do refund. Ex.: requested_by_customer.",
+            "nullable": true
+          },
+          "externalReference": {
+            "type": "string",
+            "description": "Referencia externa opcional da solicitacao de refund.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Payload para solicitar refund assincrono de um Payment."
+      },
+      "RequestRefundResponse": {
+        "type": "object",
+        "properties": {
+          "paymentId": {
+            "type": "string",
+            "description": "Identificador do Payment.",
+            "format": "uuid"
+          },
+          "refundId": {
+            "type": "string",
+            "description": "Identificador interno do refund.",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "description": "Estado interno do refund.",
+            "nullable": true
+          },
+          "amount": {
+            "type": "number",
+            "description": "Valor do refund.",
+            "format": "double"
+          },
+          "currency": {
+            "type": "string",
+            "description": "Moeda ISO.",
+            "nullable": true
+          },
+          "reason": {
+            "type": "string",
+            "description": "Motivo do refund.",
+            "nullable": true
+          },
+          "externalReference": {
+            "type": "string",
+            "description": "Referencia externa opcional.",
+            "nullable": true
+          },
+          "statusUrl": {
+            "type": "string",
+            "description": "URI futura/estavel para consultar o Payment.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Resposta da solicitacao de refund aceita para processamento assincrono."
       },
       "ValidationErrorResponse": {
         "type": "object",

@@ -5,4 +5,8 @@ public interface IPaymentGateway
     Task<CreateExternalPaymentResult> CreatePaymentIntentAsync(
         CreateExternalPaymentRequest request,
         CancellationToken cancellationToken);
+
+    Task<CreateExternalRefundResult> CreateRefundAsync(
+        CreateExternalRefundRequest request,
+        CancellationToken cancellationToken);
 }

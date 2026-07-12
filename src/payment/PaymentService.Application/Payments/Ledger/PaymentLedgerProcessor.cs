@@ -54,7 +54,34 @@ public sealed class PaymentLedgerProcessor(
             deadLettered += outcome == PersistedOutcome.DeadLettered ? 1 : 0;
         }
 
-        return new PaymentLedgerProcessorResult(claimed.Count, completed, retryScheduled, definitive, deadLettered);
+        var refundClaimed = await _paymentRepository.ClaimRefundLedgerReversalAsync(
+            batchSize,
+            _clock.UtcNow,
+            lockOwner,
+            leaseTimeout,
+            cancellationToken);
+
+        foreach (var payment in refundClaimed)
+        {
+            foreach (var refund in payment.Refunds.Where(x =>
+                x.Status == RefundStatus.LedgerReversalPending &&
+                x.LedgerReversalStatus == LedgerIntegrationStatus.Processing &&
+                string.Equals(x.LedgerLockOwner, lockOwner, StringComparison.Ordinal)))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var request = BuildReversalRequest(payment, refund);
+                var result = await _ledgerEntryGateway.RequestReversalAsync(request, cancellationToken);
+                var outcome = await PersistRefundResultAsync(payment.PaymentId, refund.RefundId, lockOwner, result, cancellationToken);
+
+                completed += outcome == PersistedOutcome.Completed ? 1 : 0;
+                retryScheduled += outcome == PersistedOutcome.RetryScheduled ? 1 : 0;
+                definitive += outcome == PersistedOutcome.FailedDefinitive ? 1 : 0;
+                deadLettered += outcome == PersistedOutcome.DeadLettered ? 1 : 0;
+            }
+        }
+
+        return new PaymentLedgerProcessorResult(claimed.Count + refundClaimed.Count, completed, retryScheduled, definitive, deadLettered);
     }
 
     private static LedgerCreditRequest BuildRequest(Payment payment)
@@ -68,6 +95,18 @@ public sealed class PaymentLedgerProcessor(
             $"payment:{payment.PaymentId.Value}",
             idempotencyKey,
             payment.LedgerCorrelationId);
+    }
+
+    private static LedgerReversalRequest BuildReversalRequest(Payment payment, PaymentRefund refund)
+    {
+        var idempotencyKey = PaymentLedgerIdempotencyKeyFactory.CreateForRefundReversal(payment.PaymentId, refund.RefundId);
+        return new LedgerReversalRequest(
+            payment.PaymentId,
+            refund.RefundId,
+            payment.LedgerEntryReference ?? throw new InvalidOperationException("Refund exige lancamento original no Ledger."),
+            $"Payment refund {refund.RefundId.Value:D}: {refund.Reason}",
+            idempotencyKey,
+            refund.CorrelationId);
     }
 
     private async Task<PersistedOutcome> PersistResultAsync(
@@ -120,6 +159,66 @@ public sealed class PaymentLedgerProcessor(
         }
 
         payment.MarkLedgerDefinitiveFailure(now, result.SafeError ?? "Definitive Ledger integration failure.");
+        return PersistedOutcome.FailedDefinitive;
+    }
+
+    private async Task<PersistedOutcome> PersistRefundResultAsync(
+        PaymentId paymentId,
+        RefundId refundId,
+        string lockOwner,
+        LedgerReversalRequestResult result,
+        CancellationToken cancellationToken)
+    {
+        await using var transaction = await _unitOfWork.BeginTransactionAsync(cancellationToken);
+
+        var payment = await _paymentRepository.GetByIdForUpdateAsync(paymentId, cancellationToken)
+            ?? throw new InvalidOperationException($"Payment {paymentId.Value} nao encontrado ao persistir estorno de refund.");
+        var refund = payment.FindRefund(refundId)
+            ?? throw new InvalidOperationException($"Refund {refundId.Value} nao encontrado ao persistir estorno.");
+
+        if (!string.Equals(refund.LedgerLockOwner, lockOwner, StringComparison.Ordinal))
+            return PersistedOutcome.None;
+
+        var now = _clock.UtcNow;
+        var outcome = ApplyRefundResult(payment, refund, result, now);
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        return outcome;
+    }
+
+    private PersistedOutcome ApplyRefundResult(
+        Payment payment,
+        PaymentRefund refund,
+        LedgerReversalRequestResult result,
+        DateTimeOffset now)
+    {
+        if (result.Outcome == LedgerEntryCreationOutcome.Accepted && result.LedgerReversalId is { } ledgerReversalId)
+        {
+            payment.MarkRefundLedgerReversalAccepted(refund.RefundId, now, ledgerReversalId);
+            return PersistedOutcome.Completed;
+        }
+
+        if (result.Outcome is LedgerEntryCreationOutcome.TransientFailure or LedgerEntryCreationOutcome.UnknownResult)
+        {
+            if (refund.LedgerReversalAttemptCount >= _options.MaxRetryCount)
+            {
+                payment.MarkRefundLedgerDeadLetter(refund.RefundId, now, result.SafeError ?? "Ledger reversal retry limit reached.");
+                return PersistedOutcome.DeadLettered;
+            }
+
+            var nextRetryAt = PaymentLedgerRetryPolicy.CalculateNextRetryAt(
+                now,
+                refund.LedgerReversalAttemptCount,
+                _options.BaseRetryDelay,
+                _options.MaxRetryDelay,
+                result.RetryAfter);
+            payment.ScheduleRefundLedgerRetry(refund.RefundId, now, nextRetryAt, result.SafeError ?? "Transient Ledger reversal failure.");
+            return PersistedOutcome.RetryScheduled;
+        }
+
+        payment.MarkRefundLedgerDefinitiveFailure(refund.RefundId, now, result.SafeError ?? "Definitive Ledger reversal failure.");
         return PersistedOutcome.FailedDefinitive;
     }
 

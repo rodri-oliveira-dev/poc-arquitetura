@@ -9,6 +9,7 @@ namespace PaymentService.Infrastructure.Persistence;
 public sealed class PaymentDbContext(DbContextOptions<PaymentDbContext> options) : DbContext(options), IUnitOfWork
 {
     public DbSet<Payment> Payments => Set<Payment>();
+    public DbSet<PaymentRefund> PaymentRefunds => Set<PaymentRefund>();
     public DbSet<PaymentIdempotencyRecord> IdempotencyRecords => Set<PaymentIdempotencyRecord>();
     public DbSet<PaymentInboxMessage> InboxMessages => Set<PaymentInboxMessage>();
 

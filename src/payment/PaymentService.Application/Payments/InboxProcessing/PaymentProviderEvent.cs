@@ -10,4 +10,8 @@ public sealed record PaymentProviderEvent(
     PaymentId? PaymentId,
     ExternalPaymentReference ProviderPaymentReference,
     string ProviderStatus,
-    string? CorrelationId);
+    string? CorrelationId,
+    RefundId? RefundId = null,
+    string? ProviderRefundId = null,
+    decimal? RefundAmount = null,
+    string? RefundCurrency = null);

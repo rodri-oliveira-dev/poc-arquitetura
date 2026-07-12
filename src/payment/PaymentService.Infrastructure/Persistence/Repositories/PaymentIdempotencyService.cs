@@ -11,6 +11,7 @@ namespace PaymentService.Infrastructure.Persistence.Repositories;
 public sealed class PaymentIdempotencyService(PaymentDbContext context, IClock clock) : IPaymentIdempotencyService
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private const string RefundKeyPrefix = "refund:";
 
     private readonly PaymentDbContext _context = context;
     private readonly IClock _clock = clock;
@@ -72,4 +73,79 @@ public sealed class PaymentIdempotencyService(PaymentDbContext context, IClock c
 
         record.UpdateResponse(JsonSerializer.Serialize(response, JsonOptions));
     }
+
+    public async Task<PaymentRefundIdempotencyEntry?> GetRefundAsync(
+        string merchantId,
+        string idempotencyKey,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(merchantId);
+        ArgumentNullException.ThrowIfNull(idempotencyKey);
+
+        var now = _clock.UtcNow;
+        var effectiveKey = BuildRefundKey(idempotencyKey);
+        var record = await _context.IdempotencyRecords
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                x => x.MerchantId == merchantId
+                    && x.IdempotencyKey == effectiveKey
+                    && x.ExpiresAt > now,
+                cancellationToken);
+
+        if (record is null)
+            return null;
+
+        var response = JsonSerializer.Deserialize<RequestRefundResult>(record.ResponseBody, JsonOptions)
+            ?? throw new InvalidOperationException("Idempotency refund response body invalido.");
+
+        return new PaymentRefundIdempotencyEntry(record.RequestHash, response);
+    }
+
+    public async Task AddRefundAsync(
+        string merchantId,
+        string idempotencyKey,
+        string requestHash,
+        RequestRefundResult response,
+        DateTimeOffset expiresAt,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(merchantId);
+        ArgumentNullException.ThrowIfNull(idempotencyKey);
+        ArgumentNullException.ThrowIfNull(requestHash);
+        ArgumentNullException.ThrowIfNull(response);
+
+        var record = new PaymentIdempotencyRecord(
+            Guid.NewGuid(),
+            merchantId,
+            BuildRefundKey(idempotencyKey),
+            requestHash,
+            JsonSerializer.Serialize(response, JsonOptions),
+            _clock.UtcNow,
+            expiresAt);
+
+        await _context.IdempotencyRecords.AddAsync(record, cancellationToken);
+    }
+
+    public async Task UpdateRefundResponseAsync(
+        string merchantId,
+        string idempotencyKey,
+        RequestRefundResult response,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(merchantId);
+        ArgumentNullException.ThrowIfNull(idempotencyKey);
+        ArgumentNullException.ThrowIfNull(response);
+
+        var effectiveKey = BuildRefundKey(idempotencyKey);
+        var record = await _context.IdempotencyRecords
+            .FirstOrDefaultAsync(
+                x => x.MerchantId == merchantId && x.IdempotencyKey == effectiveKey,
+                cancellationToken)
+            ?? throw new InvalidOperationException("Registro de idempotencia de refund nao encontrado para atualizar resposta.");
+
+        record.UpdateResponse(JsonSerializer.Serialize(response, JsonOptions));
+    }
+
+    private static string BuildRefundKey(string idempotencyKey)
+        => $"{RefundKeyPrefix}{idempotencyKey.Trim()}";
 }

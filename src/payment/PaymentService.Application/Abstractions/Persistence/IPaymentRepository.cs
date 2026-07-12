@@ -20,5 +20,12 @@ public interface IPaymentRepository
         TimeSpan leaseTimeout,
         CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<Payment>> ClaimRefundLedgerReversalAsync(
+        int batchSize,
+        DateTimeOffset now,
+        string lockOwner,
+        TimeSpan leaseTimeout,
+        CancellationToken cancellationToken);
+
     Task AddAsync(Payment payment, CancellationToken cancellationToken);
 }

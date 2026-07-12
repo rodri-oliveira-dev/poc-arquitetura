@@ -15,6 +15,7 @@ public sealed class PaymentRepository(PaymentDbContext context) : IPaymentReposi
 
     public Task<Payment?> GetByIdAsync(PaymentId paymentId, CancellationToken cancellationToken)
         => _context.Payments
+            .Include(x => x.Refunds)
             .FirstOrDefaultAsync(x => x.PaymentId == paymentId, cancellationToken);
 
     public Task<Payment?> GetByIdForUpdateAsync(PaymentId paymentId, CancellationToken cancellationToken)
@@ -25,6 +26,7 @@ public sealed class PaymentRepository(PaymentDbContext context) : IPaymentReposi
             .FromSqlRaw(
                 "SELECT * FROM payment.payments WHERE id = @p_id FOR UPDATE",
                 new NpgsqlParameter("p_id", NpgsqlDbType.Uuid) { Value = paymentId.Value })
+            .Include(x => x.Refunds)
             .AsTracking()
             .SingleOrDefaultAsync(cancellationToken);
     }
@@ -49,6 +51,7 @@ public sealed class PaymentRepository(PaymentDbContext context) : IPaymentReposi
                 """,
                 new NpgsqlParameter("p_provider", NpgsqlDbType.Text) { Value = provider.ToString() },
                 new NpgsqlParameter("p_external_payment_reference", NpgsqlDbType.Text) { Value = externalPaymentReference.Value })
+            .Include(x => x.Refunds)
             .AsTracking()
             .SingleOrDefaultAsync(cancellationToken);
     }
@@ -116,6 +119,79 @@ public sealed class PaymentRepository(PaymentDbContext context) : IPaymentReposi
                 new NpgsqlParameter("p_batch_size", NpgsqlDbType.Integer) { Value = batchSize })
             .AsTracking()
             .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Payment>> ClaimRefundLedgerReversalAsync(
+        int batchSize,
+        DateTimeOffset now,
+        string lockOwner,
+        TimeSpan leaseTimeout,
+        CancellationToken cancellationToken)
+    {
+        var lockedUntil = now.Add(leaseTimeout);
+        if (!_context.Database.IsRelational())
+        {
+            var candidates = await _context.Payments
+                .Include(x => x.Refunds)
+                .Where(x => x.Refunds.Any(r =>
+                    r.Status == RefundStatus.LedgerReversalPending &&
+                    r.LedgerReversalStatus != LedgerIntegrationStatus.FailedDefinitive &&
+                    r.LedgerReversalStatus != LedgerIntegrationStatus.DeadLetter &&
+                    r.LedgerReversalStatus != LedgerIntegrationStatus.Completed &&
+                    (r.LedgerNextRetryAt == null || r.LedgerNextRetryAt <= now) &&
+                    (r.LedgerLockedUntil == null || r.LedgerLockedUntil <= now)))
+                .OrderBy(x => x.UpdatedAt)
+                .Take(batchSize)
+                .ToListAsync(cancellationToken);
+
+            foreach (var payment in candidates)
+            {
+                foreach (var refund in payment.Refunds.Where(r => r.Status == RefundStatus.LedgerReversalPending))
+                    payment.ClaimRefundLedgerReversal(refund.RefundId, now, lockOwner, lockedUntil);
+            }
+
+            await _context.SaveChangesAsync(cancellationToken);
+            return candidates;
+        }
+
+        var ids = await _context.PaymentRefunds
+            .FromSqlRaw(
+                """
+                UPDATE payment.payment_refunds
+                SET ledger_reversal_status = 'Processing',
+                    ledger_reversal_attempt_count = ledger_reversal_attempt_count + 1,
+                    ledger_processing_started_at_utc = @p_now,
+                    ledger_locked_until_utc = @p_locked_until,
+                    ledger_lock_owner = @p_lock_owner,
+                    ledger_last_error = NULL,
+                    updated_at = @p_now
+                WHERE id IN (
+                    SELECT id
+                    FROM payment.payment_refunds
+                    WHERE status = 'LedgerReversalPending'
+                      AND ledger_reversal_status NOT IN ('FailedDefinitive', 'DeadLetter', 'Completed')
+                      AND (ledger_next_retry_at_utc IS NULL OR ledger_next_retry_at_utc <= @p_now)
+                      AND (ledger_locked_until_utc IS NULL OR ledger_locked_until_utc <= @p_now)
+                    ORDER BY updated_at, id
+                    LIMIT @p_batch_size
+                    FOR UPDATE SKIP LOCKED
+                )
+                RETURNING *
+                """,
+                new NpgsqlParameter("p_now", NpgsqlDbType.TimestampTz) { Value = now },
+                new NpgsqlParameter("p_locked_until", NpgsqlDbType.TimestampTz) { Value = lockedUntil },
+                new NpgsqlParameter("p_lock_owner", NpgsqlDbType.Text) { Value = lockOwner },
+                new NpgsqlParameter("p_batch_size", NpgsqlDbType.Integer) { Value = batchSize })
+            .AsTracking()
+            .Select(x => x.PaymentId)
+            .ToListAsync(cancellationToken);
+
+        return ids.Count == 0
+            ? []
+            : await _context.Payments
+                .Include(x => x.Refunds)
+                .Where(x => ids.Contains(x.PaymentId))
+                .ToListAsync(cancellationToken);
     }
 
     public async Task AddAsync(Payment payment, CancellationToken cancellationToken)

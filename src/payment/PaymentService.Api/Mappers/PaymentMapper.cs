@@ -62,4 +62,19 @@ public static class PaymentMapper
             result.UpdatedAt,
             result.CompletedAt);
     }
+
+    public static RequestRefundResponse ToRefundResponse(RequestRefundResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+
+        return new(
+            result.PaymentId,
+            result.RefundId,
+            result.Status,
+            result.Amount,
+            result.Currency,
+            result.Reason,
+            result.ExternalReference,
+            $"/api/v1/payments/{result.PaymentId}");
+    }
 }

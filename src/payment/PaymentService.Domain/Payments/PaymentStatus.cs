@@ -8,6 +8,8 @@ public enum PaymentStatus
     Succeeded = 4,
     LedgerPending = 5,
     Completed = 6,
-    Failed = 7,
-    Cancelled = 8
+    PartiallyRefunded = 7,
+    Refunded = 8,
+    Failed = 9,
+    Cancelled = 10
 }

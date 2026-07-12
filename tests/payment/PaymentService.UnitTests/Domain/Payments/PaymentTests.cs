@@ -159,6 +159,61 @@ public sealed class PaymentTests
         Assert.Throws<DomainException>(() => payment.Cancel(Now.AddMinutes(3)));
     }
 
+    [Fact]
+    public void Request_refund_should_require_completed_payment()
+    {
+        var payment = CreatePayment();
+
+        var exception = Assert.Throws<DomainException>(() => payment.RequestRefund(
+            RefundId.New(),
+            payment.Amount,
+            "requested_by_customer",
+            "refund-123",
+            "correlation-1",
+            Now.AddMinutes(1)));
+
+        Assert.Contains("Completed", exception.Message);
+    }
+
+    [Fact]
+    public void Request_refund_should_reject_partial_amount_while_ledger_supports_total_reversal_only()
+    {
+        var payment = CreateCompletedPayment();
+
+        var exception = Assert.Throws<DomainException>(() => payment.RequestRefund(
+            RefundId.New(),
+            new Money(50m, Currency.Brl),
+            "requested_by_customer",
+            "refund-123",
+            "correlation-1",
+            Now.AddMinutes(4)));
+
+        Assert.Contains("Refund parcial ainda nao e suportado", exception.Message);
+    }
+
+    [Fact]
+    public void Refund_should_move_to_refunded_after_provider_success_and_ledger_reversal_acceptance()
+    {
+        var payment = CreateCompletedPayment();
+        var refund = payment.RequestRefund(
+            RefundId.New(),
+            payment.Amount,
+            "requested_by_customer",
+            "refund-123",
+            "correlation-1",
+            Now.AddMinutes(4));
+
+        payment.RegisterRefundProviderCreated(Now.AddMinutes(5), refund.RefundId, "re_123", "pending");
+        payment.MarkRefundProviderSucceeded(Now.AddMinutes(6), refund.RefundId, "re_123", "succeeded");
+        payment.ClaimRefundLedgerReversal(refund.RefundId, Now.AddMinutes(7), "worker-1", Now.AddMinutes(8));
+        payment.MarkRefundLedgerReversalAccepted(refund.RefundId, Now.AddMinutes(9), Guid.Parse("22222222-2222-2222-2222-222222222222"));
+
+        Assert.Equal(PaymentStatus.Refunded, payment.Status);
+        Assert.Equal(RefundStatus.Completed, refund.Status);
+        Assert.Equal(LedgerIntegrationStatus.Completed, refund.LedgerReversalStatus);
+        Assert.Equal(Guid.Parse("22222222-2222-2222-2222-222222222222"), refund.LedgerReversalId);
+    }
+
     private static Payment CreatePayment()
         => new(
             PaymentId.New(),
@@ -168,4 +223,12 @@ public sealed class PaymentTests
             Now,
             "Pagamento de pedido",
             new ExternalReference("order-123"));
+
+    private static Payment CreateCompletedPayment()
+    {
+        var payment = CreatePayment();
+        payment.MarkSucceeded(Now.AddMinutes(1), new ExternalPaymentReference("pi_123"), "succeeded");
+        payment.MarkCompleted(Now.AddMinutes(2), new LedgerEntryReference(Guid.Parse("11111111-1111-1111-1111-111111111111")));
+        return payment;
+    }
 }
