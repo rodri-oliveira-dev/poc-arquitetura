@@ -19,6 +19,17 @@ A documentacao aqui deve responder perguntas arquiteturais reais:
 Ela nao substitui ADRs, specs, runbooks nem contratos OpenAPI/eventos. O papel
 do LikeC4 e mostrar a arquitetura resultante dessas decisoes.
 
+Como separar as leituras:
+
+- Diagramas C4 mostram estrutura, relacionamentos, fluxos e deployment local.
+- Boundaries explicam responsabilidades e dependencias permitidas entre
+  `Api`, `Application`, `Domain`, `Infrastructure` e `Worker`.
+- [Catalogo de padroes](patterns-catalog.md) explica solucoes reutilizaveis,
+  problemas resolvidos, evidencias, status e trade-offs.
+- ADRs registram decisoes, alternativas e consequencias historicas.
+- Specs detalham requisitos e fluxos de uma iniciativa.
+- Runbooks explicam operacao, recuperacao e troubleshooting.
+
 ## Como esta documentacao esta organizada
 
 Arquivos principais:
@@ -29,6 +40,9 @@ Arquivos principais:
   `Deployments` do LikeC4.
 - `boundaries.md`: regras de fronteira entre `Api`, `Application`, `Domain`,
   `Infrastructure` e `Worker`.
+- `patterns-catalog.md`: catalogo de padroes arquiteturais, de design,
+  integracao, resiliencia, seguranca, observabilidade e infraestrutura
+  confirmados por evidencias do repositorio.
 - `payment-service.md`: leitura arquitetural do PaymentService.
 - `audit-service.md`: leitura arquitetural do AuditService.
 - `decisions.md`: avaliacao critica e riscos arquiteturais.

@@ -96,6 +96,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 ## Explicacao
 
 - [Documentacao arquitetural](architecture/README.md): modelo LikeC4 e publicacao no GitHub Pages.
+- [Catalogo de padroes arquiteturais e de design](architecture/patterns-catalog.md): padroes realmente usados no repositorio, problemas resolvidos, evidencias, status e trade-offs.
 - [Arquitetura do AuditService](architecture/audit-service.md): papel do bounded context, schema `audit`, contrato canonico, seguranca, metadata e limites da etapa sem integracao.
 - [Arquitetura do PaymentService](architecture/payment-service.md): estrutura, state machine, schema `payment`, ACL Stripe/fake provider, webhook, Inbox, Worker e integracao idempotente com Ledger para credito e estorno, preservando limites sem Balance direto/Kafka/refund parcial.
 - [Boundaries arquiteturais](architecture/boundaries.md): responsabilidades de `Api`, `Application`, `Domain` e `Infrastructure`.

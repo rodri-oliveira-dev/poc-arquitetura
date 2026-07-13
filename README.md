@@ -43,6 +43,10 @@ Principais servicos:
 - `Infrastructure`: EF Core, PostgreSQL, repositorios, migrations e implementacoes tecnicas compartilhadas pelos processos.
 
 A leitura arquitetural completa fica em [docs/architecture](docs/architecture/README.md) e as decisoes historicas ficam em [docs/adrs](docs/adrs/README.md).
+Para uma leitura por problema resolvido, consulte o
+[Catalogo de padroes arquiteturais e de design](docs/architecture/patterns-catalog.md),
+que cruza codigo, testes, infraestrutura, ADRs e documentacao para explicar
+padroes aplicados, locais de implementacao, beneficios e trade-offs.
 
 Documentacao arquitetural publicada:
 
@@ -495,6 +499,7 @@ Os scripts executam testes com cobertura e aplicam gate minimo de 85% de cobertu
 - [Politica de versionamento de contratos de eventos](docs/development/event-contract-versioning.md)
 - [Arquitetura](docs/architecture/README.md)
 - [Boundaries arquiteturais](docs/architecture/boundaries.md)
+- [Catalogo de padroes arquiteturais e de design](docs/architecture/patterns-catalog.md)
 - [Baseline de evolucao produtiva](docs/architecture/production-readiness.md)
 - [ADRs](docs/adrs/README.md)
 - [Autenticacao e autorizacao](docs/development/authentication.md)
