@@ -14,7 +14,8 @@ A documentacao aqui deve responder perguntas arquiteturais reais:
   Audit;
 - como lancamentos, saldos, pagamentos, refunds, webhooks, Outbox, Inbox, Kafka
   e autenticacao se conectam;
-- quais partes sao runtime atual, alternativas explicitas ou evolucao futura.
+- quais partes fazem parte do runtime documentado e quais fluxos ainda sao
+  opcionais ou futuros.
 
 Ela nao substitui ADRs, specs, runbooks nem contratos OpenAPI/eventos. O papel
 do LikeC4 e mostrar a arquitetura resultante dessas decisoes.
@@ -79,15 +80,14 @@ Na pratica:
 
 ## Como ler os diagramas
 
-Comece pelo nivel da pergunta:
+Use esta ordem de leitura para onboarding:
 
-1. Se a duvida e "quais sistemas existem?", abra `systemLandscape`.
-2. Se a duvida e "quais processos, bancos e brokers existem?", abra
-   `containers`.
-3. Se a duvida e "como uma operacao acontece?", abra uma view `Dynamic View`.
-4. Se a duvida e "o que existe dentro de uma API ou Worker?", abra uma
-   `Component View`.
-5. Se a duvida e "o que sobe no Compose?", abra `localDeployment`.
+1. `systemLandscape`: ecossistema, atores, bounded contexts e externos.
+2. `containers`: APIs, workers, schemas, Kafka e provedores externos.
+3. Fluxos principais: lancamento, pagamento, refund, transferencia e auditoria.
+4. Component view do servico que sera alterado.
+5. `localDeployment`: mapeamento para o Compose local documentado.
+6. Markdown complementar, ADRs, specs e runbooks quando precisar de detalhe.
 
 Evite ler todas as views em sequencia como se fossem capitulos. Cada view deve
 ser usada como resposta a uma pergunta.
@@ -102,11 +102,10 @@ tabelas ou migrations.
 
 ### Container
 
-Mostra APIs, Workers, schemas PostgreSQL, Kafka topics, Pub/Sub topics ou
-subscriptions e provedores externos. Schemas como `ledger`, `balance`,
-`transfer`, `payment`, `identity` e `audit` representam isolamento logico por
-bounded context. No ambiente local, eles usam um PostgreSQL compartilhado quando
-as migrations correspondentes sao aplicadas.
+Mostra APIs, Workers, schemas PostgreSQL, Kafka e provedores externos. Schemas
+como `ledger`, `balance`, `transfer`, `payment`, `identity` e `audit`
+representam isolamento logico por bounded context. No ambiente local, eles usam
+um PostgreSQL compartilhado quando as migrations correspondentes sao aplicadas.
 
 ### Component
 
@@ -132,12 +131,11 @@ diagnostico operacional e para distinguir Compose local de arquitetura logica.
 | `containers` | Container | Entender APIs, Workers, schemas, brokers e provedores | Quais executaveis e recursos logicos compoem a POC |
 | `ledgerBalanceProjectionFlow` | Dynamic / Flow | Entender lancamento financeiro e saldo | Como Ledger grava o fato, publica Outbox no Kafka e Balance projeta saldo |
 | `identityRegistrationFlow` | Dynamic / Flow | Entender cadastro de usuario | Como IdentityService cria usuario no Keycloak, persiste vinculo local e envia e-mail |
-| `kafkaFlow` | Operational / Runtime | Entender Kafka default | Onde Kafka e usado por Ledger, Balance, Transfer e auditoria opcional |
-| `pubSubLegacyFlow` | Operational / Runtime | Entender modo Pub/Sub explicito/legado | Como Ledger e Balance usam Pub/Sub quando `Messaging:Provider=PubSub` |
+| `kafkaFlow` | Operational / Runtime | Entender mensageria assincrona documentada | Onde Kafka e usado por Ledger, Balance, Transfer e auditoria opcional |
 | `observabilityFlow` | Operational / Observability | Entender telemetria local | Como APIs, Workers, Collector, Jaeger, Prometheus, Loki, Alloy, Alertmanager e Grafana se conectam |
 | `localDeployment` | Deployment / Runtime | Entender Docker Compose local | Quais servicos do Compose atual existem e a que elementos logicos correspondem |
 | `ledgerApiComponents` | Component | Revisar LedgerService.Api | Como HTTP, Application, Domain, Infrastructure e schema ledger se separam |
-| `ledgerWorkerComponents` | Component | Revisar LedgerService.Worker | Como Outbox, Kafka/PubSub, estornos e reprocessamento ficam no Worker |
+| `ledgerWorkerComponents` | Component | Revisar LedgerService.Worker | Como Outbox Kafka, estornos e reprocessamento ficam no Worker |
 | `balanceApiComponents` | Component | Revisar BalanceService.Api | Como a API consulta a projecao sem criar fatos financeiros |
 | `balanceWorkerComponents` | Component | Revisar BalanceService.Worker | Como eventos do Ledger viram saldos e DLQ |
 | `identityServiceComponents` | Component | Revisar IdentityService.Api | Como cadastro, Keycloak Admin API, Domain Event Dispatcher e e-mail se conectam |
@@ -203,7 +201,7 @@ Payment ainda nao publicam eventos reais de auditoria.
 ### Lancamento financeiro e saldo
 
 Veja `ledgerBalanceProjectionFlow`. A fonte de verdade e Ledger; Balance apenas
-projeta eventos do Ledger.
+projeta eventos do Ledger recebidos pelo Kafka.
 
 ### Transferencia
 

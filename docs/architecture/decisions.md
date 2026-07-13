@@ -2,7 +2,7 @@
 
 ## Resumo executivo
 
-A arquitetura atual esta mais proxima de Clean Architecture/DDD por bounded context, mas nao e pura. Na pratica, e uma arquitetura hibrida e coerente com um projeto de estudos arquiteturais que nasceu como POC: camadas internas nos servicos com dominio relevante, APIs HTTP e workers separados por processo, Outbox com Kafka default e Pub/Sub explicito/legado para consistencia eventual, Keycloak como IdP principal, IdentityService como bounded context de cadastro/vinculo local de usuarios, PaymentService como bounded context de pagamentos externos e AuditService como bounded context de auditoria funcional.
+A arquitetura atual esta mais proxima de Clean Architecture/DDD por bounded context, mas nao e pura. Na pratica, e uma arquitetura hibrida e coerente com um projeto de estudos arquiteturais que nasceu como POC: camadas internas nos servicos com dominio relevante, APIs HTTP e workers separados por processo, Outbox com Kafka para consistencia eventual, Keycloak como IdP principal, IdentityService como bounded context de cadastro/vinculo local de usuarios, PaymentService como bounded context de pagamentos externos e AuditService como bounded context de auditoria funcional.
 
 A recomendacao e nao aumentar o numero de camadas agora. O melhor caminho e preservar a estrutura atual, corrigir assimetrias pontuais e fortalecer contratos/eventos/documentacao antes de qualquer reestruturacao.
 
@@ -18,7 +18,7 @@ repositorios, bancos ou topologia runtime.
 
 Camadas atuais: adequadas.
 
-O servico tem complexidade suficiente para justificar separacao: endpoint protegido, idempotencia, transacao, dominio com invariantes, persistencia e Outbox com Kafka default e Pub/Sub explicito/legado. A separacao em `LedgerService.Api` e `LedgerService.Worker` ajuda escala independente, troubleshooting, readiness e observabilidade.
+O servico tem complexidade suficiente para justificar separacao: endpoint protegido, idempotencia, transacao, dominio com invariantes, persistencia e Outbox publicada no Kafka. A separacao em `LedgerService.Api` e `LedgerService.Worker` ajuda escala independente, troubleshooting, readiness e observabilidade.
 
 Excessos ou sinais de atencao:
 
@@ -36,7 +36,7 @@ Simplificacoes recomendadas:
 
 Camadas atuais: adequadas, com algum overhead aceitavel.
 
-Balance possui leitura HTTP, consumer Kafka default, adapter Pub/Sub explicito/legado, DLQ, idempotencia de eventos e projecao. A separacao em `BalanceService.Api` e `BalanceService.Worker`, compartilhando Application/Domain/Infrastructure por composition roots explicitos, e justificavel.
+Balance possui leitura HTTP, consumer Kafka, DLQ, idempotencia de eventos e projecao. A separacao em `BalanceService.Api` e `BalanceService.Worker`, compartilhando Application/Domain/Infrastructure por composition roots explicitos, e justificavel.
 
 Excessos ou sinais de atencao:
 
@@ -166,7 +166,7 @@ O roadmap consolidado por areas de maturidade fica em [docs/roadmap.md](../roadm
 ### Quick wins
 
 - Manter estes diagramas LikeC4 atualizados junto com ADRs relevantes.
-- Manter testes de contrato para `LedgerEntryCreated.v2` validando payload e mapeamentos Pub/Sub/Kafka, preservando leitura de `LedgerEntryCreated.v1` legado.
+- Manter testes de contrato para `LedgerEntryCreated.v2` validando payload e mapeamentos Kafka, preservando leitura de `LedgerEntryCreated.v1` legado.
 - Manter documentada a diferenca entre `LedgerEntryCreated.v2` atual e fallback `BRL` apenas para v1 legado.
 - Padronizar onde ficam portas de persistencia nos proximos servicos; nao mover agora sem refactor dedicado.
 - Manter OpenAPI automatizado como parte da validacao de contrato HTTP: geracao, lint, drift e diff de breaking changes.
