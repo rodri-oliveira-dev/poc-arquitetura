@@ -85,11 +85,17 @@ Na pratica:
 Use esta ordem de leitura para onboarding:
 
 1. `systemLandscape`: ecossistema, atores, bounded contexts e externos.
-2. `containers`: APIs, workers, schemas, Kafka e provedores externos.
-3. Fluxos principais: lancamento, pagamento, refund, transferencia e auditoria.
-4. Component view do servico que sera alterado.
-5. `localDeployment`: mapeamento para o Compose local documentado.
-6. Markdown complementar, ADRs, specs e runbooks quando precisar de detalhe.
+2. `businessContainers`: executaveis, bancos logicos e relacoes funcionais dos
+   servicos de negocio.
+3. `integrationContainers`: Kafka, provedores externos, identidade, e-mail e
+   chamadas HTTP service-to-service.
+4. Fluxos principais: lancamento, transferencia, compensacao, pagamento, refund
+   e auditoria.
+5. Component view da API ou Worker do servico que sera alterado.
+6. `platformContainers` e `localDeployment`: runtime local, plataforma,
+   observabilidade e mapeamento para Compose.
+7. `containers`: referencia expandida quando precisar ver tudo junto.
+8. Markdown complementar, ADRs, specs e runbooks quando precisar de detalhe.
 
 Evite ler todas as views em sequencia como se fossem capitulos. Cada view deve
 ser usada como resposta a uma pergunta.
@@ -111,9 +117,12 @@ um PostgreSQL compartilhado quando as migrations correspondentes sao aplicadas.
 
 ### Component
 
-Mostra componentes internos relevantes de um container, respeitando camadas:
-`Api`, `Application`, `Domain`, `Infrastructure` e `Worker`. Nao deve substituir
-o codigo nem listar classes sem decisao arquitetural envolvida.
+Mostra componentes internos relevantes de um container ou bounded context,
+respeitando camadas: `Api`, `Application`, `Domain`, `Infrastructure` e
+`Worker`. Quando `Application`, `Domain` ou `Infrastructure` sao assemblies
+compartilhados por API e Worker, a view deve deixar claro que eles nao pertencem
+ao processo HTTP nem sao implantados como servicos separados. Nao deve
+substituir o codigo nem listar classes sem decisao arquitetural envolvida.
 
 ### Dynamic / Flow
 
@@ -130,7 +139,10 @@ diagnostico operacional e para distinguir Compose local de arquitetura logica.
 | Diagrama | Nivel | Quando consultar | O que responde |
 | --- | --- | --- | --- |
 | `systemLandscape` | System Context | Inicio da leitura | Quais sistemas, contexts e externos existem no ecossistema |
-| `containers` | Container | Entender APIs, Workers, schemas, brokers e provedores | Quais executaveis e recursos logicos compoem a POC |
+| `businessContainers` | Container | Primeira leitura detalhada dos servicos | Quais executaveis, schemas logicos e relacoes funcionais existem por bounded context |
+| `integrationContainers` | Container | Entender integracoes entre servicos e externos | Como Kafka, topicos, Keycloak, Stripe, e-mail e chamadas HTTP service-to-service conectam os servicos |
+| `platformContainers` | Container / Runtime | Entender plataforma local sem entrar no deployment fisico | Como Nginx, Keycloak, PostgreSQL compartilhado por schemas, Kafka e observabilidade sustentam o runtime local |
+| `containers` | Container | Referencia expandida, nao primeira leitura | Qual e o mapa completo quando APIs, Workers, schemas, broker, externos e observabilidade precisam aparecer juntos |
 | `ledgerBalanceProjectionFlow` | Dynamic / Flow | Entender lancamento financeiro e saldo | Como Ledger grava o fato, publica Outbox no Kafka e Balance projeta saldo |
 | `identityRegistrationFlow` | Dynamic / Flow | Entender cadastro de usuario | Como IdentityService cria usuario no Keycloak, persiste vinculo local e envia e-mail |
 | `kafkaFlow` | Operational / Runtime | Entender mensageria assincrona padrao | Onde Kafka e usado por Ledger, Balance, Transfer e auditoria opcional |
@@ -141,17 +153,21 @@ diagnostico operacional e para distinguir Compose local de arquitetura logica.
 | `ledgerWorkerComponents` | Component | Revisar LedgerService.Worker | Como Outbox Kafka, estornos e reprocessamento ficam no Worker |
 | `balanceApiComponents` | Component | Revisar BalanceService.Api | Como a API consulta a projecao sem criar fatos financeiros |
 | `balanceWorkerComponents` | Component | Revisar BalanceService.Worker | Como eventos do Ledger viram saldos e DLQ |
+| `transferApiComponents` | Component | Revisar TransferService.Api | Como HTTP, Application, Domain, Infrastructure, idempotencia, Outbox, schema transfer e Keycloak se conectam sem regra de Saga no controller |
+| `transferWorkerComponents` | Component | Revisar TransferService.Worker | Como o Worker reclama Sagas, chama Ledger com client credentials, aplica retry/backoff/compensacao e publica Outbox Kafka/DLQ |
+| `transferSagaSuccessFlow` | Dynamic / Flow | Entender transferencia concluida | Como Transfer registra a Saga, cria debito/credito no Ledger, publica eventos de Saga Kafka e permite consulta de status |
+| `transferSagaCompensationFlow` | Dynamic / Flow | Entender falha compensavel | Como falha no credito apos debito gera solicitacao de estorno no Ledger, evento de compensacao solicitada e possivel falha definitiva |
 | `identityServiceComponents` | Component | Revisar IdentityService.Api | Como cadastro, Keycloak Admin API, Domain Event Dispatcher e e-mail se conectam |
 | `identityComponents` | Component | Revisar Keycloak local | Quais partes do IdP local importado importam para autenticacao |
-| `paymentApiComponents` | Component | Revisar PaymentService.Api | Como controllers, ACL Stripe/fake, Application, Domain, Infrastructure e Inbox se separam |
-| `paymentWorkerComponents` | Component | Revisar PaymentService.Worker | Como Inbox, state machine e materializacao no Ledger rodam fora da API |
+| `paymentApiComponents` | Component | Revisar PaymentService.Api | Como controllers usam Application/Domain/Infrastructure compartilhadas sem transformar essas bibliotecas em parte exclusiva da API |
+| `paymentWorkerComponents` | Component | Revisar PaymentService.Worker | Como Inbox, state machine e materializacao no Ledger rodam fora da API usando as mesmas bibliotecas compartilhadas |
 | `paymentCreateFlow` | Dynamic / Flow | Entender criacao de Payment | Como cliente, PaymentService.Api, provider externo e schema payment interagem |
 | `paymentWebhookInboxFlow` | Dynamic / Flow | Entender webhooks Stripe | Como Stripe entra pela API, e persistido na Inbox e processado pelo Worker |
 | `paymentLedgerMaterializationFlow` | Dynamic / Flow | Entender Payment -> Ledger -> Balance | Como pagamento confirmado vira lancamento Ledger e saldo projetado |
 | `paymentRefundFlow` | Dynamic / Flow | Entender refund total | Como refund Stripe vira estorno Ledger e evento compensatorio para Balance |
-| `auditApiComponents` | Component | Revisar AuditService.Api | Como o contrato HTTP canonico de auditoria persiste registros no schema audit |
-| `auditWorkerComponents` | Component | Revisar AuditService.Worker | Como o consumer Kafka opcional processa AuditRecordRequested.v1 |
-| `auditKafkaIngestionFlow` | Dynamic / Flow | Entender auditoria assincrona opcional | Como o Worker consome auditoria quando houver producer futuro, sem declarar producers atuais |
+| `auditApiComponents` | Component | Revisar AuditService.Api | Como o contrato HTTP canonico usa Application/Domain/Infrastructure compartilhadas para persistir registros no schema audit |
+| `auditWorkerComponents` | Component | Revisar AuditService.Worker | Como o consumer Kafka opcional processa AuditRecordRequested.v1 sem depender do container da API |
+| `auditKafkaIngestionFlow` | Dynamic / Flow | Entender auditoria assincrona opcional | Como o Worker consome auditoria quando houver producer habilitado, sem declarar producers atuais |
 
 ## Principais bounded contexts
 
@@ -182,6 +198,11 @@ processada pelo Worker, que chama LedgerService.Api para materializar credito ou
 estorno. Payment nao grava Ledger DB, nao grava Balance DB e nao publica evento
 financeiro direto no Kafka.
 
+No modelo LikeC4, `PaymentService.Application`, `PaymentService.Domain` e
+`PaymentService.Infrastructure` aparecem no nivel do bounded context para evitar
+ownership visual enganoso: API e Worker sao processos separados que referenciam
+essas bibliotecas, nao ha dependencia do Worker no container HTTP.
+
 No ambiente local padrao, `payment-service` e `payment-worker` sobem pelo
 `compose.yaml` apos as migrations do schema `payment` serem aplicadas pelos
 scripts `scripts/local/start-stack.*`.
@@ -199,6 +220,11 @@ registros no schema `audit`. O Worker Kafka opcional consome
 `AuditRecordRequested.v1` quando habilitado, mas Ledger, Balance, Transfer e
 Payment ainda nao publicam eventos reais de auditoria.
 
+No modelo LikeC4, `AuditService.Application`, `AuditService.Domain` e
+`AuditService.Infrastructure` tambem aparecem no nivel do bounded context. Isso
+representa os assemblies compartilhados por `AuditService.Api` e
+`AuditService.Worker`, sem sugerir que o Worker dependa da API.
+
 ## Fluxos principais
 
 ### Lancamento financeiro e saldo
@@ -214,8 +240,11 @@ principais e deve ser lida como caminho explicito/legado, nao como default.
 
 ### Transferencia
 
-Veja `containers` e `kafkaFlow`. TransferService orquestra a Saga e chama
-LedgerService.Api. Os eventos de Saga sao Kafka-only e nao alimentam saldo.
+Veja `transferSagaSuccessFlow`, `transferSagaCompensationFlow`,
+`transferApiComponents`, `transferWorkerComponents` e `kafkaFlow`.
+TransferService orquestra a Saga, chama LedgerService.Api por HTTP e publica
+eventos de Saga Kafka-only. Esses eventos nao sao fatos financeiros do Ledger e
+nao alimentam saldo diretamente.
 
 ### Pagamento externo com Stripe
 
@@ -230,13 +259,14 @@ webhook/Inbox, Worker, LedgerService.Api, Outbox do Ledger, Kafka e Balance.
 
 ### Autenticacao
 
-Veja `systemLandscape`, `containers`, `identityRegistrationFlow` e
+Veja `systemLandscape`, `integrationContainers`, `identityRegistrationFlow` e
 `identityComponents`. Keycloak e o emissor; APIs validam JWT/JWKS.
 
 ### Observabilidade
 
-Veja `observabilityFlow`. A stack e local e inclui OpenTelemetry Collector,
-Jaeger, Prometheus, Loki, Grafana Alloy, Alertmanager e Grafana.
+Veja `platformContainers` para contexto local e `observabilityFlow` para o fluxo
+tecnico de telemetria. A stack e local e inclui OpenTelemetry Collector, Jaeger,
+Prometheus, Loki, Grafana Alloy, Alertmanager e Grafana.
 
 ## Como gerar os diagramas localmente
 

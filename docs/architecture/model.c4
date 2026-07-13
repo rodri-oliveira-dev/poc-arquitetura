@@ -19,7 +19,7 @@ specification {
 
 model {
   customer = actor "Cliente / Sistema externo" {
-    description "Obtem token no IdP local e chama APIs HTTP para criacao de lancamentos, solicitacao/consulta de estornos, solicitacao/consulta de reprocessamentos e consulta de consolidados."
+    description "Obtem token no IdP local e chama APIs HTTP para criacao de lancamentos, solicitacao/consulta de estornos, solicitacao/consulta de reprocessamentos, solicitacao/consulta de transferencias e consulta de consolidados."
   }
 
   observability = softwareSystem "Observabilidade" {
@@ -330,20 +330,20 @@ model {
       description "Composition root HTTP do TransferService. Expoe solicitacao e consulta de transferencias, com idempotencia e autorizacao por merchant."
 
       transferApiLayer = component "API Layer" {
-        description "Camada HTTP de POST /transferencias e consulta de status, sem regras de Saga no controller."
+        description "Controllers versionados, contracts, binders, mappers, Swagger/OpenAPI, JWT/JWKS, policies transfer.write/transfer.read, autorizacao por merchant, correlation id e middlewares. Encaminha POST /api/v1/transferencias e GET /api/v1/transferencias/{transferenciaId} para Application."
       }
+    }
 
-      transferApplication = component "Application Layer" {
-        description "Handlers iniciais de solicitacao/status, portas de repository, idempotencia, Outbox e Unit of Work."
-      }
+    transferApplication = component "TransferService.Application" {
+      description "Assembly compartilhado por TransferService.Api e TransferService.Worker. Contem SolicitarTransferenciaCommandHandler, ObterStatusTransferenciaQueryHandler, validadores, portas ITransferenciaSagaRepository, ITransferenciaIdempotencyService, ITransferenciaOutboxWriter, IUnitOfWork e factories dos eventos Transferencia*.v1."
+    }
 
-      transferDomain = component "Domain Layer" {
-        description "Aggregate TransferenciaSaga com estados, etapas, retry, idempotencia e metadados de correlacao."
-      }
+    transferDomain = component "TransferService.Domain" {
+      description "Assembly de dominio compartilhado via Application e Infrastructure. Contem aggregate TransferenciaSaga, value objects MerchantId e TransferAmount, status Pending/Processing/DebitCreating/DebitCreated/CreditCreating/Completed/CompensationRequested/Compensated/Failed/Rejected, etapas, retry persistido e lock de processamento."
+    }
 
-      transferInfrastructure = component "Infrastructure Layer" {
-        description "TransferServiceDbContext, migrations do schema transfer, repository concreto, idempotencia persistida, Outbox transacional e mapper de metadados Kafka."
-      }
+    transferInfrastructure = component "TransferService.Infrastructure" {
+      description "Assembly compartilhado por TransferService.Api e TransferService.Worker. Implementa TransferServiceDbContext, schema transfer, migrations, repository com claim FOR UPDATE SKIP LOCKED, idempotencia persistida, Outbox transacional e mapper de metadados Kafka."
     }
 
     transferWorker = container "TransferService.Worker" {
@@ -351,7 +351,31 @@ model {
       description "Worker dedicado para processar Sagas pendentes e publicar a Outbox do TransferService no Kafka, sem superficie HTTP."
 
       transferWorkerComposition = component "Worker composition root" {
-        description "Registra Application, Infrastructure, LedgerServiceClient, processor da Saga e publisher Kafka da Outbox."
+        description "Program/DI do Worker. Registra Application, Infrastructure, observabilidade, opcoes TransferService:Worker, resiliencia HTTP, autenticacao client_credentials, LedgerServiceClient, processor da Saga e publisher Kafka da Outbox."
+      }
+
+      transferSagaProcessor = component "TransferenciaSagaProcessorService" {
+        description "BackgroundService que faz polling, reclama Sagas elegiveis, aplica lock/lease persistido, chama Ledger para debito, credito e compensacao, agenda retry/backoff ou grava TransferenciaFalhou.v1."
+      }
+
+      transferSagaClaim = component "Saga claim e lease" {
+        description "Repository usa status, NextRetryAt e ProcessingLockedUntil; em PostgreSQL faz claim concorrente com FOR UPDATE SKIP LOCKED e atualiza ProcessingLockOwner/ProcessingLockedUntil."
+      }
+
+      transferLedgerClient = component "LedgerServiceClient" {
+        description "Adapter HTTP que chama POST /api/v1/lancamentos para DEBIT/CREDIT e POST /api/v1/lancamentos/{lancamentoId}/estornos para compensacao, propagando X-Correlation-Id e Idempotency-Key UUID deterministica por etapa."
+      }
+
+      transferLedgerAuth = component "Client credentials para Ledger" {
+        description "ClientCredentialsLedgerAccessTokenProvider e LedgerAuthenticationHandler obtem token Keycloak com scope ledger.write, fazem cache ate RefreshSkew e aplicam Authorization: Bearer nas chamadas ao Ledger."
+      }
+
+      transferOutboxPublisher = component "TransferenciaOutboxPublisherService" {
+        description "BackgroundService que faz polling da Outbox, aplica lock/lease, valida payload JSON, publica no Kafka, marca Published, agenda retry/backoff ou envia para DLQ."
+      }
+
+      transferKafkaProducer = component "KafkaTransferenciaOutboxPublisher" {
+        description "Producer Kafka idempotente que publica eventos Transferencia*.v1 no topico resolvido por event_type, usa transferenciaId como message key e adiciona headers event_id, event_type, aggregate_type, aggregate_id, correlation_id e dlq_reason quando aplicavel."
       }
     }
 
@@ -371,18 +395,22 @@ model {
       paymentApiLayer = component "API Layer" {
         description "Controllers, contracts, binders, mappers, Swagger, JWT/JWKS, policies payment.write/payment.read/payment.refund, correlation id, webhooks Stripe e middlewares."
       }
+    }
 
-      paymentApplication = component "Application Layer" {
-        description "Handlers de criacao, consulta, refund, recebimento de webhook, processamento da Inbox e processor Payment/Refund -> Ledger; portas IPaymentRepository, IPaymentIdempotencyService, IPaymentInboxRepository, IUnitOfWork, IPaymentGateway e ILedgerEntryGateway com modelos internos."
-      }
+    paymentApplication = component "PaymentService.Application" {
+      description "Assembly compartilhado por PaymentService.Api e PaymentService.Worker. Contem handlers de criacao, consulta, refund, recebimento de webhook, processamento da Inbox e processor Payment/Refund -> Ledger; portas IPaymentRepository, IPaymentIdempotencyService, IPaymentInboxRepository, IUnitOfWork, IPaymentGateway e ILedgerEntryGateway com modelos internos."
+    }
 
-      paymentDomain = component "Domain Layer" {
-        description "Aggregate Payment com PaymentRefund, value objects PaymentId, RefundId, MerchantId, Money, Currency, ExternalReference, ExternalPaymentReference, LedgerEntryReference e state machines."
-      }
+    paymentDomain = component "PaymentService.Domain" {
+      description "Assembly de dominio compartilhado via Application e Infrastructure. Contem aggregate Payment com PaymentRefund, value objects PaymentId, RefundId, MerchantId, Money, Currency, ExternalReference, ExternalPaymentReference, LedgerEntryReference e state machines."
+    }
 
-      paymentInfrastructure = component "Infrastructure Layer" {
-        description "PaymentDbContext, migrations do schema payment, repositories, idempotencia persistida, Inbox, provider fake, adapter HTTP Stripe PaymentIntent/Refund, LedgerHttpGateway e client credentials para ledger.write."
-      }
+    paymentInfrastructure = component "PaymentService.Infrastructure" {
+      description "Assembly compartilhado por PaymentService.Api e PaymentService.Worker. Implementa PaymentDbContext, migrations do schema payment, repositories, idempotencia persistida, Inbox, provider fake, adapter HTTP Stripe PaymentIntent/Refund, LedgerHttpGateway e client credentials para ledger.write."
+    }
+
+    paymentProviderEventMapper = component "StripeInboxProviderEventMapper" {
+      description "Componente de Application usado pelo Worker para traduzir evento Stripe persistido na Inbox para evento interno de provider sem expor tipos Stripe ao dominio."
     }
 
     paymentWorker = container "PaymentService.Worker" {
@@ -395,10 +423,6 @@ model {
 
       paymentInboxWorker = component "PaymentInboxWorkerService" {
         description "BackgroundService que reclama mensagens elegiveis da Inbox, processa lote sequencial, respeita cancellation token e agenda retry ou DeadLetter por mensagem."
-      }
-
-      paymentProviderEventMapper = component "StripeInboxProviderEventMapper" {
-        description "Traduz evento Stripe persistido na Inbox para evento interno de provider sem expor tipos Stripe ao dominio."
       }
 
       paymentLedgerWorker = component "PaymentLedgerWorkerService" {
@@ -430,18 +454,18 @@ model {
       auditApiLayer = component "API Layer" {
         description "Controllers, contracts, Swagger/OpenAPI, JWT/JWKS, policies audit.*, filtros de consulta, ProblemDetails, health/readiness e composition root HTTP."
       }
+    }
 
-      auditApplication = component "Application Layer" {
-        description "Casos de uso de criacao/consulta, idempotencia, validacao canonica, ingestion service e portas de persistencia sem conhecer Ledger, Balance, Transfer ou Payment."
-      }
+    auditApplication = component "AuditService.Application" {
+      description "Assembly compartilhado por AuditService.Api e AuditService.Worker. Contem casos de uso de criacao/consulta, idempotencia, validacao canonica, ingestion service e portas de persistencia sem conhecer Ledger, Balance, Transfer ou Payment."
+    }
 
-      auditDomain = component "Domain Layer" {
-        description "FunctionalAuditRecord, actor funcional, metadata minimizada, invariantes de operacao, merchant, status, reason e timestamps."
-      }
+    auditDomain = component "AuditService.Domain" {
+      description "Assembly de dominio compartilhado via Application e Infrastructure. Contem FunctionalAuditRecord, actor funcional, metadata minimizada, invariantes de operacao, merchant, status, reason e timestamps."
+    }
 
-      auditInfrastructure = component "Infrastructure Layer" {
-        description "AuditDbContext, migrations do schema audit, repositories, idempotencia por Idempotency-Key HTTP e por source_event_id quando a origem for Kafka."
-      }
+    auditInfrastructure = component "AuditService.Infrastructure" {
+      description "Assembly compartilhado por AuditService.Api e AuditService.Worker. Implementa AuditDbContext, migrations do schema audit, repositories, idempotencia por Idempotency-Key HTTP e por source_event_id quando a origem for Kafka."
     }
 
     auditWorker = container "AuditService.Worker" {
@@ -577,6 +601,7 @@ model {
   customer -> identityService.identityApi "Cadastra usuarios e recebe MerchantId" "HTTP + JWT"
   customer -> ledger.ledgerApi "Cria lancamentos e solicita/consulta estornos e reprocessamentos" "HTTP + JWT"
   customer -> balance.balanceApi "Consulta consolidados" "HTTP + JWT"
+  customer -> transfer.transferApi "Solicita transferencias assincronas e consulta status da Saga" "HTTP + JWT"
   customer -> payment.paymentApi "Cria Payments externos e consulta estado local" "HTTP + JWT"
   customer -> audit.auditApi "Cria e consulta registros funcionais de auditoria" "HTTP + JWT"
   customer -> edge.nginx "Acessa portal e Swaggers locais opcionais" "HTTPS"
@@ -610,11 +635,11 @@ model {
   transfer.transferApi -> identity.keycloak "Baixa/cacheia JWKS e valida JWT offline com iss, aud, scopes e merchant_id" "HTTP cacheado"
   payment.paymentApi -> identity.keycloak "Baixa/cacheia JWKS e valida JWT offline com iss, aud, scopes e merchant_id" "HTTP cacheado"
   audit.auditApi -> identity.keycloak "Baixa/cacheia JWKS e valida JWT offline com iss, aud, scopes e merchant_id" "HTTP cacheado"
-  payment.paymentApi.paymentInfrastructure -> stripe.stripeApi "Cria PaymentIntent e Refund com idempotencia externa deterministica" "HTTPS"
+  payment.paymentInfrastructure -> stripe.stripeApi "Cria PaymentIntent e Refund com idempotencia externa deterministica" "HTTPS"
   stripe.stripeWebhooks -> payment.paymentApi "Entrega webhooks Stripe assinados em /api/v1/webhooks/stripe" "HTTPS + Stripe-Signature"
   audit.auditApi -> audit.auditDb "Persiste registros funcionais e idempotencia HTTP" "EF Core"
   audit.auditWorker.auditWorkerComposition -> audit.auditWorker.auditRecordConsumer "Registra consumer quando habilitado" "DI"
-  audit.auditWorker.auditRecordConsumer -> kafka.auditRecordTopic "Consome AuditRecordRequested.v1 opcionalmente; ainda sem producers reais" "Kafka"
+  kafka.auditRecordTopic -> audit.auditWorker.auditRecordConsumer "Entrega AuditRecordRequested.v1 opcionalmente; ainda sem producers reais" "Kafka"
   audit.auditWorker.auditRecordConsumer -> audit.auditWorker.auditRecordProcessor "Entrega mensagem recebida" "processor"
   audit.auditWorker.auditRecordProcessor -> audit.auditApplication "Mapeia para CreateAuditRecordCommand" "MediatR"
   audit.auditWorker.auditRecordProcessor -> audit.auditDb "Persiste auditoria por source_event_id idempotente" "EF Core"
@@ -634,7 +659,7 @@ model {
   ledger.ledgerWorker.ledgerKafkaOutboxPublisher -> kafka.ledgerTopic "Publica LedgerEntryCreated.v2" "Kafka"
   ledger.ledgerWorker.ledgerKafkaOutboxPublisher -> kafka.ledgerEstornoTopic "Publica LancamentoEstornoSolicitado.v1" "Kafka"
   ledger.ledgerWorker.ledgerKafkaOutboxPublisher -> kafka.ledgerReprocessamentoTopic "Publica ReprocessamentoLancamentosSolicitado.v1" "Kafka"
-  ledger.ledgerWorker.ledgerReprocessamentoConsumer -> kafka.ledgerReprocessamentoTopic "Consome ReprocessamentoLancamentosSolicitado.v1" "Kafka"
+  kafka.ledgerReprocessamentoTopic -> ledger.ledgerWorker.ledgerReprocessamentoConsumer "Entrega ReprocessamentoLancamentosSolicitado.v1" "Kafka"
   ledger.ledgerWorker.ledgerReprocessamentoConsumer -> ledger.ledgerWorker.ledgerReprocessamentoReceivedMessageMapper "Mapeia transporte Kafka para ReceivedMessage" "mapper"
   ledger.ledgerWorker.ledgerReprocessamentoReceivedMessageMapper -> ledger.ledgerWorker.ledgerReprocessamentoMessageProcessor "Entrega modelo neutro" "ReceivedMessage"
   ledger.ledgerWorker.ledgerReprocessamentoMessageProcessor -> ledger.ledgerWorker.ledgerWorkerApplication "Envia ProcessarReprocessamentoLancamentosCommand" "MediatR"
@@ -643,7 +668,7 @@ model {
   balance.balanceWorker.balanceWorkerComposition -> balance.balanceWorker.balanceWorkerApplication "Registra casos de uso e handlers" "DI / MediatR"
   balance.balanceWorker.balanceWorkerComposition -> balance.balanceWorker.balanceWorkerInfrastructure "Registra adapters e HostedServices" "DI"
   balance.balanceWorker.balanceWorkerInfrastructure -> balance.balanceDb "Usa persistence e repositories" "EF Core"
-  balance.balanceWorker.balanceConsumer -> kafka.ledgerTopic "Consome LedgerEntryCreated.v2 e v1 legado, inclusive compensatorios e replays de reprocessamento" "Kafka"
+  kafka.ledgerTopic -> balance.balanceWorker.balanceConsumer "Entrega LedgerEntryCreated.v2 e v1 legado, inclusive compensatorios e replays de reprocessamento" "Kafka"
   balance.balanceWorker.balanceConsumer -> balance.balanceWorker.balanceReceivedMessageMapper "Mapeia transporte Kafka para ReceivedMessage" "mapper"
   balance.balanceWorker.balanceReceivedMessageMapper -> balance.balanceWorker.balanceMessageProcessor "Entrega modelo neutro" "ReceivedMessage"
   balance.balanceWorker.balanceMessageProcessor -> balance.balanceWorker.balanceWorkerApplication "Envia comando de aplicacao de evento" "MediatR"
@@ -663,7 +688,7 @@ model {
   pubsub.technicalDlqTopic -> pubsub.technicalDlqSubscription "Retem mensagens de DLQ tecnica para inspecao" "Pub/Sub"
   pubsub.balanceSubscription -> pubsub.technicalDlqTopic "Encaminha falhas tecnicas pela dead-letter policy nativa quando habilitada" "Pub/Sub real"
   ledger.ledgerWorker.ledgerPubSubOutboxPublisher -> pubsub.ledgerEventsTopic "Publica LedgerEntryCreated.v1/v2 no caminho legado explicito" "Pub/Sub"
-  balance.balanceWorker.balancePubSubConsumer -> pubsub.balanceSubscription "Consome eventos financeiros pelo caminho legado explicito" "Pub/Sub"
+  pubsub.balanceSubscription -> balance.balanceWorker.balancePubSubConsumer "Entrega eventos financeiros pelo caminho legado explicito" "Pub/Sub"
   balance.balanceWorker.balancePubSubConsumer -> balance.balanceWorker.balanceMessageProcessor "Entrega mensagem recebida ao processor neutro" "ReceivedMessage"
   balance.balanceWorker.balancePubSubDeadLetterPublisher -> pubsub.applicationDlqTopic "Publica DLQ de aplicacao" "Pub/Sub"
 
@@ -709,12 +734,25 @@ model {
   transfer.transferApplication -> transfer.transferDomain "Pode usar dominio local"
   transfer.transferInfrastructure -> transfer.transferApplication "Implementa portas de persistencia e Outbox"
   transfer.transferInfrastructure -> transfer.transferDomain "Mapeia dominio da Saga"
+  transfer.transferApiLayer -> identity.keycloak "Valida JWT offline por JWKS, audience transfer-api, scopes transfer.write/transfer.read e merchant_id" "JWT/JWKS"
+  transfer.transferApplication -> transfer.transferDb "Persiste solicitacao, idempotencia e Outbox da Saga por portas e Unit of Work" "EF Core via Infrastructure"
   transfer.transferInfrastructure -> transfer.transferDb "Persiste Saga, idempotencia e Outbox" "EF Core"
   transfer.transferWorker.transferWorkerComposition -> transfer.transferApplication "Registra Application"
   transfer.transferWorker.transferWorkerComposition -> transfer.transferInfrastructure "Registra Infrastructure"
-  transfer.transferWorker.transferWorkerComposition -> ledger.ledgerApi "Cria debito, credito e compensacao via HTTP" "HTTP"
-  transfer.transferWorker.transferWorkerComposition -> kafka.transferSagaTopics "Publica eventos da Saga com transferenciaId como key" "Kafka"
-  transfer.transferWorker.transferWorkerComposition -> kafka.transferSagaDlq "Publica mensagens invalidas ou definitivas da Outbox" "Kafka DLQ"
+  transfer.transferWorker.transferWorkerComposition -> transfer.transferWorker.transferSagaProcessor "Hospeda processor da Saga" "HostedService"
+  transfer.transferWorker.transferWorkerComposition -> transfer.transferWorker.transferOutboxPublisher "Hospeda publisher da Outbox" "HostedService"
+  transfer.transferWorker.transferWorkerComposition -> transfer.transferWorker.transferLedgerClient "Registra client HTTP resiliente" "DI"
+  transfer.transferWorker.transferWorkerComposition -> transfer.transferWorker.transferLedgerAuth "Registra autenticacao service-to-service" "DI"
+  transfer.transferWorker.transferSagaProcessor -> transfer.transferWorker.transferSagaClaim "Seleciona e reclama Sagas elegiveis" "polling"
+  transfer.transferWorker.transferSagaClaim -> transfer.transferDb "Atualiza ProcessingLockOwner, ProcessingLockedUntil, status e etapa" "EF Core / SQL"
+  transfer.transferWorker.transferSagaProcessor -> transfer.transferWorker.transferLedgerClient "Solicita debito, credito ou compensacao" "porta HTTP"
+  transfer.transferWorker.transferLedgerAuth -> identity.keycloak "Obtem token client_credentials com scope ledger.write" "HTTP"
+  transfer.transferWorker.transferLedgerClient -> ledger.ledgerApi "Cria debito/credito e solicita estorno compensatorio com Idempotency-Key deterministica" "HTTP + JWT"
+  transfer.transferWorker.transferSagaProcessor -> transfer.transferDb "Atualiza estado, lancamento/estorno IDs, retry/backoff e eventos de Outbox" "EF Core"
+  transfer.transferWorker.transferOutboxPublisher -> transfer.transferDb "Reclama outbox_messages Pending/Processing com lease e retry" "EF Core"
+  transfer.transferWorker.transferOutboxPublisher -> transfer.transferWorker.transferKafkaProducer "Publica mensagem validada ou DLQ" "porta Kafka"
+  transfer.transferWorker.transferKafkaProducer -> kafka.transferSagaTopics "Publica eventos da Saga com transferenciaId como key" "Kafka"
+  transfer.transferWorker.transferKafkaProducer -> kafka.transferSagaDlq "Publica payload invalido ou erro definitivo da Outbox" "Kafka DLQ"
 
   payment.paymentApiLayer -> payment.paymentApplication "Envia comandos e queries via MediatR"
   payment.paymentApplication -> payment.paymentDomain "Cria Payment e aplica state machine"

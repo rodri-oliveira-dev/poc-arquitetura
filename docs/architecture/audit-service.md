@@ -16,6 +16,12 @@ Ele nao substitui logs tecnicos, tracing distribuido, metricas ou Outbox dos
 servicos financeiros. O objetivo e manter uma trilha funcional consultavel e
 estavel para operacoes de negocio, com contrato HTTP canonico e idempotente.
 
+No LikeC4, `AuditService.Application`, `AuditService.Domain` e
+`AuditService.Infrastructure` sao modelados no nivel do bounded context, e nao
+como filhos de `AuditService.Api`. A API HTTP e o Worker Kafka opcional sao
+composition roots separados que referenciam esses assemblies compartilhados; o
+Worker nao depende do container da API.
+
 ## Persistencia e schema audit
 
 A decisao atual usa o PostgreSQL local compartilhado da POC com schema separado
