@@ -124,6 +124,36 @@ compartilhados por API e Worker, a view deve deixar claro que eles nao pertencem
 ao processo HTTP nem sao implantados como servicos separados. Nao deve
 substituir o codigo nem listar classes sem decisao arquitetural envolvida.
 
+As component views seguem duas granularidades:
+
+- **Estrutural**: usada principalmente para APIs. Mostra superficie HTTP,
+  camadas/assemblies, persistencia e externos relevantes. Evita listar classes
+  concretas como `DbContext`, templates e adapters quando isso nao responder a
+  pergunta da view.
+- **Tecnica de pipeline**: usada principalmente para Workers. Mostra
+  composition root, HostedServices, processors, ports, adapters, topicos e
+  persistencia envolvidos no fluxo operacional. Nao repete camadas genericas
+  quando o objetivo da view e explicar o pipeline.
+
+Use componentes internos com estes papeis:
+
+- **Camadas arquiteturais**: `API Layer`, `Application`, `Domain` e
+  `Infrastructure` aparecem em views estruturais.
+- **Casos de uso**: aparecem como handlers/services de Application quando a
+  decisao arquitetural ou o fluxo exigir essa precisao.
+- **Ports**: interfaces como `IOutboxMessagePublisher` aparecem quando ajudam a
+  separar regra/orquestracao de adapter de infraestrutura.
+- **Adapters**: clients HTTP, producers/consumers Kafka, Pub/Sub ou e-mail
+  aparecem em views tecnicas de integracao/pipeline.
+- **Processors**: componentes que traduzem, validam ou orquestram mensagens
+  aparecem em views tecnicas ou dynamic views.
+- **HostedServices**: aparecem em Workers quando representam polling, consumer,
+  publisher, Inbox, Outbox ou processamento de Saga.
+- **Composition roots**: aparecem em APIs/Workers quando a separacao de DI e
+  processo ajuda a evitar confusao de ownership.
+- **Externos e persistencia**: aparecem como containers externos ao escopo da
+  component view, nao como classes internas.
+
 ### Dynamic / Flow
 
 Mostra a sequencia de uma operacao. Use para entender tempo, ownership,
@@ -133,6 +163,46 @@ idempotencia, Inbox, Outbox, retry, DLQ e chamadas entre contexts.
 
 Mostra runtime local, mensageria, observabilidade e deployment. Use para
 diagnostico operacional e para distinguir Compose local de arquitetura logica.
+
+## Convencao visual
+
+Os diagramas usam uma taxonomia pequena de tags em `model.c4` e um
+`styleGroup architectureTheme` em `views.c4`, aplicado a todas as views. A
+legenda visual usa as notations do LikeC4 e pode ser consultada pelo botao de
+ajuda/legenda da UI gerada.
+
+| Tag | Significado | Forma/cor principal |
+| --- | --- | --- |
+| `api` | API HTTP interna | Browser, indigo |
+| `worker` | Processo sem HTTP / Worker Service | Component, amber |
+| `database` | Persistencia ou schema logico | Cylinder, green |
+| `broker` | Broker de mensageria | Queue, red |
+| `topic` | Topico, DLQ ou subscription | Queue, secondary |
+| `external` | Ator ou sistema externo | Muted, borda solida |
+| `identity-provider` | IdP/JWKS/OIDC | Component, secondary |
+| `observability` | Telemetria, logs, metricas, dashboards e alertas | Component, gray |
+| `optional` | Elemento habilitado por configuracao, profile ou overlay | Borda dotted, opacidade reduzida |
+| `future` | Elemento modelado, mas ainda nao integrado ao fluxo principal | Muted, borda dotted, opacidade reduzida |
+| `legacy` | Alternativa legada ainda executavel explicitamente | Borda dashed, opacidade reduzida |
+
+Cores indicam familias, mas nao sao a unica fonte de significado: APIs,
+Workers, bancos, brokers/topicos e IdP usam formas diferentes; estados
+`optional`, `future` e `legacy` usam borda/opacidade alem da cor. Quando um
+elemento acumula tags, o estilo mais especifico de estado pode reduzir a
+opacidade ou neutralizar a cor para evitar apresentar futuro/opcional como
+fluxo principal.
+
+Elementos atuais do runtime padrao devem aparecer sem `future` e sem `legacy`.
+Kafka e o broker padrao dos fluxos principais. Pub/Sub fica marcado como
+`legacy` e `optional`. O caminho Kafka de auditoria fica marcado como
+`optional`/`future` enquanto nao houver producers reais em Ledger, Balance,
+Transfer ou Payment.
+
+Limitacao da versao atual: o projeto usa LikeC4 `1.58.0`. As notations de view
+existem e foram usadas como legenda visual, mas o proprio LikeC4 ainda trata
+esse recurso como experimental, e notations de relacionamentos permanecem em
+progresso. Por isso, a convencao tambem fica documentada aqui e as relacoes
+continuam explicadas por titulos, tecnologias e descricoes das views.
 
 ## Diagramas disponiveis
 
@@ -150,23 +220,23 @@ diagnostico operacional e para distinguir Compose local de arquitetura logica.
 | `observabilityFlow` | Operational / Observability | Entender telemetria local | Como APIs, Workers, Collector, Jaeger, Prometheus, Loki, Alloy, Alertmanager e Grafana se conectam |
 | `localDeployment` | Deployment / Runtime | Entender Docker Compose local | Quais servicos do Compose atual existem e a que elementos logicos correspondem |
 | `ledgerApiComponents` | Component | Revisar LedgerService.Api | Como HTTP, Application, Domain, Infrastructure e schema ledger se separam |
-| `ledgerWorkerComponents` | Component | Revisar LedgerService.Worker | Como Outbox Kafka, estornos e reprocessamento ficam no Worker |
+| `ledgerWorkerComponents` | Component / Pipeline tecnico | Revisar LedgerService.Worker | Como Outbox Kafka, estornos, reprocessamento, processors, ports, adapters, topicos e persistencia ficam no Worker |
 | `balanceApiComponents` | Component | Revisar BalanceService.Api | Como a API consulta a projecao sem criar fatos financeiros |
-| `balanceWorkerComponents` | Component | Revisar BalanceService.Worker | Como eventos do Ledger viram saldos e DLQ |
+| `balanceWorkerComponents` | Component / Pipeline tecnico | Revisar BalanceService.Worker | Como consumer, mapper, processor, porta de DLQ, topicos e schema balance projetam eventos do Ledger |
 | `transferApiComponents` | Component | Revisar TransferService.Api | Como HTTP, Application, Domain, Infrastructure, idempotencia, Outbox, schema transfer e Keycloak se conectam sem regra de Saga no controller |
 | `transferWorkerComponents` | Component | Revisar TransferService.Worker | Como o Worker reclama Sagas, chama Ledger com client credentials, aplica retry/backoff/compensacao e publica Outbox Kafka/DLQ |
 | `transferSagaSuccessFlow` | Dynamic / Flow | Entender transferencia concluida | Como Transfer registra a Saga, cria debito/credito no Ledger, publica eventos de Saga Kafka e permite consulta de status |
 | `transferSagaCompensationFlow` | Dynamic / Flow | Entender falha compensavel | Como falha no credito apos debito gera solicitacao de estorno no Ledger, evento de compensacao solicitada e possivel falha definitiva |
-| `identityServiceComponents` | Component | Revisar IdentityService.Api | Como cadastro, Keycloak Admin API, Domain Event Dispatcher e e-mail se conectam |
+| `identityServiceComponents` | Component / Estrutural | Revisar IdentityService.Api | Como superficie HTTP, camadas, persistencia, Keycloak e e-mail se conectam |
 | `identityComponents` | Component | Revisar Keycloak local | Quais partes do IdP local importado importam para autenticacao |
-| `paymentApiComponents` | Component | Revisar PaymentService.Api | Como controllers usam Application/Domain/Infrastructure compartilhadas sem transformar essas bibliotecas em parte exclusiva da API |
-| `paymentWorkerComponents` | Component | Revisar PaymentService.Worker | Como Inbox, state machine e materializacao no Ledger rodam fora da API usando as mesmas bibliotecas compartilhadas |
+| `paymentApiComponents` | Component / Estrutural | Revisar PaymentService.Api | Como controllers usam Application/Domain/Infrastructure compartilhadas sem transformar essas bibliotecas em parte exclusiva da API |
+| `paymentWorkerComponents` | Component / Pipeline tecnico | Revisar PaymentService.Worker | Como Inbox, mapper de provider, materializacao no Ledger, processor, gateway HTTP e schema payment rodam fora da API |
 | `paymentCreateFlow` | Dynamic / Flow | Entender criacao de Payment | Como cliente, PaymentService.Api, provider externo e schema payment interagem |
 | `paymentWebhookInboxFlow` | Dynamic / Flow | Entender webhooks Stripe | Como Stripe entra pela API, e persistido na Inbox e processado pelo Worker |
 | `paymentLedgerMaterializationFlow` | Dynamic / Flow | Entender Payment -> Ledger -> Balance | Como pagamento confirmado vira lancamento Ledger e saldo projetado |
 | `paymentRefundFlow` | Dynamic / Flow | Entender refund total | Como refund Stripe vira estorno Ledger e evento compensatorio para Balance |
 | `auditApiComponents` | Component | Revisar AuditService.Api | Como o contrato HTTP canonico usa Application/Domain/Infrastructure compartilhadas para persistir registros no schema audit |
-| `auditWorkerComponents` | Component | Revisar AuditService.Worker | Como o consumer Kafka opcional processa AuditRecordRequested.v1 sem depender do container da API |
+| `auditWorkerComponents` | Component / Pipeline tecnico | Revisar AuditService.Worker | Como o consumer Kafka opcional/futuro processa AuditRecordRequested.v1 sem depender do container da API |
 | `auditKafkaIngestionFlow` | Dynamic / Flow | Entender auditoria assincrona opcional | Como o Worker consome auditoria quando houver producer habilitado, sem declarar producers atuais |
 
 ## Principais bounded contexts

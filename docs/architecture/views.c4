@@ -1,6 +1,79 @@
 // LikeC4 views for poc-arquitetura.
 
+global {
+  styleGroup architectureTheme {
+    style element.tag = #api {
+      notation "API HTTP"
+      shape browser
+      color indigo
+    }
+
+    style element.tag = #worker {
+      notation "Worker / processo sem HTTP"
+      shape component
+      color amber
+    }
+
+    style element.tag = #database {
+      notation "Persistencia / schema logico"
+      shape cylinder
+      color green
+    }
+
+    style element.tag = #broker {
+      notation "Broker de mensageria"
+      shape queue
+      color red
+    }
+
+    style element.tag = #topic {
+      notation "Topico ou subscription"
+      shape queue
+      color secondary
+    }
+
+    style element.tag = #external {
+      notation "Sistema externo ou ator"
+      color muted
+      border solid
+    }
+
+    style element.tag = #identity-provider {
+      notation "Identity provider"
+      shape component
+      color secondary
+    }
+
+    style element.tag = #observability {
+      notation "Observabilidade"
+      shape component
+      color gray
+    }
+
+    style element.tag = #optional {
+      notation "Opcional / habilitado por configuracao ou overlay"
+      border dotted
+      opacity 80%
+    }
+
+    style element.tag = #future {
+      notation "Futuro / ainda nao integrado ao fluxo principal"
+      color muted
+      border dotted
+      opacity 70%
+    }
+
+    style element.tag = #legacy {
+      notation "Legado / alternativa explicita"
+      border dashed
+      opacity 75%
+    }
+  }
+}
+
 views {
+  global style architectureTheme
+
   view systemLandscape {
     title "System Landscape - poc-arquitetura"
     description "Mostra os sistemas e atores ao redor da POC. Use esta view para entender o ecossistema sem detalhes de classes, workers internos ou tabelas."
@@ -229,18 +302,11 @@ views {
 
   view identityServiceComponents of identityService.identityApi {
     title "Component View - IdentityService.Api"
+    description "Visao estrutural da API de identidade: superficie HTTP, camadas internas, persistencia e integracoes externas. O fluxo de cadastro detalha adapters, dispatcher e template de e-mail."
     include identityService.identityEndpoints
     include identityService.identityApplication
     include identityService.identityDomain
     include identityService.identityInfrastructure
-    include identityService.keycloakAdminClient
-    include identityService.identityDbContext
-    include identityService.domainEventDispatcher
-    include identityService.emailHandlers
-    include identityService.emailSenderPort
-    include identityService.mailpitEmailSender
-    include identityService.resendEmailSender
-    include identityService.welcomeEmailTemplate
     include identityService.identityDb
     include identity.keycloak
     include email.mailpit
@@ -268,9 +334,8 @@ views {
 
   view ledgerWorkerComponents of ledger.ledgerWorker {
     title "Component View - LedgerService.Worker"
+    description "Visao tecnica do pipeline do Worker: composition root, HostedServices, porta/adapters de mensageria, processors, topicos e persistencia. Camadas compartilhadas ficam na API/assembly e nao sao repetidas aqui como detalhe estrutural."
     include ledger.ledgerWorkerComposition
-    include ledger.ledgerWorkerApplication
-    include ledger.ledgerWorkerInfrastructure
     include ledger.ledgerOutbox
     include ledger.ledgerOutboxPublisherPort
     include ledger.ledgerKafkaOutboxPublisher
@@ -319,9 +384,8 @@ views {
 
   view balanceWorkerComponents of balance.balanceWorker {
     title "Component View - BalanceService.Worker"
+    description "Visao tecnica do pipeline de projecao: consumer Kafka, mapper, processor neutro, porta de DLQ, topicos e schema balance. O caminho Pub/Sub legado fica isolado na view propria."
     include balance.balanceWorkerComposition
-    include balance.balanceWorkerApplication
-    include balance.balanceWorkerInfrastructure
     include balance.balanceConsumer
     include balance.balanceReceivedMessageMapper
     include balance.balanceMessageProcessor
@@ -354,9 +418,6 @@ views {
     include transfer.transferWorker.transferLedgerAuth
     include transfer.transferWorker.transferOutboxPublisher
     include transfer.transferWorker.transferKafkaProducer
-    include transfer.transferApplication
-    include transfer.transferDomain
-    include transfer.transferInfrastructure
     include transfer.transferDb
     include identity.keycloak
     include ledger.ledgerApi
@@ -502,11 +563,11 @@ views {
 
   view paymentApiComponents of payment.paymentApi {
     title "Component View - PaymentService.Api"
+    description "Visao estrutural da API: superficie HTTP, assemblies compartilhados, persistencia e externos. O mapper de eventos de provider aparece nos fluxos/Worker onde participa do processamento assincrono."
     include payment.paymentApiLayer
     include payment.paymentApplication
     include payment.paymentDomain
     include payment.paymentInfrastructure
-    include payment.paymentProviderEventMapper
     include payment.paymentDb
     include identity.keycloak
     include stripe.stripeApi
@@ -516,15 +577,13 @@ views {
 
   view paymentWorkerComponents of payment.paymentWorker {
     title "Component View - PaymentService.Worker"
+    description "Visao tecnica do Worker: composition root, HostedServices de Inbox e materializacao Ledger, processor, gateway HTTP e persistencia. Assemblies compartilhados nao sao repetidos para evitar mistura de camada com pipeline."
     include payment.paymentWorkerComposition
     include payment.paymentInboxWorker
     include payment.paymentProviderEventMapper
     include payment.paymentWorker.paymentLedgerWorker
     include payment.paymentWorker.paymentLedgerProcessor
     include payment.paymentWorker.ledgerHttpGateway
-    include payment.paymentApplication
-    include payment.paymentDomain
-    include payment.paymentInfrastructure
     include payment.paymentDb
     autoLayout LeftRight
   }
@@ -542,12 +601,11 @@ views {
 
   view auditWorkerComponents of audit.auditWorker {
     title "Component View - AuditService.Worker"
+    description "Visao tecnica opcional/futura do Worker Kafka de auditoria: consumer, processor, DLQ, topicos e persistencia. Ainda nao ha producers reais nos demais bounded contexts."
     include audit.auditWorkerComposition
     include audit.auditRecordConsumer
     include audit.auditRecordProcessor
     include audit.auditDeadLetterPublisher
-    include audit.auditApplication
-    include audit.auditInfrastructure
     include audit.auditDb
     include kafka.auditRecordTopic
     include kafka.auditRecordDlq

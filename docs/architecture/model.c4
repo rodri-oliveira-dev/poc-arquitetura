@@ -7,6 +7,18 @@ specification {
   deploymentNode composeNetwork
   deploymentNode composeService
 
+  tag api
+  tag worker
+  tag database
+  tag broker
+  tag topic
+  tag external
+  tag identity-provider
+  tag observability
+  tag optional
+  tag future
+  tag legacy
+
   element actor {
     style {
       shape person
@@ -19,56 +31,68 @@ specification {
 
 model {
   customer = actor "Cliente / Sistema externo" {
+    #external
     description "Obtem token no IdP local e chama APIs HTTP para criacao de lancamentos, solicitacao/consulta de estornos, solicitacao/consulta de reprocessamentos, solicitacao/consulta de transferencias e consulta de consolidados."
   }
 
   observability = softwareSystem "Observabilidade" {
+    #observability
     description "Stack local de tracing distribuido, metricas tecnicas, logs centralizados e alertas basicos com OpenTelemetry Collector, Jaeger, Prometheus, Loki, Grafana Alloy, Alertmanager e Grafana."
 
     collector = container "OpenTelemetry Collector" {
+      #observability
       technology "OpenTelemetry Collector / OTLP"
       description "Ponto local de entrada de telemetria; recebe OTLP das APIs e workers em 4317/4318, encaminha traces para o Jaeger e expoe metricas em 9464 para scrape interno."
     }
 
     jaeger = container "Jaeger all-in-one" {
+      #observability
       technology "Jaeger / OTLP"
       description "Backend local de tracing com receiver OTLP interno e UI em 16686."
     }
 
     prometheus = container "Prometheus" {
+      #observability
       technology "Prometheus"
       description "Coleta metricas tecnicas expostas pelo OpenTelemetry Collector, carrega regras de alerta e disponibiliza UI local em 9090."
     }
 
     loki = container "Loki" {
+      #observability
       technology "Grafana Loki"
       description "Armazena logs centralizados dos containers da stack local, recebidos do Grafana Alloy, com API em 3100."
     }
 
     alloy = container "Grafana Alloy" {
+      #observability
       technology "Grafana Alloy / loki.source.docker"
       description "Descobre containers Docker do compose local, aplica labels estaveis e envia logs para o Loki sem alterar o provider de logging das aplicacoes."
     }
 
     alertmanager = container "Alertmanager" {
+      #observability
       technology "Prometheus Alertmanager"
       description "Recebe alertas tecnicos do Prometheus para visualizacao local, sem integracoes externas, com UI em 9093."
     }
 
     grafana = container "Grafana" {
+      #observability
       technology "Grafana"
       description "Visualiza metricas do Prometheus, logs do Loki, traces do Jaeger e dashboards provisionados pela UI local em 3000."
 
       dashboards = component "Dashboards provisionados" {
+        #observability
         description "Dashboards versionados em observability/grafana/dashboards para visao tecnica minima das APIs, workers e runtime .NET, com link para logs no Loki."
       }
     }
   }
 
   edge = softwareSystem "Borda local Nginx" {
+    #optional
     description "Camada opcional de entrada HTTPS para desenvolvimento local, adicionada por overlay Compose sem substituir as portas HTTP diretas das APIs."
 
     nginx = container "Nginx local" {
+      #optional
       technology "Nginx / HTTPS"
       description "Reverse proxy local que serve o portal da POC em localhost:7443, encaminha subdominios .localhost para as APIs internas em HTTP, balanceia o LedgerService.Api com least_conn no overlay local, propaga X-Correlation-Id, envia X-Forwarded-*, emite headers basicos de seguranca, aplica limites defensivos de body, headers, timeouts, conexoes e requisicoes, reduz exposicao de versao/tecnologia e registra access logs JSON."
 
@@ -79,9 +103,11 @@ model {
   }
 
   identity = softwareSystem "Keycloak" {
+    #identity-provider
     description "Provedor principal de identidade local da POC. Emite JWT RS256 por OIDC e publica JWKS do realm poc."
 
     keycloak = container "Keycloak local" {
+      #identity-provider
       technology "Keycloak / OIDC"
       description "Container local que importa o realm poc, emite tokens por client_credentials para automacao local e publica discovery OIDC/JWKS."
 
@@ -100,6 +126,7 @@ model {
     description "Bounded context de identidade. Cadastra usuarios, gera MerchantId, cria o usuario no Keycloak e guarda o vinculo local no schema identity."
 
     identityApi = container "IdentityService.Api" {
+      #api
       technology "ASP.NET Core Minimal API"
       description "HTTP API para cadastro de usuarios em /api/v1/users, protegida por JWT Keycloak com audience identity-api e scope identity.write."
 
@@ -153,6 +180,7 @@ model {
     }
 
     identityDb = container "PostgreSQL schema identity" {
+      #database
       technology "PostgreSQL"
       description "Schema identity no PostgreSQL local unico: users e historico de migrations do IdentityDbContext; nao armazena senha, hash ou segredo de usuario."
     }
@@ -162,11 +190,13 @@ model {
     description "Sistemas usados pelo IdentityService para e-mail de boas-vindas. Mailpit e local; Resend e provider real configuravel."
 
     mailpit = container "Mailpit" {
+      #external #optional
       technology "SMTP / Web UI"
       description "Ferramenta local de captura de e-mails. Expoe SMTP em 1025 e UI em 8025 no host."
     }
 
     resend = container "Resend" {
+      #external #optional
       technology "SaaS de e-mail"
       description "Provider externo real de e-mail transacional usado quando Email:Provider=Resend e a API key e fornecida por secret/configuracao externa."
     }
@@ -176,6 +206,7 @@ model {
     description "Servico de escrita do ledger. A API recebe comandos HTTP e grava estado/Outbox; o Worker publica eventos pelo provider de mensageria selecionado, processa estornos e reprocessamentos em processo separado. Kafka e o provider padrao; Pub/Sub permanece como caminho explicito legado."
 
     ledgerApi = container "LedgerService.Api" {
+      #api
       technology "ASP.NET Core"
       description "HTTP API para criacao de lancamentos, solicitacao de estorno, solicitacao de reprocessamento, consulta de status e composition root HTTP."
 
@@ -197,6 +228,7 @@ model {
     }
 
     ledgerWorker = container "LedgerService.Worker" {
+      #worker
       technology ".NET Worker Service"
       description "Processo dedicado sem HTTP que hospeda os workers do Ledger para Outbox, estornos e reprocessamentos, com composition root proprio."
 
@@ -225,6 +257,7 @@ model {
       }
 
       ledgerPubSubOutboxPublisher = component "PubSubOutboxMessagePublisher" {
+        #legacy #optional
         description "Adapter Pub/Sub legado da porta IOutboxMessagePublisher, selecionado somente quando Messaging:Provider=PubSub; resolve topic IDs, attributes, ordering key e cliente do emulator ou Pub/Sub real."
       }
 
@@ -246,6 +279,7 @@ model {
     }
 
     ledgerDb = container "PostgreSQL schema ledger" {
+      #database
       technology "PostgreSQL"
       description "Schema ledger no PostgreSQL local unico ou boundary equivalente por ambiente: lancamentos, estornos_lancamentos, reprocessamentos_lancamentos, idempotencia e outbox_messages."
     }
@@ -255,6 +289,7 @@ model {
     description "Servico de leitura/projecao. O Worker consome eventos financeiros do Ledger pelo provider selecionado e atualiza a projecao; a API expoe consultas HTTP de saldo. Kafka e o provider padrao; Pub/Sub permanece como caminho explicito legado."
 
     balanceApi = container "BalanceService.Api" {
+      #api
       technology "ASP.NET Core"
       description "HTTP API de consulta de saldos consolidados."
 
@@ -276,6 +311,7 @@ model {
     }
 
     balanceWorker = container "BalanceService.Worker" {
+      #worker
       technology ".NET Worker Service"
       description "Processo dedicado sem HTTP que hospeda o consumidor Kafka para projetar saldos, com composition root proprio."
 
@@ -308,15 +344,18 @@ model {
       }
 
       balancePubSubConsumer = component "Pub/Sub ledger events consumer" {
+        #legacy #optional
         description "Adapter Pub/Sub legado que consome a subscription do Balance quando Messaging:Provider=PubSub, traduz PubsubMessage para modelo neutro e controla ack/nack."
       }
 
       balancePubSubDeadLetterPublisher = component "PubSubDeadLetterPublisher" {
+        #legacy #optional
         description "Adapter Pub/Sub legado da porta IDeadLetterPublisher; publica mensagens classificadas como DLQ de aplicacao no topic configurado."
       }
     }
 
     balanceDb = container "PostgreSQL schema balance" {
+      #database
       technology "PostgreSQL"
       description "Schema balance no PostgreSQL local unico ou boundary equivalente por ambiente: daily_balances e processed_events."
     }
@@ -326,6 +365,7 @@ model {
     description "Bounded context de transferencias entre merchants com Saga orquestrada, API HTTP, Worker, Outbox transacional e eventos Kafka explicitos."
 
     transferApi = container "TransferService.Api" {
+      #api
       technology "ASP.NET Core"
       description "Composition root HTTP do TransferService. Expoe solicitacao e consulta de transferencias, com idempotencia e autorizacao por merchant."
 
@@ -347,6 +387,7 @@ model {
     }
 
     transferWorker = container "TransferService.Worker" {
+      #worker
       technology ".NET Worker Service"
       description "Worker dedicado para processar Sagas pendentes e publicar a Outbox do TransferService no Kafka, sem superficie HTTP."
 
@@ -380,6 +421,7 @@ model {
     }
 
     transferDb = container "PostgreSQL schema transfer" {
+      #database
       technology "PostgreSQL"
       description "Schema transfer no PostgreSQL local unico ou boundary equivalente por ambiente: transferencias_sagas, outbox_messages e idempotency_records."
     }
@@ -389,6 +431,7 @@ model {
     description "Bounded context de pagamentos externos. Cria Payments locais, cria PaymentIntent e Refund no provider configurado, recebe webhooks Stripe assinados em Inbox duravel, processa a Inbox no Worker e materializa Payments/Refunds no Ledger via HTTP idempotente, sem Balance direto ou Kafka proprio."
 
     paymentApi = container "PaymentService.Api" {
+      #api
       technology "ASP.NET Core"
       description "Composition root HTTP do PaymentService. Expoe criacao de Payment, consulta local e webhook Stripe assinado com persistencia em Inbox."
 
@@ -414,6 +457,7 @@ model {
     }
 
     paymentWorker = container "PaymentService.Worker" {
+      #worker
       technology ".NET Worker Service"
       description "Worker dedicado sem HTTP que faz polling da Inbox, claim concorrente, lease, retry persistido, backoff, DeadLetter logico, aplica eventos Stripe suportados na state machine do Payment/Refund e chama o Ledger para concluir pagamentos e estornos."
 
@@ -439,6 +483,7 @@ model {
     }
 
     paymentDb = container "PostgreSQL schema payment" {
+      #database
       technology "PostgreSQL"
       description "Schema payment no PostgreSQL local unico ou boundary equivalente por ambiente: payments, payment_refunds, idempotency_records, inbox_messages e metadados de integracao Ledger."
     }
@@ -448,6 +493,7 @@ model {
     description "Bounded context de auditoria funcional. Expoe contrato HTTP canonico para registrar/consultar trilhas auditaveis e possui Worker Kafka opcional para AuditRecordRequested.v1, ainda sem producers reais nos demais bounded contexts."
 
     auditApi = container "AuditService.Api" {
+      #api
       technology "ASP.NET Core"
       description "HTTP API canonica de auditoria funcional em /api/v1/audit-records, protegida por JWT Keycloak, scopes audit.write/audit.read/audit.admin, Idempotency-Key e autorizacao por merchant nas consultas."
 
@@ -469,6 +515,7 @@ model {
     }
 
     auditWorker = container "AuditService.Worker" {
+      #worker #optional #future
       technology ".NET Worker Service"
       description "Worker dedicado e opcional para consumir AuditRecordRequested.v1 no Kafka, validar contrato canonico, aplicar idempotencia por eventId/source_event_id e publicar DLQ de aplicacao para falhas definitivas. Nao possui producers reais nos demais contexts nesta etapa."
 
@@ -477,121 +524,146 @@ model {
       }
 
       auditRecordConsumer = component "AuditRecordRequestedConsumerService" {
+        #optional #future
         description "BackgroundService Kafka que consome audit.record.requested, controla retry local, commit de offset e entrega mensagens validas ao processor canonico."
       }
 
       auditRecordProcessor = component "AuditRecordRequestedProcessor" {
+        #optional #future
         description "Processor que desserializa AuditRecordRequested.v1, valida eventType/schemaVersion/payload, mapeia para CreateAuditRecordCommand e trata duplicidade idempotente."
       }
 
       auditDeadLetterPublisher = component "KafkaAuditRecordDeadLetterPublisher" {
+        #optional #future
         description "Producer Kafka da DLQ audit.record.requested.dlq para JSON invalido, contrato incompativel ou conflito definitivo de idempotencia."
       }
     }
 
     auditDb = container "PostgreSQL schema audit" {
+      #database
       technology "PostgreSQL"
       description "Schema audit no PostgreSQL local unico ou boundary equivalente por ambiente: functional_audit_records e indices de idempotencia/consulta."
     }
   }
 
   stripe = softwareSystem "Stripe" {
+    #external
     description "Provider externo de pagamentos usado pelo PaymentService para criar PaymentIntent/Refund e entregar webhooks assinados."
 
     stripeApi = container "Stripe API" {
+      #external
       technology "HTTPS / Stripe"
       description "API externa usada pelo adapter Stripe do PaymentService.Infrastructure para criar PaymentIntent e Refund com idempotencia externa deterministica."
     }
 
     stripeWebhooks = container "Stripe Webhook" {
+      #external
       technology "HTTPS webhook"
       description "Entrega eventos Stripe assinados ao endpoint publico de webhook do PaymentService.Api. Nao chama Worker, banco, Kafka ou servicos internos diretamente."
     }
   }
 
   kafka = softwareSystem "Kafka" {
+    #broker
     description "Broker Kafka local em KRaft. Broker padrao e recomendado para os fluxos assincronos principais de Ledger, Balance, Transfer e auditoria opcional."
 
     ledgerTopic = container "ledger.ledgerentry.created" {
+      #topic
       technology "Kafka topic"
       description "Topico principal do evento financeiro LedgerEntryCreated.v2, incluindo lancamentos compensatorios de estorno, com suporte legado a v1."
     }
 
     ledgerEstornoTopic = container "ledger.lancamento.estorno.solicitado" {
+      #topic
       technology "Kafka topic"
       description "Topico operacional do evento LancamentoEstornoSolicitado.v1; nao e consumido como fato financeiro pelo BalanceService."
     }
 
     ledgerReprocessamentoTopic = container "ledger.lancamentos.reprocessamento.solicitado" {
+      #topic
       technology "Kafka topic"
       description "Topico operacional do evento ReprocessamentoLancamentosSolicitado.v1; registra intencao de reprocessamento sem representar fato financeiro final."
     }
 
     ledgerDlq = container "ledger.ledgerentry.created.dlq" {
+      #topic
       technology "Kafka topic"
       description "DLQ usada pelo BalanceService para mensagens invalidas ou nao recuperaveis."
     }
 
     transferSagaTopics = container "transfer.transferencia.*" {
+      #topic
       technology "Kafka topics"
       description "Topicos da Saga do TransferService: solicitada, debito-criado, credito-criado, concluida, compensacao-solicitada, compensada e falhou."
     }
 
     transferSagaDlq = container "transfer.transferencia.dlq" {
+      #topic
       technology "Kafka topic"
       description "DLQ de aplicacao da Outbox Kafka do TransferService."
     }
 
     auditRecordTopic = container "audit.record.requested" {
+      #topic #optional #future
       technology "Kafka topic"
       description "Topico canonico opcional consumido pelo AuditService.Worker para AuditRecordRequested.v1. Ainda nao ha producers reais em Ledger, Balance, Transfer ou Payment."
     }
 
     auditRecordDlq = container "audit.record.requested.dlq" {
+      #topic #optional #future
       technology "Kafka topic"
       description "DLQ de aplicacao do AuditService.Worker para mensagens de auditoria invalidas ou conflitos definitivos."
     }
   }
 
   pubsub = softwareSystem "Pub/Sub legado / opcional" {
+    #broker #legacy #optional
     description "Provider alternativo explicito para LedgerService.Worker publicar eventos financeiros e BalanceService.Worker consumir/projetar saldo quando Messaging:Provider=PubSub. Kafka permanece o caminho padrao."
 
     emulator = container "Pub/Sub emulator local" {
+      #broker #legacy #optional
       technology "gcloud pubsub emulator"
       description "Emulator local descartavel ativado pelo profile legacy-pubsub e overlay compose.pubsub.yaml. Usa PUBSUB_EMULATOR_HOST e nao representa garantias completas do Pub/Sub real."
     }
 
     real = container "Google Cloud Pub/Sub real" {
+      #broker #legacy #optional
       technology "Google Cloud Pub/Sub"
       description "Servico GCP real provisionavel pelo modulo Terraform pubsub-ledger-events para smoke/dev explicito, usando service accounts dedicadas e IAM de menor privilegio."
     }
 
     ledgerEventsTopic = container "ledger.ledgerentry.created.*" {
+      #topic #legacy #optional
       technology "Pub/Sub topic"
       description "Topic principal de eventos financeiros do Ledger. Local: ledger.ledgerentry.created.local. Terraform/dev: ledger_events_topic_name, por exemplo ledger.ledgerentry.created.dev."
     }
 
     applicationDlqTopic = container "ledger.ledgerentry.created.dlq.*" {
+      #topic #legacy #optional
       technology "Pub/Sub topic"
       description "Topic de DLQ de aplicacao publicado pelo BalanceService.Worker para mensagens invalidas ou nao recuperaveis."
     }
 
     technicalDlqTopic = container "ledger.ledgerentry.created-technical-dlq.*" {
+      #topic #legacy #optional
       technology "Pub/Sub topic"
       description "Topic de DLQ tecnica usado apenas pela dead-letter policy nativa da subscription real quando habilitada no Terraform. O emulator local nao configura essa policy."
     }
 
     balanceSubscription = container "balance-service-ledger-events-*" {
+      #topic #legacy #optional
       technology "Pub/Sub pull subscription"
       description "Subscription pull consumida pelo BalanceService.Worker a partir do topic principal de eventos Ledger."
     }
 
     applicationDlqSubscription = container "ledger-events-application-dlq-inspection-*" {
+      #topic #legacy #optional
       technology "Pub/Sub pull subscription"
       description "Subscription de inspecao operacional da DLQ de aplicacao."
     }
 
     technicalDlqSubscription = container "ledger-events-technical-dlq-inspection-*" {
+      #topic #legacy #optional
       technology "Pub/Sub pull subscription"
       description "Subscription de inspecao operacional da DLQ tecnica provisionada pelo Terraform para Pub/Sub real."
     }
