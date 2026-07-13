@@ -1,7 +1,11 @@
 # ADR-0104: Integracao PaymentService -> LedgerService para efeito financeiro
 
 ## Status
-Proposto
+Aceito
+
+Nota: este ADR foi criado inicialmente como proposta durante a fase de
+specification. Apos a implementacao do fluxo PaymentService + Stripe + Inbox +
+Ledger no PR #66, a decisao foi considerada aceita.
 
 ## Data
 2026-07-08
