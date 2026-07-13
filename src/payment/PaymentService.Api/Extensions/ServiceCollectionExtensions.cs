@@ -25,7 +25,7 @@ public static class ServiceCollectionExtensions
                     Scheme = "bearer",
                     BearerFormat = "JWT",
                     In = ParameterLocation.Header,
-                    Description = $"Autenticacao via JWT Bearer. Scopes relevantes nesta API: {ScopePolicies.PaymentWrite} (escrita) / {ScopePolicies.PaymentRead} (leitura)."
+                    Description = $"Autenticacao via JWT Bearer. Scopes relevantes nesta API: {ScopePolicies.PaymentWrite} (escrita) / {ScopePolicies.PaymentRead} (leitura) / {ScopePolicies.PaymentRefund} (refund)."
                 });
                 options.OperationFilter<AuthorizeOperationFilter>();
                 options.OperationFilter<StripeWebhookOperationFilter>();

@@ -264,30 +264,52 @@ Cenarios suportados: `Success`, `RequiresAction`, `Processing`,
 
 Os smokes desta etapa assumem que `PaymentService.Api`,
 `PaymentService.Worker`, `LedgerService.Api`, `LedgerService.Worker`,
-`BalanceService.Worker`, PostgreSQL e Kafka ja estao em execucao. O
-`compose.yaml` atual ainda nao declara containers `payment-service` e
-`payment-worker`; portanto a rota local recomendada para Payment nesta etapa e
-executar API/Worker via `dotnet run` ou perfil de IDE, mantendo Ledger/Balance
-no compose existente.
+`BalanceService.Worker`, PostgreSQL e Kafka ja estao em execucao. O caminho
+recomendado e subir a stack local padrao, que aplica migrations do schema
+`payment` e inicia `payment-service`/`payment-worker`.
 
-Infraestrutura interna:
+Antes de subir a stack, gere/ajuste `.env.local` e garanta que o secret do
+container esteja definido. Para o smoke controlado com provider `Fake`, use um
+valor local descartavel:
 
-```powershell
-docker compose up -d postgres-db kafka kafka-init-topics keycloak ledger-service ledger-worker balance-service balance-worker
+```text
+PaymentGateway__Stripe__WebhookSigningSecret=whsec_local_smoke
 ```
 
-Payment em processos locais:
+`PaymentGateway__Stripe__WebhookSigningSecret` e o secret carregado pela API no
+startup do container. `PAYMENT_WEBHOOK_SIGNING_SECRET` e o mesmo secret usado
+pelo script para assinar o payload controlado. Os valores precisam ser iguais.
+
+Stack local:
 
 ```powershell
-dotnet run --project ./src/payment/PaymentService.Api/PaymentService.Api.csproj
-dotnet run --project ./src/payment/PaymentService.Worker/PaymentService.Worker.csproj
+./scripts/local/start-stack.ps1
 ```
 
-Secrets locais para webhook controlado:
+No Linux/macOS:
+
+```bash
+./scripts/local/start-stack.sh
+```
+
+Se alterar `PaymentGateway__Stripe__WebhookSigningSecret` em `.env.local` com o
+container ja em execucao, recrie o PaymentService para reaplicar as variaveis do
+arquivo de ambiente:
+
+```powershell
+docker compose --env-file .env.local up -d --force-recreate payment-service
+```
+
+No Linux/macOS:
+
+```bash
+docker compose --env-file .env.local up -d --force-recreate payment-service
+```
+
+Secret usado pelo script de smoke para assinar o webhook controlado:
 
 ```powershell
 $env:PAYMENT_WEBHOOK_SIGNING_SECRET = "whsec_local_smoke"
-$env:PaymentGateway__Stripe__WebhookSigningSecret = "whsec_local_smoke"
 ```
 
 Token local:
@@ -295,6 +317,9 @@ Token local:
 ```powershell
 $env:PAYMENT_SMOKE_TOKEN = "<token-local-com-payment.write-payment.read-payment.refund>"
 ```
+
+O token local deve conter audience `payment-api`, scopes `payment.write`,
+`payment.read` e `payment.refund`, alem do claim `merchant_id`.
 
 Smoke de Payment:
 
@@ -342,7 +367,6 @@ repositorio:
 ```powershell
 dotnet user-secrets set "PaymentGateway:Provider" "Stripe" --project ./src/payment/PaymentService.Api/PaymentService.Api.csproj
 dotnet user-secrets set "PaymentGateway:Stripe:SecretKey" "sk_test_xxx" --project ./src/payment/PaymentService.Api/PaymentService.Api.csproj
-dotnet user-secrets set "PaymentGateway:Stripe:SecretKey" "sk_test_xxx" --project ./src/payment/PaymentService.Worker/PaymentService.Worker.csproj
 dotnet user-secrets set "PaymentGateway:Stripe:WebhookSigningSecret" "<STRIPE_WEBHOOK_SIGNING_SECRET>" --project ./src/payment/PaymentService.Api/PaymentService.Api.csproj
 ```
 
@@ -358,8 +382,7 @@ $env:PaymentGateway__Stripe__WebhookSigningSecret = "<STRIPE_WEBHOOK_SIGNING_SEC
 para chamadas da API Stripe, incluindo PaymentIntent e Refund. O nome legado
 `PaymentGateway:Stripe:ApiKey` ainda e aceito como alias local, mas novas
 configuracoes devem usar `SecretKey`. O Worker nao chama a Stripe no fluxo
-atual de refund; portanto `SecretKey` no Worker e opcional hoje e fica
-documentado apenas para cenarios futuros/alternativos de reconciliacao.
+atual; ele processa Inbox e materializa efeitos no Ledger.
 `PaymentGateway:Stripe:WebhookSigningSecret`
 recebe o signing secret do endpoint (`whsec_...`) usado exclusivamente para
 validar webhooks. Nao misture os dois valores.

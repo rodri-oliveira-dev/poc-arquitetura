@@ -17,7 +17,7 @@ volumes:
       auto-prune: "false"
       environment: "local"
       owner: "docker-compose"
-      description: "PostgreSQL local database data for Ledger, Balance and Transfer schemas"
+      description: "PostgreSQL local database data for Ledger, Balance, Transfer, Payment and Identity schemas"
 
 
 services:
@@ -37,6 +37,8 @@ services:
       BALANCE_DB_MIGRATOR_PASSWORD: "${BALANCE_DB_MIGRATOR_PASSWORD:?Defina BALANCE_DB_MIGRATOR_PASSWORD em .env.local}"
       TRANSFER_DB_PASSWORD: "${TRANSFER_DB_PASSWORD:?Defina TRANSFER_DB_PASSWORD em .env.local}"
       TRANSFER_DB_MIGRATOR_PASSWORD: "${TRANSFER_DB_MIGRATOR_PASSWORD:?Defina TRANSFER_DB_MIGRATOR_PASSWORD em .env.local}"
+      PAYMENT_DB_PASSWORD: "${PAYMENT_DB_PASSWORD:?Defina PAYMENT_DB_PASSWORD em .env.local}"
+      PAYMENT_DB_MIGRATOR_PASSWORD: "${PAYMENT_DB_MIGRATOR_PASSWORD:?Defina PAYMENT_DB_MIGRATOR_PASSWORD em .env.local}"
       IDENTITY_DB_PASSWORD: "${IDENTITY_DB_PASSWORD:?Defina IDENTITY_DB_PASSWORD em .env.local}"
       IDENTITY_DB_MIGRATOR_PASSWORD: "${IDENTITY_DB_MIGRATOR_PASSWORD:?Defina IDENTITY_DB_MIGRATOR_PASSWORD em .env.local}"
     ports:
@@ -497,6 +499,83 @@ services:
       Observability__OpenTelemetry__UseConsoleExporter: "false"
       Observability__OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"
       Observability__OpenTelemetry__ServiceName: "TransferService.Worker"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512m
+          pids: 256
+    networks:
+      - poc-net
+
+  payment-service:
+    build:
+      context: .
+      dockerfile: src/payment/Dockerfile
+      target: api-final
+    container_name: poc-payment-service
+    logging: *default-logging
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_URLS: "http://+:8080"
+      ASPNETCORE_ENVIRONMENT: "Local"
+
+      Jwt__Issuer: "${JWT_ISSUER:-http://localhost:8081/realms/poc}"
+      Jwt__Audience: "payment-api"
+      Jwt__JwksUrl: "${JWT_JWKS_URL:-http://keycloak:8080/realms/poc/protocol/openid-connect/certs}"
+      Jwt__RequireHttpsMetadata: "${JWT_REQUIRE_HTTPS_METADATA:-false}"
+
+      ConnectionStrings__DefaultConnection: "Host=postgres-db;Port=5432;Database=appdb;Username=payment_app_user;Password=${PAYMENT_DB_PASSWORD:?Defina PAYMENT_DB_PASSWORD em .env.local}"
+      PaymentGateway__Provider: "${PaymentGateway__Provider:-Fake}"
+      PaymentGateway__Stripe__SecretKey: "${PaymentGateway__Stripe__SecretKey:-}"
+      PaymentGateway__Stripe__WebhookSigningSecret: "${PaymentGateway__Stripe__WebhookSigningSecret:-}"
+      OpenTelemetry__Enabled: "${OTEL_ENABLED:-false}"
+      OpenTelemetry__UseConsoleExporter: "false"
+      OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"
+      OpenTelemetry__ServiceName: "PaymentService.Api"
+    ports:
+      - "${PAYMENT_SERVICE_HOST_PORT:-5234}:8080"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512m
+          pids: 256
+    networks:
+      - poc-net
+
+  payment-worker:
+    build:
+      context: .
+      dockerfile: src/payment/Dockerfile
+      target: worker-final
+    container_name: poc-payment-worker
+    logging: *default-logging
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+      ledger-service:
+        condition: service_started
+      keycloak:
+        condition: service_healthy
+    environment:
+      DOTNET_ENVIRONMENT: "Local"
+
+      ConnectionStrings__DefaultConnection: "Host=postgres-db;Port=5432;Database=appdb;Username=payment_app_user;Password=${PAYMENT_DB_PASSWORD:?Defina PAYMENT_DB_PASSWORD em .env.local}"
+      PaymentService__Ledger__BaseAddress: "http://ledger-service:8080"
+      PaymentService__Ledger__Auth__TokenEndpoint: "http://keycloak:8080/realms/poc/protocol/openid-connect/token"
+      PaymentService__Ledger__Auth__ClientId: "${KEYCLOAK_CLIENT_ID:-poc-automation}"
+      PaymentService__Ledger__Auth__ClientSecret: "${KEYCLOAK_CLIENT_SECRET:?Defina KEYCLOAK_CLIENT_SECRET em .env.local}"
+      PaymentService__Ledger__Auth__Scope: "${PAYMENT_WORKER_LEDGER_AUTH_SCOPE:-ledger.write}"
+      PaymentService__Ledger__Auth__RefreshSkew: "00:01:00"
+      Observability__OpenTelemetry__Enabled: "${OTEL_ENABLED:-false}"
+      Observability__OpenTelemetry__UseConsoleExporter: "false"
+      Observability__OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"
+      Observability__OpenTelemetry__ServiceName: "PaymentService.Worker"
     deploy:
       resources:
         limits:

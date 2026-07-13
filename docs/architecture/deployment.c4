@@ -137,9 +137,29 @@ deployment {
         }
       }
 
+      composeService paymentApi "payment-service" {
+        technology "Docker container / ASP.NET Core"
+        description "Servico Docker Compose que executa a PaymentService.Api."
+
+        api = instanceOf payment.paymentApi {
+          title "poc-payment-service"
+          description "Container local da PaymentService.Api exposto na porta 5234 do host e 8080 no container, usando provider fake por padrao e schema payment."
+        }
+      }
+
+      composeService paymentWorker "payment-worker" {
+        technology "Docker container / .NET Worker Service"
+        description "Servico Docker Compose que executa a PaymentService.Worker."
+
+        worker = instanceOf payment.paymentWorker {
+          title "poc-payment-worker"
+          description "Worker local do PaymentService para processamento da Inbox Stripe e materializacao idempotente de credito/estorno no LedgerService.Api."
+        }
+      }
+
       composeService postgresDb "postgres-db" {
         technology "PostgreSQL 16"
-        description "Servico Docker Compose que executa o PostgreSQL local unico com database appdb, schemas ledger, balance, transfer e identity, e roles separadas por responsabilidade."
+        description "Servico Docker Compose que executa o PostgreSQL local unico com database appdb, schemas ledger, balance, transfer, payment e identity, e roles separadas por responsabilidade."
 
         ledgerSchema = instanceOf ledger.ledgerDb {
           title "poc-postgres-db / schema ledger"
@@ -154,6 +174,11 @@ deployment {
         transferSchema = instanceOf transfer.transferDb {
           title "poc-postgres-db / schema transfer"
           description "Schema local do Transfer no PostgreSQL unico, acessado por transfer_app_user em runtime e transfer_migrator_user para migrations."
+        }
+
+        paymentSchema = instanceOf payment.paymentDb {
+          title "poc-postgres-db / schema payment"
+          description "Schema local do PaymentService no PostgreSQL unico, acessado por payment_app_user em runtime e payment_migrator_user para migrations."
         }
 
         identitySchema = instanceOf identityService.identityDb {

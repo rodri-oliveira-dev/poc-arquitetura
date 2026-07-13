@@ -7,12 +7,16 @@ A solucao atual e uma arquitetura hibrida:
 - Clean Architecture/DDD em LedgerService e BalanceService, com projetos `Api`, `Application`, `Domain` e `Infrastructure`.
 - Clean Architecture/DDD em IdentityService, com projetos `Api`, `Application`, `Domain` e `Infrastructure` em `src/identity`.
 - Clean Architecture/DDD em TransferService, com projetos `Api`, `Application`, `Domain`, `Infrastructure` e `Worker`, Saga orquestrada, persistencia, Outbox Kafka e endpoints HTTP.
+- Clean Architecture/DDD em PaymentService, com projetos `Api`, `Application`, `Domain`, `Infrastructure` e `Worker`, Inbox para webhooks Stripe, ACL de provider e integracao idempotente com Ledger via HTTP.
+- Clean Architecture/DDD em AuditService, com projetos `Api`, `Application`, `Domain`, `Infrastructure` e `Worker`, API HTTP canonica e consumer Kafka opcional sem producers reais nos demais contexts.
 - Elementos hexagonais onde existem contratos de persistencia e implementacoes em Infrastructure.
 - Layered architecture na entrega HTTP, porque controllers, auth e composicao ficam concentrados nos projetos `*.Api`, com defaults tecnicos comuns em `Shared/ApiDefaults`.
 - Workers dedicados (`LedgerService.Worker` e `BalanceService.Worker`) para processamento assincrono continuo, sem superficie HTTP.
 - CQRS pragmatico entre servicos: Ledger escreve e publica eventos; Balance consome e mantem uma projecao de leitura.
 - Keycloak e o provedor principal de autenticacao/JWT da stack local.
 - IdentityService e o bounded context de cadastro e vinculo local de usuarios.
+- PaymentService e o bounded context de pagamentos externos; ele nao grava Ledger DB, Balance DB nem publica evento financeiro direto no Kafka.
+- AuditService e o bounded context de auditoria funcional; ele nao deve conhecer tipos internos de Ledger, Balance, Transfer ou Payment.
 
 ## Boundaries recomendados
 
@@ -184,6 +188,44 @@ Pontos de atencao:
 - `TransferService.Worker` registra HostedServices, client HTTP do Ledger e publisher Kafka, sem controllers, Swagger ou CORS.
 - Pub/Sub nao faz parte do fluxo do TransferService definido pela ADR-0087.
 
+### PaymentService
+
+O `PaymentService` existe como bounded context de pagamentos externos. A API
+recebe criacao/consulta/refund, integra com provider fake/Stripe por porta
+`IPaymentGateway`, persiste Inbox de webhooks Stripe no schema `payment` e
+mantem a state machine do aggregate `Payment`. O Worker processa a Inbox e
+materializa Payments/Refunds no Ledger por `ILedgerEntryGateway` e
+`LedgerHttpGateway`.
+
+Pontos de atencao:
+
+- `PaymentService.Domain` nao deve conhecer Stripe, Kafka, Ledger HTTP,
+  Balance ou EF Core.
+- `PaymentService.Application` pode orquestrar estado de pagamento, Inbox e
+  portas internas, mas nao deve publicar evento financeiro direto.
+- `PaymentService.Infrastructure` concentra EF Core, provider fake/Stripe,
+  client HTTP do Ledger e token client-credentials.
+- `PaymentService.Api` recebe webhook Stripe e valida assinatura/raw body, mas
+  nao processa efeito financeiro no request.
+- `PaymentService.Worker` nao expoe HTTP e nao chama Balance diretamente.
+
+### AuditService
+
+O `AuditService` existe como bounded context de auditoria funcional. A API HTTP
+canonica cria e consulta registros no schema `audit`. O Worker Kafka opcional
+consome `AuditRecordRequested.v1` quando habilitado e aplica idempotencia por
+`eventId`/`source_event_id`.
+
+Pontos de atencao:
+
+- nenhum bounded context financeiro publica auditoria automaticamente nesta
+  etapa;
+- o contrato canonico de auditoria deve permanecer agnostico ao chamador;
+- detalhes Kafka do consumer e da DLQ pertencem ao Worker;
+- `sourceService` e `operationType` sao vocabulario funcional governado por
+  contrato/documentacao, nao enums que acoplam o dominio de auditoria aos
+  dominios chamadores.
+
 ## Anti-patterns encontrados ou proximos
 
 - Padrao por reflexo: criar interfaces para toda classe sem variacao real.
@@ -199,6 +241,8 @@ A arquitetura ideal para este projeto deve ser minimalista e pragmatica, com rob
 
 - manter quatro camadas para LedgerService e BalanceService;
 - manter o TransferService como bounded context separado, com Saga e Outbox Kafka alinhados ao broker padrao, sem misturar Pub/Sub no fluxo da Saga;
+- manter o PaymentService como bounded context separado para pagamentos externos, sem Balance direto e sem Kafka financeiro proprio;
+- manter o AuditService como bounded context separado para trilha funcional, com integracao automatica apenas quando houver producer real e decisao explicita;
 - manter o IdentityService como bounded context separado para usuarios, MerchantId, vinculo local com Keycloak e e-mail de boas-vindas;
 - manter APIs e workers como processos separados, com composition root e `ServiceName` explicitos por processo;
 - reforcar boundaries onde ha risco real: contratos de eventos, tempo/clock, outbox e idempotencia;
