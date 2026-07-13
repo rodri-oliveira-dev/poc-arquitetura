@@ -297,7 +297,7 @@ entidade, merchant, actor, status, reason, metadata canonica e `occurredAt`.
   bounded context especifico.
 - Nao ha integracao inicial com `LedgerService`, `BalanceService` ou
   `TransferService`.
-- O `AuditService.Worker` possui consumer Kafka opcional para
+- O `AuditService.Worker` possui consumer Kafka para
   `AuditRecordRequested.v1`, mas nao ha producers reais em `LedgerService`,
   `BalanceService`, `TransferService` ou `PaymentService`.
 - Nao ha Outbox de auditoria nos servicos de origem nem redrive automatico de

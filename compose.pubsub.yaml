@@ -34,3 +34,7 @@ services:
   transfer-worker:
     profiles:
       - kafka-disabled-in-pubsub-mode
+
+  audit-worker:
+    profiles:
+      - kafka-disabled-in-pubsub-mode

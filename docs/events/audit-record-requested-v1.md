@@ -27,9 +27,9 @@ Este evento possui consumidor no `AuditService.Worker`, mas ainda nao possui
 produtor real:
 
 - nenhum servico publica `AuditRecordRequested.v1`;
-- `AuditService.Worker` consome opcionalmente o topico `audit.record.requested`;
-- nenhum topico Kafka e criado automaticamente por esta mudanca;
-- nenhum producer ou DLQ foi implementado por esta mudanca.
+- `AuditService.Worker` consome o topico `audit.record.requested` no Compose padrao;
+- o Compose padrao cria os topicos Kafka `audit.record.requested` e `audit.record.requested.dlq`;
+- nenhum producer foi implementado nos demais bounded contexts por esta mudanca.
 
 A integracao futura deve seguir a estrategia de Outbox transacional local no
 servico de origem e Kafka para o `AuditService.Worker`, conforme ADR-0099.

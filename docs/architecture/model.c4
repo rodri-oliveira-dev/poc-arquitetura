@@ -490,7 +490,7 @@ model {
   }
 
   audit = softwareSystem "AuditService" {
-    description "Bounded context de auditoria funcional. Expoe contrato HTTP canonico para registrar/consultar trilhas auditaveis e possui Worker Kafka opcional para AuditRecordRequested.v1, ainda sem producers reais nos demais bounded contexts."
+    description "Bounded context de auditoria funcional. Expoe contrato HTTP canonico para registrar/consultar trilhas auditaveis e possui Worker Kafka para AuditRecordRequested.v1 no Compose padrao, ainda sem producers reais nos demais bounded contexts."
 
     auditApi = container "AuditService.Api" {
       #api
@@ -515,16 +515,15 @@ model {
     }
 
     auditWorker = container "AuditService.Worker" {
-      #worker #optional #future
+      #worker
       technology ".NET Worker Service"
-      description "Worker dedicado e opcional para consumir AuditRecordRequested.v1 no Kafka, validar contrato canonico, aplicar idempotencia por eventId/source_event_id e publicar DLQ de aplicacao para falhas definitivas. Nao possui producers reais nos demais contexts nesta etapa."
+      description "Worker dedicado no Compose padrao para consumir AuditRecordRequested.v1 no Kafka, validar contrato canonico, aplicar idempotencia por eventId/source_event_id e publicar DLQ de aplicacao para falhas definitivas. Nao possui producers reais nos demais contexts nesta etapa."
 
       auditWorkerComposition = component "Worker composition root" {
         description "Registra Application, Infrastructure, options do consumer Kafka, producer de DLQ e HostedServices somente quando AuditService:Worker:Enabled e Kafka:AuditRecordRequestedConsumer:Enabled estao habilitados."
       }
 
       auditRecordConsumer = component "AuditRecordRequestedConsumerService" {
-        #optional #future
         description "BackgroundService Kafka que consome audit.record.requested, controla retry local, commit de offset e entrega mensagens validas ao processor canonico."
       }
 
@@ -542,7 +541,7 @@ model {
     auditDb = container "PostgreSQL schema audit" {
       #database
       technology "PostgreSQL"
-      description "Schema audit usado pelo AuditService quando provisionado fora do compose.yaml padrao: functional_audit_records e indices de idempotencia/consulta."
+      description "Schema audit no PostgreSQL local unico: functional_audit_records e indices de idempotencia/consulta, criado pelo init local e migrado pelos scripts start-stack."
     }
   }
 
@@ -565,7 +564,7 @@ model {
 
   kafka = softwareSystem "Kafka" {
     #broker
-    description "Broker Kafka local em KRaft. Broker padrao e recomendado para os fluxos assincronos principais de Ledger, Balance, Transfer e auditoria opcional."
+    description "Broker Kafka local em KRaft. Broker padrao e recomendado para os fluxos assincronos principais de Ledger, Balance, Transfer e auditoria."
 
     ledgerTopic = container "ledger.ledgerentry.created" {
       #topic
@@ -604,13 +603,13 @@ model {
     }
 
     auditRecordTopic = container "audit.record.requested" {
-      #topic #optional #future
+      #topic
       technology "Kafka topic"
-      description "Topico canonico opcional consumido pelo AuditService.Worker para AuditRecordRequested.v1. Ainda nao ha producers reais em Ledger, Balance, Transfer ou Payment."
+      description "Topico canonico criado no Compose padrao e consumido pelo AuditService.Worker para AuditRecordRequested.v1. Ainda nao ha producers reais em Ledger, Balance, Transfer ou Payment."
     }
 
     auditRecordDlq = container "audit.record.requested.dlq" {
-      #topic #optional #future
+      #topic
       technology "Kafka topic"
       description "DLQ de aplicacao do AuditService.Worker para mensagens de auditoria invalidas ou conflitos definitivos."
     }
@@ -711,7 +710,7 @@ model {
   stripe.stripeWebhooks -> payment.paymentApi "Entrega webhooks Stripe assinados em /api/v1/webhooks/stripe" "HTTPS + Stripe-Signature"
   audit.auditApi -> audit.auditDb "Persiste registros funcionais e idempotencia HTTP" "EF Core"
   audit.auditWorker.auditWorkerComposition -> audit.auditWorker.auditRecordConsumer "Registra consumer quando habilitado" "DI"
-  kafka.auditRecordTopic -> audit.auditWorker.auditRecordConsumer "Entrega AuditRecordRequested.v1 opcionalmente; ainda sem producers reais" "Kafka"
+  kafka.auditRecordTopic -> audit.auditWorker.auditRecordConsumer "Entrega AuditRecordRequested.v1; ainda sem producers reais" "Kafka"
   audit.auditWorker.auditRecordConsumer -> audit.auditWorker.auditRecordProcessor "Entrega mensagem recebida" "processor"
   audit.auditWorker.auditRecordProcessor -> audit.auditApplication "Mapeia para CreateAuditRecordCommand" "MediatR"
   audit.auditWorker.auditRecordProcessor -> audit.auditDb "Persiste auditoria por source_event_id idempotente" "EF Core"

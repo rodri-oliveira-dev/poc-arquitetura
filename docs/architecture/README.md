@@ -215,10 +215,10 @@ continuam explicadas por titulos, tecnologias e descricoes das views.
 | `containers` | Container | Referencia expandida, nao primeira leitura | Qual e o mapa completo quando APIs, Workers, schemas, broker, externos e observabilidade precisam aparecer juntos |
 | `ledgerBalanceProjectionFlow` | Dynamic / Flow | Entender lancamento financeiro e saldo | Como Ledger grava o fato, publica Outbox no Kafka e Balance projeta saldo |
 | `identityRegistrationFlow` | Dynamic / Flow | Entender cadastro de usuario | Como IdentityService cria usuario no Keycloak, persiste vinculo local e envia e-mail |
-| `kafkaFlow` | Operational / Runtime | Entender mensageria assincrona padrao | Onde Kafka e usado por Ledger, Balance, Transfer e auditoria opcional |
+| `kafkaFlow` | Operational / Runtime | Entender mensageria assincrona padrao | Onde Kafka e usado por Ledger, Balance, Transfer e auditoria |
 | `pubSubLegacyProjectionFlow` | Operational / Runtime | Diagnosticar o modo Pub/Sub legado | Como Ledger publica e Balance consome via Pub/Sub quando `Messaging:Provider=PubSub` |
 | `observabilityFlow` | Operational / Observability | Entender telemetria local | Como APIs, Workers, Collector, Jaeger, Prometheus, Loki, Alloy, Alertmanager e Grafana se conectam |
-| `localDeployment` | Deployment / Runtime | Entender Docker Compose local | Quais servicos do Compose atual existem e a que elementos logicos correspondem; AuditService fica fora do Compose padrao atual |
+| `localDeployment` | Deployment / Runtime | Entender Docker Compose local | Quais servicos do Compose atual existem e a que elementos logicos correspondem |
 | `ledgerApiComponents` | Component | Revisar LedgerService.Api | Como HTTP, Application, Domain, Infrastructure e schema ledger se separam |
 | `ledgerWorkerComponents` | Component / Pipeline tecnico | Revisar LedgerService.Worker | Como Outbox Kafka, estornos, reprocessamento, processors, ports, adapters, topicos e persistencia ficam no Worker |
 | `balanceApiComponents` | Component | Revisar BalanceService.Api | Como a API consulta a projecao sem criar fatos financeiros |
@@ -236,8 +236,8 @@ continuam explicadas por titulos, tecnologias e descricoes das views.
 | `paymentLedgerMaterializationFlow` | Dynamic / Flow | Entender Payment -> Ledger -> Balance | Como pagamento confirmado vira lancamento Ledger e saldo projetado |
 | `paymentRefundFlow` | Dynamic / Flow | Entender refund total | Como refund Stripe vira estorno Ledger e evento compensatorio para Balance |
 | `auditApiComponents` | Component | Revisar AuditService.Api | Como o contrato HTTP canonico usa Application/Domain/Infrastructure compartilhadas para persistir registros no schema audit |
-| `auditWorkerComponents` | Component / Pipeline tecnico | Revisar AuditService.Worker | Como o consumer Kafka opcional/futuro processa AuditRecordRequested.v1 sem depender do container da API |
-| `auditKafkaIngestionFlow` | Dynamic / Flow | Entender auditoria assincrona opcional | Como o Worker consome auditoria quando houver producer habilitado, sem declarar producers atuais |
+| `auditWorkerComponents` | Component / Pipeline tecnico | Revisar AuditService.Worker | Como o consumer Kafka processa AuditRecordRequested.v1 sem depender do container da API |
+| `auditKafkaIngestionFlow` | Dynamic / Flow | Entender auditoria assincrona | Como o Worker consome auditoria no Compose padrao enquanto os demais dominios ainda nao publicam producers reais |
 
 ## Principais bounded contexts
 
@@ -286,21 +286,19 @@ nao emite tokens e nao assume regra financeira.
 ### AuditService
 
 Dono da trilha funcional de auditoria. A API HTTP canonica cria e consulta
-registros no schema `audit`. O Worker Kafka opcional consome
-`AuditRecordRequested.v1` quando habilitado, mas Ledger, Balance, Transfer e
-Payment ainda nao publicam eventos reais de auditoria.
+registros no schema `audit`. O Worker Kafka consome `AuditRecordRequested.v1`
+no Compose padrao, mas Ledger, Balance, Transfer e Payment ainda nao publicam
+eventos reais de auditoria.
 
 No modelo LikeC4, `AuditService.Application`, `AuditService.Domain` e
 `AuditService.Infrastructure` tambem aparecem no nivel do bounded context. Isso
 representa os assemblies compartilhados por `AuditService.Api` e
 `AuditService.Worker`, sem sugerir que o Worker dependa da API.
 
-No deployment local, `AuditService.Api`, `AuditService.Worker` e o schema
-`audit` nao fazem parte do `compose.yaml` padrao nem do init atual de
-`infra/postgres`. Por isso eles aparecem nas views logicas e de componente, mas
-nao em `localDeployment`. A execucao isolada segue a solution
-`AuditService.slnx`, as configuracoes em `src/audit/**/appsettings*.json` e os
-runbooks/specs proprios.
+No ambiente local padrao, `audit-service` e `audit-worker` sobem pelo
+`compose.yaml` apos as migrations do schema `audit` serem aplicadas pelos
+scripts `scripts/local/start-stack.*`. No modo Pub/Sub legado, o
+`audit-worker` fica desativado porque o overlay desliga Kafka.
 
 ## Fluxos principais
 

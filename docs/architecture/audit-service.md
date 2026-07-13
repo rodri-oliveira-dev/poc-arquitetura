@@ -18,7 +18,7 @@ estavel para operacoes de negocio, com contrato HTTP canonico e idempotente.
 
 No LikeC4, `AuditService.Application`, `AuditService.Domain` e
 `AuditService.Infrastructure` sao modelados no nivel do bounded context, e nao
-como filhos de `AuditService.Api`. A API HTTP e o Worker Kafka opcional sao
+como filhos de `AuditService.Api`. A API HTTP e o Worker Kafka sao
 composition roots separados que referenciam esses assemblies compartilhados; o
 Worker nao depende do container da API.
 
@@ -35,11 +35,11 @@ O schema `audit` preserva isolamento logico, evita misturar tabelas de auditoria
 com `ledger`, `balance`, `transfer` ou `identity`, e deixa aberta a possibilidade
 de migrar para banco fisico proprio quando houver necessidade real.
 
-Importante para leitura de deployment: o `compose.yaml` padrao ainda nao sobe
-`AuditService.Api`, `AuditService.Worker` nem cria usuarios/schema `audit` no
-init de `infra/postgres`. A arquitetura logica do AuditService esta implementada
-e validada pela solution `AuditService.slnx`, mas o deployment local documentado
-em `localDeployment` representa somente os servicos presentes no Compose atual.
+No deployment local padrao, o `compose.yaml` sobe `audit-service` e
+`audit-worker`, cria roles/schema `audit` no init de `infra/postgres` e os
+scripts `scripts/local/start-stack.*` aplicam as migrations com
+`audit_migrator_user`. No modo Pub/Sub legado, `compose.pubsub.yaml` desativa o
+`audit-worker`, pois o consumer de auditoria depende de Kafka.
 
 ## Relacao com Ledger, Balance e Transfer
 
@@ -48,8 +48,8 @@ Nao existe integracao nesta primeira etapa:
 - `LedgerService` nao chama o `AuditService`;
 - `BalanceService` nao chama o `AuditService`;
 - `TransferService` nao chama o `AuditService`;
-- o `AuditService.Worker` possui consumer Kafka opcional de
-  `AuditRecordRequested.v1`, com retry controlado e DLQ de aplicacao;
+- o `AuditService.Worker` possui consumer Kafka de `AuditRecordRequested.v1`,
+  com retry controlado e DLQ de aplicacao;
 - nenhum outro bounded context publica eventos reais de auditoria;
 - nenhum evento financeiro foi alterado para carregar auditoria.
 
@@ -246,6 +246,7 @@ em `source_event_id` com indice unico. Essa chave e separada do
 - Registrar catalogo leve de operacoes auditaveis quando houver o primeiro
   chamador real.
 - Avaliar retencao, expurgo e mascaramento conforme requisitos de auditoria.
-- Avaliar Outbox, Kafka ou worker apenas se houver necessidade de captura
-  assincrona, resiliencia entre servicos ou desacoplamento operacional real.
+- Avaliar Outbox/producers nos servicos de origem apenas se houver necessidade
+  de captura assincrona, resiliencia entre servicos ou desacoplamento
+  operacional real.
 - Atualizar LikeC4 e ADRs quando a primeira integracao for desenhada.

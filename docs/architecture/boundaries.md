@@ -8,7 +8,7 @@ A solucao atual e uma arquitetura hibrida:
 - Clean Architecture/DDD em IdentityService, com projetos `Api`, `Application`, `Domain` e `Infrastructure` em `src/identity`.
 - Clean Architecture/DDD em TransferService, com projetos `Api`, `Application`, `Domain`, `Infrastructure` e `Worker`, Saga orquestrada, persistencia, Outbox Kafka e endpoints HTTP.
 - Clean Architecture/DDD em PaymentService, com projetos `Api`, `Application`, `Domain`, `Infrastructure` e `Worker`, Inbox para webhooks Stripe, ACL de provider e integracao idempotente com Ledger via HTTP.
-- Clean Architecture/DDD em AuditService, com projetos `Api`, `Application`, `Domain`, `Infrastructure` e `Worker`, API HTTP canonica e consumer Kafka opcional sem producers reais nos demais contexts.
+- Clean Architecture/DDD em AuditService, com projetos `Api`, `Application`, `Domain`, `Infrastructure` e `Worker`, API HTTP canonica e consumer Kafka sem producers reais nos demais contexts.
 - Elementos hexagonais onde existem contratos de persistencia e implementacoes em Infrastructure.
 - Layered architecture na entrega HTTP, porque controllers, auth e composicao ficam concentrados nos projetos `*.Api`, com defaults tecnicos comuns em `Shared/ApiDefaults`.
 - Workers dedicados (`LedgerService.Worker` e `BalanceService.Worker`) para processamento assincrono continuo, sem superficie HTTP.
@@ -212,7 +212,7 @@ Pontos de atencao:
 ### AuditService
 
 O `AuditService` existe como bounded context de auditoria funcional. A API HTTP
-canonica cria e consulta registros no schema `audit`. O Worker Kafka opcional
+canonica cria e consulta registros no schema `audit`. O Worker Kafka
 consome `AuditRecordRequested.v1` quando habilitado e aplica idempotencia por
 `eventId`/`source_event_id`.
 

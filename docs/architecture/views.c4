@@ -251,7 +251,7 @@ views {
 
   view kafkaFlow {
     title "Kafka - mensageria assincrona documentada"
-    description "Mostra onde Kafka e usado no runtime documentado como provider padrao: fluxo financeiro Ledger/Balance, eventos da Saga do TransferService e consumer opcional do AuditService sem producers reais nesta etapa."
+    description "Mostra onde Kafka e usado no runtime documentado como provider padrao: fluxo financeiro Ledger/Balance, eventos da Saga do TransferService e consumer do AuditService sem producers reais nesta etapa."
     include ledger.ledgerWorker
     include ledger.ledgerKafkaOutboxPublisher
     include ledger.ledgerReprocessamentoConsumer
@@ -601,7 +601,7 @@ views {
 
   view auditWorkerComponents of audit.auditWorker {
     title "Component View - AuditService.Worker"
-    description "Visao tecnica opcional/futura do Worker Kafka de auditoria: consumer, processor, DLQ, topicos e persistencia. Ainda nao ha producers reais nos demais bounded contexts."
+    description "Visao tecnica do Worker Kafka de auditoria: consumer, processor, DLQ, topicos e persistencia. Ainda nao ha producers reais nos demais bounded contexts."
     include audit.auditWorkerComposition
     include audit.auditRecordConsumer
     include audit.auditRecordProcessor
@@ -613,7 +613,7 @@ views {
   }
 
   dynamic view auditKafkaIngestionFlow {
-    title "Dynamic View - auditoria Kafka opcional"
+    title "Dynamic View - auditoria Kafka"
     description "Estado atual: AuditService.Worker pode consumir AuditRecordRequested.v1, mas Ledger, Balance, Transfer e Payment ainda nao publicam eventos reais de auditoria."
 
     kafka.auditRecordTopic -> audit.auditWorker.auditRecordConsumer "1. Entrega AuditRecordRequested.v1 quando houver producer habilitado"

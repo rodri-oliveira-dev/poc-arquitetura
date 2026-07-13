@@ -29,7 +29,7 @@ Principais servicos:
 | `BalanceService.Worker` | Processo dedicado para consumir eventos financeiros do Ledger pelo provider selecionado e atualizar a projecao de saldos. |
 | `TransferService.Api` / `TransferService.Worker` | Bounded context de transferencias com Saga orquestrada, POST/consulta HTTP, persistencia EF Core, Outbox transacional e publicacao Kafka explicita dos eventos da Saga. |
 | `PaymentService.Api` / `PaymentService.Worker` | Bounded context de pagamentos externos com API de criacao/consulta/refund, ACL para provider fake/Stripe, webhook Stripe com assinatura obrigatoria, Inbox duravel no schema `payment`, Worker de Inbox e integracao idempotente com Ledger para credito e estorno; Balance continua sendo atualizado apenas pelos eventos do Ledger. |
-| `AuditService.Api` / `AuditService.Worker` | Bounded context de auditoria funcional com contrato HTTP canonico, schema `audit`, idempotencia, consultas por operacao e consumer Kafka opcional de `AuditRecordRequested.v1`, ainda sem producers nos demais dominios. |
+| `AuditService.Api` / `AuditService.Worker` | Bounded context de auditoria funcional com contrato HTTP canonico, schema `audit`, idempotencia, consultas por operacao e consumer Kafka de `AuditRecordRequested.v1`, ainda sem producers nos demais dominios. |
 
 ## Arquitetura
 
@@ -62,7 +62,7 @@ e consultar trilhas funcionais por id, por `operationId` e por filtros.
 O contrato e canonico e agnostico ao servico chamador: `sourceService` e
 `operationType` identificam a origem e a operacao sem acoplar a auditoria a
 tipos internos de Ledger, Balance, Transfer ou Identity. Nesta etapa, o
-`AuditService.Worker` consome opcionalmente `AuditRecordRequested.v1` no topico
+`AuditService.Worker` consome `AuditRecordRequested.v1` no topico
 Kafka `audit.record.requested`, usando `eventId` como `source_event_id`
 idempotente. Ledger, Balance e Transfer ainda nao publicam eventos reais de
 auditoria.
@@ -390,7 +390,7 @@ No Linux/macOS:
 ./scripts/local/start-stack.sh
 ```
 
-Esse script sobe o core funcional local: PostgreSQL persistente unico com schemas `ledger`, `balance`, `transfer`, `payment` e `identity`, Kafka, Keycloak, APIs e workers, incluindo `TransferService.Worker` e `PaymentService.Worker`. Ele aplica migrations pelo host e inicia as APIs depois do schema estar pronto. O passo a passo manual fica em [desenvolvimento local](docs/development/local-development.md).
+Esse script sobe o core funcional local: PostgreSQL persistente unico com schemas `ledger`, `balance`, `transfer`, `payment`, `audit` e `identity`, Kafka, Keycloak, APIs e workers, incluindo `TransferService.Worker`, `PaymentService.Worker` e `AuditService.Worker`. Ele aplica migrations pelo host e inicia as APIs depois do schema estar pronto. O passo a passo manual fica em [desenvolvimento local](docs/development/local-development.md).
 
 Para incluir observabilidade local completa:
 

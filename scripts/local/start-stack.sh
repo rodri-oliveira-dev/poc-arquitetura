@@ -36,6 +36,8 @@ TRANSFER_DB_PASSWORD="$(get_required_local_config_value TRANSFER_DB_PASSWORD)"
 TRANSFER_DB_MIGRATOR_PASSWORD="$(get_required_local_config_value TRANSFER_DB_MIGRATOR_PASSWORD)"
 PAYMENT_DB_PASSWORD="$(get_required_local_config_value PAYMENT_DB_PASSWORD)"
 PAYMENT_DB_MIGRATOR_PASSWORD="$(get_required_local_config_value PAYMENT_DB_MIGRATOR_PASSWORD)"
+AUDIT_DB_PASSWORD="$(get_required_local_config_value AUDIT_DB_PASSWORD)"
+AUDIT_DB_MIGRATOR_PASSWORD="$(get_required_local_config_value AUDIT_DB_MIGRATOR_PASSWORD)"
 IDENTITY_DB_PASSWORD="$(get_required_local_config_value IDENTITY_DB_PASSWORD)"
 IDENTITY_DB_MIGRATOR_PASSWORD="$(get_required_local_config_value IDENTITY_DB_MIGRATOR_PASSWORD)"
 
@@ -149,6 +151,8 @@ assert_database_authentication transfer_app_user "$TRANSFER_DB_PASSWORD"
 assert_database_authentication transfer_migrator_user "$TRANSFER_DB_MIGRATOR_PASSWORD"
 assert_database_authentication payment_app_user "$PAYMENT_DB_PASSWORD"
 assert_database_authentication payment_migrator_user "$PAYMENT_DB_MIGRATOR_PASSWORD"
+assert_database_authentication audit_app_user "$AUDIT_DB_PASSWORD"
+assert_database_authentication audit_migrator_user "$AUDIT_DB_MIGRATOR_PASSWORD"
 assert_database_authentication identity_app_user "$IDENTITY_DB_PASSWORD"
 assert_database_authentication identity_migrator_user "$IDENTITY_DB_MIGRATOR_PASSWORD"
 
@@ -179,6 +183,13 @@ run_migration \
   "PAYMENT_SERVICE_CONNECTION_STRING"
 
 run_migration \
+  "Host=127.0.0.1;Port=$POSTGRES_HOST_PORT;Database=$POSTGRES_DATABASE;Username=audit_migrator_user;Password=$AUDIT_DB_MIGRATOR_PASSWORD" \
+  "src/audit/AuditService.Infrastructure/AuditService.Infrastructure.csproj" \
+  "src/audit/AuditService.Api/AuditService.Api.csproj" \
+  "AuditDbContext" \
+  "AUDIT_SERVICE_CONNECTION_STRING"
+
+run_migration \
   "Host=127.0.0.1;Port=$POSTGRES_HOST_PORT;Database=$POSTGRES_DATABASE;Username=identity_migrator_user;Password=$IDENTITY_DB_MIGRATOR_PASSWORD" \
   "src/identity/IdentityService.Infrastructure/IdentityService.Infrastructure.csproj" \
   "src/identity/IdentityService.Infrastructure/IdentityService.Infrastructure.csproj" \
@@ -195,9 +206,9 @@ if [[ "$NO_BUILD" != "true" ]]; then
 fi
 
 if [[ "$MESSAGING_PROVIDER" == "Kafka" ]]; then
-  "${api_up[@]}" ledger-service ledger-worker balance-service balance-worker transfer-service transfer-worker payment-service payment-worker identity-service mailpit
+  "${api_up[@]}" ledger-service ledger-worker balance-service balance-worker transfer-service transfer-worker payment-service payment-worker audit-service audit-worker identity-service mailpit
 else
-  "${api_up[@]}" ledger-service ledger-worker balance-service balance-worker transfer-service payment-service payment-worker identity-service mailpit
+  "${api_up[@]}" ledger-service ledger-worker balance-service balance-worker transfer-service payment-service payment-worker audit-service identity-service mailpit
 fi
 
 echo "OK. Stack local pronta."
