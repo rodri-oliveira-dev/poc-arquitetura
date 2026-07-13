@@ -1060,7 +1060,7 @@
     "securitySchemes": {
       "Bearer": {
         "type": "http",
-        "description": "Autenticacao via JWT Bearer. Scopes relevantes nesta API: payment.write (escrita) / payment.read (leitura).",
+        "description": "Autenticacao via JWT Bearer. Scopes relevantes nesta API: payment.write (escrita) / payment.read (leitura) / payment.refund (refund).",
         "scheme": "bearer",
         "bearerFormat": "JWT"
       }
