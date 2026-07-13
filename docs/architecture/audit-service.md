@@ -35,6 +35,12 @@ O schema `audit` preserva isolamento logico, evita misturar tabelas de auditoria
 com `ledger`, `balance`, `transfer` ou `identity`, e deixa aberta a possibilidade
 de migrar para banco fisico proprio quando houver necessidade real.
 
+Importante para leitura de deployment: o `compose.yaml` padrao ainda nao sobe
+`AuditService.Api`, `AuditService.Worker` nem cria usuarios/schema `audit` no
+init de `infra/postgres`. A arquitetura logica do AuditService esta implementada
+e validada pela solution `AuditService.slnx`, mas o deployment local documentado
+em `localDeployment` representa somente os servicos presentes no Compose atual.
+
 ## Relacao com Ledger, Balance e Transfer
 
 Nao existe integracao nesta primeira etapa:

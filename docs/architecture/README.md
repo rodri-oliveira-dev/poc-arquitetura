@@ -218,7 +218,7 @@ continuam explicadas por titulos, tecnologias e descricoes das views.
 | `kafkaFlow` | Operational / Runtime | Entender mensageria assincrona padrao | Onde Kafka e usado por Ledger, Balance, Transfer e auditoria opcional |
 | `pubSubLegacyProjectionFlow` | Operational / Runtime | Diagnosticar o modo Pub/Sub legado | Como Ledger publica e Balance consome via Pub/Sub quando `Messaging:Provider=PubSub` |
 | `observabilityFlow` | Operational / Observability | Entender telemetria local | Como APIs, Workers, Collector, Jaeger, Prometheus, Loki, Alloy, Alertmanager e Grafana se conectam |
-| `localDeployment` | Deployment / Runtime | Entender Docker Compose local | Quais servicos do Compose atual existem e a que elementos logicos correspondem |
+| `localDeployment` | Deployment / Runtime | Entender Docker Compose local | Quais servicos do Compose atual existem e a que elementos logicos correspondem; AuditService fica fora do Compose padrao atual |
 | `ledgerApiComponents` | Component | Revisar LedgerService.Api | Como HTTP, Application, Domain, Infrastructure e schema ledger se separam |
 | `ledgerWorkerComponents` | Component / Pipeline tecnico | Revisar LedgerService.Worker | Como Outbox Kafka, estornos, reprocessamento, processors, ports, adapters, topicos e persistencia ficam no Worker |
 | `balanceApiComponents` | Component | Revisar BalanceService.Api | Como a API consulta a projecao sem criar fatos financeiros |
@@ -294,6 +294,13 @@ No modelo LikeC4, `AuditService.Application`, `AuditService.Domain` e
 `AuditService.Infrastructure` tambem aparecem no nivel do bounded context. Isso
 representa os assemblies compartilhados por `AuditService.Api` e
 `AuditService.Worker`, sem sugerir que o Worker dependa da API.
+
+No deployment local, `AuditService.Api`, `AuditService.Worker` e o schema
+`audit` nao fazem parte do `compose.yaml` padrao nem do init atual de
+`infra/postgres`. Por isso eles aparecem nas views logicas e de componente, mas
+nao em `localDeployment`. A execucao isolada segue a solution
+`AuditService.slnx`, as configuracoes em `src/audit/**/appsettings*.json` e os
+runbooks/specs proprios.
 
 ## Fluxos principais
 

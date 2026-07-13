@@ -542,7 +542,7 @@ model {
     auditDb = container "PostgreSQL schema audit" {
       #database
       technology "PostgreSQL"
-      description "Schema audit no PostgreSQL local unico ou boundary equivalente por ambiente: functional_audit_records e indices de idempotencia/consulta."
+      description "Schema audit usado pelo AuditService quando provisionado fora do compose.yaml padrao: functional_audit_records e indices de idempotencia/consulta."
     }
   }
 
