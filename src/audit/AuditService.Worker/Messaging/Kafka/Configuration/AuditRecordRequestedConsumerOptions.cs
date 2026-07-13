@@ -1,6 +1,8 @@
+using PocArquitetura.KafkaWorkerDefaults;
+
 namespace AuditService.Worker.Messaging.Kafka.Configuration;
 
-public sealed class AuditRecordRequestedConsumerOptions
+public sealed class AuditRecordRequestedConsumerOptions : IKafkaConsumerConfigOptions
 {
     public const string SectionName = "Kafka:AuditRecordRequestedConsumer";
 

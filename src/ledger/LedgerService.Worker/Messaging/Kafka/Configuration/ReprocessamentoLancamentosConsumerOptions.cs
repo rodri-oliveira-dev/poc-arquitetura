@@ -4,7 +4,7 @@ using PocArquitetura.KafkaWorkerDefaults;
 
 namespace LedgerService.Worker.Messaging.Kafka.Configuration;
 
-public sealed class ReprocessamentoLancamentosConsumerOptions : IKafkaClientSecurityOptions
+public sealed class ReprocessamentoLancamentosConsumerOptions : IKafkaConsumerConfigOptions
 {
     public const string SectionName = "Reprocessamentos:Consumer";
 

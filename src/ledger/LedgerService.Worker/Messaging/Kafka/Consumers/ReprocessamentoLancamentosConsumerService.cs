@@ -118,15 +118,7 @@ public sealed partial class ReprocessamentoLancamentosConsumerService : Backgrou
     }
 
     internal static ConsumerConfig CreateConsumerConfig(ReprocessamentoLancamentosConsumerOptions options)
-        => KafkaConsumerConfigFactory.Create(
-            options.BootstrapServers,
-            options.GroupId,
-            options.ClientId,
-            options.EnableAutoCommit,
-            options.EnableAutoOffsetStore,
-            options.AllowAutoCreateTopics,
-            options.AutoOffsetReset,
-            options);
+        => KafkaConsumerConfigFactory.Create(options);
 
     internal Task ProcessConsumeResultAsync(
         IConsumer<string, string> consumer,

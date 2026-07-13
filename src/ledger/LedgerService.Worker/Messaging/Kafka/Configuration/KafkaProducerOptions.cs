@@ -1,6 +1,8 @@
+using PocArquitetura.KafkaWorkerDefaults;
+
 namespace LedgerService.Worker.Messaging.Kafka.Configuration;
 
-public sealed class KafkaProducerOptions
+public sealed class KafkaProducerOptions : IKafkaClientSecurityOptions
 {
     public const string SectionName = "Kafka:Producer";
 

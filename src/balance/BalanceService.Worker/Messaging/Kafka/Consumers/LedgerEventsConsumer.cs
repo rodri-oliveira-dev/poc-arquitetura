@@ -99,15 +99,7 @@ public sealed class LedgerEventsConsumer : BackgroundService
     }
 
     internal static ConsumerConfig CreateConsumerConfig(KafkaConsumerOptions options)
-        => KafkaConsumerConfigFactory.Create(
-            options.BootstrapServers,
-            options.GroupId,
-            options.ClientId,
-            options.EnableAutoCommit,
-            options.EnableAutoOffsetStore,
-            options.AllowAutoCreateTopics,
-            options.AutoOffsetReset,
-            options);
+        => KafkaConsumerConfigFactory.Create(options);
 
     internal Task ProcessConsumeResultAsync(
         IConsumer<string, string> consumer,

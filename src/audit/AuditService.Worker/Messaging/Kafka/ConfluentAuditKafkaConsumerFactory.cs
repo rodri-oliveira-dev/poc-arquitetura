@@ -4,6 +4,8 @@ using Confluent.Kafka;
 
 using Microsoft.Extensions.Options;
 
+using PocArquitetura.KafkaWorkerDefaults;
+
 namespace AuditService.Worker.Messaging.Kafka;
 
 internal sealed partial class ConfluentAuditKafkaConsumerFactory(
@@ -26,28 +28,11 @@ internal sealed partial class ConfluentAuditKafkaConsumerFactory(
     {
         ArgumentNullException.ThrowIfNull(consumerOptions);
 
-        var config = new ConsumerConfig
-        {
-            BootstrapServers = consumerOptions.BootstrapServers,
-            GroupId = consumerOptions.GroupId,
-            ClientId = consumerOptions.ClientId,
-            EnableAutoCommit = consumerOptions.EnableAutoCommit,
-            EnableAutoOffsetStore = consumerOptions.EnableAutoOffsetStore,
-            AllowAutoCreateTopics = consumerOptions.AllowAutoCreateTopics,
-            AutoOffsetReset = ParseAutoOffsetReset(consumerOptions.AutoOffsetReset)
-        };
-        config.ApplySecurity(consumerOptions);
-
-        return config;
+        return KafkaConsumerConfigFactory.Create(consumerOptions);
     }
 
     internal static AutoOffsetReset ParseAutoOffsetReset(string value)
-        => value.Trim().ToLowerInvariant() switch
-        {
-            "earliest" => AutoOffsetReset.Earliest,
-            "latest" => AutoOffsetReset.Latest,
-            _ => AutoOffsetReset.Earliest
-        };
+        => KafkaOffsetResetParser.Parse(value);
 
     [LoggerMessage(EventId = 1, Level = LogLevel.Warning, Message = "Kafka consumer de auditoria reportou erro: {Reason} (IsFatal={IsFatal})")]
     private static partial void LogKafkaConsumerError(ILogger logger, string reason, bool isFatal);

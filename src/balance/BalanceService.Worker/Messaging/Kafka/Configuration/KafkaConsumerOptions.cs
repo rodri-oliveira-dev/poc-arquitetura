@@ -2,7 +2,7 @@ using PocArquitetura.KafkaWorkerDefaults;
 
 namespace BalanceService.Worker.Messaging.Kafka.Configuration;
 
-public sealed class KafkaConsumerOptions : IKafkaClientSecurityOptions
+public sealed class KafkaConsumerOptions : IKafkaConsumerConfigOptions
 {
     public const string SectionName = "Kafka:Consumer";
 

@@ -9,5 +9,6 @@
     <Project Path="tests/Shared/ApiDefaults.Tests/ApiDefaults.Tests.csproj" />
     <Project Path="tests/Shared/ApplicationDefaults.Tests/ApplicationDefaults.Tests.csproj" />
     <Project Path="tests/Shared/HttpResilienceDefaults.Tests/HttpResilienceDefaults.Tests.csproj" />
+    <Project Path="tests/Shared/KafkaWorkerDefaults.Tests/KafkaWorkerDefaults.Tests.csproj" />
   </Folder>
 </Solution>
