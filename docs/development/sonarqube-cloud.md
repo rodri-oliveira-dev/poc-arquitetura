@@ -91,7 +91,9 @@ sonar.cs.opencover.reportsPaths="./artifacts/test-results/**/coverage.opencover.
 
 Nao use cobertura generica do Sonar para este caso. Para C#/.NET, a importacao deve usar `sonar.cs.opencover.reportsPaths` apontando para os arquivos OpenCover gerados pelo Coverlet.
 
-O scanner exclui da metrica de cobertura do SonarQube Cloud os diretorios `.github/`, `docs/`, `infra/`, `loadtests/` e `scripts/`, alem de `Program.cs`, migrations EF e arquivos gerados. Esses arquivos continuam analisados por regras de qualidade e seguranca quando suportado pelo Sonar, mas nao entram no denominador de cobertura porque a cobertura oficial do repositorio vem dos testes .NET via OpenCover.
+O scanner exclui da metrica de cobertura do SonarQube Cloud os diretorios `.github/`, `docs/`, `infra/` e `loadtests/`, alem de `Program.cs`, migrations EF e arquivos gerados. Esses arquivos continuam analisados por regras de qualidade e seguranca quando suportado pelo Sonar, mas nao entram no denominador de cobertura porque a cobertura oficial do repositorio vem dos testes .NET via OpenCover.
+
+Arquivos nao C# dentro de `scripts/` ficam fora da analise por `sonar.exclusions`, com a lista explicita baseada no inventario atual: `scripts/**/*.sh`, `scripts/**/*.ps1`, `scripts/**/*.py`, `scripts/**/*.json` e `scripts/**/*.mjs`. Nao use `scripts/**`: arquivos C# futuros em `scripts/` devem continuar elegiveis para analise e cobertura.
 
 Nao use essa exclusao para esconder codigo produtivo .NET sem testes. Se um arquivo C# de `src/` precisar sair da cobertura, registre uma justificativa localizada e revise se o `coverlet.runsettings` tambem precisa ser ajustado.
 

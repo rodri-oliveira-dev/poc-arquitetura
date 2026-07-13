@@ -36,6 +36,44 @@ public sealed class ReprocessamentoLancamentosConsumerOptionsTests
         Assert.Equal(expected, result);
     }
 
+    [Fact]
+    public void CreateConsumerConfig_should_map_options_and_security_fields()
+    {
+        var options = new ReprocessamentoLancamentosConsumerOptions
+        {
+            BootstrapServers = "kafka:9092",
+            GroupId = "ledger-group",
+            Topic = "ledger.lancamentos.reprocessamento.solicitado",
+            ClientId = "ledger-client",
+            EnableAutoCommit = false,
+            EnableAutoOffsetStore = false,
+            AllowAutoCreateTopics = false,
+            AutoOffsetReset = "Latest",
+            SecurityProtocol = "SASL_SSL",
+            SaslMechanism = "Scram-Sha-256",
+            SaslUsername = "user",
+            SaslPassword = "secret",
+            SslCaLocation = "/certs/ca.pem",
+            ConsumeErrorRetryDelay = TimeSpan.FromMilliseconds(1),
+            ProcessingErrorRetryDelay = TimeSpan.FromMilliseconds(1)
+        };
+
+        var config = ReprocessamentoLancamentosConsumerService.CreateConsumerConfig(options);
+
+        Assert.Equal("kafka:9092", config.BootstrapServers);
+        Assert.Equal("ledger-group", config.GroupId);
+        Assert.Equal("ledger-client", config.ClientId);
+        Assert.False(config.EnableAutoCommit);
+        Assert.False(config.EnableAutoOffsetStore);
+        Assert.False(config.AllowAutoCreateTopics);
+        Assert.Equal(AutoOffsetReset.Latest, config.AutoOffsetReset);
+        Assert.Equal(SecurityProtocol.SaslSsl, config.SecurityProtocol);
+        Assert.Equal(SaslMechanism.ScramSha256, config.SaslMechanism);
+        Assert.Equal("user", config.SaslUsername);
+        Assert.Equal("secret", config.SaslPassword);
+        Assert.Equal("/certs/ca.pem", config.SslCaLocation);
+    }
+
     private static ReprocessamentoLancamentosConsumerOptions CreateInvalidOptions(string invalidField)
     {
         return invalidField switch

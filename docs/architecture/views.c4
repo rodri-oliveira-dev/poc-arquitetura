@@ -100,7 +100,7 @@ views {
 
   view kafkaFlow {
     title "Kafka - mensageria assincrona documentada"
-    description "Mostra onde Kafka e usado no runtime documentado: fluxo financeiro Ledger/Balance, eventos da Saga do TransferService e consumer opcional do AuditService sem producers reais nesta etapa."
+    description "Mostra onde Kafka e usado no runtime documentado como provider padrao: fluxo financeiro Ledger/Balance, eventos da Saga do TransferService e consumer opcional do AuditService sem producers reais nesta etapa."
     include ledger.ledgerWorker
     include ledger.ledgerKafkaOutboxPublisher
     include ledger.ledgerReprocessamentoConsumer
@@ -202,6 +202,27 @@ views {
     include kafka.ledgerTopic
     include kafka.ledgerEstornoTopic
     include kafka.ledgerReprocessamentoTopic
+    autoLayout LeftRight
+  }
+
+  dynamic view pubSubLegacyProjectionFlow {
+    title "Pub/Sub legado - fluxo Ledger/Balance opcional"
+    description "View isolada do caminho Pub/Sub explicito/legado. O overlay compose.pubsub.yaml seleciona Messaging__Provider=PubSub para Ledger/Balance e usa o emulator local; Terraform pode provisionar Pub/Sub real com DLQ tecnica nativa. Kafka continua sendo o provider padrao e recomendado."
+
+    ledger.ledgerWorker.ledgerOutbox -> ledger.ledgerDb "1. Reclama outbox_messages pendentes"
+    ledger.ledgerWorker.ledgerOutboxPublisherPort -> ledger.ledgerWorker.ledgerPubSubOutboxPublisher "2. Seleciona adapter Pub/Sub quando Messaging:Provider=PubSub"
+    ledger.ledgerWorker.ledgerPubSubOutboxPublisher -> pubsub.ledgerEventsTopic "3. Publica LedgerEntryCreated.v1/v2"
+    pubsub.ledgerEventsTopic -> pubsub.balanceSubscription "4. Entrega mensagem para a pull subscription do Balance"
+    balance.balanceWorker.balancePubSubConsumer -> pubsub.balanceSubscription "5. Recebe PubsubMessage e controla ack/nack"
+    balance.balanceWorker.balancePubSubConsumer -> balance.balanceWorker.balanceMessageProcessor "6. Entrega ReceivedMessage ao processor neutro"
+    balance.balanceWorker.balanceMessageProcessor -> balance.balanceDb "7. Atualiza daily_balances e processed_events"
+    balance.balanceWorker.balanceMessageProcessor -> balance.balanceWorker.balanceDeadLetterPort "8. Classifica invalidas ou definitivas"
+    balance.balanceWorker.balanceDeadLetterPort -> balance.balanceWorker.balancePubSubDeadLetterPublisher "9. Seleciona DLQ Pub/Sub"
+    balance.balanceWorker.balancePubSubDeadLetterPublisher -> pubsub.applicationDlqTopic "10. Publica DLQ de aplicacao"
+    pubsub.applicationDlqTopic -> pubsub.applicationDlqSubscription "11. Retem para inspecao operacional"
+    pubsub.balanceSubscription -> pubsub.technicalDlqTopic "12. Em Pub/Sub real, dead-letter policy nativa pode encaminhar falhas tecnicas"
+    pubsub.technicalDlqTopic -> pubsub.technicalDlqSubscription "13. Retem DLQ tecnica para inspecao"
+
     autoLayout LeftRight
   }
 

@@ -6,7 +6,7 @@ Ele e uma referencia arquitetural. Nao significa que o projeto esta pronto para 
 
 ## Escopo
 
-Este baseline cobre requisitos para evolucao produtiva de seguranca, identidade de workload, trafego, Kafka como broker documentado, Cloud SQL, containers, borda, observabilidade, operacao, compliance e governanca.
+Este baseline cobre requisitos para evolucao produtiva de seguranca, identidade de workload, trafego, Kafka como broker padrao documentado, Cloud SQL, containers, borda, observabilidade, operacao, compliance e governanca.
 
 Fora do escopo desta etapa:
 
@@ -25,6 +25,7 @@ Fora do escopo desta etapa:
 | Stack local de servicos | Ja existe no projeto | `compose.yaml`, `docs/development/local-development.md` | Manter como laboratorio local, sem tratar como ambiente produtivo. |
 | IdentityService | Ja existe no projeto | `src/identity`, ADR-0089 a ADR-0095 | Manter cadastro/vinculo local de usuarios separado do IdP; avaliar Outbox/worker para e-mail apenas se entrega duravel virar requisito. |
 | Kafka local | Ja existe no projeto | `compose.yaml`, `docs/development/kafka-outbox.md`, ADR-0088 | Tratar Kafka como broker dos workers principais e definir seguranca/operacao antes de qualquer ambiente compartilhado. |
+| Pub/Sub legado | Opcional/legado | `compose.pubsub.yaml`, `docs/operations/pubsub.md`, modulo Terraform Pub/Sub | Manter apenas como caminho explicito enquanto runtime e infraestrutura existirem; nao promover a broker produtivo padrao sem nova ADR. |
 | Cloud SQL dev e Auth Proxy local | Documentado, mas nao automatizado como producao | `docs/development/cloudsql-postgres-local-setup.md`, modulo Terraform Cloud SQL | Definir conectividade, usuarios, backups, retention, migrations e pooling por ambiente. |
 | Secrets produtivos | Pendente | ADR-0020 e guias locais proibem secrets versionados | Adotar Secret Manager ou equivalente, rotacao e acesso minimo por workload. |
 | Identidade de workload | Parcialmente documentado | Sugestao de impersonation local | Adotar service accounts por aplicacao ou funcao, Workload Identity ou equivalente, sem chaves long-lived. |
@@ -84,6 +85,11 @@ Baseline recomendado:
 - documentar estrategia de schema/compatibilidade antes de novos consumidores.
 
 O Kafka local em KRaft e laboratorio de desenvolvimento. Ele nao substitui decisao produtiva sobre broker gerenciado, operacao, seguranca, multi-AZ, backups de configuracao, capacidade, alertas ou runbooks.
+
+O Pub/Sub ainda existe como caminho explicito/legado para Ledger/Balance e pode
+ser exercitado no emulator local ou em recursos GCP provisionados manualmente
+para dev/smoke. Ele nao altera o baseline produtivo recomendado: Kafka continua
+sendo o provider padrao dos workers principais nesta documentacao.
 
 ## TLS e trafego
 

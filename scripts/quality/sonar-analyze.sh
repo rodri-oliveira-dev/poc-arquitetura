@@ -20,6 +20,8 @@ SONAR_HOST_URL="${SONAR_HOST_URL:-http://localhost:9000}"
 DEFAULT_TEST_RESULTS_DIR="$REPO_ROOT/artifacts/test-results"
 TEST_RESULTS_DIR="${TEST_RESULTS_DIR:-$REPO_ROOT/${TEST_RESULTS_DIR#./}}"
 SONAR_OPENCOVER_REPORTS_PATHS="${SONAR_OPENCOVER_REPORTS_PATHS:-${TEST_RESULTS_DIR}/**/coverage.opencover.xml}"
+SONAR_NON_CSHARP_SCRIPT_EXCLUSIONS="${SONAR_NON_CSHARP_SCRIPT_EXCLUSIONS:-scripts/**/*.sh,scripts/**/*.ps1,scripts/**/*.py,scripts/**/*.json,scripts/**/*.mjs}"
+SONAR_COVERAGE_EXCLUSIONS="${SONAR_COVERAGE_EXCLUSIONS:-.github/**,docs/**,infra/**,loadtests/**,**/Program.cs,**/Migrations/*.cs,**/*.g.cs,**/*.g.*.cs}"
 SONAR_PLACEHOLDER_SECRET_LINE_REGEX='.*(PASSWORD|[Pp]assword|PWD|PGPASSWORD|CLIENT_SECRET|[Cc]lient[_-]?[Ss]ecret|SECRET|[Ss]ecret|TOKEN|[Tt]oken|API[_-]?KEY|[Aa]pi[_-]?[Kk]ey).*<[A-Z0-9_]*(PASSWORD|SECRET|TOKEN|API_KEY)[A-Z0-9_]*>.*'
 
 if [[ -z "${SONAR_TOKEN:-}" ]]; then
@@ -56,6 +58,8 @@ dotnet sonarscanner begin \
   /n:"$PROJECT_NAME" \
   /d:sonar.host.url="$SONAR_HOST_URL" \
   /d:sonar.token="$SONAR_TOKEN" \
+  /d:sonar.exclusions="$SONAR_NON_CSHARP_SCRIPT_EXCLUSIONS" \
+  /d:sonar.coverage.exclusions="$SONAR_COVERAGE_EXCLUSIONS" \
   /d:sonar.issue.ignore.block=placeholderSecrets \
   /d:sonar.issue.ignore.block.placeholderSecrets.beginBlockRegexp="$SONAR_PLACEHOLDER_SECRET_LINE_REGEX" \
   /d:sonar.issue.ignore.block.placeholderSecrets.endBlockRegexp="$SONAR_PLACEHOLDER_SECRET_LINE_REGEX" \

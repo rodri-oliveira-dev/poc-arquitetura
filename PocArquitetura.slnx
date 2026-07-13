@@ -37,6 +37,7 @@
     <Project Path="src/Shared/ApiDefaults/ApiDefaults.csproj" />
     <Project Path="src/Shared/ApplicationDefaults/ApplicationDefaults.csproj" />
     <Project Path="src/Shared/HttpResilienceDefaults/HttpResilienceDefaults.csproj" />
+    <Project Path="src/Shared/KafkaWorkerDefaults/KafkaWorkerDefaults.csproj" />
   </Folder>
   <Folder Name="/src/transfer/">
     <Project Path="src/transfer/TransferService.Api/TransferService.Api.csproj" />

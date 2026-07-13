@@ -25,56 +25,35 @@
 
 -- Idempotent local bootstrap for the shared PostgreSQL container.
 -- Runtime roles receive only DML privileges in their own service schema.
-SELECT format('CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION', :'ledger_app_role', :'ledger_db_password')
-WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = :'ledger_app_role') \gexec
-SELECT format('ALTER ROLE %I WITH LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION', :'ledger_app_role', :'ledger_db_password') \gexec
-
-SELECT format('CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION', :'ledger_migrator_role', :'ledger_db_migrator_password')
-WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = :'ledger_migrator_role') \gexec
-SELECT format('ALTER ROLE %I WITH LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION', :'ledger_migrator_role', :'ledger_db_migrator_password') \gexec
-
-SELECT format('CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION', :'balance_read_role', :'balance_db_read_password')
-WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = :'balance_read_role') \gexec
-SELECT format('ALTER ROLE %I WITH LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION', :'balance_read_role', :'balance_db_read_password') \gexec
-
-SELECT format('CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION', :'balance_write_role', :'balance_db_write_password')
-WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = :'balance_write_role') \gexec
-SELECT format('ALTER ROLE %I WITH LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION', :'balance_write_role', :'balance_db_write_password') \gexec
-
-SELECT format('CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION', :'balance_migrator_role', :'balance_db_migrator_password')
-WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = :'balance_migrator_role') \gexec
-SELECT format('ALTER ROLE %I WITH LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION', :'balance_migrator_role', :'balance_db_migrator_password') \gexec
-
-SELECT format('CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION', :'transfer_app_role', :'transfer_db_password')
-WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = :'transfer_app_role') \gexec
-SELECT format('ALTER ROLE %I WITH LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION', :'transfer_app_role', :'transfer_db_password') \gexec
-
-SELECT format('CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION', :'transfer_migrator_role', :'transfer_db_migrator_password')
-WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = :'transfer_migrator_role') \gexec
-SELECT format('ALTER ROLE %I WITH LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION', :'transfer_migrator_role', :'transfer_db_migrator_password') \gexec
-
-WITH payment_roles(role_name, role_password) AS (
+WITH bootstrap_roles(role_name, role_password) AS (
     VALUES
+        (:'ledger_app_role', :'ledger_db_password'),
+        (:'ledger_migrator_role', :'ledger_db_migrator_password'),
+        (:'balance_read_role', :'balance_db_read_password'),
+        (:'balance_write_role', :'balance_db_write_password'),
+        (:'balance_migrator_role', :'balance_db_migrator_password'),
+        (:'transfer_app_role', :'transfer_db_password'),
+        (:'transfer_migrator_role', :'transfer_db_migrator_password'),
         (:'payment_app_role', :'payment_db_password'),
-        (:'payment_migrator_role', :'payment_db_migrator_password')
+        (:'payment_migrator_role', :'payment_db_migrator_password'),
+        (:'identity_app_role', :'identity_db_password'),
+        (:'identity_migrator_role', :'identity_db_migrator_password')
 ),
-payment_role_commands(command_text) AS (
-    SELECT format('CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION', role_name, role_password)
-    FROM payment_roles
+create_role_commands(command_order, role_name, command_text) AS (
+    SELECT 1, role_name, format('CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION', role_name, role_password)
+    FROM bootstrap_roles
     WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = role_name)
+),
+alter_role_commands(command_order, role_name, command_text) AS (
+    SELECT 2, role_name, format('ALTER ROLE %I WITH LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION', role_name, role_password)
+    FROM bootstrap_roles
+),
+role_commands(command_order, role_name, command_text) AS (
+    SELECT command_order, role_name, command_text FROM create_role_commands
     UNION ALL
-    SELECT format('ALTER ROLE %I WITH LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION', role_name, role_password)
-    FROM payment_roles
+    SELECT command_order, role_name, command_text FROM alter_role_commands
 )
-SELECT command_text FROM payment_role_commands \gexec
-
-SELECT format('CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION', :'identity_app_role', :'identity_db_password')
-WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = :'identity_app_role') \gexec
-SELECT format('ALTER ROLE %I WITH LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION', :'identity_app_role', :'identity_db_password') \gexec
-
-SELECT format('CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION', :'identity_migrator_role', :'identity_db_migrator_password')
-WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = :'identity_migrator_role') \gexec
-SELECT format('ALTER ROLE %I WITH LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION', :'identity_migrator_role', :'identity_db_migrator_password') \gexec
+SELECT command_text FROM role_commands ORDER BY command_order, role_name \gexec
 
 CREATE SCHEMA IF NOT EXISTS ledger AUTHORIZATION ledger_migrator_user;
 CREATE SCHEMA IF NOT EXISTS balance AUTHORIZATION balance_migrator_user;

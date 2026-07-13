@@ -134,7 +134,7 @@ Observacao real: `BalanceService.Infrastructure` concentra persistencia e reposi
 
 Camadas atuais fazem sentido para o objetivo da POC. O servico tem transacao, idempotencia, entidade com invariantes, persistencia relacional e Outbox. Separar `Application`, `Domain` e `Infrastructure` agrega valor real.
 
-Operacionalmente, `LedgerService.Api` recebe HTTP e grava Outbox; `LedgerService.Worker` publica a Outbox no Kafka, processa estornos e consome solicitacoes de reprocessamento. O consumer de reprocessamento traduz `ConsumeResult` para `ReceivedMessage` antes de chamar o processor neutro. Durante rollout, API antiga e Worker novo nao devem executar os mesmos HostedServices simultaneamente.
+Operacionalmente, `LedgerService.Api` recebe HTTP e grava Outbox; `LedgerService.Worker` publica a Outbox no Kafka por padrao, processa estornos e consome solicitacoes de reprocessamento. O caminho Pub/Sub permanece disponivel apenas quando `Messaging:Provider=PubSub` e deve ser tratado como legado/explicito. O consumer de reprocessamento traduz `ConsumeResult` para `ReceivedMessage` antes de chamar o processor neutro. Durante rollout, API antiga e Worker novo nao devem executar os mesmos HostedServices simultaneamente.
 
 Pontos de atencao:
 
@@ -146,7 +146,7 @@ Pontos de atencao:
 
 Camadas tambem fazem sentido, porque o servico possui leitura HTTP, consumidor Kafka, idempotencia por evento, projecao e DLQ.
 
-Operacionalmente, `BalanceService.Api` atende consultas HTTP sobre a projecao; `BalanceService.Worker` consome `LedgerEntryCreated.v2` pelo Kafka, mantem leitura de `LedgerEntryCreated.v1` como legado, aplica idempotencia, atualiza `daily_balances`/`processed_events` e envia mensagens invalidas para DLQ Kafka.
+Operacionalmente, `BalanceService.Api` atende consultas HTTP sobre a projecao; `BalanceService.Worker` consome `LedgerEntryCreated.v2` pelo Kafka por padrao, mantem leitura de `LedgerEntryCreated.v1` como legado, aplica idempotencia, atualiza `daily_balances`/`processed_events` e envia mensagens invalidas para DLQ Kafka. Quando `Messaging:Provider=PubSub`, o worker usa a subscription Pub/Sub e a DLQ de aplicacao Pub/Sub ainda suportadas, sem levar ack/nack, topic ou subscription para Application/Domain.
 
 Pontos de atencao:
 

@@ -46,6 +46,7 @@ env:
   TEST_RESULTS_DIR: ${{ inputs['results-dir'] }}
   SONAR_REPORT_DIR: ${{ inputs['sonar-dir'] }}
   SONAR_OPENCOVER_REPORTS_PATHS: ${{ inputs['results-dir'] }}/**/coverage.opencover.xml
+  SONAR_NON_CSHARP_SCRIPT_EXCLUSIONS: scripts/**/*.sh,scripts/**/*.ps1,scripts/**/*.py,scripts/**/*.json,scripts/**/*.mjs
 
 jobs:
   analyze:
@@ -125,9 +126,9 @@ jobs:
           SONAR_PLACEHOLDER_SECRET_LINE_REGEX: ".*(PASSWORD|[Pp]assword|PWD|PGPASSWORD|CLIENT_SECRET|[Cc]lient[_-]?[Ss]ecret|SECRET|[Ss]ecret|TOKEN|[Tt]oken|API[_-]?KEY|[Aa]pi[_-]?[Kk]ey).*<[A-Z0-9_]*(PASSWORD|SECRET|TOKEN|API_KEY)[A-Z0-9_]*>.*"
         shell: bash
         run: |
-          sonar_exclusion_args=()
+          sonar_exclusions="$SONAR_NON_CSHARP_SCRIPT_EXCLUSIONS"
           if [ "$SONAR_CONTEXT" != "shared" ]; then
-            sonar_exclusion_args=(/d:sonar.exclusions="src/Shared/**,tests/Shared/**")
+            sonar_exclusions="src/Shared/**,tests/Shared/**,$sonar_exclusions"
           fi
 
           dotnet tool run dotnet-sonarscanner begin \
@@ -137,11 +138,11 @@ jobs:
             /d:sonar.token="$SONAR_TOKEN" \
             /d:sonar.host.url="$SONAR_HOST_URL" \
             /d:sonar.cs.opencover.reportsPaths="$SONAR_OPENCOVER_REPORTS_PATHS" \
+            /d:sonar.exclusions="$sonar_exclusions" \
             /d:sonar.issue.ignore.block=placeholderSecrets \
             /d:sonar.issue.ignore.block.placeholderSecrets.beginBlockRegexp="$SONAR_PLACEHOLDER_SECRET_LINE_REGEX" \
             /d:sonar.issue.ignore.block.placeholderSecrets.endBlockRegexp="$SONAR_PLACEHOLDER_SECRET_LINE_REGEX" \
-            /d:sonar.coverage.exclusions=".github/**,docs/**,infra/**,loadtests/**,scripts/**,**/Program.cs,**/Migrations/*.cs,**/*.g.cs,**/*.g.*.cs" \
-            "${sonar_exclusion_args[@]}" \
+            /d:sonar.coverage.exclusions=".github/**,docs/**,infra/**,loadtests/**,**/Program.cs,**/Migrations/*.cs,**/*.g.cs,**/*.g.*.cs" \
             /d:sonar.qualitygate.wait=true
 
       - name: Build

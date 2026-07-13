@@ -125,6 +125,7 @@ Simplificacoes recomendadas:
 
 - Inconsistencia de posicao das portas de persistencia: Ledger coloca repositories no Domain; Balance coloca em Application.
 - Contratos de eventos ja possuem JSON Schemas, exemplos, documentacao e workflow de validacao; o risco remanescente esta em manter governanca de versao e compatibilidade conforme novos consumidores aparecerem.
+- Kafka e o provider padrao dos workers principais, mas Pub/Sub ainda existe como caminho explicito/legado para Ledger/Balance. A documentacao deve preservar essa distincao enquanto o runtime, Compose, Terraform e runbooks mantiverem suporte.
 - Currency ausente em `LedgerEntryCreated.v1` foi tratada criando `LedgerEntryCreated.v2` com `currency` obrigatoria. O fallback `BRL` permanece somente para leitura de v1 legado.
 - Readiness das APIs ainda mistura checks de infraestrutura no `Program.cs`; aceitavel enquanto validar apenas dependencias do trafego HTTP, mas pode crescer demais se novos checks forem adicionados.
 - Rollout entre API antiga e Worker novo exige cuidado para evitar HostedServices duplicados publicando Outbox, consumindo Kafka ou processando pendencias simultaneamente.
@@ -153,6 +154,7 @@ Simplificacoes recomendadas:
 - IdentityService pode ser confundido com IdP se a documentacao nao deixar claro que tokens continuam sendo emitidos pelo Keycloak.
 - E-mail de boas-vindas no IdentityService e side effect pos-commit sem garantia duravel; isso e aceitavel para a POC, mas deve ser reavaliado se virar requisito critico.
 - PaymentService pode ser confundido com fonte de fato financeiro se os diagramas nao mostrarem que Ledger continua dono do lancamento e Balance continua derivado apenas dos eventos do Ledger.
+- Pub/Sub pode ser confundido com provider recomendado se aparecer nas views principais; por isso o caminho fica isolado em view propria e marcado como legado/opcional.
 - AuditService pode parecer integrado aos fluxos financeiros se o consumer Kafka opcional for mostrado sem a ressalva de que ainda nao ha producers reais.
 - Outbox/DLQ exigem operacao cuidadosa de reprocessamento; ja existem runbooks e casos de uso internos, mas ainda nao ha automacao operacional completa para todos os cenarios produtivos.
 - Baseline produtivo GCP/seguranca foi consolidado como referencia arquitetural em [production-readiness.md](production-readiness.md), mas ainda precisa virar decisoes e automacoes especificas antes de tratar o projeto como referencia operacional fora do laboratorio local.

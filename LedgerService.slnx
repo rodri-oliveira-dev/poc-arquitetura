@@ -6,6 +6,9 @@
     <Project Path="src/ledger/LedgerService.Infrastructure/LedgerService.Infrastructure.csproj" />
     <Project Path="src/ledger/LedgerService.Worker/LedgerService.Worker.csproj" />
   </Folder>
+  <Folder Name="/src/Shared/">
+    <Project Path="src/Shared/KafkaWorkerDefaults/KafkaWorkerDefaults.csproj" />
+  </Folder>
   <Folder Name="/tests/ledger/">
     <Project Path="tests/ledger/LedgerService.IntegrationTests/LedgerService.IntegrationTests.csproj" />
     <Project Path="tests/ledger/LedgerService.UnitTests/LedgerService.UnitTests.csproj" />

@@ -14,6 +14,8 @@ A documentacao aqui deve responder perguntas arquiteturais reais:
   Audit;
 - como lancamentos, saldos, pagamentos, refunds, webhooks, Outbox, Inbox, Kafka
   e autenticacao se conectam;
+- como o caminho Kafka padrao se diferencia do caminho Pub/Sub explicito e
+  legado ainda executavel para Ledger/Balance;
 - quais partes fazem parte do runtime documentado e quais fluxos ainda sao
   opcionais ou futuros.
 
@@ -131,7 +133,8 @@ diagnostico operacional e para distinguir Compose local de arquitetura logica.
 | `containers` | Container | Entender APIs, Workers, schemas, brokers e provedores | Quais executaveis e recursos logicos compoem a POC |
 | `ledgerBalanceProjectionFlow` | Dynamic / Flow | Entender lancamento financeiro e saldo | Como Ledger grava o fato, publica Outbox no Kafka e Balance projeta saldo |
 | `identityRegistrationFlow` | Dynamic / Flow | Entender cadastro de usuario | Como IdentityService cria usuario no Keycloak, persiste vinculo local e envia e-mail |
-| `kafkaFlow` | Operational / Runtime | Entender mensageria assincrona documentada | Onde Kafka e usado por Ledger, Balance, Transfer e auditoria opcional |
+| `kafkaFlow` | Operational / Runtime | Entender mensageria assincrona padrao | Onde Kafka e usado por Ledger, Balance, Transfer e auditoria opcional |
+| `pubSubLegacyProjectionFlow` | Operational / Runtime | Diagnosticar o modo Pub/Sub legado | Como Ledger publica e Balance consome via Pub/Sub quando `Messaging:Provider=PubSub` |
 | `observabilityFlow` | Operational / Observability | Entender telemetria local | Como APIs, Workers, Collector, Jaeger, Prometheus, Loki, Alloy, Alertmanager e Grafana se conectam |
 | `localDeployment` | Deployment / Runtime | Entender Docker Compose local | Quais servicos do Compose atual existem e a que elementos logicos correspondem |
 | `ledgerApiComponents` | Component | Revisar LedgerService.Api | Como HTTP, Application, Domain, Infrastructure e schema ledger se separam |
@@ -201,7 +204,13 @@ Payment ainda nao publicam eventos reais de auditoria.
 ### Lancamento financeiro e saldo
 
 Veja `ledgerBalanceProjectionFlow`. A fonte de verdade e Ledger; Balance apenas
-projeta eventos do Ledger recebidos pelo Kafka.
+projeta eventos do Ledger recebidos pelo Kafka, que e o provider padrao e
+recomendado para onboarding.
+
+O modo Pub/Sub continua documentado em `pubSubLegacyProjectionFlow` porque ainda
+e executavel por `compose.pubsub.yaml` e `Messaging:Provider=PubSub` nos
+workers de Ledger/Balance. Essa view fica isolada para nao poluir os diagramas
+principais e deve ser lida como caminho explicito/legado, nao como default.
 
 ### Transferencia
 

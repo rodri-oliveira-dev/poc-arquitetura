@@ -1,13 +1,41 @@
 using Confluent.Kafka;
 
-using PocArquitetura.KafkaWorkerDefaults;
+namespace PocArquitetura.KafkaWorkerDefaults;
 
-namespace LedgerService.Worker.Messaging.Kafka.Configuration;
-
-public static class KafkaClientConfigExtensions
+public static class KafkaConsumerConfigFactory
 {
-    public static void ApplySecurity(this ClientConfig config, KafkaProducerOptions options)
+    public static ConsumerConfig Create(
+        string bootstrapServers,
+        string groupId,
+        string clientId,
+        bool enableAutoCommit,
+        bool enableAutoOffsetStore,
+        bool allowAutoCreateTopics,
+        string autoOffsetReset,
+        IKafkaClientSecurityOptions securityOptions)
     {
+        ArgumentNullException.ThrowIfNull(securityOptions);
+
+        var config = new ConsumerConfig
+        {
+            BootstrapServers = bootstrapServers,
+            GroupId = groupId,
+            ClientId = clientId,
+            EnableAutoCommit = enableAutoCommit,
+            EnableAutoOffsetStore = enableAutoOffsetStore,
+            AllowAutoCreateTopics = allowAutoCreateTopics,
+            AutoOffsetReset = KafkaOffsetResetParser.Parse(autoOffsetReset)
+        };
+
+        ApplySecurity(config, securityOptions);
+        return config;
+    }
+
+    public static void ApplySecurity(ClientConfig config, IKafkaClientSecurityOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        ArgumentNullException.ThrowIfNull(options);
+
         config.SecurityProtocol = ParseSecurityProtocol(options.SecurityProtocol);
 
         if (!string.IsNullOrWhiteSpace(options.SaslMechanism))
@@ -23,14 +51,11 @@ public static class KafkaClientConfigExtensions
             config.SslCaLocation = options.SslCaLocation;
     }
 
-    public static bool IsPlaintext(KafkaProducerOptions options)
-        => ParseSecurityProtocol(options.SecurityProtocol) is SecurityProtocol.Plaintext;
-
-    public static void ApplySecurity(this ClientConfig config, ReprocessamentoLancamentosConsumerOptions options)
-        => KafkaConsumerConfigFactory.ApplySecurity(config, options);
-
-    public static bool IsPlaintext(ReprocessamentoLancamentosConsumerOptions options)
-        => KafkaConsumerConfigFactory.IsPlaintext(options);
+    public static bool IsPlaintext(IKafkaClientSecurityOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        return ParseSecurityProtocol(options.SecurityProtocol) is SecurityProtocol.Plaintext;
+    }
 
     private static SecurityProtocol ParseSecurityProtocol(string value)
     {

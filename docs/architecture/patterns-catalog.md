@@ -50,6 +50,7 @@ Foram cruzadas evidencias em `src/`, `tests/`, `infra/`, `docs/adrs/`, `docs/arc
 | Integracao | Compensating Transaction | Implementado | Transfer, Ledger estorno, Payment refund, Identity Keycloak | Compensa efeitos ja realizados quando etapa posterior falha |
 | Integracao | Eventual Consistency | Implementado | Ledger -> Balance; Payment -> Ledger -> Balance | Permite separar ownership e escala sem transacao distribuida |
 | Integracao | Event-Driven Architecture | Parcialmente implementado | Fluxos financeiros e eventos de Saga | Usa eventos onde ha consumo real, mantendo HTTP onde faz sentido |
+| Integracao | Pub/Sub provider legado | Legado | Ledger/Balance quando `Messaging:Provider=PubSub` | Mantem adapter alternativo explicito sem substituir Kafka como default |
 | Integracao | Versionamento de eventos | Implementado | `LedgerEntryCreated.v1` e `.v2` | Evolui contrato sem quebrar consumidores antigos |
 | Integracao | Dead Letter Queue | Implementado | Outbox Ledger, Balance DLQ, Transfer DLQ, Payment Inbox, Audit DLQ | Isola poison messages e falhas definitivas sem retry infinito |
 | Integracao | Replay e Projection Rebuild | Implementado | Balance e runbooks operacionais | Recupera ou compara projecoes sem declarar Event Sourcing |
@@ -996,6 +997,56 @@ O fluxo financeiro principal e orientado a eventos. Transfer publica eventos de 
 - [ADR-0003](../adrs/0003-integracao-assincrona-kafka-com-outbox.md)
 - [ADR-0088](../adrs/0088-kafka-default-ledger-balance-workers.md)
 - [ADR-0099](../adrs/0099-audit-async-integration-strategy.md)
+
+### Pub/Sub provider legado
+
+**Categoria:** Integracao distribuida
+**Status:** Legado
+
+#### Problema resolvido
+
+O repositorio ainda possui adapter Pub/Sub, overlay Compose, scripts, runbook e
+Terraform para executar o fluxo Ledger/Balance sem Kafka em cenarios explicitos
+de compatibilidade, estudo do emulator ou smoke dev controlado.
+
+#### Onde foi aplicado
+
+`LedgerService.Worker` publica a Outbox via Pub/Sub quando
+`Messaging:Provider=PubSub`; `BalanceService.Worker` consome a subscription e
+publica DLQ de aplicacao no topic configurado.
+
+#### Como funciona neste repositorio
+
+Kafka e o provider padrao. O Pub/Sub entra apenas por selecao explicita. O modo
+local usa `compose.pubsub.yaml`, `PUBSUB_EMULATOR_HOST`, `pubsub-emulator` e
+`pubsub-init`. O modulo Terraform `pubsub-ledger-events` provisiona Pub/Sub real
+com topic principal, subscription do Balance, DLQ de aplicacao, DLQ tecnica e
+subscriptions de inspecao.
+
+#### Beneficios obtidos
+
+- Mantem o adapter existente verificavel sem promover Pub/Sub a default.
+- Preserva mapa operacional enquanto runtime e infraestrutura ainda existem.
+
+#### Trade-offs e limitacoes
+
+- Aumenta custo documental e de teste enquanto coexistir com Kafka.
+- Nao deve ser usado para novos fluxos padrao sem nova ADR.
+- O emulator local nao configura a dead-letter policy tecnica nativa.
+
+#### Evidencias
+
+- [`compose.pubsub.yaml`](../../compose.pubsub.yaml)
+- [`docs/operations/pubsub.md`](../operations/pubsub.md)
+- [`infra/terraform/modules/pubsub-ledger-events`](../../infra/terraform/modules/pubsub-ledger-events)
+- [`src/ledger/LedgerService.Worker/Messaging/PubSub`](../../src/ledger/LedgerService.Worker/Messaging/PubSub)
+- [`src/balance/BalanceService.Worker/Messaging/PubSub`](../../src/balance/BalanceService.Worker/Messaging/PubSub)
+
+#### ADRs e documentacao relacionados
+
+- [ADR-0078](../adrs/0078-pubsub-provider-principal-local-emulator.md)
+- [ADR-0088](../adrs/0088-kafka-default-ledger-balance-workers.md)
+- [Contrato Pub/Sub entre infraestrutura e aplicacao](../development/pubsub-infra-app-contract.md)
 
 ### Versionamento de eventos
 

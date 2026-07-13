@@ -173,7 +173,7 @@ model {
   }
 
   ledger = softwareSystem "LedgerService" {
-    description "Servico de escrita do ledger. A API recebe comandos HTTP e grava estado/Outbox; o Worker publica eventos no Kafka, processa estornos e reprocessamentos em processo separado."
+    description "Servico de escrita do ledger. A API recebe comandos HTTP e grava estado/Outbox; o Worker publica eventos pelo provider de mensageria selecionado, processa estornos e reprocessamentos em processo separado. Kafka e o provider padrao; Pub/Sub permanece como caminho explicito legado."
 
     ledgerApi = container "LedgerService.Api" {
       technology "ASP.NET Core"
@@ -201,7 +201,7 @@ model {
       description "Processo dedicado sem HTTP que hospeda os workers do Ledger para Outbox, estornos e reprocessamentos, com composition root proprio."
 
       ledgerWorkerComposition = component "Worker composition root" {
-        description "Registra Application, persistencia, repositorios, mensageria Kafka e HostedServices explicitamente no processo Worker."
+        description "Registra Application, persistencia, repositorios, provider de mensageria selecionado e HostedServices explicitamente no processo Worker."
       }
 
       ledgerWorkerApplication = component "Application handlers" {
@@ -209,11 +209,11 @@ model {
       }
 
       ledgerWorkerInfrastructure = component "Worker infrastructure" {
-        description "Adapters exclusivos do Worker: publicacao/consumo Kafka, metrics e HostedServices registrados pelo processo Worker."
+        description "Adapters exclusivos do Worker: publicacao/consumo Kafka por padrao, Pub/Sub legado quando selecionado explicitamente, metrics e HostedServices registrados pelo processo Worker."
       }
 
       ledgerOutbox = component "Outbox publisher" {
-        description "BackgroundService que faz claim de mensagens, publica no Kafka pela porta de mensageria e marca Processed/DeadLetter com retry/backoff."
+        description "BackgroundService que faz claim de mensagens, publica pela porta de mensageria selecionada e marca Processed/DeadLetter com retry/backoff."
       }
 
       ledgerOutboxPublisherPort = component "IOutboxMessagePublisher" {
@@ -222,6 +222,10 @@ model {
 
       ledgerKafkaOutboxPublisher = component "KafkaOutboxMessagePublisher" {
         description "Adapter Kafka da porta IOutboxMessagePublisher; resolve topicos, keys, headers e confirmacao de publicacao."
+      }
+
+      ledgerPubSubOutboxPublisher = component "PubSubOutboxMessagePublisher" {
+        description "Adapter Pub/Sub legado da porta IOutboxMessagePublisher, selecionado somente quando Messaging:Provider=PubSub; resolve topic IDs, attributes, ordering key e cliente do emulator ou Pub/Sub real."
       }
 
       ledgerEstornoProcessor = component "Estorno processor" {
@@ -248,7 +252,7 @@ model {
   }
 
   balance = softwareSystem "BalanceService" {
-    description "Servico de leitura/projecao. O Worker consome eventos financeiros do Ledger via Kafka e atualiza a projecao; a API expoe consultas HTTP de saldo."
+    description "Servico de leitura/projecao. O Worker consome eventos financeiros do Ledger pelo provider selecionado e atualiza a projecao; a API expoe consultas HTTP de saldo. Kafka e o provider padrao; Pub/Sub permanece como caminho explicito legado."
 
     balanceApi = container "BalanceService.Api" {
       technology "ASP.NET Core"
@@ -276,7 +280,7 @@ model {
       description "Processo dedicado sem HTTP que hospeda o consumidor Kafka para projetar saldos, com composition root proprio."
 
       balanceWorkerComposition = component "Worker composition root" {
-        description "Registra Application, persistencia, repositorios, consumer Kafka, DLQ Kafka e HostedServices explicitamente no processo Worker."
+        description "Registra Application, persistencia, repositorios, consumer/DLQ do provider selecionado e HostedServices explicitamente no processo Worker."
       }
 
       balanceWorkerApplication = component "Application handlers" {
@@ -284,7 +288,7 @@ model {
       }
 
       balanceWorkerInfrastructure = component "Worker infrastructure" {
-        description "Adapters exclusivos do Worker: consumer Kafka, DLQ Kafka, metrics e HostedService registrados pelo processo Worker."
+        description "Adapters exclusivos do Worker: consumer/DLQ Kafka por padrao, Pub/Sub legado quando selecionado explicitamente, metrics e HostedService registrados pelo processo Worker."
       }
 
       balanceConsumer = component "Kafka ledger events consumer" {
@@ -300,7 +304,15 @@ model {
       }
 
       balanceDeadLetterPort = component "IDeadLetterPublisher" {
-        description "Porta de DLQ usada pelo processor para isolar classificacao de falhas dos detalhes do producer Kafka."
+        description "Porta de DLQ usada pelo processor para isolar classificacao de falhas dos detalhes do provider de mensageria selecionado."
+      }
+
+      balancePubSubConsumer = component "Pub/Sub ledger events consumer" {
+        description "Adapter Pub/Sub legado que consome a subscription do Balance quando Messaging:Provider=PubSub, traduz PubsubMessage para modelo neutro e controla ack/nack."
+      }
+
+      balancePubSubDeadLetterPublisher = component "PubSubDeadLetterPublisher" {
+        description "Adapter Pub/Sub legado da porta IDeadLetterPublisher; publica mensagens classificadas como DLQ de aplicacao no topic configurado."
       }
     }
 
@@ -474,7 +486,7 @@ model {
   }
 
   kafka = softwareSystem "Kafka" {
-    description "Broker Kafka local em KRaft. Unico broker documentado para fluxos assincronos de Ledger, Balance, Transfer e auditoria opcional."
+    description "Broker Kafka local em KRaft. Broker padrao e recomendado para os fluxos assincronos principais de Ledger, Balance, Transfer e auditoria opcional."
 
     ledgerTopic = container "ledger.ledgerentry.created" {
       technology "Kafka topic"
@@ -514,6 +526,50 @@ model {
     auditRecordDlq = container "audit.record.requested.dlq" {
       technology "Kafka topic"
       description "DLQ de aplicacao do AuditService.Worker para mensagens de auditoria invalidas ou conflitos definitivos."
+    }
+  }
+
+  pubsub = softwareSystem "Pub/Sub legado / opcional" {
+    description "Provider alternativo explicito para LedgerService.Worker publicar eventos financeiros e BalanceService.Worker consumir/projetar saldo quando Messaging:Provider=PubSub. Kafka permanece o caminho padrao."
+
+    emulator = container "Pub/Sub emulator local" {
+      technology "gcloud pubsub emulator"
+      description "Emulator local descartavel ativado pelo profile legacy-pubsub e overlay compose.pubsub.yaml. Usa PUBSUB_EMULATOR_HOST e nao representa garantias completas do Pub/Sub real."
+    }
+
+    real = container "Google Cloud Pub/Sub real" {
+      technology "Google Cloud Pub/Sub"
+      description "Servico GCP real provisionavel pelo modulo Terraform pubsub-ledger-events para smoke/dev explicito, usando service accounts dedicadas e IAM de menor privilegio."
+    }
+
+    ledgerEventsTopic = container "ledger.ledgerentry.created.*" {
+      technology "Pub/Sub topic"
+      description "Topic principal de eventos financeiros do Ledger. Local: ledger.ledgerentry.created.local. Terraform/dev: ledger_events_topic_name, por exemplo ledger.ledgerentry.created.dev."
+    }
+
+    applicationDlqTopic = container "ledger.ledgerentry.created.dlq.*" {
+      technology "Pub/Sub topic"
+      description "Topic de DLQ de aplicacao publicado pelo BalanceService.Worker para mensagens invalidas ou nao recuperaveis."
+    }
+
+    technicalDlqTopic = container "ledger.ledgerentry.created-technical-dlq.*" {
+      technology "Pub/Sub topic"
+      description "Topic de DLQ tecnica usado apenas pela dead-letter policy nativa da subscription real quando habilitada no Terraform. O emulator local nao configura essa policy."
+    }
+
+    balanceSubscription = container "balance-service-ledger-events-*" {
+      technology "Pub/Sub pull subscription"
+      description "Subscription pull consumida pelo BalanceService.Worker a partir do topic principal de eventos Ledger."
+    }
+
+    applicationDlqSubscription = container "ledger-events-application-dlq-inspection-*" {
+      technology "Pub/Sub pull subscription"
+      description "Subscription de inspecao operacional da DLQ de aplicacao."
+    }
+
+    technicalDlqSubscription = container "ledger-events-technical-dlq-inspection-*" {
+      technology "Pub/Sub pull subscription"
+      description "Subscription de inspecao operacional da DLQ tecnica provisionada pelo Terraform para Pub/Sub real."
     }
   }
 
@@ -574,6 +630,7 @@ model {
   ledger.ledgerWorker.ledgerOutbox -> ledger.ledgerDb "Le e atualiza outbox_messages" "EF Core / SQL"
   ledger.ledgerWorker.ledgerOutbox -> ledger.ledgerWorker.ledgerOutboxPublisherPort "Publica mensagens pendentes" "porta"
   ledger.ledgerWorker.ledgerOutboxPublisherPort -> ledger.ledgerWorker.ledgerKafkaOutboxPublisher "Seleciona adapter Kafka" "DI"
+  ledger.ledgerWorker.ledgerOutboxPublisherPort -> ledger.ledgerWorker.ledgerPubSubOutboxPublisher "Seleciona adapter Pub/Sub quando Messaging:Provider=PubSub" "DI legado"
   ledger.ledgerWorker.ledgerKafkaOutboxPublisher -> kafka.ledgerTopic "Publica LedgerEntryCreated.v2" "Kafka"
   ledger.ledgerWorker.ledgerKafkaOutboxPublisher -> kafka.ledgerEstornoTopic "Publica LancamentoEstornoSolicitado.v1" "Kafka"
   ledger.ledgerWorker.ledgerKafkaOutboxPublisher -> kafka.ledgerReprocessamentoTopic "Publica ReprocessamentoLancamentosSolicitado.v1" "Kafka"
@@ -592,8 +649,23 @@ model {
   balance.balanceWorker.balanceMessageProcessor -> balance.balanceWorker.balanceWorkerApplication "Envia comando de aplicacao de evento" "MediatR"
   balance.balanceWorker.balanceMessageProcessor -> balance.balanceWorker.balanceDeadLetterPort "Publica invalidas ou nao recuperaveis" "porta"
   balance.balanceWorker.balanceDeadLetterPort -> kafka.ledgerDlq "Publica DLQ de aplicacao" "Kafka"
+  balance.balanceWorker.balanceDeadLetterPort -> balance.balanceWorker.balancePubSubDeadLetterPublisher "Seleciona adapter Pub/Sub quando Messaging:Provider=PubSub" "DI legado"
   balance.balanceWorker.balanceMessageProcessor -> balance.balanceDb "Atualiza daily_balances e processed_events" "EF Core"
   balance.balanceApi -> balance.balanceDb "Consulta projecao" "EF Core"
+
+  pubsub.emulator -> pubsub.ledgerEventsTopic "Emula topic local criado pelo pubsub-init" "legacy-pubsub"
+  pubsub.emulator -> pubsub.applicationDlqTopic "Emula topic local de DLQ de aplicacao" "legacy-pubsub"
+  pubsub.real -> pubsub.ledgerEventsTopic "Hospeda topic real provisionado por Terraform" "GCP"
+  pubsub.real -> pubsub.applicationDlqTopic "Hospeda DLQ de aplicacao real" "GCP"
+  pubsub.real -> pubsub.technicalDlqTopic "Hospeda DLQ tecnica real" "GCP"
+  pubsub.ledgerEventsTopic -> pubsub.balanceSubscription "Entrega eventos Ledger ao Balance" "Pub/Sub"
+  pubsub.applicationDlqTopic -> pubsub.applicationDlqSubscription "Retem mensagens de DLQ de aplicacao para inspecao" "Pub/Sub"
+  pubsub.technicalDlqTopic -> pubsub.technicalDlqSubscription "Retem mensagens de DLQ tecnica para inspecao" "Pub/Sub"
+  pubsub.balanceSubscription -> pubsub.technicalDlqTopic "Encaminha falhas tecnicas pela dead-letter policy nativa quando habilitada" "Pub/Sub real"
+  ledger.ledgerWorker.ledgerPubSubOutboxPublisher -> pubsub.ledgerEventsTopic "Publica LedgerEntryCreated.v1/v2 no caminho legado explicito" "Pub/Sub"
+  balance.balanceWorker.balancePubSubConsumer -> pubsub.balanceSubscription "Consome eventos financeiros pelo caminho legado explicito" "Pub/Sub"
+  balance.balanceWorker.balancePubSubConsumer -> balance.balanceWorker.balanceMessageProcessor "Entrega mensagem recebida ao processor neutro" "ReceivedMessage"
+  balance.balanceWorker.balancePubSubDeadLetterPublisher -> pubsub.applicationDlqTopic "Publica DLQ de aplicacao" "Pub/Sub"
 
   ledger.ledgerApi -> observability.collector "Exporta telemetria quando habilitado no compose" "OTLP"
   ledger.ledgerWorker -> observability.collector "Exporta telemetria quando habilitado no compose" "OTLP"
