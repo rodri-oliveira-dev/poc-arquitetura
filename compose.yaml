@@ -511,7 +511,8 @@ services:
   payment-service:
     build:
       context: .
-      dockerfile: src/payment/PaymentService.Api/Dockerfile
+      dockerfile: src/payment/Dockerfile
+      target: api-final
     container_name: poc-payment-service
     logging: *default-logging
     depends_on:
@@ -550,7 +551,8 @@ services:
   payment-worker:
     build:
       context: .
-      dockerfile: src/payment/PaymentService.Worker/Dockerfile
+      dockerfile: src/payment/Dockerfile
+      target: worker-final
     container_name: poc-payment-worker
     logging: *default-logging
     depends_on:

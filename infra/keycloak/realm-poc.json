@@ -59,6 +59,18 @@
       "authorizationServicesEnabled": false
     },
     {
+      "clientId": "payment-api",
+      "name": "PaymentService.Api audience",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "authorizationServicesEnabled": false
+    },
+    {
       "clientId": "poc-automation",
       "name": "POC local automation",
       "description": "Client local descartavel para obter tokens via client_credentials.",
@@ -81,6 +93,9 @@
         "transfer.read",
         "identity.write",
         "identity.read",
+        "payment.write",
+        "payment.read",
+        "payment.refund",
         "outbox.admin",
         "poc-api-audience",
         "poc-merchants"
@@ -184,6 +199,9 @@
         "balance.read",
         "identity.write",
         "identity.read",
+        "payment.write",
+        "payment.read",
+        "payment.refund",
         "outbox.admin",
         "poc-api-audience",
         "poc-merchants"
@@ -265,6 +283,33 @@
       }
     },
     {
+      "name": "payment.write",
+      "description": "Permite criar pagamentos.",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      }
+    },
+    {
+      "name": "payment.read",
+      "description": "Permite consultar pagamentos.",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      }
+    },
+    {
+      "name": "payment.refund",
+      "description": "Permite solicitar refunds.",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      }
+    },
+    {
       "name": "poc-api-audience",
       "description": "Adiciona audiences das APIs da POC ao access token.",
       "protocol": "openid-connect",
@@ -313,6 +358,17 @@
           "consentRequired": false,
           "config": {
             "included.client.audience": "identity-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        },
+        {
+          "name": "payment-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "payment-api",
             "id.token.claim": "false",
             "access.token.claim": "true"
           }
@@ -422,7 +478,7 @@
           "Facilitar debug local completo das APIs de negocio."
         ],
         "expected_scopes": [
-          "ledger.write ledger.read balance.read identity.write identity.read outbox.admin"
+          "ledger.write ledger.read balance.read identity.write identity.read payment.write payment.read payment.refund outbox.admin"
         ],
         "expected_merchant_id": [
           "tese m1"

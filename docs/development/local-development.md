@@ -1200,6 +1200,16 @@ Tasks uteis:
 
 As tasks de stack e k6 chamam os scripts versionados (`scripts/local/start-stack.*` e `scripts/performance/run-loadtests.*`) para evitar duplicar logica. Elas nao executam teardown destrutivo nem migrations fora do fluxo ja definido pelos scripts.
 
+Para smokes locais do PaymentService, defina `PaymentGateway__Stripe__WebhookSigningSecret` em `.env.local` antes de executar `scripts/local/start-stack.*`. O valor local descartavel `whsec_local_smoke` e suficiente para o provider `Fake`, desde que o processo do smoke use o mesmo valor em `PAYMENT_WEBHOOK_SIGNING_SECRET`. Alterar `.env.local` nao atualiza containers ja criados; depois de trocar o secret, recrie a API com:
+
+```powershell
+docker compose --env-file .env.local up -d --force-recreate payment-service
+```
+
+```bash
+docker compose --env-file .env.local up -d --force-recreate payment-service
+```
+
 As configuracoes de debug rodam processos no host em `Development` para `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker`. Os nomes indicam que dependencias locais podem ser necessarias quando banco, Kafka, Pub/Sub emulator legado ou JWKS forem usados. Se a stack completa do compose estiver em execucao, pare o container equivalente antes de depurar o mesmo processo no host para evitar conflito de porta ou processamento duplicado.
 
 O arquivo `src/ledger/LedgerService.Api/LedgerService.Api.http` pode ser usado com a extensao REST Client. Nao coloque segredos em `.vscode/rest-client.env.json`.

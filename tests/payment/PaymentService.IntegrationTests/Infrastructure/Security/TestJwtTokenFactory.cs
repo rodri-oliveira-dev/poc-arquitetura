@@ -11,7 +11,7 @@ public static class TestJwtTokenFactory
 {
     public const string KeycloakIssuer = "http://localhost:8081/realms/poc";
     public const string PaymentAudience = "payment-api";
-    public const string KeycloakScopes = "payment.write payment.read";
+    public const string KeycloakScopes = "payment.write payment.read payment.refund";
 
     public static string CreateToken(
         string issuer = KeycloakIssuer,

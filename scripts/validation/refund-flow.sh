@@ -105,7 +105,7 @@ if [[ -z "$bearer_token" ]]; then
 fi
 
 if [[ -z "$webhook_signing_secret" ]]; then
-  echo "Defina PAYMENT_WEBHOOK_SIGNING_SECRET ou use --webhook-signing-secret. Use somente whsec de teste/local." >&2
+  echo "Defina PAYMENT_WEBHOOK_SIGNING_SECRET ou use --webhook-signing-secret antes de enviar o webhook. O mesmo valor deve estar em PaymentGateway__Stripe__WebhookSigningSecret no container payment-service; se alterar .env.local, recrie o container com: docker compose --env-file .env.local up -d --force-recreate payment-service. Use somente whsec de teste/local." >&2
   exit 2
 fi
 

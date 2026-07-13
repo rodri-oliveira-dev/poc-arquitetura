@@ -130,7 +130,7 @@ Resend__ReplyTo=
 # PaymentService
 PaymentGateway__Provider=Fake
 PaymentGateway__Stripe__SecretKey=
-PaymentGateway__Stripe__WebhookSigningSecret=
+PaymentGateway__Stripe__WebhookSigningSecret=whsec_local_smoke
 
 # Observability
 GRAFANA_ADMIN_PASSWORD=$(new_local_secret GRAFANA_ADMIN_PASSWORD)

@@ -268,6 +268,18 @@ Os smokes desta etapa assumem que `PaymentService.Api`,
 recomendado e subir a stack local padrao, que aplica migrations do schema
 `payment` e inicia `payment-service`/`payment-worker`.
 
+Antes de subir a stack, gere/ajuste `.env.local` e garanta que o secret do
+container esteja definido. Para o smoke controlado com provider `Fake`, use um
+valor local descartavel:
+
+```text
+PaymentGateway__Stripe__WebhookSigningSecret=whsec_local_smoke
+```
+
+`PaymentGateway__Stripe__WebhookSigningSecret` e o secret carregado pela API no
+startup do container. `PAYMENT_WEBHOOK_SIGNING_SECRET` e o mesmo secret usado
+pelo script para assinar o payload controlado. Os valores precisam ser iguais.
+
 Stack local:
 
 ```powershell
@@ -280,11 +292,24 @@ No Linux/macOS:
 ./scripts/local/start-stack.sh
 ```
 
-Secrets locais para webhook controlado:
+Se alterar `PaymentGateway__Stripe__WebhookSigningSecret` em `.env.local` com o
+container ja em execucao, recrie o PaymentService para reaplicar as variaveis do
+arquivo de ambiente:
+
+```powershell
+docker compose --env-file .env.local up -d --force-recreate payment-service
+```
+
+No Linux/macOS:
+
+```bash
+docker compose --env-file .env.local up -d --force-recreate payment-service
+```
+
+Secret usado pelo script de smoke para assinar o webhook controlado:
 
 ```powershell
 $env:PAYMENT_WEBHOOK_SIGNING_SECRET = "whsec_local_smoke"
-$env:PaymentGateway__Stripe__WebhookSigningSecret = "whsec_local_smoke"
 ```
 
 Token local:
@@ -292,6 +317,9 @@ Token local:
 ```powershell
 $env:PAYMENT_SMOKE_TOKEN = "<token-local-com-payment.write-payment.read-payment.refund>"
 ```
+
+O token local deve conter audience `payment-api`, scopes `payment.write`,
+`payment.read` e `payment.refund`, alem do claim `merchant_id`.
 
 Smoke de Payment:
 

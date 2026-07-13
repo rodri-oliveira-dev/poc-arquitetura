@@ -125,6 +125,22 @@ public sealed class PaymentsEndpointTests(PostgresPaymentFixture fixture) : ICla
     }
 
     [Fact]
+    public async Task Post_payments_should_return_401_without_payment_audience()
+    {
+        var token = TestJwtTokenFactory.CreateToken(
+            issuer: TestJwtTokenFactory.KeycloakIssuer,
+            audiences: "ledger-api",
+            scopes: "payment.write",
+            merchantIds: "m1");
+        Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        using var req = CreatePostRequest(Guid.NewGuid().ToString());
+
+        var res = await Client.SendAsync(req, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, res.StatusCode);
+    }
+
+    [Fact]
     public async Task Post_payments_should_return_403_without_write_scope()
     {
         Authenticate(scopes: "payment.read", merchantIds: "m1");
@@ -189,12 +205,43 @@ public sealed class PaymentsEndpointTests(PostgresPaymentFixture fixture) : ICla
     }
 
     [Fact]
+    public async Task Get_payments_should_return_403_without_read_scope()
+    {
+        var created = await CreatePaymentAsync();
+        Authenticate(scopes: "payment.write", merchantIds: "m1");
+
+        var res = await Client.GetAsync($"/api/v1/payments/{created.PaymentId}", TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
+    }
+
+    [Fact]
     public async Task Get_payments_should_return_403_for_unauthorized_merchant()
     {
         var created = await CreatePaymentAsync();
         Authenticate(scopes: "payment.read", merchantIds: "m9");
 
         var res = await Client.GetAsync($"/api/v1/payments/{created.PaymentId}", TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
+    }
+
+    [Fact]
+    public async Task Post_refunds_should_return_403_without_refund_scope()
+    {
+        Authenticate(scopes: "payment.write payment.read", merchantIds: "m1");
+        using var req = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/payments/{Guid.NewGuid()}/refunds")
+        {
+            Content = JsonContent.Create(new
+            {
+                amount = 100m,
+                reason = "requested_by_customer",
+                externalReference = "refund-sem-scope"
+            })
+        };
+        req.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+
+        var res = await Client.SendAsync(req, TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
     }

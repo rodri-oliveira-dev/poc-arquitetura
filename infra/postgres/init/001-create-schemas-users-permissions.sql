@@ -9,6 +9,8 @@
 \set transfer_db_migrator_password `printf '%s' "${TRANSFER_DB_MIGRATOR_PASSWORD:?Defina TRANSFER_DB_MIGRATOR_PASSWORD}"`
 \set payment_db_password `printf '%s' "${PAYMENT_DB_PASSWORD:?Defina PAYMENT_DB_PASSWORD}"`
 \set payment_db_migrator_password `printf '%s' "${PAYMENT_DB_MIGRATOR_PASSWORD:?Defina PAYMENT_DB_MIGRATOR_PASSWORD}"`
+\set payment_app_role 'payment_app_user'
+\set payment_migrator_role 'payment_migrator_user'
 \set identity_db_password `printf '%s' "${IDENTITY_DB_PASSWORD:?Defina IDENTITY_DB_PASSWORD}"`
 \set identity_db_migrator_password `printf '%s' "${IDENTITY_DB_MIGRATOR_PASSWORD:?Defina IDENTITY_DB_MIGRATOR_PASSWORD}"`
 \set identity_app_role 'identity_app_user'
@@ -44,13 +46,20 @@ SELECT format('CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATER
 WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'transfer_migrator_user') \gexec
 SELECT format('ALTER ROLE %I WITH LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION', 'transfer_migrator_user', :'transfer_db_migrator_password') \gexec
 
-SELECT format('CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION', 'payment_app_user', :'payment_db_password')
-WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'payment_app_user') \gexec
-SELECT format('ALTER ROLE %I WITH LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION', 'payment_app_user', :'payment_db_password') \gexec
-
-SELECT format('CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION', 'payment_migrator_user', :'payment_db_migrator_password')
-WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'payment_migrator_user') \gexec
-SELECT format('ALTER ROLE %I WITH LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION', 'payment_migrator_user', :'payment_db_migrator_password') \gexec
+WITH payment_roles(role_name, role_password) AS (
+    VALUES
+        (:'payment_app_role', :'payment_db_password'),
+        (:'payment_migrator_role', :'payment_db_migrator_password')
+),
+payment_role_commands(command_text) AS (
+    SELECT format('CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION', role_name, role_password)
+    FROM payment_roles
+    WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = role_name)
+    UNION ALL
+    SELECT format('ALTER ROLE %I WITH LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION', role_name, role_password)
+    FROM payment_roles
+)
+SELECT command_text FROM payment_role_commands \gexec
 
 SELECT format('CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION', :'identity_app_role', :'identity_db_password')
 WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = :'identity_app_role') \gexec
