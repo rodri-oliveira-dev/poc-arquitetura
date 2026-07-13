@@ -6,7 +6,7 @@ Ele e uma referencia arquitetural. Nao significa que o projeto esta pronto para 
 
 ## Escopo
 
-Este baseline cobre requisitos para evolucao produtiva de seguranca, identidade de workload, trafego, Kafka como broker padrao, Pub/Sub real como alternativa explicita se escolhida por decisao futura, Cloud SQL, containers, borda, observabilidade, operacao, compliance e governanca.
+Este baseline cobre requisitos para evolucao produtiva de seguranca, identidade de workload, trafego, Kafka como broker padrao documentado, Cloud SQL, containers, borda, observabilidade, operacao, compliance e governanca.
 
 Fora do escopo desta etapa:
 
@@ -24,12 +24,11 @@ Fora do escopo desta etapa:
 | --- | --- | --- | --- |
 | Stack local de servicos | Ja existe no projeto | `compose.yaml`, `docs/development/local-development.md` | Manter como laboratorio local, sem tratar como ambiente produtivo. |
 | IdentityService | Ja existe no projeto | `src/identity`, ADR-0089 a ADR-0095 | Manter cadastro/vinculo local de usuarios separado do IdP; avaliar Outbox/worker para e-mail apenas se entrega duravel virar requisito. |
-| Kafka local | Ja existe no projeto | `compose.yaml`, `docs/development/kafka-outbox.md`, ADR-0088 | Tratar Kafka como broker padrao dos workers principais e definir seguranca/operacao antes de qualquer ambiente compartilhado. |
-| Pub/Sub emulator | Existe apenas localmente | `docs/operations/pubsub.md` | Usar somente para desenvolvimento e testes locais. |
-| Pub/Sub real dev | Documentado, mas nao automatizado como producao | `infra/terraform/environments/dev`, `docs/development/pubsub-infra-app-contract.md` | Usar apenas como alternativa explicita/legada ou estudo GCP; separar configuracao produtiva futura se uma ADR escolher Pub/Sub para algum fluxo. |
+| Kafka local | Ja existe no projeto | `compose.yaml`, `docs/development/kafka-outbox.md`, ADR-0088 | Tratar Kafka como broker dos workers principais e definir seguranca/operacao antes de qualquer ambiente compartilhado. |
+| Pub/Sub legado | Opcional/legado | `compose.pubsub.yaml`, `docs/operations/pubsub.md`, modulo Terraform Pub/Sub | Manter apenas como caminho explicito enquanto runtime e infraestrutura existirem; nao promover a broker produtivo padrao sem nova ADR. |
 | Cloud SQL dev e Auth Proxy local | Documentado, mas nao automatizado como producao | `docs/development/cloudsql-postgres-local-setup.md`, modulo Terraform Cloud SQL | Definir conectividade, usuarios, backups, retention, migrations e pooling por ambiente. |
 | Secrets produtivos | Pendente | ADR-0020 e guias locais proibem secrets versionados | Adotar Secret Manager ou equivalente, rotacao e acesso minimo por workload. |
-| Identidade de workload | Parcialmente documentado | IAM minimo Pub/Sub dev e sugestao de impersonation local | Adotar service accounts por aplicacao ou funcao, Workload Identity ou equivalente, sem chaves long-lived. |
+| Identidade de workload | Parcialmente documentado | Sugestao de impersonation local | Adotar service accounts por aplicacao ou funcao, Workload Identity ou equivalente, sem chaves long-lived. |
 | TLS externo | Documentado, mas nao automatizado como producao | Nginx HTTPS local simula borda | Usar load balancer, gateway ou plataforma gerenciada com certificados aprovados. |
 | TLS interno | Pendente | Nao ha baseline produtivo implementado | Avaliar por servico, rede, runtime e requisitos de compliance. |
 | Nginx local | Existe apenas localmente | `compose.nginx.yaml`, `infra/nginx/`, ADRs de borda local | Manter como simulacao local, nao como desenho produtivo final. |
@@ -68,13 +67,11 @@ Baseline recomendado:
 - evitar chaves JSON long-lived e remover qualquer fluxo que dependa de chave persistida em repositorio, artifact, imagem ou estacao de trabalho;
 - aplicar IAM minimo por recurso, nao permissao ampla no projeto;
 - conceder ao publisher apenas publish no topic necessario;
-- conceder ao subscriber apenas consume ou ack na subscription necessaria;
+- conceder ao consumer apenas leitura e commit no consumer group necessario;
 - conceder publish em DLQ somente ao componente que classifica e publica mensagens na DLQ de aplicacao;
 - conceder permissoes Cloud SQL apenas ao workload que precisa conectar;
 - conceder permissoes de observabilidade somente para exportar logs, metricas e traces necessarios;
 - revisar periodicamente bindings, membros humanos, service accounts inativas e permissoes temporarias.
-
-O contrato atual de Pub/Sub dev modela IAM minimo para publisher, subscriber, DLQ de aplicacao e Pub/Sub service agent no modo alternativo/legado. Um ambiente produtivo futuro deve definir primeiro se usara Kafka, Pub/Sub ou ambos por decisao arquitetural e entao reavaliar nomes, fronteiras, retencao, residencia, impersonation e auditoria antes de reutilizar qualquer desenho.
 
 ## Kafka produtivo futuro
 
@@ -89,6 +86,11 @@ Baseline recomendado:
 
 O Kafka local em KRaft e laboratorio de desenvolvimento. Ele nao substitui decisao produtiva sobre broker gerenciado, operacao, seguranca, multi-AZ, backups de configuracao, capacidade, alertas ou runbooks.
 
+O Pub/Sub ainda existe como caminho explicito/legado para Ledger/Balance e pode
+ser exercitado no emulator local ou em recursos GCP provisionados manualmente
+para dev/smoke. Ele nao altera o baseline produtivo recomendado: Kafka continua
+sendo o provider padrao dos workers principais nesta documentacao.
+
 ## TLS e trafego
 
 Baseline recomendado:
@@ -102,21 +104,6 @@ Baseline recomendado:
 - documentar certificados, responsaveis, renovacao, monitoramento de expiracao e procedimento de troca.
 
 O Nginx local com HTTPS simula borda para desenvolvimento e testes. Ele nao representa por si so uma arquitetura produtiva de gateway, WAF, certificado, balanceamento global ou protecao contra abuso.
-
-## Pub/Sub real alternativo
-
-Baseline recomendado:
-
-- criar topics e subscriptions por ambiente, com nomes, labels e ownership claros;
-- configurar DLQ de aplicacao e DLQ tecnica conforme a decisao operacional do ambiente;
-- definir retry policy, ack deadline, retention, expiration policy e exatamente uma estrategia de redelivery;
-- habilitar ordering key apenas quando o fluxo exigir ordenacao por agregado e quando publishers e subscriptions estiverem alinhados;
-- conceder IAM por publisher e subscriber, sem permissao compartilhada ampla;
-- separar permissao de inspecao de DLQ da permissao de redrive;
-- definir alerta para backlog, idade da mensagem mais antiga, crescimento de DLQ, erro de publish, erro de ack e falhas de schema;
-- documentar diferencas entre emulator local e Pub/Sub real.
-
-O emulator local nao usa credenciais GCP, nao reproduz todos os limites do servico real e nao configura a dead-letter policy nativa usada por recursos reais. Para GCP real, remova `PUBSUB_EMULATOR_HOST`, use identidade de workload e alinhe options dos workers aos outputs aprovados da infraestrutura.
 
 ## Cloud SQL
 
@@ -172,11 +159,11 @@ Baseline recomendado:
 
 - manter logs estruturados com `CorrelationId`, servico, ambiente, status e causa operacional;
 - evitar IDs de alta cardinalidade como labels de metricas ou labels de Loki;
-- exportar metricas de HTTP, runtime, banco, Pub/Sub, Outbox, DLQ, retries, backlog e processamento de workers;
+- exportar metricas de HTTP, runtime, banco, Kafka, Outbox, DLQ, retries, backlog e processamento de workers;
 - exportar traces distribuidos quando houver OpenTelemetry habilitado, preservando contexto HTTP, Outbox e mensageria;
 - manter `X-Correlation-Id` como identificador operacional separado de `TraceId`;
 - criar alertas minimos para indisponibilidade, erro HTTP, readiness, falha de publish, backlog, DLQ, erro de migration, saturacao de conexoes e falha de exportacao critica;
-- criar dashboards para APIs, workers, banco, Pub/Sub, Outbox, DLQ, consumo, latencia e recursos;
+- criar dashboards para APIs, workers, banco, Kafka, Outbox, DLQ, consumo, latencia e recursos;
 - tratar DLQ e Outbox como sinais operacionais de confiabilidade, nao apenas tabelas ou topicos auxiliares.
 
 A stack atual de observabilidade e local. Um ambiente produtivo futuro deve decidir backend gerenciado ou auto hospedado, retencao, custo, acesso, alertas, on-call e mascaramento de dados sensiveis.
@@ -191,7 +178,7 @@ Baseline recomendado:
 - garantir que mudancas de contrato sejam backward compatible enquanto houver mensagens antigas, backlog ou replay esperado;
 - documentar replay, redrive, descarte de DLQ e rebuild de projecao com autorizacao, dry-run, limites e auditoria;
 - validar readiness e health checks por tipo de processo;
-- criar runbooks para incidentes de banco, Pub/Sub, DLQ, Outbox, saturacao de workers, queda de IdP, certificados e secrets expirados;
+- criar runbooks para incidentes de banco, Kafka, DLQ, Outbox, saturacao de workers, queda de IdP, certificados e secrets expirados;
 - definir criterios de congelamento, comunicacao, janela de manutencao e validacao pos rollout.
 
 Os runbooks atuais cobrem investigacao e decisao operacional para replay, DLQ e rebuild em nivel de POC. Para uso produtivo, eles precisam de automacao controlada, auditoria persistente, permissoes e validacao operacional em ambiente real.
@@ -200,7 +187,7 @@ Os runbooks atuais cobrem investigacao e decisao operacional para replay, DLQ e 
 
 Baseline recomendado:
 
-- registrar ADRs para decisoes relevantes de ambiente, rede, secrets, IAM, Pub/Sub, Cloud SQL, observabilidade, WAF, supply chain e operacao;
+- registrar ADRs para decisoes relevantes de ambiente, rede, secrets, IAM, Kafka, Cloud SQL, observabilidade, WAF, supply chain e operacao;
 - revisar permissoes periodicamente, incluindo membros humanos, CI/CD e workloads;
 - revisar dependencias, imagens base, vulnerabilidades e excecoes aprovadas;
 - validar contratos HTTP e eventos antes de rollout;
@@ -216,10 +203,10 @@ Antes de tratar qualquer ambiente como candidato a producao, confirme:
 
 - secrets fora do repositorio, com rotacao e acesso minimo;
 - service accounts por workload, sem chaves long-lived;
-- IAM minimo para Pub/Sub, Cloud SQL, observabilidade e operacao;
+- IAM minimo para Kafka, Cloud SQL, observabilidade e operacao;
 - TLS externo definido e certificados monitorados;
 - decisao explicita sobre TLS interno;
-- Pub/Sub real com topics, subscriptions, DLQ, retry, retention, ordering key e alertas;
+- Kafka com topics, consumer groups, DLQ, retry, retention, particionamento e alertas;
 - Cloud SQL com conexao segura, backup, retention, restore testado, migrations e pooling;
 - imagens com tags imutaveis, scan, base image revisada e usuario nao root quando aplicavel;
 - WAF ou gateway com rate limit por identidade e protecao por rota;
@@ -233,8 +220,6 @@ Antes de tratar qualquer ambiente como candidato a producao, confirme:
 - [Documentacao arquitetural](README.md)
 - [Roadmap arquitetural consolidado](../roadmap.md)
 - [Maturidade tecnica](../maturity.md)
-- [Operacao do Pub/Sub](../operations/pubsub.md)
-- [Contrato Pub/Sub entre infraestrutura e aplicacao](../development/pubsub-infra-app-contract.md)
 - [Cloud SQL PostgreSQL local com Auth Proxy](../development/cloudsql-postgres-local-setup.md)
 - [Validacao de seguranca com Trivy](../development/trivy-security-scan.md)
 - [Observabilidade e operacao minima](../observability.md)

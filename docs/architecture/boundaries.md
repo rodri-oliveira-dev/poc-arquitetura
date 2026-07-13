@@ -61,7 +61,7 @@ Nao deve conter:
 - validacao de JWT/JWKS de requests HTTP;
 - regras de negocio duplicadas fora da Application/Domain.
 
-Observacao real: `LedgerService.Worker` registra Outbox, estorno e reprocessamento; `BalanceService.Worker` registra o consumer de eventos do Ledger e DLQ. APIs e workers compartilham Application/Infrastructure, mas cada processo decide explicitamente quais adapters e HostedServices registra. A composition root deve preferir entradas neutras como `AddLedgerMessaging` e `AddBalanceMessaging`. O Ledger seleciona Kafka ou Pub/Sub para publicar a Outbox; o Balance seleciona Kafka ou Pub/Sub para consumir eventos e publicar na DLQ de aplicacao.
+Observacao real: `LedgerService.Worker` registra Outbox, estorno e reprocessamento; `BalanceService.Worker` registra o consumer Kafka de eventos do Ledger e DLQ. APIs e workers compartilham Application/Infrastructure, mas cada processo decide explicitamente quais adapters e HostedServices registra. A composition root deve manter entradas explicitas de mensageria e concentrar detalhes de Kafka nos workers.
 
 ### Application
 
@@ -77,9 +77,9 @@ Deve conter:
 Nao deve conter:
 
 - controllers, attributes HTTP ou contratos OpenAPI;
-- `DbContext`, SQL, client Pub/Sub, Kafka client ou configuracao de infraestrutura;
+- `DbContext`, SQL, Kafka client ou configuracao de infraestrutura;
 - autorizacao baseada em `ClaimsPrincipal`;
-- detalhes de transporte como topic, partition, offset, commit, subscription ou ack/nack.
+- detalhes de transporte como topic, partition, offset ou commit.
 
 Observacoes reais:
 
@@ -98,7 +98,7 @@ Deve conter:
 Nao deve conter:
 
 - EF Core attributes/configurations;
-- attributes Pub/Sub, Kafka headers, nomes de topic/topico ou DTOs de transporte;
+- headers Kafka, nomes de topic/topico ou DTOs de transporte;
 - claims, scopes, JWT, JWKS;
 - clock do sistema, salvo por abstracao recebida de fora.
 
@@ -134,7 +134,7 @@ Observacao real: `BalanceService.Infrastructure` concentra persistencia e reposi
 
 Camadas atuais fazem sentido para o objetivo da POC. O servico tem transacao, idempotencia, entidade com invariantes, persistencia relacional e Outbox. Separar `Application`, `Domain` e `Infrastructure` agrega valor real.
 
-Operacionalmente, `LedgerService.Api` recebe HTTP e grava Outbox; `LedgerService.Worker` publica a Outbox pelo provider de mensageria configurado, processa estornos e consome solicitacoes de reprocessamento. A publicacao da Outbox aceita Kafka ou Pub/Sub; o consumer de reprocessamento continua exclusivo do caminho Kafka, mas traduz `ConsumeResult` para `ReceivedMessage` antes de chamar o processor neutro. Durante rollout, API antiga e Worker novo nao devem executar os mesmos HostedServices simultaneamente.
+Operacionalmente, `LedgerService.Api` recebe HTTP e grava Outbox; `LedgerService.Worker` publica a Outbox no Kafka por padrao, processa estornos e consome solicitacoes de reprocessamento. O caminho Pub/Sub permanece disponivel apenas quando `Messaging:Provider=PubSub` e deve ser tratado como legado/explicito. O consumer de reprocessamento traduz `ConsumeResult` para `ReceivedMessage` antes de chamar o processor neutro. Durante rollout, API antiga e Worker novo nao devem executar os mesmos HostedServices simultaneamente.
 
 Pontos de atencao:
 
@@ -146,7 +146,7 @@ Pontos de atencao:
 
 Camadas tambem fazem sentido, porque o servico possui leitura HTTP, consumidor Kafka, idempotencia por evento, projecao e DLQ.
 
-Operacionalmente, `BalanceService.Api` atende consultas HTTP sobre a projecao; `BalanceService.Worker` consome `LedgerEntryCreated.v2` pelo provider de mensageria configurado, mantem leitura de `LedgerEntryCreated.v1` como legado, aplica idempotencia, atualiza `daily_balances`/`processed_events` e envia mensagens invalidas para DLQ. Kafka e o provider default; Pub/Sub permanece como adapter explicito/legado.
+Operacionalmente, `BalanceService.Api` atende consultas HTTP sobre a projecao; `BalanceService.Worker` consome `LedgerEntryCreated.v2` pelo Kafka por padrao, mantem leitura de `LedgerEntryCreated.v1` como legado, aplica idempotencia, atualiza `daily_balances`/`processed_events` e envia mensagens invalidas para DLQ Kafka. Quando `Messaging:Provider=PubSub`, o worker usa a subscription Pub/Sub e a DLQ de aplicacao Pub/Sub ainda suportadas, sem levar ack/nack, topic ou subscription para Application/Domain.
 
 Pontos de atencao:
 
@@ -186,7 +186,7 @@ Pontos de atencao:
 - `TransferService.Infrastructure` pode depender de Application e Domain, concentrando EF Core, PostgreSQL, Outbox, idempotencia persistida e mapeamento Kafka.
 - `TransferService.Api` expoe HTTP e nao registra HostedServices de Worker.
 - `TransferService.Worker` registra HostedServices, client HTTP do Ledger e publisher Kafka, sem controllers, Swagger ou CORS.
-- Pub/Sub nao faz parte do fluxo do TransferService definido pela ADR-0087.
+- TransferService usa Kafka no fluxo definido pela ADR-0087.
 
 ### PaymentService
 
@@ -240,7 +240,7 @@ Pontos de atencao:
 A arquitetura ideal para este projeto deve ser minimalista e pragmatica, com robustez seletiva:
 
 - manter quatro camadas para LedgerService e BalanceService;
-- manter o TransferService como bounded context separado, com Saga e Outbox Kafka alinhados ao broker padrao, sem misturar Pub/Sub no fluxo da Saga;
+- manter o TransferService como bounded context separado, com Saga e Outbox Kafka alinhados ao broker padrao;
 - manter o PaymentService como bounded context separado para pagamentos externos, sem Balance direto e sem Kafka financeiro proprio;
 - manter o AuditService como bounded context separado para trilha funcional, com integracao automatica apenas quando houver producer real e decisao explicita;
 - manter o IdentityService como bounded context separado para usuarios, MerchantId, vinculo local com Keycloak e e-mail de boas-vindas;

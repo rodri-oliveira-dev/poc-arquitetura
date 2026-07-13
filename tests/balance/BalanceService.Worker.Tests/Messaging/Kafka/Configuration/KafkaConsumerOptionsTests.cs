@@ -101,6 +101,41 @@ public sealed class KafkaConsumerOptionsTests
         Assert.False(KafkaClientConfigExtensions.IsPlaintext(options));
     }
 
+    [Fact]
+    public void CreateConsumerConfig_should_map_options_and_security_fields()
+    {
+        var options = new KafkaConsumerOptions
+        {
+            BootstrapServers = "kafka:9092",
+            GroupId = "balance-group",
+            ClientId = "balance-client",
+            EnableAutoCommit = false,
+            EnableAutoOffsetStore = false,
+            AllowAutoCreateTopics = false,
+            AutoOffsetReset = "Latest",
+            SecurityProtocol = "SASL_SSL",
+            SaslMechanism = "Plain",
+            SaslUsername = "user",
+            SaslPassword = "secret",
+            SslCaLocation = "/certs/ca.pem"
+        };
+
+        var config = LedgerEventsConsumer.CreateConsumerConfig(options);
+
+        Assert.Equal("kafka:9092", config.BootstrapServers);
+        Assert.Equal("balance-group", config.GroupId);
+        Assert.Equal("balance-client", config.ClientId);
+        Assert.False(config.EnableAutoCommit);
+        Assert.False(config.EnableAutoOffsetStore);
+        Assert.False(config.AllowAutoCreateTopics);
+        Assert.Equal(AutoOffsetReset.Latest, config.AutoOffsetReset);
+        Assert.Equal(SecurityProtocol.SaslSsl, config.SecurityProtocol);
+        Assert.Equal(SaslMechanism.Plain, config.SaslMechanism);
+        Assert.Equal("user", config.SaslUsername);
+        Assert.Equal("secret", config.SaslPassword);
+        Assert.Equal("/certs/ca.pem", config.SslCaLocation);
+    }
+
     [Theory]
     [InlineData("invalid")]
     [InlineData("")]

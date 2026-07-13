@@ -46,6 +46,7 @@ env:
   SONAR_PULL_REQUEST: ${{ github.event.pull_request.number || '' }}
   SONAR_REPORT_DIR: ./artifacts/sonarqube
   SONAR_OPENCOVER_REPORTS_PATHS: ./artifacts/test-results/**/coverage.opencover.xml
+  SONAR_NON_CSHARP_SCRIPT_EXCLUSIONS: scripts/**/*.sh,scripts/**/*.ps1,scripts/**/*.py,scripts/**/*.json,scripts/**/*.mjs
   SOLUTION_PATH: ./PocArquitetura.slnx
   TEST_RESULTS_DIR: ./artifacts/test-results
   COVERAGE_THRESHOLD: "85"
@@ -151,10 +152,11 @@ jobs:
           /d:sonar.token="$SONAR_TOKEN"
           /d:sonar.host.url="$SONAR_HOST_URL"
           /d:sonar.cs.opencover.reportsPaths="$SONAR_OPENCOVER_REPORTS_PATHS"
+          /d:sonar.exclusions="$SONAR_NON_CSHARP_SCRIPT_EXCLUSIONS"
           /d:sonar.issue.ignore.block=placeholderSecrets
           /d:sonar.issue.ignore.block.placeholderSecrets.beginBlockRegexp="$SONAR_PLACEHOLDER_SECRET_LINE_REGEX"
           /d:sonar.issue.ignore.block.placeholderSecrets.endBlockRegexp="$SONAR_PLACEHOLDER_SECRET_LINE_REGEX"
-          /d:sonar.coverage.exclusions=".github/**,docs/**,infra/**,loadtests/**,scripts/**,**/Program.cs,**/Migrations/*.cs,**/*.g.cs,**/*.g.*.cs"
+          /d:sonar.coverage.exclusions=".github/**,docs/**,infra/**,loadtests/**,**/Program.cs,**/Migrations/*.cs,**/*.g.cs,**/*.g.*.cs"
           /d:sonar.qualitygate.wait=true
 
       - name: Build

@@ -42,7 +42,7 @@ echo "==> terraform: verificando formatacao"
 terraform -chdir="$TERRAFORM_ROOT" fmt -check -recursive
 
 while IFS= read -r terraform_directory; do
-  [ -n "$terraform_directory" ] || continue
+  [[ -n "$terraform_directory" ]] || continue
 
   echo "==> terraform: inicializando sem backend para validacao sintatica em $terraform_directory"
   terraform -chdir="$terraform_directory" init -backend=false -input=false

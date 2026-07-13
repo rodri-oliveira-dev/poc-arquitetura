@@ -5,12 +5,12 @@ deployment {
   environment local "Ambiente local" {
     technology "Docker Compose / nerdctl compose"
     summary "Ambiente local da POC definido no compose.yaml."
-    description "Ambiente local executado em Docker Compose, com APIs, workers, PostgreSQL unico com schemas por servico, Kafka para workers principais, Pub/Sub emulator explicito/legado e stack de observabilidade na rede poc-net."
+    description "Ambiente local executado em Docker Compose, com APIs, workers, PostgreSQL unico com schemas por servico, Kafka como broker documentado e stack de observabilidade na rede poc-net."
 
     composeNetwork pocNet "poc-net" {
       technology "Docker bridge network"
       summary "Rede bridge compartilhada pelos servicos do compose local."
-      description "Rede Docker Compose usada para comunicacao interna entre APIs, workers, PostgreSQL, Kafka, Pub/Sub emulator explicito/legado e observabilidade."
+      description "Rede Docker Compose usada para comunicacao interna entre APIs, workers, PostgreSQL, Kafka e observabilidade."
 
       composeService keycloak "keycloak" {
         technology "Docker container / Keycloak"
@@ -89,7 +89,7 @@ deployment {
 
       composeService ledgerWorker "ledger-worker" {
         technology "Docker container / .NET Worker Service"
-        description "Servico Docker Compose que executa a LedgerService.Worker."
+        description "Servico Docker Compose que executa a LedgerService.Worker. No overlay compose.pubsub.yaml, depende de pubsub-init e recebe Messaging__Provider=PubSub e PUBSUB_EMULATOR_HOST para usar o caminho legado explicito."
 
         worker = instanceOf ledger.ledgerWorker {
           title "poc-ledger-worker"
@@ -109,7 +109,7 @@ deployment {
 
       composeService balanceWorker "balance-worker" {
         technology "Docker container / .NET Worker Service"
-        description "Servico Docker Compose que executa a BalanceService.Worker."
+        description "Servico Docker Compose que executa a BalanceService.Worker. No overlay compose.pubsub.yaml, depende de pubsub-init e recebe Messaging__Provider=PubSub e PUBSUB_EMULATOR_HOST para usar o caminho legado explicito."
 
         worker = instanceOf balance.balanceWorker {
           title "poc-balance-worker"
@@ -203,18 +203,18 @@ deployment {
       }
 
       composeService pubsubEmulator "pubsub-emulator" {
-        technology "Google Cloud CLI / Pub/Sub emulator"
-        description "Servico explicito/legado do compose.yaml, fora do Terraform e exposto na porta 8085 do host quando o profile legacy-pubsub e usado."
+        technology "Google Cloud SDK / Pub/Sub emulator"
+        description "Servico Docker Compose do profile legacy-pubsub que executa o emulator local em 8085, ativado por compose.yaml com overlay compose.pubsub.yaml."
 
-        emulator = instanceOf pubsubLocal {
+        emulator = instanceOf pubsub.emulator {
           title "poc-pubsub-emulator"
-          description "Emulator local descartavel usado somente quando os workers sao configurados com Messaging:Provider=PubSub."
+          description "Emulator local descartavel do Pub/Sub exposto por PUBSUB_EMULATOR_HOST_PORT no host e acessado pelos workers como pubsub-emulator:8085."
         }
       }
 
       composeService pubsubInit "pubsub-init" {
         technology "curl / init container"
-        description "Container auxiliar e idempotente do profile legacy-pubsub que cria topic principal, topic de DLQ, subscription pull do BalanceService.Worker e subscription de inspecao da DLQ de aplicacao no Pub/Sub emulator."
+        description "Job idempotente do profile legacy-pubsub que cria topic principal, topic de DLQ de aplicacao, subscription do Balance e subscription de inspecao da DLQ de aplicacao no emulator local; nao configura DLQ tecnica nativa."
       }
 
       composeService jaeger "jaeger" {

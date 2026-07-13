@@ -1,14 +1,14 @@
-using Confluent.Kafka;
-
 using BalanceService.Worker.Messaging.Kafka.Configuration;
-using BalanceService.Worker.Messaging.Processors;
 using BalanceService.Worker.Messaging.Kafka.Tracing;
+using BalanceService.Worker.Messaging.Processors;
 using BalanceService.Worker.Observability;
 
+using Confluent.Kafka;
+
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+
+using PocArquitetura.KafkaWorkerDefaults;
 
 namespace BalanceService.Worker.Messaging.Kafka.Consumers;
 
@@ -35,19 +35,7 @@ public sealed class LedgerEventsConsumer : BackgroundService
     {
         ValidateOptions(_options);
 
-        var config = new ConsumerConfig
-        {
-            BootstrapServers = _options.BootstrapServers,
-            GroupId = _options.GroupId,
-            ClientId = _options.ClientId,
-            EnableAutoCommit = _options.EnableAutoCommit,
-            EnableAutoOffsetStore = _options.EnableAutoOffsetStore,
-            AllowAutoCreateTopics = _options.AllowAutoCreateTopics,
-            AutoOffsetReset = ParseAutoOffsetReset(_options.AutoOffsetReset)
-        };
-        config.ApplySecurity(_options);
-
-        using var consumer = new ConsumerBuilder<string, string>(config)
+        using var consumer = new ConsumerBuilder<string, string>(CreateConsumerConfig(_options))
             .SetErrorHandler((_, e) =>
             {
                 _logger.KafkaConsumerError(e.Reason, e.IsFatal);
@@ -70,15 +58,7 @@ public sealed class LedgerEventsConsumer : BackgroundService
             try
             {
                 result = consumer.Consume(stoppingToken);
-                if (result?.Message?.Value is null)
-                    continue;
-
-                var message = KafkaReceivedMessageMapper.Map(result);
-                if (await _messageProcessor.ProcessAsync(message, stoppingToken))
-                {
-                    consumer.Commit(result);
-                    _logger.KafkaMessageCommitted();
-                }
+                await ProcessConsumeResultAsync(consumer, result, stoppingToken);
             }
             catch (ConsumeException ex)
             {
@@ -113,17 +93,28 @@ public sealed class LedgerEventsConsumer : BackgroundService
             }
         }
 
-        try
-        {
-            consumer.Close();
-        }
-        catch (KafkaException)
-        {
-            // ignore shutdown errors
-        }
+        CloseConsumer(consumer);
 
         _logger.ConsumerStopped();
     }
+
+    internal static ConsumerConfig CreateConsumerConfig(KafkaConsumerOptions options)
+        => KafkaConsumerConfigFactory.Create(options);
+
+    internal Task ProcessConsumeResultAsync(
+        IConsumer<string, string> consumer,
+        ConsumeResult<string, string>? result,
+        CancellationToken stoppingToken)
+        => KafkaConsumerMessageHandler.ProcessAsync(
+            result,
+            KafkaReceivedMessageMapper.Map,
+            _messageProcessor.ProcessAsync,
+            consumer.Commit,
+            _logger.KafkaMessageCommitted,
+            stoppingToken);
+
+    internal static void CloseConsumer(IConsumer<string, string> consumer)
+        => KafkaConsumerLifecycle.Close(consumer.Close);
 
     internal static void ValidateOptions(KafkaConsumerOptions options)
     {
@@ -150,14 +141,7 @@ public sealed class LedgerEventsConsumer : BackgroundService
     }
 
     internal static AutoOffsetReset ParseAutoOffsetReset(string value)
-    {
-        return value.Trim().ToLowerInvariant() switch
-        {
-            "earliest" => AutoOffsetReset.Earliest,
-            "latest" => AutoOffsetReset.Latest,
-            _ => AutoOffsetReset.Earliest
-        };
-    }
+        => KafkaOffsetResetParser.Parse(value);
 
     private void RecordConsumerError(ConsumeResult<string, string>? result, Exception exception)
     {

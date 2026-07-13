@@ -71,6 +71,39 @@ function Get-ComposeArguments([switch]$IncludeK6, [switch]$IncludeKafka) {
   return $arguments
 }
 
+function Assert-ComposeConfigContains([string]$Config, [string[]]$ExpectedValues, [string]$FailurePrefix) {
+  foreach ($expected in $ExpectedValues) {
+    if (-not $Config.Contains($expected)) {
+      throw "${FailurePrefix}: $expected"
+    }
+  }
+}
+
+function Assert-RequiredServicesRunning([string[]]$RunningServices, [string[]]$RequiredServices, [string]$FailureMessage) {
+  foreach ($service in $RequiredServices) {
+    if ($RunningServices -notcontains $service) {
+      throw "$FailureMessage ($service). Suba ./scripts/local/start-stack.ps1 antes do teste."
+    }
+  }
+}
+
+function Assert-KafkaBrokerAvailable([object[]]$ComposeArgs, [string]$FailureMessage) {
+  & docker @($ComposeArgs) exec -T kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --list 1>$null
+  if ($LASTEXITCODE -ne 0) {
+    throw $FailureMessage
+  }
+}
+
+function Assert-KafkaInitTopicsCompleted([object[]]$ComposeArgs) {
+  $kafkaInitJson = & docker @($ComposeArgs) ps -a kafka-init-topics --format json
+  if ($LASTEXITCODE -ne 0) { throw "docker compose ps falhou ao validar kafka-init-topics." }
+
+  $kafkaInit = $kafkaInitJson | ConvertFrom-Json
+  if ([string]$kafkaInit.State -ne "exited" -or [int]$kafkaInit.ExitCode -ne 0) {
+    throw "Topicos Kafka ausentes ou inicializacao incompleta. Rode ./scripts/local/start-stack.ps1 ou confira: docker compose logs kafka-init-topics"
+  }
+}
+
 function Get-ThresholdValue([string]$Prefix, [string]$Percentile, [string]$DefaultValue) {
   $specificName = "${Prefix}_HTTP_REQ_DURATION_${Percentile}_MS"
   $globalName = "K6_HTTP_REQ_DURATION_${Percentile}_MS"
@@ -169,75 +202,41 @@ function Wait-HttpEndpoint([string]$Url, [int]$TimeoutSeconds = 120) {
 }
 
 function Assert-LocalKafkaStack {
-  $config = (& docker @(Get-ComposeArguments) config | Out-String)
+  $composeArgs = Get-ComposeArguments
+  $config = (& docker @($composeArgs) config | Out-String)
   if ($LASTEXITCODE -ne 0) { throw "docker compose config falhou ao validar Kafka local." }
 
-  foreach ($expected in @(
+  Assert-ComposeConfigContains $config @(
     "Messaging__Provider: Kafka",
     "Kafka__Producer__BootstrapServers: kafka:9092",
     "Kafka__Consumer__BootstrapServers: kafka:9092"
-  )) {
-    if (-not $config.Contains($expected)) {
-      throw "Stack k6 deve usar Kafka local. Configuracao ausente: $expected"
-    }
-  }
+  ) "Stack k6 deve usar Kafka local. Configuracao ausente"
 
-  $runningServices = @(& docker @(Get-ComposeArguments) ps --status running --services)
+  $runningServices = @(& docker @($composeArgs) ps --status running --services)
   if ($LASTEXITCODE -ne 0) { throw "docker compose ps falhou ao validar Kafka local." }
 
-  foreach ($service in @("kafka", "ledger-worker", "balance-worker")) {
-    if ($runningServices -notcontains $service) {
-      throw "Kafka indisponivel para o caminho padrao k6: servico obrigatorio nao esta em execucao ($service). Suba ./scripts/local/start-stack.ps1 antes do teste."
-    }
-  }
-
-  & docker @(Get-ComposeArguments) exec -T kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --list 1>$null
-  if ($LASTEXITCODE -ne 0) {
-    throw "Kafka indisponivel em kafka:9092. Confira docker compose logs kafka e rode ./scripts/local/start-stack.ps1."
-  }
-
-  $kafkaInitJson = & docker @(Get-ComposeArguments) ps -a kafka-init-topics --format json
-  if ($LASTEXITCODE -ne 0) { throw "docker compose ps falhou ao validar kafka-init-topics." }
-  $kafkaInit = $kafkaInitJson | ConvertFrom-Json
-  if ([string]$kafkaInit.State -ne "exited" -or [int]$kafkaInit.ExitCode -ne 0) {
-    throw "Topicos Kafka ausentes ou inicializacao incompleta. Rode ./scripts/local/start-stack.ps1 ou confira: docker compose logs kafka-init-topics"
-  }
+  Assert-RequiredServicesRunning $runningServices @("kafka", "ledger-worker", "balance-worker") "Kafka indisponivel para o caminho padrao k6: servico obrigatorio nao esta em execucao"
+  Assert-KafkaBrokerAvailable $composeArgs "Kafka indisponivel em kafka:9092. Confira docker compose logs kafka e rode ./scripts/local/start-stack.ps1."
+  Assert-KafkaInitTopicsCompleted $composeArgs
 }
 
 function Assert-LocalTransferKafkaStack {
-  $config = (& docker @(Get-ComposeArguments -IncludeKafka) config | Out-String)
+  $composeArgs = Get-ComposeArguments -IncludeKafka
+  $config = (& docker @($composeArgs) config | Out-String)
   if ($LASTEXITCODE -ne 0) { throw "docker compose config falhou ao validar Kafka local do TransferService." }
 
-  foreach ($expected in @(
+  Assert-ComposeConfigContains $config @(
     "Messaging__Provider: Kafka",
     "TransferService__Worker__Kafka__BootstrapServers: kafka:9092",
     "TransferService__Worker__Topics__Solicitada: transfer.transferencia.solicitada"
-  )) {
-    if (-not $config.Contains($expected)) {
-      throw "Stack full-stack do TransferService deve usar Kafka. Configuracao ausente: $expected"
-    }
-  }
+  ) "Stack full-stack do TransferService deve usar Kafka. Configuracao ausente"
 
-  $runningServices = @(& docker @(Get-ComposeArguments -IncludeKafka) ps --status running --services)
+  $runningServices = @(& docker @($composeArgs) ps --status running --services)
   if ($LASTEXITCODE -ne 0) { throw "docker compose ps falhou ao validar Kafka local do TransferService." }
 
-  foreach ($service in @("kafka", "ledger-service", "transfer-service", "transfer-worker")) {
-    if ($runningServices -notcontains $service) {
-      throw "Kafka full-stack indisponivel: servico obrigatorio nao esta em execucao ($service). Suba ./scripts/local/start-stack.ps1 antes do teste."
-    }
-  }
-
-  & docker @(Get-ComposeArguments -IncludeKafka) exec -T kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --list 1>$null
-  if ($LASTEXITCODE -ne 0) {
-    throw "Kafka indisponivel em kafka:9092 para full-stack TransferService. Confira docker compose logs kafka e rode ./scripts/local/start-stack.ps1."
-  }
-
-  $kafkaInitJson = & docker @(Get-ComposeArguments -IncludeKafka) ps -a kafka-init-topics --format json
-  if ($LASTEXITCODE -ne 0) { throw "docker compose ps falhou ao validar kafka-init-topics." }
-  $kafkaInit = $kafkaInitJson | ConvertFrom-Json
-  if ([string]$kafkaInit.State -ne "exited" -or [int]$kafkaInit.ExitCode -ne 0) {
-    throw "Topicos Kafka ausentes ou inicializacao incompleta. Rode ./scripts/local/start-stack.ps1 ou confira: docker compose logs kafka-init-topics"
-  }
+  Assert-RequiredServicesRunning $runningServices @("kafka", "ledger-service", "transfer-service", "transfer-worker") "Kafka full-stack indisponivel: servico obrigatorio nao esta em execucao"
+  Assert-KafkaBrokerAvailable $composeArgs "Kafka indisponivel em kafka:9092 para full-stack TransferService. Confira docker compose logs kafka e rode ./scripts/local/start-stack.ps1."
+  Assert-KafkaInitTopicsCompleted $composeArgs
 }
 
 function Assert-TransferWorkerLogContains([string]$Since, [string]$Pattern, [string]$Description) {

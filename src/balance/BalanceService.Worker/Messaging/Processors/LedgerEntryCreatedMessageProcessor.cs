@@ -409,7 +409,7 @@ public sealed partial class LedgerEntryCreatedMessageProcessor
         }
     }
 
-    private sealed class MessageValidationException : Exception
+    public sealed class MessageValidationException : Exception
     {
         public MessageValidationException(string message) : base(message)
         {

@@ -6,6 +6,9 @@
     <Project Path="src/balance/BalanceService.Infrastructure/BalanceService.Infrastructure.csproj" />
     <Project Path="src/balance/BalanceService.Worker/BalanceService.Worker.csproj" />
   </Folder>
+  <Folder Name="/src/Shared/">
+    <Project Path="src/Shared/KafkaWorkerDefaults/KafkaWorkerDefaults.csproj" />
+  </Folder>
   <Folder Name="/tests/balance/">
     <Project Path="tests/balance/BalanceService.Application.Tests/BalanceService.Application.Tests.csproj" />
     <Project Path="tests/balance/BalanceService.IntegrationTests/BalanceService.IntegrationTests.csproj" />

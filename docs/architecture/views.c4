@@ -15,16 +15,14 @@ views {
     include audit
     include stripe
     include kafka
-    include pubsubLocal
-    include pubsubGcp
     include email
     include observability
     autoLayout LeftRight
   }
 
   view containers {
-    title "Container View - APIs, workers, bancos, Kafka, Pub/Sub e observabilidade"
-    description "Mostra os executaveis, schemas/boundaries de banco, brokers e sistemas externos que compoem a arquitetura atual. Schemas PostgreSQL representam isolamento logico por bounded context, nao necessariamente instancias fisicas separadas."
+    title "Container View - APIs, workers, bancos, Kafka e observabilidade"
+    description "Mostra executaveis, schemas/boundaries de banco, o broker Kafka e sistemas externos da arquitetura atual. Schemas PostgreSQL representam isolamento logico por bounded context, nao necessariamente instancias fisicas separadas."
     include customer
     include edge.nginx
     include identity.keycloak
@@ -47,24 +45,9 @@ views {
     include audit.auditDb
     include stripe.stripeApi
     include stripe.stripeWebhooks
-    include kafka.ledgerTopic
-    include kafka.ledgerEstornoTopic
-    include kafka.ledgerReprocessamentoTopic
-    include kafka.ledgerDlq
-    include kafka.transferSagaTopics
-    include kafka.transferSagaDlq
-    include kafka.auditRecordTopic
-    include kafka.auditRecordDlq
+    include kafka
     include email.mailpit
     include email.resend
-    include pubsubLocal.ledgerTopic
-    include pubsubLocal.balanceSubscription
-    include pubsubLocal.applicationDlqTopic
-    include pubsubLocal.applicationDlqSubscription
-    include pubsubGcp.ledgerTopic
-    include pubsubGcp.balanceSubscription
-    include pubsubGcp.applicationDlqTopic
-    include pubsubGcp.technicalDlqTopic
     include observability.collector
     include observability.jaeger
     include observability.prometheus
@@ -115,31 +98,9 @@ views {
     autoLayout LeftRight
   }
 
-  view pubSubLegacyFlow {
-    title "Fluxo alternativo/legado - Pub/Sub emulator/GCP"
-    include ledger.ledgerWorker
-    include ledger.ledgerOutbox
-    include ledger.ledgerPubSubOutboxPublisher
-    include pubsubLocal.ledgerTopic
-    include pubsubLocal.balanceSubscription
-    include pubsubLocal.applicationDlqTopic
-    include pubsubLocal.applicationDlqSubscription
-    include pubsubGcp.ledgerTopic
-    include pubsubGcp.balanceSubscription
-    include pubsubGcp.applicationDlqTopic
-    include pubsubGcp.applicationDlqSubscription
-    include pubsubGcp.technicalDlqTopic
-    include pubsubGcp.technicalDlqSubscription
-    include balance.balanceWorker
-    include balance.balancePubSubConsumer
-    include balance.balanceMessageProcessor
-    include balance.balanceDeadLetterPort
-    autoLayout LeftRight
-  }
-
   view kafkaFlow {
-    title "Kafka default - Ledger, Balance, Transfer e auditoria opcional"
-    description "Mostra onde Kafka e usado no runtime atual: fluxo financeiro Ledger/Balance, eventos da Saga do TransferService e consumer opcional do AuditService sem producers reais nesta etapa."
+    title "Kafka - mensageria assincrona documentada"
+    description "Mostra onde Kafka e usado no runtime documentado como provider padrao: fluxo financeiro Ledger/Balance, eventos da Saga do TransferService e consumer opcional do AuditService sem producers reais nesta etapa."
     include ledger.ledgerWorker
     include ledger.ledgerKafkaOutboxPublisher
     include ledger.ledgerReprocessamentoConsumer
@@ -233,7 +194,6 @@ views {
     include ledger.ledgerOutbox
     include ledger.ledgerOutboxPublisherPort
     include ledger.ledgerKafkaOutboxPublisher
-    include ledger.ledgerPubSubOutboxPublisher
     include ledger.ledgerEstornoProcessor
     include ledger.ledgerReprocessamentoConsumer
     include ledger.ledgerReprocessamentoReceivedMessageMapper
@@ -242,8 +202,27 @@ views {
     include kafka.ledgerTopic
     include kafka.ledgerEstornoTopic
     include kafka.ledgerReprocessamentoTopic
-    include pubsubLocal.ledgerTopic
-    include pubsubGcp.ledgerTopic
+    autoLayout LeftRight
+  }
+
+  dynamic view pubSubLegacyProjectionFlow {
+    title "Pub/Sub legado - fluxo Ledger/Balance opcional"
+    description "View isolada do caminho Pub/Sub explicito/legado. O overlay compose.pubsub.yaml seleciona Messaging__Provider=PubSub para Ledger/Balance e usa o emulator local; Terraform pode provisionar Pub/Sub real com DLQ tecnica nativa. Kafka continua sendo o provider padrao e recomendado."
+
+    ledger.ledgerWorker.ledgerOutbox -> ledger.ledgerDb "1. Reclama outbox_messages pendentes"
+    ledger.ledgerWorker.ledgerOutboxPublisherPort -> ledger.ledgerWorker.ledgerPubSubOutboxPublisher "2. Seleciona adapter Pub/Sub quando Messaging:Provider=PubSub"
+    ledger.ledgerWorker.ledgerPubSubOutboxPublisher -> pubsub.ledgerEventsTopic "3. Publica LedgerEntryCreated.v1/v2"
+    pubsub.ledgerEventsTopic -> pubsub.balanceSubscription "4. Entrega mensagem para a pull subscription do Balance"
+    balance.balanceWorker.balancePubSubConsumer -> pubsub.balanceSubscription "5. Recebe PubsubMessage e controla ack/nack"
+    balance.balanceWorker.balancePubSubConsumer -> balance.balanceWorker.balanceMessageProcessor "6. Entrega ReceivedMessage ao processor neutro"
+    balance.balanceWorker.balanceMessageProcessor -> balance.balanceDb "7. Atualiza daily_balances e processed_events"
+    balance.balanceWorker.balanceMessageProcessor -> balance.balanceWorker.balanceDeadLetterPort "8. Classifica invalidas ou definitivas"
+    balance.balanceWorker.balanceDeadLetterPort -> balance.balanceWorker.balancePubSubDeadLetterPublisher "9. Seleciona DLQ Pub/Sub"
+    balance.balanceWorker.balancePubSubDeadLetterPublisher -> pubsub.applicationDlqTopic "10. Publica DLQ de aplicacao"
+    pubsub.applicationDlqTopic -> pubsub.applicationDlqSubscription "11. Retem para inspecao operacional"
+    pubsub.balanceSubscription -> pubsub.technicalDlqTopic "12. Em Pub/Sub real, dead-letter policy nativa pode encaminhar falhas tecnicas"
+    pubsub.technicalDlqTopic -> pubsub.technicalDlqSubscription "13. Retem DLQ tecnica para inspecao"
+
     autoLayout LeftRight
   }
 
@@ -265,21 +244,11 @@ views {
     include balance.balanceWorkerInfrastructure
     include balance.balanceConsumer
     include balance.balanceReceivedMessageMapper
-    include balance.balancePubSubConsumer
-    include balance.balancePubSubReceivedMessageMapper
     include balance.balanceMessageProcessor
     include balance.balanceDeadLetterPort
     include balance.balanceDb
     include kafka.ledgerTopic
     include kafka.ledgerDlq
-    include pubsubLocal.ledgerTopic
-    include pubsubLocal.balanceSubscription
-    include pubsubLocal.applicationDlqTopic
-    include pubsubLocal.applicationDlqSubscription
-    include pubsubGcp.ledgerTopic
-    include pubsubGcp.balanceSubscription
-    include pubsubGcp.applicationDlqTopic
-    include pubsubGcp.technicalDlqTopic
     autoLayout LeftRight
   }
 

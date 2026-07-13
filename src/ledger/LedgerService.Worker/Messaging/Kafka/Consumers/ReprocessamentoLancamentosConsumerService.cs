@@ -5,6 +5,8 @@ using LedgerService.Worker.Messaging.Processors;
 
 using Microsoft.Extensions.Options;
 
+using PocArquitetura.KafkaWorkerDefaults;
+
 namespace LedgerService.Worker.Messaging.Kafka.Consumers;
 
 public sealed partial class ReprocessamentoLancamentosConsumerService : BackgroundService
@@ -48,19 +50,7 @@ public sealed partial class ReprocessamentoLancamentosConsumerService : Backgrou
     {
         ValidateOptions(_options);
 
-        var config = new ConsumerConfig
-        {
-            BootstrapServers = _options.BootstrapServers,
-            GroupId = _options.GroupId,
-            ClientId = _options.ClientId,
-            EnableAutoCommit = _options.EnableAutoCommit,
-            EnableAutoOffsetStore = _options.EnableAutoOffsetStore,
-            AllowAutoCreateTopics = _options.AllowAutoCreateTopics,
-            AutoOffsetReset = ParseAutoOffsetReset(_options.AutoOffsetReset)
-        };
-        config.ApplySecurity(_options);
-
-        using var consumer = new ConsumerBuilder<string, string>(config)
+        using var consumer = new ConsumerBuilder<string, string>(CreateConsumerConfig(_options))
             .SetErrorHandler((_, e) =>
             {
                 LogKafkaConsumerError(_logger, e.Reason, e.IsFatal);
@@ -76,12 +66,7 @@ public sealed partial class ReprocessamentoLancamentosConsumerService : Backgrou
             try
             {
                 result = consumer.Consume(stoppingToken);
-                if (result?.Message?.Value is null)
-                    continue;
-
-                var message = KafkaReprocessamentoReceivedMessageMapper.Map(result);
-                if (await _messageProcessor.ProcessAsync(message, stoppingToken))
-                    consumer.Commit(result);
+                await ProcessConsumeResultAsync(consumer, result, stoppingToken);
             }
             catch (ConsumeException ex)
             {
@@ -127,17 +112,28 @@ public sealed partial class ReprocessamentoLancamentosConsumerService : Backgrou
             }
         }
 
-        try
-        {
-            consumer.Close();
-        }
-        catch (KafkaException)
-        {
-            // ignore shutdown errors
-        }
+        CloseConsumer(consumer);
 
         LogConsumerStopped(_logger);
     }
+
+    internal static ConsumerConfig CreateConsumerConfig(ReprocessamentoLancamentosConsumerOptions options)
+        => KafkaConsumerConfigFactory.Create(options);
+
+    internal Task ProcessConsumeResultAsync(
+        IConsumer<string, string> consumer,
+        ConsumeResult<string, string>? result,
+        CancellationToken stoppingToken)
+        => KafkaConsumerMessageHandler.ProcessAsync(
+            result,
+            KafkaReprocessamentoReceivedMessageMapper.Map,
+            _messageProcessor.ProcessAsync,
+            consumer.Commit,
+            afterCommit: null,
+            stoppingToken);
+
+    internal static void CloseConsumer(IConsumer<string, string> consumer)
+        => KafkaConsumerLifecycle.Close(consumer.Close);
 
     internal static void ValidateOptions(ReprocessamentoLancamentosConsumerOptions options)
     {
@@ -158,12 +154,5 @@ public sealed partial class ReprocessamentoLancamentosConsumerService : Backgrou
     }
 
     internal static AutoOffsetReset ParseAutoOffsetReset(string value)
-    {
-        return value.Trim().ToLowerInvariant() switch
-        {
-            "earliest" => AutoOffsetReset.Earliest,
-            "latest" => AutoOffsetReset.Latest,
-            _ => AutoOffsetReset.Earliest
-        };
-    }
+        => KafkaOffsetResetParser.Parse(value);
 }

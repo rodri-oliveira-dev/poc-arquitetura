@@ -65,6 +65,39 @@ function Combine-Url([string]$baseUrl, [string]$path) {
   return ($baseUrl.TrimEnd("/") + "/" + $path.TrimStart("/"))
 }
 
+function Get-KeycloakBaseUrl {
+  $keycloakBaseUrl = Get-ConfigValue "KEYCLOAK_BASE_URL"
+  if (-not [string]::IsNullOrWhiteSpace($keycloakBaseUrl)) {
+    return $keycloakBaseUrl
+  }
+
+  $keycloakHostPort = Get-ConfigValue "KEYCLOAK_HOST_PORT" "8081"
+  return "http://localhost:$keycloakHostPort"
+}
+
+function Get-KeycloakTokenUrl([string]$BaseUrl, [string]$Realm) {
+  $tokenUrl = Get-ConfigValue "KEYCLOAK_TOKEN_URL"
+  if ([string]::IsNullOrWhiteSpace($tokenUrl)) {
+    $tokenUrl = "/realms/$Realm/protocol/openid-connect/token"
+  }
+
+  return Combine-Url $BaseUrl $tokenUrl
+}
+
+function New-KeycloakTokenRequestBody([string]$ClientId, [string]$ClientSecret, [string]$Scope) {
+  $body = @{
+    grant_type = "client_credentials"
+    client_id = $ClientId
+    client_secret = $ClientSecret
+  }
+
+  if (-not [string]::IsNullOrWhiteSpace($Scope)) {
+    $body["scope"] = $Scope
+  }
+
+  return $body
+}
+
 function Fail([string]$msg) {
   [Console]::Error.WriteLine($msg)
   exit 1
@@ -118,18 +151,9 @@ function Get-TokenFromResponse($response) {
 }
 
 function Request-KeycloakToken {
-  $keycloakBaseUrl = Get-ConfigValue "KEYCLOAK_BASE_URL"
-  if ([string]::IsNullOrWhiteSpace($keycloakBaseUrl)) {
-    $keycloakHostPort = Get-ConfigValue "KEYCLOAK_HOST_PORT" "8081"
-    $keycloakBaseUrl = "http://localhost:$keycloakHostPort"
-  }
-
+  $keycloakBaseUrl = Get-KeycloakBaseUrl
   $realm = Get-ConfigValue "KEYCLOAK_REALM" "poc"
-  $tokenUrl = Get-ConfigValue "KEYCLOAK_TOKEN_URL"
-  if ([string]::IsNullOrWhiteSpace($tokenUrl)) {
-    $tokenUrl = "/realms/$realm/protocol/openid-connect/token"
-  }
-
+  $url = Get-KeycloakTokenUrl $keycloakBaseUrl $realm
   $clientId = Get-ConfigValue "KEYCLOAK_CLIENT_ID" "poc-automation"
   $clientSecret = Get-ConfigValue "KEYCLOAK_CLIENT_SECRET"
   $scope = Get-ConfigValue "KEYCLOAK_SCOPE"
@@ -137,15 +161,7 @@ function Request-KeycloakToken {
   if ([string]::IsNullOrWhiteSpace($clientId)) { Fail "KEYCLOAK_CLIENT_ID nao informado" }
   if ([string]::IsNullOrWhiteSpace($clientSecret)) { Fail "KEYCLOAK_CLIENT_SECRET nao informado" }
 
-  $url = Combine-Url $keycloakBaseUrl $tokenUrl
-  $body = @{
-    grant_type = "client_credentials"
-    client_id = $clientId
-    client_secret = $clientSecret
-  }
-  if (-not [string]::IsNullOrWhiteSpace($scope)) {
-    $body["scope"] = $scope
-  }
+  $body = New-KeycloakTokenRequestBody $clientId $clientSecret $scope
 
   try {
     $resp = Invoke-RestMethod -Method Post -Uri $url -ContentType "application/x-www-form-urlencoded" -Body $body

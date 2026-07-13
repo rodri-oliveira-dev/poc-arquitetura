@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\LedgerService.Application\LedgerService.Application.csproj" />
     <ProjectReference Include="..\LedgerService.Infrastructure\LedgerService.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\Shared\KafkaWorkerDefaults\KafkaWorkerDefaults.csproj" />
   </ItemGroup>
 
   <ItemGroup>

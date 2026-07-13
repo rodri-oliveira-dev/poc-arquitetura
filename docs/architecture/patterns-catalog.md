@@ -31,7 +31,7 @@ Foram cruzadas evidencias em `src/`, `tests/`, `infra/`, `docs/adrs/`, `docs/arc
 | Arquitetural | Domain-Driven Design | Implementado | Aggregates financeiros, identidade, pagamento, auditoria | Evita regras financeiras e estados complexos espalhados em controllers e persistencia |
 | Arquitetural | Bounded Context | Implementado | Ledger, Balance, Transfer, Payment, Identity, Audit | Separa modelos, linguagem, persistencia e ownership de dominios distintos |
 | Arquitetural | Ports and Adapters | Implementado | Mensageria, Stripe, Ledger HTTP, Keycloak, e-mail | Impede que Application/Domain dependam diretamente de providers externos |
-| Arquitetural | CQRS pragmatico distribuido | Implementado | Ledger -> Kafka/PubSub -> Balance | Separa escrita transacional de consulta de saldos projetados |
+| Arquitetural | CQRS pragmatico distribuido | Implementado | Ledger -> Kafka -> Balance | Separa escrita transacional de consulta de saldos projetados |
 | Arquitetural | Layered Architecture | Implementado | APIs, Workers e composition roots | Organiza entrada HTTP/background e dependencias por camada |
 | Arquitetural | Composition Root e DI | Implementado | `*.Api` e `*.Worker` | Controla quais adapters e hosted services existem em cada processo |
 | Dominio/aplicacao | Aggregate Root | Implementado | `LedgerEntry`, `TransferenciaSaga`, `Payment`, `User`, `FunctionalAuditRecord` | Protege invariantes e transicoes por raiz controladora |
@@ -41,7 +41,7 @@ Foram cruzadas evidencias em `src/`, `tests/`, `infra/`, `docs/adrs/`, `docs/arc
 | Dominio/aplicacao | Policy Object | Implementado | Ledger reversal | Concentra decisao de estorno em objeto nomeado |
 | Dominio/aplicacao | Command/Query + Mediator | Implementado | APIs e workers dos contexts | Separa casos de uso e evita controllers com orquestracao |
 | Dominio/aplicacao | Factory | Implementado | Eventos, DbContext design-time, Kafka clients, Resend | Centraliza montagem de objetos tecnicos ou mensagens versionadas |
-| Dominio/aplicacao | Strategy | Implementado | Retry/backoff, provider Kafka/PubSub, Stripe/Fake, Mailpit/Resend | Permite trocar comportamento/provider por configuracao e DI |
+| Dominio/aplicacao | Strategy | Implementado | Retry/backoff, Stripe/Fake, Mailpit/Resend | Permite trocar comportamento/provider por configuracao e DI |
 | Integracao | Outbox Pattern | Implementado | LedgerService e TransferService | Evita commit no banco sem evento recuperavel para publicar |
 | Integracao | Inbox Pattern | Implementado | PaymentService webhooks Stripe | Separa recepcao HTTP de processamento duravel e idempotente |
 | Integracao | Idempotent Consumer | Implementado | BalanceService, AuditService.Worker | Evita aplicar o mesmo evento mais de uma vez em entrega at-least-once |
@@ -50,6 +50,7 @@ Foram cruzadas evidencias em `src/`, `tests/`, `infra/`, `docs/adrs/`, `docs/arc
 | Integracao | Compensating Transaction | Implementado | Transfer, Ledger estorno, Payment refund, Identity Keycloak | Compensa efeitos ja realizados quando etapa posterior falha |
 | Integracao | Eventual Consistency | Implementado | Ledger -> Balance; Payment -> Ledger -> Balance | Permite separar ownership e escala sem transacao distribuida |
 | Integracao | Event-Driven Architecture | Parcialmente implementado | Fluxos financeiros e eventos de Saga | Usa eventos onde ha consumo real, mantendo HTTP onde faz sentido |
+| Integracao | Pub/Sub provider legado | Legado | Ledger/Balance quando `Messaging:Provider=PubSub` | Mantem adapter alternativo explicito sem substituir Kafka como default |
 | Integracao | Versionamento de eventos | Implementado | `LedgerEntryCreated.v1` e `.v2` | Evolui contrato sem quebrar consumidores antigos |
 | Integracao | Dead Letter Queue | Implementado | Outbox Ledger, Balance DLQ, Transfer DLQ, Payment Inbox, Audit DLQ | Isola poison messages e falhas definitivas sem retry infinito |
 | Integracao | Replay e Projection Rebuild | Implementado | Balance e runbooks operacionais | Recupera ou compara projecoes sem declarar Event Sourcing |
@@ -213,7 +214,7 @@ Cada context tem pasta em `src/<contexto>`, testes em `tests/<contexto>` e, no r
 
 #### Problema resolvido
 
-Sem portas, Application e Domain dependeriam de Stripe, Kafka, Pub/Sub, Keycloak, HTTP, SMTP/Resend e EF Core.
+Sem portas, Application e Domain dependeriam de Stripe, Kafka, Keycloak, HTTP, SMTP/Resend e EF Core.
 
 #### Onde foi aplicado
 
@@ -339,7 +340,7 @@ APIs nao devem hospedar consumers e workers por acidente; workers nao devem expo
 
 #### Como funciona neste repositorio
 
-Cada executavel registra somente os adapters necessarios. Ledger/Balance selecionam Kafka por default e Pub/Sub somente quando `Messaging:Provider=PubSub`. Transfer usa Kafka-only; Payment Worker registra Inbox e materializacao Ledger; Audit Worker registra consumer opcional.
+Cada executavel registra somente os adapters necessarios. Ledger/Balance usam Kafka para mensageria assincrona documentada; Transfer usa Kafka no fluxo da Saga; Payment Worker registra Inbox e materializacao Ledger; Audit Worker registra consumer opcional.
 
 #### Beneficios obtidos
 
@@ -646,21 +647,21 @@ Retry, mensageria, provider de pagamento e provider de e-mail variam por ambient
 
 #### Onde foi aplicado
 
-`IRetryStrategy`, Kafka/PubSub, Stripe/Fake payment gateway e Mailpit/Resend.
+`IRetryStrategy`, Stripe/Fake payment gateway e Mailpit/Resend.
 
 #### Como funciona neste repositorio
 
-DI registra implementacoes diferentes conforme configuracao. Ledger/Balance trocam provider de mensageria por `Messaging:Provider`; Payment troca gateway por `PaymentGateway:Provider`; Identity troca e-mail por `Email:Provider`.
+DI registra implementacoes diferentes conforme configuracao. Payment troca gateway por `PaymentGateway:Provider`; Identity troca e-mail por `Email:Provider`; workers financeiros isolam adapters Kafka em composition roots proprios.
 
 #### Beneficios obtidos
 
 - Mantem Application estavel.
 - Permite testar local com fakes.
-- Preserva provider legado Pub/Sub sem misturar semanticas com Kafka.
+- Mantem Application estavel enquanto detalhes de Kafka ficam nos adapters.
 
 #### Trade-offs e limitacoes
 
-- Providers diferentes possuem semanticas diferentes; a porta nao deve fingir que Pub/Sub tem partition/offset ou que Stripe e igual ao fake.
+- Providers diferentes possuem semanticas diferentes; a porta nao deve fingir que Stripe real e fake possuem o mesmo risco operacional.
 
 #### Evidencias
 
@@ -766,7 +767,7 @@ O endpoint valida assinatura/raw body e persiste o evento em Inbox com unique `(
 
 #### Problema resolvido
 
-Kafka, Pub/Sub e replay podem entregar o mesmo evento mais de uma vez. Sem deduplicacao, saldo e auditoria poderiam ser aplicados duplicadamente.
+Kafka e replay podem entregar o mesmo evento mais de uma vez. Sem deduplicacao, saldo e auditoria poderiam ser aplicados duplicadamente.
 
 #### Onde foi aplicado
 
@@ -997,6 +998,56 @@ O fluxo financeiro principal e orientado a eventos. Transfer publica eventos de 
 - [ADR-0088](../adrs/0088-kafka-default-ledger-balance-workers.md)
 - [ADR-0099](../adrs/0099-audit-async-integration-strategy.md)
 
+### Pub/Sub provider legado
+
+**Categoria:** Integracao distribuida
+**Status:** Legado
+
+#### Problema resolvido
+
+O repositorio ainda possui adapter Pub/Sub, overlay Compose, scripts, runbook e
+Terraform para executar o fluxo Ledger/Balance sem Kafka em cenarios explicitos
+de compatibilidade, estudo do emulator ou smoke dev controlado.
+
+#### Onde foi aplicado
+
+`LedgerService.Worker` publica a Outbox via Pub/Sub quando
+`Messaging:Provider=PubSub`; `BalanceService.Worker` consome a subscription e
+publica DLQ de aplicacao no topic configurado.
+
+#### Como funciona neste repositorio
+
+Kafka e o provider padrao. O Pub/Sub entra apenas por selecao explicita. O modo
+local usa `compose.pubsub.yaml`, `PUBSUB_EMULATOR_HOST`, `pubsub-emulator` e
+`pubsub-init`. O modulo Terraform `pubsub-ledger-events` provisiona Pub/Sub real
+com topic principal, subscription do Balance, DLQ de aplicacao, DLQ tecnica e
+subscriptions de inspecao.
+
+#### Beneficios obtidos
+
+- Mantem o adapter existente verificavel sem promover Pub/Sub a default.
+- Preserva mapa operacional enquanto runtime e infraestrutura ainda existem.
+
+#### Trade-offs e limitacoes
+
+- Aumenta custo documental e de teste enquanto coexistir com Kafka.
+- Nao deve ser usado para novos fluxos padrao sem nova ADR.
+- O emulator local nao configura a dead-letter policy tecnica nativa.
+
+#### Evidencias
+
+- [`compose.pubsub.yaml`](../../compose.pubsub.yaml)
+- [`docs/operations/pubsub.md`](../operations/pubsub.md)
+- [`infra/terraform/modules/pubsub-ledger-events`](../../infra/terraform/modules/pubsub-ledger-events)
+- [`src/ledger/LedgerService.Worker/Messaging/PubSub`](../../src/ledger/LedgerService.Worker/Messaging/PubSub)
+- [`src/balance/BalanceService.Worker/Messaging/PubSub`](../../src/balance/BalanceService.Worker/Messaging/PubSub)
+
+#### ADRs e documentacao relacionados
+
+- [ADR-0078](../adrs/0078-pubsub-provider-principal-local-emulator.md)
+- [ADR-0088](../adrs/0088-kafka-default-ledger-balance-workers.md)
+- [Contrato Pub/Sub entre infraestrutura e aplicacao](../development/pubsub-infra-app-contract.md)
+
 ### Versionamento de eventos
 
 **Categoria:** Integracao distribuida  
@@ -1048,7 +1099,7 @@ Mensagens invalidas ou falhas definitivas nao devem causar retry infinito nem su
 
 #### Onde foi aplicado
 
-Outbox DeadLetter no Ledger, DLQ Kafka/PubSub do Balance, DLQ da Saga Transfer, DeadLetter logico da Inbox Payment e DLQ do Audit Worker.
+Outbox DeadLetter no Ledger, DLQ Kafka do Balance, DLQ da Saga Transfer, DeadLetter logico da Inbox Payment e DLQ do Audit Worker.
 
 #### Como funciona neste repositorio
 
@@ -1958,7 +2009,7 @@ APIs e Compose local.
 
 #### Problema resolvido
 
-Operacao de DLQ, replay, Pub/Sub, Payment Worker e Saga nao deve depender de conhecimento tacito.
+Operacao de DLQ, replay, Payment Worker e Saga nao deve depender de conhecimento tacito.
 
 #### Onde foi aplicado
 
@@ -2152,7 +2203,7 @@ Docker Compose e Dockerfiles dos servicos.
 
 #### Como funciona neste repositorio
 
-Scripts em `scripts/local` geram `.env.local`, aplicam migrations e sobem compose base ou overlays opcionais de Pub/Sub, observabilidade e Nginx.
+Scripts em `scripts/local` geram `.env.local`, aplicam migrations e sobem compose base ou overlays opcionais de observabilidade e Nginx.
 
 #### Beneficios obtidos
 
@@ -2193,7 +2244,7 @@ Scripts em `scripts/local` geram `.env.local`, aplicam migrations e sobem compos
 Este catalogo le ADRs como registro historico de decisoes e documentos operacionais como evidencia de runtime/operacao. Os principais alinhamentos sao:
 
 - ADR-0001, ADR-0002 e ADR-0003 explicam a base Ledger/Balance, Clean Architecture/DDD e Outbox.
-- ADR-0075, ADR-0077, ADR-0078 e ADR-0088 explicam a evolucao Kafka/PubSub, com Kafka como default atual e Pub/Sub explicito/legado.
+- ADR-0003 e ADR-0088 explicam Kafka com Outbox e o uso de Kafka como broker dos workers principais.
 - ADR-0087 registra a Saga orquestrada; o arquivo individual ja esta como `Aceito` e o codigo confirma runtime implementado.
 - ADR-0101 a ADR-0105 registram PaymentService, ACL Stripe, Inbox, integracao Ledger e ordenacao/deduplicacao; os arquivos individuais ja estao como `Aceito` e o codigo confirma runtime implementado.
 - ADR-0085 continua tratada como proposta/parcial no catalogo de secrets, porque ha progresso real com `.env.local` e placeholders, mas a politica ainda nao aparece uniforme em todos os servicos.

@@ -141,7 +141,11 @@ jobs:
         shell: bash
         run: |
           archive="oasdiff_${OASDIFF_VERSION}_linux_amd64.tar.gz"
-          curl -fsSLO "https://github.com/oasdiff/oasdiff/releases/download/v${OASDIFF_VERSION}/${archive}"
+          curl \
+            --proto '=https' \
+            --proto-redir '=https' \
+            -fsSLO \
+            "https://github.com/oasdiff/oasdiff/releases/download/v${OASDIFF_VERSION}/${archive}"
           echo "${OASDIFF_LINUX_AMD64_SHA256}  ${archive}" | sha256sum --check -
           tar -xzf "$archive" oasdiff
           sudo install -m 0755 oasdiff /usr/local/bin/oasdiff
