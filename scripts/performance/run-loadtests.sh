@@ -4,6 +4,7 @@ set -euo pipefail
 MSYS_DOCKER_PATHCONV_OFF=false
 case "$(uname -s 2>/dev/null || true)" in
   MINGW*|MSYS*|CYGWIN*) MSYS_DOCKER_PATHCONV_OFF=true ;;
+  *) ;;
 esac
 
 docker_compose() {
@@ -100,6 +101,7 @@ case "$MODE" in
   transfer-smoke-kafka) MODE=transfer-smoke ;;
   transfer-load-kafka) MODE=transfer-load ;;
   transfer-cb-kafka) MODE=transfer-circuit-breaker-kafka ;;
+  *) ;;
 esac
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
