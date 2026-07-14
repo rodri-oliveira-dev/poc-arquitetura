@@ -256,7 +256,7 @@ internal static partial class Program
             return;
 
         var arguments = command.Skip(probeIndex + 1).ToArray();
-        if (arguments.Length != 2 || arguments[0] != "8080" || arguments[1] != "/ready" || arguments.Any(argument => Uri.TryCreate(argument, UriKind.Absolute, out _)))
+        if (arguments.Length != 2 || arguments[0] != "8080" || arguments[1] != "/ready")
             failures.Add($"Compose: {composeFile}; servico: {serviceName}; problema: healthcheck do ContainerHealthProbe usa contrato inseguro; sugestao: use porta 8080 e caminho relativo /ready.");
     }
 

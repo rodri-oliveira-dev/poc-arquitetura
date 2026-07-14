@@ -292,7 +292,7 @@ public sealed class ContainerBaselineValidatorTests
                 fixture.ReplaceDockerfileText("dotnet restore src/demo/Demo.Api/Demo.Api.csproj", "dotnet restore src/demo/Demo.Api/Demo.Api.csproj || dotnet restore src/demo/Demo.Api/Demo.Api.csproj");
                 break;
             case "unsafe-healthcheck-url":
-                fixture.ReplaceComposeText("\"/healthprobe/ContainerHealthProbe.dll\", \"8080\", \"/ready\"", "\"/healthprobe/ContainerHealthProbe.dll\", \"http://127.0.0.1:8080/ready\"");
+                fixture.ReplaceComposeText("\"/healthprobe/ContainerHealthProbe.dll\", \"8080\", \"/ready\"", "\"/healthprobe/ContainerHealthProbe.dll\", \"8080\", \"http://127.0.0.1:8080/ready\"");
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(scenario), scenario, "Unknown invalid fixture scenario.");
