@@ -1,24 +1,22 @@
-name: infra-security-and-terraform-validation
+name: terraform-validation
 
 on:
   push:
     branches: ["main"]
     paths:
       - "infra/terraform/**"
-      - "**/Dockerfile"
-      - "Dockerfile"
-      - "compose*.yaml"
-      - "scripts/quality/terraform/validate.*"
-      - ".github/actions/trivy-repository-scan/**"
+      - ".tflint.hcl"
+      - "**/.tflint.hcl"
+      - "scripts/quality/terraform/**"
+      - "scripts/validate-terraform.sh"
       - ".github/workflows/terraform-validation.yml"
   pull_request:
     paths:
       - "infra/terraform/**"
-      - "**/Dockerfile"
-      - "Dockerfile"
-      - "compose*.yaml"
-      - "scripts/quality/terraform/validate.*"
-      - ".github/actions/trivy-repository-scan/**"
+      - ".tflint.hcl"
+      - "**/.tflint.hcl"
+      - "scripts/quality/terraform/**"
+      - "scripts/validate-terraform.sh"
       - ".github/workflows/terraform-validation.yml"
   workflow_dispatch:
 
@@ -35,7 +33,7 @@ env:
 
 jobs:
   validate:
-    name: Scan infrastructure and validate Terraform
+    name: Validate Terraform
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -43,13 +41,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      # Blocking gate: these scans are local to the checked-out repository,
-      # require no cloud credentials and never build images or run Terraform plans.
       # Terraform init runs with backend disabled only for syntax validation;
       # this workflow does not bypass remote backend locking because it never plans or applies.
-      - name: Scan repository with Trivy
-        uses: ./.github/actions/trivy-repository-scan
-
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
         with:

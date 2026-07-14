@@ -86,7 +86,8 @@ Workflows principais:
 - `codeql-security-analysis`: analise estatica de seguranca;
 - `event-contract-validation`: validacao de schemas e exemplos de eventos;
 - `openapi-contract-validation`: geracao, lint, diff e drift de contratos OpenAPI;
-- `infra-security-and-terraform-validation`: Trivy, Terraform validate e TFLint;
+- `infrastructure-security`: Trivy para Dockerfiles, Compose, Terraform, secrets e filesystem;
+- `terraform-validation`: Terraform validate e TFLint;
 - `mutation-tests`: mutation testing informativo;
 - `smoke-load-tests`: smoke load tests manuais com k6;
 - `architecture-pages`: build e publicacao LikeC4;
