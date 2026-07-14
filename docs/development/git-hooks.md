@@ -1,12 +1,50 @@
 # Git hooks locais
 
-O repositorio versiona hooks em `.githooks/` e o build de `src/balance/BalanceService.Api/BalanceService.Api.csproj` configura automaticamente:
+O repositorio versiona hooks em `.githooks/`, mas a instalacao deixou de ocorrer durante o build. Builds, restores, testes e inicializacao das aplicacoes nao devem alterar configuracao local do Git.
+
+Configure os hooks explicitamente durante o onboarding:
 
 ```bash
-git config core.hooksPath .githooks
+./scripts/setup/configure-git-hooks.sh
 ```
 
-O target e idempotente, roda apos o build, ignora CI (`CI=true`) e nao falha o build quando o comando `git` nao estiver disponivel ou quando a pasta nao for um repositorio Git.
+No Windows:
+
+```powershell
+./scripts/setup/configure-git-hooks.ps1
+```
+
+Os scripts configuram apenas `git config --local core.hooksPath .githooks`, validam a existencia de `.githooks/commit-msg`, `.githooks/post-merge` e `.githooks/pre-push`, nao exigem privilegios administrativos, nao usam configuracao global e nao executam nenhum hook durante a instalacao.
+
+Para verificar sem alterar nada:
+
+```bash
+./scripts/setup/configure-git-hooks.sh --check
+```
+
+```powershell
+./scripts/setup/configure-git-hooks.ps1 -Check
+```
+
+Se `core.hooksPath` ja estiver configurado com outro valor, os scripts falham sem sobrescrever. O valor atual pode apontar para hooks pessoais, corporativos ou de outras ferramentas; revise antes de substituir.
+
+Para substituir conscientemente:
+
+```bash
+./scripts/setup/configure-git-hooks.sh --force
+```
+
+```powershell
+./scripts/setup/configure-git-hooks.ps1 -Force
+```
+
+Para remover a configuracao local:
+
+```bash
+git config --local --unset core.hooksPath
+```
+
+No Linux/macOS, os scripts verificam o bit executavel dos hooks. Em modo de instalacao, eles aplicam `chmod +x` nos hooks obrigatorios quando necessario e registram a alteracao. Em modo `--check`, apenas reportam a ausencia de permissao e orientam o comando explicito.
 
 ## Hooks disponiveis
 
@@ -199,11 +237,26 @@ Use `!` antes de `:` para declarar breaking change na primeira linha do commit. 
 
 ## Validacao manual
 
-Instalar/configurar os hooks:
+Instalar/configurar os hooks no Linux/macOS:
 
 ```bash
-dotnet build src/balance/BalanceService.Api/BalanceService.Api.csproj
-git config --get core.hooksPath
+./scripts/setup/configure-git-hooks.sh
+```
+
+Instalar/configurar os hooks no Windows:
+
+```powershell
+./scripts/setup/configure-git-hooks.ps1
+```
+
+Verificar a instalacao sem alterar configuracao:
+
+```bash
+./scripts/setup/configure-git-hooks.sh --check
+```
+
+```powershell
+./scripts/setup/configure-git-hooks.ps1 -Check
 ```
 
 Validar `commit-msg`:

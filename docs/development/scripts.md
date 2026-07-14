@@ -9,6 +9,7 @@ Alguns wrappers serão mantidos indefinidamente. Outros são elegíveis para rem
 ## Caminhos atuais
 
 - `scripts/local/`: onboarding, `.env.local`, certificados locais, stack local, Kafka/Pub/Sub, full stack e stop.
+- `scripts/setup/`: setup explicito e idempotente de configuracoes locais do repositorio, como Git hooks.
 - `scripts/docker/`: diagnóstico e limpeza segura Docker.
 - `scripts/quality/`: Sonar, mutation testing e validações de qualidade.
 - `scripts/quality/terraform/`: validação Terraform.
