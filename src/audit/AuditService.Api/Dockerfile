@@ -3,30 +3,28 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
-# Copia csproj primeiro para aproveitar cache
 COPY Directory.Packages.props ./
 COPY Directory.Build.props ./
 COPY global.json ./
 COPY src/Shared/ContainerHealthProbe/ContainerHealthProbe.csproj src/Shared/ContainerHealthProbe/
-COPY src/transfer/TransferService.Api/TransferService.Api.csproj src/transfer/TransferService.Api/
-COPY src/transfer/TransferService.Application/TransferService.Application.csproj src/transfer/TransferService.Application/
-COPY src/transfer/TransferService.Domain/TransferService.Domain.csproj src/transfer/TransferService.Domain/
-COPY src/transfer/TransferService.Infrastructure/TransferService.Infrastructure.csproj src/transfer/TransferService.Infrastructure/
+COPY src/audit/AuditService.Api/AuditService.Api.csproj src/audit/AuditService.Api/
+COPY src/audit/AuditService.Application/AuditService.Application.csproj src/audit/AuditService.Application/
+COPY src/audit/AuditService.Domain/AuditService.Domain.csproj src/audit/AuditService.Domain/
+COPY src/audit/AuditService.Infrastructure/AuditService.Infrastructure.csproj src/audit/AuditService.Infrastructure/
 
 RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages,sharing=locked \
-    dotnet restore src/transfer/TransferService.Api/TransferService.Api.csproj --disable-parallel
+    dotnet restore src/audit/AuditService.Api/AuditService.Api.csproj --disable-parallel
 RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages,sharing=locked \
     dotnet restore src/Shared/ContainerHealthProbe/ContainerHealthProbe.csproj --disable-parallel
 
-# Agora copia o restante
-COPY src/transfer/TransferService.Api/ ./src/transfer/TransferService.Api/
-COPY src/transfer/TransferService.Application/ ./src/transfer/TransferService.Application/
-COPY src/transfer/TransferService.Domain/ ./src/transfer/TransferService.Domain/
-COPY src/transfer/TransferService.Infrastructure/ ./src/transfer/TransferService.Infrastructure/
+COPY src/audit/AuditService.Api/ ./src/audit/AuditService.Api/
+COPY src/audit/AuditService.Application/ ./src/audit/AuditService.Application/
+COPY src/audit/AuditService.Domain/ ./src/audit/AuditService.Domain/
+COPY src/audit/AuditService.Infrastructure/ ./src/audit/AuditService.Infrastructure/
 COPY src/Shared/ContainerHealthProbe/ ./src/Shared/ContainerHealthProbe/
 
 RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages,sharing=locked \
-    dotnet publish src/transfer/TransferService.Api/TransferService.Api.csproj \
+    dotnet publish src/audit/AuditService.Api/AuditService.Api.csproj \
     -c Release \
     -o /app/publish \
     --no-restore \
@@ -47,4 +45,4 @@ COPY --from=build --chown=$APP_UID:0 /healthprobe /healthprobe
 
 USER $APP_UID
 
-ENTRYPOINT ["dotnet", "TransferService.Api.dll"]
+ENTRYPOINT ["dotnet", "AuditService.Api.dll"]

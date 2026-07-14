@@ -6,15 +6,14 @@ WORKDIR /src
 # Copia csproj primeiro para aproveitar cache
 COPY Directory.Packages.props ./
 COPY Directory.Build.props ./
+COPY global.json ./
 COPY src/transfer/TransferService.Worker/TransferService.Worker.csproj src/transfer/TransferService.Worker/
 COPY src/transfer/TransferService.Application/TransferService.Application.csproj src/transfer/TransferService.Application/
 COPY src/transfer/TransferService.Domain/TransferService.Domain.csproj src/transfer/TransferService.Domain/
 COPY src/transfer/TransferService.Infrastructure/TransferService.Infrastructure.csproj src/transfer/TransferService.Infrastructure/
 
 RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages,sharing=locked \
-    dotnet restore src/transfer/TransferService.Worker/TransferService.Worker.csproj --disable-parallel \
-    || dotnet restore src/transfer/TransferService.Worker/TransferService.Worker.csproj --disable-parallel \
-    || dotnet restore src/transfer/TransferService.Worker/TransferService.Worker.csproj --disable-parallel
+    dotnet restore src/transfer/TransferService.Worker/TransferService.Worker.csproj --disable-parallel
 
 # Agora copia o restante
 COPY src/transfer/TransferService.Worker/ ./src/transfer/TransferService.Worker/
@@ -31,8 +30,6 @@ RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages,sharing=locked \
 
 FROM mcr.microsoft.com/dotnet/runtime:10.0 AS final
 WORKDIR /app
-
-RUN chown -R $APP_UID:0 /app
 
 COPY --from=build --chown=$APP_UID:0 /app/publish ./
 

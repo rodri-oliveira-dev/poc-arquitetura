@@ -36,6 +36,7 @@
   <Folder Name="/src/Shared/">
     <Project Path="src/Shared/ApiDefaults/ApiDefaults.csproj" />
     <Project Path="src/Shared/ApplicationDefaults/ApplicationDefaults.csproj" />
+    <Project Path="src/Shared/ContainerHealthProbe/ContainerHealthProbe.csproj" />
     <Project Path="src/Shared/HttpResilienceDefaults/HttpResilienceDefaults.csproj" />
     <Project Path="src/Shared/KafkaWorkerDefaults/KafkaWorkerDefaults.csproj" />
   </Folder>
@@ -87,6 +88,7 @@
     <Project Path="tests/transfer/TransferService.Worker.Tests/TransferService.Worker.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">
+    <Project Path="tools/ContainerBaselineValidator/ContainerBaselineValidator.csproj" />
     <Project Path="tools/ComposeEnvGen/ComposeEnvGen.csproj" />
   </Folder>
 </Solution>

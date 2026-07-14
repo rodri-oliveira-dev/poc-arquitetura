@@ -115,15 +115,15 @@ Variaveis sensiveis que os scripts locais validam ao subir a stack principal:
 - `KEYCLOAK_LOCAL_BALANCE_USER_PASSWORD`
 - `KEYCLOAK_LOCAL_ADMIN_USER_PASSWORD`
 
-Variaveis nao sensiveis ou identificadores locais continuam com defaults no compose ou exemplos em `.env.local.example`, como `POSTGRES_HOST_PORT=15432`, `PUBSUB_EMULATOR_HOST_PORT=8085`, `PUBSUB_PROJECT_ID=poc-local` e os nomes locais de topics/subscriptions: `PUBSUB_LEDGER_EVENTS_TOPIC_ID`, `PUBSUB_LEDGER_EVENTS_DLQ_TOPIC_ID`, `PUBSUB_BALANCE_SUBSCRIPTION_ID` e `PUBSUB_LEDGER_EVENTS_DLQ_INSPECTION_SUBSCRIPTION_ID`.
+Variaveis nao sensiveis ou identificadores locais continuam com defaults no compose ou exemplos em `.env.local.example`, como `POSTGRES_HOST_PORT=15432`, `KAFKA_HOST_PORT=19092`, `LEDGER_SERVICE_HOST_PORT=5226`, `BALANCE_SERVICE_HOST_PORT=5228`, `PUBSUB_EMULATOR_HOST_PORT=8085`, `PUBSUB_PROJECT_ID=poc-local` e os nomes locais de topics/subscriptions: `PUBSUB_LEDGER_EVENTS_TOPIC_ID`, `PUBSUB_LEDGER_EVENTS_DLQ_TOPIC_ID`, `PUBSUB_BALANCE_SUBSCRIPTION_ID` e `PUBSUB_LEDGER_EVENTS_DLQ_INSPECTION_SUBSCRIPTION_ID`.
 
-O Docker Compose roda os containers com ambiente `Local` e usa hostnames internos da rede Docker, como `postgres-db:5432`, `kafka:9092`, `keycloak:8080` e `mailpit:1025`. Debug ou `dotnet run` no host usa ambiente `Development` e deve apontar para as portas publicadas no host: `127.0.0.1:15432`, `127.0.0.1:19092`, `http://localhost:8081` e `localhost:1025`.
+O Docker Compose roda os servicos com ambiente `Local` e usa hostnames internos da rede Docker, como `postgres-db:5432`, `kafka:9092`, `keycloak:8080` e `mailpit:1025`. Debug ou `dotnet run` no host usa ambiente `Development` e deve apontar para as portas publicadas no host em loopback: `127.0.0.1:15432`, `127.0.0.1:19092`, `http://localhost:8081` e `localhost:1025`. As publicacoes de portas do compose local usam `127.0.0.1:${VARIAVEL_PORTA:-padrao}:porta-container`, evitando bind em `0.0.0.0`.
 
 O mesmo `KEYCLOAK_CLIENT_SECRET` alimenta o client local `poc-automation` usado pelos scripts, pelos smokes locais e pelos workers de `TransferService` e `PaymentService` quando eles chamam o `LedgerService.Api`, e o client local `identity-service-admin` usado pelo `IdentityService.Api` para administrar usuarios no realm `poc`. Os scopes service-to-service dos workers ficam em `TRANSFER_WORKER_LEDGER_AUTH_SCOPE` e `PAYMENT_WORKER_LEDGER_AUTH_SCOPE`, ambos com default `ledger.write`.
 
 O compose executa o job idempotente `keycloak-identity-admin-init` depois que o Keycloak fica healthy. Esse job usa `kcadm.sh` para atribuir `realm-management:manage-users` e `realm-management:view-users` a service account do client `identity-service-admin`; ele deve terminar com sucesso antes do `IdentityService.Api` iniciar.
 
-O PostgreSQL local roda em um unico container `postgres-db`, com volume `postgres-data`, database `appdb`, schemas `ledger`, `balance`, `transfer`, `payment`, `audit` e `identity`, e usuarios separados por servico/responsabilidade. A inicializacao fica nos scripts versionados em `infra/postgres/init`. As connection strings dos servicos runtime no compose usam `postgres-db:5432/appdb`; as variaveis `LEDGER_DB_*`, `BALANCE_DB_*`, `TRANSFER_DB_*`, `PAYMENT_DB_*`, `AUDIT_DB_*` e `IDENTITY_DB_*` configuram as senhas locais usadas pelo init do container e pelas connection strings do compose. Em volumes PostgreSQL existentes, alterar `.env.local` ou `compose.yaml` nao altera automaticamente roles, grants ou senhas ja gravadas no banco; para reaplicar o init, recrie conscientemente o volume local ou execute o SQL manualmente.
+O PostgreSQL local roda no servico Compose `postgres-db`, com volume `postgres-data`, database `appdb`, schemas `ledger`, `balance`, `transfer`, `payment`, `audit` e `identity`, e usuarios separados por servico/responsabilidade. A inicializacao fica nos scripts versionados em `infra/postgres/init`. As connection strings dos servicos runtime no compose usam `postgres-db:5432/appdb`; as variaveis `LEDGER_DB_*`, `BALANCE_DB_*`, `TRANSFER_DB_*`, `PAYMENT_DB_*`, `AUDIT_DB_*` e `IDENTITY_DB_*` configuram as senhas locais usadas pelo init do container e pelas connection strings do compose. Em volumes PostgreSQL existentes, alterar `.env.local` ou `compose.yaml` nao altera automaticamente roles, grants ou senhas ja gravadas no banco; para reaplicar o init, recrie conscientemente o volume local ou execute o SQL manualmente.
 
 Topologia local de banco:
 
@@ -602,7 +602,7 @@ Para pular apenas as chamadas HTTP de verificacao pos-subida:
 ./scripts/local/start-full-stack.sh --skip-health-checks
 ```
 
-Antes de subir, o script valida portas usadas pela stack completa e verifica se ha containers do overlay Nginx ou rede local do projeto em estado anterior. Quando encontra recursos locais do proprio projeto que podem prender a subida, ele pergunta se pode executar uma limpeza nao destrutiva com `docker compose down --remove-orphans`, sem `-v`. Essa limpeza para/remove containers e redes locais do projeto, mas preserva volumes, bancos locais, imagens e certificados.
+Antes de subir, o script valida portas usadas pela stack completa e verifica recursos do overlay Nginx e rede local do projeto por labels oficiais do Docker Compose (`com.docker.compose.project`, `com.docker.compose.service` e `com.docker.compose.network`), nao por `container_name` ou prefixos fisicos. Quando encontra recursos locais do proprio projeto que podem prender a subida, ele pergunta se pode executar uma limpeza nao destrutiva com `docker compose down --remove-orphans`, sem `-v`. Essa limpeza para/remove containers e redes locais do projeto, mas preserva volumes, bancos locais, imagens e certificados.
 
 Para autorizar essa limpeza previamente em fluxo nao interativo:
 
@@ -851,29 +851,36 @@ docker compose logs -f balance-worker
 docker compose -f compose.yaml -f compose.nginx.yaml logs -f nginx-edge
 ```
 
-Portas expostas no host:
+Portas expostas no host usam loopback e podem ser sobrescritas em `.env.local`:
 
-| Componente | URL ou porta |
-| --- | --- |
-| Keycloak | `http://localhost:8081/` |
-| LedgerService.Api | `http://localhost:5226/` |
-| BalanceService.Api | `http://localhost:5228/` |
-| PostgreSQL | `localhost:15432` |
-| Cloud SQL Auth Proxy | `127.0.0.1:5432` somente com `compose.cloudsql.yaml` |
-| Pub/Sub emulator | `localhost:8085` com `compose.pubsub.yaml` e profile `legacy-pubsub` |
-| Kafka | `localhost:19092` com `compose.yaml` |
-| Jaeger UI | `http://localhost:16686/` com profile `observability` |
-| Jaeger OTLP | `localhost:4317` e `localhost:4318` com profile `observability`, para diagnostico direto |
-| OpenTelemetry Collector OTLP | `otel-collector:4317` e `otel-collector:4318` na rede interna do compose, com profile `observability` |
-| OpenTelemetry Collector metrics | `otel-collector:9464` na rede interna do compose, com profile `observability` |
-| Prometheus | `http://localhost:9090/` com profile `observability` |
-| Loki | `http://localhost:3100/` com profile `observability` |
-| Grafana Alloy | `http://localhost:12345/` quando o profile `observability` estiver ativo |
-| Alertmanager | `http://localhost:9093/` com profile `observability` |
-| Grafana | `http://localhost:3000/` com profile `observability` |
-| Portal Nginx HTTPS | `https://localhost:7443/` com `compose.nginx.yaml` |
-| LedgerService.Api via Nginx | `https://ledger.localhost:7443/` com `compose.nginx.yaml` |
-| BalanceService.Api via Nginx | `https://balance.localhost:7443/` com `compose.nginx.yaml` |
+| Componente | Interno no Compose | Host local |
+| --- | --- | --- |
+| PostgreSQL | `postgres-db:5432` | `127.0.0.1:${POSTGRES_HOST_PORT:-15432}` |
+| Kafka | `kafka:9092` | `127.0.0.1:${KAFKA_HOST_PORT:-19092}` |
+| Pub/Sub emulator legado | `pubsub-emulator:8085` | `127.0.0.1:${PUBSUB_EMULATOR_HOST_PORT:-8085}` |
+| Mailpit SMTP/UI | `mailpit:1025` / `mailpit:8025` | `127.0.0.1:${MAILPIT_SMTP_HOST_PORT:-1025}` / `127.0.0.1:${MAILPIT_UI_HOST_PORT:-8025}` |
+| Keycloak | `keycloak:8080` | `127.0.0.1:${KEYCLOAK_HOST_PORT:-8081}` |
+| LedgerService.Api | `ledger-service:8080` | `127.0.0.1:${LEDGER_SERVICE_HOST_PORT:-5226}` |
+| BalanceService.Api | `balance-service:8080` | `127.0.0.1:${BALANCE_SERVICE_HOST_PORT:-5228}` |
+| TransferService.Api | `transfer-service:8080` | `127.0.0.1:${TRANSFER_SERVICE_HOST_PORT:-5230}` |
+| PaymentService.Api | `payment-service:8080` | `127.0.0.1:${PAYMENT_SERVICE_HOST_PORT:-5234}` |
+| AuditService.Api | `audit-service:8080` | `127.0.0.1:${AUDIT_SERVICE_HOST_PORT:-5235}` |
+| IdentityService.Api | `identity-service:8080` | `127.0.0.1:${IDENTITY_SERVICE_HOST_PORT:-5232}` |
+| Cloud SQL Auth Proxy | `cloud-sql-proxy:5432` | `127.0.0.1:${CLOUDSQL_PROXY_HOST_PORT:-5432}` com `compose.cloudsql.yaml` |
+| Jaeger UI | `jaeger:16686` | `127.0.0.1:${JAEGER_UI_HOST_PORT:-16686}` com profile `observability` |
+| Jaeger OTLP | `jaeger:4317` / `jaeger:4318` | `127.0.0.1:${JAEGER_OTLP_GRPC_HOST_PORT:-4317}` / `127.0.0.1:${JAEGER_OTLP_HTTP_HOST_PORT:-4318}` com profile `observability` |
+| OpenTelemetry Collector OTLP | `otel-collector:4317` / `otel-collector:4318` | nao publicado; rede interna do compose |
+| OpenTelemetry Collector metrics | `otel-collector:9464` | nao publicado; rede interna do compose |
+| Prometheus | `prometheus:9090` | `127.0.0.1:${PROMETHEUS_HOST_PORT:-9090}` com profile `observability` |
+| Loki | `loki:3100` | `127.0.0.1:${LOKI_HOST_PORT:-3100}` com profile `observability` |
+| Grafana Alloy | `alloy:12345` | `127.0.0.1:${ALLOY_HOST_PORT:-12345}` com profile `observability` |
+| Alertmanager | `alertmanager:9093` | `127.0.0.1:${ALERTMANAGER_HOST_PORT:-9093}` com profile `observability` |
+| Grafana | `grafana:3000` | `127.0.0.1:${GRAFANA_HOST_PORT:-3000}` com profile `observability` |
+| Portal Nginx HTTPS | `nginx-edge:8080` | `127.0.0.1:${NGINX_HTTPS_HOST_PORT:-7443}` com `compose.nginx.yaml` |
+| LedgerService.Api via Nginx | `ledger-service-1:8080` / `ledger-service-2:8080` | `https://ledger.localhost:${NGINX_HTTPS_HOST_PORT:-7443}/` |
+| BalanceService.Api via Nginx | `balance-service:8080` | `https://balance.localhost:${NGINX_HTTPS_HOST_PORT:-7443}/` |
+
+As APIs HTTP no Compose possuem `healthcheck` em `/ready`, executado por um pequeno console .NET (`src/Shared/ContainerHealthProbe`) copiado para as imagens de API. A decisao evita instalar `curl`, `wget` ou pacotes extras nos runtimes ASP.NET; o probe usa o runtime `dotnet` ja presente na imagem final. O endpoint `/health` continua sendo usado para liveness simples e validacoes manuais/scripts. O Mailpit usa o subcomando `/mailpit readyz` da propria imagem.
 
 Diferenca entre nomes internos do Compose e acesso pelo host:
 

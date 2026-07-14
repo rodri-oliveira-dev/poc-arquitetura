@@ -17,7 +17,6 @@ services:
 
   cloud-sql-proxy:
     image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.22.0
-    container_name: poc-cloud-sql-proxy
     logging: *default-logging
     command:
       - "--address=0.0.0.0"
@@ -86,7 +85,7 @@ services:
       kafka-init-topics:
         condition: service_completed_successfully
       ledger-service:
-        condition: service_started
+        condition: service_healthy
     environment:
       ConnectionStrings__DefaultConnection: "Host=cloud-sql-proxy;Port=5432;Database=${DATABASE_NAME:-appdb};Username=${DATABASE_USER:-app_user};Password=${DATABASE_PASSWORD:?Defina DATABASE_PASSWORD no ambiente ou em .env.local}"
 
@@ -99,6 +98,6 @@ services:
       keycloak-identity-admin-init:
         condition: service_completed_successfully
       mailpit:
-        condition: service_started
+        condition: service_healthy
     environment:
       ConnectionStrings__DefaultConnection: "Host=cloud-sql-proxy;Port=5432;Database=${DATABASE_NAME:-appdb};Username=${DATABASE_USER:-app_user};Password=${DATABASE_PASSWORD:?Defina DATABASE_PASSWORD no ambiente ou em .env.local}"

@@ -1,0 +1,74 @@
+name: container-baseline
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "compose*.yaml"
+      - ".dockerignore"
+      - "global.json"
+      - "Directory.Build.props"
+      - "Directory.Packages.props"
+      - "Dockerfile"
+      - "**/Dockerfile"
+      - "**/*.csproj"
+      - "tools/ContainerBaselineValidator/**"
+      - ".agents/skills/docker-compose-container-baseline/**"
+      - ".github/workflows/container-baseline.yml"
+      - ".github/actions/setup-dotnet/**"
+  pull_request:
+    paths:
+      - "compose*.yaml"
+      - ".dockerignore"
+      - "global.json"
+      - "Directory.Build.props"
+      - "Directory.Packages.props"
+      - "Dockerfile"
+      - "**/Dockerfile"
+      - "**/*.csproj"
+      - "tools/ContainerBaselineValidator/**"
+      - ".agents/skills/docker-compose-container-baseline/**"
+      - ".github/workflows/container-baseline.yml"
+      - ".github/actions/setup-dotnet/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: true
+  DOTNET_NOLOGO: true
+  DOCKER_BUILDKIT: "1"
+  COMPOSE_DOCKER_CLI_BUILD: "1"
+
+jobs:
+  validate-and-build:
+    name: Validate Compose and build images
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup .NET
+        uses: ./.github/actions/setup-dotnet
+
+      - name: Restore validator dependencies
+        run: dotnet restore ./tools/ContainerBaselineValidator/ContainerBaselineValidator.csproj
+
+      - name: Validate Compose syntax
+        run: docker compose --env-file .env.local.example -f compose.yaml config --quiet
+
+      - name: Run structural container baseline validator
+        run: dotnet run --no-restore --project ./tools/ContainerBaselineValidator/ContainerBaselineValidator.csproj -- --root .
+
+      - name: Verify validator detects invalid fixture
+        run: dotnet run --no-restore --project ./tools/ContainerBaselineValidator/ContainerBaselineValidator.csproj -- --root . --self-test-invalid
+
+      - name: Build Compose images
+        run: docker compose --env-file .env.local.example -f compose.yaml build

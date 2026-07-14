@@ -29,6 +29,7 @@
     <ProjectReference Include="..\..\..\src\ledger\LedgerService.Domain\LedgerService.Domain.csproj" />
     <ProjectReference Include="..\..\..\src\ledger\LedgerService.Infrastructure\LedgerService.Infrastructure.csproj" />
     <ProjectReference Include="..\..\..\src\ledger\LedgerService.Api\LedgerService.Api.csproj" />
+    <ProjectReference Include="..\..\..\tools\ContainerBaselineValidator\ContainerBaselineValidator.csproj" />
     <ProjectReference Include="..\..\..\tools\ComposeEnvGen\ComposeEnvGen.csproj" />
   </ItemGroup>
 

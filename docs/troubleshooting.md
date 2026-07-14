@@ -52,7 +52,7 @@ Veja [Swagger e endpoints operacionais](development/local-development.md#swagger
 
 ## Nginx local nao inicia
 
-O Nginx local e opcional e depende dos arquivos de certificado montados por volume. Se o container `poc-nginx-edge` sair imediatamente, valide a configuracao efetiva:
+O Nginx local e opcional e depende dos arquivos de certificado montados por volume. Se o servico Compose `nginx-edge` sair imediatamente, valide a configuracao efetiva:
 
 ```bash
 docker compose -f compose.yaml -f compose.nginx.yaml config

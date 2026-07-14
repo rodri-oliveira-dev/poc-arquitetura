@@ -185,7 +185,7 @@ run_migration \
 run_migration \
   "Host=127.0.0.1;Port=$POSTGRES_HOST_PORT;Database=$POSTGRES_DATABASE;Username=audit_migrator_user;Password=$AUDIT_DB_MIGRATOR_PASSWORD" \
   "src/audit/AuditService.Infrastructure/AuditService.Infrastructure.csproj" \
-  "src/audit/AuditService.Api/AuditService.Api.csproj" \
+  "src/audit/AuditService.Infrastructure/AuditService.Infrastructure.csproj" \
   "AuditDbContext" \
   "AUDIT_SERVICE_CONNECTION_STRING"
 

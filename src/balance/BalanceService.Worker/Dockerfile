@@ -6,21 +6,23 @@ WORKDIR /src
 # Copia csproj primeiro para aproveitar cache
 COPY Directory.Packages.props ./
 COPY Directory.Build.props ./
+COPY global.json ./
 COPY src/balance/BalanceService.Worker/BalanceService.Worker.csproj src/balance/BalanceService.Worker/
 COPY src/balance/BalanceService.Application/BalanceService.Application.csproj src/balance/BalanceService.Application/
 COPY src/balance/BalanceService.Domain/BalanceService.Domain.csproj src/balance/BalanceService.Domain/
 COPY src/balance/BalanceService.Infrastructure/BalanceService.Infrastructure.csproj src/balance/BalanceService.Infrastructure/
+COPY src/Shared/KafkaWorkerDefaults/KafkaWorkerDefaults.csproj src/Shared/KafkaWorkerDefaults/
+COPY contracts/events/ ./contracts/events/
 
 RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages,sharing=locked \
-    dotnet restore src/balance/BalanceService.Worker/BalanceService.Worker.csproj --disable-parallel \
-    || dotnet restore src/balance/BalanceService.Worker/BalanceService.Worker.csproj --disable-parallel \
-    || dotnet restore src/balance/BalanceService.Worker/BalanceService.Worker.csproj --disable-parallel
+    dotnet restore src/balance/BalanceService.Worker/BalanceService.Worker.csproj --disable-parallel
 
 # Agora copia o restante
 COPY src/balance/BalanceService.Worker/ ./src/balance/BalanceService.Worker/
 COPY src/balance/BalanceService.Application/ ./src/balance/BalanceService.Application/
 COPY src/balance/BalanceService.Domain/ ./src/balance/BalanceService.Domain/
 COPY src/balance/BalanceService.Infrastructure/ ./src/balance/BalanceService.Infrastructure/
+COPY src/Shared/KafkaWorkerDefaults/ ./src/Shared/KafkaWorkerDefaults/
 
 RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages,sharing=locked \
     dotnet publish src/balance/BalanceService.Worker/BalanceService.Worker.csproj \
@@ -31,8 +33,6 @@ RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages,sharing=locked \
 
 FROM mcr.microsoft.com/dotnet/runtime:10.0 AS final
 WORKDIR /app
-
-RUN chown -R $APP_UID:0 /app
 
 COPY --from=build --chown=$APP_UID:0 /app/publish ./
 

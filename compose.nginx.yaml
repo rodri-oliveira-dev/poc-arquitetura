@@ -4,6 +4,13 @@ x-logging: &default-logging
     max-size: "${DOCKER_LOG_MAX_SIZE:-10m}"
     max-file: "${DOCKER_LOG_MAX_FILE:-3}"
 
+x-api-healthcheck: &api-healthcheck
+  test: [ "CMD", "dotnet", "/healthprobe/ContainerHealthProbe.dll", "http://127.0.0.1:8080/ready" ]
+  interval: 10s
+  timeout: 5s
+  start_period: 30s
+  retries: 12
+
 services:
   ledger-service:
     profiles:
@@ -14,7 +21,6 @@ services:
     build:
       context: .
       dockerfile: src/ledger/LedgerService.Api/Dockerfile
-    container_name: poc-ledger-service-1
     logging: *default-logging
     depends_on:
       postgres-db:
@@ -38,10 +44,10 @@ services:
           pids: 256
     networks:
       - poc-net
+    healthcheck: *api-healthcheck
 
   ledger-service-2:
     image: poc-arquitetura-ledger-service:local
-    container_name: poc-ledger-service-2
     logging: *default-logging
     depends_on:
       postgres-db:
@@ -65,6 +71,7 @@ services:
           pids: 256
     networks:
       - poc-net
+    healthcheck: *api-healthcheck
 
   transfer-worker:
     depends_on: !reset
@@ -73,15 +80,25 @@ services:
       kafka-init-topics:
         condition: service_completed_successfully
       ledger-service-1:
-        condition: service_started
+        condition: service_healthy
       keycloak:
         condition: service_healthy
     environment:
       TransferService__Worker__Ledger__BaseAddress: "http://ledger-service-1:8080"
 
+  payment-worker:
+    depends_on: !reset
+      postgres-db:
+        condition: service_healthy
+      ledger-service-1:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    environment:
+      PaymentService__Ledger__BaseAddress: "http://ledger-service-1:8080"
+
   nginx-certs-init:
     image: alpine:3.22
-    container_name: poc-nginx-certs-init
     logging: *default-logging
     network_mode: none
     command:
@@ -106,19 +123,18 @@ services:
     build:
       context: ./infra/nginx
       dockerfile: Dockerfile
-    container_name: poc-nginx-edge
     logging: *default-logging
     depends_on:
       nginx-certs-init:
         condition: service_completed_successfully
       ledger-service-1:
-        condition: service_started
+        condition: service_healthy
       ledger-service-2:
-        condition: service_started
+        condition: service_healthy
       balance-service:
-        condition: service_started
+        condition: service_healthy
     ports:
-      - "7443:8080"
+      - "127.0.0.1:${NGINX_HTTPS_HOST_PORT:-7443}:8080"
     volumes:
       - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./infra/nginx/security-headers.conf:/etc/nginx/conf.d/security-headers.conf:ro

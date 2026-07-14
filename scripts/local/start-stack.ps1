@@ -251,7 +251,7 @@ try {
   Invoke-Migration `
     "Host=127.0.0.1;Port=$postgresHostPort;Database=$postgresDatabase;Username=audit_migrator_user;Password=$auditMigratorPassword" `
     "src/audit/AuditService.Infrastructure/AuditService.Infrastructure.csproj" `
-    "src/audit/AuditService.Api/AuditService.Api.csproj" `
+    "src/audit/AuditService.Infrastructure/AuditService.Infrastructure.csproj" `
     "AuditDbContext" `
     "AUDIT_SERVICE_CONNECTION_STRING"
 

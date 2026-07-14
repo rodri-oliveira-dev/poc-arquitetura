@@ -6,6 +6,13 @@ x-logging: &default-logging
     max-size: "${DOCKER_LOG_MAX_SIZE:-10m}"
     max-file: "${DOCKER_LOG_MAX_FILE:-3}"
 
+x-api-healthcheck: &api-healthcheck
+  test: [ "CMD", "dotnet", "/healthprobe/ContainerHealthProbe.dll", "http://127.0.0.1:8080/ready" ]
+  interval: 10s
+  timeout: 5s
+  start_period: 30s
+  retries: 12
+
 networks:
   poc-net:
     driver: bridge
@@ -24,7 +31,6 @@ services:
   # --- Databases ---
   postgres-db:
     image: docker.io/postgres:16
-    container_name: poc-postgres-db
     logging: *default-logging
     environment:
       POSTGRES_DB: appdb
@@ -46,7 +52,7 @@ services:
     ports:
       # Porta exposta para uso local (psql, migrations, etc.)
       # Obs: pode conflitar com um Postgres já rodando no host.
-      - "${POSTGRES_HOST_PORT:-15432}:5432"
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-15432}:5432"
     deploy:
       resources:
         limits:
@@ -69,7 +75,6 @@ services:
     profiles:
       - legacy-pubsub
     image: gcr.io/google.com/cloudsdktool/google-cloud-cli:548.0.0-emulators
-    container_name: poc-pubsub-emulator
     logging: *default-logging
     command:
       - gcloud
@@ -80,7 +85,7 @@ services:
       - "--host-port=0.0.0.0:8085"
       - "--project=${PUBSUB_PROJECT_ID:-poc-local}"
     ports:
-      - "${PUBSUB_EMULATOR_HOST_PORT:-8085}:8085"
+      - "127.0.0.1:${PUBSUB_EMULATOR_HOST_PORT:-8085}:8085"
     deploy:
       resources:
         limits:
@@ -99,7 +104,6 @@ services:
     profiles:
       - legacy-pubsub
     image: docker.io/curlimages/curl:8.16.0
-    container_name: poc-pubsub-init
     logging: *default-logging
     depends_on:
       pubsub-emulator:
@@ -151,7 +155,6 @@ services:
   kafka:
     # Usamos a imagem oficial do Apache Kafka no Docker Hub.
     image: docker.io/apache/kafka:3.7.0
-    container_name: poc-kafka
     logging: *default-logging
     environment:
       # KRaft (sem ZooKeeper)
@@ -176,7 +179,7 @@ services:
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
     ports:
       # Obs: pode conflitar com um Kafka já rodando no host.
-      - "19092:9092"
+      - "127.0.0.1:${KAFKA_HOST_PORT:-19092}:9092"
     deploy:
       resources:
         limits:
@@ -194,7 +197,6 @@ services:
   # Consumer está com AllowAutoCreateTopics=false, então garantimos o tópico via init.
   kafka-init-topics:
     image: docker.io/apache/kafka:3.7.0
-    container_name: poc-kafka-init-topics
     logging: *default-logging
     depends_on:
       kafka:
@@ -248,12 +250,11 @@ services:
 
   # --- Local email capture ---
   mailpit:
-    image: axllent/mailpit
-    container_name: poc-mailpit
+    image: docker.io/axllent/mailpit:v1.30
     logging: *default-logging
     ports:
-      - "${MAILPIT_SMTP_HOST_PORT:-1025}:1025"
-      - "${MAILPIT_UI_HOST_PORT:-8025}:8025"
+      - "127.0.0.1:${MAILPIT_SMTP_HOST_PORT:-1025}:1025"
+      - "127.0.0.1:${MAILPIT_UI_HOST_PORT:-8025}:8025"
     deploy:
       resources:
         limits:
@@ -262,13 +263,17 @@ services:
           pids: 128
     networks:
       - poc-net
+    healthcheck:
+      test: [ "CMD", "/mailpit", "readyz" ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
 
   # --- Microservices ---
   ledger-service:
     build:
       context: .
       dockerfile: src/ledger/LedgerService.Api/Dockerfile
-    container_name: poc-ledger-service
     logging: *default-logging
     depends_on:
       postgres-db:
@@ -292,7 +297,7 @@ services:
       Observability__OpenTelemetry__ServiceName: "LedgerService.Api"
     ports:
       # Mantém a mesma porta do launchSettings para facilitar uso local
-      - "5226:8080"
+      - "127.0.0.1:${LEDGER_SERVICE_HOST_PORT:-5226}:8080"
     deploy:
       resources:
         limits:
@@ -301,12 +306,12 @@ services:
           pids: 256
     networks:
       - poc-net
+    healthcheck: *api-healthcheck
 
   ledger-worker:
     build:
       context: .
       dockerfile: src/ledger/LedgerService.Worker/Dockerfile
-    container_name: poc-ledger-worker
     logging: *default-logging
     depends_on:
       postgres-db:
@@ -347,7 +352,6 @@ services:
     build:
       context: .
       dockerfile: src/balance/BalanceService.Api/Dockerfile
-    container_name: poc-balance-service
     logging: *default-logging
     depends_on:
       postgres-db:
@@ -370,7 +374,7 @@ services:
       Observability__OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"
       Observability__OpenTelemetry__ServiceName: "BalanceService.Api"
     ports:
-      - "5228:8080"
+      - "127.0.0.1:${BALANCE_SERVICE_HOST_PORT:-5228}:8080"
     deploy:
       resources:
         limits:
@@ -379,12 +383,12 @@ services:
           pids: 256
     networks:
       - poc-net
+    healthcheck: *api-healthcheck
 
   balance-worker:
     build:
       context: .
       dockerfile: src/balance/BalanceService.Worker/Dockerfile
-    container_name: poc-balance-worker
     logging: *default-logging
     depends_on:
       postgres-db:
@@ -424,7 +428,6 @@ services:
     build:
       context: .
       dockerfile: src/transfer/TransferService.Api/Dockerfile
-    container_name: poc-transfer-service
     logging: *default-logging
     depends_on:
       postgres-db:
@@ -445,7 +448,7 @@ services:
       Observability__OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"
       Observability__OpenTelemetry__ServiceName: "TransferService.Api"
     ports:
-      - "${TRANSFER_SERVICE_HOST_PORT:-5230}:8080"
+      - "127.0.0.1:${TRANSFER_SERVICE_HOST_PORT:-5230}:8080"
     deploy:
       resources:
         limits:
@@ -454,12 +457,12 @@ services:
           pids: 256
     networks:
       - poc-net
+    healthcheck: *api-healthcheck
 
   transfer-worker:
     build:
       context: .
       dockerfile: src/transfer/TransferService.Worker/Dockerfile
-    container_name: poc-transfer-worker
     logging: *default-logging
     depends_on:
       postgres-db:
@@ -467,7 +470,7 @@ services:
       kafka-init-topics:
         condition: service_completed_successfully
       ledger-service:
-        condition: service_started
+        condition: service_healthy
       keycloak:
         condition: service_healthy
     environment:
@@ -517,9 +520,7 @@ services:
   payment-service:
     build:
       context: .
-      dockerfile: src/payment/Dockerfile
-      target: api-final
-    container_name: poc-payment-service
+      dockerfile: src/payment/PaymentService.Api/Dockerfile
     logging: *default-logging
     depends_on:
       postgres-db:
@@ -544,7 +545,7 @@ services:
       OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"
       OpenTelemetry__ServiceName: "PaymentService.Api"
     ports:
-      - "${PAYMENT_SERVICE_HOST_PORT:-5234}:8080"
+      - "127.0.0.1:${PAYMENT_SERVICE_HOST_PORT:-5234}:8080"
     deploy:
       resources:
         limits:
@@ -553,19 +554,18 @@ services:
           pids: 256
     networks:
       - poc-net
+    healthcheck: *api-healthcheck
 
   payment-worker:
     build:
       context: .
-      dockerfile: src/payment/Dockerfile
-      target: worker-final
-    container_name: poc-payment-worker
+      dockerfile: src/payment/PaymentService.Worker/Dockerfile
     logging: *default-logging
     depends_on:
       postgres-db:
         condition: service_healthy
       ledger-service:
-        condition: service_started
+        condition: service_healthy
       keycloak:
         condition: service_healthy
     environment:
@@ -594,9 +594,7 @@ services:
   audit-service:
     build:
       context: .
-      dockerfile: src/audit/Dockerfile
-      target: api-final
-    container_name: poc-audit-service
+      dockerfile: src/audit/AuditService.Api/Dockerfile
     logging: *default-logging
     depends_on:
       postgres-db:
@@ -618,7 +616,7 @@ services:
       Observability__OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"
       Observability__OpenTelemetry__ServiceName: "AuditService.Api"
     ports:
-      - "${AUDIT_SERVICE_HOST_PORT:-5235}:8080"
+      - "127.0.0.1:${AUDIT_SERVICE_HOST_PORT:-5235}:8080"
     deploy:
       resources:
         limits:
@@ -627,13 +625,12 @@ services:
           pids: 256
     networks:
       - poc-net
+    healthcheck: *api-healthcheck
 
   audit-worker:
     build:
       context: .
-      dockerfile: src/audit/Dockerfile
-      target: worker-final
-    container_name: poc-audit-worker
+      dockerfile: src/audit/AuditService.Worker/Dockerfile
     logging: *default-logging
     depends_on:
       postgres-db:
@@ -665,7 +662,6 @@ services:
 
   keycloak-identity-admin-init:
     image: quay.io/keycloak/keycloak:26.6.2
-    container_name: poc-keycloak-identity-admin-init
     logging: *default-logging
     depends_on:
       keycloak:
@@ -705,7 +701,6 @@ services:
     build:
       context: .
       dockerfile: src/identity/IdentityService.Api/Dockerfile
-    container_name: poc-identity-service
     logging: *default-logging
     depends_on:
       postgres-db:
@@ -715,7 +710,7 @@ services:
       keycloak-identity-admin-init:
         condition: service_completed_successfully
       mailpit:
-        condition: service_started
+        condition: service_healthy
     environment:
       ASPNETCORE_URLS: "http://+:8080"
       ASPNETCORE_ENVIRONMENT: "Local"
@@ -745,7 +740,7 @@ services:
       Observability__OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"
       Observability__OpenTelemetry__ServiceName: "IdentityService.Api"
     ports:
-      - "${IDENTITY_SERVICE_HOST_PORT:-5232}:8080"
+      - "127.0.0.1:${IDENTITY_SERVICE_HOST_PORT:-5232}:8080"
     deploy:
       resources:
         limits:
@@ -754,10 +749,10 @@ services:
           pids: 256
     networks:
       - poc-net
+    healthcheck: *api-healthcheck
 
   keycloak:
     image: quay.io/keycloak/keycloak:26.6.2
-    container_name: poc-keycloak
     logging: *default-logging
     command: [ "start-dev", "--import-realm" ]
     environment:
@@ -770,7 +765,7 @@ services:
       KEYCLOAK_LOCAL_BALANCE_USER_PASSWORD: "${KEYCLOAK_LOCAL_BALANCE_USER_PASSWORD:?Defina KEYCLOAK_LOCAL_BALANCE_USER_PASSWORD em .env.local}"
       KEYCLOAK_LOCAL_ADMIN_USER_PASSWORD: "${KEYCLOAK_LOCAL_ADMIN_USER_PASSWORD:?Defina KEYCLOAK_LOCAL_ADMIN_USER_PASSWORD em .env.local}"
     ports:
-      - "${KEYCLOAK_HOST_PORT:-8081}:8080"
+      - "127.0.0.1:${KEYCLOAK_HOST_PORT:-8081}:8080"
     deploy:
       resources:
         limits:
