@@ -46,7 +46,49 @@ public sealed class KeycloakRealmContractTests
         Assert.Contains("payment.write payment.read payment.refund", expectedScopes, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Local_realm_should_issue_audit_audience_and_scopes_without_overgranting_admin()
+    {
+        using var document = JsonDocument.Parse(File.ReadAllText(GetRepositoryPath("infra/keycloak/realm-poc.json")));
+        var root = document.RootElement;
+
+        var clients = root.GetProperty("clients").EnumerateArray().ToArray();
+        var clientScopes = root.GetProperty("clientScopes").EnumerateArray().ToArray();
+        var users = root.GetProperty("users").EnumerateArray().ToArray();
+
+        var auditAudienceClient = clients.Single(client => GetString(client, "clientId") == "audit-api");
+        Assert.Equal("AuditService.Api audience", GetString(auditAudienceClient, "name"));
+        Assert.False(GetBool(auditAudienceClient, "standardFlowEnabled"));
+        Assert.False(GetBool(auditAudienceClient, "implicitFlowEnabled"));
+        Assert.False(GetBool(auditAudienceClient, "directAccessGrantsEnabled"));
+        Assert.False(GetBool(auditAudienceClient, "serviceAccountsEnabled"));
+
+        var audienceScope = clientScopes.Single(scope => GetString(scope, "name") == "poc-api-audience");
+        var auditAudienceMapper = audienceScope.GetProperty("protocolMappers")
+            .EnumerateArray()
+            .Single(mapper => GetString(mapper, "name") == "audit-api-audience");
+        Assert.Equal("audit-api", GetString(auditAudienceMapper.GetProperty("config"), "included.client.audience"));
+        Assert.Equal("true", GetString(auditAudienceMapper.GetProperty("config"), "access.token.claim"));
+
+        AssertScope(clientScopes, "audit.write", "Permite criar registros de auditoria funcional.");
+        AssertScope(clientScopes, "audit.read", "Permite consultar registros de auditoria funcional dos merchants autorizados.");
+        AssertScope(clientScopes, "audit.admin", "Permite consultar registros de auditoria funcional sem restricao de merchant.");
+
+        AssertClientHasScopes(clients, "poc-automation", "audit.write", "audit.read");
+        AssertClientDoesNotHaveScopes(clients, "poc-automation", "audit.admin");
+        AssertClientHasScopes(clients, "poc-local-admin-debug", "audit.write", "audit.read", "audit.admin");
+        AssertClientDoesNotHaveScopes(clients, "poc-local-ledger-debug", "audit.write", "audit.read", "audit.admin");
+        AssertClientDoesNotHaveScopes(clients, "poc-local-balance-debug", "audit.write", "audit.read", "audit.admin");
+
+        var adminUser = users.Single(user => GetString(user, "username") == "local_admin_user");
+        var expectedScopes = adminUser.GetProperty("attributes").GetProperty("expected_scopes")[0].GetString();
+        Assert.Contains("audit.write audit.read audit.admin", expectedScopes, StringComparison.Ordinal);
+    }
+
     private static void AssertPaymentScope(JsonElement[] clientScopes, string name, string description)
+        => AssertScope(clientScopes, name, description);
+
+    private static void AssertScope(JsonElement[] clientScopes, string name, string description)
     {
         var scope = clientScopes.Single(scope => GetString(scope, "name") == name);
         Assert.Equal(description, GetString(scope, "description"));
@@ -68,6 +110,40 @@ public sealed class KeycloakRealmContractTests
         Assert.Contains("payment.write", defaultScopes);
         Assert.Contains("payment.read", defaultScopes);
         Assert.Contains("payment.refund", defaultScopes);
+    }
+
+    private static void AssertClientHasScopes(JsonElement[] clients, string clientId, params string[] scopes)
+    {
+        HashSet<string?> defaultScopes = GetDefaultClientScopes(clients, clientId);
+
+        Assert.Contains("poc-api-audience", defaultScopes);
+        Assert.Contains("poc-merchants", defaultScopes);
+
+        foreach (string scope in scopes)
+        {
+            Assert.Contains(scope, defaultScopes);
+        }
+    }
+
+    private static void AssertClientDoesNotHaveScopes(JsonElement[] clients, string clientId, params string[] scopes)
+    {
+        HashSet<string?> defaultScopes = GetDefaultClientScopes(clients, clientId);
+
+        foreach (string scope in scopes)
+        {
+            Assert.DoesNotContain(scope, defaultScopes);
+        }
+    }
+
+    private static HashSet<string?> GetDefaultClientScopes(JsonElement[] clients, string clientId)
+    {
+        var client = clients.Single(client => GetString(client, "clientId") == clientId);
+        Assert.False(GetBool(client, "fullScopeAllowed"));
+
+        return client.GetProperty("defaultClientScopes")
+            .EnumerateArray()
+            .Select(scope => scope.GetString())
+            .ToHashSet(StringComparer.Ordinal);
     }
 
     private static string GetRepositoryPath(string relativePath)

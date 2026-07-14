@@ -13,7 +13,7 @@ namespace AuditService.Worker.Messaging.Kafka;
 internal sealed partial class AuditRecordRequestedConsumerService(
     IOptions<AuditRecordRequestedConsumerOptions> options,
     IAuditKafkaConsumerFactory consumerFactory,
-    IAuditRecordRequestedProcessor processor,
+    IServiceScopeFactory scopeFactory,
     AuditWorkerMetrics metrics,
     ILogger<AuditRecordRequestedConsumerService> logger) : BackgroundService
 {
@@ -104,6 +104,9 @@ internal sealed partial class AuditRecordRequestedConsumerService(
         {
             try
             {
+                await using AsyncServiceScope scope = scopeFactory.CreateAsyncScope();
+                var processor = scope.ServiceProvider.GetRequiredService<IAuditRecordRequestedProcessor>();
+
                 return await processor.ProcessAsync(message, cancellationToken);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

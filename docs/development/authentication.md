@@ -44,9 +44,9 @@ Use esses usuarios apenas em maquina de desenvolvimento local:
 | --- | --- | --- | --- | --- | --- |
 | `local_ledger_user` | `KEYCLOAK_LOCAL_LEDGER_USER_PASSWORD` | `poc-local-ledger-debug` | Testar endpoints do LedgerService | `ledger.write ledger.read` | `tese m1` |
 | `local_balance_user` | `KEYCLOAK_LOCAL_BALANCE_USER_PASSWORD` | `poc-local-balance-debug` | Testar endpoints do BalanceService | `balance.read` | `tese m1` |
-| `local_admin_user` | `KEYCLOAK_LOCAL_ADMIN_USER_PASSWORD` | `poc-local-admin-debug` | Facilitar debug local completo | `ledger.write ledger.read balance.read outbox.admin` | `tese m1` |
+| `local_admin_user` | `KEYCLOAK_LOCAL_ADMIN_USER_PASSWORD` | `poc-local-admin-debug` | Facilitar debug local completo | `ledger.write ledger.read balance.read transfer.write transfer.read identity.write identity.read payment.write payment.read payment.refund audit.write audit.read audit.admin outbox.admin` | `tese m1 m2` |
 
-Todos ficam habilitados no import e possuem senha nao temporaria para nao exigir troca no primeiro login. O realm marca os usuarios com atributos de debug local. As permissoes sao emitidas pela mesma estrategia ja adotada no realm: `clientScopes` default dos clients locais de debug incluem os scopes correspondentes, o client scope `poc-api-audience` adiciona `aud=ledger-api balance-api` e o client scope `poc-merchants` adiciona `merchant_id=tese m1`.
+Todos ficam habilitados no import e possuem senha nao temporaria para nao exigir troca no primeiro login. O realm marca os usuarios com atributos de debug local. As permissoes sao emitidas pela mesma estrategia ja adotada no realm: `clientScopes` default dos clients locais de debug incluem os scopes correspondentes, o client scope `poc-api-audience` adiciona as audiences das APIs locais e o client scope `poc-merchants` adiciona `merchant_id=tese m1`.
 
 Exemplo para obter token manual do usuario Ledger:
 
@@ -125,9 +125,13 @@ Audiences atuais:
 | --- | --- |
 | LedgerService.Api | `ledger-api` |
 | BalanceService.Api | `balance-api` |
+| TransferService.Api | `transfer-api` |
+| IdentityService.Api | `identity-api` |
+| PaymentService.Api | `payment-api` |
+| AuditService.Api | `audit-api` |
 
-O realm Keycloak local inclui `ledger.read` junto com `ledger.write`, `balance.read`, `transfer.write`, `transfer.read` e `outbox.admin`.
-O client `poc-automation` declara esses scopes como default client scopes, adiciona as audiences `ledger-api`, `balance-api` e `transfer-api` no access token e emite `merchant_id=tese m1 m2` pelo mapper `poc-merchants`.
+O realm Keycloak local inclui `ledger.read` junto com `ledger.write`, `balance.read`, `transfer.write`, `transfer.read`, `identity.write`, `identity.read`, `payment.write`, `payment.read`, `payment.refund`, `audit.write`, `audit.read` e `outbox.admin`.
+O client `poc-automation` declara esses scopes como default client scopes, adiciona as audiences das APIs locais no access token e emite `merchant_id=tese m1 m2` pelo mapper `poc-merchants`. Ele nao recebe `audit.admin`; esse scope fica restrito ao client de debug administrativo local.
 Os clients `poc-local-*-debug` adicionam as mesmas audiences e emitem `scope` pelos seus `clientScopes` default e `merchant_id` pelo mapper `poc-merchants`, sem usar roles nativas do Keycloak como contrato das APIs.
 
 ## Scopes por endpoint
@@ -145,6 +149,10 @@ Os clients `poc-local-*-debug` adicionam as mesmas audiences e emitem `scope` pe
 | BalanceService.Api | `GET /api/v1/consolidados/periodo` | `balance.read` | Valida `merchantId` da query string contra `merchant_id`. |
 | TransferService.Api | `POST /api/v1/transferencias` | `transfer.write` | Valida `sourceMerchantId` do body contra `merchant_id`. |
 | TransferService.Api | `GET /api/v1/transferencias/{transferenciaId}` | `transfer.read` | Valida o merchant da transferencia persistida contra `merchant_id`. |
+| AuditService.Api | `POST /api/v1/audit-records` | `audit.write` | Persiste trilha funcional canonica. |
+| AuditService.Api | `GET /api/v1/audit-records/{id}` | `audit.read` ou `audit.admin` | `audit.read` valida o merchant do registro contra `merchant_id`; `audit.admin` nao restringe por merchant. |
+| AuditService.Api | `GET /api/v1/audit-records/operations/{operationId}` | `audit.read` ou `audit.admin` | `audit.read` retorna apenas registros dos merchants autorizados; `audit.admin` nao restringe por merchant. |
+| AuditService.Api | `GET /api/v1/audit-records` | `audit.read` ou `audit.admin` | `audit.read` exige filtro/resultado compatível com `merchant_id`; `audit.admin` permite consulta ampla. |
 
 ## Transporte e JWKS
 
@@ -244,7 +252,7 @@ curl -s -X POST http://localhost:8081/realms/poc/protocol/openid-connect/token \
   -d "client_secret=<KEYCLOAK_CLIENT_SECRET>"
 ```
 
-O access token emitido pelo realm local deve conter `iss=http://localhost:8081/realms/poc`, audiences `ledger-api`, `balance-api` e `transfer-api`, scopes `ledger.write ledger.read balance.read transfer.write transfer.read outbox.admin` e `merchant_id=tese m1 m2`.
+O access token emitido pelo realm local deve conter `iss=http://localhost:8081/realms/poc`, audiences das APIs locais incluindo `audit-api`, scopes `ledger.write ledger.read balance.read transfer.write transfer.read identity.write identity.read payment.write payment.read payment.refund audit.write audit.read outbox.admin` e `merchant_id=tese m1 m2`.
 
 Para debug manual com usuario/senha, use o client publico de debug correspondente diretamente no token endpoint com `grant_type=password`. Os scripts versionados nao usam esse fluxo por padrao para evitar transformar Direct Grant em automacao oficial.
 

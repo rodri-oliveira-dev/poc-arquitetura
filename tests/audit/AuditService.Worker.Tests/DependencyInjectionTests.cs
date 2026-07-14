@@ -54,6 +54,21 @@ public sealed class DependencyInjectionTests
     }
 
     [Fact]
+    public void AddAuditWorkerComposition_should_build_enabled_consumer_with_scope_validation()
+    {
+        using ServiceProvider provider = CreateProvider(new Dictionary<string, string?>
+        {
+            ["AuditService:Worker:Enabled"] = "true",
+            ["Kafka:AuditRecordRequestedConsumer:Enabled"] = "true",
+            ["Kafka:AuditRecordRequestedConsumer:BootstrapServers"] = "localhost:9092"
+        });
+
+        var hostedService = Assert.Single(provider.GetServices<IHostedService>());
+
+        Assert.IsType<AuditRecordRequestedConsumerService>(hostedService);
+    }
+
+    [Fact]
     public void AuditWorkerOptions_should_use_safe_defaults()
     {
         using ServiceProvider provider = CreateProvider();
@@ -97,6 +112,7 @@ public sealed class DependencyInjectionTests
     private static ServiceProvider CreateProvider(Dictionary<string, string?>? overrides = null)
     {
         var services = new ServiceCollection();
+        services.AddLogging();
         DependencyInjection.AddAuditWorkerComposition(services, CreateConfiguration(overrides), CreateEnvironment());
         return services.BuildServiceProvider(validateScopes: true);
     }

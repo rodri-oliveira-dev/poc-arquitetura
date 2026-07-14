@@ -71,6 +71,18 @@
       "authorizationServicesEnabled": false
     },
     {
+      "clientId": "audit-api",
+      "name": "AuditService.Api audience",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "authorizationServicesEnabled": false
+    },
+    {
       "clientId": "poc-automation",
       "name": "POC local automation",
       "description": "Client local descartavel para obter tokens via client_credentials.",
@@ -96,6 +108,8 @@
         "payment.write",
         "payment.read",
         "payment.refund",
+        "audit.write",
+        "audit.read",
         "outbox.admin",
         "poc-api-audience",
         "poc-merchants"
@@ -202,6 +216,9 @@
         "payment.write",
         "payment.read",
         "payment.refund",
+        "audit.write",
+        "audit.read",
+        "audit.admin",
         "outbox.admin",
         "poc-api-audience",
         "poc-merchants"
@@ -310,6 +327,33 @@
       }
     },
     {
+      "name": "audit.write",
+      "description": "Permite criar registros de auditoria funcional.",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      }
+    },
+    {
+      "name": "audit.read",
+      "description": "Permite consultar registros de auditoria funcional dos merchants autorizados.",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      }
+    },
+    {
+      "name": "audit.admin",
+      "description": "Permite consultar registros de auditoria funcional sem restricao de merchant.",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      }
+    },
+    {
       "name": "poc-api-audience",
       "description": "Adiciona audiences das APIs da POC ao access token.",
       "protocol": "openid-connect",
@@ -372,6 +416,17 @@
             "id.token.claim": "false",
             "access.token.claim": "true"
           }
+        },
+        {
+          "name": "audit-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "audit-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
         }
       ]
     },
@@ -421,7 +476,7 @@
           "ledger.write ledger.read"
         ],
         "expected_merchant_id": [
-          "tese m1"
+          "tese m1 m2"
         ]
       },
       "credentials": [
@@ -475,10 +530,10 @@
           "true"
         ],
         "purpose": [
-          "Facilitar debug local completo das APIs de negocio."
+          "Facilitar debug local completo das APIs de negocio, incluindo auditoria funcional."
         ],
         "expected_scopes": [
-          "ledger.write ledger.read balance.read identity.write identity.read payment.write payment.read payment.refund outbox.admin"
+          "ledger.write ledger.read balance.read identity.write identity.read payment.write payment.read payment.refund audit.write audit.read audit.admin outbox.admin"
         ],
         "expected_merchant_id": [
           "tese m1"
