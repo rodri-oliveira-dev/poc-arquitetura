@@ -546,7 +546,7 @@ internal static partial class Program
             .Replace('\\', Path.DirectorySeparatorChar)
             .Replace('/', Path.DirectorySeparatorChar);
 
-        if (Path.IsPathRooted(normalizedRelativePath))
+        if (Path.IsPathRooted(normalizedRelativePath) || IsWindowsDrivePath(normalizedRelativePath))
             throw new InvalidOperationException("O caminho informado deve ser relativo a raiz autorizada do repositorio.");
 
         var root = Path.GetFullPath(repositoryRoot);
@@ -580,6 +580,11 @@ internal static partial class Program
             .Replace('\\', '/')
             .Split('/', StringSplitOptions.RemoveEmptyEntries)
             .Any(segment => segment.Equals("..", StringComparison.Ordinal));
+    }
+
+    private static bool IsWindowsDrivePath(string path)
+    {
+        return path.Length >= 2 && char.IsAsciiLetter(path[0]) && path[1] == ':';
     }
 
     private sealed record ProjectReference(string Project, string Origin);
