@@ -85,6 +85,7 @@ if command -v mktemp >/dev/null 2>&1; then
   balance_dotnet_format_files="$(mktemp "${TMPDIR:-/tmp}/pre-push-balance-format.XXXXXX")"
   identity_dotnet_format_files="$(mktemp "${TMPDIR:-/tmp}/pre-push-identity-format.XXXXXX")"
   ledger_dotnet_format_files="$(mktemp "${TMPDIR:-/tmp}/pre-push-ledger-format.XXXXXX")"
+  payment_dotnet_format_files="$(mktemp "${TMPDIR:-/tmp}/pre-push-payment-format.XXXXXX")"
   transfer_dotnet_format_files="$(mktemp "${TMPDIR:-/tmp}/pre-push-transfer-format.XXXXXX")"
   shared_dotnet_format_files="$(mktemp "${TMPDIR:-/tmp}/pre-push-shared-format.XXXXXX")"
   aggregate_dotnet_format_files="$(mktemp "${TMPDIR:-/tmp}/pre-push-aggregate-format.XXXXXX")"
@@ -94,6 +95,7 @@ else
   balance_dotnet_format_files="${TMPDIR:-/tmp}/pre-push-balance-format.$$"
   identity_dotnet_format_files="${TMPDIR:-/tmp}/pre-push-identity-format.$$"
   ledger_dotnet_format_files="${TMPDIR:-/tmp}/pre-push-ledger-format.$$"
+  payment_dotnet_format_files="${TMPDIR:-/tmp}/pre-push-payment-format.$$"
   transfer_dotnet_format_files="${TMPDIR:-/tmp}/pre-push-transfer-format.$$"
   shared_dotnet_format_files="${TMPDIR:-/tmp}/pre-push-shared-format.$$"
   aggregate_dotnet_format_files="${TMPDIR:-/tmp}/pre-push-aggregate-format.$$"
@@ -102,12 +104,13 @@ else
   : >"$balance_dotnet_format_files"
   : >"$identity_dotnet_format_files"
   : >"$ledger_dotnet_format_files"
+  : >"$payment_dotnet_format_files"
   : >"$transfer_dotnet_format_files"
   : >"$shared_dotnet_format_files"
   : >"$aggregate_dotnet_format_files"
 fi
 
-trap 'rm -f "$changed_files" "$audit_dotnet_format_files" "$balance_dotnet_format_files" "$identity_dotnet_format_files" "$ledger_dotnet_format_files" "$transfer_dotnet_format_files" "$shared_dotnet_format_files" "$aggregate_dotnet_format_files"' EXIT
+trap 'rm -f "$changed_files" "$audit_dotnet_format_files" "$balance_dotnet_format_files" "$identity_dotnet_format_files" "$ledger_dotnet_format_files" "$payment_dotnet_format_files" "$transfer_dotnet_format_files" "$shared_dotnet_format_files" "$aggregate_dotnet_format_files"' EXIT
 
 is_shared_path() {
   case "$1" in
@@ -152,6 +155,16 @@ is_identity_path() {
 is_ledger_path() {
   case "$1" in
     src/ledger/*|tests/ledger/*|LedgerService.slnx|tools/ComposeEnvGen/*)
+      return 0
+      ;;
+  esac
+
+  return 1
+}
+
+is_payment_path() {
+  case "$1" in
+    src/payment/*|tests/payment/*|PaymentService.slnx)
       return 0
       ;;
   esac
@@ -235,7 +248,9 @@ append_dotnet_format_file() {
 
   case "$changed_file" in
     *.cs)
-      printf '%s\n' "$changed_file" >>"$format_files_path"
+      if [ -f "$changed_file" ]; then
+        printf '%s\n' "$changed_file" >>"$format_files_path"
+      fi
       ;;
   esac
 }
@@ -246,6 +261,7 @@ append_context_dotnet_format_files_to_aggregate() {
     "$balance_dotnet_format_files" \
     "$identity_dotnet_format_files" \
     "$ledger_dotnet_format_files" \
+    "$payment_dotnet_format_files" \
     "$transfer_dotnet_format_files"
   do
     if [ -s "$format_files_path" ]; then
@@ -512,6 +528,7 @@ audit_changes=false
 balance_changes=false
 identity_changes=false
 ledger_changes=false
+payment_changes=false
 transfer_changes=false
 shared_changes=false
 aggregate_changes=false
@@ -529,6 +546,7 @@ if [ "$diff_is_safe" = false ]; then
   balance_changes=false
   identity_changes=false
   ledger_changes=false
+  payment_changes=false
   transfer_changes=false
   shared_changes=true
   aggregate_changes=true
@@ -617,6 +635,14 @@ else
       append_dotnet_format_file "$changed_file" "$ledger_dotnet_format_files"
     fi
 
+    if is_payment_path "$changed_file"; then
+      dotnet_changes=true
+      payment_changes=true
+      quick_tests_required=true
+      echo "==> pre-push: alteracao Payment detectada em $changed_file"
+      append_dotnet_format_file "$changed_file" "$payment_dotnet_format_files"
+    fi
+
     if is_transfer_path "$changed_file"; then
       dotnet_changes=true
       transfer_changes=true
@@ -644,6 +670,7 @@ else
     balance_changes=false
     identity_changes=false
     ledger_changes=false
+    payment_changes=false
     transfer_changes=false
     shared_changes=true
     aggregate_changes=true
@@ -711,6 +738,10 @@ if [ "$balance_changes" = true ]; then
   restore_solution "Balance" ./BalanceService.slnx
 fi
 
+if [ "$payment_changes" = true ]; then
+  restore_solution "Payment" ./PaymentService.slnx
+fi
+
 if [ "$transfer_changes" = true ]; then
   restore_solution "Transfer" ./TransferService.slnx
 fi
@@ -737,6 +768,10 @@ fi
 
 if [ "$balance_changes" = true ]; then
   run_dotnet_format_context "Balance" ./BalanceService.slnx "$balance_dotnet_format_files"
+fi
+
+if [ "$payment_changes" = true ]; then
+  run_dotnet_format_context "Payment" ./PaymentService.slnx "$payment_dotnet_format_files"
 fi
 
 if [ "$transfer_changes" = true ]; then
@@ -772,6 +807,10 @@ if [ "$balance_changes" = true ]; then
   build_solution "Balance" ./BalanceService.slnx
 fi
 
+if [ "$payment_changes" = true ]; then
+  build_solution "Payment" ./PaymentService.slnx
+fi
+
 if [ "$transfer_changes" = true ]; then
   build_solution "Transfer" ./TransferService.slnx
 fi
@@ -804,6 +843,10 @@ fi
 
 if [ "$balance_changes" = true ]; then
   test_solution "Balance" ./BalanceService.slnx
+fi
+
+if [ "$payment_changes" = true ]; then
+  test_solution "Payment" ./PaymentService.slnx
 fi
 
 if [ "$transfer_changes" = true ]; then

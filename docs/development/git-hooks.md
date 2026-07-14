@@ -46,6 +46,7 @@ O hook executa restore, `dotnet format whitespace --verify-no-changes` somente p
 | --- | --- |
 | Ledger | `LedgerService.slnx` |
 | Balance | `BalanceService.slnx` |
+| Payment | `PaymentService.slnx` |
 | Transfer | `TransferService.slnx` |
 | Identity | `IdentityService.slnx` |
 | Audit | `AuditService.slnx` |
@@ -68,7 +69,7 @@ Configuracoes de analyzer como `.editorconfig` e `.globalconfig` tambem selecion
 
 Mudancas em `.config/dotnet-tools.json` ou `dotnet-tools.json` executam apenas `dotnet tool restore`. Mudancas isoladas em `coverlet.runsettings`, `test.sh` ou `test.ps1` nao disparam restore, build ou testes rapidos no modo padrao; cobertura e validacao completa continuam pertencendo a `./test.sh`, `./test.ps1` e ao Pull Request.
 
-Quando apenas uma solution contextual e impactada, somente ela passa por restore, build e testes unitarios rapidos. Quando ha impacto em varios contextos, o hook acumula as respectivas solutions em ordem deterministica: Shared, Audit, Identity, Ledger, Balance, Transfer e agregadora. Arquivos `.cs` alterados sao formatados separadamente contra a solution do proprio contexto.
+Quando apenas uma solution contextual e impactada, somente ela passa por restore, build e testes unitarios rapidos. Quando ha impacto em varios contextos, o hook acumula as respectivas solutions em ordem deterministica: Shared, Audit, Identity, Ledger, Balance, Payment, Transfer e agregadora. Arquivos `.cs` alterados sao formatados separadamente contra a solution do proprio contexto.
 
 Exemplo de multiplos contextos:
 
@@ -76,6 +77,13 @@ Exemplo de multiplos contextos:
 Ledger + Transfer
 -> LedgerService.slnx
 -> TransferService.slnx
+```
+
+Exemplo de Payment:
+
+```text
+src/payment/PaymentService.Application/Foo.cs
+-> PaymentService.slnx
 ```
 
 Exemplo de global + contexto:
@@ -201,6 +209,11 @@ dotnet restore ./BalanceService.slnx
 dotnet format whitespace ./BalanceService.slnx --verify-no-changes --no-restore --verbosity minimal --include <arquivos-cs-balance-alterados>
 dotnet build ./BalanceService.slnx --configuration Release --no-restore
 dotnet test ./BalanceService.slnx --configuration Release --no-build --no-restore --filter "Category!=Integration&Category!=Container&Category!=Contract"
+
+dotnet restore ./PaymentService.slnx
+dotnet format whitespace ./PaymentService.slnx --verify-no-changes --no-restore --verbosity minimal --include <arquivos-cs-payment-alterados>
+dotnet build ./PaymentService.slnx --configuration Release --no-restore
+dotnet test ./PaymentService.slnx --configuration Release --no-build --no-restore --filter "Category!=Integration&Category!=Container&Category!=Contract"
 
 dotnet restore ./PocArquitetura.Shared.slnx
 dotnet format whitespace ./PocArquitetura.Shared.slnx --verify-no-changes --no-restore --verbosity minimal --include <arquivos-cs-shared-alterados>
