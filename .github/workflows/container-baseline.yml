@@ -6,28 +6,32 @@ on:
     paths:
       - "compose*.yaml"
       - ".dockerignore"
+      - "infra/nginx/.dockerignore"
+      - ".env.local.example"
       - "global.json"
       - "Directory.Build.props"
       - "Directory.Packages.props"
       - "Dockerfile"
       - "**/Dockerfile"
-      - "**/*.csproj"
+      - "src/**"
       - "tools/ContainerBaselineValidator/**"
-      - ".agents/skills/docker-compose-container-baseline/**"
+      - "tests/tooling/ContainerBaselineValidator.Tests/**"
       - ".github/workflows/container-baseline.yml"
       - ".github/actions/setup-dotnet/**"
   pull_request:
     paths:
       - "compose*.yaml"
       - ".dockerignore"
+      - "infra/nginx/.dockerignore"
+      - ".env.local.example"
       - "global.json"
       - "Directory.Build.props"
       - "Directory.Packages.props"
       - "Dockerfile"
       - "**/Dockerfile"
-      - "**/*.csproj"
+      - "src/**"
       - "tools/ContainerBaselineValidator/**"
-      - ".agents/skills/docker-compose-container-baseline/**"
+      - "tests/tooling/ContainerBaselineValidator.Tests/**"
       - ".github/workflows/container-baseline.yml"
       - ".github/actions/setup-dotnet/**"
   workflow_dispatch:
@@ -46,10 +50,10 @@ env:
   COMPOSE_DOCKER_CLI_BUILD: "1"
 
 jobs:
-  validate-and-build:
-    name: Validate Compose and build images
+  container-policy:
+    name: Validate container policy
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
@@ -61,14 +65,30 @@ jobs:
       - name: Restore validator dependencies
         run: dotnet restore ./tools/ContainerBaselineValidator/ContainerBaselineValidator.csproj
 
+      - name: Restore validator test dependencies
+        run: dotnet restore ./tests/tooling/ContainerBaselineValidator.Tests/ContainerBaselineValidator.Tests.csproj
+
+      - name: Build validator
+        run: dotnet build ./tools/ContainerBaselineValidator/ContainerBaselineValidator.csproj --configuration Release --no-restore
+
+      - name: Run structural container baseline validator
+        run: dotnet run --project ./tools/ContainerBaselineValidator/ContainerBaselineValidator.csproj --configuration Release --no-build --no-restore -- --root .
+
+      - name: Run validator tests
+        run: dotnet test ./tests/tooling/ContainerBaselineValidator.Tests/ContainerBaselineValidator.Tests.csproj --configuration Release --no-restore -p:BuildProjectReferences=false
+
       - name: Validate Compose syntax
         run: docker compose --env-file .env.local.example -f compose.yaml config --quiet
 
-      - name: Run structural container baseline validator
-        run: dotnet run --no-restore --project ./tools/ContainerBaselineValidator/ContainerBaselineValidator.csproj -- --root .
+  container-build:
+    name: Build Compose images
+    runs-on: ubuntu-latest
+    needs: container-policy
+    timeout-minutes: 30
 
-      - name: Verify validator detects invalid fixture
-        run: dotnet run --no-restore --project ./tools/ContainerBaselineValidator/ContainerBaselineValidator.csproj -- --root . --self-test-invalid
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Build Compose images
         run: docker compose --env-file .env.local.example -f compose.yaml build
