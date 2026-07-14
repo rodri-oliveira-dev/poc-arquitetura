@@ -291,7 +291,12 @@ internal static partial class Program
                 continue;
 
             var document = LoadXml(fullPath);
-            foreach (var include in document.Descendants("ProjectReference").Select(element => element.Attribute("Include")?.Value).Where(value => !string.IsNullOrWhiteSpace(value)))
+            var includes = document
+                .Descendants("ProjectReference")
+                .Select(element => element.Attribute("Include")?.Value)
+                .Where(value => !string.IsNullOrWhiteSpace(value));
+
+            foreach (var include in includes)
             {
                 var referenced = ResolveProjectReference(root, current.Project, include!);
                 queue.Enqueue(new ProjectReference(referenced, current.Project));
@@ -522,9 +527,10 @@ internal static partial class Program
             throw new InvalidOperationException("A raiz informada nao existe ou nao e um diretorio.");
 
         var directory = new DirectoryInfo(fullPath);
-        return directory.Parent is null
-            ? throw new InvalidOperationException("A raiz do sistema nao pode ser usada como raiz do repositorio.")
-            : !File.Exists(Path.Combine(fullPath, "PocArquitetura.slnx")) || !File.Exists(Path.Combine(fullPath, "global.json"))
+        if (directory.Parent is null)
+            throw new InvalidOperationException("A raiz do sistema nao pode ser usada como raiz do repositorio.");
+
+        return !File.Exists(Path.Combine(fullPath, "PocArquitetura.slnx")) || !File.Exists(Path.Combine(fullPath, "global.json"))
             ? throw new InvalidOperationException("A raiz informada nao contem os arquivos sentinela esperados do repositorio.")
             : Path.TrimEndingDirectorySeparator(fullPath);
     }
@@ -554,10 +560,12 @@ internal static partial class Program
         var candidate = Path.GetFullPath(Path.Combine(fullBasePath, normalizedRelativePath));
         var relative = Path.GetRelativePath(root, candidate);
 
-        return relative == ".." ||
+        var escapesRoot = relative == ".." ||
             relative.StartsWith($"..{Path.DirectorySeparatorChar}", StringComparison.Ordinal) ||
             relative.StartsWith($"..{Path.AltDirectorySeparatorChar}", StringComparison.Ordinal) ||
-            Path.IsPathRooted(relative)
+            Path.IsPathRooted(relative);
+
+        return escapesRoot
             ? throw new InvalidOperationException("O caminho informado escapa da raiz autorizada do repositorio.")
             : candidate;
     }

@@ -98,7 +98,12 @@ jobs:
         always() &&
         (
           github.event_name == 'workflow_dispatch' ||
-          needs.detect-shared-changes.outputs.should_publish == 'true'
+          (
+            github.event.workflow_run.event == 'push' &&
+            github.event.workflow_run.head_branch == 'main' &&
+            github.event.workflow_run.head_repository.full_name == github.repository &&
+            needs.detect-shared-changes.outputs.should_publish == 'true'
+          )
         )
       }}
     runs-on: ubuntu-latest
@@ -321,7 +326,13 @@ jobs:
         needs.pack-shared.result == 'success' &&
         (
           (github.event_name == 'workflow_dispatch' && inputs.publish) ||
-          (github.event_name == 'workflow_run' && needs.detect-shared-changes.outputs.should_publish == 'true')
+          (
+            github.event_name == 'workflow_run' &&
+            github.event.workflow_run.event == 'push' &&
+            github.event.workflow_run.head_branch == 'main' &&
+            github.event.workflow_run.head_repository.full_name == github.repository &&
+            needs.detect-shared-changes.outputs.should_publish == 'true'
+          )
         )
       }}
     runs-on: ubuntu-latest

@@ -1,6 +1,8 @@
 using System.Globalization;
 using System.Net;
 
+using ContainerHealthProbe;
+
 if (!ProbeTarget.TryCreate(args, out var uri))
 {
     await Console.Error.WriteLineAsync("Uso: ContainerHealthProbe <porta> <caminho-relativo>");
@@ -32,40 +34,43 @@ catch (InvalidOperationException)
     return 1;
 }
 
-internal static class ProbeTarget
+namespace ContainerHealthProbe
 {
-    private const string LoopbackHost = "127.0.0.1";
-
-    public static bool TryCreate(string[] args, out Uri uri)
+    internal static class ProbeTarget
     {
-        uri = null!;
-        if (args.Length != 2)
-            return false;
+        private const string LoopbackHost = "127.0.0.1";
 
-        if (!int.TryParse(args[0], NumberStyles.None, CultureInfo.InvariantCulture, out var port) || port is < 1 or > 65535)
-            return false;
+        public static bool TryCreate(string[] args, out Uri uri)
+        {
+            uri = null!;
+            if (args.Length != 2)
+                return false;
 
-        var path = args[1];
-        if (!IsAllowedPath(path))
-            return false;
+            if (!int.TryParse(args[0], NumberStyles.None, CultureInfo.InvariantCulture, out var port) || port is < 1 or > 65535)
+                return false;
 
-        uri = new UriBuilder(Uri.UriSchemeHttp, LoopbackHost, port, path).Uri;
-        return true;
-    }
+            var path = args[1];
+            if (!IsAllowedPath(path))
+                return false;
 
-    public static SocketsHttpHandler CreateHandler() => new()
-    {
-        AllowAutoRedirect = false
-    };
+            uri = new UriBuilder(Uri.UriSchemeHttp, LoopbackHost, port, path).Uri;
+            return true;
+        }
 
-    private static bool IsAllowedPath(string path)
-    {
-        return !string.IsNullOrWhiteSpace(path) &&
-            path.StartsWith('/') &&
-            !path.StartsWith("//", StringComparison.Ordinal) &&
-            !path.Contains("..", StringComparison.Ordinal) &&
-            !path.Contains('\\') &&
-            !path.Contains('#') &&
-            !path.Contains('?');
+        public static SocketsHttpHandler CreateHandler() => new()
+        {
+            AllowAutoRedirect = false
+        };
+
+        private static bool IsAllowedPath(string path)
+        {
+            return !string.IsNullOrWhiteSpace(path) &&
+                path.StartsWith('/') &&
+                !path.StartsWith("//", StringComparison.Ordinal) &&
+                !path.Contains("..", StringComparison.Ordinal) &&
+                !path.Contains('\\') &&
+                !path.Contains('#') &&
+                !path.Contains('?');
+        }
     }
 }
