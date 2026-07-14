@@ -57,7 +57,10 @@ TOOL_PATTERNS = ("tools/**",)
 
 
 def normalize_path(path: str) -> str:
-    return path.strip().lstrip("\ufeff").lstrip("\xef\xbb\xbf").replace("\\", "/").lstrip("./")
+    normalized = path.strip().lstrip("\ufeff").lstrip("\xef\xbb\xbf").replace("\\", "/")
+    while normalized.startswith("./"):
+        normalized = normalized[2:]
+    return normalized
 
 
 def matches(path: str, patterns: tuple[str, ...]) -> bool:

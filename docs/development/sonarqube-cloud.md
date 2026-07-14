@@ -49,12 +49,13 @@ GitHub Event
   -> build da solution do contexto
   -> test da solution do contexto + coverage
   -> coverage.cobertura.xml e coverage.opencover.xml
+  -> ReportGenerator
+  -> gate local de cobertura
+  -> summary local de cobertura
   -> SonarQube Cloud end
   -> Quality Gate do contexto
   -> consulta API SonarQube Cloud
   -> relatorio do contexto
-  -> ReportGenerator
-  -> gate local de cobertura
   -> artifact unico do workflow
 ```
 
@@ -90,7 +91,7 @@ Nao use essa exclusao para esconder codigo produtivo .NET sem testes. Se um arqu
 
 O SonarQube Cloud aplica seu proprio Quality Gate com base nas regras configuradas em cada projeto do contexto executado.
 
-O workflow tambem possui um gate local de cobertura, hoje com minimo de 85% para cobertura total de linhas em cada contexto executado. No contexto aggregate, os assemblies `LedgerService.Worker` e `BalanceService.Worker` tambem precisam atingir 85%.
+O workflow tambem possui um gate local de cobertura: 85% para cobertura total de linhas no contexto aggregate e 80% para cobertura total de linhas no contexto Shared. No contexto aggregate, os assemblies `LedgerService.Worker` e `BalanceService.Worker` tambem precisam atingir 85%.
 
 Esses gates tem responsabilidades diferentes:
 

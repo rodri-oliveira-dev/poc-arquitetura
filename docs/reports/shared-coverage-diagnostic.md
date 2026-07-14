@@ -207,3 +207,42 @@ Foi feita uma unica alteracao produtiva para testabilidade/cobertura correta: `C
 3. Depois: lacunas P3 pequenas em `KafkaOffsetResetParser`, `KafkaConsumerConfigFactory` e branches restantes de `HttpResilienceDefaults`.
 
 O caminho para 80% passa por `ApiDefaults`: ele tem 421 das 430 linhas nao cobertas finais do Shared.
+
+## Fechamento do Prompt 5
+
+Comandos executados em 2026-07-14 na branch `test/improve-shared-coverage`:
+
+```powershell
+dotnet restore PocArquitetura.Shared.slnx
+dotnet build PocArquitetura.Shared.slnx --configuration Release --no-restore
+dotnet test PocArquitetura.Shared.slnx --configuration Release --no-build --logger "trx;LogFilePrefix=test-results" --results-directory ./artifacts/shared-test-results --collect:"XPlat Code Coverage" --settings ./coverlet.runsettings
+dotnet tool run reportgenerator -reports:"./artifacts/shared-test-results/**/coverage.cobertura.xml" -targetdir:"./artifacts/shared-coverage-report" -reporttypes:"HtmlInline;JsonSummary;TextSummary"
+python scripts/quality/enforce_coverage_threshold.py ./artifacts/shared-coverage-report/Summary.json 80
+```
+
+Resultado final:
+
+| Metrica | Valor |
+| --- | ---: |
+| Testes | 243 passed |
+| Assemblies no Summary | 5 |
+| Line coverage | 99.1% |
+| Branch coverage | 89.8% |
+| Method coverage | 97.7% |
+| Covered / coverable lines | 861 / 868 |
+| Uncovered lines | 7 |
+| Threshold local Shared | 80% |
+
+Cobertura final por assembly:
+
+| Assembly | Linhas | Branches | Metodos |
+| --- | ---: | ---: | ---: |
+| ApiDefaults | 100% | 88.5% | 100% |
+| ApplicationDefaults | 100% | n/a | 100% |
+| ContainerHealthProbe | 100% | 100% | 100% |
+| HttpResilienceDefaults | 97.5% | 78.5% | 100% |
+| KafkaWorkerDefaults | 96.6% | 100% | 77.7% |
+
+`KafkaOffsetResetParser` passou de 71.4% de linhas e 50% de branches para 100% em ambas as metricas. Os testes adicionados validam valores aceitos, normalizacao de caixa/espaco, fallback para valor vazio/desconhecido e excecao para valor nulo.
+
+Nao restaram classes com cobertura de linhas abaixo de 80%. Nao restaram classes criticas com cobertura de branches abaixo de 70%; a unica classe abaixo desse corte e `HttpClientResilienceBuilderExtensions` com 50% de branches, classificada como extensao simples de composicao e ja com 99% de linhas.
