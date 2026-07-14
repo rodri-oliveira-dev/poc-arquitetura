@@ -9,7 +9,122 @@ public sealed class ContainerBaselineValidatorTests
 
         List<string> failures = Program.Validate(fixture.Root);
 
-        Assert.Empty(failures);
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    [Fact]
+    public void Valid_repository_root_should_be_canonicalized()
+    {
+        using Fixture fixture = Fixture.Create(ProjectKind.Api);
+
+        string root = Program.ResolveRepositoryRoot(fixture.Root);
+
+        Assert.Equal(Path.GetFullPath(fixture.Root), root);
+    }
+
+    [Fact]
+    public void Relative_repository_root_should_be_accepted_when_it_points_to_repository()
+    {
+        using Fixture fixture = Fixture.Create(ProjectKind.Api);
+        string current = Environment.CurrentDirectory;
+        try
+        {
+            Environment.CurrentDirectory = Path.GetTempPath();
+            string relative = Path.GetRelativePath(Environment.CurrentDirectory, fixture.Root);
+
+            string root = Program.ResolveRepositoryRoot(relative);
+
+            Assert.Equal(Path.GetFullPath(fixture.Root), root);
+        }
+        finally
+        {
+            Environment.CurrentDirectory = current;
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(InvalidRepositoryRoots))]
+    public void Invalid_repository_root_should_be_rejected(string scenario)
+    {
+        using RootFixture fixture = RootFixture.Create(scenario);
+
+        Assert.Throws<InvalidOperationException>(() => Program.ResolveRepositoryRoot(fixture.Path));
+    }
+
+    [Theory]
+    [InlineData("src/demo/Demo.Api/Dockerfile")]
+    [InlineData(@"src\demo\Demo.Api\Dockerfile")]
+    public void Relative_paths_with_unix_or_windows_separators_should_resolve_inside_root(string relativePath)
+    {
+        using Fixture fixture = Fixture.Create(ProjectKind.Api);
+
+        string fullPath = Program.ResolvePathWithinRoot(fixture.Root, relativePath);
+
+        Assert.Equal(Path.GetFullPath(Path.Combine(fixture.Root, "src/demo/Demo.Api/Dockerfile")), fullPath);
+    }
+
+    [Theory]
+    [InlineData("../fora-do-repositorio")]
+    [InlineData("../../etc/passwd")]
+    [InlineData(@"..\..\Windows\System32")]
+    [InlineData("caminho/normal/../../fora")]
+    public void Traversal_paths_should_be_rejected(string relativePath)
+    {
+        using Fixture fixture = Fixture.Create(ProjectKind.Api);
+
+        Assert.Throws<InvalidOperationException>(() => Program.ResolvePathWithinRoot(fixture.Root, relativePath));
+    }
+
+    [Fact]
+    public void Unix_absolute_path_should_be_rejected()
+    {
+        using Fixture fixture = Fixture.Create(ProjectKind.Api);
+
+        Assert.Throws<InvalidOperationException>(() => Program.ResolvePathWithinRoot(fixture.Root, "/etc/passwd"));
+    }
+
+    [Fact]
+    public void Windows_absolute_path_should_be_rejected()
+    {
+        using Fixture fixture = Fixture.Create(ProjectKind.Api);
+
+        Assert.Throws<InvalidOperationException>(() => Program.ResolvePathWithinRoot(fixture.Root, @"C:\Windows\System32"));
+    }
+
+    [Fact]
+    public void Similar_root_prefix_should_still_be_rejected()
+    {
+        using Fixture fixture = Fixture.Create(ProjectKind.Api);
+        string sibling = fixture.Root + "-malicioso";
+        Directory.CreateDirectory(sibling);
+        try
+        {
+            string relative = Path.GetRelativePath(fixture.Root, sibling);
+
+            Assert.Throws<InvalidOperationException>(() => Program.ResolvePathWithinRoot(fixture.Root, relative));
+        }
+        finally
+        {
+            Directory.Delete(sibling, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Project_reference_escaping_repository_should_be_rejected_before_reading_target()
+    {
+        using Fixture fixture = Fixture.Create(ProjectKind.Api);
+        fixture.SetApplicationProjectReference("../../../../fora-do-repositorio/Fora.csproj");
+
+        Assert.Throws<InvalidOperationException>(() => Program.Validate(fixture.Root));
+    }
+
+    [Fact]
+    public void Dockerfile_copy_source_escaping_repository_should_be_rejected_before_restore_analysis()
+    {
+        using Fixture fixture = Fixture.Create(ProjectKind.Api);
+        fixture.ReplaceDockerfileLine("COPY src/demo/Demo.Domain/Demo.Domain.csproj src/demo/Demo.Domain/", "COPY ../../fora-do-repositorio/Fora.csproj src/demo/Fora/");
+
+        Assert.Throws<InvalidOperationException>(() => Program.Validate(fixture.Root));
     }
 
     [Theory]
@@ -106,7 +221,19 @@ public sealed class ContainerBaselineValidatorTests
             { "missing-dockerfile", "Dockerfile ao lado do executavel" },
             { "missing-build-target", "build.target inexistente missing" },
             { "masked-restore", "restore repetido/alternativo com ||" },
+            { "unsafe-healthcheck-url", "healthcheck do ContainerHealthProbe usa contrato inseguro" },
         };
+    }
+
+    public static TheoryData<string> InvalidRepositoryRoots()
+    {
+        return
+        [
+            "missing",
+            "file",
+            "without-sentinels",
+            "system-root",
+        ];
     }
 
     private static void ArrangeInvalidFixture(Fixture fixture, string scenario)
@@ -163,6 +290,9 @@ public sealed class ContainerBaselineValidatorTests
                 break;
             case "masked-restore":
                 fixture.ReplaceDockerfileText("dotnet restore src/demo/Demo.Api/Demo.Api.csproj", "dotnet restore src/demo/Demo.Api/Demo.Api.csproj || dotnet restore src/demo/Demo.Api/Demo.Api.csproj");
+                break;
+            case "unsafe-healthcheck-url":
+                fixture.ReplaceComposeText("\"/healthprobe/ContainerHealthProbe.dll\", \"8080\", \"/ready\"", "\"/healthprobe/ContainerHealthProbe.dll\", \"http://127.0.0.1:8080/ready\"");
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(scenario), scenario, "Unknown invalid fixture scenario.");
@@ -319,6 +449,7 @@ public sealed class ContainerBaselineValidatorTests
             Directory.CreateDirectory(Path.Combine(Root, "src/demo/Demo.Domain"));
 
             File.WriteAllText(Path.Combine(Root, "global.json"), "{}");
+            File.WriteAllText(Path.Combine(Root, "PocArquitetura.slnx"), "<Solution />");
             File.WriteAllText(Path.Combine(Root, "Directory.Packages.props"), "<Project />");
             File.WriteAllText(Path.Combine(Root, "Directory.Build.props"), "<Project />");
             File.WriteAllText(EnvPath, "LEDGER_SERVICE_HOST_PORT=5000");
@@ -382,7 +513,7 @@ public sealed class ContainerBaselineValidatorTests
                     ports:
                       - "127.0.0.1:${LEDGER_SERVICE_HOST_PORT:-5000}:8080"
                     healthcheck:
-                      test: ["CMD", "dotnet", "ContainerHealthProbe.dll", "http://127.0.0.1:8080/ready"]
+                      test: ["CMD", "dotnet", "/healthprobe/ContainerHealthProbe.dll", "8080", "/ready"]
                       interval: 10s
                       timeout: 5s
                       retries: 3
@@ -409,6 +540,54 @@ public sealed class ContainerBaselineValidatorTests
 
             lines[index] = replacement;
             File.WriteAllLines(path, lines);
+        }
+    }
+
+    private sealed class RootFixture : IDisposable
+    {
+        private RootFixture(string path, string? cleanupDirectory)
+        {
+            Path = path;
+            CleanupDirectory = cleanupDirectory;
+        }
+
+        public string Path
+        {
+            get;
+        }
+
+        private string? CleanupDirectory
+        {
+            get;
+        }
+
+        public static RootFixture Create(string scenario)
+        {
+            string temp = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "container-baseline-root-tests-" + Guid.NewGuid().ToString("N"));
+            switch (scenario)
+            {
+                case "missing":
+                    return new RootFixture(temp, null);
+                case "file":
+                    Directory.CreateDirectory(temp);
+                    string file = System.IO.Path.Combine(temp, "root.txt");
+                    File.WriteAllText(file, "not a directory");
+                    return new RootFixture(file, temp);
+                case "without-sentinels":
+                    Directory.CreateDirectory(temp);
+                    return new RootFixture(temp, temp);
+                case "system-root":
+                    string root = System.IO.Path.GetPathRoot(System.IO.Path.GetFullPath(temp))!;
+                    return new RootFixture(root, null);
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(scenario), scenario, "Unknown root scenario.");
+            }
+        }
+
+        public void Dispose()
+        {
+            if (CleanupDirectory is not null && Directory.Exists(CleanupDirectory))
+                Directory.Delete(CleanupDirectory, recursive: true);
         }
     }
 }

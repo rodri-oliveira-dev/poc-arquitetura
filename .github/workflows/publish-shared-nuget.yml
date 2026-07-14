@@ -54,7 +54,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [ "$CI_CONCLUSION" != "success" ] || [ "$CI_EVENT" != "push" ] || [ "$CI_HEAD_BRANCH" != "main" ]; then
+          CI_HEAD_REPOSITORY="${{ github.event.workflow_run.head_repository.full_name }}"
+
+          if [ "$CI_CONCLUSION" != "success" ] || [ "$CI_EVENT" != "push" ] || [ "$CI_HEAD_BRANCH" != "main" ] || [ "$CI_HEAD_REPOSITORY" != "$REPOSITORY" ]; then
             echo "should_publish=false" >> "$GITHUB_OUTPUT"
             echo "reason=main-dotnet-ci did not complete successfully for a push to main." >> "$GITHUB_OUTPUT"
             exit 0
@@ -113,6 +115,7 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Setup .NET
         uses: ./.github/actions/setup-dotnet

@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using System.Xml;
 using System.Xml.Linq;
 
 using YamlDotNet.Serialization;
@@ -8,14 +9,16 @@ namespace ContainerBaselineValidator;
 
 internal static partial class Program
 {
+    private const string DockerfileName = "Dockerfile";
+    private const string ImageKey = "image";
+    private static readonly TimeSpan RegexTimeout = TimeSpan.FromSeconds(1);
     private static readonly string[] ComposeFiles = ["compose.yaml", "compose.k6.yaml", "compose.nginx.yaml", "compose.observability.yaml", "compose.sonar.yaml", "compose.cloudsql.yaml", "compose.kafka.yaml", "compose.pubsub.yaml"];
     private static readonly HashSet<string> ResourceLimitRequiredServices = ["postgres-db", "kafka", "kafka-init-topics", "pubsub-emulator", "pubsub-init", "mailpit", "ledger-service", "ledger-worker", "balance-service", "balance-worker", "transfer-service", "transfer-worker", "payment-service", "payment-worker", "audit-service", "audit-worker", "identity-service", "keycloak", "keycloak-identity-admin-init", "k6", "nginx-edge", "otel-collector", "jaeger", "prometheus", "grafana", "loki", "alloy", "alertmanager", "sonarqube", "sonar-db", "cloud-sql-proxy"];
     private static readonly HashSet<string> HttpApplicationServices = ["ledger-service", "balance-service", "transfer-service", "payment-service", "audit-service", "identity-service"];
-    private static readonly Regex CopyRegex = new(@"^\s*COPY\s+(?:--[^\s]+\s+)*(?<source>[^\s\[]+)\s+(?<target>[^\s]+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex FromRegex = new(@"^\s*FROM\s+(?<image>\S+)\s+AS\s+(?<stage>\S+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex RestoreRegex = new(@"dotnet\s+restore\s+(?<project>\S+\.csproj)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex PublishRegex = new(@"dotnet\s+publish\s+(?<project>\S+\.csproj)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex PortVariableRegex = new(@"\$\{(?<name>[A-Za-z_][A-Za-z0-9_]*)[:-]", RegexOptions.Compiled);
+    private static readonly Regex CopyRegex = new(@"^\s*COPY\s+(?:--[^\s]+\s+)*(?<source>[^\s\[]+)\s+(?<target>[^\s]+)", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexTimeout);
+    private static readonly Regex FromRegex = new(@"^\s*FROM\s+(?<image>\S+)\s+AS\s+(?<stage>\S+)", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexTimeout);
+    private static readonly Regex PublishRegex = new(@"dotnet\s+publish\s+(?<project>\S+\.csproj)", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexTimeout);
+    private static readonly Regex PortVariableRegex = new(@"\$\{(?<name>[A-Za-z_][A-Za-z0-9_]*)[:-]", RegexOptions.Compiled, RegexTimeout);
 
     public static int Main(string[] args)
     {
@@ -43,6 +46,7 @@ internal static partial class Program
 
     public static List<string> Validate(string root)
     {
+        root = ResolveRepositoryRoot(root);
         var failures = new List<string>();
         ValidateDockerfiles(root, failures);
         ValidateCompose(root, failures);
@@ -51,13 +55,14 @@ internal static partial class Program
 
     private static void ValidateDockerfiles(string root, List<string> failures)
     {
-        var dockerfiles = Directory.GetFiles(Path.Combine(root, "src"), "Dockerfile", SearchOption.AllDirectories)
+        var sourceRoot = ResolvePathWithinRoot(root, "src");
+        var dockerfiles = Directory.GetFiles(sourceRoot, DockerfileName, SearchOption.AllDirectories)
             .Select(path => Normalize(Path.GetRelativePath(root, path)))
             .Where(path => !path.Contains("/bin/", StringComparison.OrdinalIgnoreCase) && !path.Contains("/obj/", StringComparison.OrdinalIgnoreCase))
             .Order(StringComparer.Ordinal)
             .ToArray();
 
-        var executables = Directory.GetFiles(Path.Combine(root, "src"), "*.csproj", SearchOption.AllDirectories)
+        var executables = Directory.GetFiles(sourceRoot, "*.csproj", SearchOption.AllDirectories)
             .Select(path => Normalize(Path.GetRelativePath(root, path)))
             .Where(path => path.EndsWith(".Api.csproj", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".Worker.csproj", StringComparison.OrdinalIgnoreCase))
             .Order(StringComparer.Ordinal)
@@ -65,7 +70,7 @@ internal static partial class Program
 
         foreach (var executable in executables)
         {
-            var expected = Normalize(Path.Combine(Path.GetDirectoryName(executable)!, "Dockerfile"));
+            var expected = Normalize(Path.Combine(Path.GetDirectoryName(executable)!, DockerfileName));
             var matches = dockerfiles.Where(path => path.Equals(expected, StringComparison.OrdinalIgnoreCase)).ToArray();
             if (matches.Length != 1)
             {
@@ -75,7 +80,7 @@ internal static partial class Program
 
         foreach (var dockerfile in dockerfiles)
         {
-            var lines = File.ReadAllLines(Path.Combine(root, dockerfile));
+            var lines = File.ReadAllLines(ResolvePathWithinRoot(root, dockerfile));
             var text = string.Join('\n', lines);
             var publishProject = FindProject(lines, PublishRegex);
             if (publishProject is null)
@@ -92,37 +97,32 @@ internal static partial class Program
 
     private static void ValidateDockerfileStages(string dockerfile, string[] lines, string text, string projectKind, List<string> failures)
     {
-        var finalFrom = lines.Select(line => FromRegex.Match(line)).Where(match => match.Success).LastOrDefault();
+        var finalFrom = lines.Select(line => FromRegex.Match(line)).LastOrDefault(match => match.Success);
         var expectedRuntime = projectKind == "Api" ? "/aspnet:" : "/runtime:";
         if (finalFrom is null || !finalFrom.Groups["image"].Value.Contains(expectedRuntime, StringComparison.OrdinalIgnoreCase))
         {
             failures.Add($"Dockerfile: {dockerfile}; problema: imagem final incorreta para {projectKind}; sugestao: APIs usam mcr.microsoft.com/dotnet/aspnet:<tag> e workers usam mcr.microsoft.com/dotnet/runtime:<tag>.");
         }
 
-        if (!text.Contains("FROM mcr.microsoft.com/dotnet/sdk:", StringComparison.OrdinalIgnoreCase))
-            failures.Add($"Dockerfile: {dockerfile}; problema: estagio de build SDK ausente; sugestao: use SDK somente no estagio build.");
-        if (!text.Contains("COPY global.json", StringComparison.OrdinalIgnoreCase))
-            failures.Add($"Dockerfile: {dockerfile}; problema: global.json nao e copiado antes do restore; sugestao: adicione COPY global.json ./ antes de dotnet restore.");
-        if (!text.Contains("COPY Directory.Packages.props", StringComparison.OrdinalIgnoreCase) || !text.Contains("COPY Directory.Build.props", StringComparison.OrdinalIgnoreCase))
-            failures.Add($"Dockerfile: {dockerfile}; problema: props centrais nao copiados antes do restore; sugestao: copie Directory.Packages.props e Directory.Build.props antes do restore.");
-        if (text.Contains("dotnet restore", StringComparison.OrdinalIgnoreCase) && text.Contains("||", StringComparison.Ordinal))
-            failures.Add($"Dockerfile: {dockerfile}; problema: restore repetido/alternativo com ||; sugestao: corrija as copias de csproj antes do restore em vez de mascarar falhas.");
-        if (!text.Contains("--mount=type=cache", StringComparison.OrdinalIgnoreCase) || !text.Contains("target=/root/.nuget/packages", StringComparison.OrdinalIgnoreCase))
-            failures.Add($"Dockerfile: {dockerfile}; problema: cache BuildKit de NuGet ausente; sugestao: use RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages,sharing=locked.");
-        if (!text.Contains("--no-restore", StringComparison.OrdinalIgnoreCase))
-            failures.Add($"Dockerfile: {dockerfile}; problema: publish sem --no-restore; sugestao: use dotnet publish --no-restore.");
-        if (!text.Contains("UseAppHost=false", StringComparison.OrdinalIgnoreCase))
-            failures.Add($"Dockerfile: {dockerfile}; problema: UseAppHost=false ausente; sugestao: adicione /p:UseAppHost=false no publish.");
-        if (Regex.IsMatch(text, @"^\s*USER\s+root\s*$", RegexOptions.IgnoreCase | RegexOptions.Multiline))
-            failures.Add($"Dockerfile: {dockerfile}; problema: USER root no estagio final; sugestao: remova USER root e rode como usuario nao privilegiado.");
-        if (!Regex.IsMatch(text, @"^\s*USER\s+\$APP_UID\s*$", RegexOptions.IgnoreCase | RegexOptions.Multiline))
-            failures.Add($"Dockerfile: {dockerfile}; problema: usuario final nao aprovado; sugestao: use USER $APP_UID nas imagens .NET finais.");
-        if (!text.Contains("COPY --from=build --chown=$APP_UID:0", StringComparison.OrdinalIgnoreCase))
-            failures.Add($"Dockerfile: {dockerfile}; problema: COPY final sem --chown; sugestao: use COPY --from=build --chown=$APP_UID:0.");
-        if (Regex.IsMatch(text, @"^\s*(ARG|ENV)\s+.*(SECRET|PASSWORD|TOKEN|KEY)\b", RegexOptions.IgnoreCase | RegexOptions.Multiline))
-            failures.Add($"Dockerfile: {dockerfile}; problema: possivel secret em ARG/ENV; sugestao: nao coloque secrets em build args, env, imagem ou contexto.");
-        foreach (Match from in lines.Select(line => Regex.Match(line, @"^\s*FROM\s+(?<image>\S+)", RegexOptions.IgnoreCase)).Where(match => match.Success))
-            ValidateImageReference($"Dockerfile: {dockerfile}", from.Groups["image"].Value, failures);
+        AddFailureIf(!text.Contains("FROM mcr.microsoft.com/dotnet/sdk:", StringComparison.OrdinalIgnoreCase), $"Dockerfile: {dockerfile}; problema: estagio de build SDK ausente; sugestao: use SDK somente no estagio build.", failures);
+        AddFailureIf(!text.Contains("COPY global.json", StringComparison.OrdinalIgnoreCase), $"Dockerfile: {dockerfile}; problema: global.json nao e copiado antes do restore; sugestao: adicione COPY global.json ./ antes de dotnet restore.", failures);
+        AddFailureIf(!text.Contains("COPY Directory.Packages.props", StringComparison.OrdinalIgnoreCase) || !text.Contains("COPY Directory.Build.props", StringComparison.OrdinalIgnoreCase), $"Dockerfile: {dockerfile}; problema: props centrais nao copiados antes do restore; sugestao: copie Directory.Packages.props e Directory.Build.props antes do restore.", failures);
+        AddFailureIf(text.Contains("dotnet restore", StringComparison.OrdinalIgnoreCase) && text.Contains("||", StringComparison.Ordinal), $"Dockerfile: {dockerfile}; problema: restore repetido/alternativo com ||; sugestao: corrija as copias de csproj antes do restore em vez de mascarar falhas.", failures);
+        AddFailureIf(!text.Contains("--mount=type=cache", StringComparison.OrdinalIgnoreCase) || !text.Contains("target=/root/.nuget/packages", StringComparison.OrdinalIgnoreCase), $"Dockerfile: {dockerfile}; problema: cache BuildKit de NuGet ausente; sugestao: use RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages,sharing=locked.", failures);
+        AddFailureIf(!text.Contains("--no-restore", StringComparison.OrdinalIgnoreCase), $"Dockerfile: {dockerfile}; problema: publish sem --no-restore; sugestao: use dotnet publish --no-restore.", failures);
+        AddFailureIf(!text.Contains("UseAppHost=false", StringComparison.OrdinalIgnoreCase), $"Dockerfile: {dockerfile}; problema: UseAppHost=false ausente; sugestao: adicione /p:UseAppHost=false no publish.", failures);
+        AddFailureIf(Regex.IsMatch(text, @"^\s*USER\s+root\s*$", RegexOptions.IgnoreCase | RegexOptions.Multiline, RegexTimeout), $"Dockerfile: {dockerfile}; problema: USER root no estagio final; sugestao: remova USER root e rode como usuario nao privilegiado.", failures);
+        AddFailureIf(!Regex.IsMatch(text, @"^\s*USER\s+\$APP_UID\s*$", RegexOptions.IgnoreCase | RegexOptions.Multiline, RegexTimeout), $"Dockerfile: {dockerfile}; problema: usuario final nao aprovado; sugestao: use USER $APP_UID nas imagens .NET finais.", failures);
+        AddFailureIf(!text.Contains("COPY --from=build --chown=$APP_UID:0", StringComparison.OrdinalIgnoreCase), $"Dockerfile: {dockerfile}; problema: COPY final sem --chown; sugestao: use COPY --from=build --chown=$APP_UID:0.", failures);
+        AddFailureIf(Regex.IsMatch(text, @"^\s*(ARG|ENV)\s+.*(SECRET|PASSWORD|TOKEN|KEY)\b", RegexOptions.IgnoreCase | RegexOptions.Multiline, RegexTimeout), $"Dockerfile: {dockerfile}; problema: possivel secret em ARG/ENV; sugestao: nao coloque secrets em build args, env, imagem ou contexto.", failures);
+        foreach (Match from in lines.Select(line => Regex.Match(line, @"^\s*FROM\s+(?<image>\S+)", RegexOptions.IgnoreCase, RegexTimeout)).Where(match => match.Success))
+            ValidateImageReference($"Dockerfile: {dockerfile}", from.Groups[ImageKey].Value, failures);
+    }
+
+    private static void AddFailureIf(bool condition, string failure, List<string> failures)
+    {
+        if (condition)
+            failures.Add(failure);
     }
 
     private static void ValidateProjectCopies(string root, string dockerfile, string[] lines, string publishProject, List<string> failures)
@@ -133,8 +133,8 @@ internal static partial class Program
             return;
 
         var allReferences = GetTransitiveProjectReferences(root, publishProject);
-        var csprojCopiesBeforeRestore = GetCopySources(lines.Take(restoreIndex + 1)).Where(source => source.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase)).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var directoryCopiesBeforePublish = GetCopySources(lines.Take(publishIndex + 1)).Where(source => source.EndsWith("/", StringComparison.Ordinal)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var csprojCopiesBeforeRestore = GetCopySources(root, lines.Take(restoreIndex + 1)).Where(source => source.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var directoryCopiesBeforePublish = GetCopySources(root, lines.Take(publishIndex + 1)).Where(source => source.EndsWith("/", StringComparison.Ordinal)).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         foreach (var reference in allReferences)
         {
@@ -153,10 +153,10 @@ internal static partial class Program
 
     private static void ValidateCompose(string root, List<string> failures)
     {
-        var envVariables = ReadEnvExampleVariables(Path.Combine(root, ".env.local.example"));
-        foreach (var composeFile in ComposeFiles.Where(file => File.Exists(Path.Combine(root, file))))
+        var envVariables = ReadEnvExampleVariables(ResolvePathWithinRoot(root, ".env.local.example"));
+        foreach (var composeFile in ComposeFiles.Where(file => File.Exists(ResolvePathWithinRoot(root, file))))
         {
-            var compose = ReadYaml(Path.Combine(root, composeFile));
+            var compose = ReadYaml(ResolvePathWithinRoot(root, composeFile));
             if (!compose.TryGetValue("services", out var servicesNode) || servicesNode is not Dictionary<object, object> services)
                 continue;
 
@@ -169,7 +169,7 @@ internal static partial class Program
                 if (service.ContainsKey("container_name"))
                     failures.Add($"Compose: {composeFile}; servico: {serviceName}; problema: container_name definido; sugestao: remova container_name para permitir nomes gerenciados pelo Compose.");
 
-                if (TryGetString(service, "image", out var image))
+                if (TryGetString(service, ImageKey, out var image))
                     ValidateImageReference($"Compose: {composeFile}; servico: {serviceName}", image, failures);
 
                 ValidatePorts(composeFile, serviceName, service, envVariables, failures);
@@ -186,9 +186,10 @@ internal static partial class Program
             return;
 
         var build = buildNode as Dictionary<object, object>;
-        var context = build is null ? "." : TryGetString(build, "context", out var contextValue) ? contextValue : ".";
-        var dockerfile = build is null ? buildNode.ToString() ?? "Dockerfile" : TryGetString(build, "dockerfile", out var value) ? value : "Dockerfile";
-        var dockerfilePath = Path.Combine(root, context.Replace('/', Path.DirectorySeparatorChar), dockerfile.Replace('/', Path.DirectorySeparatorChar));
+        var context = ResolveBuildContext(build);
+        var dockerfile = ResolveBuildDockerfile(buildNode, build);
+        var contextPath = ResolvePathWithinRoot(root, context);
+        var dockerfilePath = ResolvePathWithinBase(root, contextPath, dockerfile);
         if (!File.Exists(dockerfilePath))
         {
             failures.Add($"Compose: {composeFile}; servico: {serviceName}; problema: Dockerfile inexistente {dockerfile}; sugestao: corrija build.dockerfile para um caminho versionado.");
@@ -197,10 +198,22 @@ internal static partial class Program
 
         if (build is not null && TryGetString(build, "target", out var target))
         {
-            var hasTarget = File.ReadLines(dockerfilePath).Any(line => Regex.IsMatch(line, @$"^\s*FROM\s+\S+\s+AS\s+{Regex.Escape(target)}\s*$", RegexOptions.IgnoreCase));
+            var hasTarget = File.ReadLines(dockerfilePath).Any(line => Regex.IsMatch(line, @$"^\s*FROM\s+\S+\s+AS\s+{Regex.Escape(target)}\s*$", RegexOptions.IgnoreCase, RegexTimeout));
             if (!hasTarget)
                 failures.Add($"Compose: {composeFile}; servico: {serviceName}; problema: build.target inexistente {target}; sugestao: alinhe target com um estagio AS do Dockerfile.");
         }
+    }
+
+    private static string ResolveBuildContext(Dictionary<object, object>? build)
+    {
+        return build is null ? "." : TryGetString(build, "context", out var contextValue) ? contextValue : ".";
+    }
+
+    private static string ResolveBuildDockerfile(object buildNode, Dictionary<object, object>? build)
+    {
+        return build is null
+            ? buildNode.ToString() ?? DockerfileName
+            : TryGetString(build, "dockerfile", out var dockerfile) ? dockerfile : DockerfileName;
     }
 
     private static void ValidatePorts(string composeFile, string serviceName, Dictionary<object, object> service, HashSet<string> envVariables, List<string> failures)
@@ -226,7 +239,25 @@ internal static partial class Program
     private static void ValidateHealthcheck(string composeFile, string serviceName, Dictionary<object, object> service, List<string> failures)
     {
         if (HttpApplicationServices.Contains(serviceName) && service.ContainsKey("build") && !service.ContainsKey("healthcheck"))
+        {
             failures.Add($"Compose: {composeFile}; servico HTTP: {serviceName}; problema: healthcheck ausente; sugestao: configure healthcheck apontando para /ready.");
+            return;
+        }
+
+        if (!HttpApplicationServices.Contains(serviceName) || !service.TryGetValue("healthcheck", out var healthcheckNode) || healthcheckNode is not Dictionary<object, object> healthcheck)
+            return;
+
+        if (!healthcheck.TryGetValue("test", out var testNode))
+            return;
+
+        var command = FlattenYamlSequence(testNode).Select(node => node.ToString() ?? string.Empty).ToArray();
+        var probeIndex = Array.FindIndex(command, part => part.EndsWith("ContainerHealthProbe.dll", StringComparison.OrdinalIgnoreCase));
+        if (probeIndex < 0)
+            return;
+
+        var arguments = command.Skip(probeIndex + 1).ToArray();
+        if (arguments.Length != 2 || arguments[0] != "8080" || arguments[1] != "/ready" || arguments.Any(argument => Uri.TryCreate(argument, UriKind.Absolute, out _)))
+            failures.Add($"Compose: {composeFile}; servico: {serviceName}; problema: healthcheck do ContainerHealthProbe usa contrato inseguro; sugestao: use porta 8080 e caminho relativo /ready.");
     }
 
     private static void ValidateResourceLimits(string composeFile, string serviceName, Dictionary<object, object> service, List<string> failures)
@@ -255,11 +286,11 @@ internal static partial class Program
             if (!visited.Add(current.Project))
                 continue;
 
-            var fullPath = Path.Combine(root, current.Project.Replace('/', Path.DirectorySeparatorChar));
+            var fullPath = ResolvePathWithinRoot(root, current.Project);
             if (!File.Exists(fullPath))
                 continue;
 
-            var document = XDocument.Load(fullPath);
+            var document = LoadXml(fullPath);
             foreach (var include in document.Descendants("ProjectReference").Select(element => element.Attribute("Include")?.Value).Where(value => !string.IsNullOrWhiteSpace(value)))
             {
                 var referenced = ResolveProjectReference(root, current.Project, include!);
@@ -268,21 +299,14 @@ internal static partial class Program
             }
         }
 
-        return result.DistinctBy(reference => reference.Project, StringComparer.OrdinalIgnoreCase).ToList();
+        return [.. result.DistinctBy(reference => reference.Project, StringComparer.OrdinalIgnoreCase)];
     }
 
     private static string ResolveProjectReference(string repositoryRoot, string currentProject, string projectReference)
     {
-        var currentProjectPath = currentProject
-            .Replace('\\', Path.DirectorySeparatorChar)
-            .Replace('/', Path.DirectorySeparatorChar);
-
-        var referencePath = projectReference
-            .Replace('\\', Path.DirectorySeparatorChar)
-            .Replace('/', Path.DirectorySeparatorChar);
-
-        var currentProjectFullPath = Path.GetFullPath(Path.Combine(repositoryRoot, currentProjectPath));
-        var referencedProjectFullPath = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(currentProjectFullPath)!, referencePath));
+        var currentProjectFullPath = ResolvePathWithinRoot(repositoryRoot, currentProject);
+        var currentProjectDirectory = Path.GetDirectoryName(currentProjectFullPath)!;
+        var referencedProjectFullPath = ResolvePathWithinBase(repositoryRoot, currentProjectDirectory, projectReference);
 
         return Normalize(Path.GetRelativePath(repositoryRoot, referencedProjectFullPath));
     }
@@ -300,13 +324,20 @@ internal static partial class Program
         return null;
     }
 
-    private static IEnumerable<string> GetCopySources(IEnumerable<string> lines)
+    private static IEnumerable<string> GetCopySources(string root, IEnumerable<string> lines)
     {
         foreach (var line in lines)
         {
             var match = CopyRegex.Match(line);
             if (match.Success)
-                yield return Normalize(match.Groups["source"].Value.Trim('"', '\''));
+            {
+                var source = match.Groups["source"].Value.Trim('"', '\'');
+                var fullPath = ResolvePathWithinRoot(root, source);
+                var normalized = Normalize(Path.GetRelativePath(root, fullPath)).TrimEnd('/');
+                if (source.EndsWith("/", StringComparison.Ordinal) || source.EndsWith("\\", StringComparison.Ordinal))
+                    normalized += "/";
+                yield return normalized;
+            }
         }
     }
 
@@ -314,7 +345,8 @@ internal static partial class Program
     {
         if (image.Contains("${", StringComparison.Ordinal))
             return;
-        var lastSegment = image.Split('/').Last();
+        var imageSegments = image.Split('/');
+        var lastSegment = imageSegments[^1];
         if (!lastSegment.Contains(':', StringComparison.Ordinal) && !lastSegment.Contains('@', StringComparison.Ordinal))
             failures.Add($"{prefix}; imagem: {image}; problema: imagem sem tag ou digest; sugestao: use uma tag explicita diferente de latest.");
         if (lastSegment.EndsWith(":latest", StringComparison.OrdinalIgnoreCase))
@@ -323,11 +355,21 @@ internal static partial class Program
 
     private static Dictionary<object, object> ReadYaml(string path)
     {
-        var deserializer = new DeserializerBuilder().WithNamingConvention(NullNamingConvention.Instance).Build();
+        var deserializer = new DeserializerBuilder()
+            .WithNamingConvention(NullNamingConvention.Instance)
+            .IgnoreUnmatchedProperties()
+            .Build();
         var yaml = File.ReadAllText(path);
-        yaml = Regex.Replace(yaml, @":\s*!reset\s*$", ":", RegexOptions.Multiline);
-        yaml = Regex.Replace(yaml, @"!reset\s+", string.Empty);
-        return deserializer.Deserialize<Dictionary<object, object>>(yaml) ?? [];
+        yaml = Regex.Replace(yaml, @":\s*!reset\s*$", ":", RegexOptions.Multiline, RegexTimeout);
+        yaml = Regex.Replace(yaml, @"!reset\s+", string.Empty, RegexOptions.None, RegexTimeout);
+        try
+        {
+            return deserializer.Deserialize<Dictionary<object, object>>(yaml) ?? [];
+        }
+        catch (YamlDotNet.Core.YamlException ex)
+        {
+            throw new InvalidOperationException($"Arquivo YAML invalido: {Normalize(path)}.", ex);
+        }
     }
 
     private static HashSet<string> ReadEnvExampleVariables(string path)
@@ -364,21 +406,44 @@ internal static partial class Program
         return false;
     }
 
+    private static IEnumerable<object> FlattenYamlSequence(object node)
+    {
+        if (node is string)
+        {
+            yield return node;
+            yield break;
+        }
+
+        if (node is IEnumerable<object> sequence)
+        {
+            foreach (var item in sequence)
+            {
+                foreach (var nested in FlattenYamlSequence(item))
+                    yield return nested;
+            }
+
+            yield break;
+        }
+
+        yield return node;
+    }
+
     private static int RunInvalidFixtureSelfTest(string root)
     {
         var temp = Path.Combine(Path.GetTempPath(), "container-baseline-invalid-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(temp);
         try
         {
+            CopyFile(root, temp, "PocArquitetura.slnx");
             CopyFile(root, temp, "Directory.Packages.props");
             CopyFile(root, temp, "Directory.Build.props");
             CopyFile(root, temp, "global.json");
             CopyFile(root, temp, ".env.local.example");
             Directory.CreateDirectory(Path.Combine(temp, "src/demo/Demo.Api"));
             Directory.CreateDirectory(Path.Combine(temp, "src/demo/Demo.Application"));
-            File.WriteAllText(Path.Combine(temp, "src/demo/Demo.Api/Demo.Api.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk.Web\"><ItemGroup><ProjectReference Include=\"../Demo.Application/Demo.Application.csproj\" /></ItemGroup></Project>");
-            File.WriteAllText(Path.Combine(temp, "src/demo/Demo.Application/Demo.Application.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\" />");
-            File.WriteAllText(Path.Combine(temp, "src/demo/Demo.Api/Dockerfile"), """
+            File.WriteAllText(ResolvePathWithinRoot(temp, "src/demo/Demo.Api/Demo.Api.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk.Web\"><ItemGroup><ProjectReference Include=\"../Demo.Application/Demo.Application.csproj\" /></ItemGroup></Project>");
+            File.WriteAllText(ResolvePathWithinRoot(temp, "src/demo/Demo.Application/Demo.Application.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\" />");
+            File.WriteAllText(ResolvePathWithinRoot(temp, "src/demo/Demo.Api/Dockerfile"), """
                 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
                 WORKDIR /src
                 COPY Directory.Packages.props ./
@@ -393,7 +458,7 @@ internal static partial class Program
                 USER root
                 ENTRYPOINT ["dotnet", "Demo.Api.dll"]
                 """);
-            File.WriteAllText(Path.Combine(temp, "compose.yaml"), """
+            File.WriteAllText(ResolvePathWithinRoot(temp, "compose.yaml"), """
                 services:
                   demo-service:
                     image: demo:latest
@@ -427,23 +492,95 @@ internal static partial class Program
 
     private static void CopyFile(string root, string temp, string relative)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(Path.Combine(temp, relative))!);
-        File.Copy(Path.Combine(root, relative), Path.Combine(temp, relative));
+        var source = ResolvePathWithinRoot(root, relative);
+        var destination = ResolvePathWithinRoot(temp, relative);
+        Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+        File.Copy(source, destination);
     }
 
     private static string GetRepositoryRoot(string[] args)
     {
         var rootIndex = Array.FindIndex(args, arg => arg.Equals("--root", StringComparison.OrdinalIgnoreCase));
         if (rootIndex >= 0 && rootIndex + 1 < args.Length)
-            return Path.GetFullPath(args[rootIndex + 1]);
+            return ResolveRepositoryRoot(args[rootIndex + 1]);
 
         var directory = new DirectoryInfo(Environment.CurrentDirectory);
         while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "PocArquitetura.slnx")))
             directory = directory.Parent;
-        return directory?.FullName ?? Environment.CurrentDirectory;
+        return ResolveRepositoryRoot(directory?.FullName ?? Environment.CurrentDirectory);
     }
 
     private static string Normalize(string path) => path.Replace('\\', '/').TrimStart('.', '/');
+
+    public static string ResolveRepositoryRoot(string candidateRoot)
+    {
+        if (string.IsNullOrWhiteSpace(candidateRoot))
+            throw new InvalidOperationException("A raiz do repositorio nao foi informada.");
+
+        var fullPath = Path.GetFullPath(candidateRoot);
+        if (!Directory.Exists(fullPath))
+            throw new InvalidOperationException("A raiz informada nao existe ou nao e um diretorio.");
+
+        var directory = new DirectoryInfo(fullPath);
+        return directory.Parent is null
+            ? throw new InvalidOperationException("A raiz do sistema nao pode ser usada como raiz do repositorio.")
+            : !File.Exists(Path.Combine(fullPath, "PocArquitetura.slnx")) || !File.Exists(Path.Combine(fullPath, "global.json"))
+            ? throw new InvalidOperationException("A raiz informada nao contem os arquivos sentinela esperados do repositorio.")
+            : Path.TrimEndingDirectorySeparator(fullPath);
+    }
+
+    public static string ResolvePathWithinRoot(string repositoryRoot, string relativePath)
+    {
+        var root = Path.GetFullPath(repositoryRoot);
+        return ContainsParentDirectorySegment(relativePath)
+            ? throw new InvalidOperationException("O caminho informado escapa da raiz autorizada do repositorio.")
+            : ResolvePathWithinBase(root, root, relativePath);
+    }
+
+    private static string ResolvePathWithinBase(string repositoryRoot, string basePath, string relativePath)
+    {
+        if (string.IsNullOrWhiteSpace(relativePath))
+            throw new InvalidOperationException("O caminho relativo nao foi informado.");
+
+        var normalizedRelativePath = relativePath
+            .Replace('\\', Path.DirectorySeparatorChar)
+            .Replace('/', Path.DirectorySeparatorChar);
+
+        if (Path.IsPathRooted(normalizedRelativePath))
+            throw new InvalidOperationException("O caminho informado deve ser relativo a raiz autorizada do repositorio.");
+
+        var root = Path.GetFullPath(repositoryRoot);
+        var fullBasePath = Path.GetFullPath(basePath);
+        var candidate = Path.GetFullPath(Path.Combine(fullBasePath, normalizedRelativePath));
+        var relative = Path.GetRelativePath(root, candidate);
+
+        return relative == ".." ||
+            relative.StartsWith($"..{Path.DirectorySeparatorChar}", StringComparison.Ordinal) ||
+            relative.StartsWith($"..{Path.AltDirectorySeparatorChar}", StringComparison.Ordinal) ||
+            Path.IsPathRooted(relative)
+            ? throw new InvalidOperationException("O caminho informado escapa da raiz autorizada do repositorio.")
+            : candidate;
+    }
+
+    private static XDocument LoadXml(string fullPath)
+    {
+        var settings = new XmlReaderSettings
+        {
+            DtdProcessing = DtdProcessing.Prohibit,
+            XmlResolver = null
+        };
+
+        using var reader = XmlReader.Create(fullPath, settings);
+        return XDocument.Load(reader, LoadOptions.None);
+    }
+
+    private static bool ContainsParentDirectorySegment(string path)
+    {
+        return path
+            .Replace('\\', '/')
+            .Split('/', StringSplitOptions.RemoveEmptyEntries)
+            .Any(segment => segment.Equals("..", StringComparison.Ordinal));
+    }
 
     private sealed record ProjectReference(string Project, string Origin);
 }

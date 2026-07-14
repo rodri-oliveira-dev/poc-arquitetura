@@ -7,7 +7,7 @@ x-logging: &default-logging
     max-file: "${DOCKER_LOG_MAX_FILE:-3}"
 
 x-api-healthcheck: &api-healthcheck
-  test: [ "CMD", "dotnet", "/healthprobe/ContainerHealthProbe.dll", "http://127.0.0.1:8080/ready" ]
+  test: [ "CMD", "dotnet", "/healthprobe/ContainerHealthProbe.dll", "8080", "/ready" ]
   interval: 10s
   timeout: 5s
   start_period: 30s

@@ -880,7 +880,7 @@ Portas expostas no host usam loopback e podem ser sobrescritas em `.env.local`:
 | LedgerService.Api via Nginx | `ledger-service-1:8080` / `ledger-service-2:8080` | `https://ledger.localhost:${NGINX_HTTPS_HOST_PORT:-7443}/` |
 | BalanceService.Api via Nginx | `balance-service:8080` | `https://balance.localhost:${NGINX_HTTPS_HOST_PORT:-7443}/` |
 
-As APIs HTTP no Compose possuem `healthcheck` em `/ready`, executado por um pequeno console .NET (`src/Shared/ContainerHealthProbe`) copiado para as imagens de API. A decisao evita instalar `curl`, `wget` ou pacotes extras nos runtimes ASP.NET; o probe usa o runtime `dotnet` ja presente na imagem final. O endpoint `/health` continua sendo usado para liveness simples e validacoes manuais/scripts. O Mailpit usa o subcomando `/mailpit readyz` da propria imagem.
+As APIs HTTP no Compose possuem `healthcheck` em `/ready`, executado por um pequeno console .NET (`src/Shared/ContainerHealthProbe`) copiado para as imagens de API. A decisao evita instalar `curl`, `wget` ou pacotes extras nos runtimes ASP.NET; o probe usa o runtime `dotnet` ja presente na imagem final, recebe somente porta e caminho relativo e monta internamente a chamada para loopback. O endpoint `/health` continua sendo usado para liveness simples e validacoes manuais/scripts. O Mailpit usa o subcomando `/mailpit readyz` da propria imagem.
 
 Diferenca entre nomes internos do Compose e acesso pelo host:
 

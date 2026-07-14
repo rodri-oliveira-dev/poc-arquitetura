@@ -6,4 +6,8 @@
     <Nullable>enable</Nullable>
     <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="ContainerHealthProbe.Tests" />
+  </ItemGroup>
 </Project>

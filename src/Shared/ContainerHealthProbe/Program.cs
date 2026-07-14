@@ -1,13 +1,15 @@
+using System.Globalization;
 using System.Net;
 
-if (args.Length != 1 || !Uri.TryCreate(args[0], UriKind.Absolute, out var uri))
+if (!ProbeTarget.TryCreate(args, out var uri))
 {
-    Console.Error.WriteLine("Uso: ContainerHealthProbe <url>");
+    await Console.Error.WriteLineAsync("Uso: ContainerHealthProbe <porta> <caminho-relativo>");
     return 2;
 }
 
 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-using var client = new HttpClient
+using var handler = ProbeTarget.CreateHandler();
+using var client = new HttpClient(handler)
 {
     Timeout = TimeSpan.FromSeconds(3)
 };
@@ -28,4 +30,44 @@ catch (TaskCanceledException)
 catch (InvalidOperationException)
 {
     return 1;
+}
+
+internal static class ProbeTarget
+{
+    private const string LoopbackHost = "127.0.0.1";
+
+    public static bool TryCreate(string[] args, out Uri uri)
+    {
+        uri = null!;
+        if (args.Length != 2)
+            return false;
+
+        if (!int.TryParse(args[0], NumberStyles.None, CultureInfo.InvariantCulture, out var port) || port is < 1 or > 65535)
+            return false;
+
+        var path = args[1];
+        if (!IsAllowedPath(path))
+            return false;
+
+        uri = new UriBuilder(Uri.UriSchemeHttp, LoopbackHost, port, path).Uri;
+        return true;
+    }
+
+    public static SocketsHttpHandler CreateHandler() => new()
+    {
+        AllowAutoRedirect = false
+    };
+
+    private static bool IsAllowedPath(string path)
+    {
+        return string.IsNullOrWhiteSpace(path) ||
+            !path.StartsWith('/') ||
+            path.StartsWith("//", StringComparison.Ordinal) ||
+            path.Contains("..", StringComparison.Ordinal) ||
+            path.Contains('\\') ||
+            path.Contains('#') ||
+            path.Contains('?')
+            ? false
+            : !Uri.TryCreate(path, UriKind.Absolute, out _);
+    }
 }
