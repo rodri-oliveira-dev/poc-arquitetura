@@ -13,6 +13,7 @@ internal static partial class Program
     private const string ImageKey = "image";
     private static readonly TimeSpan RegexTimeout = TimeSpan.FromSeconds(1);
     private static readonly string[] ComposeFiles = ["compose.yaml", "compose.k6.yaml", "compose.nginx.yaml", "compose.observability.yaml", "compose.sonar.yaml", "compose.cloudsql.yaml", "compose.kafka.yaml", "compose.pubsub.yaml"];
+    private static readonly string[] ResourceLimitKeys = ["cpus", "memory", "pids"];
     private static readonly HashSet<string> ResourceLimitRequiredServices = ["postgres-db", "kafka", "kafka-init-topics", "pubsub-emulator", "pubsub-init", "mailpit", "ledger-service", "ledger-worker", "balance-service", "balance-worker", "transfer-service", "transfer-worker", "payment-service", "payment-worker", "audit-service", "audit-worker", "identity-service", "keycloak", "keycloak-identity-admin-init", "k6", "nginx-edge", "otel-collector", "jaeger", "prometheus", "grafana", "loki", "alloy", "alertmanager", "sonarqube", "sonar-db", "cloud-sql-proxy"];
     private static readonly HashSet<string> HttpApplicationServices = ["ledger-service", "balance-service", "transfer-service", "payment-service", "audit-service", "identity-service"];
     private static readonly Regex CopyRegex = new(@"^\s*COPY\s+(?:--[^\s]+\s+)*(?<source>[^\s\[]+)\s+(?<target>[^\s]+)", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexTimeout);
@@ -206,14 +207,18 @@ internal static partial class Program
 
     private static string ResolveBuildContext(Dictionary<object, object>? build)
     {
-        return build is null ? "." : TryGetString(build, "context", out var contextValue) ? contextValue : ".";
+        if (build is null)
+            return ".";
+
+        return TryGetString(build, "context", out var contextValue) ? contextValue : ".";
     }
 
     private static string ResolveBuildDockerfile(object buildNode, Dictionary<object, object>? build)
     {
-        return build is null
-            ? buildNode.ToString() ?? DockerfileName
-            : TryGetString(build, "dockerfile", out var dockerfile) ? dockerfile : DockerfileName;
+        if (build is null)
+            return buildNode.ToString() ?? DockerfileName;
+
+        return TryGetString(build, "dockerfile", out var dockerfile) ? dockerfile : DockerfileName;
     }
 
     private static void ValidatePorts(string composeFile, string serviceName, Dictionary<object, object> service, HashSet<string> envVariables, List<string> failures)
@@ -266,10 +271,9 @@ internal static partial class Program
             return;
 
         var limits = GetMap(service, "deploy", "resources", "limits");
-        foreach (var key in new[] { "cpus", "memory", "pids" })
+        foreach (var key in ResourceLimitKeys.Where(key => limits is null || !limits.ContainsKey(key)))
         {
-            if (limits is null || !limits.ContainsKey(key))
-                failures.Add($"Compose: {composeFile}; servico: {serviceName}; problema: limite {key} ausente; sugestao: declare deploy.resources.limits.{key} conforme politica local.");
+            failures.Add($"Compose: {composeFile}; servico: {serviceName}; problema: limite {key} ausente; sugestao: declare deploy.resources.limits.{key} conforme politica local.");
         }
     }
 
