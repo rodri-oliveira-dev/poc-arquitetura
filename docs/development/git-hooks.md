@@ -271,7 +271,7 @@ trivy fs \
 
 ## GitHub Actions
 
-Os workflows `main-dotnet-ci`, `codeql-security-analysis` e `dependency-security-review` usam `paths-ignore` em `push` e/ou `pull_request` para nao rodar quando a mudanca contem apenas Markdown, arquivos em `docs/` ou imagens de documentacao.
+Os workflows `codeql-security-analysis` e `dependency-security-review` usam `paths-ignore` em `push` e/ou `pull_request` para nao rodar quando a mudanca contem apenas Markdown, arquivos em `docs/` ou imagens de documentacao. O workflow `main-dotnet-ci` nao usa `paths-ignore`, porque precisa sempre produzir o check obrigatorio `Build and test`; PRs documentais sao pulados dentro do job apos a deteccao centralizada.
 
 Mudancas em codigo, projetos, solution, build, testes, Docker, workflows, hooks e configuracoes continuam acionando os workflows. O workflow CodeQL mantem a execucao agendada semanal independentemente de filtros de path.
 

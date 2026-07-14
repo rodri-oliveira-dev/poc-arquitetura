@@ -8,7 +8,7 @@
 
 Projeto de estudos arquiteturais em .NET para evoluir Clean Architecture, DDD, PostgreSQL, Outbox, mensageria por ports and adapters com Kafka como default dos workers principais e Pub/Sub explicito/legado, autenticacao JWT/OIDC com Keycloak e JWKS, observabilidade, contratos e testes automatizados. Nasceu como POC de microservicos e evoluiu para um laboratorio continuo de arquitetura, contratos, seguranca, observabilidade, testes e operacao.
 
-Os badges SonarQube Cloud do topo apontam para o projeto global oficial `rodri-oliveira-dev_poc-arquitetura`. A governanca atual usa SonarQube Cloud consolidado via `PocArquitetura.slnx`; a infraestrutura contextual permanece versionada apenas como preparacao futura, sem execucao automatica.
+Os badges SonarQube Cloud do topo apontam para o projeto aggregate oficial `rodri-oliveira-dev_poc-arquitetura`. A governanca atual usa SonarQube Cloud contextual no CI principal para aggregate (`PocArquitetura.slnx`) e Shared (`PocArquitetura.Shared.slnx`).
 
 ## Problema
 

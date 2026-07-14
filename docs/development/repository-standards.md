@@ -80,8 +80,7 @@ Resumo:
 
 Workflows principais:
 
-- `pr-build-and-test`: restore, build e testes para PRs;
-- `main-dotnet-ci`: validacao completa pos-merge/manual, cobertura e artifacts;
+- `main-dotnet-ci`: CI principal para PRs, Merge Queue, push na `main` e execucao manual, com deteccao de impacto, auditoria NuGet, SonarQube Cloud, build, testes, cobertura e artifacts;
 - `dependency-security-review`: revisao de dependencias em PRs;
 - `codeql-security-analysis`: analise estatica de seguranca;
 - `event-contract-validation`: validacao de schemas e exemplos de eventos;

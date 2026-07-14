@@ -15,6 +15,7 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 
 | ADR                                                                   | Status      | Resumo                                                                                           |
 | --------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------ |
+| [ADR-0106](./0106-ci-principal-contextual-pull-requests-main.md) | Aceito | Consolida o CI principal para PR, Merge Queue, main e manual com validacao contextual aggregate/Shared. |
 | [ADR-0105](./0105-payment-provider-event-ordering-deduplication.md) | Aceito | Define politica de deduplicacao, ordenacao, regressao e replay seguro para eventos externos de pagamento. |
 | [ADR-0104](./0104-payment-ledger-integration.md) | Aceito | Define integracao do PaymentService com LedgerService via HTTP idempotente para criar o efeito financeiro. |
 | [ADR-0103](./0103-inbox-pattern-webhooks-stripe.md) | Aceito | Define Inbox Pattern para webhooks Stripe, com persistencia, deduplicacao e processamento assincrono. |
@@ -34,7 +35,7 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 | [ADR-0089](./0089-bounded-context-identity-service.md) | Aceito | Define o IdentityService como novo bounded context independente em src/identity e registra a coexistencia historica com Auth.Api legado. |
 | [ADR-0088](./0088-kafka-default-ledger-balance-workers.md) | Aceito | Define Kafka como default dos workers principais Ledger/Balance e mantem Pub/Sub apenas por selecao explicita. |
 | [ADR-0087](./0087-saga-orquestrada-transfer-service-kafka.md) | Aceito | Define Saga Orquestrada no `TransferService` para transferencias entre merchants usando Kafka, Outbox transacional, worker assincrono, idempotencia por etapa e DLQ de aplicacao. |
-| [ADR-0086](./0086-pre-push-leve-gates-pesados-no-pr.md) | Aceito | Mantem o pre-push leve e desloca validacoes pesadas como cobertura, Trivy, Terraform validate e testes de container para o Pull Request. |
+| [ADR-0086](./0086-pre-push-leve-gates-pesados-no-pr.md) | Parcialmente substituido | Mantem o pre-push leve; a organizacao do CI de PR foi substituida pela ADR-0106. |
 | [ADR-0085](./0085-separacao-configuracoes-locais-sensiveis-arquivos-versionados.md) | Proposta | Define a separacao entre configuracoes locais sensiveis nao versionadas e exemplos versionados com placeholders. |
 | [ADR-0084](./0084-ledger-entry-created-v2-currency-explicita.md) | Aceito | Cria `LedgerEntryCreated.v2` com `currency` obrigatoria e mantem leitura de v1 como legado. |
 | [ADR-0083](./0083-conexao-futura-cloud-run-job-cloud-sql-postgresql.md) | Proposto | Registra a direcao futura para Cloud Run Job acessar Cloud SQL PostgreSQL com service account, secrets e rede definidos na etapa de implementacao. |
@@ -79,11 +80,11 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 | [ADR-0044](./0044-mutation-testing-informativo-github-actions.md) | Aceito | Executa mutation testing informativo no GitHub Actions apos push na main. |
 | [ADR-0043](./0043-mutation-testing-local-stryker-balance-application.md) | Aceito | Adota mutation testing local e opcional com Stryker.NET para BalanceService.Application. |
 | [ADR-0042](./0042-mutation-testing-local-stryker-ledger-application.md) | Aceito | Adota mutation testing local e opcional com Stryker.NET para LedgerService.Application. |
-| [ADR-0041](./0041-validacao-pull-requests-branch-protection.md) | Aceito | Cria workflow dedicado de validacao de PRs e define o check obrigatorio de branch protection. |
+| [ADR-0041](./0041-validacao-pull-requests-branch-protection.md) | Substituido | Historico do workflow dedicado de PR, substituido pela consolidacao do CI principal na ADR-0106. |
 | [ADR-0040](./0040-padronizacao-commands-queries-validacao-entrada-apis.md) | Aceito | Padroniza politica de commands/queries e valida amount decimal no contrato do Ledger. |
 | [ADR-0039](./0039-publicacao-indicadores-qualidade-documentacao-arquitetural-pages.md) | Aceito | Publica badges de qualidade no README e documentacao LikeC4 no GitHub Pages. |
 | [ADR-0038](./0038-automacao-releases-prs-mergeados-main.md)           | Aceito      | Automatiza tags e GitHub Releases a partir de PRs mergeados na main.                             |
-| [ADR-0037](./0037-otimizacao-hooks-workflows-arquivos-impactantes.md) | Aceito | Otimiza hooks e workflows usando classificacao de arquivos impactantes. |
+| [ADR-0037](./0037-otimizacao-hooks-workflows-arquivos-impactantes.md) | Parcialmente substituido | Historico de otimizacao por arquivos impactantes; `dotnet.yml` passou a usar skip interno pela ADR-0106. |
 | [ADR-0036](./0036-padronizacao-cobertura-testes-solution.md) | Aceito | Padroniza cobertura consolidada da solution com gate minimo de 80%. |
 | [ADR-0035](./0035-padronizacao-git-hooks-locais.md) | Aceito | Padroniza hooks locais para commit, post-merge e pre-push. |
 | [ADR-0034](./0034-boundaries-arquiteturais-e-estrutura-de-camadas.md) | Aceito      | Define boundaries arquiteturais, nivel de camadas por servico e documentacao LikeC4.             |

@@ -1,7 +1,7 @@
 # ADR-0086: Pre-push leve com gates pesados no Pull Request
 
 ## Status
-Aceito
+Parcialmente substituido pela [ADR-0106](./0106-ci-principal-contextual-pull-requests-main.md) para a organizacao do CI de Pull Requests
 
 ## Data
 2026-06-13

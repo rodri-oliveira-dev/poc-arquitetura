@@ -110,6 +110,6 @@ Para evitar release, o PR deve ser fechado sem merge. Excecoes para entrada na `
    - Aumenta defesa em profundidade, mas duplica custo. A decisao e exigir CI via branch protection antes do merge.
 
 ## Proximos passos
-- Configurar branch protection da `main` para exigir `dotnet-ci` e demais checks obrigatorios antes do merge.
+- Configurar branch protection da `main` para exigir o check `Build and test`, produzido por `main-dotnet-ci`, e demais checks obrigatorios antes do merge.
 - Reavaliar SemVer e changelog formal se a POC evoluir para produto ou baseline compartilhado.
 - Revisar periodicamente as permissoes do workflow conforme politicas do repositorio.

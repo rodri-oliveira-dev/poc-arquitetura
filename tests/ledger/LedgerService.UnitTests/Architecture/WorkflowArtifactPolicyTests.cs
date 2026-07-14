@@ -16,7 +16,6 @@ public sealed partial class WorkflowArtifactPolicyTests
         ".github/workflows/dotnet.yml",
         ".github/workflows/mutation-tests.yml",
         ".github/workflows/pages-architecture.yml",
-        ".github/workflows/pull-request-validation.yml",
         ".github/workflows/release.yml",
     ];
 
@@ -78,9 +77,41 @@ public sealed partial class WorkflowArtifactPolicyTests
     {
         var repositoryRoot = GetRepositoryRoot();
         var workflow = File.ReadAllText(Path.Combine(repositoryRoot.FullName, ".github/workflows/dotnet.yml"));
-        Assert.DoesNotContain("${{ env.TEST_RESULTS_DIR }}/coverage-report/**", workflow);
-        Assert.Contains("${{ env.TEST_RESULTS_DIR }}/coverage-report/Summary.json", workflow);
-        Assert.Contains("${{ env.TEST_RESULTS_DIR }}/coverage-report/Summary.txt", workflow);
+        Assert.DoesNotContain("coverage-report/**", workflow);
+        Assert.Contains("${{ env.ARTIFACTS_ROOT }}/test-results/**/coverage-report/Summary.json", workflow);
+        Assert.Contains("${{ env.ARTIFACTS_ROOT }}/test-results/**/coverage-report/Summary.txt", workflow);
+    }
+
+    [Fact]
+    public void Dotnet_ci_should_be_the_single_required_build_and_test_check()
+    {
+        var repositoryRoot = GetRepositoryRoot();
+        var dotnetWorkflowPath = Path.Combine(repositoryRoot.FullName, ".github/workflows/dotnet.yml");
+        var workflow = File.ReadAllText(dotnetWorkflowPath);
+
+        Assert.False(File.Exists(Path.Combine(repositoryRoot.FullName, ".github/workflows/pull-request-validation.yml")));
+        Assert.False(File.Exists(Path.Combine(repositoryRoot.FullName, ".github/workflows/sonarqube-context.yml")));
+        Assert.Contains("name: main-dotnet-ci", workflow);
+        Assert.Contains("pull_request:", workflow);
+        Assert.Contains("merge_group:", workflow);
+        Assert.Contains("types: [checks_requested]", workflow);
+        Assert.Contains("""branches: ["main"]""", workflow);
+        Assert.Contains("workflow_dispatch:", workflow);
+        Assert.Contains("name: Build and test", workflow);
+        Assert.DoesNotContain("paths-ignore:", workflow);
+    }
+
+    [Fact]
+    public void Dotnet_ci_should_use_centralized_impact_detection_for_context_selection()
+    {
+        var repositoryRoot = GetRepositoryRoot();
+        var workflow = File.ReadAllText(Path.Combine(repositoryRoot.FullName, ".github/workflows/dotnet.yml"));
+
+        Assert.Contains("scripts/ci/detect-dotnet-impact.py", workflow);
+        Assert.Contains("RUN_AGGREGATE: ${{ steps.changes.outputs.run_aggregate }}", workflow);
+        Assert.Contains("RUN_SHARED: ${{ steps.changes.outputs.run_shared }}", workflow);
+        Assert.Contains("PocArquitetura.slnx", workflow);
+        Assert.Contains("PocArquitetura.Shared.slnx", workflow);
     }
 
     [Fact]

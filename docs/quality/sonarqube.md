@@ -44,7 +44,7 @@ export SONAR_HOST_URL="http://localhost:9000"
 
 O script restaura as tools locais, inicia o SonarScanner for .NET, compila `PocArquitetura.slnx`, executa os testes com `coverlet.runsettings` e finaliza o envio para o SonarQube.
 
-Por default, a analise local usa o contexto `global`, equivalente ao fluxo oficial consolidado do CI. Para exercitar localmente uma configuracao contextual ja cadastrada em `scripts/quality/sonar-contexts.json`, informe o contexto:
+Por default, a analise local usa o contexto `global`, equivalente ao contexto aggregate do CI principal. Para exercitar localmente uma configuracao contextual ja cadastrada em `scripts/quality/sonar-contexts.json`, informe o contexto:
 
 ```bash
 ./scripts/quality/sonar-analyze.sh transfer
