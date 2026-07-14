@@ -49,6 +49,8 @@ O workflow nao executa build/testes novamente. Ele usa o SHA aprovado pelo CI, `
 
 Se o GitVersion calcular uma versao cuja tag ja existe em outro commit, o workflow nao cria uma nova tag nem uma nova release. Esse e o comportamento esperado para PRs que nao geram incremento SemVer.
 
+Publicacoes nao devem ser canceladas no meio. Por isso, `release-on-merge` usa `concurrency.cancel-in-progress: false`, evitando interromper uma criacao de tag ou GitHub Release ja iniciada.
+
 ## Como commits influenciam a versao
 
 O GitVersion usa as mensagens de commit para decidir o incremento:
@@ -129,6 +131,8 @@ dotnet pack ./src/Shared/ApiDefaults/ApiDefaults.csproj --configuration Release 
 O workflow `.github/workflows/publish-shared-nuget.yml` restaura, compila, testa, empacota, valida os metadados dos `.nupkg` e, somente quando a execucao pedir publicacao, publica os pacotes no NuGet.org. A publicacao usa Trusted Publishing com GitHub Actions OIDC por meio de `NuGet/login@v1`; nao ha API key persistente nem secret `NUGET_API_KEY`. A permissao `id-token: write` fica restrita ao job de publicacao.
 
 O workflow usa a solution dedicada `PocArquitetura.Shared.slnx`, que contem apenas os tres pacotes Shared e seus testes em `tests/Shared`. Ele nao publica diretamente em `push`: a execucao automatica ocorre por `workflow_run`, apos sucesso do `main-dotnet-ci` na `main`, e faz checkout de `${{ github.event.workflow_run.head_sha }}`, o mesmo SHA validado pelo CI. Antes de empacotar automaticamente, o workflow confere se o commit aprovado alterou entradas relevantes para os pacotes: `src/Shared/**`, `tests/Shared/**`, `PocArquitetura.Shared.slnx`, `GitVersion.yml`, o proprio workflow, `LICENSE` e os arquivos `Directory.Build.props`/`Directory.Packages.props` da raiz e de `src/Shared`. Os arquivos `Directory.*` da raiz permanecem relevantes porque os projetos de teste em `tests/Shared` os herdam; os arquivos `Directory.*` de `src/Shared` permanecem porque definem propriedades e versoes usadas pelos pacotes publicados.
+
+Assim como releases, a publicacao NuGet usa `concurrency.cancel-in-progress: false`. Isso serializa execucoes e evita cancelar um pack, login OIDC ou push de pacote no meio da operacao.
 
 Na execucao manual, o input `publish` separa empacotamento de publicacao:
 

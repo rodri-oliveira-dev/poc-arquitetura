@@ -2,7 +2,7 @@ name: pr-advisory-checks
 
 on:
   pull_request:
-    types: [opened, reopened, synchronize, ready_for_review, edited]
+    types: [opened, reopened, synchronize, ready_for_review]
 
 permissions:
   contents: read
@@ -22,6 +22,7 @@ env:
 jobs:
   analyzer-recommendations:
     name: Run analyzer recommendations
+    if: ${{ github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
 

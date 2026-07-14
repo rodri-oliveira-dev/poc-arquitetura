@@ -62,7 +62,7 @@ O `begin` do SonarQube Cloud precisa ocorrer antes do build. O `end` precisa oco
 
 O workflow limpa `./artifacts/test-results` e `./artifacts/sonarqube` antes da execucao. Cada contexto grava em subpastas isoladas: `artifacts/test-results/aggregate`, `artifacts/test-results/shared`, `artifacts/sonarqube/aggregate` e `artifacts/sonarqube/shared`.
 
-O workflow reutilizavel `.github/workflows/sonarqube-context.yml` foi removido para eliminar uma segunda implementacao completa de restore, build, testes, cobertura, Sonar begin/end, relatorio e artifact.
+O workflow reutilizavel `.github/workflows/sonarqube-context.yml` foi removido e deve permanecer ausente. SonarQube Cloud, restore, build, testes, cobertura, ReportGenerator, relatorio e artifact ficam concentrados em `.github/workflows/dotnet.yml`; nao deve existir uma segunda implementacao completa desse fluxo.
 
 ## Cobertura de testes
 

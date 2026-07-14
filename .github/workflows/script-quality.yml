@@ -5,22 +5,23 @@ on:
     branches: ["main"]
     paths:
       - "scripts/**"
-      - ".github/workflows/script-quality.yml"
       - ".github/workflows/**"
+      - ".github/actions/**"
       - "package.json"
       - "package-lock.json"
   push:
     branches: ["main"]
     paths:
       - "scripts/**"
-      - ".github/workflows/script-quality.yml"
       - ".github/workflows/**"
+      - ".github/actions/**"
       - "package.json"
       - "package-lock.json"
   workflow_dispatch:
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -29,10 +30,86 @@ concurrency:
 env:
   CI: true
   PSSCRIPTANALYZER_VERSION: "1.24.0"
+  ACTIONLINT_VERSION: "1.7.12"
+  ACTIONLINT_LINUX_AMD64_SHA256: "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8"
 
 jobs:
-  validate:
+  detect-impact:
+    name: Detect script and workflow quality impact
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    outputs:
+      run_scripts: ${{ steps.impact.outputs.run_scripts }}
+      run_workflows: ${{ steps.impact.outputs.run_workflows }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed files
+        id: impact
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+
+          run_scripts=false
+          run_workflows=false
+
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            run_scripts=true
+            run_workflows=true
+          elif [ "$EVENT_NAME" = "pull_request" ]; then
+            if ! gh api --paginate "repos/$REPOSITORY/pulls/$PR_NUMBER/files" --jq '.[].filename' > changed-files.txt; then
+              echo "::warning::Could not detect pull request files. Running both script and workflow quality validations."
+              run_scripts=true
+              run_workflows=true
+            fi
+          elif [ -n "${BEFORE_SHA:-}" ] && ! [[ "$BEFORE_SHA" =~ ^0+$ ]]; then
+            git diff --name-only "$BEFORE_SHA" "$GITHUB_SHA" > changed-files.txt
+          else
+            echo "::warning::Could not determine pushed file range. Running both script and workflow quality validations."
+            run_scripts=true
+            run_workflows=true
+          fi
+
+          if [ -f changed-files.txt ]; then
+            while IFS= read -r file; do
+              case "$file" in
+                scripts/*|package.json|package-lock.json)
+                  run_scripts=true
+                  ;;
+              esac
+
+              case "$file" in
+                .github/workflows/*|.github/actions/*)
+                  run_workflows=true
+                  ;;
+              esac
+            done < changed-files.txt
+          fi
+
+          echo "run_scripts=$run_scripts" >> "$GITHUB_OUTPUT"
+          echo "run_workflows=$run_workflows" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "## Script/workflow quality impact"
+            echo "- Scripts validation: \`$run_scripts\`"
+            echo "- Workflow/actionlint validation: \`$run_workflows\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  validate-scripts:
     name: Validate scripts
+    needs: detect-impact
+    if: ${{ needs.detect-impact.outputs.run_scripts == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -158,3 +235,77 @@ jobs:
             -s scripts/quality/tests \
             -p "test_*.py" \
             -v
+
+  validate-workflows:
+    name: Validate workflows and composite actions
+    needs: detect-impact
+    if: ${{ needs.detect-impact.outputs.run_workflows == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Install ShellCheck
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends shellcheck
+          shellcheck --version
+
+      - name: Install actionlint
+        shell: bash
+        run: |
+          archive="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl \
+            --proto '=https' \
+            --proto-redir '=https' \
+            -fsSLO \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${archive}"
+          echo "${ACTIONLINT_LINUX_AMD64_SHA256}  ${archive}" | sha256sum --check -
+          tar -xzf "$archive" actionlint
+          sudo install -m 0755 actionlint /usr/local/bin/actionlint
+          actionlint --version
+
+      - name: Validate GitHub workflows
+        shell: bash
+        run: |
+          mapfile -d '' workflow_files < <(find .github/workflows -maxdepth 1 -type f -name '*.yml' -print0 | sort -z)
+
+          if [ "${#workflow_files[@]}" -eq 0 ]; then
+            echo "::error::No workflow files found under .github/workflows."
+            exit 1
+          fi
+
+          actionlint -color=false "${workflow_files[@]}"
+
+      - name: Validate composite actions through actionlint
+        shell: bash
+        run: |
+          mapfile -d '' action_files < <(find .github/actions -mindepth 2 -maxdepth 2 -type f -name action.yml -print0 | sort -z)
+
+          if [ "${#action_files[@]}" -eq 0 ]; then
+            echo "::error::No composite action files found under .github/actions."
+            exit 1
+          fi
+
+          mkdir -p .actionlint-generated
+          {
+            echo "name: validate-local-composite-actions"
+            echo "on: workflow_dispatch"
+            echo "permissions:"
+            echo "  contents: read"
+            echo "jobs:"
+            echo "  validate:"
+            echo "    runs-on: ubuntu-latest"
+            echo "    steps:"
+            for action_file in "${action_files[@]}"; do
+              action_dir="$(dirname "$action_file")"
+              action_name="$(basename "$action_dir")"
+              echo "      - name: Validate ${action_name}"
+              echo "        uses: ./${action_dir}"
+            done
+          } > .actionlint-generated/local-composite-actions.yml
+
+          actionlint -color=false .actionlint-generated/local-composite-actions.yml

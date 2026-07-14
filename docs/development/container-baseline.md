@@ -130,6 +130,8 @@ O workflow `.github/workflows/container-baseline.yml` roda em pull requests e pu
 - skill;
 - workflow relacionado.
 
+Mudancas isoladas em `src/**/Dockerfile` pertencem a este fluxo de container e nao ao workflow OpenAPI. Um Dockerfile de API, sozinho, nao altera contrato HTTP versionado; por isso ele aciona `container-baseline` e `infrastructure-security`, mas nao executa restore/build/geracao/lint/diff de OpenAPI.
+
 O job executa:
 
 ```text

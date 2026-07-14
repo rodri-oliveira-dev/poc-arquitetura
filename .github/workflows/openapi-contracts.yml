@@ -4,9 +4,10 @@ on:
   pull_request:
     branches: ["main"]
     paths:
-      - "src/**"
-      - "!src/Shared/**"
+      - "src/**/*Service.Api/**"
       - "src/Shared/ApiDefaults/**"
+      - "!src/**/Dockerfile"
+      - "!src/**/*.Dockerfile"
       - "Directory.Build.props"
       - "Directory.Packages.props"
       - "PocArquitetura.slnx"
@@ -23,9 +24,10 @@ on:
   push:
     branches: ["main"]
     paths:
-      - "src/**"
-      - "!src/Shared/**"
+      - "src/**/*Service.Api/**"
       - "src/Shared/ApiDefaults/**"
+      - "!src/**/Dockerfile"
+      - "!src/**/*.Dockerfile"
       - "Directory.Build.props"
       - "Directory.Packages.props"
       - "PocArquitetura.slnx"

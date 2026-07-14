@@ -62,11 +62,24 @@ Em pull requests para `main`, o workflow `openapi-contract-validation` executa e
 
 ## Gatilhos e Shared
 
-O workflow deve proteger contratos HTTP das APIs de servico, nao validar todos os pacotes compartilhados. Por isso, alteracoes exclusivas em `src/Shared/**` nao disparam OpenAPI por padrao.
+O workflow deve proteger contratos HTTP das APIs de servico, nao validar todos os arquivos de `src/**`. Por isso, os filtros de `paths` ficam restritos a:
+
+- `src/**/*Service.Api/**`;
+- `src/Shared/ApiDefaults/**`;
+- arquivos globais que podem alterar build, Swagger, geracao, lint ou baseline OpenAPI.
+
+As exclusoes de Dockerfile aparecem depois das inclusoes de `src/**` no bloco `paths`, preservando a semantica de filtros negativos do GitHub Actions:
+
+```yaml
+- "!src/**/Dockerfile"
+- "!src/**/*.Dockerfile"
+```
+
+Assim, uma mudanca isolada em Dockerfile de API nao executa restore da solution, build, geracao de contratos, lint ou diff de breaking changes do OpenAPI. Essa mudanca continua coberta pelos workflows de containers e infraestrutura.
 
 A excecao conservadora e `src/Shared/ApiDefaults/**`. Esse pacote concentra configuracao compartilhada de Swagger, autenticacao, headers de seguranca, middlewares e respostas de erro. Nem toda mudanca ali altera contrato HTTP, mas nao ha uma forma simples e segura de detectar apenas mudancas observaveis por `paths` do GitHub Actions. Assim, alteracoes em `ApiDefaults` continuam disparando a validacao OpenAPI.
 
-Mudancas em `src/Shared/ApplicationDefaults/**`, `src/Shared/HttpResilienceDefaults/**` e `tests/Shared/**` nao disparam este workflow quando forem exclusivas. Elas continuam cobertas pelo gate de PR da solution `PocArquitetura.Shared.slnx` e pelo workflow dedicado de publish dos pacotes Shared.
+Mudancas em `src/Shared/ApplicationDefaults/**`, `src/Shared/HttpResilienceDefaults/**`, `tests/Shared/**`, `src/**/*.Domain/**`, `src/**/*.Application/**`, `src/**/*.Infrastructure/**`, `src/**/*.Worker/**` e Dockerfiles nao disparam este workflow quando forem exclusivas. Elas continuam cobertas pelos gates correspondentes: CI .NET, containers, infraestrutura ou publish dos pacotes Shared.
 
 O script `scripts/contracts/openapi/check-breaking-changes.sh` compara os contratos da `main` com os contratos gerados na branch usando `oasdiff breaking --fail-on ERR`. Esse modo falha apenas para mudancas classificadas como erro, que representam breaking changes mais claros. Warnings continuam visiveis na saida, mas nao bloqueiam a etapa inicial.
 

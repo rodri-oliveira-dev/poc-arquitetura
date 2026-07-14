@@ -58,6 +58,8 @@ Arquivos globais para o CI principal:
 - `test.sh`;
 - `test.ps1`.
 
+Arquivos de workflow e actions tambem sao validados pelo workflow `script-quality`, via `actionlint`, sem forcar a suite completa de scripts quando a mudanca e exclusivamente em `.github/workflows/**` ou `.github/actions/**`.
+
 Arquivos `.sln` e `.slnx` tambem sao tratados como globais por padrao, exceto quando a regra mais especifica da solution Shared ou de uma solution de servico ja classifica o impacto.
 
 ## Validacoes executadas
@@ -103,12 +105,58 @@ O workflow reutilizavel `.github/workflows/sonarqube-context.yml` foi removido. 
 | `infrastructure-security` | `.github/workflows/infrastructure-security.yml` | `pull_request` e `push` para `main` quando ha mudancas em infraestrutura coberta; `workflow_dispatch` | Executa Trivy para Dockerfile, Compose, Terraform, misconfigurations, secrets e filesystem. | Bloqueante se exigido por branch protection/ruleset |
 | `terraform-validation` | `.github/workflows/terraform-validation.yml` | `pull_request` e `push` para `main` quando ha mudancas Terraform cobertas; `workflow_dispatch` | Executa `fmt -check`, `init -backend=false`, `validate` e TFLint. | Bloqueante se exigido por branch protection/ruleset |
 | `container-baseline` | `.github/workflows/container-baseline.yml` | `pull_request` e `push` para `main` quando ha mudancas de container cobertas; `workflow_dispatch` | Valida Compose, estrutura de containers e build da stack base. | Bloqueante se exigido por branch protection/ruleset |
+| `script-quality` | `.github/workflows/script-quality.yml` | `pull_request` e `push` para `main` quando ha mudancas em `scripts/**`, workflows, composite actions ou tooling Node; `workflow_dispatch` | Valida scripts por impacto e valida workflows/composite actions com `actionlint` fixado e verificado por SHA256. | Bloqueante se exigido por branch protection/ruleset |
 | `mutation-tests` | `.github/workflows/mutation-tests.yml` | `workflow_run` apos sucesso do `main-dotnet-ci` na `main`, `workflow_dispatch` | Mutation testing informativo para alvos de servico, usando o SHA validado pelo CI. | Informativo |
 | `publish-shared-nuget` | `.github/workflows/publish-shared-nuget.yml` | `workflow_run` apos sucesso do `main-dotnet-ci` na `main`, `workflow_dispatch` com input `publish` | Empacota e valida os pacotes Shared; publica automaticamente apenas quando o SHA aprovado alterou entradas Shared relevantes, ou manualmente quando `publish=true`. | Operacional |
 | `smoke-load-tests` | `.github/workflows/loadtests-smoke.yml` | `workflow_dispatch` | Executa testes k6 smoke contra stack local no runner. | Operacional/manual |
 | `owasp-zap-baseline` | `.github/workflows/owasp-zap.yml` | `workflow_run` apos sucesso do `main-dotnet-ci` na `main`, `workflow_dispatch` | Executa OWASP ZAP baseline contra APIs em stack controlada, usando o SHA validado pelo CI. | Operacional/informativo |
 | `architecture-pages` | `.github/workflows/pages-architecture.yml` | `push` na `main`, `pull_request` para `main`, `workflow_dispatch` quando ha mudancas de arquitetura | Build LikeC4 em PRs afetados e publicacao da documentacao arquitetural no GitHub Pages. | Operacional |
 | `release-on-merge` | `.github/workflows/release.yml` | `workflow_run` apos sucesso do `main-dotnet-ci` na `main` | Cria tag e GitHub Release para o SHA validado pelo CI. Nao repete build/testes e nao depende de ZAP ou mutation. | Operacional |
+
+## Visao final do pipeline
+
+```text
+Pull request / merge queue
+├── CI .NET
+├── advisory analyzers
+├── CodeQL
+├── dependency review
+├── contracts
+├── container baseline
+├── infrastructure security
+├── Terraform validation
+└── script/workflow quality
+
+Main CI aprovado
+├── release
+├── publish Shared NuGet, quando aplicavel
+├── OWASP ZAP advisory
+└── mutation testing advisory
+```
+
+## Matriz de gatilhos
+
+| Area alterada | Workflows esperados |
+| --- | --- |
+| Codigo .NET de servico, testes de servico, solutions ou build global | `main-dotnet-ci`; `pr-advisory-checks` quando houver C# em PR nao draft |
+| Apenas documentacao/imagens de documentacao | `main-dotnet-ci` cria check verde com skip interno; workflows com path especifico rodam somente se seus filtros forem atingidos |
+| API HTTP, `ApiDefaults`, gerador OpenAPI, Redocly ou `docs/openapi/**` | `openapi-contract-validation` |
+| Dockerfile isolado em `src/**` | `container-baseline` e `infrastructure-security`; nao aciona `openapi-contract-validation` |
+| Compose, `.dockerignore`, Dockerfiles, validador de containers ou workflow de container | `container-baseline`; `infrastructure-security` quando coberto pelos filtros de seguranca |
+| Terraform | `terraform-validation` e `infrastructure-security` |
+| Scripts em `scripts/**` ou tooling Node usado por scripts | job de scripts do `script-quality` |
+| Workflows ou composite actions | job `actionlint` do `script-quality`; nao executa toda a suite de scripts por essa razao isolada |
+| Titulo ou descricao de PR | Nenhum analyzer por evento `edited`; `pr-advisory-checks` roda apenas em `opened`, `reopened`, `synchronize` e `ready_for_review` |
+| PR draft | `pr-advisory-checks` fica pulado; `ready_for_review` preserva a primeira execucao consultiva |
+
+## Matriz de gates
+
+| Categoria | Workflows/checks | Uso recomendado em branch protection/rulesets |
+| --- | --- | --- |
+| Bloqueante principal | `Build and test` do `main-dotnet-ci` | Required check |
+| Bloqueantes de seguranca/contrato/infra | `dependency-security-review`, `codeql-security-analysis`, `openapi-contract-validation`, `event-contract-validation`, `container-baseline`, `infrastructure-security`, `terraform-validation`, `script-quality` | Required quando o repositorio quiser bloquear merges nessas superficies; todos possuem escopo por paths ou skip interno |
+| Consultivos | `pr-advisory-checks`, `mutation-tests`, achados do `owasp-zap-baseline` quando `fail_on_alerts=false` | Nao marcar como required sem decisao explicita |
+| Operacionais pos-CI | `release-on-merge`, `publish-shared-nuget`, deploy de `architecture-pages` | Nao marcar como required de PR; publicacoes usam `cancel-in-progress: false` |
 
 ## Fluxo pos-CI da main
 

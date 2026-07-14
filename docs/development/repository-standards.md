@@ -87,9 +87,12 @@ Workflows principais:
 - `openapi-contract-validation`: geracao, lint, diff e drift de contratos OpenAPI;
 - `infrastructure-security`: Trivy para Dockerfiles, Compose, Terraform, secrets e filesystem;
 - `terraform-validation`: Terraform validate e TFLint;
+- `container-baseline`: Compose, ContainerBaselineValidator e build das imagens da stack base;
+- `script-quality`: ShellCheck, PSScriptAnalyzer, sintaxe Node/Python e `actionlint` para workflows/composite actions, com jobs separados por impacto;
 - `mutation-tests`: mutation testing informativo apos sucesso do CI da `main` ou manual;
 - `smoke-load-tests`: smoke load tests manuais com k6;
 - `owasp-zap-baseline`: OWASP ZAP baseline manual ou automatico apos sucesso do CI da `main`;
+- `publish-shared-nuget`: pack/validacao e publicacao NuGet dos pacotes Shared apos sucesso do CI da `main` ou manual;
 - `architecture-pages`: build e publicacao LikeC4;
 - `release-on-merge`: tags e GitHub Releases apos sucesso do CI da `main`, sempre no SHA validado.
 
