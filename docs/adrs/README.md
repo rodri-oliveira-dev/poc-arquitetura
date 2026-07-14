@@ -15,6 +15,7 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 
 | ADR                                                                   | Status      | Resumo                                                                                           |
 | --------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------ |
+| [ADR-0107](./0107-orquestracao-pos-ci-main-release-zap-mutation.md) | Aceito | Orquestra release, OWASP ZAP e mutation testing apos sucesso do CI da main usando o SHA validado. |
 | [ADR-0106](./0106-ci-principal-contextual-pull-requests-main.md) | Aceito | Consolida o CI principal para PR, Merge Queue, main e manual com validacao contextual aggregate/Shared. |
 | [ADR-0105](./0105-payment-provider-event-ordering-deduplication.md) | Aceito | Define politica de deduplicacao, ordenacao, regressao e replay seguro para eventos externos de pagamento. |
 | [ADR-0104](./0104-payment-ledger-integration.md) | Aceito | Define integracao do PaymentService com LedgerService via HTTP idempotente para criar o efeito financeiro. |
@@ -77,13 +78,13 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 | [ADR-0047](./0047-plano-futuro-adocao-incremental-testcontainers.md) | Proposto | Define plano futuro, incremental e condicionado a spike para adotar Testcontainers nos testes de integracao com PostgreSQL real. |
 | [ADR-0046](./0046-plano-futuro-adocao-incremental-dotnet-aspire.md) | Proposto | Define plano futuro, incremental e condicionado a spike para avaliar .NET Aspire sem substituir Compose ou testes atuais. |
 | [ADR-0045](./0045-retencao-e-exposicao-de-artifacts-github-actions.md) | Aceito | Reduz exposicao de artifacts publicados por workflows mantendo diagnostico e retencao explicita. |
-| [ADR-0044](./0044-mutation-testing-informativo-github-actions.md) | Aceito | Executa mutation testing informativo no GitHub Actions apos push na main. |
+| [ADR-0044](./0044-mutation-testing-informativo-github-actions.md) | Parcialmente substituido | Historico do mutation testing informativo por push; gatilho atual pos-CI fica na ADR-0107. |
 | [ADR-0043](./0043-mutation-testing-local-stryker-balance-application.md) | Aceito | Adota mutation testing local e opcional com Stryker.NET para BalanceService.Application. |
 | [ADR-0042](./0042-mutation-testing-local-stryker-ledger-application.md) | Aceito | Adota mutation testing local e opcional com Stryker.NET para LedgerService.Application. |
 | [ADR-0041](./0041-validacao-pull-requests-branch-protection.md) | Substituido | Historico do workflow dedicado de PR, substituido pela consolidacao do CI principal na ADR-0106. |
 | [ADR-0040](./0040-padronizacao-commands-queries-validacao-entrada-apis.md) | Aceito | Padroniza politica de commands/queries e valida amount decimal no contrato do Ledger. |
 | [ADR-0039](./0039-publicacao-indicadores-qualidade-documentacao-arquitetural-pages.md) | Aceito | Publica badges de qualidade no README e documentacao LikeC4 no GitHub Pages. |
-| [ADR-0038](./0038-automacao-releases-prs-mergeados-main.md)           | Aceito      | Automatiza tags e GitHub Releases a partir de PRs mergeados na main.                             |
+| [ADR-0038](./0038-automacao-releases-prs-mergeados-main.md)           | Parcialmente substituido | Historico da release por PR mergeado; gatilho atual pos-CI fica na ADR-0107. |
 | [ADR-0037](./0037-otimizacao-hooks-workflows-arquivos-impactantes.md) | Parcialmente substituido | Historico de otimizacao por arquivos impactantes; `dotnet.yml` passou a usar skip interno pela ADR-0106. |
 | [ADR-0036](./0036-padronizacao-cobertura-testes-solution.md) | Aceito | Padroniza cobertura consolidada da solution com gate minimo de 80%. |
 | [ADR-0035](./0035-padronizacao-git-hooks-locais.md) | Aceito | Padroniza hooks locais para commit, post-merge e pre-push. |

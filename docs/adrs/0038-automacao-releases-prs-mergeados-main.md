@@ -1,13 +1,15 @@
 # ADR-0038: Automacao de Releases a partir de Pull Requests Mergeados na Main
 
 ## Status
-Aceito
+Parcialmente substituido pela ADR-0107
 
 ## Data
 2026-04-26
 
 ## Contexto
 O repositorio possui workflows de CI para build, testes, cobertura, CodeQL e revisao de dependencias, mas nao possuia uma automacao de release. Sem uma politica explicita, tags e releases dependem de acao manual, o que reduz rastreabilidade entre PRs, commits e artefatos publicados.
+
+Nota historica: a criacao direta por `pull_request.closed` foi substituida pela orquestracao pos-CI da `main` na [ADR-0107](./0107-orquestracao-pos-ci-main-release-zap-mutation.md). Esta ADR permanece como historico da primeira automacao de release.
 
 O fluxo desejado e criar uma GitHub Release automaticamente quando um PR for mergeado na branch `main`, evitando releases para PRs fechados sem merge e para pushes diretos.
 

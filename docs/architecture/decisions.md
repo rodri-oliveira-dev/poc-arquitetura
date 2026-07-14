@@ -158,7 +158,7 @@ Simplificacoes recomendadas:
 - AuditService pode parecer integrado aos fluxos financeiros se o consumer Kafka for mostrado sem a ressalva de que ainda nao ha producers reais.
 - Outbox/DLQ exigem operacao cuidadosa de reprocessamento; ja existem runbooks e casos de uso internos, mas ainda nao ha automacao operacional completa para todos os cenarios produtivos.
 - Baseline produtivo GCP/seguranca foi consolidado como referencia arquitetural em [production-readiness.md](production-readiness.md), mas ainda precisa virar decisoes e automacoes especificas antes de tratar o projeto como referencia operacional fora do laboratorio local.
-- DAST/ZAP segue sem workflow ou gate automatizado.
+- DAST/ZAP possui workflow manual e execucao automatica pos-CI da `main`, mas segue sem gate bloqueante.
 - Testes k6 ainda nao possuem thresholds p95/p99 formalizados.
 
 ## Roadmap recomendado
@@ -183,7 +183,7 @@ O roadmap consolidado por areas de maturidade fica em [docs/roadmap.md](../roadm
 - Evoluir a politica de eventos versionados ja baseada em JSON Schema, avaliando schema registry apenas se o projeto sair do laboratorio local para baseline operacional mais amplo.
 - Extrair readiness checks para componentes pequenos se os checks das APIs passarem de banco e dependencias diretas do trafego HTTP.
 - Evoluir as decisoes especificas a partir do baseline recomendado para secrets, TLS interno, workload identity, WAF, rate limits e scans de imagem.
-- Automatizar DAST/ZAP em workflow somente quando houver decisao e ambiente adequado para esse gate.
+- Evoluir DAST/ZAP para gate bloqueante somente quando houver decisao e ambiente adequado para esse gate.
 - Formalizar thresholds k6 p95/p99 depois de obter linha de base local reprodutivel.
 
 ### Longo prazo

@@ -4,7 +4,7 @@ Este guia documenta a execucao local versionada do OWASP ZAP contra as APIs HTTP
 
 Os scripts usam por padrao a imagem oficial `ghcr.io/zaproxy/zaproxy:stable`, conforme a documentacao Docker do ZAP: <https://www.zaproxy.org/docs/docker/>. O scan usa `zap-api-scan.py` importando OpenAPI/Swagger em `/swagger/v1/swagger.json`, conforme a documentacao de API Scan do ZAP: <https://www.zaproxy.org/docs/docker/api-scan/>.
 
-Tambem existe o workflow manual `.github/workflows/owasp-zap.yml` para executar o mesmo baseline em GitHub Actions sob demanda. Ele nao roda em `pull_request` e nao e gate obrigatorio nesta etapa.
+Tambem existe o workflow `.github/workflows/owasp-zap.yml` para executar o mesmo baseline em GitHub Actions sob demanda ou automaticamente apos sucesso do CI da `main`. Ele nao roda em `pull_request` e nao e gate obrigatorio nesta etapa.
 
 ## Pre-requisitos
 
@@ -174,7 +174,9 @@ Quando o modo autenticado estiver ativo, o summary registra apenas que `Authoriz
 
 ## GitHub Actions
 
-O workflow `owasp-zap-baseline` e executado manualmente em `Actions > owasp-zap-baseline > Run workflow`.
+O workflow `owasp-zap-baseline` e executado manualmente em `Actions > owasp-zap-baseline > Run workflow` ou automaticamente por `workflow_run` quando o workflow `main-dotnet-ci` conclui com sucesso na branch `main`.
+
+Na execucao automatica, o workflow faz checkout explicito de `${{ github.event.workflow_run.head_sha }}`, o mesmo SHA validado pelo CI. Se o CI falhar ou for cancelado, o job automatico fica pulado.
 
 Ele sobe no runner uma stack HTTP controlada com:
 
@@ -198,6 +200,8 @@ Depois do scan, o workflow publica o artifact `owasp-zap-baseline-reports` com r
 - summaries de texto ou Markdown.
 
 Por padrao, alertas do ZAP nao falham o job. O job falha para problemas operacionais, como erro ao subir a stack, migrations com falha, APIs indisponiveis, falha operacional do container ZAP ou erro do runner. Ao disparar manualmente, o input `fail_on_alerts=true` pode ser usado para propagar alertas como falha, mas isso continua sendo uma decisao manual e nao altera os checks obrigatorios de PR.
+
+Na execucao automatica pos-CI, alertas permanecem consultivos e `fail_on_alerts` nao e aplicado. Nao use `owasp-zap-baseline` como required check enquanto essa politica consultiva estiver vigente; branch protection deve continuar focada no check `Build and test` e nos checks de seguranca definidos como bloqueantes.
 
 Esse criterio existe porque o baseline ainda pode gerar falsos positivos ou achados dependentes do ambiente local da POC. Ele deve evoluir para gate apenas quando houver ambiente alvo estavel, politica de triagem, allowlist ou baseline aceito, severidades bloqueantes definidas e baixo ruido operacional.
 

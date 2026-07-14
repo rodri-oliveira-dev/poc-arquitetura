@@ -87,10 +87,11 @@ Workflows principais:
 - `openapi-contract-validation`: geracao, lint, diff e drift de contratos OpenAPI;
 - `infrastructure-security`: Trivy para Dockerfiles, Compose, Terraform, secrets e filesystem;
 - `terraform-validation`: Terraform validate e TFLint;
-- `mutation-tests`: mutation testing informativo;
+- `mutation-tests`: mutation testing informativo apos sucesso do CI da `main` ou manual;
 - `smoke-load-tests`: smoke load tests manuais com k6;
+- `owasp-zap-baseline`: OWASP ZAP baseline manual ou automatico apos sucesso do CI da `main`;
 - `architecture-pages`: build e publicacao LikeC4;
-- `release-on-merge`: tags e GitHub Releases apos merge na `main`.
+- `release-on-merge`: tags e GitHub Releases apos sucesso do CI da `main`, sempre no SHA validado.
 
 Detalhes ficam em [validacao de pull requests](pull-request-validation.md), [artifacts dos workflows](workflow-artifacts.md) e [releases](releases.md).
 

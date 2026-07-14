@@ -61,14 +61,14 @@ Conteudo publicado:
 
 Motivo:
 
-- mutation testing e informativo e nao bloqueia merge;
+- mutation testing e informativo e nao bloqueia merge nem release;
 - o HTML e mantido porque e o relatorio primario para analisar mutantes `Survived`, `NoCoverage`, `Timeout` e `CompileError`;
 - a publicacao nao inclui a pasta `StrykerOutput/` completa nem o JSON detalhado, reduzindo volume e exposicao desnecessaria.
 
 Risco residual:
 
 - o `mutation-report.html` pode conter paths, nomes de tipos, nomes de testes e trechos de codigo mutado;
-- por isso, a retencao e curta e o workflow continua restrito a `push` na `main` e execucao manual, sem rodar em todo pull request.
+- por isso, a retencao e curta e o workflow continua restrito a execucao pos-CI da `main` e execucao manual, sem rodar em todo pull request.
 
 ## owasp-zap-baseline
 
@@ -87,7 +87,7 @@ Conteudo publicado:
 
 Motivo:
 
-- o workflow e manual e apoia triagem DAST sem virar gate obrigatorio de PR nesta etapa;
+- o workflow apoia triagem DAST manual ou pos-CI da `main` sem virar gate obrigatorio de PR ou release nesta etapa;
 - os relatorios sao a saida primaria do OWASP ZAP para analise de achados;
 - a retencao curta reduz exposicao de paths, endpoints, headers e detalhes do ambiente local do runner.
 

@@ -16,7 +16,8 @@ O fluxo considerado e GitHub Flow:
 
 - PRs sao abertos a partir de branches curtos para `main`;
 - o check `Build and test` deve passar antes do merge;
-- o workflow de release roda quando um PR e mergeado na `main`;
+- o workflow `main-dotnet-ci` roda no push resultante para a `main`;
+- o workflow de release roda somente apos o `main-dotnet-ci` da `main` concluir com sucesso;
 - a tag SemVer criada pelo workflow passa a ser a fonte de versao para releases seguintes.
 
 As tags validas de release usam o prefixo `v` seguido de SemVer estrito, por exemplo:
@@ -29,16 +30,22 @@ Tags historicas fora de SemVer, como tags sequenciais por data, permanecem no hi
 
 ## Quando a release e criada
 
-O workflow escuta o evento `pull_request` com tipo `closed` para a branch `main`, mas o job so executa quando `github.event.pull_request.merged == true`.
+O workflow escuta o evento `workflow_run` do workflow `main-dotnet-ci`, com `types: [completed]` e filtro para a branch `main`. O job so executa quando:
+
+```yaml
+github.event.workflow_run.conclusion == 'success'
+github.event.workflow_run.event == 'push'
+github.event.workflow_run.head_branch == 'main'
+```
 
 Com isso:
 
-- PR mergeado na `main` cria release;
-- PR fechado sem merge nao cria release;
-- push direto na `main` nao cria release;
-- reexecucao do workflow nao cria uma segunda release para o mesmo commit de merge.
+- CI da `main` com sucesso pode criar release;
+- CI da `main` com falha ou cancelamento nao cria release;
+- PR fechado sem merge nao cria release diretamente;
+- reexecucao do workflow nao cria uma segunda release para o mesmo commit aprovado.
 
-O workflow nao executa build/testes novamente. A protecao da branch `main` deve exigir o check `Build and test`, produzido pelo workflow `main-dotnet-ci`, antes do merge.
+O workflow nao executa build/testes novamente. Ele usa o SHA aprovado pelo CI, `${{ github.event.workflow_run.head_sha }}`, para checkout, calculo de versao, tag e target da GitHub Release. A protecao da branch `main` deve exigir o check `Build and test`, produzido pelo workflow `main-dotnet-ci`, antes do merge.
 
 Se o GitVersion calcular uma versao cuja tag ja existe em outro commit, o workflow nao cria uma nova tag nem uma nova release. Esse e o comportamento esperado para PRs que nao geram incremento SemVer.
 
@@ -155,19 +162,19 @@ Nao adicione `Version` fixa aos `.csproj`, nao use `GitVersion.MsBuild` para est
 
 A release usa a tag SemVer como titulo e inclui:
 
-- numero, titulo e link do PR;
-- autor do PR;
-- branch de origem;
-- commit de merge;
+- numero, titulo e link da PR associada ao commit aprovado, quando encontrada;
+- autor da PR, quando encontrada;
+- branch de origem da PR, quando encontrada;
+- commit aprovado pelo CI;
 - versao calculada;
-- descricao do PR como changelog simples;
-- lista resumida dos commits do PR quando disponivel.
+- descricao da PR como changelog simples, quando encontrada;
+- lista resumida dos commits desde a tag SemVer anterior, quando disponivel.
 
 O corpo da release usa apenas metadados do PR e commits do repositorio. Secrets nao devem ser colocados em descricoes de PR, mensagens de commit ou titulos.
 
 ## Como evitar release
 
-Para evitar release automatica, nao faca merge do PR na `main`. Fechar o PR sem merge nao dispara release.
+Para evitar release automatica, nao faca merge do PR na `main` sem alinhar a excecao operacional. Fechar o PR sem merge nao dispara release, e falha/cancelamento do `main-dotnet-ci` na `main` tambem impede a release.
 
 Se uma alteracao precisa entrar na `main` sem release, isso deve ser tratado como excecao operacional e discutido antes do merge, porque push direto na `main` tambem deve ser evitado pela protecao da branch.
 
@@ -192,4 +199,4 @@ permissions:
   pull-requests: read
 ```
 
-`contents: write` permite criar tags e releases. `pull-requests: read` permite ler os metadados do PR mergeado.
+`contents: write` permite criar tags e releases. `pull-requests: read` permite localizar a PR associada ao commit aprovado, quando existir.

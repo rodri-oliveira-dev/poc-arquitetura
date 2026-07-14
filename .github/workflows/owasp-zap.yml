@@ -1,6 +1,10 @@
 name: owasp-zap-baseline
 
 on:
+  workflow_run:
+    workflows: ["main-dotnet-ci"]
+    types: [completed]
+    branches: ["main"]
   workflow_dispatch:
     inputs:
       fail_on_alerts:
@@ -13,7 +17,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.workflow_run.head_sha || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -24,13 +28,24 @@ env:
 
 jobs:
   zap-baseline:
-    name: Manual OWASP ZAP baseline
+    name: OWASP ZAP baseline
+    if: >-
+      ${{
+        github.event_name == 'workflow_dispatch' ||
+        (
+          github.event.workflow_run.conclusion == 'success' &&
+          github.event.workflow_run.event == 'push' &&
+          github.event.workflow_run.head_branch == 'main'
+        )
+      }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Setup .NET
         uses: ./.github/actions/setup-dotnet
@@ -105,6 +120,8 @@ jobs:
 
       - name: Run OWASP ZAP baseline
         shell: bash
+        env:
+          FAIL_ON_ALERTS: ${{ github.event_name == 'workflow_dispatch' && inputs.fail_on_alerts }}
         run: |
           mkdir -p "$ZAP_ARTIFACTS_DIR"
 
@@ -114,7 +131,7 @@ jobs:
             --health-interval 5
           )
 
-          if [ "${{ inputs.fail_on_alerts }}" = "true" ]; then
+          if [ "$FAIL_ON_ALERTS" = "true" ]; then
             args+=(--fail-on-alerts)
           fi
 
@@ -125,11 +142,12 @@ jobs:
         shell: bash
         run: |
           {
-            echo "## OWASP ZAP baseline manual"
+            echo "## OWASP ZAP baseline"
             echo
-            echo "- Workflow manual via workflow_dispatch; nao e gate obrigatorio de PR."
+            echo "- Execucao manual via workflow_dispatch ou automatica apos sucesso do main-dotnet-ci na main."
             echo "- Alvos padrao: LedgerService.Api e BalanceService.Api."
-            echo "- Alerts do ZAP so falham o job quando fail_on_alerts=true."
+            echo "- Alerts do ZAP so falham o job em execucao manual com fail_on_alerts=true."
+            echo "- Falhas operacionais de Docker, migrations, build, timeout ou APIs indisponiveis continuam falhando o job."
             echo
           } >> "$GITHUB_STEP_SUMMARY"
 

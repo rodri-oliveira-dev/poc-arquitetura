@@ -103,11 +103,33 @@ O workflow reutilizavel `.github/workflows/sonarqube-context.yml` foi removido. 
 | `infrastructure-security` | `.github/workflows/infrastructure-security.yml` | `pull_request` e `push` para `main` quando ha mudancas em infraestrutura coberta; `workflow_dispatch` | Executa Trivy para Dockerfile, Compose, Terraform, misconfigurations, secrets e filesystem. | Bloqueante se exigido por branch protection/ruleset |
 | `terraform-validation` | `.github/workflows/terraform-validation.yml` | `pull_request` e `push` para `main` quando ha mudancas Terraform cobertas; `workflow_dispatch` | Executa `fmt -check`, `init -backend=false`, `validate` e TFLint. | Bloqueante se exigido por branch protection/ruleset |
 | `container-baseline` | `.github/workflows/container-baseline.yml` | `pull_request` e `push` para `main` quando ha mudancas de container cobertas; `workflow_dispatch` | Valida Compose, estrutura de containers e build da stack base. | Bloqueante se exigido por branch protection/ruleset |
-| `mutation-tests` | `.github/workflows/mutation-tests.yml` | `push` na `main`, `workflow_dispatch` | Mutation testing informativo para alvos de servico. | Informativo |
+| `mutation-tests` | `.github/workflows/mutation-tests.yml` | `workflow_run` apos sucesso do `main-dotnet-ci` na `main`, `workflow_dispatch` | Mutation testing informativo para alvos de servico, usando o SHA validado pelo CI. | Informativo |
 | `smoke-load-tests` | `.github/workflows/loadtests-smoke.yml` | `workflow_dispatch` | Executa testes k6 smoke contra stack local no runner. | Operacional/manual |
-| `owasp-zap-baseline` | `.github/workflows/owasp-zap.yml` | `workflow_dispatch` | Executa OWASP ZAP baseline contra APIs em stack controlada. | Operacional/manual |
+| `owasp-zap-baseline` | `.github/workflows/owasp-zap.yml` | `workflow_run` apos sucesso do `main-dotnet-ci` na `main`, `workflow_dispatch` | Executa OWASP ZAP baseline contra APIs em stack controlada, usando o SHA validado pelo CI. | Operacional/informativo |
 | `architecture-pages` | `.github/workflows/pages-architecture.yml` | `push` na `main`, `pull_request` para `main`, `workflow_dispatch` quando ha mudancas de arquitetura | Build LikeC4 em PRs afetados e publicacao da documentacao arquitetural no GitHub Pages. | Operacional |
-| `release-on-merge` | `.github/workflows/release.yml` | `pull_request` fechado para `main` quando o PR foi mergeado | Cria tag e GitHub Release a partir do merge do PR. Nao repete build/testes. | Operacional |
+| `release-on-merge` | `.github/workflows/release.yml` | `workflow_run` apos sucesso do `main-dotnet-ci` na `main` | Cria tag e GitHub Release para o SHA validado pelo CI. Nao repete build/testes e nao depende de ZAP ou mutation. | Operacional |
+
+## Fluxo pos-CI da main
+
+Quando o workflow `main-dotnet-ci` conclui na branch `main`, os workflows `release-on-merge`, `owasp-zap-baseline` e `mutation-tests` recebem o mesmo evento `workflow_run`.
+
+Cada job automatico valida `github.event.workflow_run.conclusion == 'success'`, `github.event.workflow_run.event == 'push'` e `github.event.workflow_run.head_branch == 'main'`. Quando a conclusao e `failure` ou `cancelled`, ou quando o CI aprovado nao veio de push da `main`, os jobs ficam pulados.
+
+Todos fazem checkout do SHA aprovado:
+
+```yaml
+ref: ${{ github.event.workflow_run.head_sha }}
+```
+
+Matriz esperada:
+
+| CI | Release | ZAP | Mutation |
+| --- | --- | --- | --- |
+| `success` | Inicia e pode criar tag/release para o SHA aprovado, respeitando idempotencia e SemVer. | Inicia em paralelo, com alertas consultivos e falhas operacionais vermelhas. | Inicia em paralelo, com score consultivo e falhas operacionais vermelhas. |
+| `failure` | Nao executa job automatico. | Nao executa job automatico. | Nao executa job automatico. |
+| `cancelled` | Nao executa job automatico. | Nao executa job automatico. | Nao executa job automatico. |
+
+`owasp-zap-baseline` e `mutation-tests` nao usam `needs` entre si nem dependem da release. Falhas operacionais desses workflows ficam visiveis em suas proprias runs, mas nao bloqueiam criacao da release. Achados consultivos do ZAP e mutation score nao devem ser tratados como required checks enquanto nao houver decisao explicita de gate.
 
 ## Branch protection
 
@@ -123,6 +145,7 @@ Configuracao recomendada em `Settings > Branches > Branch protection rules` ou e
 - exigir status checks passarem antes do merge;
 - selecionar o check `Build and test`;
 - preservar checks de seguranca ja exigidos, como `dependency-security-review` ou `codeql-security-analysis`;
+- nao marcar `owasp-zap-baseline`, `mutation-tests` ou `release-on-merge` como required checks enquanto eles forem pos-CI informativos/operacionais;
 - exigir branch atualizada antes do merge, se o fluxo do repositorio usar essa politica;
 - bloquear push direto na `main`, exceto para administracao operacional explicita.
 

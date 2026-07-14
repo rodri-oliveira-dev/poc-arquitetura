@@ -15,7 +15,7 @@ Status documental atualizado em 2026-07-01. A tabela resume o estado atual do pr
 | Seguranca estatica documentada | Parcialmente atendido | `.github/workflows/codeql.yml`, `docs/development/pull-request-validation.md`, relatorio OWASP | CodeQL esta documentado, mas esta pagina nao afirma resultado recente de SAST. |
 | Dependency review / vulnerabilidades NuGet | Parcialmente atendido | `.github/workflows/dependency-review.yml`, `Directory.Packages.props`, ADR de pruning NuGet | Dependency review existe; ausencia de CVEs exige execucao atual de scanner. |
 | Trivy para infraestrutura, filesystem e secrets | Atendido | `.github/workflows/infrastructure-security.yml`, `.github/actions/trivy-repository-scan`, `docs/development/trivy-security-scan.md` | Validacao local e em workflow cobre Dockerfiles, Terraform, misconfigurations, secrets e filesystem, com exclusao de `node_modules`, caches e diretorios gerados. Esta revisao nao executou o scanner. |
-| OWASP/ZAP ou DAST | Parcialmente atendido | `scripts/security/run-owasp-zap.ps1`, `scripts/security/run-owasp-zap.sh`, `.github/workflows/owasp-zap.yml`, `docs/development/owasp-zap.md`, `docs/reports/aspire-and-owasp-assessment.md` | Ha execucao local versionada e workflow manual contra Ledger e Balance. Ainda nao e gate obrigatorio de PR e esta pagina nao registra resultado recente do scan. |
+| OWASP/ZAP ou DAST | Parcialmente atendido | `scripts/security/run-owasp-zap.ps1`, `scripts/security/run-owasp-zap.sh`, `.github/workflows/owasp-zap.yml`, `docs/development/owasp-zap.md`, `docs/reports/aspire-and-owasp-assessment.md` | Ha execucao local versionada e workflow manual/pos-CI da `main` contra Ledger e Balance. Ainda nao e gate obrigatorio de PR ou release, e esta pagina nao registra resultado recente do scan. |
 | Testes de carga documentados | Atendido | `loadtests/k6/README.md`, `docs/development/local-development.md` | Cenarios smoke, balance50 e resilience estao documentados como validacao local/controlada, com thresholds iniciais de p95/p99 para baseline local. |
 | Observabilidade documentada | Atendido | `docs/observability.md`, LikeC4, dashboards versionados | Stack local cobre OTLP, Jaeger, Prometheus, Loki, Alloy, Alertmanager e Grafana. |
 | Execucao local documentada | Atendido | `docs/development/local-development.md`, `README.md` | Inclui compose principal com PostgreSQL e Kafka, Pub/Sub emulator explicito/legado, migrations, portas, Nginx opcional, Testcontainers e k6. |
@@ -30,6 +30,6 @@ Status documental atualizado em 2026-07-01. A tabela resume o estado atual do pr
 
 ## Pendencias principais
 
-- Executar e registrar DAST/OWASP ZAP ou pentest quando houver necessidade de avaliar exposicao dinamica alem do script local versionado e do workflow manual.
+- Executar e registrar DAST/OWASP ZAP ou pentest quando houver necessidade de avaliar exposicao dinamica alem do script local versionado e do workflow manual/pos-CI.
 - Evoluir a partir do baseline recomendado em `docs/architecture/production-readiness.md`, ainda pendente de implementacao para secrets produtivos, TLS interno, identidade de workload, Pub/Sub real produtivo, bancos, scans de imagem, WAF e rate limits por identidade.
 - Evoluir thresholds k6 somente com novas linhas de base locais reprodutiveis ou com decisao futura de ambiente alvo; os limites atuais nao declaram SLO produtivo.
