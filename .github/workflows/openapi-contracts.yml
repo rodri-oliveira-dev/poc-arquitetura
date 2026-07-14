@@ -77,10 +77,13 @@ jobs:
         uses: ./.github/actions/setup-node
 
       - name: Restore dependencies
-        run: dotnet restore $SOLUTION_PATH
+        run: dotnet restore "$SOLUTION_PATH"
 
       - name: Build
-        run: dotnet build $SOLUTION_PATH --configuration $BUILD_CONFIGURATION --no-restore
+        run: >
+          dotnet build "$SOLUTION_PATH"
+          --configuration "$BUILD_CONFIGURATION"
+          --no-restore
 
       - name: Generate OpenAPI contracts
         run: bash ./scripts/contracts/openapi/generate.sh

@@ -144,37 +144,43 @@ jobs:
           echo "Package version: $package_version"
 
       - name: Restore dependencies
-        run: dotnet restore $SOLUTION_PATH
+        run: dotnet restore "$SOLUTION_PATH"
 
       - name: Build
-        run: dotnet build $SOLUTION_PATH -c $BUILD_CONFIGURATION --no-restore
+        run: >
+          dotnet build "$SOLUTION_PATH"
+          -c "$BUILD_CONFIGURATION"
+          --no-restore
 
       - name: Test
-        run: dotnet test $SOLUTION_PATH -c $BUILD_CONFIGURATION --no-build
+        run: >
+          dotnet test "$SOLUTION_PATH"
+          -c "$BUILD_CONFIGURATION"
+          --no-build
 
       - name: Pack HttpResilienceDefaults
         run: >
           dotnet pack src/Shared/HttpResilienceDefaults/HttpResilienceDefaults.csproj
-          -c $BUILD_CONFIGURATION
+          -c "$BUILD_CONFIGURATION"
           --no-build
-          --output $PACKAGE_OUTPUT_DIR
-          /p:PackageVersion=$PACKAGE_VERSION
+          --output "$PACKAGE_OUTPUT_DIR"
+          "/p:PackageVersion=$PACKAGE_VERSION"
 
       - name: Pack ApplicationDefaults
         run: >
           dotnet pack src/Shared/ApplicationDefaults/ApplicationDefaults.csproj
-          -c $BUILD_CONFIGURATION
+          -c "$BUILD_CONFIGURATION"
           --no-build
-          --output $PACKAGE_OUTPUT_DIR
-          /p:PackageVersion=$PACKAGE_VERSION
+          --output "$PACKAGE_OUTPUT_DIR"
+          "/p:PackageVersion=$PACKAGE_VERSION"
 
       - name: Pack ApiDefaults
         run: >
           dotnet pack src/Shared/ApiDefaults/ApiDefaults.csproj
-          -c $BUILD_CONFIGURATION
+          -c "$BUILD_CONFIGURATION"
           --no-build
-          --output $PACKAGE_OUTPUT_DIR
-          /p:PackageVersion=$PACKAGE_VERSION
+          --output "$PACKAGE_OUTPUT_DIR"
+          "/p:PackageVersion=$PACKAGE_VERSION"
 
       - name: Validate generated packages
         shell: pwsh

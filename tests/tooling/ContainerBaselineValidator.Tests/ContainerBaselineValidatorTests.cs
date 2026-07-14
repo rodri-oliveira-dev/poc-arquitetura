@@ -13,6 +13,56 @@ public sealed class ContainerBaselineValidatorTests
     }
 
     [Theory]
+    [InlineData(@"..\Demo.Domain\Demo.Domain.csproj")]
+    [InlineData("../Demo.Domain/Demo.Domain.csproj")]
+    public void Project_reference_separators_should_resolve_to_same_canonical_path(string projectReference)
+    {
+        using Fixture fixture = Fixture.Create(ProjectKind.Api);
+        fixture.SetApplicationProjectReference(projectReference);
+        fixture.ReplaceDockerfileLine("COPY src/demo/Demo.Domain/Demo.Domain.csproj src/demo/Demo.Domain/", string.Empty);
+
+        List<string> failures = Program.Validate(fixture.Root);
+
+        Assert.Contains(failures, failure => failure.Contains("projeto ausente: src/demo/Demo.Domain/Demo.Domain.csproj", StringComparison.OrdinalIgnoreCase));
+        AssertNoRelativeSegments(failures);
+    }
+
+    [Fact]
+    public void Transitive_project_references_should_require_canonical_project_copies()
+    {
+        using Fixture fixture = Fixture.Create(ProjectKind.Api);
+        fixture.ReplaceDockerfileLine("COPY src/demo/Demo.Domain/Demo.Domain.csproj src/demo/Demo.Domain/", string.Empty);
+
+        List<string> failures = Program.Validate(fixture.Root);
+
+        Assert.Contains(failures, failure => failure.Contains("projeto ausente: src/demo/Demo.Domain/Demo.Domain.csproj", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(failures, failure => failure.Contains("src/demo/Demo.Application/../Demo.Domain", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Shared_project_reference_should_resolve_to_canonical_shared_path()
+    {
+        using Fixture fixture = Fixture.Create(ProjectKind.Worker);
+        fixture.AddSharedKafkaWorkerDefaultsReferenceToExecutable();
+
+        List<string> failures = Program.Validate(fixture.Root);
+
+        Assert.Contains(failures, failure => failure.Contains("projeto ausente: src/Shared/KafkaWorkerDefaults/KafkaWorkerDefaults.csproj", StringComparison.OrdinalIgnoreCase));
+        AssertNoRelativeSegments(failures);
+    }
+
+    [Fact]
+    public void Real_missing_project_copy_should_still_report_violation()
+    {
+        using Fixture fixture = Fixture.Create(ProjectKind.Api);
+        fixture.ReplaceDockerfileLine("COPY src/demo/Demo.Domain/Demo.Domain.csproj src/demo/Demo.Domain/", string.Empty);
+
+        List<string> failures = Program.Validate(fixture.Root);
+
+        Assert.Contains(failures, failure => failure.Contains("projeto ausente: src/demo/Demo.Domain/Demo.Domain.csproj", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Theory]
     [MemberData(nameof(InvalidFixtures))]
     public void Invalid_fixture_should_report_expected_violation(string scenario, string expectedViolation)
     {
@@ -119,6 +169,13 @@ public sealed class ContainerBaselineValidatorTests
         }
     }
 
+    private static void AssertNoRelativeSegments(IEnumerable<string> failures)
+    {
+        Assert.DoesNotContain(failures, failure => failure.Contains("/../", StringComparison.Ordinal));
+        Assert.DoesNotContain(failures, failure => failure.Contains("/./", StringComparison.Ordinal));
+        Assert.DoesNotContain(failures, failure => failure.Contains(@"\..", StringComparison.Ordinal));
+    }
+
     private enum ProjectKind
     {
         Api,
@@ -213,6 +270,32 @@ public sealed class ContainerBaselineValidatorTests
         public void DeleteDockerfile()
         {
             File.Delete(DockerfilePath);
+        }
+
+        public void SetApplicationProjectReference(string projectReference)
+        {
+            File.WriteAllText(Path.Combine(Root, "src/demo/Demo.Application/Demo.Application.csproj"), $$"""
+                <Project Sdk="Microsoft.NET.Sdk">
+                  <ItemGroup>
+                    <ProjectReference Include="{{projectReference}}" />
+                  </ItemGroup>
+                </Project>
+                """);
+        }
+
+        public void AddSharedKafkaWorkerDefaultsReferenceToExecutable()
+        {
+            Directory.CreateDirectory(Path.Combine(Root, "src/Shared/KafkaWorkerDefaults"));
+            File.WriteAllText(Path.Combine(Root, "src/Shared/KafkaWorkerDefaults/KafkaWorkerDefaults.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\" />");
+
+            File.WriteAllText(Path.Combine(Root, _projectDirectory, $"{_projectName}.csproj"), $$"""
+                <Project Sdk="Microsoft.NET.Sdk">
+                  <ItemGroup>
+                    <ProjectReference Include="../Demo.Application/Demo.Application.csproj" />
+                    <ProjectReference Include="..\..\Shared\KafkaWorkerDefaults\KafkaWorkerDefaults.csproj" />
+                  </ItemGroup>
+                </Project>
+                """);
         }
 
         public void Dispose()

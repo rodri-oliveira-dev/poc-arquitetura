@@ -47,10 +47,13 @@ jobs:
           restore-tools: "true"
 
       - name: Restore dependencies
-        run: dotnet restore $SOLUTION_PATH
+        run: dotnet restore "$SOLUTION_PATH"
 
       - name: Build
-        run: dotnet build $SOLUTION_PATH --configuration $BUILD_CONFIGURATION --no-restore
+        run: >
+          dotnet build "$SOLUTION_PATH"
+          --configuration "$BUILD_CONFIGURATION"
+          --no-restore
 
       - name: Run Stryker - LedgerService.Application
         working-directory: tests/ledger/LedgerService.UnitTests
@@ -81,11 +84,13 @@ jobs:
       - name: Publish mutation testing summary
         if: ${{ always() }}
         run: |
-          echo "## Resumo do mutation testing" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Esta execucao e informativa e nao bloqueia merge ou release." >> "$GITHUB_STEP_SUMMARY"
-          echo "Mutation score e consultivo; falhas de restore, build ou execucao operacional do Stryker continuam visiveis como falha do workflow." >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Relatorios disponiveis nos artefatos do workflow:" >> "$GITHUB_STEP_SUMMARY"
-          echo "- stryker-ledger-service-application" >> "$GITHUB_STEP_SUMMARY"
-          echo "- stryker-balance-service-application" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "## Resumo do mutation testing"
+            echo ""
+            echo "Esta execucao e informativa e nao bloqueia merge ou release."
+            echo "Mutation score e consultivo; falhas de restore, build ou execucao operacional do Stryker continuam visiveis como falha do workflow."
+            echo ""
+            echo "Relatorios disponiveis nos artefatos do workflow:"
+            echo "- stryker-ledger-service-application"
+            echo "- stryker-balance-service-application"
+          } >> "$GITHUB_STEP_SUMMARY"

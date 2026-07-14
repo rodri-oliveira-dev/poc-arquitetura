@@ -42,10 +42,13 @@ jobs:
           restore-tools: "true"
 
       - name: Restore dependencies
-        run: dotnet restore $SOLUTION_PATH
+        run: dotnet restore "$SOLUTION_PATH"
 
       - name: Build
-        run: dotnet build $SOLUTION_PATH --configuration $BUILD_CONFIGURATION --no-restore
+        run: >
+          dotnet build "$SOLUTION_PATH"
+          --configuration "$BUILD_CONFIGURATION"
+          --no-restore
 
       - name: Start local stack and apply migrations
         run: bash ./scripts/local/start-stack.sh

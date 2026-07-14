@@ -54,33 +54,43 @@ jobs:
           full_semver="$(dotnet tool run dotnet-gitversion /showvariable FullSemVer)"
           tag_name="v$version"
 
-          echo "tag_name=$tag_name" >> "$GITHUB_OUTPUT"
-          echo "full_semver=$full_semver" >> "$GITHUB_OUTPUT"
+          {
+            echo "tag_name=$tag_name"
+            echo "full_semver=$full_semver"
+          } >> "$GITHUB_OUTPUT"
 
           if git rev-parse --quiet --verify "refs/tags/$tag_name" >/dev/null; then
             tagged_sha="$(git rev-list -n 1 "$tag_name")"
             echo "create_tag=false" >> "$GITHUB_OUTPUT"
 
             if [ "$tagged_sha" != "$APPROVED_SHA" ]; then
-              echo "create_release=false" >> "$GITHUB_OUTPUT"
-              echo "release_reason=Tag $tag_name already points to $tagged_sha; no SemVer increment was produced for $APPROVED_SHA." >> "$GITHUB_OUTPUT"
+              {
+                echo "create_release=false"
+                echo "release_reason=Tag $tag_name already points to $tagged_sha; no SemVer increment was produced for $APPROVED_SHA."
+              } >> "$GITHUB_OUTPUT"
               exit 0
             fi
 
             if gh release view "$tag_name" >/dev/null 2>&1; then
-              echo "create_release=false" >> "$GITHUB_OUTPUT"
-              echo "release_reason=Release $tag_name already exists for $APPROVED_SHA." >> "$GITHUB_OUTPUT"
+              {
+                echo "create_release=false"
+                echo "release_reason=Release $tag_name already exists for $APPROVED_SHA."
+              } >> "$GITHUB_OUTPUT"
             else
-              echo "create_release=true" >> "$GITHUB_OUTPUT"
-              echo "release_reason=Tag $tag_name already exists for $APPROVED_SHA; release will be created." >> "$GITHUB_OUTPUT"
+              {
+                echo "create_release=true"
+                echo "release_reason=Tag $tag_name already exists for $APPROVED_SHA; release will be created."
+              } >> "$GITHUB_OUTPUT"
             fi
 
             exit 0
           fi
 
-          echo "create_tag=true" >> "$GITHUB_OUTPUT"
-          echo "create_release=true" >> "$GITHUB_OUTPUT"
-          echo "release_reason=GitVersion calculated $full_semver; tag $tag_name will be created for $APPROVED_SHA." >> "$GITHUB_OUTPUT"
+          {
+            echo "create_tag=true"
+            echo "create_release=true"
+            echo "release_reason=GitVersion calculated $full_semver; tag $tag_name will be created for $APPROVED_SHA."
+          } >> "$GITHUB_OUTPUT"
 
       - name: Create tag
         if: ${{ steps.version.outputs.create_tag == 'true' }}

@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
+
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 
@@ -261,13 +262,29 @@ internal static partial class Program
             var document = XDocument.Load(fullPath);
             foreach (var include in document.Descendants("ProjectReference").Select(element => element.Attribute("Include")?.Value).Where(value => !string.IsNullOrWhiteSpace(value)))
             {
-                var referenced = Normalize(Path.GetRelativePath(root, Path.GetFullPath(Path.Combine(Path.GetDirectoryName(fullPath)!, include!))));
+                var referenced = ResolveProjectReference(root, current.Project, include!);
                 queue.Enqueue(new ProjectReference(referenced, current.Project));
                 result.Add(new ProjectReference(referenced, current.Project));
             }
         }
 
         return result.DistinctBy(reference => reference.Project, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    private static string ResolveProjectReference(string repositoryRoot, string currentProject, string projectReference)
+    {
+        var currentProjectPath = currentProject
+            .Replace('\\', Path.DirectorySeparatorChar)
+            .Replace('/', Path.DirectorySeparatorChar);
+
+        var referencePath = projectReference
+            .Replace('\\', Path.DirectorySeparatorChar)
+            .Replace('/', Path.DirectorySeparatorChar);
+
+        var currentProjectFullPath = Path.GetFullPath(Path.Combine(repositoryRoot, currentProjectPath));
+        var referencedProjectFullPath = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(currentProjectFullPath)!, referencePath));
+
+        return Normalize(Path.GetRelativePath(repositoryRoot, referencedProjectFullPath));
     }
 
     private static string? FindProject(string[] lines, Regex regex)
