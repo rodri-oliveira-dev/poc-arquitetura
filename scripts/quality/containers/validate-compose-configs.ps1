@@ -28,6 +28,8 @@ if (-not (Test-Path -LiteralPath $EnvFile -PathType Leaf)) {
 
 $previousCloudSqlInstance = [System.Environment]::GetEnvironmentVariable("CLOUDSQL_INSTANCE_CONNECTION_NAME", "Process")
 $previousGoogleCredentials = [System.Environment]::GetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS", "Process")
+$k6AutoEnvFile = Join-Path $root ".env.k6.auto"
+$removeK6AutoEnvFile = $false
 
 function Set-PlaceholderEnv {
   if ([string]::IsNullOrWhiteSpace([System.Environment]::GetEnvironmentVariable("CLOUDSQL_INSTANCE_CONNECTION_NAME", "Process"))) {
@@ -35,6 +37,10 @@ function Set-PlaceholderEnv {
   }
   if ([string]::IsNullOrWhiteSpace([System.Environment]::GetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS", "Process"))) {
     [System.Environment]::SetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS", "./secrets/cloudsql/application_default_credentials.json", "Process")
+  }
+  if (-not (Test-Path -LiteralPath $k6AutoEnvFile -PathType Leaf)) {
+    Set-Content -LiteralPath $k6AutoEnvFile -Value "# Placeholder temporario para docker compose config." -Encoding UTF8
+    $script:removeK6AutoEnvFile = $true
   }
 }
 
@@ -96,5 +102,8 @@ try {
 finally {
   [System.Environment]::SetEnvironmentVariable("CLOUDSQL_INSTANCE_CONNECTION_NAME", $previousCloudSqlInstance, "Process")
   [System.Environment]::SetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS", $previousGoogleCredentials, "Process")
+  if ($removeK6AutoEnvFile -and (Test-Path -LiteralPath $k6AutoEnvFile -PathType Leaf)) {
+    Remove-Item -LiteralPath $k6AutoEnvFile -Force
+  }
   Pop-Location
 }

@@ -53,6 +53,20 @@ cd "$ROOT_DIR"
 export CLOUDSQL_INSTANCE_CONNECTION_NAME="${CLOUDSQL_INSTANCE_CONNECTION_NAME:-local-project:local-region:local-instance}"
 export GOOGLE_APPLICATION_CREDENTIALS="${GOOGLE_APPLICATION_CREDENTIALS:-./secrets/cloudsql/application_default_credentials.json}"
 
+K6_AUTO_ENV_FILE="$ROOT_DIR/.env.k6.auto"
+REMOVE_K6_AUTO_ENV_FILE=false
+if [[ ! -f "$K6_AUTO_ENV_FILE" ]]; then
+  printf '# Placeholder temporario para docker compose config.\n' > "$K6_AUTO_ENV_FILE"
+  REMOVE_K6_AUTO_ENV_FILE=true
+fi
+
+cleanup() {
+  if [[ "$REMOVE_K6_AUTO_ENV_FILE" == "true" ]]; then
+    rm -f "$K6_AUTO_ENV_FILE"
+  fi
+}
+trap cleanup EXIT
+
 # Matriz oficial de validacao:
 # - suportadas: compose.yaml base, overlays opcionais aplicados sobre a base e
 #   stack completa local com observabilidade + Nginx;
