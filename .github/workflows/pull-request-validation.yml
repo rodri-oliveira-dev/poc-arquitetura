@@ -43,66 +43,50 @@ jobs:
           set -euo pipefail
 
           if [ "$EVENT_NAME" != "pull_request" ]; then
-            echo "run_aggregate=true" >> "$GITHUB_OUTPUT"
-            echo "run_shared=true" >> "$GITHUB_OUTPUT"
+            python scripts/ci/detect-dotnet-impact.py \
+              --fallback-reason "Event $EVENT_NAME does not provide pull request files. Running both validations." \
+              --format github-output >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          if ! files="$(gh api --paginate "repos/$REPOSITORY/pulls/$PR_NUMBER/files" --jq '.[] | .filename, (.previous_filename // empty)')"; then
-            echo "Could not detect pull request files. Running both validations."
-            echo "run_aggregate=true" >> "$GITHUB_OUTPUT"
-            echo "run_shared=true" >> "$GITHUB_OUTPUT"
+          if ! gh api --paginate "repos/$REPOSITORY/pulls/$PR_NUMBER/files" > changed-files.json; then
+            python scripts/ci/detect-dotnet-impact.py \
+              --fallback-reason "Could not detect pull request files. Running both validations." \
+              --format github-output >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          docs_only=true
-          run_aggregate=false
-          run_shared=false
+          python scripts/ci/detect-dotnet-impact.py \
+            --files-from changed-files.json \
+            --input-format json \
+            --format github-output >> "$GITHUB_OUTPUT"
 
-          if [ -z "$files" ]; then
-            docs_only=false
-            run_aggregate=true
-            run_shared=true
-          fi
+      - name: Summarize impact detection
+        shell: bash
+        env:
+          SUMMARY_JSON: ${{ steps.changes.outputs.summary_json }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
 
-          while IFS= read -r file; do
-            normalized="${file,,}"
+          result = json.loads(os.environ["SUMMARY_JSON"])
+          rows = [
+              ("Aggregate solution", result["run_aggregate"]),
+              ("Shared solution", result["run_shared"]),
+              ("Documentation only", result["docs_only"]),
+              ("Detection fallback", result["detection_failed"]),
+          ]
 
-            case "$normalized" in
-              docs/*|*.md|*.png|*.jpg|*.jpeg|*.gif|*.svg|*.webp)
-                ;;
-              global.json|nuget.config|directory.build.props|directory.packages.props|test.sh|test.ps1|.github/actions/setup-dotnet/*|.github/workflows/*)
-                docs_only=false
-                run_aggregate=true
-                run_shared=true
-                echo "Global file detected: $file"
-                ;;
-              pocarquitetura.shared.slnx|src/shared/*|tests/shared/*)
-                docs_only=false
-                run_shared=true
-                echo "Shared file detected: $file"
-                ;;
-              pocarquitetura.slnx|auditservice.slnx|balanceservice.slnx|identityservice.slnx|ledgerservice.slnx|transferservice.slnx|src/audit/*|src/identity/*|src/balance/*|src/transfer/*|src/ledger/*|tests/audit/*|tests/identity/*|tests/balance/*|tests/transfer/*|tests/ledger/*|tests/architecture.tests/*)
-                docs_only=false
-                run_aggregate=true
-                echo "Service file detected: $file"
-                ;;
-              *)
-                docs_only=false
-                run_aggregate=true
-                run_shared=true
-                echo "Unclassified impactful file detected: $file. Running both validations."
-                ;;
-            esac
-          done <<< "$files"
-
-          if [ "$docs_only" = true ]; then
-            run_aggregate=false
-            run_shared=false
-          fi
-
-          echo "run_aggregate=$run_aggregate" >> "$GITHUB_OUTPUT"
-          echo "run_shared=$run_shared" >> "$GITHUB_OUTPUT"
+          with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a", encoding="utf-8") as summary:
+              summary.write("### .NET impact detection\n\n")
+              summary.write("| Output | Value |\n")
+              summary.write("| --- | --- |\n")
+              for name, value in rows:
+                  summary.write(f"| {name} | `{str(value).lower()}` |\n")
+              summary.write(f"| Changed C# files | `{result['changed_csharp_count']}` |\n")
+          PY
 
       - name: Skip build and tests for documentation-only PR
         if: ${{ steps.changes.outputs.run_aggregate != 'true' && steps.changes.outputs.run_shared != 'true' }}

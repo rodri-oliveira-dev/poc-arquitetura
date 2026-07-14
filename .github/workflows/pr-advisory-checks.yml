@@ -32,62 +32,74 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
 
-      - name: Setup .NET
-        uses: ./.github/actions/setup-dotnet
-        with:
-          cache-key-prefix: nuget-analyzers
-
       - name: Detect changed files
         id: changed_files
         shell: bash
         env:
+          EVENT_NAME: ${{ github.event_name }}
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
 
-          gh api --paginate "repos/$REPOSITORY/pulls/$PR_NUMBER/files" --jq '.[].filename' > changed-files.txt
-          grep -E '\.cs$' changed-files.txt > changed-csharp-files.txt || true
-
-          count="$(wc -l < changed-csharp-files.txt | tr -d ' ')"
-          echo "count=$count" >> "$GITHUB_OUTPUT"
-          run_aggregate=false
-          run_shared=false
-
-          while IFS= read -r file; do
-            normalized="${file,,}"
-
-            case "$normalized" in
-              global.json|nuget.config|directory.build.props|directory.packages.props|test.sh|test.ps1|.github/actions/setup-dotnet/*|.github/workflows/*)
-                run_aggregate=true
-                run_shared=true
-                ;;
-              pocarquitetura.shared.slnx|src/shared/*|tests/shared/*)
-                run_shared=true
-                ;;
-              pocarquitetura.slnx|auditservice.slnx|balanceservice.slnx|identityservice.slnx|ledgerservice.slnx|transferservice.slnx|src/audit/*|src/identity/*|src/balance/*|src/transfer/*|src/ledger/*|tests/audit/*|tests/identity/*|tests/balance/*|tests/transfer/*|tests/ledger/*|tests/architecture.tests/*)
-                run_aggregate=true
-                ;;
-              *.cs)
-                run_aggregate=true
-                run_shared=true
-                ;;
-            esac
-          done < changed-files.txt
-
-          echo "run_aggregate=$run_aggregate" >> "$GITHUB_OUTPUT"
-          echo "run_shared=$run_shared" >> "$GITHUB_OUTPUT"
-
-          if [ "$count" -eq 0 ]; then
-            echo "No changed C# files found in this PR." >> "$GITHUB_STEP_SUMMARY"
-          else
-            {
-              echo "### Changed C# files"
-              echo
-              sed 's/^/- `/' changed-csharp-files.txt | sed 's/$/`/'
-            } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$EVENT_NAME" != "pull_request" ]; then
+            python scripts/ci/detect-dotnet-impact.py \
+              --fallback-reason "Event $EVENT_NAME does not provide pull request files. Running both analyzer validations." \
+              --changed-csharp-files-output changed-csharp-files.txt \
+              --format github-output >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+
+          if ! gh api --paginate "repos/$REPOSITORY/pulls/$PR_NUMBER/files" > changed-files.json; then
+            python scripts/ci/detect-dotnet-impact.py \
+              --fallback-reason "Could not detect pull request files. Running both analyzer validations." \
+              --changed-csharp-files-output changed-csharp-files.txt \
+              --format github-output >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          python scripts/ci/detect-dotnet-impact.py \
+            --files-from changed-files.json \
+            --input-format json \
+            --changed-csharp-files-output changed-csharp-files.txt \
+            --format github-output >> "$GITHUB_OUTPUT"
+
+      - name: Summarize analyzer impact
+        shell: bash
+        env:
+          SUMMARY_JSON: ${{ steps.changed_files.outputs.summary_json }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          result = json.loads(os.environ["SUMMARY_JSON"])
+          summary_path = Path(os.environ["GITHUB_STEP_SUMMARY"])
+
+          with summary_path.open("a", encoding="utf-8") as summary:
+              summary.write("### Analyzer impact detection\n\n")
+              summary.write("| Output | Value |\n")
+              summary.write("| --- | --- |\n")
+              summary.write(f"| Aggregate solution | `{str(result['run_aggregate']).lower()}` |\n")
+              summary.write(f"| Shared solution | `{str(result['run_shared']).lower()}` |\n")
+              summary.write(f"| Changed C# files | `{result['changed_csharp_count']}` |\n")
+              summary.write(f"| Detection fallback | `{str(result['detection_failed']).lower()}` |\n\n")
+
+              if result["changed_csharp_count"] == 0:
+                  summary.write("No changed C# files found in this PR.\n")
+              else:
+                  summary.write("### Changed C# files\n\n")
+                  for file_name in result["changed_csharp_files"]:
+                      summary.write(f"- `{file_name}`\n")
+          PY
+
+      - name: Setup .NET
+        if: ${{ steps.changed_files.outputs.run_aggregate == 'true' || steps.changed_files.outputs.run_shared == 'true' }}
+        uses: ./.github/actions/setup-dotnet
+        with:
+          cache-key-prefix: nuget-analyzers
 
       - name: Restore aggregate dependencies
         if: ${{ steps.changed_files.outputs.run_aggregate == 'true' }}

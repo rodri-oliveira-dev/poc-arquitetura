@@ -2,7 +2,9 @@
 
 Pull requests para qualquer branch sao validados pelo workflow `pr-build-and-test`, definido em `.github/workflows/pull-request-validation.yml`.
 
-O workflow sempre e iniciado para PRs, sem `paths-ignore`, para que o check obrigatorio seja criado tambem em PRs documentais. No inicio da execucao ele detecta os arquivos alterados do PR.
+O workflow sempre e iniciado para PRs, sem `paths-ignore`, para que o check obrigatorio seja criado tambem em PRs documentais. No inicio da execucao ele detecta os arquivos alterados do PR usando `scripts/ci/detect-dotnet-impact.py`.
+
+Esse script e a fonte unica da classificacao .NET de PRs. Ele recebe a lista de arquivos retornada pela API do GitHub, considera `filename` e `previous_filename` em renomeacoes e emite os outputs `run_aggregate`, `run_shared`, `docs_only`, `changed_csharp_count` e a lista de arquivos C# alterados. O workflow `pr-advisory-checks` usa a mesma implementacao para escolher a solution dos analyzers informativos.
 
 Quando o PR altera apenas documentacao ou imagens de documentacao, o workflow registra um resumo e pula restore, build e testes. Sao tratados como documentais:
 
@@ -15,21 +17,32 @@ Isso evita required check pendente em PRs que o GitHub poderia ignorar por filtr
 Quando ha arquivos de codigo, configuracao ou automacao fora desse conjunto, o workflow classifica o impacto antes de executar restore, build e testes:
 
 - mudancas apenas em `src/Shared/**`, `tests/Shared/**` ou `PocArquitetura.Shared.slnx` validam `./PocArquitetura.Shared.slnx`;
-- mudancas apenas em servicos, testes de servico, `tests/Architecture.Tests/**`, `PocArquitetura.slnx` ou alguma solution de contexto de servico validam `./PocArquitetura.slnx`;
+- mudancas apenas em servicos, testes de servico, `tests/Architecture.Tests/**`, `tools/**`, `PocArquitetura.slnx` ou alguma solution de contexto de servico validam `./PocArquitetura.slnx`;
 - mudancas que combinam Shared e servicos validam as duas solutions;
 - mudancas globais validam as duas solutions;
 - quando a deteccao de arquivos falha ou encontra arquivo impactante nao classificado, o workflow valida as duas solutions por seguranca.
+
+Os servicos classificados para a solution agregada sao `audit`, `balance`, `identity`, `ledger`, `payment` e `transfer`.
 
 Arquivos globais para o gate de PR:
 
 - `global.json`;
 - `NuGet.config`;
 - `Directory.Build.props`;
+- `Directory.Build.targets`;
 - `Directory.Packages.props`;
-- `.github/actions/setup-dotnet/**`;
+- `.config/dotnet-tools.json`;
+- `dotnet-tools.json`;
+- `coverlet.runsettings`;
+- `.github/actions/**`;
 - `.github/workflows/**`;
+- `scripts/ci/**`;
+- `scripts/quality/**`;
+- `scripts/contracts/openapi/**`;
 - `test.sh`;
 - `test.ps1`.
+
+Arquivos `.sln` e `.slnx` tambem sao tratados como globais por padrao, exceto quando a regra mais especifica da solution Shared ou de uma solution de servico ja classifica o impacto.
 
 Para cada solution impactada, o workflow executa:
 
