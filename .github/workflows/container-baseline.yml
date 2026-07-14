@@ -16,6 +16,7 @@ on:
       - "src/**"
       - "tools/ContainerBaselineValidator/**"
       - "tests/tooling/ContainerBaselineValidator.Tests/**"
+      - "scripts/quality/containers/**"
       - ".github/workflows/container-baseline.yml"
       - ".github/actions/setup-dotnet/**"
   pull_request:
@@ -32,6 +33,7 @@ on:
       - "src/**"
       - "tools/ContainerBaselineValidator/**"
       - "tests/tooling/ContainerBaselineValidator.Tests/**"
+      - "scripts/quality/containers/**"
       - ".github/workflows/container-baseline.yml"
       - ".github/actions/setup-dotnet/**"
   workflow_dispatch:
@@ -77,8 +79,8 @@ jobs:
       - name: Run validator tests
         run: dotnet test ./tests/tooling/ContainerBaselineValidator.Tests/ContainerBaselineValidator.Tests.csproj --configuration Release --no-restore -p:BuildProjectReferences=false
 
-      - name: Validate Compose syntax
-        run: docker compose --env-file .env.local.example -f compose.yaml config --quiet
+      - name: Validate Compose configs
+        run: ./scripts/quality/containers/validate-compose-configs.sh
 
   container-build:
     name: Build Compose images

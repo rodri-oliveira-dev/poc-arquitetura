@@ -89,6 +89,44 @@ services:
     environment:
       ConnectionStrings__DefaultConnection: "Host=cloud-sql-proxy;Port=5432;Database=${DATABASE_NAME:-appdb};Username=${DATABASE_USER:-app_user};Password=${DATABASE_PASSWORD:?Defina DATABASE_PASSWORD no ambiente ou em .env.local}"
 
+  payment-service:
+    depends_on: !reset
+      cloud-sql-proxy:
+        condition: service_started
+      keycloak:
+        condition: service_healthy
+    environment:
+      ConnectionStrings__DefaultConnection: "Host=cloud-sql-proxy;Port=5432;Database=${DATABASE_NAME:-appdb};Username=${DATABASE_USER:-app_user};Password=${DATABASE_PASSWORD:?Defina DATABASE_PASSWORD no ambiente ou em .env.local}"
+
+  payment-worker:
+    depends_on: !reset
+      cloud-sql-proxy:
+        condition: service_started
+      ledger-service:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    environment:
+      ConnectionStrings__DefaultConnection: "Host=cloud-sql-proxy;Port=5432;Database=${DATABASE_NAME:-appdb};Username=${DATABASE_USER:-app_user};Password=${DATABASE_PASSWORD:?Defina DATABASE_PASSWORD no ambiente ou em .env.local}"
+
+  audit-service:
+    depends_on: !reset
+      cloud-sql-proxy:
+        condition: service_started
+      keycloak:
+        condition: service_healthy
+    environment:
+      ConnectionStrings__DefaultConnection: "Host=cloud-sql-proxy;Port=5432;Database=${DATABASE_NAME:-appdb};Username=${DATABASE_USER:-app_user};Password=${DATABASE_PASSWORD:?Defina DATABASE_PASSWORD no ambiente ou em .env.local}"
+
+  audit-worker:
+    depends_on: !reset
+      cloud-sql-proxy:
+        condition: service_started
+      kafka-init-topics:
+        condition: service_completed_successfully
+    environment:
+      ConnectionStrings__DefaultConnection: "Host=cloud-sql-proxy;Port=5432;Database=${DATABASE_NAME:-appdb};Username=${DATABASE_USER:-app_user};Password=${DATABASE_PASSWORD:?Defina DATABASE_PASSWORD no ambiente ou em .env.local}"
+
   identity-service:
     depends_on: !reset
       cloud-sql-proxy:
