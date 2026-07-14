@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Net;
 
 namespace ContainerHealthProbe.Tests;
 
@@ -77,5 +78,70 @@ public sealed class ContainerHealthProbeTests
         using SocketsHttpHandler handler = ProbeTarget.CreateHandler();
 
         Assert.False(handler.AllowAutoRedirect);
+    }
+
+    [Fact]
+    public async Task Runner_should_return_two_for_invalid_arguments()
+    {
+        int exitCode = await ProbeRunner.RunAsync(["http://169.254.169.254/latest/meta-data"]);
+
+        Assert.Equal(2, exitCode);
+    }
+
+    [Fact]
+    public async Task Runner_should_return_zero_for_healthy_response()
+    {
+        using var handler = new StubHandler(HttpStatusCode.OK);
+
+        int exitCode = await ProbeRunner.RunAsync(["8080", "/ready"], () => new HttpClient(handler, disposeHandler: false));
+
+        Assert.Equal(0, exitCode);
+    }
+
+    [Fact]
+    public async Task Runner_should_return_one_for_unhealthy_response()
+    {
+        using var handler = new StubHandler(HttpStatusCode.ServiceUnavailable);
+
+        int exitCode = await ProbeRunner.RunAsync(["8080", "/ready"], () => new HttpClient(handler, disposeHandler: false));
+
+        Assert.Equal(1, exitCode);
+    }
+
+    [Fact]
+    public async Task Runner_should_return_one_for_http_error()
+    {
+        using var handler = new ThrowingHandler(new HttpRequestException());
+
+        int exitCode = await ProbeRunner.RunAsync(["8080", "/ready"], () => new HttpClient(handler, disposeHandler: false));
+
+        Assert.Equal(1, exitCode);
+    }
+
+    [Fact]
+    public async Task Runner_should_return_one_for_timeout()
+    {
+        using var handler = new ThrowingHandler(new TaskCanceledException());
+
+        int exitCode = await ProbeRunner.RunAsync(["8080", "/ready"], () => new HttpClient(handler, disposeHandler: false));
+
+        Assert.Equal(1, exitCode);
+    }
+
+    private sealed class StubHandler(HttpStatusCode statusCode) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Assert.Equal("http://127.0.0.1:8080/ready", request.RequestUri?.ToString());
+            return Task.FromResult(new HttpResponseMessage(statusCode));
+        }
+    }
+
+    private sealed class ThrowingHandler(Exception exception) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            return Task.FromException<HttpResponseMessage>(exception);
+        }
     }
 }

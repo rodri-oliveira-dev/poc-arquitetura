@@ -3,39 +3,55 @@ using System.Net;
 
 using ContainerHealthProbe;
 
-if (!ProbeTarget.TryCreate(args, out var uri))
-{
-    await Console.Error.WriteLineAsync("Uso: ContainerHealthProbe <porta> <caminho-relativo>");
-    return 2;
-}
-
-using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-using var handler = ProbeTarget.CreateHandler();
-using var client = new HttpClient(handler)
-{
-    Timeout = TimeSpan.FromSeconds(3)
-};
-
-try
-{
-    using var response = await client.GetAsync(uri, cts.Token);
-    return response.StatusCode == HttpStatusCode.OK ? 0 : 1;
-}
-catch (HttpRequestException)
-{
-    return 1;
-}
-catch (TaskCanceledException)
-{
-    return 1;
-}
-catch (InvalidOperationException)
-{
-    return 1;
-}
+return await ProbeRunner.RunAsync(args);
 
 namespace ContainerHealthProbe
 {
+    internal static class ProbeRunner
+    {
+        public static async Task<int> RunAsync(string[] args, Func<HttpClient>? clientFactory = null)
+        {
+            if (!ProbeTarget.TryCreate(args, out var uri))
+            {
+                await Console.Error.WriteLineAsync("Uso: ContainerHealthProbe <porta> <caminho-relativo>");
+                return 2;
+            }
+
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+            if (clientFactory is not null)
+                return await SendAsync(clientFactory(), uri, cts.Token);
+
+            using var handler = ProbeTarget.CreateHandler();
+            using var client = new HttpClient(handler)
+            {
+                Timeout = TimeSpan.FromSeconds(3)
+            };
+
+            return await SendAsync(client, uri, cts.Token);
+        }
+
+        private static async Task<int> SendAsync(HttpClient client, Uri uri, CancellationToken cancellationToken)
+        {
+            try
+            {
+                using var response = await client.GetAsync(uri, cancellationToken);
+                return response.StatusCode == HttpStatusCode.OK ? 0 : 1;
+            }
+            catch (HttpRequestException)
+            {
+                return 1;
+            }
+            catch (TaskCanceledException)
+            {
+                return 1;
+            }
+            catch (InvalidOperationException)
+            {
+                return 1;
+            }
+        }
+    }
+
     internal static class ProbeTarget
     {
         private const string LoopbackHost = "127.0.0.1";
