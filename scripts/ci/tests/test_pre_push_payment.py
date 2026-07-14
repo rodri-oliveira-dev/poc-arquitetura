@@ -38,7 +38,30 @@ class PrePushPaymentTests(unittest.TestCase):
         self,
         changed_files: list[str],
         existing_files: list[str] | None = None,
+        compose_exit_code: int = 0,
+        baseline_exit_code: int = 0,
+        docker_compose_version_exit_code: int = 0,
+        expected_returncode: int = 0,
     ) -> tuple[str, list[str]]:
+        stdout, dotnet_commands, _ = self.run_pre_push_detailed(
+            changed_files,
+            existing_files,
+            compose_exit_code,
+            baseline_exit_code,
+            docker_compose_version_exit_code,
+            expected_returncode,
+        )
+        return stdout, dotnet_commands
+
+    def run_pre_push_detailed(
+        self,
+        changed_files: list[str],
+        existing_files: list[str] | None = None,
+        compose_exit_code: int = 0,
+        baseline_exit_code: int = 0,
+        docker_compose_version_exit_code: int = 0,
+        expected_returncode: int = 0,
+    ) -> tuple[str, list[str], list[str]]:
         existing_files = existing_files or []
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -46,6 +69,7 @@ class PrePushPaymentTests(unittest.TestCase):
             tools_path = temp_path / "tools"
             repo_path = temp_path / "repo"
             dotnet_log = temp_path / "dotnet.log"
+            container_log = temp_path / "container.log"
             tools_path.mkdir()
             repo_path.mkdir()
 
@@ -81,6 +105,37 @@ class PrePushPaymentTests(unittest.TestCase):
                 #!/usr/bin/env sh
                 set -eu
                 printf '%s\\n' "$*" >>"{self.to_sh_path(dotnet_log)}"
+                if [ "$1" = "run" ] && [ "${{PRE_PUSH_TEST_BASELINE_EXIT_CODE:-0}}" -ne 0 ]; then
+                  exit "$PRE_PUSH_TEST_BASELINE_EXIT_CODE"
+                fi
+                """,
+            )
+
+            self.write_executable(
+                tools_path / "docker",
+                f"""\
+                #!/usr/bin/env sh
+                set -eu
+                printf 'docker %s\\n' "$*" >>"{self.to_sh_path(container_log)}"
+                if [ "$1" = "compose" ] && [ "$2" = "version" ]; then
+                  exit "$PRE_PUSH_TEST_DOCKER_COMPOSE_VERSION_EXIT_CODE"
+                fi
+                """,
+            )
+
+            self.write_executable(
+                tools_path / "bash",
+                f"""\
+                #!/usr/bin/env sh
+                set -eu
+                printf 'bash %s\\n' "$*" >>"{self.to_sh_path(container_log)}"
+                case "$1" in
+                  ./scripts/quality/containers/validate-compose-configs.sh)
+                    exit "$PRE_PUSH_TEST_COMPOSE_EXIT_CODE"
+                    ;;
+                esac
+                echo "bash stub recebeu comando inesperado: $*" >&2
+                exit 1
                 """,
             )
 
@@ -88,6 +143,9 @@ class PrePushPaymentTests(unittest.TestCase):
             env["TMPDIR"] = self.to_sh_path(temp_path)
             env["PRE_PUSH_TEST_REPO_ROOT"] = self.to_sh_path(repo_path)
             env["PRE_PUSH_TEST_CHANGED_FILES"] = "\n".join(changed_files)
+            env["PRE_PUSH_TEST_COMPOSE_EXIT_CODE"] = str(compose_exit_code)
+            env["PRE_PUSH_TEST_BASELINE_EXIT_CODE"] = str(baseline_exit_code)
+            env["PRE_PUSH_TEST_DOCKER_COMPOSE_VERSION_EXIT_CODE"] = str(docker_compose_version_exit_code)
             command = (
                 f"PATH={shlex.quote(self.to_sh_path(tools_path))}:$PATH "
                 f"exec {shlex.quote(self.to_sh_path(PRE_PUSH_HOOK))}"
@@ -110,13 +168,14 @@ class PrePushPaymentTests(unittest.TestCase):
             )
 
             self.assertEqual(
-                0,
+                expected_returncode,
                 result.returncode,
                 msg=f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}",
             )
 
             commands = dotnet_log.read_text(encoding="utf-8").splitlines() if dotnet_log.exists() else []
-            return result.stdout, commands
+            container_commands = container_log.read_text(encoding="utf-8").splitlines() if container_log.exists() else []
+            return result.stdout, commands, container_commands
 
     def to_sh_path(self, path: pathlib.Path) -> str:
         path_text = path.resolve().as_posix()
@@ -209,6 +268,107 @@ class PrePushPaymentTests(unittest.TestCase):
         self.assert_runs_payment_only(commands)
         self.assertFalse(any(deleted_file in command for command in commands))
         self.assertFalse(any(command.startswith("format whitespace ./PaymentService.slnx") for command in commands))
+
+    def test_payment_dockerfile_runs_container_baseline(self) -> None:
+        changed_file = "src/payment/PaymentService.Api/Dockerfile"
+        stdout, commands, container_commands = self.run_pre_push_detailed([changed_file])
+
+        self.assertIn(f"alteracao de Dockerfile detectada em {changed_file}", stdout)
+        self.assertIn("run --project ./tools/ContainerBaselineValidator/ContainerBaselineValidator.csproj -- --root .", commands)
+        self.assertEqual([], container_commands)
+
+    def test_other_context_dockerfile_runs_container_baseline(self) -> None:
+        changed_file = "src/ledger/LedgerService.Api/Dockerfile"
+        stdout, commands, _ = self.run_pre_push_detailed([changed_file])
+
+        self.assertIn(f"alteracao de Dockerfile detectada em {changed_file}", stdout)
+        self.assertIn("alteracao Ledger detectada", stdout)
+        self.assertIn("run --project ./tools/ContainerBaselineValidator/ContainerBaselineValidator.csproj -- --root .", commands)
+
+    def test_compose_yaml_runs_compose_validation(self) -> None:
+        stdout, commands, container_commands = self.run_pre_push_detailed(["compose.yaml"])
+
+        self.assertIn("alteracao Docker Compose detectada em compose.yaml", stdout)
+        self.assertEqual([], commands)
+        self.assertIn("docker compose version", container_commands)
+        self.assertIn("bash ./scripts/quality/containers/validate-compose-configs.sh", container_commands)
+
+    def test_observability_compose_runs_compose_validation(self) -> None:
+        stdout, _, container_commands = self.run_pre_push_detailed(["compose.observability.yaml"])
+
+        self.assertIn("alteracao Docker Compose detectada em compose.observability.yaml", stdout)
+        self.assertIn("bash ./scripts/quality/containers/validate-compose-configs.sh", container_commands)
+
+    def test_subdirectory_compose_runs_compose_validation(self) -> None:
+        changed_file = "infra/local/compose.test.yaml"
+        stdout, _, container_commands = self.run_pre_push_detailed([changed_file])
+
+        self.assertIn(f"alteracao Docker Compose detectada em {changed_file}", stdout)
+        self.assertIn("bash ./scripts/quality/containers/validate-compose-configs.sh", container_commands)
+
+    def test_docs_only_does_not_run_container_validation(self) -> None:
+        stdout, commands, container_commands = self.run_pre_push_detailed(["docs/development/git-hooks.md"])
+
+        self.assertIn("nenhuma alteracao localmente impactante detectada", stdout)
+        self.assertEqual([], commands)
+        self.assertEqual([], container_commands)
+
+    def test_mixed_csharp_and_compose_runs_both_validation_sets(self) -> None:
+        csharp_file = "src/payment/PaymentService.Application/Foo.cs"
+        stdout, commands, container_commands = self.run_pre_push_detailed(["compose.yaml", csharp_file], [csharp_file])
+
+        self.assertIn("alteracao Docker Compose detectada em compose.yaml", stdout)
+        self.assertIn(f"alteracao Payment detectada em {csharp_file}", stdout)
+        self.assertIn("bash ./scripts/quality/containers/validate-compose-configs.sh", container_commands)
+        self.assert_runs_payment_only(commands)
+
+    def test_multiple_dockerfiles_run_container_baseline_once(self) -> None:
+        _, commands, _ = self.run_pre_push_detailed(
+            [
+                "src/payment/PaymentService.Api/Dockerfile",
+                "src/ledger/LedgerService.Api/Dockerfile",
+            ]
+        )
+
+        baseline_commands = [
+            command
+            for command in commands
+            if command == "run --project ./tools/ContainerBaselineValidator/ContainerBaselineValidator.csproj -- --root ."
+        ]
+        self.assertEqual(1, len(baseline_commands))
+
+    def test_invalid_compose_blocks_push(self) -> None:
+        stdout, _, container_commands = self.run_pre_push_detailed(
+            ["compose.yaml"],
+            compose_exit_code=1,
+            expected_returncode=1,
+        )
+
+        self.assertIn("configuracoes Docker Compose suportadas falhou", stdout)
+        self.assertIn("bash ./scripts/quality/containers/validate-compose-configs.sh", container_commands)
+
+    def test_container_baseline_violation_blocks_push(self) -> None:
+        stdout, commands, _ = self.run_pre_push_detailed(
+            ["src/payment/PaymentService.Api/Dockerfile"],
+            baseline_exit_code=1,
+            expected_returncode=1,
+        )
+
+        self.assertIn("baseline estatico de Dockerfiles e Compose falhou", stdout)
+        self.assertIn("run --project ./tools/ContainerBaselineValidator/ContainerBaselineValidator.csproj -- --root .", commands)
+
+    def test_missing_docker_compose_warns_and_does_not_simulate_success(self) -> None:
+        stdout, _, container_commands = self.run_pre_push_detailed(
+            ["compose.yaml"],
+            docker_compose_version_exit_code=1,
+        )
+
+        self.assertIn("Docker CLI com suporte a 'docker compose' nao encontrado", stdout)
+        self.assertIn("validacao nao executada: scripts/quality/containers/validate-compose-configs.sh", stdout)
+        self.assertIn("gate bloqueante de Compose continua no Pull Request/GitHub Actions", stdout)
+        self.assertNotIn("configuracoes Docker Compose suportadas finalizado", stdout)
+        self.assertIn("docker compose version", container_commands)
+        self.assertNotIn("bash ./scripts/quality/containers/validate-compose-configs.sh", container_commands)
 
 
 if __name__ == "__main__":

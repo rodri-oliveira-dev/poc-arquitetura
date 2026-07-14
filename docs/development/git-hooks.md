@@ -12,7 +12,7 @@ O target e idempotente, roda apos o build, ignora CI (`CI=true`) e nao falha o b
 
 - `commit-msg`: valida a primeira linha da mensagem de commit com Conventional Commits.
 - `post-merge`: apos `git merge` ou `git pull`, restaura as tools locais e as dependencias da solution.
-- `pre-push`: executa validacoes locais leves quando houver alteracoes impactantes: Terraform `fmt -check` para arquivos Terraform, restore, formatacao dos arquivos `.cs` alterados, build e testes unitarios rapidos sem cobertura. Para .NET, escolhe as solutions dos contextos impactados, `PocArquitetura.Shared.slnx` e/ou `PocArquitetura.slnx` conforme os arquivos alterados. Testes de integracao/container, cobertura, SonarQube, Trivy e Terraform validate completo ficam no Pull Request/GitHub Actions. Se `FULL_TESTS=true`, o hook reaproveita `./test.sh` para executar a validacao completa oficial com cobertura antes do push.
+- `pre-push`: executa validacoes locais leves quando houver alteracoes impactantes: Terraform `fmt -check` para arquivos Terraform, validacoes estaticas de Dockerfiles/Compose, restore, formatacao dos arquivos `.cs` alterados, build e testes unitarios rapidos sem cobertura. Para .NET, escolhe as solutions dos contextos impactados, `PocArquitetura.Shared.slnx` e/ou `PocArquitetura.slnx` conforme os arquivos alterados. Testes de integracao/container, cobertura, SonarQube, Trivy, Docker build, scan de imagens e Terraform validate completo ficam no Pull Request/GitHub Actions. Se `FULL_TESTS=true`, o hook reaproveita `./test.sh` para executar a validacao completa oficial com cobertura antes do push.
 
 ## Politica do post-merge
 
@@ -40,6 +40,19 @@ Quando existem alteracoes em `*.tf` ou `*.tfvars`, o hook executa apenas `terraf
 
 O `pre-push` nao executa Trivy localmente por padrao. Os scans bloqueantes de Dockerfile, Terraform, misconfigurations, secrets e filesystem rodam no GitHub Actions pelo workflow `infrastructure-security` quando ha mudancas em Terraform, Dockerfiles, Compose, na action de Trivy ou no proprio workflow. Consulte [validacao de seguranca com Trivy](trivy-security-scan.md).
 
+Quando existem alteracoes em Dockerfiles, Compose ou nos scripts/configuracoes consumidos pela validacao local de containers, o hook executa somente validacoes leves:
+
+| Alteracao | Validacao rapida local |
+| --- | --- |
+| `Dockerfile`, `**/Dockerfile`, `Dockerfile.*`, `**/Dockerfile.*` | `dotnet run --project ./tools/ContainerBaselineValidator/ContainerBaselineValidator.csproj -- --root .` |
+| `compose.yaml`, `compose.yml`, `compose.*.yaml`, `compose.*.yml` em qualquer diretorio | `./scripts/quality/containers/validate-compose-configs.sh` |
+| `tools/ContainerBaselineValidator/**`, `.dockerignore`, `global.json`, `Directory.Build.props`, `Directory.Packages.props` | `ContainerBaselineValidator` |
+| `scripts/quality/containers/validate-compose-configs.*`, `scripts/lib/common.*`, `.env.local.example` | script oficial de validacao Compose |
+
+O script oficial de Compose valida todas as combinacoes suportadas com `docker compose config --quiet`, sem `docker compose up`, sem inicializar containers e sem duplicar a matriz dentro do hook. Se a configuracao Compose for invalida, o push e bloqueado. Se houver violacao real do `ContainerBaselineValidator`, o push tambem e bloqueado.
+
+Se `docker` ou `docker compose` nao estiver disponivel, a validacao local de Compose e ignorada com aviso explicito, sem mensagem de sucesso simulada; o gate bloqueante continua no Pull Request/GitHub Actions. Se o SDK .NET nao estiver disponivel em um diff que exige `ContainerBaselineValidator`, o hook avisa que o baseline local nao foi executado e deixa o gate bloqueante para o CI. O hook nao faz build de imagens, nao faz push de imagens, nao executa Trivy completo e nao sobe containers.
+
 O hook executa restore, `dotnet format whitespace --verify-no-changes` somente para arquivos `.cs` alterados, build e testes unitarios rapidos sem cobertura quando encontra arquivos .NET impactantes. A escolha de solution e contextual:
 
 | Alteracao | Validacao rapida local |
@@ -56,6 +69,8 @@ O hook executa restore, `dotnet format whitespace --verify-no-changes` somente p
 | Event Contracts | Ledger + Balance |
 | Global build/packages | Agregadora + Shared |
 | Tool manifest | `dotnet tool restore` |
+| Dockerfile | `ContainerBaselineValidator` |
+| Docker Compose | script oficial `validate-compose-configs.sh` |
 | Coverage config | nenhuma validacao rapida |
 | docs-only | nenhuma validacao local |
 | Terraform | `terraform fmt -check` |
@@ -96,7 +111,7 @@ Directory.Packages.props + Ledger
 
 `contracts/events/**` seleciona Ledger e Balance porque esses contexts produzem e consomem schemas versionados usados nos fluxos principais. Uma mudanca de source em Shared seleciona apenas `PocArquitetura.Shared.slnx` no pre-push porque os servicos consomem Shared por pacotes; a validacao de todos os servicos continua no fluxo global/PR quando aplicavel.
 
-O hook pula restore, formatacao, build e testes quando todas as alteracoes sao claramente nao impactantes para validacao local, como Markdown, arquivos em `docs/`, imagens de documentacao (`png`, `jpg`, `jpeg`, `gif`, `svg`, `webp`), diagramas Mermaid/LikeC4 e notas textuais que nao entram no build. Mudancas em Dockerfile, Compose e Trivy sao validadas no Pull Request pelo workflow de infraestrutura quando seus filtros se aplicam.
+O hook pula restore, formatacao, build, testes e validacoes de containers quando todas as alteracoes sao claramente nao impactantes para validacao local, como Markdown, arquivos em `docs/`, imagens de documentacao (`png`, `jpg`, `jpeg`, `gif`, `svg`, `webp`), diagramas Mermaid/LikeC4 e notas textuais que nao entram no build.
 
 Se houver mistura de documentacao com qualquer arquivo impactante, as validacoes rapidas sao executadas. Em caso de duvida, a regra e validar.
 
@@ -226,6 +241,13 @@ dotnet build ./PocArquitetura.slnx --configuration Release --no-restore
 dotnet test ./PocArquitetura.slnx --configuration Release --no-build --no-restore --filter "Category!=Integration&Category!=Container&Category!=Contract"
 ```
 
+Para validar containers manualmente sem passar pelo hook:
+
+```bash
+dotnet run --project ./tools/ContainerBaselineValidator/ContainerBaselineValidator.csproj -- --root .
+./scripts/quality/containers/validate-compose-configs.sh
+```
+
 Para a validacao completa com cobertura, use `./test.sh` ou `./test.ps1`. Esses comandos podem executar testes de integracao/container e, portanto, precisam de Docker-compatible API quando a suite completa exigir Testcontainers.
 
 Para executar apenas a validacao Trivy manualmente, use os mesmos comandos de scan do CI:
@@ -296,7 +318,8 @@ Mudancas em codigo, projetos, solution, build, testes, Docker, workflows, hooks 
 - Ferramentas POSIX indisponiveis: execute os hooks em ambiente compativel com Git Bash no Windows ou shell POSIX no Linux/macOS.
 - Terraform CLI ausente: o `fmt` local e ignorado, mas o Pull Request executara a validacao completa. Instale as ferramentas descritas em [setup local Terraform e GCP](terraform-gcp-local-setup.md) para feedback antecipado.
 - Trivy ausente: nao afeta o `pre-push`; o CI executara a validacao bloqueante quando houver mudancas cobertas pelo workflow de infraestrutura.
-- Docker desligado: o `pre-push` continua executando apenas testes unitarios. Testes `Integration`, `Container` e `Contract` ficam para o Pull Request ou execucao manual.
+- Docker/Compose ausente: o hook avisa que a validacao local de Compose nao foi executada e nao imprime sucesso para essa etapa; o Pull Request continua com o gate bloqueante de container baseline.
+- Docker desligado: o `pre-push` nao executa `docker compose up`, build de imagens nem Testcontainers. Testes `Integration`, `Container` e `Contract` ficam para o Pull Request ou execucao manual.
 
 ## Desabilitacao excepcional
 

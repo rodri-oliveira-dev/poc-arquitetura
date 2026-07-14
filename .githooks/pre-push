@@ -242,6 +242,46 @@ is_pre_push_hook_path() {
   return 1
 }
 
+is_dockerfile_path() {
+  case "$1" in
+    Dockerfile|*/Dockerfile|Dockerfile.*|*/Dockerfile.*)
+      return 0
+      ;;
+  esac
+
+  return 1
+}
+
+is_compose_path() {
+  case "$1" in
+    compose.yaml|compose.yml|compose.*.yaml|compose.*.yml|*/compose.yaml|*/compose.yml|*/compose.*.yaml|*/compose.*.yml)
+      return 0
+      ;;
+  esac
+
+  return 1
+}
+
+is_container_baseline_validation_path() {
+  case "$1" in
+    tools/ContainerBaselineValidator/*|.dockerignore|global.json|Directory.Build.props|Directory.Packages.props)
+      return 0
+      ;;
+  esac
+
+  return 1
+}
+
+is_compose_validation_path() {
+  case "$1" in
+    scripts/quality/containers/validate-compose-configs.sh|scripts/quality/containers/validate-compose-configs.ps1|scripts/lib/common.sh|scripts/lib/common.ps1|.env.local.example)
+      return 0
+      ;;
+  esac
+
+  return 1
+}
+
 append_dotnet_format_file() {
   changed_file="$1"
   format_files_path="$2"
@@ -312,6 +352,41 @@ test_solution() {
     --no-build \
     --no-restore \
     --filter "$UNIT_TEST_FILTER"
+}
+
+run_container_baseline_validator() {
+  dotnet run --project ./tools/ContainerBaselineValidator/ContainerBaselineValidator.csproj -- --root .
+}
+
+run_compose_config_validation() {
+  if command -v bash >/dev/null 2>&1; then
+    bash ./scripts/quality/containers/validate-compose-configs.sh
+    return "$?"
+  fi
+
+  ./scripts/quality/containers/validate-compose-configs.sh
+}
+
+run_container_validations() {
+  if [ "$dockerfile_changes" = true ]; then
+    if command -v dotnet >/dev/null 2>&1; then
+      run_timed "baseline estatico de Dockerfiles e Compose" run_container_baseline_validator
+    else
+      echo "==> pre-push: .NET SDK nao encontrado; baseline estatico de containers local ignorado"
+      echo "==> pre-push: validacao nao executada: ContainerBaselineValidator"
+      echo "==> pre-push: gate bloqueante de container baseline continua no Pull Request/GitHub Actions"
+    fi
+  fi
+
+  if [ "$compose_changes" = true ]; then
+    if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+      run_timed "configuracoes Docker Compose suportadas" run_compose_config_validation
+    else
+      echo "==> pre-push: Docker CLI com suporte a 'docker compose' nao encontrado; validacao local de Compose ignorada"
+      echo "==> pre-push: validacao nao executada: scripts/quality/containers/validate-compose-configs.sh"
+      echo "==> pre-push: gate bloqueante de Compose continua no Pull Request/GitHub Actions"
+    fi
+  fi
 }
 
 is_terraform_impacting_path() {
@@ -533,6 +608,9 @@ transfer_changes=false
 shared_changes=false
 aggregate_changes=false
 terraform_changes=false
+dockerfile_changes=false
+compose_changes=false
+container_changes=false
 global_dotnet_changes=false
 analyzer_config_changes=false
 dotnet_tool_manifest_changes=false
@@ -551,6 +629,9 @@ if [ "$diff_is_safe" = false ]; then
   shared_changes=true
   aggregate_changes=true
   terraform_changes=true
+  dockerfile_changes=true
+  compose_changes=true
+  container_changes=true
   quick_tests_required=true
   dotnet_format_check=false
 else
@@ -663,6 +744,30 @@ else
       terraform_changes=true
       echo "==> pre-push: alteracao Terraform detectada em $changed_file"
     fi
+
+    if is_dockerfile_path "$changed_file"; then
+      dockerfile_changes=true
+      container_changes=true
+      echo "==> pre-push: alteracao de Dockerfile detectada em $changed_file"
+    fi
+
+    if is_compose_path "$changed_file"; then
+      compose_changes=true
+      container_changes=true
+      echo "==> pre-push: alteracao Docker Compose detectada em $changed_file"
+    fi
+
+    if is_container_baseline_validation_path "$changed_file"; then
+      dockerfile_changes=true
+      container_changes=true
+      echo "==> pre-push: alteracao em validacao de container baseline detectada em $changed_file"
+    fi
+
+    if is_compose_validation_path "$changed_file"; then
+      compose_changes=true
+      container_changes=true
+      echo "==> pre-push: alteracao em validacao Docker Compose detectada em $changed_file"
+    fi
   done <"$changed_files"
 
   if [ "$global_dotnet_changes" = true ]; then
@@ -683,7 +788,7 @@ else
     echo "==> pre-push: somente configuracao de analyzer detectada; testes rapidos serao ignorados"
   fi
 
-  if [ "$dotnet_changes" = false ] && [ "$terraform_changes" = false ] && [ "$dotnet_tool_manifest_changes" = false ]; then
+  if [ "$dotnet_changes" = false ] && [ "$terraform_changes" = false ] && [ "$dotnet_tool_manifest_changes" = false ] && [ "$container_changes" = false ]; then
     if is_full_tests_requested; then
       run_requested_full_tests
       exit 0
@@ -693,6 +798,10 @@ else
     echo "==> pre-push: gates pesados continuam no Pull Request/GitHub Actions"
     exit 0
   fi
+fi
+
+if [ "$container_changes" = true ]; then
+  run_container_validations
 fi
 
 if [ "$terraform_changes" = true ]; then

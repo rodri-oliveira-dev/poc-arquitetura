@@ -19,12 +19,15 @@ Manter o `pre-push` como validacao local leve:
 
 - calcular arquivos alterados antes de executar validacoes;
 - executar `terraform fmt -check` apenas quando houver alteracoes em `*.tf` ou `*.tfvars`;
+- executar validacoes estaticas leves de containers quando houver alteracoes em Dockerfiles, Compose ou scripts/configuracoes diretamente consumidos por essas validacoes;
 - executar restore, `dotnet format whitespace --verify-no-changes` nos arquivos `.cs` alterados, build e testes sem cobertura apenas quando houver alteracoes .NET impactantes;
 - pular a formatacao .NET local quando o diff tiver mais de 30 arquivos `.cs`, mantendo build, testes rapidos e gates de Pull Request;
 - filtrar os testes locais com `Category!=Integration&Category!=Container&Category!=Contract`;
 - medir a duracao aproximada de cada etapa local executada;
 - permitir validacao completa explicita com `FULL_TESTS=true git push`, reaproveitando `./test.sh` e o gate oficial de cobertura;
 - nao executar Trivy, cobertura, ReportGenerator, SonarQube, Docker build, scan de imagem, Terraform validate completo, testes de integracao ou Testcontainers no `pre-push`.
+
+Nota de manutencao: em 2026-07-14, o `pre-push` passou a executar `ContainerBaselineValidator` para alteracoes de Dockerfile/baseline e `scripts/quality/containers/validate-compose-configs.sh` para alteracoes de Compose. Essas validacoes continuam estaticas: nao constroem imagens, nao sobem containers, nao executam Trivy e nao substituem os gates de CI.
 
 O Pull Request permanece como gate forte:
 
@@ -40,6 +43,7 @@ Nota de manutencao: em 2026-07-14, as responsabilidades de CI foram separadas. `
 - Reduz tempo de feedback no `git push`.
 - O push local nao falha por Docker desligado.
 - Mantem testes unitarios, build e formatacao dos arquivos alterados como defesa rapida antes do PR.
+- Detecta localmente erros estruturais baratos em Dockerfiles e configuracoes Compose antes do PR.
 - Evita que branches grandes gastem varios minutos apenas na formatacao local.
 - Torna gargalos locais visiveis por logs de duracao simples.
 - Permite que um desenvolvedor execute a validacao completa no proprio push quando quiser feedback maximo antes do PR.
@@ -48,6 +52,7 @@ Nota de manutencao: em 2026-07-14, as responsabilidades de CI foram separadas. `
 
 ### Trade-offs / custos
 - Alguns problemas passam a ser descobertos no PR em vez de no push local.
+- Ambientes sem `docker compose` ou SDK .NET podem pular a validacao local de containers com aviso explicito; nesses casos o gate bloqueante permanece no CI.
 - Em branches com mais de 30 arquivos C#, problemas de formatacao podem ser descobertos no PR ou por validacao manual.
 - Desenvolvedores que quiserem feedback completo antes do PR precisam executar `./test.sh`, `./test.ps1`, Trivy ou `scripts/quality/terraform/validate.sh` manualmente.
 - A categorizacao de testes precisa ser mantida sempre que novos testes de integracao, contrato ou container forem criados.
