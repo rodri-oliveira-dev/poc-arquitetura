@@ -60,14 +60,12 @@ internal static class ProbeTarget
 
     private static bool IsAllowedPath(string path)
     {
-        return string.IsNullOrWhiteSpace(path) ||
-            !path.StartsWith('/') ||
-            path.StartsWith("//", StringComparison.Ordinal) ||
-            path.Contains("..", StringComparison.Ordinal) ||
-            path.Contains('\\') ||
-            path.Contains('#') ||
-            path.Contains('?')
-            ? false
-            : !Uri.TryCreate(path, UriKind.Absolute, out _);
+        return !string.IsNullOrWhiteSpace(path) &&
+            path.StartsWith('/') &&
+            !path.StartsWith("//", StringComparison.Ordinal) &&
+            !path.Contains("..", StringComparison.Ordinal) &&
+            !path.Contains('\\') &&
+            !path.Contains('#') &&
+            !path.Contains('?');
     }
 }
