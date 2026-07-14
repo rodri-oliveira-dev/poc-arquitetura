@@ -18,6 +18,12 @@ Execute o teste negativo controlado do proprio validador:
 dotnet run --project tools/ContainerBaselineValidator/ContainerBaselineValidator.csproj -- --root . --self-test-invalid
 ```
 
+Execute os testes automatizados dedicados do validador:
+
+```powershell
+dotnet test tests/tooling/ContainerBaselineValidator.Tests/ContainerBaselineValidator.Tests.csproj --configuration Release
+```
+
 Valide a sintaxe efetiva do Compose base:
 
 ```powershell
@@ -71,7 +77,7 @@ Ele nao substitui build real. Apenas `docker compose build` prova que o contexto
 ## Skill, teste estrutural e build real
 
 - Skill: documenta o padrao para humanos e agentes Codex em `.agents/skills/docker-compose-container-baseline/SKILL.md`.
-- Teste estrutural: executa uma regra deterministica em `tools/ContainerBaselineValidator` e em `ContainerSecurityPolicyTests`.
+- Teste estrutural: executa uma regra deterministica em `tools/ContainerBaselineValidator` e cobre fixtures isoladas em `tests/tooling/ContainerBaselineValidator.Tests`.
 - Build real: executa Docker/BuildKit de verdade no CI e falha quando a imagem deixa de construir.
 
 Esses mecanismos se complementam. A skill orienta, o teste estrutural bloqueia regressões baratas de detectar, e o build real confirma o comportamento que o Compose executa.

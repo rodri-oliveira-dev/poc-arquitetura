@@ -12,6 +12,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="LedgerService.UnitTests" />
+    <InternalsVisibleTo Include="ContainerBaselineValidator.Tests" />
   </ItemGroup>
 </Project>
