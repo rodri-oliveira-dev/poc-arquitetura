@@ -83,6 +83,8 @@ Em PRs internos, `push` na `main`, Merge Queue e execucao manual, a ausencia de 
 
 O workflow gera o ReportGenerator, aplica o gate local e escreve o summary de cobertura antes de retornar uma eventual falha do `dotnet-sonarscanner end` ou do relatorio Sonar. Assim, uma falha do Sonar continua bloqueante, mas os artefatos locais de teste e cobertura permanecem disponiveis para diagnostico.
 
+O SonarScanner for .NET roda com `sonar.scanner.scanAll=false` no CI principal. Assim, o `main-dotnet-ci` permanece focado em .NET, cobertura OpenCover e Quality Gate dos projetos C#; IaC/Terraform fica nos workflows dedicados `infrastructure-security` e `terraform-validation`.
+
 ## SonarQube e cobertura
 
 A estrategia oficial e contextual por aggregate e Shared dentro de um unico workflow:

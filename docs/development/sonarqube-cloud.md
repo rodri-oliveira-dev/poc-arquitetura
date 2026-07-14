@@ -61,6 +61,8 @@ GitHub Event
 
 O `begin` do SonarQube Cloud precisa ocorrer antes do build. O `end` precisa ocorrer depois dos testes com cobertura para que o scanner consiga enviar a analise e importar o relatorio OpenCover.
 
+O `main-dotnet-ci` executa o SonarScanner for .NET com `sonar.scanner.scanAll=false`. Isso desliga a analise multi-language automatica do scanner .NET e evita que sensores de IaC/Terraform, YAML, JSON, shell ou outros arquivos fora do build MSBuild entrem no caminho critico de build/test/cobertura. Infraestrutura e Terraform continuam cobertos pelos workflows dedicados `infrastructure-security` e `terraform-validation`; eles nao devem ser reintroduzidos no Sonar do CI .NET sem nova decisao explicita.
+
 O workflow limpa `./artifacts/test-results` e `./artifacts/sonarqube` antes da execucao. Cada contexto grava em subpastas isoladas: `artifacts/test-results/aggregate`, `artifacts/test-results/shared`, `artifacts/sonarqube/aggregate` e `artifacts/sonarqube/shared`.
 
 O workflow reutilizavel `.github/workflows/sonarqube-context.yml` foi removido e deve permanecer ausente. SonarQube Cloud, restore, build, testes, cobertura, ReportGenerator, relatorio e artifact ficam concentrados em `.github/workflows/dotnet.yml`; nao deve existir uma segunda implementacao completa desse fluxo.
@@ -81,9 +83,9 @@ shared: sonar.cs.opencover.reportsPaths="./artifacts/test-results/shared/**/cove
 
 Nao use cobertura generica do Sonar para este caso. Para C#/.NET, a importacao deve usar `sonar.cs.opencover.reportsPaths` apontando para os arquivos OpenCover gerados pelo Coverlet.
 
-O scanner exclui da metrica de cobertura do SonarQube Cloud os diretorios `.github/`, `docs/`, `infra/` e `loadtests/`, alem de `Program.cs`, migrations EF e arquivos gerados. Esses arquivos continuam analisados por regras de qualidade e seguranca quando suportado pelo Sonar, mas nao entram no denominador de cobertura porque a cobertura oficial do repositorio vem dos testes .NET via OpenCover.
+O scanner exclui da metrica de cobertura do SonarQube Cloud os diretorios `.github/`, `docs/`, `infra/` e `loadtests/`, alem de `Program.cs`, migrations EF e arquivos gerados. Com `sonar.scanner.scanAll=false`, os arquivos fora dos projetos MSBuild nao entram na analise multi-language automatica; essas exclusoes permanecem defensivas para a metrica de cobertura e para eventuais arquivos incluidos explicitamente em projetos .NET.
 
-Arquivos nao C# dentro de `scripts/` ficam fora da analise por `sonar.exclusions`, com a lista explicita baseada no inventario atual: `scripts/**/*.sh`, `scripts/**/*.ps1`, `scripts/**/*.py`, `scripts/**/*.json` e `scripts/**/*.mjs`. Nao use `scripts/**`: arquivos C# futuros em `scripts/` devem continuar elegiveis para analise e cobertura.
+Arquivos nao C# dentro de `scripts/` ficam fora da analise por `sonar.exclusions`, com a lista explicita baseada no inventario atual: `scripts/**/*.sh`, `scripts/**/*.ps1`, `scripts/**/*.py`, `scripts/**/*.json` e `scripts/**/*.mjs`. Nao use `scripts/**`: arquivos C# futuros em `scripts/` devem continuar elegiveis para analise e cobertura se forem incluidos em projetos MSBuild.
 
 Nao use essa exclusao para esconder codigo produtivo .NET sem testes. Se um arquivo C# de `src/` precisar sair da cobertura, registre uma justificativa localizada e revise se o `coverlet.runsettings` tambem precisa ser ajustado.
 

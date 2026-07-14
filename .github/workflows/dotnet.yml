@@ -277,6 +277,7 @@ jobs:
                 /d:sonar.token="$SONAR_TOKEN" \
                 /d:sonar.host.url="$SONAR_HOST_URL" \
                 /d:sonar.cs.opencover.reportsPaths="$opencover_pattern" \
+                /d:sonar.scanner.scanAll=false \
                 /d:sonar.exclusions="$SONAR_NON_CSHARP_SCRIPT_EXCLUSIONS" \
                 /d:sonar.issue.ignore.block=placeholderSecrets \
                 /d:sonar.issue.ignore.block.placeholderSecrets.beginBlockRegexp=".*(PASSWORD|[Pp]assword|PWD|PGPASSWORD|CLIENT_SECRET|[Cc]lient[_-]?[Ss]ecret|SECRET|[Ss]ecret|TOKEN|[Tt]oken|API[_-]?KEY|[Aa]pi[_-]?[Kk]ey).*<[A-Z0-9_]*(PASSWORD|SECRET|TOKEN|API_KEY)[A-Z0-9_]*>.*" \
