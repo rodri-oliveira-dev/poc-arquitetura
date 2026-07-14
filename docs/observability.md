@@ -175,7 +175,7 @@ O Alloy descobre apenas containers do projeto compose `poc-arquitetura` e aplica
 | Label | Origem | Exemplo |
 | --- | --- | --- |
 | `service` | label `com.docker.compose.service` | `ledger-service`, `ledger-worker`, `balance-service`, `balance-worker` |
-| `container` | nome do container Docker | `poc-ledger-service`, `poc-ledger-worker` |
+| `service` | label `com.docker.compose.service` do Docker Compose | `ledger-service`, `ledger-worker` |
 | `compose_project` | label `com.docker.compose.project` | `poc-arquitetura` |
 | `environment` | valor fixo local | `local` |
 
@@ -190,7 +190,7 @@ Consultas LogQL uteis no Grafana Explore com datasource `Loki`:
 {service="ledger-worker"}
 {service="balance-service"}
 {service="balance-worker"}
-{container="poc-keycloak"}
+{service="keycloak"}
 {service="ledger-service"} |= "CorrelationId=<valor>"
 {service="ledger-worker"} |= "TraceId=<valor>"
 {service="balance-worker"} |= "CorrelationId=<valor>"

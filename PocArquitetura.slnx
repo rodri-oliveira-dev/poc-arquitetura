@@ -36,6 +36,7 @@
   <Folder Name="/src/Shared/">
     <Project Path="src/Shared/ApiDefaults/ApiDefaults.csproj" />
     <Project Path="src/Shared/ApplicationDefaults/ApplicationDefaults.csproj" />
+    <Project Path="src/Shared/ContainerHealthProbe/ContainerHealthProbe.csproj" />
     <Project Path="src/Shared/HttpResilienceDefaults/HttpResilienceDefaults.csproj" />
     <Project Path="src/Shared/KafkaWorkerDefaults/KafkaWorkerDefaults.csproj" />
   </Folder>
@@ -78,6 +79,7 @@
   <Folder Name="/tests/Shared/">
     <Project Path="tests/Shared/ApiDefaults.Tests/ApiDefaults.Tests.csproj" />
     <Project Path="tests/Shared/ApplicationDefaults.Tests/ApplicationDefaults.Tests.csproj" />
+    <Project Path="tests/Shared/ContainerHealthProbe.Tests/ContainerHealthProbe.Tests.csproj" />
     <Project Path="tests/Shared/HttpResilienceDefaults.Tests/HttpResilienceDefaults.Tests.csproj" />
     <Project Path="tests/Shared/KafkaWorkerDefaults.Tests/KafkaWorkerDefaults.Tests.csproj" />
   </Folder>
@@ -86,7 +88,11 @@
     <Project Path="tests/transfer/TransferService.UnitTests/TransferService.UnitTests.csproj" />
     <Project Path="tests/transfer/TransferService.Worker.Tests/TransferService.Worker.Tests.csproj" />
   </Folder>
+  <Folder Name="/tests/tooling/">
+    <Project Path="tests/tooling/ContainerBaselineValidator.Tests/ContainerBaselineValidator.Tests.csproj" />
+  </Folder>
   <Folder Name="/tools/">
+    <Project Path="tools/ContainerBaselineValidator/ContainerBaselineValidator.csproj" />
     <Project Path="tools/ComposeEnvGen/ComposeEnvGen.csproj" />
   </Folder>
 </Solution>

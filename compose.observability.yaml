@@ -13,16 +13,15 @@ networks:
 services:
   jaeger:
     image: jaegertracing/all-in-one:1.76.0
-    container_name: poc-jaeger
     logging: *default-logging
     profiles:
       - observability
     environment:
       COLLECTOR_OTLP_ENABLED: "true"
     ports:
-      - "16686:16686"
-      - "4317:4317"
-      - "4318:4318"
+      - "127.0.0.1:${JAEGER_UI_HOST_PORT:-16686}:16686"
+      - "127.0.0.1:${JAEGER_OTLP_GRPC_HOST_PORT:-4317}:4317"
+      - "127.0.0.1:${JAEGER_OTLP_HTTP_HOST_PORT:-4318}:4318"
     deploy:
       resources:
         limits:
@@ -34,7 +33,6 @@ services:
 
   otel-collector:
     image: docker.io/otel/opentelemetry-collector-contrib:0.152.0
-    container_name: poc-otel-collector
     logging: *default-logging
     profiles:
       - observability
@@ -59,7 +57,6 @@ services:
 
   prometheus:
     image: docker.io/prom/prometheus:v3.8.0
-    container_name: poc-prometheus
     logging: *default-logging
     profiles:
       - observability
@@ -74,7 +71,7 @@ services:
       - "--storage.tsdb.retention.time=${PROMETHEUS_RETENTION_TIME:-6h}"
       - "--storage.tsdb.retention.size=${PROMETHEUS_RETENTION_SIZE:-512MB}"
     ports:
-      - "9090:9090"
+      - "127.0.0.1:${PROMETHEUS_HOST_PORT:-9090}:9090"
     tmpfs:
       - /prometheus:size=${PROMETHEUS_TMPFS_SIZE:-512m}
     volumes:
@@ -90,14 +87,13 @@ services:
 
   loki:
     image: docker.io/grafana/loki:3.7.0
-    container_name: poc-loki
     logging: *default-logging
     profiles:
       - observability
     command:
       - "-config.file=/etc/loki/loki-config.yaml"
     ports:
-      - "3100:3100"
+      - "127.0.0.1:${LOKI_HOST_PORT:-3100}:3100"
     tmpfs:
       - /loki:size=${LOKI_TMPFS_SIZE:-256m}
     volumes:
@@ -113,7 +109,6 @@ services:
 
   alloy:
     image: docker.io/grafana/alloy:v1.16.0
-    container_name: poc-alloy
     logging: *default-logging
     profiles:
       - observability
@@ -126,7 +121,7 @@ services:
       loki:
         condition: service_started
     ports:
-      - "12345:12345"
+      - "127.0.0.1:${ALLOY_HOST_PORT:-12345}:12345"
     tmpfs:
       - /var/lib/alloy/data:size=${ALLOY_TMPFS_SIZE:-64m}
     volumes:
@@ -143,7 +138,6 @@ services:
 
   alertmanager:
     image: docker.io/prom/alertmanager:v0.29.0
-    container_name: poc-alertmanager
     logging: *default-logging
     profiles:
       - observability
@@ -151,7 +145,7 @@ services:
       - "--config.file=/etc/alertmanager/alertmanager.yml"
       - "--storage.path=/alertmanager"
     ports:
-      - "9093:9093"
+      - "127.0.0.1:${ALERTMANAGER_HOST_PORT:-9093}:9093"
     tmpfs:
       - /alertmanager:size=${ALERTMANAGER_TMPFS_SIZE:-64m}
     volumes:
@@ -167,7 +161,6 @@ services:
 
   grafana:
     image: docker.io/grafana/grafana:12.3.0
-    container_name: poc-grafana
     logging: *default-logging
     profiles:
       - observability
@@ -183,7 +176,7 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD:?Defina GRAFANA_ADMIN_PASSWORD no ambiente ou em .env.local}"
       GF_PLUGINS_PREINSTALL_DISABLED: "true"
     ports:
-      - "3000:3000"
+      - "127.0.0.1:${GRAFANA_HOST_PORT:-3000}:3000"
     volumes:
       - ./observability/grafana/provisioning/datasources/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
       - ./observability/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro

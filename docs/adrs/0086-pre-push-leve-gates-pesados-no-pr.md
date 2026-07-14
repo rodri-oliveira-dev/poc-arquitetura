@@ -1,7 +1,7 @@
 # ADR-0086: Pre-push leve com gates pesados no Pull Request
 
 ## Status
-Aceito
+Parcialmente substituido pela [ADR-0106](./0106-ci-principal-contextual-pull-requests-main.md) para a organizacao do CI de Pull Requests
 
 ## Data
 2026-06-13
@@ -30,7 +30,9 @@ O Pull Request permanece como gate forte:
 
 - `pr-build-and-test` executa restore, build e testes completos sem filtro quando ha mudanca impactante;
 - `main-dotnet-ci` executa restore, auditoria NuGet, SonarQube Cloud, build, testes com cobertura, ReportGenerator e gate de 85%;
-- `infra-security-and-terraform-validation` executa Trivy repository scan, Terraform `fmt`, `init -backend=false`, `validate` e TFLint para mudancas de infraestrutura, Dockerfile e Compose.
+- no momento da decisao, `infra-security-and-terraform-validation` executava Trivy repository scan, Terraform `fmt`, `init -backend=false`, `validate` e TFLint para mudancas de infraestrutura, Dockerfile e Compose.
+
+Nota de manutencao: em 2026-07-14, as responsabilidades de CI foram separadas. `infrastructure-security` passou a executar Trivy para Dockerfiles, Compose, Terraform, secrets e filesystem, enquanto `terraform-validation` passou a executar apenas Terraform `fmt`, `init -backend=false`, `validate` e TFLint para mudancas relacionadas a Terraform.
 
 ## Consequencias
 

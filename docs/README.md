@@ -10,6 +10,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [Ferramentas auxiliares](development/tooling.md): Node.js LTS, npm, npx, tools .NET, Redocly CLI, LikeC4, Swashbuckle CLI e fluxo local de OpenAPI.
 - [Política de wrappers de scripts](development/scripts.md): caminhos atuais e compatibilidade dos wrappers antigos em `scripts/`.
 - [Manutencao Docker local](development/docker-maintenance.md): diagnostico de disco, cache BuildKit limitado a 5GB, classificacao de volumes e limpeza segura por retencao.
+- [Baseline de Dockerfiles e Docker Compose](development/container-baseline.md): validadores estruturais, build real de imagens no CI, checklists para executaveis e ProjectReference.
 - [Validacao dos contratos OpenAPI](development/openapi-contract-validation.md): geracao, lint, drift e diff de breaking changes contra a main.
 - [AuditService API](development/audit-api.md): contrato HTTP canonico de auditoria funcional, headers, scopes, idempotencia, filtros e limitacoes da etapa isolada.
 - [Validacao local de webhooks Stripe com Stripe CLI](development/stripe-cli-webhooks.md): instalacao/verificacao da CLI, `stripe listen`, `whsec_...`, eventos sinteticos, smoke correlacionado e troubleshooting do PaymentService.
@@ -26,7 +27,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [SonarQube Cloud](development/sonarqube-cloud.md): configurar analise via GitHub Actions, token, importacao OpenCover, quality gate e troubleshooting.
 - [SonarQube local](quality/sonarqube.md): subir SonarQube com Docker Compose e executar analise estatica local.
 - [Mutation testing com Stryker.NET](development/mutation-testing-stryker.md): executar mutation testing local e interpretar relatorios.
-- [OWASP ZAP local e manual](development/owasp-zap.md): executar DAST baseline local ou via workflow manual contra Ledger e Balance, salvando relatorios em artifacts ou `zap-reports/`.
+- [OWASP ZAP local e pos-CI](development/owasp-zap.md): executar DAST baseline local, manual ou apos sucesso do CI da `main` contra Ledger e Balance, salvando relatorios em artifacts ou `zap-reports/`.
 - [Validacao de seguranca com Trivy](development/trivy-security-scan.md): validar Dockerfiles, Terraform, misconfigurations, secrets e filesystem no hook local e no CI.
 - [Git hooks locais](development/git-hooks.md): instalar e entender `commit-msg`, `post-merge` e `pre-push`.
 - [Setup local Terraform e GCP](development/terraform-gcp-local-setup.md): instalar Terraform CLI, Google Cloud CLI e TFLint no Windows e executar validacoes locais seguras.

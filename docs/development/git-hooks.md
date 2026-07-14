@@ -36,9 +36,9 @@ Antes de executar validacoes, o `pre-push` tenta identificar os arquivos alterad
 - em execucoes manuais sem entrada padrao do Git, aplica a mesma estrategia contra `HEAD`;
 - se nenhuma base segura estiver disponivel, executa as validacoes por seguranca.
 
-Quando existem alteracoes em `*.tf` ou `*.tfvars`, o hook executa apenas `terraform fmt -check -recursive ./infra/terraform`, se a Terraform CLI estiver disponivel. Se a ferramenta nao existir localmente, o hook avisa e permite o push, porque o workflow `infra-security-and-terraform-validation` executa a validacao completa no Pull Request.
+Quando existem alteracoes em `*.tf` ou `*.tfvars`, o hook executa apenas `terraform fmt -check -recursive ./infra/terraform`, se a Terraform CLI estiver disponivel. Se a ferramenta nao existir localmente, o hook avisa e permite o push, porque o workflow `terraform-validation` executa a validacao completa no Pull Request.
 
-O `pre-push` nao executa Trivy localmente por padrao. Os scans bloqueantes de Dockerfile, Terraform, misconfigurations, secrets e filesystem rodam no GitHub Actions pelo workflow `infra-security-and-terraform-validation` quando ha mudancas em Terraform, Dockerfiles, Compose, na action de Trivy ou no proprio workflow. Consulte [validacao de seguranca com Trivy](trivy-security-scan.md).
+O `pre-push` nao executa Trivy localmente por padrao. Os scans bloqueantes de Dockerfile, Terraform, misconfigurations, secrets e filesystem rodam no GitHub Actions pelo workflow `infrastructure-security` quando ha mudancas em Terraform, Dockerfiles, Compose, na action de Trivy ou no proprio workflow. Consulte [validacao de seguranca com Trivy](trivy-security-scan.md).
 
 O hook executa restore, `dotnet format whitespace --verify-no-changes` somente para arquivos `.cs` alterados, build e testes unitarios rapidos sem cobertura quando encontra arquivos .NET impactantes. A escolha de solution e contextual:
 
@@ -243,7 +243,7 @@ trivy config \
   --skip-dirs infra/nginx/certs \
   .
 trivy fs \
-  --scanners vuln,secret,misconfig \
+  --scanners vuln,secret \
   --severity HIGH,CRITICAL \
   --tf-vars infra/terraform/environments/dev/validation.tfvars \
   --skip-dirs node_modules \
@@ -271,7 +271,7 @@ trivy fs \
 
 ## GitHub Actions
 
-Os workflows `main-dotnet-ci`, `codeql-security-analysis` e `dependency-security-review` usam `paths-ignore` em `push` e/ou `pull_request` para nao rodar quando a mudanca contem apenas Markdown, arquivos em `docs/` ou imagens de documentacao.
+Os workflows `codeql-security-analysis` e `dependency-security-review` usam `paths-ignore` em `push` e/ou `pull_request` para nao rodar quando a mudanca contem apenas Markdown, arquivos em `docs/` ou imagens de documentacao. O workflow `main-dotnet-ci` nao usa `paths-ignore`, porque precisa sempre produzir o check obrigatorio `Build and test`; PRs documentais sao pulados dentro do job apos a deteccao centralizada.
 
 Mudancas em codigo, projetos, solution, build, testes, Docker, workflows, hooks e configuracoes continuam acionando os workflows. O workflow CodeQL mantem a execucao agendada semanal independentemente de filtros de path.
 

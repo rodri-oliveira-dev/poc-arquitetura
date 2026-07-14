@@ -1,8 +1,9 @@
 name: release-on-merge
 
 on:
-  pull_request:
-    types: [closed]
+  workflow_run:
+    workflows: ["main-dotnet-ci"]
+    types: [completed]
     branches: ["main"]
 
 permissions:
@@ -15,16 +16,22 @@ concurrency:
 
 jobs:
   create-release:
-    name: Create release after merge
-    if: ${{ github.event.pull_request.merged == true }}
+    name: Create release after successful main CI
+    if: >-
+      ${{
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_branch == 'main' &&
+        github.event.workflow_run.head_repository.full_name == github.repository
+      }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
     steps:
-      - name: Checkout main
+      - name: Checkout approved CI commit
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
-          ref: main
+          ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
 
       - name: Setup .NET
@@ -37,58 +44,68 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          APPROVED_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
 
           git fetch --force --tags origin
-          git checkout -B main "$MERGE_SHA"
+          git checkout -B main "$APPROVED_SHA"
 
           version="$(dotnet tool run dotnet-gitversion /showvariable MajorMinorPatch)"
           full_semver="$(dotnet tool run dotnet-gitversion /showvariable FullSemVer)"
           tag_name="v$version"
 
-          echo "tag_name=$tag_name" >> "$GITHUB_OUTPUT"
-          echo "full_semver=$full_semver" >> "$GITHUB_OUTPUT"
+          {
+            echo "tag_name=$tag_name"
+            echo "full_semver=$full_semver"
+          } >> "$GITHUB_OUTPUT"
 
           if git rev-parse --quiet --verify "refs/tags/$tag_name" >/dev/null; then
             tagged_sha="$(git rev-list -n 1 "$tag_name")"
             echo "create_tag=false" >> "$GITHUB_OUTPUT"
 
-            if [ "$tagged_sha" != "$MERGE_SHA" ]; then
-              echo "create_release=false" >> "$GITHUB_OUTPUT"
-              echo "release_reason=Tag $tag_name already points to $tagged_sha; no SemVer increment was produced for $MERGE_SHA." >> "$GITHUB_OUTPUT"
+            if [ "$tagged_sha" != "$APPROVED_SHA" ]; then
+              {
+                echo "create_release=false"
+                echo "release_reason=Tag $tag_name already points to $tagged_sha; no SemVer increment was produced for $APPROVED_SHA."
+              } >> "$GITHUB_OUTPUT"
               exit 0
             fi
 
             if gh release view "$tag_name" >/dev/null 2>&1; then
-              echo "create_release=false" >> "$GITHUB_OUTPUT"
-              echo "release_reason=Release $tag_name already exists for $MERGE_SHA." >> "$GITHUB_OUTPUT"
+              {
+                echo "create_release=false"
+                echo "release_reason=Release $tag_name already exists for $APPROVED_SHA."
+              } >> "$GITHUB_OUTPUT"
             else
-              echo "create_release=true" >> "$GITHUB_OUTPUT"
-              echo "release_reason=Tag $tag_name already exists for $MERGE_SHA; release will be created." >> "$GITHUB_OUTPUT"
+              {
+                echo "create_release=true"
+                echo "release_reason=Tag $tag_name already exists for $APPROVED_SHA; release will be created."
+              } >> "$GITHUB_OUTPUT"
             fi
 
             exit 0
           fi
 
-          echo "create_tag=true" >> "$GITHUB_OUTPUT"
-          echo "create_release=true" >> "$GITHUB_OUTPUT"
-          echo "release_reason=GitVersion calculated $full_semver; tag $tag_name will be created for $MERGE_SHA." >> "$GITHUB_OUTPUT"
+          {
+            echo "create_tag=true"
+            echo "create_release=true"
+            echo "release_reason=GitVersion calculated $full_semver; tag $tag_name will be created for $APPROVED_SHA."
+          } >> "$GITHUB_OUTPUT"
 
       - name: Create tag
         if: ${{ steps.version.outputs.create_tag == 'true' }}
         shell: bash
         env:
           TAG_NAME: ${{ steps.version.outputs.tag_name }}
-          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          APPROVED_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git tag -a "$TAG_NAME" "$MERGE_SHA" -m "Release $TAG_NAME"
+          git tag -a "$TAG_NAME" "$APPROVED_SHA" -m "Release $TAG_NAME"
           git push origin "refs/tags/$TAG_NAME"
 
       - name: Build release notes
@@ -96,41 +113,72 @@ jobs:
         shell: bash
         env:
           TAG_NAME: ${{ steps.version.outputs.tag_name }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
-          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
-          PR_URL: ${{ github.event.pull_request.html_url }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          APPROVED_SHA: ${{ github.event.workflow_run.head_sha }}
+          REPOSITORY: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
 
-          commits="$(git log --format="- %h %s (%an)" "$BASE_SHA..$MERGE_SHA" | head -n 50 || true)"
-          if [ -z "$commits" ]; then
-            commits="$(git log --format="- %h %s (%an)" -n 1 "$MERGE_SHA")"
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/$REPOSITORY/commits/$APPROVED_SHA/pulls" \
+            > associated-prs.json || echo "[]" > associated-prs.json
+
+          previous_tag="$(git tag --merged "$APPROVED_SHA" --sort=-version:refname -l 'v[0-9]*.[0-9]*.[0-9]*' | grep -v "^$TAG_NAME$" | head -n 1 || true)"
+
+          if [ -n "$previous_tag" ]; then
+            commits="$(git log --format="- %h %s (%an)" "$previous_tag..$APPROVED_SHA" | head -n 50 || true)"
+          else
+            commits="$(git log --format="- %h %s (%an)" -n 50 "$APPROVED_SHA" || true)"
           fi
 
-          {
-            echo "## Pull Request"
-            echo "- PR: #$PR_NUMBER - $PR_TITLE"
-            echo "- Author: @$PR_AUTHOR"
-            echo "- Source branch: \`$PR_BRANCH\`"
-            echo "- Merge commit: \`$MERGE_SHA\`"
-            echo "- Version: \`$TAG_NAME\`"
-            echo "- Link: $PR_URL"
-            echo
-            echo "## Changelog"
-            if [ -n "$PR_BODY" ]; then
-              printf "%s\n" "$PR_BODY"
-            else
-              echo "No pull request description was provided."
-            fi
-            echo
-            echo "## Commits"
-            printf "%s\n" "$commits"
-          } > release-notes.md
+          if [ -z "$commits" ]; then
+            commits="$(git log --format="- %h %s (%an)" -n 1 "$APPROVED_SHA")"
+          fi
+
+          python - "$TAG_NAME" "$APPROVED_SHA" "$previous_tag" "$commits" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          tag_name, approved_sha, previous_tag, commits = sys.argv[1:]
+          pulls = json.loads(Path("associated-prs.json").read_text(encoding="utf-8"))
+          pr = pulls[0] if pulls else None
+
+          lines = []
+          if pr:
+              lines.extend(
+                  [
+                      "## Pull Request",
+                      f"- PR: #{pr['number']} - {pr['title']}",
+                      f"- Author: @{pr['user']['login']}",
+                      f"- Source branch: `{pr['head']['ref']}`",
+                      f"- Approved commit: `{approved_sha}`",
+                      f"- Version: `{tag_name}`",
+                      f"- Link: {pr['html_url']}",
+                      "",
+                      "## Changelog",
+                      pr.get("body") or "No pull request description was provided.",
+                      "",
+                  ]
+              )
+          else:
+              lines.extend(
+                  [
+                      "## Approved Commit",
+                      f"- Commit: `{approved_sha}`",
+                      f"- Version: `{tag_name}`",
+                      "- Pull request: not found for this commit.",
+                      "",
+                  ]
+              )
+
+          lines.extend(["## Commits"])
+          if previous_tag:
+              lines.append(f"- Previous tag: `{previous_tag}`")
+          lines.append(commits)
+          Path("release-notes.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+          PY
 
       - name: Create GitHub Release
         if: ${{ steps.version.outputs.create_release == 'true' }}
@@ -138,14 +186,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG_NAME: ${{ steps.version.outputs.tag_name }}
-          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          APPROVED_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
 
           gh release create "$TAG_NAME" \
             --title "$TAG_NAME" \
             --notes-file release-notes.md \
-            --target "$MERGE_SHA"
+            --target "$APPROVED_SHA"
 
       - name: Write release summary
         if: ${{ always() }}
@@ -154,9 +202,11 @@ jobs:
           TAG_NAME: ${{ steps.version.outputs.tag_name }}
           FULL_SEMVER: ${{ steps.version.outputs.full_semver }}
           RELEASE_REASON: ${{ steps.version.outputs.release_reason }}
+          APPROVED_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           {
             echo "## Release"
+            echo "- Approved CI commit: \`${APPROVED_SHA:-not available}\`"
             echo "- Tag: \`${TAG_NAME:-not calculated}\`"
             echo "- FullSemVer: \`${FULL_SEMVER:-not calculated}\`"
             echo "- Result: ${RELEASE_REASON:-workflow did not reach version resolution}"

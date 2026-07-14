@@ -16,7 +16,8 @@ O fluxo considerado e GitHub Flow:
 
 - PRs sao abertos a partir de branches curtos para `main`;
 - o check `Build and test` deve passar antes do merge;
-- o workflow de release roda quando um PR e mergeado na `main`;
+- o workflow `main-dotnet-ci` roda no push resultante para a `main`;
+- o workflow de release roda somente apos o `main-dotnet-ci` da `main` concluir com sucesso;
 - a tag SemVer criada pelo workflow passa a ser a fonte de versao para releases seguintes.
 
 As tags validas de release usam o prefixo `v` seguido de SemVer estrito, por exemplo:
@@ -29,18 +30,26 @@ Tags historicas fora de SemVer, como tags sequenciais por data, permanecem no hi
 
 ## Quando a release e criada
 
-O workflow escuta o evento `pull_request` com tipo `closed` para a branch `main`, mas o job so executa quando `github.event.pull_request.merged == true`.
+O workflow escuta o evento `workflow_run` do workflow `main-dotnet-ci`, com `types: [completed]` e filtro para a branch `main`. O job so executa quando:
+
+```yaml
+github.event.workflow_run.conclusion == 'success'
+github.event.workflow_run.event == 'push'
+github.event.workflow_run.head_branch == 'main'
+```
 
 Com isso:
 
-- PR mergeado na `main` cria release;
-- PR fechado sem merge nao cria release;
-- push direto na `main` nao cria release;
-- reexecucao do workflow nao cria uma segunda release para o mesmo commit de merge.
+- CI da `main` com sucesso pode criar release;
+- CI da `main` com falha ou cancelamento nao cria release;
+- PR fechado sem merge nao cria release diretamente;
+- reexecucao do workflow nao cria uma segunda release para o mesmo commit aprovado.
 
-O workflow nao executa build/testes novamente. A protecao da branch `main` deve exigir o check `Build and test`, do workflow `pr-build-and-test`, antes do merge.
+O workflow nao executa build/testes novamente. Ele usa o SHA aprovado pelo CI, `${{ github.event.workflow_run.head_sha }}`, para checkout, calculo de versao, tag e target da GitHub Release. A protecao da branch `main` deve exigir o check `Build and test`, produzido pelo workflow `main-dotnet-ci`, antes do merge.
 
 Se o GitVersion calcular uma versao cuja tag ja existe em outro commit, o workflow nao cria uma nova tag nem uma nova release. Esse e o comportamento esperado para PRs que nao geram incremento SemVer.
+
+Publicacoes nao devem ser canceladas no meio. Por isso, `release-on-merge` usa `concurrency.cancel-in-progress: false`, evitando interromper uma criacao de tag ou GitHub Release ja iniciada.
 
 ## Como commits influenciam a versao
 
@@ -119,9 +128,18 @@ dotnet pack ./src/Shared/ApiDefaults/ApiDefaults.csproj --configuration Release 
 
 `SemVer` e adequado para NuGet porque gera uma versao SemVer sem metadados de build (`+...`), por exemplo `0.18.1-lib.1` em branch de feature ou `0.18.1` em uma versao estavel. Quando o GitVersion calcular uma pre-release apenas numerica em `main`, como `0.18.1-8`, o workflow deve normalizar o valor para `0.18.1-main.8` antes do `dotnet pack`, porque o NuGet.org rejeita esse sufixo numerico puro no push. Na versao atual do `GitVersion.Tool` usada pelo repositorio, `NuGetVersionV2` e `NuGetVersion` nao estao disponiveis como variaveis de saida; por isso o workflow deve extrair `SemVer` e aplicar essa normalizacao pequena.
 
-O workflow `.github/workflows/publish-shared-nuget.yml` restaura, compila, testa, empacota, valida os metadados dos `.nupkg` e publica os pacotes no NuGet.org. A publicacao usa Trusted Publishing com GitHub Actions OIDC por meio de `NuGet/login@v1`; nao ha API key persistente nem secret `NUGET_API_KEY`.
+O workflow `.github/workflows/publish-shared-nuget.yml` restaura, compila, testa, empacota, valida os metadados dos `.nupkg` e, somente quando a execucao pedir publicacao, publica os pacotes no NuGet.org. A publicacao usa Trusted Publishing com GitHub Actions OIDC por meio de `NuGet/login@v1`; nao ha API key persistente nem secret `NUGET_API_KEY`. A permissao `id-token: write` fica restrita ao job de publicacao.
 
-O workflow usa a solution dedicada `PocArquitetura.Shared.slnx`, que contem apenas os tres pacotes Shared e seus testes em `tests/Shared`. O gatilho de `push` para `main` fica restrito a alteracoes relevantes para esses pacotes: `src/Shared/**`, `tests/Shared/**`, `PocArquitetura.Shared.slnx`, `GitVersion.yml`, o proprio workflow, `LICENSE` e os arquivos `Directory.Build.props`/`Directory.Packages.props` da raiz e de `src/Shared`. Os arquivos `Directory.*` da raiz permanecem no gatilho porque os projetos de teste em `tests/Shared` os herdam; os arquivos `Directory.*` de `src/Shared` permanecem porque definem propriedades e versoes usadas pelos pacotes publicados.
+O workflow usa a solution dedicada `PocArquitetura.Shared.slnx`, que contem apenas os tres pacotes Shared e seus testes em `tests/Shared`. Ele nao publica diretamente em `push`: a execucao automatica ocorre por `workflow_run`, apos sucesso do `main-dotnet-ci` na `main`, e faz checkout de `${{ github.event.workflow_run.head_sha }}`, o mesmo SHA validado pelo CI. Antes de empacotar automaticamente, o workflow confere se o commit aprovado alterou entradas relevantes para os pacotes: `src/Shared/**`, `tests/Shared/**`, `PocArquitetura.Shared.slnx`, `GitVersion.yml`, o proprio workflow, `LICENSE` e os arquivos `Directory.Build.props`/`Directory.Packages.props` da raiz e de `src/Shared`. Os arquivos `Directory.*` da raiz permanecem relevantes porque os projetos de teste em `tests/Shared` os herdam; os arquivos `Directory.*` de `src/Shared` permanecem porque definem propriedades e versoes usadas pelos pacotes publicados.
+
+Assim como releases, a publicacao NuGet usa `concurrency.cancel-in-progress: false`. Isso serializa execucoes e evita cancelar um pack, login OIDC ou push de pacote no meio da operacao.
+
+Na execucao manual, o input `publish` separa empacotamento de publicacao:
+
+| `publish` | Comportamento |
+| --- | --- |
+| `false` | Restaura, compila, testa, empacota, valida e publica o artifact, sem login NuGet e sem push. |
+| `true` | Executa as mesmas validacoes e, apenas depois delas, faz login via Trusted Publishing e publica. |
 
 Para a publicacao funcionar, deve existir no NuGet.org uma Trusted Publishing policy com:
 
@@ -139,9 +157,9 @@ Os pacotes sao publicados em ordem para respeitar a dependencia de `ApiDefaults`
 2. `PocArquitetura.ApplicationDefaults`
 3. `PocArquitetura.ApiDefaults`
 
-Antes do upload do artifact e da publicacao, o workflow abre cada `.nupkg` e valida `id`, versao, descricao, autores, tags, `projectUrl`, licenca MIT, `README.md`, repository metadata e o `README.md` na raiz do pacote. Para `PocArquitetura.ApiDefaults`, tambem valida a dependencia interna para `PocArquitetura.HttpResilienceDefaults`.
+Antes do upload do artifact e da publicacao, o workflow abre cada `.nupkg` e valida `id`, versao, descricao, autores, tags, `projectUrl`, licenca MIT, `README.md`, repository metadata e o `README.md` na raiz do pacote. Para `PocArquitetura.ApiDefaults`, tambem valida a dependencia interna para `PocArquitetura.HttpResilienceDefaults`. O job de publicacao baixa o artifact validado e confirma novamente que os tres arquivos esperados existem antes de iniciar qualquer `dotnet nuget push`.
 
-O push para o NuGet.org nao usa `--skip-duplicate`. Se o GitVersion calcular uma versao ja publicada, a execucao deve falhar em vez de mascarar que uma nova versao nao foi gerada.
+Os comandos `dotnet nuget push` usam `--skip-duplicate`. Reruns da mesma versao ou cenarios em que parte dos pacotes ja exista no NuGet.org nao devem falhar apenas por duplicidade; falhas reais de autenticacao, arquivo ausente, validacao ou erro operacional continuam falhando a execucao.
 
 O artifact `shared-nuget-packages` continua sendo enviado em toda execucao bem-sucedida de pack, mesmo quando a publicacao tambem ocorre. Para baixa-lo, abra a execucao do workflow no GitHub Actions e use a secao **Artifacts** da pagina da run.
 
@@ -155,19 +173,19 @@ Nao adicione `Version` fixa aos `.csproj`, nao use `GitVersion.MsBuild` para est
 
 A release usa a tag SemVer como titulo e inclui:
 
-- numero, titulo e link do PR;
-- autor do PR;
-- branch de origem;
-- commit de merge;
+- numero, titulo e link da PR associada ao commit aprovado, quando encontrada;
+- autor da PR, quando encontrada;
+- branch de origem da PR, quando encontrada;
+- commit aprovado pelo CI;
 - versao calculada;
-- descricao do PR como changelog simples;
-- lista resumida dos commits do PR quando disponivel.
+- descricao da PR como changelog simples, quando encontrada;
+- lista resumida dos commits desde a tag SemVer anterior, quando disponivel.
 
 O corpo da release usa apenas metadados do PR e commits do repositorio. Secrets nao devem ser colocados em descricoes de PR, mensagens de commit ou titulos.
 
 ## Como evitar release
 
-Para evitar release automatica, nao faca merge do PR na `main`. Fechar o PR sem merge nao dispara release.
+Para evitar release automatica, nao faca merge do PR na `main` sem alinhar a excecao operacional. Fechar o PR sem merge nao dispara release, e falha/cancelamento do `main-dotnet-ci` na `main` tambem impede a release.
 
 Se uma alteracao precisa entrar na `main` sem release, isso deve ser tratado como excecao operacional e discutido antes do merge, porque push direto na `main` tambem deve ser evitado pela protecao da branch.
 
@@ -192,4 +210,4 @@ permissions:
   pull-requests: read
 ```
 
-`contents: write` permite criar tags e releases. `pull-requests: read` permite ler os metadados do PR mergeado.
+`contents: write` permite criar tags e releases. `pull-requests: read` permite localizar a PR associada ao commit aprovado, quando existir.

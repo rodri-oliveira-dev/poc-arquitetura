@@ -4,7 +4,7 @@ O repositorio usa Trivy para feedback antecipado sobre configuracoes de infraest
 
 ## O que e validado
 
-A composite action `.github/actions/trivy-repository-scan`, chamada pelo workflow `.github/workflows/terraform-validation.yml`, executa:
+A composite action `.github/actions/trivy-repository-scan`, chamada pelo workflow `.github/workflows/infrastructure-security.yml`, executa:
 
 ```powershell
 trivy config `
@@ -32,7 +32,7 @@ trivy config `
   --skip-dirs infra/nginx/certs `
   .
 trivy fs `
-  --scanners vuln,secret,misconfig `
+  --scanners vuln,secret `
   --severity HIGH,CRITICAL `
   --tf-vars infra/terraform/environments/dev/validation.tfvars `
   --skip-dirs node_modules `
@@ -147,7 +147,7 @@ trivy config `
   --skip-dirs infra/nginx/certs `
   .
 trivy fs `
-  --scanners vuln,secret,misconfig `
+  --scanners vuln,secret `
   --severity HIGH,CRITICAL `
   --tf-vars infra/terraform/environments/dev/validation.tfvars `
   --skip-dirs node_modules `
@@ -202,7 +202,7 @@ trivy config `
   --skip-dirs infra/nginx/certs `
   .
 trivy fs `
-  --scanners vuln,secret,misconfig `
+  --scanners vuln,secret `
   --severity HIGH,CRITICAL `
   --exit-code 1 `
   --tf-vars infra/terraform/environments/dev/validation.tfvars `
@@ -233,12 +233,12 @@ Os scans continuam analisando arquivos versionados relevantes como `Directory.Pa
 
 ## CI
 
-O workflow `infra-security-and-terraform-validation` roda Trivy em pull requests e em pushes para `main` quando ha mudancas em Terraform, Dockerfiles, Compose ou no proprio workflow.
+O workflow `infrastructure-security` roda Trivy em pull requests e em pushes para `main` quando ha mudancas em Terraform, Dockerfiles, Compose, na composite action do Trivy ou no proprio workflow.
 
 No CI, a validacao executa independentemente da instalacao local do desenvolvedor. Os scans sao bloqueantes para severidades `HIGH` e `CRITICAL`, porque nao dependem de credenciais cloud nem alteram infraestrutura real.
 
 O scan local serve apenas como feedback antecipado manual antes do PR; o CI continua sendo a linha de defesa obrigatoria. Por isso, a ausencia local do Trivy nunca bloqueia o `git push`, mas a mesma classe de achado bloqueia o pull request quando detectada pelo workflow.
 
-O workflow tambem executa Terraform e TFLint por meio de `scripts/quality/terraform/validate.sh`. Essa etapa instala as ferramentas no runner, nao usa credenciais cloud e nao executa `terraform plan`, `terraform apply` ou `terraform destroy`.
+O workflow nao instala Terraform ou TFLint. Validacao Terraform fica no workflow independente `terraform-validation`, que roda apenas para mudancas em Terraform, scripts de validacao Terraform ou no proprio workflow.
 
 Se os argumentos comuns do Trivy mudarem no CI, atualize a composite action `.github/actions/trivy-repository-scan` e confira se os exemplos deste documento continuam equivalentes.

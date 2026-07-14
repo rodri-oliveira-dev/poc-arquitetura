@@ -1,28 +1,24 @@
 name: publish-shared-nuget
 
 on:
-  workflow_dispatch:
-  push:
+  workflow_run:
+    workflows: ["main-dotnet-ci"]
+    types: [completed]
     branches: ["main"]
-    paths:
-      - "src/Shared/**"
-      - "tests/Shared/**"
-      - "PocArquitetura.Shared.slnx"
-      - "GitVersion.yml"
-      - "Directory.Build.props"
-      - "Directory.Packages.props"
-      - "src/Shared/Directory.Build.props"
-      - "src/Shared/Directory.Packages.props"
-      - ".github/workflows/publish-shared-nuget.yml"
-      - "LICENSE"
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publicar os pacotes no NuGet.org apos empacotar e validar"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
-  id-token: write
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: publish-shared-nuget
+  cancel-in-progress: false
 
 env:
   CI: true
@@ -32,16 +28,99 @@ env:
   PACKAGE_OUTPUT_DIR: artifacts/packages
 
 jobs:
-  pack-shared:
-    name: Build, test and pack Shared NuGet packages
+  detect-shared-changes:
+    name: Detect Shared package changes
+    if: ${{ github.event_name == 'workflow_run' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 5
+    permissions:
+      contents: read
+
+    outputs:
+      should_publish: ${{ steps.changes.outputs.should_publish }}
+      reason: ${{ steps.changes.outputs.reason }}
 
     steps:
-      - name: Checkout
+      - name: Detect relevant files in approved commit
+        id: changes
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          APPROVED_SHA: ${{ github.event.workflow_run.head_sha }}
+          CI_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          CI_EVENT: ${{ github.event.workflow_run.event }}
+          CI_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          set -euo pipefail
+
+          CI_HEAD_REPOSITORY="${{ github.event.workflow_run.head_repository.full_name }}"
+
+          if [ "$CI_CONCLUSION" != "success" ] || [ "$CI_EVENT" != "push" ] || [ "$CI_HEAD_BRANCH" != "main" ] || [ "$CI_HEAD_REPOSITORY" != "$REPOSITORY" ]; then
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+            echo "reason=main-dotnet-ci did not complete successfully for a push to main." >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/$REPOSITORY/commits/$APPROVED_SHA" \
+            --jq '.files[].filename' > changed-files.txt
+
+          if grep -E '^(src/Shared/|tests/Shared/|PocArquitetura\.Shared\.slnx$|GitVersion\.yml$|Directory\.Build\.props$|Directory\.Packages\.props$|src/Shared/Directory\.Build\.props$|src/Shared/Directory\.Packages\.props$|\.github/workflows/publish-shared-nuget\.yml$|LICENSE$)' changed-files.txt >/dev/null; then
+            echo "should_publish=true" >> "$GITHUB_OUTPUT"
+            echo "reason=Approved CI commit changed Shared package inputs." >> "$GITHUB_OUTPUT"
+          else
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+            echo "reason=Approved CI commit did not change Shared package inputs." >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Write detection summary
+        if: ${{ always() }}
+        shell: bash
+        env:
+          SHOULD_PUBLISH: ${{ steps.changes.outputs.should_publish }}
+          REASON: ${{ steps.changes.outputs.reason }}
+          APPROVED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          {
+            echo "## Shared NuGet change detection"
+            echo "- Approved CI commit: \`${APPROVED_SHA:-not available}\`"
+            echo "- Eligible for automatic publish: \`${SHOULD_PUBLISH:-false}\`"
+            echo "- Reason: ${REASON:-detection did not complete}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  pack-shared:
+    name: Build, test, pack and validate Shared NuGet packages
+    needs: detect-shared-changes
+    if: >-
+      ${{
+        always() &&
+        (
+          github.event_name == 'workflow_dispatch' ||
+          (
+            github.event.workflow_run.event == 'push' &&
+            github.event.workflow_run.head_branch == 'main' &&
+            github.event.workflow_run.head_repository.full_name == github.repository &&
+            needs.detect-shared-changes.outputs.should_publish == 'true'
+          )
+        )
+      }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+
+    outputs:
+      package_version: ${{ steps.version.outputs.package_version }}
+
+    steps:
+      - name: Checkout package source
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Setup .NET
         uses: ./.github/actions/setup-dotnet
@@ -50,6 +129,7 @@ jobs:
         run: dotnet tool restore
 
       - name: Calculate package version
+        id: version
         shell: bash
         run: |
           set -euo pipefail
@@ -67,41 +147,48 @@ jobs:
           fi
 
           echo "PACKAGE_VERSION=$package_version" >> "$GITHUB_ENV"
+          echo "package_version=$package_version" >> "$GITHUB_OUTPUT"
           echo "GitVersion SemVer: $raw_package_version"
           echo "Package version: $package_version"
 
       - name: Restore dependencies
-        run: dotnet restore $SOLUTION_PATH
+        run: dotnet restore "$SOLUTION_PATH"
 
       - name: Build
-        run: dotnet build $SOLUTION_PATH -c $BUILD_CONFIGURATION --no-restore
+        run: >
+          dotnet build "$SOLUTION_PATH"
+          -c "$BUILD_CONFIGURATION"
+          --no-restore
 
       - name: Test
-        run: dotnet test $SOLUTION_PATH -c $BUILD_CONFIGURATION --no-build
+        run: >
+          dotnet test "$SOLUTION_PATH"
+          -c "$BUILD_CONFIGURATION"
+          --no-build
 
       - name: Pack HttpResilienceDefaults
         run: >
           dotnet pack src/Shared/HttpResilienceDefaults/HttpResilienceDefaults.csproj
-          -c $BUILD_CONFIGURATION
+          -c "$BUILD_CONFIGURATION"
           --no-build
-          --output $PACKAGE_OUTPUT_DIR
-          /p:PackageVersion=$PACKAGE_VERSION
+          --output "$PACKAGE_OUTPUT_DIR"
+          "/p:PackageVersion=$PACKAGE_VERSION"
 
       - name: Pack ApplicationDefaults
         run: >
           dotnet pack src/Shared/ApplicationDefaults/ApplicationDefaults.csproj
-          -c $BUILD_CONFIGURATION
+          -c "$BUILD_CONFIGURATION"
           --no-build
-          --output $PACKAGE_OUTPUT_DIR
-          /p:PackageVersion=$PACKAGE_VERSION
+          --output "$PACKAGE_OUTPUT_DIR"
+          "/p:PackageVersion=$PACKAGE_VERSION"
 
       - name: Pack ApiDefaults
         run: >
           dotnet pack src/Shared/ApiDefaults/ApiDefaults.csproj
-          -c $BUILD_CONFIGURATION
+          -c "$BUILD_CONFIGURATION"
           --no-build
-          --output $PACKAGE_OUTPUT_DIR
-          /p:PackageVersion=$PACKAGE_VERSION
+          --output "$PACKAGE_OUTPUT_DIR"
+          "/p:PackageVersion=$PACKAGE_VERSION"
 
       - name: Validate generated packages
         shell: pwsh
@@ -210,45 +297,131 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      - name: Write package summary
+        if: ${{ always() }}
+        shell: bash
+        env:
+          PUBLISH_REQUESTED: ${{ github.event_name == 'workflow_dispatch' && inputs.publish }}
+          AUTOMATIC_PUBLISH: ${{ github.event_name == 'workflow_run' && needs.detect-shared-changes.outputs.should_publish == 'true' }}
+          APPROVED_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          {
+            echo "## Shared NuGet packages"
+            echo "- Commit: \`${APPROVED_SHA:-not available}\`"
+            echo "- Package version: \`${PACKAGE_VERSION:-not calculated}\`"
+            echo "- Output directory: \`$PACKAGE_OUTPUT_DIR\`"
+            echo "- Artifact: \`shared-nuget-packages\`"
+            echo "- Manual publish requested: \`${PUBLISH_REQUESTED:-false}\`"
+            echo "- Automatic publish eligible: \`${AUTOMATIC_PUBLISH:-false}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  publish-shared:
+    name: Publish Shared NuGet packages
+    needs:
+      - detect-shared-changes
+      - pack-shared
+    if: >-
+      ${{
+        always() &&
+        needs.pack-shared.result == 'success' &&
+        (
+          (github.event_name == 'workflow_dispatch' && inputs.publish) ||
+          (
+            github.event_name == 'workflow_run' &&
+            github.event.workflow_run.event == 'push' &&
+            github.event.workflow_run.head_branch == 'main' &&
+            github.event.workflow_run.head_repository.full_name == github.repository &&
+            needs.detect-shared-changes.outputs.should_publish == 'true'
+          )
+        )
+      }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Download Shared NuGet packages
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: shared-nuget-packages
+          path: ${{ env.PACKAGE_OUTPUT_DIR }}
+
+      - name: Confirm package set before publishing
+        shell: bash
+        env:
+          PACKAGE_VERSION: ${{ needs.pack-shared.outputs.package_version }}
+        run: |
+          set -euo pipefail
+
+          expected_packages=(
+            "PocArquitetura.HttpResilienceDefaults.$PACKAGE_VERSION.nupkg"
+            "PocArquitetura.ApplicationDefaults.$PACKAGE_VERSION.nupkg"
+            "PocArquitetura.ApiDefaults.$PACKAGE_VERSION.nupkg"
+          )
+
+          found_count="$(find "$PACKAGE_OUTPUT_DIR" -maxdepth 1 -type f -name '*.nupkg' | wc -l | tr -d ' ')"
+          if [ "$found_count" != "${#expected_packages[@]}" ]; then
+            echo "Expected ${#expected_packages[@]} .nupkg files, found $found_count." >&2
+            find "$PACKAGE_OUTPUT_DIR" -maxdepth 1 -type f -name '*.nupkg' -print >&2
+            exit 1
+          fi
+
+          for package_file in "${expected_packages[@]}"; do
+            if [ ! -f "$PACKAGE_OUTPUT_DIR/$package_file" ]; then
+              echo "Expected package not found: $PACKAGE_OUTPUT_DIR/$package_file" >&2
+              exit 1
+            fi
+          done
+
       - name: NuGet login
-        if: ${{ github.event_name != 'pull_request' }}
         id: nuget_login
         uses: NuGet/login@ebc737b6fc418a6ca0073cf116ec8dc156d8b81e # v1
         with:
           user: rodri-oliveira-dev
 
       - name: Publish HttpResilienceDefaults
-        if: ${{ github.event_name != 'pull_request' }}
+        env:
+          PACKAGE_VERSION: ${{ needs.pack-shared.outputs.package_version }}
         run: >
           dotnet nuget push
           "$PACKAGE_OUTPUT_DIR/PocArquitetura.HttpResilienceDefaults.$PACKAGE_VERSION.nupkg"
           --source https://api.nuget.org/v3/index.json
           --api-key "${{ steps.nuget_login.outputs.NUGET_API_KEY }}"
+          --skip-duplicate
 
       - name: Publish ApplicationDefaults
-        if: ${{ github.event_name != 'pull_request' }}
+        env:
+          PACKAGE_VERSION: ${{ needs.pack-shared.outputs.package_version }}
         run: >
           dotnet nuget push
           "$PACKAGE_OUTPUT_DIR/PocArquitetura.ApplicationDefaults.$PACKAGE_VERSION.nupkg"
           --source https://api.nuget.org/v3/index.json
           --api-key "${{ steps.nuget_login.outputs.NUGET_API_KEY }}"
+          --skip-duplicate
 
       - name: Publish ApiDefaults
-        if: ${{ github.event_name != 'pull_request' }}
+        env:
+          PACKAGE_VERSION: ${{ needs.pack-shared.outputs.package_version }}
         run: >
           dotnet nuget push
           "$PACKAGE_OUTPUT_DIR/PocArquitetura.ApiDefaults.$PACKAGE_VERSION.nupkg"
           --source https://api.nuget.org/v3/index.json
           --api-key "${{ steps.nuget_login.outputs.NUGET_API_KEY }}"
+          --skip-duplicate
 
-      - name: Write summary
+      - name: Write publish summary
         if: ${{ always() }}
         shell: bash
+        env:
+          PACKAGE_VERSION: ${{ needs.pack-shared.outputs.package_version }}
+          APPROVED_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
         run: |
           {
-            echo "## Shared NuGet packages"
+            echo "## Shared NuGet publish"
+            echo "- Commit: \`${APPROVED_SHA:-not available}\`"
             echo "- Package version: \`${PACKAGE_VERSION:-not calculated}\`"
-            echo "- Output directory: \`$PACKAGE_OUTPUT_DIR\`"
-            echo "- Artifact: \`shared-nuget-packages\`"
             echo "- NuGet.org publish: Trusted Publishing via \`NuGet/login\` v1 pinned to SHA"
+            echo "- Duplicate versions: skipped by \`dotnet nuget push --skip-duplicate\`"
           } >> "$GITHUB_STEP_SUMMARY"

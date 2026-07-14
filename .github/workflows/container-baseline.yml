@@ -1,0 +1,96 @@
+name: container-baseline
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "compose*.yaml"
+      - ".dockerignore"
+      - "infra/nginx/.dockerignore"
+      - ".env.local.example"
+      - "global.json"
+      - "Directory.Build.props"
+      - "Directory.Packages.props"
+      - "Dockerfile"
+      - "**/Dockerfile"
+      - "src/**"
+      - "tools/ContainerBaselineValidator/**"
+      - "tests/tooling/ContainerBaselineValidator.Tests/**"
+      - "scripts/quality/containers/**"
+      - ".github/workflows/container-baseline.yml"
+      - ".github/actions/setup-dotnet/**"
+  pull_request:
+    paths:
+      - "compose*.yaml"
+      - ".dockerignore"
+      - "infra/nginx/.dockerignore"
+      - ".env.local.example"
+      - "global.json"
+      - "Directory.Build.props"
+      - "Directory.Packages.props"
+      - "Dockerfile"
+      - "**/Dockerfile"
+      - "src/**"
+      - "tools/ContainerBaselineValidator/**"
+      - "tests/tooling/ContainerBaselineValidator.Tests/**"
+      - "scripts/quality/containers/**"
+      - ".github/workflows/container-baseline.yml"
+      - ".github/actions/setup-dotnet/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: true
+  DOTNET_NOLOGO: true
+  DOCKER_BUILDKIT: "1"
+  COMPOSE_DOCKER_CLI_BUILD: "1"
+
+jobs:
+  container-policy:
+    name: Validate container policy
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup .NET
+        uses: ./.github/actions/setup-dotnet
+
+      - name: Restore validator dependencies
+        run: dotnet restore ./tools/ContainerBaselineValidator/ContainerBaselineValidator.csproj
+
+      - name: Restore validator test dependencies
+        run: dotnet restore ./tests/tooling/ContainerBaselineValidator.Tests/ContainerBaselineValidator.Tests.csproj
+
+      - name: Build validator
+        run: dotnet build ./tools/ContainerBaselineValidator/ContainerBaselineValidator.csproj --configuration Release --no-restore
+
+      - name: Run structural container baseline validator
+        run: dotnet run --project ./tools/ContainerBaselineValidator/ContainerBaselineValidator.csproj --configuration Release --no-build --no-restore -- --root .
+
+      - name: Run validator tests
+        run: dotnet test ./tests/tooling/ContainerBaselineValidator.Tests/ContainerBaselineValidator.Tests.csproj --configuration Release --no-restore -p:BuildProjectReferences=false
+
+      - name: Validate Compose configs
+        run: ./scripts/quality/containers/validate-compose-configs.sh
+
+  container-build:
+    name: Build Compose images
+    runs-on: ubuntu-latest
+    needs: container-policy
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Build Compose images
+        run: docker compose --env-file .env.local.example -f compose.yaml build

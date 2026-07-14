@@ -10,9 +10,9 @@ KEY_FILE="$ROOT_DIR/infra/nginx/certs/localhost.key"
 NO_BUILD="${NO_BUILD:-false}"
 SKIP_HEALTH_CHECKS="${SKIP_HEALTH_CHECKS:-false}"
 CLEANUP="${CLEANUP:-false}"
-PROJECT_NETWORK_NAME="poc-arquitetura_poc-net"
-PROJECT_CONTAINER_PREFIX="poc-"
-OVERLAY_CONTAINER_NAMES=(poc-nginx-edge poc-ledger-service-1 poc-ledger-service-2)
+PROJECT_NAME="${COMPOSE_PROJECT_NAME:-poc-arquitetura}"
+PROJECT_NETWORK_SERVICE="poc-net"
+OVERLAY_SERVICES=(nginx-edge ledger-service-1 ledger-service-2)
 
 get_compose_env_args() {
   for env_file in "$ROOT_DIR/.env.local" "$ROOT_DIR/.env"; do
@@ -22,6 +22,30 @@ get_compose_env_args() {
       return 0
     fi
   done
+}
+
+get_local_config_value() {
+  local key="$1"
+  local default_value="$2"
+  local current_value="${!key:-}"
+  if [[ -n "$current_value" ]]; then
+    printf '%s\n' "$current_value"
+    return 0
+  fi
+
+  local env_file
+  for env_file in "$ROOT_DIR/.env.local" "$ROOT_DIR/.env"; do
+    if [[ -f "$env_file" ]]; then
+      local value
+      value="$(awk -F= -v key="$key" '$1 == key { sub(/^[^=]*=/, ""); print; exit }' "$env_file")"
+      if [[ -n "$value" ]]; then
+        printf '%s\n' "$value"
+        return 0
+      fi
+    fi
+  done
+
+  printf '%s\n' "$default_value"
 }
 
 usage() {
@@ -91,9 +115,12 @@ docker_rows() {
   docker "$@" | sed '/^[[:space:]]*$/d'
 }
 
-container_exists() {
-  local name="$1"
-  docker ps -a --filter "name=^/$name$" --format "{{.Names}}|{{.Status}}"
+compose_service_containers() {
+  local service="$1"
+  docker ps -a \
+    --filter "label=com.docker.compose.project=$PROJECT_NAME" \
+    --filter "label=com.docker.compose.service=$service" \
+    --format "{{.Names}}|{{.Status}}"
 }
 
 port_is_open() {
@@ -122,8 +149,8 @@ PY
 
 port_owner_container() {
   local port="$1"
-  docker ps --format "{{.Names}}|{{.Ports}}" |
-    awk -F'|' -v port="$port" '$2 ~ "(^|,|[[:space:]])(0\\.0\\.0\\.0|\\[::\\]|127\\.0\\.0\\.1):" port "->" { print $1; exit }'
+  docker ps --format "{{.Names}}|{{.Label \"com.docker.compose.project\"}}|{{.Ports}}" |
+    awk -F'|' -v port="$port" '$3 ~ "(^|,|[[:space:]])(0\\.0\\.0\\.0|\\[::\\]|127\\.0\\.0\\.1):" port "->" { print $1 "|" $2; exit }'
 }
 
 assert_no_external_port_conflicts() {
@@ -134,19 +161,27 @@ assert_no_external_port_conflicts() {
   local owner
 
   local required_ports=(
-    "LedgerService.Api:5226"
-    "BalanceService.Api:5228"
-    "Portal Nginx HTTPS:7443"
-    "Grafana:3000"
-    "Jaeger UI:16686"
-    "Prometheus:9090"
-    "Alertmanager:9093"
-    "Loki:3100"
-    "Grafana Alloy:12345"
-    "Pub/Sub emulator:8085"
-    "PostgreSQL:15432"
-    "Jaeger OTLP gRPC:4317"
-    "Jaeger OTLP HTTP:4318"
+    "PostgreSQL:$(get_local_config_value POSTGRES_HOST_PORT 15432)"
+    "Kafka:$(get_local_config_value KAFKA_HOST_PORT 19092)"
+    "Pub/Sub emulator:$(get_local_config_value PUBSUB_EMULATOR_HOST_PORT 8085)"
+    "Mailpit SMTP:$(get_local_config_value MAILPIT_SMTP_HOST_PORT 1025)"
+    "Mailpit UI:$(get_local_config_value MAILPIT_UI_HOST_PORT 8025)"
+    "Keycloak:$(get_local_config_value KEYCLOAK_HOST_PORT 8081)"
+    "LedgerService.Api:$(get_local_config_value LEDGER_SERVICE_HOST_PORT 5226)"
+    "BalanceService.Api:$(get_local_config_value BALANCE_SERVICE_HOST_PORT 5228)"
+    "TransferService.Api:$(get_local_config_value TRANSFER_SERVICE_HOST_PORT 5230)"
+    "PaymentService.Api:$(get_local_config_value PAYMENT_SERVICE_HOST_PORT 5234)"
+    "AuditService.Api:$(get_local_config_value AUDIT_SERVICE_HOST_PORT 5235)"
+    "IdentityService.Api:$(get_local_config_value IDENTITY_SERVICE_HOST_PORT 5232)"
+    "Portal Nginx HTTPS:$(get_local_config_value NGINX_HTTPS_HOST_PORT 7443)"
+    "Grafana:$(get_local_config_value GRAFANA_HOST_PORT 3000)"
+    "Jaeger UI:$(get_local_config_value JAEGER_UI_HOST_PORT 16686)"
+    "Prometheus:$(get_local_config_value PROMETHEUS_HOST_PORT 9090)"
+    "Alertmanager:$(get_local_config_value ALERTMANAGER_HOST_PORT 9093)"
+    "Loki:$(get_local_config_value LOKI_HOST_PORT 3100)"
+    "Grafana Alloy:$(get_local_config_value ALLOY_HOST_PORT 12345)"
+    "Jaeger OTLP gRPC:$(get_local_config_value JAEGER_OTLP_GRPC_HOST_PORT 4317)"
+    "Jaeger OTLP HTTP:$(get_local_config_value JAEGER_OTLP_HTTP_HOST_PORT 4318)"
   )
 
   for item in "${required_ports[@]}"; do
@@ -157,14 +192,16 @@ assert_no_external_port_conflicts() {
     fi
 
     owner="$(port_owner_container "$port" || true)"
-    if [[ "$owner" == "$PROJECT_CONTAINER_PREFIX"* ]]; then
+    owner_name="${owner%%|*}"
+    owner_project="${owner#*|}"
+    if [[ "$owner" == *"|"* && "$owner_project" == "$PROJECT_NAME" ]]; then
       continue
     fi
 
-    if [[ -z "$owner" ]]; then
+    if [[ -z "$owner_name" ]]; then
       owner="processo local fora do Docker ou container sem publicacao detectavel"
     else
-      owner="container Docker '$owner'"
+      owner="container Docker '$owner_name'"
     fi
     conflicts+=("  - $name usa a porta $port, ocupada por $owner")
   done
@@ -213,11 +250,11 @@ assert_startup_resources_available() {
 
   local overlay_details=()
   local row
-  local name
-  for name in "${OVERLAY_CONTAINER_NAMES[@]}"; do
+  local service
+  for service in "${OVERLAY_SERVICES[@]}"; do
     while IFS= read -r row; do
       [[ -n "$row" ]] && overlay_details+=("  - $row")
-    done < <(container_exists "$name")
+    done < <(compose_service_containers "$service")
   done
 
   if [[ "${#overlay_details[@]}" -gt 0 ]]; then
@@ -238,19 +275,30 @@ EOF
     exit 1
   fi
 
-  if docker network ls --filter "name=^$PROJECT_NETWORK_NAME$" --format "{{.Name}}" | grep -qx "$PROJECT_NETWORK_NAME"; then
+  local project_networks
+  project_networks="$(
+    docker network ls \
+      --filter "label=com.docker.compose.project=$PROJECT_NAME" \
+      --filter "label=com.docker.compose.network=$PROJECT_NETWORK_SERVICE" \
+      --format "{{.Name}}"
+  )"
+  if [[ -n "$project_networks" ]]; then
     local network_containers
-    network_containers="$(docker network inspect "$PROJECT_NETWORK_NAME" --format "{{json .Containers}}" 2>/dev/null || true)"
-    if [[ -n "$network_containers" && "$network_containers" != "null" && "$network_containers" != "{}" ]]; then
-      local reason="A rede local $PROJECT_NETWORK_NAME ja existe com containers conectados. Isso pode indicar stack anterior ou estado parcial."
-      if confirm_project_cleanup "$reason"; then
-        run_non_destructive_project_cleanup
-        return
-      fi
+    local network_name
+    while IFS= read -r network_name; do
+      [[ -z "$network_name" ]] && continue
+      network_containers="$(docker network inspect "$network_name" --format "{{json .Containers}}" 2>/dev/null || true)"
+      if [[ -n "$network_containers" && "$network_containers" != "null" && "$network_containers" != "{}" ]]; then
+        local reason="A rede local do projeto Compose '$PROJECT_NAME' ja existe com containers conectados. Isso pode indicar stack anterior ou estado parcial."
+        if confirm_project_cleanup "$reason"; then
+          run_non_destructive_project_cleanup
+          return
+        fi
 
-      echo "Subida interrompida. Libere os recursos da rede $PROJECT_NETWORK_NAME ou execute novamente com --cleanup." >&2
-      exit 1
-    fi
+        echo "Subida interrompida. Libere os recursos da rede do projeto '$PROJECT_NAME' ou execute novamente com --cleanup." >&2
+        exit 1
+      fi
+    done <<< "$project_networks"
   fi
 }
 
@@ -297,32 +345,31 @@ nginx_up+=(ledger-service-1 ledger-service-2 nginx-edge)
 docker compose "${compose_env_args[@]}" -f "$COMPOSE_FILE" -f "$COMPOSE_OBSERVABILITY_FILE" -f "$COMPOSE_NGINX_FILE" --profile observability ps
 
 if [[ "$SKIP_HEALTH_CHECKS" != "true" ]]; then
-  http_check "LedgerService.Api direta" "http://localhost:5226/health"
-  http_check "BalanceService.Api direta" "http://localhost:5228/health"
-  http_check "Portal Nginx" "https://localhost:7443/" true
-  http_check "Ledger via Nginx" "https://ledger.localhost:7443/health" true
-  http_check "Balance via Nginx" "https://balance.localhost:7443/health" true
-  http_check "Grafana" "http://localhost:3000/api/health"
-  http_check "Jaeger" "http://localhost:16686/"
-  http_check "Prometheus" "http://localhost:9090/-/ready"
-  http_check "Alertmanager" "http://localhost:9093/-/ready"
+  http_check "LedgerService.Api direta" "http://localhost:$(get_local_config_value LEDGER_SERVICE_HOST_PORT 5226)/health"
+  http_check "BalanceService.Api direta" "http://localhost:$(get_local_config_value BALANCE_SERVICE_HOST_PORT 5228)/health"
+  http_check "Portal Nginx" "https://localhost:$(get_local_config_value NGINX_HTTPS_HOST_PORT 7443)/" true
+  http_check "Ledger via Nginx" "https://ledger.localhost:$(get_local_config_value NGINX_HTTPS_HOST_PORT 7443)/health" true
+  http_check "Balance via Nginx" "https://balance.localhost:$(get_local_config_value NGINX_HTTPS_HOST_PORT 7443)/health" true
+  http_check "Grafana" "http://localhost:$(get_local_config_value GRAFANA_HOST_PORT 3000)/api/health"
+  http_check "Jaeger" "http://localhost:$(get_local_config_value JAEGER_UI_HOST_PORT 16686)/"
+  http_check "Prometheus" "http://localhost:$(get_local_config_value PROMETHEUS_HOST_PORT 9090)/-/ready"
+  http_check "Alertmanager" "http://localhost:$(get_local_config_value ALERTMANAGER_HOST_PORT 9093)/-/ready"
 fi
 
-cat <<'EOF'
+cat <<EOF
 
 OK. Stack completa local pronta.
 
 URLs uteis:
-  LedgerService.Api:     http://localhost:5226/
-  BalanceService.Api:    http://localhost:5228/
-  Portal Nginx:          https://localhost:7443/
-  Ledger Swagger Nginx:  https://ledger.localhost:7443/swagger
-  Balance Swagger Nginx: https://balance.localhost:7443/swagger
-  Grafana:               http://localhost:3000/
-  Jaeger:                http://localhost:16686/
-  Prometheus:            http://localhost:9090/
-  Alertmanager:          http://localhost:9093/
+  LedgerService.Api:     http://localhost:$(get_local_config_value LEDGER_SERVICE_HOST_PORT 5226)/
+  BalanceService.Api:    http://localhost:$(get_local_config_value BALANCE_SERVICE_HOST_PORT 5228)/
+  Portal Nginx:          https://localhost:$(get_local_config_value NGINX_HTTPS_HOST_PORT 7443)/
+  Ledger Swagger Nginx:  https://ledger.localhost:$(get_local_config_value NGINX_HTTPS_HOST_PORT 7443)/swagger
+  Balance Swagger Nginx: https://balance.localhost:$(get_local_config_value NGINX_HTTPS_HOST_PORT 7443)/swagger
+  Grafana:               http://localhost:$(get_local_config_value GRAFANA_HOST_PORT 3000)/
+  Jaeger:                http://localhost:$(get_local_config_value JAEGER_UI_HOST_PORT 16686)/
+  Prometheus:            http://localhost:$(get_local_config_value PROMETHEUS_HOST_PORT 9090)/
+  Alertmanager:          http://localhost:$(get_local_config_value ALERTMANAGER_HOST_PORT 9093)/
 
 Este script nao remove volumes, nao executa testes, k6 nem scanners.
 EOF
-

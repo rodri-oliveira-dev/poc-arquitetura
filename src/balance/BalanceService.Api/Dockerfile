@@ -6,21 +6,25 @@ WORKDIR /src
 # Copia csproj primeiro para aproveitar cache
 COPY Directory.Packages.props ./
 COPY Directory.Build.props ./
+COPY global.json ./
+COPY src/Shared/ContainerHealthProbe/ContainerHealthProbe.csproj src/Shared/ContainerHealthProbe/
 COPY src/balance/BalanceService.Api/BalanceService.Api.csproj src/balance/BalanceService.Api/
 COPY src/balance/BalanceService.Application/BalanceService.Application.csproj src/balance/BalanceService.Application/
 COPY src/balance/BalanceService.Domain/BalanceService.Domain.csproj src/balance/BalanceService.Domain/
 COPY src/balance/BalanceService.Infrastructure/BalanceService.Infrastructure.csproj src/balance/BalanceService.Infrastructure/
+COPY contracts/events/ ./contracts/events/
 
 RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages,sharing=locked \
-    dotnet restore src/balance/BalanceService.Api/BalanceService.Api.csproj --disable-parallel \
-    || dotnet restore src/balance/BalanceService.Api/BalanceService.Api.csproj --disable-parallel \
-    || dotnet restore src/balance/BalanceService.Api/BalanceService.Api.csproj --disable-parallel
+    dotnet restore src/balance/BalanceService.Api/BalanceService.Api.csproj --disable-parallel
+RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages,sharing=locked \
+    dotnet restore src/Shared/ContainerHealthProbe/ContainerHealthProbe.csproj --disable-parallel
 
 # Agora copia o restante
 COPY src/balance/BalanceService.Api/ ./src/balance/BalanceService.Api/
 COPY src/balance/BalanceService.Application/ ./src/balance/BalanceService.Application/
 COPY src/balance/BalanceService.Domain/ ./src/balance/BalanceService.Domain/
 COPY src/balance/BalanceService.Infrastructure/ ./src/balance/BalanceService.Infrastructure/
+COPY src/Shared/ContainerHealthProbe/ ./src/Shared/ContainerHealthProbe/
 
 RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages,sharing=locked \
     dotnet publish src/balance/BalanceService.Api/BalanceService.Api.csproj \
@@ -28,14 +32,19 @@ RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages,sharing=locked \
     -o /app/publish \
     --no-restore \
     /p:UseAppHost=false
+RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages,sharing=locked \
+    dotnet publish src/Shared/ContainerHealthProbe/ContainerHealthProbe.csproj \
+    -c Release \
+    -o /healthprobe \
+    --no-restore \
+    /p:UseAppHost=false
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
 EXPOSE 8080
 
-RUN chown -R $APP_UID:0 /app
-
 COPY --from=build --chown=$APP_UID:0 /app/publish ./
+COPY --from=build --chown=$APP_UID:0 /healthprobe /healthprobe
 
 USER $APP_UID
 

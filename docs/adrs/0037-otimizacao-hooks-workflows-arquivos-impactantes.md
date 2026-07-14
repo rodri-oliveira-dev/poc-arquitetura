@@ -1,7 +1,7 @@
 # ADR-0037: Otimizacao de Hooks e Workflows por Arquivos Impactantes
 
 ## Status
-Aceito
+Parcialmente substituido pela [ADR-0106](./0106-ci-principal-contextual-pull-requests-main.md) para o workflow `.github/workflows/dotnet.yml`
 
 ## Data
 2026-04-26

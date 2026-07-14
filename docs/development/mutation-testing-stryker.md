@@ -15,7 +15,7 @@ Alvos configurados ate agora:
 - Alvo 1: `LedgerService.Application`
 - Alvo 2: `BalanceService.Application`
 
-Ambos sao executados localmente a partir dos respectivos projetos de testes unitarios e tambem em uma pipeline informativa apos integracao na `main`. Nenhum alvo faz parte de workflow remoto obrigatorio ou quality gate.
+Ambos sao executados localmente a partir dos respectivos projetos de testes unitarios e tambem em uma pipeline informativa apos o CI da `main` ser aprovado. Nenhum alvo faz parte de workflow remoto obrigatorio ou quality gate.
 
 ## Por que LedgerService.Application
 
@@ -124,20 +124,23 @@ O workflow `mutation-tests` fica em `.github/workflows/mutation-tests.yml`.
 
 Ele roda em:
 
-- `push` para a branch `main` quando houver mudancas em codigo, testes ou configuracao dos servicos cobertos; na pratica, isso cobre merges de PR para `main`;
+- `workflow_run` apos o workflow `main-dotnet-ci` concluir com sucesso na branch `main`;
 - `workflow_dispatch`, para execucao manual opcional pela aba Actions.
 
 Ele nao roda em `pull_request` nesta etapa. A intencao e dar visibilidade continua do mutation score integrado na `main`, sem aumentar custo e tempo do fluxo de PR.
 
-Mudancas exclusivas em `src/Shared/**`, `tests/Shared/**` ou `PocArquitetura.Shared.slnx` nao disparam este workflow. Os alvos atuais de Stryker sao `LedgerService.Application` e `BalanceService.Application`; rodar mutation de servicos para uma alteracao exclusivamente Shared teria custo sem cobertura especifica equivalente. Um workflow futuro de mutation para Shared pode ser avaliado quando houver decisao explicita e baseline proprio.
+O gatilho automatico direto por `push` foi removido para evitar duplicidade: a execucao automatica passa sempre pelo resultado do CI consolidado. Na execucao pos-CI, o checkout usa `${{ github.event.workflow_run.head_sha }}`, garantindo que o Stryker rode sobre o mesmo SHA validado pelo `main-dotnet-ci`.
+
+Como o CI da `main` valida aggregate e Shared de forma conservadora, o mutation testing tambem roda apos sucesso do CI mesmo quando a alteracao for exclusivamente Shared. Os alvos atuais de Stryker continuam sendo `LedgerService.Application` e `BalanceService.Application`; um workflow futuro de mutation para Shared pode ser avaliado quando houver decisao explicita e baseline proprio.
 
 ### Caracteristica nao impeditiva
 
 Esta pipeline e informativa:
 
-- falhas do Stryker nao bloqueiam merge;
+- falhas do Stryker nao bloqueiam merge nem release quando o workflow nao e required check;
 - mutation score baixo nao quebra a pipeline;
-- os steps de Stryker usam `continue-on-error: true`;
+- os arquivos `stryker-config.json` mantem `thresholds.break` em `0`, entao mutantes sobreviventes nao quebram o job;
+- falhas de restore, build ou execucao operacional do Stryker continuam quebrando o workflow para manter visibilidade;
 - os artifacts sao publicados com `if: always()`, mesmo se a execucao do Stryker retornar erro;
 - `thresholds.break` permanece em `0` nos arquivos `stryker-config.json`;
 - transformar mutation testing em quality gate e uma decisao futura.

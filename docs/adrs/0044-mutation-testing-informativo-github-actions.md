@@ -1,13 +1,15 @@
 # ADR-0044: Mutation testing informativo no GitHub Actions
 
 ## Status
-Aceito
+Parcialmente substituido pela ADR-0107
 
 ## Data
 2026-05-05
 
 ## Contexto
 O repositorio ja possui configuracao local e opcional de mutation testing com Stryker.NET para `LedgerService.Application` e `BalanceService.Application`.
+
+Nota historica: o gatilho automatico direto por `push` e o uso de `continue-on-error` nos steps do Stryker foram substituidos pela orquestracao pos-CI da `main` na [ADR-0107](./0107-orquestracao-pos-ci-main-release-zap-mutation.md). Esta ADR permanece como historico da introducao do workflow informativo.
 
 As ADRs anteriores mantiveram essa pratica fora de workflows remotos para evitar custo e atrito nos pull requests enquanto o time ainda formava baseline dos scores.
 

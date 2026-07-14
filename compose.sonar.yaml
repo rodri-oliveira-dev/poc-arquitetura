@@ -36,7 +36,6 @@ volumes:
 services:
   sonar-db:
     image: docker.io/postgres:16
-    container_name: poc-sonar-db
     logging: *default-logging
     profiles:
       - quality
@@ -62,7 +61,6 @@ services:
 
   sonarqube:
     image: docker.io/sonarqube:community
-    container_name: poc-sonarqube
     logging: *default-logging
     profiles:
       - quality
@@ -74,7 +72,7 @@ services:
       SONAR_JDBC_USERNAME: "${SONAR_DB_USER:-sonar}"
       SONAR_JDBC_PASSWORD: "${SONAR_DB_PASSWORD:?Defina SONAR_DB_PASSWORD no ambiente ou em .env.local}"
     ports:
-      - "${SONAR_HOST_PORT:-9000}:9000"
+      - "127.0.0.1:${SONAR_HOST_PORT:-9000}:9000"
     deploy:
       resources:
         limits:

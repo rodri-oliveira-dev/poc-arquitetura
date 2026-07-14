@@ -98,64 +98,17 @@ O Google Cloud CLI esta disponivel para autenticacao e descoberta controlada. Es
 
 ## Validacao no CI
 
-O workflow `.github/workflows/terraform-validation.yml`, chamado `infra-security-and-terraform-validation`, roda em pull requests e pushes para `main` que alteram Terraform, Dockerfiles, Compose ou o proprio workflow. Ele executa:
+O workflow `.github/workflows/terraform-validation.yml`, chamado `terraform-validation`, roda em pull requests e pushes para `main` que alteram Terraform, scripts de validacao Terraform ou o proprio workflow. Ele executa:
 
 ```bash
-trivy config \
-  --severity HIGH,CRITICAL \
-  --tf-vars infra/terraform/environments/dev/validation.tfvars \
-  --skip-dirs node_modules \
-  --skip-dirs .git \
-  --skip-dirs dist \
-  --skip-dirs .terraform \
-  --skip-dirs bin \
-  --skip-dirs "**/bin" \
-  --skip-dirs obj \
-  --skip-dirs "**/obj" \
-  --skip-dirs .vs \
-  --skip-dirs .idea \
-  --skip-dirs TestResults \
-  --skip-dirs "**/TestResults" \
-  --skip-dirs coverage \
-  --skip-dirs CodeCoverage \
-  --skip-dirs StrykerOutput \
-  --skip-dirs .dotnet \
-  --skip-dirs .dotnet-home \
-  --skip-dirs .nuget \
-  --skip-dirs artifacts \
-  --skip-dirs infra/nginx/certs \
-  .
-trivy fs \
-  --scanners vuln,secret,misconfig \
-  --severity HIGH,CRITICAL \
-  --tf-vars infra/terraform/environments/dev/validation.tfvars \
-  --skip-dirs node_modules \
-  --skip-dirs .git \
-  --skip-dirs dist \
-  --skip-dirs .terraform \
-  --skip-dirs bin \
-  --skip-dirs "**/bin" \
-  --skip-dirs obj \
-  --skip-dirs "**/obj" \
-  --skip-dirs .vs \
-  --skip-dirs .idea \
-  --skip-dirs TestResults \
-  --skip-dirs "**/TestResults" \
-  --skip-dirs coverage \
-  --skip-dirs CodeCoverage \
-  --skip-dirs StrykerOutput \
-  --skip-dirs .dotnet \
-  --skip-dirs .dotnet-home \
-  --skip-dirs .nuget \
-  --skip-dirs artifacts \
-  --skip-dirs infra/nginx/certs \
-  .
 terraform fmt -check -recursive ./infra/terraform
 tflint --chdir=./infra/terraform --recursive
 ```
 
 Internamente, o workflow usa `scripts/quality/terraform/validate.sh`, portanto tambem executa `terraform init -backend=false -input=false` e `terraform validate` em cada diretorio versionado que contem arquivos `*.tf`, incluindo o root module de desenvolvimento e modulos reutilizaveis. Esse `init` sem backend e intencional para validacao sem credenciais; como o workflow nao executa `plan`, ele nao contorna locking de uma operacao remota.
 
-O CI instala Terraform e TFLint no runner, entao nao depende das ferramentas instaladas na maquina do desenvolvedor. O Trivy tambem roda por action propria no CI. Esses checks sao bloqueantes para achados `HIGH` e `CRITICAL` do Trivy e para falhas de formatacao, inicializacao sem backend, validacao Terraform ou TFLint.
+O CI instala Terraform e TFLint no runner, entao nao depende das ferramentas instaladas na maquina do desenvolvedor. Esses checks sao bloqueantes para falhas de formatacao, inicializacao sem backend, validacao Terraform ou TFLint.
+
+O Trivy roda no workflow independente `.github/workflows/infrastructure-security.yml`, chamado `infrastructure-security`, quando ha mudancas em Terraform, Dockerfiles, Compose, na composite action do Trivy ou no proprio workflow. Esse workflow nao instala Terraform/TFLint e e bloqueante para achados `HIGH` e `CRITICAL`.
 
 Esse fluxo nao exige GitHub Actions secrets, repository variables, chave JSON, autenticacao GCP ou projeto real. O workflow nao executa `terraform plan`, `terraform apply`, `terraform destroy`, nao gera plano binario e nao publica credenciais. Se um fluxo futuro executar `terraform plan` real no CI, ele deve inicializar o backend remoto GCS com bucket informado por configuracao segura e nao deve usar `-lock=false`.

@@ -1,0 +1,45 @@
+name: infrastructure-security
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "infra/terraform/**"
+      - "**/Dockerfile"
+      - "Dockerfile"
+      - "compose*.yaml"
+      - "compose*.yml"
+      - ".github/actions/trivy-repository-scan/**"
+      - ".github/workflows/infrastructure-security.yml"
+  pull_request:
+    paths:
+      - "infra/terraform/**"
+      - "**/Dockerfile"
+      - "Dockerfile"
+      - "compose*.yaml"
+      - "compose*.yml"
+      - ".github/actions/trivy-repository-scan/**"
+      - ".github/workflows/infrastructure-security.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scan:
+    name: Scan repository infrastructure
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      # Blocking gate: this scan is local to the checked-out repository,
+      # requires no cloud credentials and never applies infrastructure.
+      - name: Scan repository with Trivy
+        uses: ./.github/actions/trivy-repository-scan

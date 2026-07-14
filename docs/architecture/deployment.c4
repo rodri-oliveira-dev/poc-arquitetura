@@ -17,7 +17,7 @@ deployment {
         description "Servico Docker Compose principal que executa o Keycloak local."
 
         identity = instanceOf identity.keycloak {
-          title "poc-keycloak"
+          title "keycloak"
           description "Container local do Keycloak exposto na porta 8081 do host e 8080 no container, com realm poc importado de infra/keycloak/realm-poc.json."
         }
       }
@@ -32,7 +32,7 @@ deployment {
         description "Servico Docker Compose que executa a IdentityService.Api."
 
         api = instanceOf identityService.identityApi {
-          title "poc-identity-service"
+          title "identity-service"
           description "Container local da IdentityService.Api exposto na porta 5232 do host e 8080 no container, usando Keycloak, PostgreSQL schema identity e Mailpit no ambiente Local."
         }
       }
@@ -42,7 +42,7 @@ deployment {
         description "Servico Docker Compose local para capturar e-mails enviados pelo IdentityService.Api."
 
         mailpit = instanceOf email.mailpit {
-          title "poc-mailpit"
+          title "mailpit"
           description "Container local do Mailpit com SMTP em 1025 e UI em 8025 no host."
         }
       }
@@ -52,7 +52,7 @@ deployment {
         description "Servico Docker Compose opcional definido em compose.nginx.yaml para borda local HTTPS, portal, headers de seguranca, limites defensivos de requisicao, reducao de fingerprinting com modulo headers-more, proxy por subdominios .localhost e load balance local do LedgerService.Api."
 
         nginx = instanceOf edge.nginx {
-          title "poc-nginx-edge"
+          title "nginx-edge"
           description "Container local do Nginx exposto na porta 7443 do host, com certificado montado por volume em infra/nginx/certs, snippet de headers de seguranca, limites de body, headers, timeouts, conexoes e requisicoes, e access log JSON com correlation_id, upstream_addr e upstream_status."
         }
       }
@@ -62,7 +62,7 @@ deployment {
         description "Servico Docker Compose que executa a LedgerService.Api."
 
         api = instanceOf ledger.ledgerApi {
-          title "poc-ledger-service"
+          title "ledger-service"
           description "Container local da LedgerService.Api exposto na porta 5226 do host e 8080 no container."
         }
       }
@@ -72,7 +72,7 @@ deployment {
         description "Primeira instancia da LedgerService.Api criada pelo overlay compose.nginx.yaml para o upstream ledger_api do Nginx."
 
         api = instanceOf ledger.ledgerApi {
-          title "poc-ledger-service-1"
+          title "ledger-service-1"
           description "Instancia local da LedgerService.Api sem porta publicada no host, acessivel apenas pela rede poc-net em 8080."
         }
       }
@@ -82,7 +82,7 @@ deployment {
         description "Segunda instancia da LedgerService.Api criada pelo overlay compose.nginx.yaml para o upstream ledger_api do Nginx."
 
         api = instanceOf ledger.ledgerApi {
-          title "poc-ledger-service-2"
+          title "ledger-service-2"
           description "Instancia local da LedgerService.Api sem porta publicada no host, acessivel apenas pela rede poc-net em 8080."
         }
       }
@@ -92,7 +92,7 @@ deployment {
         description "Servico Docker Compose que executa a LedgerService.Worker. No overlay compose.pubsub.yaml, depende de pubsub-init e recebe Messaging__Provider=PubSub e PUBSUB_EMULATOR_HOST para usar o caminho legado explicito."
 
         worker = instanceOf ledger.ledgerWorker {
-          title "poc-ledger-worker"
+          title "ledger-worker"
           description "Worker local do LedgerService para Outbox, estornos e reprocessamentos."
         }
       }
@@ -182,32 +182,32 @@ deployment {
         description "Servico Docker Compose que executa o PostgreSQL local unico com database appdb, schemas ledger, balance, transfer, payment, audit e identity, e roles separadas por responsabilidade."
 
         ledgerSchema = instanceOf ledger.ledgerDb {
-          title "poc-postgres-db / schema ledger"
+          title "postgres-db / schema ledger"
           description "Schema local do Ledger no PostgreSQL unico, acessado por ledger_app_user em runtime e ledger_migrator_user para migrations."
         }
 
         balanceSchema = instanceOf balance.balanceDb {
-          title "poc-postgres-db / schema balance"
+          title "postgres-db / schema balance"
           description "Schema local do Balance no PostgreSQL unico, acessado por balance_read_user, balance_write_user e balance_migrator_user conforme responsabilidade."
         }
 
         transferSchema = instanceOf transfer.transferDb {
-          title "poc-postgres-db / schema transfer"
+          title "postgres-db / schema transfer"
           description "Schema local do Transfer no PostgreSQL unico, acessado por transfer_app_user em runtime e transfer_migrator_user para migrations."
         }
 
         paymentSchema = instanceOf payment.paymentDb {
-          title "poc-postgres-db / schema payment"
+          title "postgres-db / schema payment"
           description "Schema local do PaymentService no PostgreSQL unico, acessado por payment_app_user em runtime e payment_migrator_user para migrations."
         }
 
         auditSchema = instanceOf audit.auditDb {
-          title "poc-postgres-db / schema audit"
+          title "postgres-db / schema audit"
           description "Schema local do AuditService no PostgreSQL unico, acessado por audit_app_user em runtime e audit_migrator_user para migrations."
         }
 
         identitySchema = instanceOf identityService.identityDb {
-          title "poc-postgres-db / schema identity"
+          title "postgres-db / schema identity"
           description "Schema local do IdentityService no PostgreSQL unico, acessado por identity_app_user em runtime e identity_migrator_user para migrations."
         }
       }
@@ -217,7 +217,7 @@ deployment {
         description "Servico Docker Compose padrao da mensageria local."
 
         kafkaInstance = instanceOf kafka {
-          title "poc-kafka"
+          title "kafka"
           description "Broker Kafka local em KRaft exposto na porta 19092 do host e 9092 no container."
         }
       }

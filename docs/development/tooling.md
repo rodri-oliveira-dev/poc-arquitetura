@@ -116,9 +116,15 @@ npm run architecture:build
 
 Esse script executa o LikeC4 versionado pelo projeto e gera a saida estatica em `dist/architecture`. O diretorio `dist/` e ignorado pelo Git.
 
-## Qualidade estatica de scripts
+## Qualidade estatica de scripts e workflows
 
-O workflow `script-quality` valida scripts em `scripts/` sem executar fluxos operacionais. Ele nao cobre `.agents/` nem `.githooks/`.
+O workflow `script-quality` valida scripts em `scripts/` sem executar fluxos operacionais. Ele tambem valida workflows e composite actions com `actionlint`, mas separa os jobs por impacto:
+
+- mudancas em `scripts/**`, `package.json` ou `package-lock.json` executam ShellCheck, sintaxe Bash, PSScriptAnalyzer, sintaxe PowerShell, sintaxe Node e testes Python de `scripts/quality`;
+- mudancas em `.github/workflows/**` ou `.github/actions/**` executam `actionlint` para workflows e um workflow sintetico que referencia todas as composite actions locais;
+- mudancas apenas em workflows/actions nao executam a suite completa de scripts.
+
+Ele nao cobre `.agents/` nem `.githooks/`.
 
 Para validar Bash localmente, instale o ShellCheck pelo gerenciador do seu sistema e rode:
 
@@ -149,6 +155,14 @@ Para validar scripts Node em formato `.mjs`:
 ```bash
 find scripts -type f -name '*.mjs' -print0 | xargs -0 -I {} node --check "{}"
 ```
+
+Para validar workflows localmente, baixe o `actionlint` do release oficial `rhysd/actionlint`, verifique o SHA256 do asset e execute:
+
+```bash
+actionlint -color=false .github/workflows/*.yml
+```
+
+Para composite actions, use um workflow temporario que referencie cada caminho `./.github/actions/<nome>`; esse e o mesmo modelo usado pelo CI para forcar o `actionlint` a ler os `action.yml` locais.
 
 ## Fluxo local recomendado
 

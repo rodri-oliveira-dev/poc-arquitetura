@@ -80,17 +80,21 @@ Resumo:
 
 Workflows principais:
 
-- `pr-build-and-test`: restore, build e testes para PRs;
-- `main-dotnet-ci`: validacao completa pos-merge/manual, cobertura e artifacts;
+- `main-dotnet-ci`: CI principal para PRs, Merge Queue, push na `main` e execucao manual, com deteccao de impacto, auditoria NuGet, SonarQube Cloud, build, testes, cobertura e artifacts;
 - `dependency-security-review`: revisao de dependencias em PRs;
 - `codeql-security-analysis`: analise estatica de seguranca;
 - `event-contract-validation`: validacao de schemas e exemplos de eventos;
 - `openapi-contract-validation`: geracao, lint, diff e drift de contratos OpenAPI;
-- `infra-security-and-terraform-validation`: Trivy, Terraform validate e TFLint;
-- `mutation-tests`: mutation testing informativo;
+- `infrastructure-security`: Trivy para Dockerfiles, Compose, Terraform, secrets e filesystem;
+- `terraform-validation`: Terraform validate e TFLint;
+- `container-baseline`: Compose, ContainerBaselineValidator e build das imagens da stack base;
+- `script-quality`: ShellCheck, PSScriptAnalyzer, sintaxe Node/Python e `actionlint` para workflows/composite actions, com jobs separados por impacto;
+- `mutation-tests`: mutation testing informativo apos sucesso do CI da `main` ou manual;
 - `smoke-load-tests`: smoke load tests manuais com k6;
+- `owasp-zap-baseline`: OWASP ZAP baseline manual ou automatico apos sucesso do CI da `main`;
+- `publish-shared-nuget`: pack/validacao e publicacao NuGet dos pacotes Shared apos sucesso do CI da `main` ou manual;
 - `architecture-pages`: build e publicacao LikeC4;
-- `release-on-merge`: tags e GitHub Releases apos merge na `main`.
+- `release-on-merge`: tags e GitHub Releases apos sucesso do CI da `main`, sempre no SHA validado.
 
 Detalhes ficam em [validacao de pull requests](pull-request-validation.md), [artifacts dos workflows](workflow-artifacts.md) e [releases](releases.md).
 

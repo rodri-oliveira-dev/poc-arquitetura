@@ -34,7 +34,7 @@ runs:
       with:
         scan-type: fs
         scan-ref: .
-        scanners: vuln,secret,misconfig
+        scanners: vuln,secret
         severity: ${{ inputs.severity }}
         exit-code: "1"
         tf-vars: ${{ inputs.tf-vars }}

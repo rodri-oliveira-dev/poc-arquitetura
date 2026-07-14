@@ -113,11 +113,11 @@ Um item deve sair de "Proximos passos" ou "Em andamento ou parcialmente atendido
 - CodeQL, Dependency Review e Trivy versionados em workflows ou hooks.
 - Trivy cobre Dockerfiles, Terraform, misconfigurations, secrets e filesystem, conforme [trivy-security-scan](development/trivy-security-scan.md).
 - OWASP ZAP local documentado e executavel por scripts.
-- OWASP ZAP baseline disponivel em workflow manual, com relatorios publicados como artifacts e sem gate obrigatorio de PR.
+- OWASP ZAP baseline disponivel em workflow manual e pos-CI da `main`, com relatorios publicados como artifacts e sem gate obrigatorio de PR ou release.
 
 ### Em andamento ou parcialmente atendido
 
-- DAST/OWASP ZAP possui workflow manual, mas ainda nao possui gate obrigatorio nem baseline de severidades bloqueantes.
+- DAST/OWASP ZAP possui workflow manual e pos-CI da `main`, mas ainda nao possui gate obrigatorio nem baseline de severidades bloqueantes.
 - A maturidade de seguranca estatica depende de execucao recente dos scanners.
 - Baseline produtivo GCP/seguranca foi consolidado como referencia arquitetural em [baseline de evolucao produtiva](architecture/production-readiness.md), mas ainda nao foi implementado.
 

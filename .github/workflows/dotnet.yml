@@ -1,29 +1,11 @@
 name: main-dotnet-ci
 
 on:
+  pull_request:
+  merge_group:
+    types: [checks_requested]
   push:
     branches: ["main"]
-    paths-ignore:
-      - "**/*.md"
-      - "docs/**"
-      - "**/*.png"
-      - "**/*.jpg"
-      - "**/*.jpeg"
-      - "**/*.gif"
-      - "**/*.svg"
-      - "**/*.webp"
-  pull_request:
-    branches: ["main"]
-    types: [opened, synchronize, reopened]
-    paths-ignore:
-      - "**/*.md"
-      - "docs/**"
-      - "**/*.png"
-      - "**/*.jpg"
-      - "**/*.jpeg"
-      - "**/*.gif"
-      - "**/*.svg"
-      - "**/*.webp"
   workflow_dispatch:
 
 permissions:
@@ -31,31 +13,26 @@ permissions:
   pull-requests: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
   CI: true
   DOTNET_NOLOGO: true
   BUILD_CONFIGURATION: Release
-  SONAR_CONTEXT: global
   SONAR_ORGANIZATION_KEY: rodri-oliveira-dev
   SONAR_HOST_URL: https://sonarcloud.io
-  SONAR_PROJECT_KEY: rodri-oliveira-dev_poc-arquitetura
-  SONAR_PROJECT_NAME: poc-arquitetura
-  SONAR_PULL_REQUEST: ${{ github.event.pull_request.number || '' }}
-  SONAR_REPORT_DIR: ./artifacts/sonarqube
-  SONAR_OPENCOVER_REPORTS_PATHS: ./artifacts/test-results/**/coverage.opencover.xml
   SONAR_NON_CSHARP_SCRIPT_EXCLUSIONS: scripts/**/*.sh,scripts/**/*.ps1,scripts/**/*.py,scripts/**/*.json,scripts/**/*.mjs
-  SOLUTION_PATH: ./PocArquitetura.slnx
-  TEST_RESULTS_DIR: ./artifacts/test-results
+  AGGREGATE_SOLUTION_PATH: ./PocArquitetura.slnx
+  SHARED_SOLUTION_PATH: ./PocArquitetura.Shared.slnx
+  ARTIFACTS_ROOT: ./artifacts
   COVERAGE_THRESHOLD: "85"
 
 jobs:
   build-test:
-    name: Build, test and coverage
+    name: Build and test
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
@@ -63,40 +40,136 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Detect .NET impact
+        id: changes
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          if [ "$EVENT_NAME" != "pull_request" ]; then
+            python scripts/ci/detect-dotnet-impact.py \
+              --fallback-reason "Event $EVENT_NAME does not provide pull request files. Running aggregate and Shared validations." \
+              --format github-output >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if ! gh api --paginate "repos/$REPOSITORY/pulls/$PR_NUMBER/files" > changed-files.json; then
+            python scripts/ci/detect-dotnet-impact.py \
+              --fallback-reason "Could not detect pull request files. Running aggregate and Shared validations." \
+              --format github-output >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          python scripts/ci/detect-dotnet-impact.py \
+            --files-from changed-files.json \
+            --input-format json \
+            --format github-output >> "$GITHUB_OUTPUT"
+
+      - name: Summarize impact detection
+        shell: bash
+        env:
+          SUMMARY_JSON: ${{ steps.changes.outputs.summary_json }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          result = json.loads(os.environ["SUMMARY_JSON"])
+          rows = [
+              ("Aggregate solution", result["run_aggregate"]),
+              ("Shared solution", result["run_shared"]),
+              ("Documentation only", result["docs_only"]),
+              ("Detection fallback", result["detection_failed"]),
+          ]
+
+          with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a", encoding="utf-8") as summary:
+              summary.write("### .NET impact detection\n\n")
+              summary.write("| Output | Value |\n")
+              summary.write("| --- | --- |\n")
+              for name, value in rows:
+                  summary.write(f"| {name} | `{str(value).lower()}` |\n")
+              summary.write(f"| Changed C# files | `{result['changed_csharp_count']}` |\n")
+          PY
+
+      - name: Skip CI for documentation-only PR
+        if: ${{ steps.changes.outputs.run_aggregate != 'true' && steps.changes.outputs.run_shared != 'true' }}
+        shell: bash
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
+
+          ### CI skipped
+
+          Apenas arquivos de documentacao ou imagens de documentacao foram alterados. Restore, auditoria NuGet, SonarQube, build, testes e cobertura foram ignorados.
+          EOF
+
       - name: Setup .NET
+        if: ${{ steps.changes.outputs.run_aggregate == 'true' || steps.changes.outputs.run_shared == 'true' }}
         uses: ./.github/actions/setup-dotnet
         with:
           restore-tools: "true"
 
-      - name: Resolve SonarQube analysis context
-        shell: bash
-        run: python scripts/quality/sonar_context.py "$SONAR_CONTEXT" --format github-env >> "$GITHUB_ENV"
-
-      - name: Prepare consolidated artifacts
+      - name: Prepare artifacts
+        if: ${{ steps.changes.outputs.run_aggregate == 'true' || steps.changes.outputs.run_shared == 'true' }}
         shell: bash
         run: |
-          rm -rf "$TEST_RESULTS_DIR"
-          rm -rf "$SONAR_REPORT_DIR"
-          mkdir -p "$TEST_RESULTS_DIR" "$SONAR_REPORT_DIR"
+          rm -rf "$ARTIFACTS_ROOT/test-results" "$ARTIFACTS_ROOT/sonarqube"
+          mkdir -p "$ARTIFACTS_ROOT/test-results" "$ARTIFACTS_ROOT/sonarqube"
 
-      - name: Restore dependencies
-        run: >
-          dotnet restore $SOLUTION_PATH
-          -p:NuGetAuditMode=all
-          -p:RestoreEnablePackagePruning=true
-
-      - name: Check NuGet vulnerabilities
+      - name: Run impacted .NET CI contexts
+        if: ${{ steps.changes.outputs.run_aggregate == 'true' || steps.changes.outputs.run_shared == 'true' }}
         shell: bash
+        env:
+          RUN_AGGREGATE: ${{ steps.changes.outputs.run_aggregate }}
+          RUN_SHARED: ${{ steps.changes.outputs.run_shared }}
+          EVENT_NAME: ${{ github.event_name }}
+          IS_FORK_PULL_REQUEST: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
+          SONAR_PULL_REQUEST: ${{ github.event.pull_request.number || '' }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
-          dotnet list $SOLUTION_PATH package --vulnerable --include-transitive --no-restore --format json > nuget-vulnerabilities.json
+          set -euo pipefail
 
-          python - <<'PY'
+          sonar_allowed=true
+          if [ "$IS_FORK_PULL_REQUEST" = "true" ]; then
+            sonar_allowed=false
+          fi
+
+          if [ "$sonar_allowed" = "true" ] && [ -z "${SONAR_TOKEN:-}" ]; then
+            echo "SONAR_TOKEN is not configured. Create the GitHub Actions repository secret before running SonarQube Cloud analysis." >&2
+            exit 1
+          fi
+
+          if [ "$sonar_allowed" = "false" ]; then
+            cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
+
+          ### SonarQube Cloud
+
+          Pull request de fork detectado. A analise SonarQube Cloud foi ignorada para nao expor secrets a codigo nao confiavel; restore, auditoria NuGet, build, testes e cobertura continuam ativos.
+          EOF
+          fi
+
+          contexts=()
+          if [ "$RUN_AGGREGATE" = "true" ]; then
+            contexts+=("aggregate|$AGGREGATE_SOLUTION_PATH|rodri-oliveira-dev_poc-arquitetura|poc-arquitetura|85|LedgerService.Worker,BalanceService.Worker")
+          fi
+          if [ "$RUN_SHARED" = "true" ]; then
+            contexts+=("shared|$SHARED_SOLUTION_PATH|rodri-oliveira-dev_poc-arquitetura-shared|poc-arquitetura-shared|40|")
+          fi
+
+          check_nuget_vulnerabilities() {
+            local vulnerabilities_file="$1"
+            python - "$vulnerabilities_file" <<'PY'
           import json
           import sys
 
           blocked_severities = {"moderate", "high", "critical"}
 
-          with open("nuget-vulnerabilities.json", encoding="utf-8") as f:
+          with open(sys.argv[1], encoding="utf-8") as f:
               data = json.load(f)
 
           findings = []
@@ -129,107 +202,24 @@ jobs:
 
           print("No Moderate/High/Critical NuGet vulnerabilities found.")
           PY
+          }
 
-      - name: Validate SonarQube Cloud token
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        shell: bash
-        run: |
-          if [ -z "${SONAR_TOKEN:-}" ]; then
-            echo "SONAR_TOKEN is not configured. Create the GitHub Actions repository secret before running SonarQube Cloud analysis." >&2
-            exit 1
-          fi
-
-      - name: SonarQube Cloud begin
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_PLACEHOLDER_SECRET_LINE_REGEX: ".*(PASSWORD|[Pp]assword|PWD|PGPASSWORD|CLIENT_SECRET|[Cc]lient[_-]?[Ss]ecret|SECRET|[Ss]ecret|TOKEN|[Tt]oken|API[_-]?KEY|[Aa]pi[_-]?[Kk]ey).*<[A-Z0-9_]*(PASSWORD|SECRET|TOKEN|API_KEY)[A-Z0-9_]*>.*"
-        run: >
-          dotnet tool run dotnet-sonarscanner begin
-          /k:"$SONAR_PROJECT_KEY"
-          /n:"$SONAR_PROJECT_NAME"
-          /o:"$SONAR_ORGANIZATION_KEY"
-          /d:sonar.token="$SONAR_TOKEN"
-          /d:sonar.host.url="$SONAR_HOST_URL"
-          /d:sonar.cs.opencover.reportsPaths="$SONAR_OPENCOVER_REPORTS_PATHS"
-          /d:sonar.exclusions="$SONAR_NON_CSHARP_SCRIPT_EXCLUSIONS"
-          /d:sonar.issue.ignore.block=placeholderSecrets
-          /d:sonar.issue.ignore.block.placeholderSecrets.beginBlockRegexp="$SONAR_PLACEHOLDER_SECRET_LINE_REGEX"
-          /d:sonar.issue.ignore.block.placeholderSecrets.endBlockRegexp="$SONAR_PLACEHOLDER_SECRET_LINE_REGEX"
-          /d:sonar.coverage.exclusions=".github/**,docs/**,infra/**,loadtests/**,**/Program.cs,**/Migrations/*.cs,**/*.g.cs,**/*.g.*.cs"
-          /d:sonar.qualitygate.wait=true
-
-      - name: Build
-        run: dotnet build $SOLUTION_PATH --configuration $BUILD_CONFIGURATION --no-restore
-
-      - name: Test with coverage
-        run: >
-          dotnet test $SOLUTION_PATH
-          --configuration $BUILD_CONFIGURATION
-          --no-build
-          --logger "trx;LogFilePrefix=test-results"
-          --results-directory $TEST_RESULTS_DIR
-          --collect:"XPlat Code Coverage"
-          --settings ./coverlet.runsettings
-
-      - name: Validate coverage files
-        if: ${{ success() }}
-        shell: bash
-        run: |
-          if ! find "$TEST_RESULTS_DIR" -name coverage.cobertura.xml -print -quit | grep -q .; then
-            echo "Testes finalizaram com sucesso, mas nenhum arquivo coverage.cobertura.xml foi gerado." >&2
-            exit 1
-          fi
-
-      - name: Validate SonarQube coverage files
-        if: ${{ success() }}
-        shell: bash
-        run: |
-          if ! find "$TEST_RESULTS_DIR" -name coverage.opencover.xml -print -quit | grep -q .; then
-            echo "Testes finalizaram com sucesso, mas nenhum arquivo coverage.opencover.xml foi gerado para o SonarQube Cloud." >&2
-            exit 1
-          fi
-
-      - name: SonarQube Cloud end
-        if: ${{ success() }}
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: >
-          dotnet tool run dotnet-sonarscanner end
-          /d:sonar.token="$SONAR_TOKEN"
-
-      - name: Generate SonarQube Cloud report
-        if: ${{ always() }}
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        shell: bash
-        run: |
-          python scripts/quality/sonarqube_cloud_report.py
-          cat "$SONAR_REPORT_DIR/sonarqube-cloud-report.md" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Generate coverage report
-        if: ${{ success() }}
-        run: >
-          dotnet tool run reportgenerator
-          -reports:"$TEST_RESULTS_DIR/**/coverage.cobertura.xml"
-          -targetdir:"$TEST_RESULTS_DIR/coverage-report"
-          -reporttypes:"HtmlInline;JsonSummary;TextSummary"
-
-      - name: Enforce coverage threshold
-        if: ${{ success() }}
-        shell: bash
-        run: |
-          python - <<'PY'
+          enforce_coverage_threshold() {
+            local summary_file="$1"
+            local threshold="$2"
+            local required_assemblies="$3"
+            python - "$summary_file" "$threshold" "$required_assemblies" <<'PY'
           import json
           import sys
-          import os
 
-          path = os.path.join(os.environ["TEST_RESULTS_DIR"], "coverage-report", "Summary.json")
-          with open(path, encoding="utf-8") as f:
+          summary_file = sys.argv[1]
+          threshold = float(sys.argv[2])
+          required_assemblies = [item for item in sys.argv[3].split(",") if item]
+
+          with open(summary_file, encoding="utf-8") as f:
               data = json.load(f)
 
           line = float(data["summary"]["linecoverage"])
-          threshold = float("${{ env.COVERAGE_THRESHOLD }}")
 
           print(f"Line coverage: {line}%")
           if line < threshold:
@@ -241,7 +231,7 @@ jobs:
               for assembly in data.get("coverage", {}).get("assemblies", [])
           }
 
-          for assembly_name in ("LedgerService.Worker", "BalanceService.Worker"):
+          for assembly_name in required_assemblies:
               if assembly_name not in assemblies:
                   print(f"Coverage assembly not found: {assembly_name}", file=sys.stderr)
                   sys.exit(1)
@@ -255,25 +245,28 @@ jobs:
                   )
                   sys.exit(1)
           PY
+          }
 
-      - name: Write summary
-        if: ${{ always() }}
-        shell: bash
-        run: |
-          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          write_context_summary() {
+            local context="$1"
+            local solution="$2"
+            local coverage_summary="$3"
+            python - "$context" "$solution" "$coverage_summary" <<'PY' >> "$GITHUB_STEP_SUMMARY"
           import json
-          import os
           import pathlib
+          import sys
 
-          path = pathlib.Path(os.environ["TEST_RESULTS_DIR"]) / "coverage-report" / "Summary.json"
-          print("## Resumo do CI")
+          context, solution, coverage_summary = sys.argv[1:]
+          path = pathlib.Path(coverage_summary)
+
+          print(f"## Resumo do CI - {context}")
           print()
+          print(f"- Solution: `{solution}`")
 
           if not path.exists():
-              print("Resumo de cobertura nao encontrado.")
+              print("- Resumo de cobertura: nao encontrado.")
               print()
-              print("As etapas de cobertura podem ter sido ignoradas porque uma etapa anterior falhou antes da execucao dos testes.")
-              raise SystemExit(0)
+              sys.exit(0)
 
           with path.open(encoding="utf-8") as f:
               payload = json.load(f)
@@ -290,19 +283,97 @@ jobs:
           for assembly_name in ("LedgerService.Worker", "BalanceService.Worker"):
               if assembly_name in assemblies:
                   print(f"- {assembly_name}: {assemblies[assembly_name]}% de linhas")
+          print()
           PY
+          }
+
+          for item in "${contexts[@]}"; do
+            IFS="|" read -r context solution project_key project_name coverage_threshold required_assemblies <<< "$item"
+            test_results_dir="$ARTIFACTS_ROOT/test-results/$context"
+            sonar_report_dir="$ARTIFACTS_ROOT/sonarqube/$context"
+            opencover_pattern="$test_results_dir/**/coverage.opencover.xml"
+            coverage_summary="$test_results_dir/coverage-report/Summary.json"
+
+            echo "Running $context validation with $solution"
+            mkdir -p "$test_results_dir" "$sonar_report_dir"
+
+            dotnet restore "$solution" \
+              -p:NuGetAuditMode=all \
+              -p:RestoreEnablePackagePruning=true
+
+            dotnet list "$solution" package --vulnerable --include-transitive --no-restore --format json > "$ARTIFACTS_ROOT/nuget-vulnerabilities-$context.json"
+            check_nuget_vulnerabilities "$ARTIFACTS_ROOT/nuget-vulnerabilities-$context.json"
+
+            if [ "$sonar_allowed" = "true" ]; then
+              rm -rf .sonarqube
+              dotnet tool run dotnet-sonarscanner begin \
+                /k:"$project_key" \
+                /n:"$project_name" \
+                /o:"$SONAR_ORGANIZATION_KEY" \
+                /d:sonar.token="$SONAR_TOKEN" \
+                /d:sonar.host.url="$SONAR_HOST_URL" \
+                /d:sonar.cs.opencover.reportsPaths="$opencover_pattern" \
+                /d:sonar.exclusions="$SONAR_NON_CSHARP_SCRIPT_EXCLUSIONS" \
+                /d:sonar.issue.ignore.block=placeholderSecrets \
+                /d:sonar.issue.ignore.block.placeholderSecrets.beginBlockRegexp=".*(PASSWORD|[Pp]assword|PWD|PGPASSWORD|CLIENT_SECRET|[Cc]lient[_-]?[Ss]ecret|SECRET|[Ss]ecret|TOKEN|[Tt]oken|API[_-]?KEY|[Aa]pi[_-]?[Kk]ey).*<[A-Z0-9_]*(PASSWORD|SECRET|TOKEN|API_KEY)[A-Z0-9_]*>.*" \
+                /d:sonar.issue.ignore.block.placeholderSecrets.endBlockRegexp=".*(PASSWORD|[Pp]assword|PWD|PGPASSWORD|CLIENT_SECRET|[Cc]lient[_-]?[Ss]ecret|SECRET|[Ss]ecret|TOKEN|[Tt]oken|API[_-]?KEY|[Aa]pi[_-]?[Kk]ey).*<[A-Z0-9_]*(PASSWORD|SECRET|TOKEN|API_KEY)[A-Z0-9_]*>.*" \
+                /d:sonar.coverage.exclusions=".github/**,docs/**,infra/**,loadtests/**,**/Program.cs,**/Migrations/*.cs,**/*.g.cs,**/*.g.*.cs" \
+                /d:sonar.qualitygate.wait=true
+            fi
+
+            dotnet build "$solution" --configuration "$BUILD_CONFIGURATION" --no-restore
+
+            dotnet test "$solution" \
+              --configuration "$BUILD_CONFIGURATION" \
+              --no-build \
+              --logger "trx;LogFilePrefix=test-results" \
+              --results-directory "$test_results_dir" \
+              --collect:"XPlat Code Coverage" \
+              --settings ./coverlet.runsettings
+
+            if ! find "$test_results_dir" -name coverage.cobertura.xml -print -quit | grep -q .; then
+              echo "Testes de $context finalizaram com sucesso, mas nenhum arquivo coverage.cobertura.xml foi gerado." >&2
+              exit 1
+            fi
+
+            if ! find "$test_results_dir" -name coverage.opencover.xml -print -quit | grep -q .; then
+              echo "Testes de $context finalizaram com sucesso, mas nenhum arquivo coverage.opencover.xml foi gerado para o SonarQube Cloud." >&2
+              exit 1
+            fi
+
+            if [ "$sonar_allowed" = "true" ]; then
+              dotnet tool run dotnet-sonarscanner end /d:sonar.token="$SONAR_TOKEN"
+              rm -rf .sonarqube
+              SONAR_PROJECT_KEY="$project_key" \
+              SONAR_PROJECT_NAME="$project_name" \
+              SONAR_REPORT_DIR="$sonar_report_dir" \
+              SONAR_PULL_REQUEST="$SONAR_PULL_REQUEST" \
+              SONAR_TOKEN="$SONAR_TOKEN" \
+                python scripts/quality/sonarqube_cloud_report.py
+              cat "$sonar_report_dir/sonarqube-cloud-report.md" >> "$GITHUB_STEP_SUMMARY"
+            fi
+
+            dotnet tool run reportgenerator \
+              -reports:"$test_results_dir/**/coverage.cobertura.xml" \
+              -targetdir:"$test_results_dir/coverage-report" \
+              -reporttypes:"HtmlInline;JsonSummary;TextSummary"
+
+            enforce_coverage_threshold "$coverage_summary" "$coverage_threshold" "$required_assemblies"
+            write_context_summary "$context" "$solution" "$coverage_summary"
+          done
 
       - name: Upload test results, coverage and SonarQube report
-        if: ${{ always() }}
+        if: ${{ always() && (steps.changes.outputs.run_aggregate == 'true' || steps.changes.outputs.run_shared == 'true') }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: test-results-coverage-and-sonarqube
           path: |
-            ${{ env.TEST_RESULTS_DIR }}/**/*.trx
-            ${{ env.TEST_RESULTS_DIR }}/**/coverage.cobertura.xml
-            ${{ env.TEST_RESULTS_DIR }}/**/coverage.opencover.xml
-            ${{ env.TEST_RESULTS_DIR }}/coverage-report/Summary.json
-            ${{ env.TEST_RESULTS_DIR }}/coverage-report/Summary.txt
-            ${{ env.SONAR_REPORT_DIR }}/**
+            ${{ env.ARTIFACTS_ROOT }}/test-results/**/*.trx
+            ${{ env.ARTIFACTS_ROOT }}/test-results/**/coverage.cobertura.xml
+            ${{ env.ARTIFACTS_ROOT }}/test-results/**/coverage.opencover.xml
+            ${{ env.ARTIFACTS_ROOT }}/test-results/**/coverage-report/Summary.json
+            ${{ env.ARTIFACTS_ROOT }}/test-results/**/coverage-report/Summary.txt
+            ${{ env.ARTIFACTS_ROOT }}/sonarqube/**
+            ${{ env.ARTIFACTS_ROOT }}/nuget-vulnerabilities-*.json
           if-no-files-found: warn
           retention-days: 7
