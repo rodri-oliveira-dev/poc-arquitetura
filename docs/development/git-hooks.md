@@ -40,6 +40,22 @@ Quando existem alteracoes em `*.tf` ou `*.tfvars`, o hook executa apenas `terraf
 
 O `pre-push` nao executa Trivy localmente por padrao. Os scans bloqueantes de Dockerfile, Terraform, misconfigurations, secrets e filesystem rodam no GitHub Actions pelo workflow `infrastructure-security` quando ha mudancas em Terraform, Dockerfiles, Compose, na action de Trivy ou no proprio workflow. Consulte [validacao de seguranca com Trivy](trivy-security-scan.md).
 
+Cada arquivo alterado precisa terminar com uma classificacao explicita. O hook reconhece somente categorias conhecidas:
+
+| Categoria | Exemplos | Validacao local |
+| --- | --- | --- |
+| Documentacao ou nao impactante | `README.md`, `docs/**`, `*.md`, imagens versionadas (`png`, `jpg`, `jpeg`, `gif`, `svg`, `webp`) | nenhuma |
+| Contexto .NET conhecido | `src/<contexto>/**`, `tests/<contexto>/**`, `<Contexto>Service.slnx` para Audit, Balance, Identity, Ledger, Payment e Transfer | solution contextual |
+| Configuracao .NET global | `global.json`, `NuGet.config`, `Directory.Build.*`, `Directory.Packages.props`, `.editorconfig`, `.globalconfig`, `.githooks/pre-push` | `PocArquitetura.Shared.slnx` e `PocArquitetura.slnx` |
+| Terraform | `*.tf`, `*.tfvars` | `terraform fmt -check -recursive ./infra/terraform` |
+| Dockerfile | `Dockerfile`, `**/Dockerfile`, `Dockerfile.*`, `**/Dockerfile.*` | `ContainerBaselineValidator` |
+| Docker Compose | `compose.yaml`, `compose.yml`, `compose.*.yaml`, `compose.*.yml` em qualquer diretorio | script oficial `validate-compose-configs.sh` |
+| Manifesto de ferramentas | `.config/dotnet-tools.json`, `dotnet-tools.json` | `dotnet tool restore` |
+| Validado somente no CI | `.github/workflows/**`, `.github/actions/**`, `coverlet.runsettings`, `test.sh`, `test.ps1` | nenhuma local; o log aponta o gate de PR |
+| Desconhecido ou nao classificado | qualquer caminho que nao corresponda as regras anteriores | fallback conservador |
+
+Nao existe regra generica de extensao desconhecida como documentacao. Se um arquivo desconhecido aparecer junto com Markdown ou `docs/**`, o diff deixa de ser documental e entra no fallback conservador.
+
 Quando existem alteracoes em Dockerfiles, Compose ou nos scripts/configuracoes consumidos pela validacao local de containers, o hook executa somente validacoes leves:
 
 | Alteracao | Validacao rapida local |
@@ -75,6 +91,7 @@ O hook executa restore, `dotnet format whitespace --verify-no-changes` somente p
 | docs-only | nenhuma validacao local |
 | Terraform | `terraform fmt -check` |
 | diff inseguro | Agregadora + Shared |
+| arquivo desconhecido | fallback conservador |
 
 Os caminhos de contexto sao `src/<contexto>/**`, `tests/<contexto>/**` e a solution do contexto. `tests/Architecture.Tests/**` permanece transversal e seleciona a solution agregadora. `tools/ComposeEnvGen/**` seleciona Ledger porque o tooling e necessario aos testes desse contexto.
 
@@ -111,9 +128,20 @@ Directory.Packages.props + Ledger
 
 `contracts/events/**` seleciona Ledger e Balance porque esses contexts produzem e consomem schemas versionados usados nos fluxos principais. Uma mudanca de source em Shared seleciona apenas `PocArquitetura.Shared.slnx` no pre-push porque os servicos consomem Shared por pacotes; a validacao de todos os servicos continua no fluxo global/PR quando aplicavel.
 
-O hook pula restore, formatacao, build, testes e validacoes de containers quando todas as alteracoes sao claramente nao impactantes para validacao local, como Markdown, arquivos em `docs/`, imagens de documentacao (`png`, `jpg`, `jpeg`, `gif`, `svg`, `webp`), diagramas Mermaid/LikeC4 e notas textuais que nao entram no build.
+O hook pula restore, formatacao, build, testes e validacoes de containers quando todas as alteracoes sao claramente nao impactantes para validacao local, como Markdown, arquivos em `docs/` e imagens documentais reconhecidas (`png`, `jpg`, `jpeg`, `gif`, `svg`, `webp`).
 
 Se houver mistura de documentacao com qualquer arquivo impactante, as validacoes rapidas sao executadas. Em caso de duvida, a regra e validar.
+
+Quando um arquivo nao recebe classificacao, o hook registra cada caminho:
+
+```text
+==> pre-push: arquivo sem classificacao de impacto: caminho/do/arquivo
+==> pre-push: executando validacoes conservadoras
+```
+
+O fallback conservador roda uma unica vez por push, mesmo com varios arquivos desconhecidos. Ele executa restore, build e testes unitarios rapidos sem cobertura de `PocArquitetura.Shared.slnx` e `PocArquitetura.slnx`, executa as validacoes leves de Dockerfile e Compose, e aplica `terraform fmt -check` quando a Terraform CLI estiver disponivel. Esse fluxo nao executa cobertura, Testcontainers, testes de integracao, testes de contrato, SonarQube, Trivy completo, `terraform init`, `terraform validate`, build de imagens nem `dotnet format` com lista inventada de arquivos C#.
+
+O detector do CI (`scripts/ci/detect-dotnet-impact.py`) permanece separado do hook local. A divergencia e intencional: no CI, o detector decide apenas impacto .NET para a matriz de PR e desconhecidos viram impacto agregado + Shared; no hook, a classificacao tambem cobre Terraform, Dockerfile, Compose, manifesto de ferramentas e `ci-only`, alem de preservar a execucao local leve sem exigir Python para decidir o push. Os testes de `scripts/ci/tests/` cobrem os cenarios comuns para evitar drift perigoso: Payment conhecido nao cai no fallback, Markdown puro continua leve e arquivos desconhecidos acionam validacao conservadora.
 
 Quando o diff contem ate 30 arquivos C#, o hook divide a verificacao de
 formatacao em lotes para evitar limites locais de tamanho da linha de comando,

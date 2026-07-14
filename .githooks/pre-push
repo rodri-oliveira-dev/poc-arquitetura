@@ -232,6 +232,26 @@ is_dotnet_tool_manifest_path() {
   return 1
 }
 
+is_documentation_or_nonimpacting_path() {
+  case "$1" in
+    README.md|docs/*|*.md|*.png|*.jpg|*.jpeg|*.gif|*.svg|*.webp)
+      return 0
+      ;;
+  esac
+
+  return 1
+}
+
+is_ci_only_path() {
+  case "$1" in
+    .github/workflows/*|.github/actions/*|coverlet.runsettings|test.sh|test.ps1)
+      return 0
+      ;;
+  esac
+
+  return 1
+}
+
 is_pre_push_hook_path() {
   case "$1" in
     .githooks/pre-push)
@@ -617,8 +637,8 @@ dotnet_tool_manifest_changes=false
 quick_tests_required=false
 dotnet_format_check=true
 
-if [ "$diff_is_safe" = false ]; then
-  echo "==> pre-push: validacoes serao executadas por seguranca"
+mark_conservative_fallback_required() {
+  echo "==> pre-push: executando validacoes conservadoras"
   dotnet_changes=true
   audit_changes=false
   balance_changes=false
@@ -634,12 +654,25 @@ if [ "$diff_is_safe" = false ]; then
   container_changes=true
   quick_tests_required=true
   dotnet_format_check=false
+}
+
+if [ "$diff_is_safe" = false ]; then
+  echo "==> pre-push: validacoes serao executadas por seguranca"
+  mark_conservative_fallback_required
 else
   while IFS= read -r changed_file
   do
     [ -n "$changed_file" ] || continue
 
+    changed_file_classified=false
+
+    if is_documentation_or_nonimpacting_path "$changed_file"; then
+      changed_file_classified=true
+      echo "==> pre-push: alteracao documental ou nao impactante detectada em $changed_file"
+    fi
+
     if is_global_dotnet_path "$changed_file"; then
+      changed_file_classified=true
       dotnet_changes=true
       global_dotnet_changes=true
       shared_changes=true
@@ -648,6 +681,7 @@ else
     fi
 
     if is_analyzer_config_path "$changed_file"; then
+      changed_file_classified=true
       dotnet_changes=true
       analyzer_config_changes=true
       shared_changes=true
@@ -656,11 +690,20 @@ else
     fi
 
     if is_dotnet_tool_manifest_path "$changed_file"; then
+      changed_file_classified=true
       dotnet_tool_manifest_changes=true
       echo "==> pre-push: alteracao de manifesto de ferramenta .NET detectada em $changed_file"
     fi
 
+    if is_ci_only_path "$changed_file"; then
+      changed_file_classified=true
+      echo "==> pre-push: arquivo validado exclusivamente no CI reconhecido em $changed_file"
+      echo "==> pre-push: nenhuma validacao local sera executada para $changed_file"
+      echo "==> pre-push: gate correspondente permanece no Pull Request/GitHub Actions"
+    fi
+
     if is_pre_push_hook_path "$changed_file"; then
+      changed_file_classified=true
       dotnet_changes=true
       global_dotnet_changes=true
       shared_changes=true
@@ -669,6 +712,7 @@ else
     fi
 
     if is_event_contracts_path "$changed_file"; then
+      changed_file_classified=true
       dotnet_changes=true
       ledger_changes=true
       balance_changes=true
@@ -677,6 +721,7 @@ else
     fi
 
     if is_shared_path "$changed_file"; then
+      changed_file_classified=true
       dotnet_changes=true
       shared_changes=true
       quick_tests_required=true
@@ -685,6 +730,7 @@ else
     fi
 
     if is_audit_path "$changed_file"; then
+      changed_file_classified=true
       dotnet_changes=true
       audit_changes=true
       quick_tests_required=true
@@ -693,6 +739,7 @@ else
     fi
 
     if is_balance_path "$changed_file"; then
+      changed_file_classified=true
       dotnet_changes=true
       balance_changes=true
       quick_tests_required=true
@@ -701,6 +748,7 @@ else
     fi
 
     if is_identity_path "$changed_file"; then
+      changed_file_classified=true
       dotnet_changes=true
       identity_changes=true
       quick_tests_required=true
@@ -709,6 +757,7 @@ else
     fi
 
     if is_ledger_path "$changed_file"; then
+      changed_file_classified=true
       dotnet_changes=true
       ledger_changes=true
       quick_tests_required=true
@@ -717,6 +766,7 @@ else
     fi
 
     if is_payment_path "$changed_file"; then
+      changed_file_classified=true
       dotnet_changes=true
       payment_changes=true
       quick_tests_required=true
@@ -725,6 +775,7 @@ else
     fi
 
     if is_transfer_path "$changed_file"; then
+      changed_file_classified=true
       dotnet_changes=true
       transfer_changes=true
       quick_tests_required=true
@@ -733,6 +784,7 @@ else
     fi
 
     if is_aggregate_path "$changed_file"; then
+      changed_file_classified=true
       dotnet_changes=true
       aggregate_changes=true
       quick_tests_required=true
@@ -741,34 +793,48 @@ else
     fi
 
     if is_terraform_impacting_path "$changed_file"; then
+      changed_file_classified=true
       terraform_changes=true
       echo "==> pre-push: alteracao Terraform detectada em $changed_file"
     fi
 
     if is_dockerfile_path "$changed_file"; then
+      changed_file_classified=true
       dockerfile_changes=true
       container_changes=true
       echo "==> pre-push: alteracao de Dockerfile detectada em $changed_file"
     fi
 
     if is_compose_path "$changed_file"; then
+      changed_file_classified=true
       compose_changes=true
       container_changes=true
       echo "==> pre-push: alteracao Docker Compose detectada em $changed_file"
     fi
 
     if is_container_baseline_validation_path "$changed_file"; then
+      changed_file_classified=true
       dockerfile_changes=true
       container_changes=true
       echo "==> pre-push: alteracao em validacao de container baseline detectada em $changed_file"
     fi
 
     if is_compose_validation_path "$changed_file"; then
+      changed_file_classified=true
       compose_changes=true
       container_changes=true
       echo "==> pre-push: alteracao em validacao Docker Compose detectada em $changed_file"
     fi
+
+    if [ "$changed_file_classified" = false ]; then
+      echo "==> pre-push: arquivo sem classificacao de impacto: $changed_file"
+      diff_is_safe=false
+    fi
   done <"$changed_files"
+
+  if [ "$diff_is_safe" = false ]; then
+    mark_conservative_fallback_required
+  fi
 
   if [ "$global_dotnet_changes" = true ]; then
     audit_changes=false

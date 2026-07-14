@@ -41,6 +41,7 @@ class PrePushPaymentTests(unittest.TestCase):
         compose_exit_code: int = 0,
         baseline_exit_code: int = 0,
         docker_compose_version_exit_code: int = 0,
+        git_diff_exit_code: int = 0,
         expected_returncode: int = 0,
     ) -> tuple[str, list[str]]:
         stdout, dotnet_commands, _ = self.run_pre_push_detailed(
@@ -49,6 +50,7 @@ class PrePushPaymentTests(unittest.TestCase):
             compose_exit_code,
             baseline_exit_code,
             docker_compose_version_exit_code,
+            git_diff_exit_code,
             expected_returncode,
         )
         return stdout, dotnet_commands
@@ -60,6 +62,7 @@ class PrePushPaymentTests(unittest.TestCase):
         compose_exit_code: int = 0,
         baseline_exit_code: int = 0,
         docker_compose_version_exit_code: int = 0,
+        git_diff_exit_code: int = 0,
         expected_returncode: int = 0,
     ) -> tuple[str, list[str], list[str]]:
         existing_files = existing_files or []
@@ -90,6 +93,9 @@ class PrePushPaymentTests(unittest.TestCase):
                 fi
 
                 if [ "$1" = "diff" ] && [ "$2" = "--name-only" ]; then
+                  if [ "${{PRE_PUSH_TEST_GIT_DIFF_EXIT_CODE:-0}}" -ne 0 ]; then
+                    exit "$PRE_PUSH_TEST_GIT_DIFF_EXIT_CODE"
+                  fi
                   printf '%s\\n' "$PRE_PUSH_TEST_CHANGED_FILES"
                   exit 0
                 fi
@@ -139,6 +145,15 @@ class PrePushPaymentTests(unittest.TestCase):
                 """,
             )
 
+            self.write_executable(
+                tools_path / "terraform",
+                f"""\
+                #!/usr/bin/env sh
+                set -eu
+                printf 'terraform %s\\n' "$*" >>"{self.to_sh_path(container_log)}"
+                """,
+            )
+
             env = os.environ.copy()
             env["TMPDIR"] = self.to_sh_path(temp_path)
             env["PRE_PUSH_TEST_REPO_ROOT"] = self.to_sh_path(repo_path)
@@ -146,6 +161,7 @@ class PrePushPaymentTests(unittest.TestCase):
             env["PRE_PUSH_TEST_COMPOSE_EXIT_CODE"] = str(compose_exit_code)
             env["PRE_PUSH_TEST_BASELINE_EXIT_CODE"] = str(baseline_exit_code)
             env["PRE_PUSH_TEST_DOCKER_COMPOSE_VERSION_EXIT_CODE"] = str(docker_compose_version_exit_code)
+            env["PRE_PUSH_TEST_GIT_DIFF_EXIT_CODE"] = str(git_diff_exit_code)
             command = (
                 f"PATH={shlex.quote(self.to_sh_path(tools_path))}:$PATH "
                 f"exec {shlex.quote(self.to_sh_path(PRE_PUSH_HOOK))}"
@@ -211,11 +227,107 @@ class PrePushPaymentTests(unittest.TestCase):
                 msg=f"comando inesperado para outro contexto: {command}",
             )
 
+    def assert_runs_conservative_fallback_once(
+        self,
+        stdout: str,
+        dotnet_commands: list[str],
+        container_commands: list[str],
+    ) -> None:
+        self.assertEqual(1, stdout.count("executando validacoes conservadoras"))
+        self.assertIn("restore ./PocArquitetura.Shared.slnx", dotnet_commands)
+        self.assertIn("restore ./PocArquitetura.slnx", dotnet_commands)
+        self.assertIn("build ./PocArquitetura.Shared.slnx --configuration Release --no-restore", dotnet_commands)
+        self.assertIn("build ./PocArquitetura.slnx --configuration Release --no-restore", dotnet_commands)
+        self.assertIn(
+            "test ./PocArquitetura.Shared.slnx --configuration Release --no-build --no-restore --filter Category!=Integration&Category!=Container&Category!=Contract",
+            dotnet_commands,
+        )
+        self.assertIn(
+            "test ./PocArquitetura.slnx --configuration Release --no-build --no-restore --filter Category!=Integration&Category!=Container&Category!=Contract",
+            dotnet_commands,
+        )
+        self.assertIn("run --project ./tools/ContainerBaselineValidator/ContainerBaselineValidator.csproj -- --root .", dotnet_commands)
+        self.assertIn("docker compose version", container_commands)
+        self.assertIn("bash ./scripts/quality/containers/validate-compose-configs.sh", container_commands)
+        self.assertIn("terraform fmt -check -recursive", "\n".join(container_commands))
+        self.assertFalse(any(command.startswith("format whitespace") for command in dotnet_commands))
+
+    def assert_no_conservative_fallback(self, stdout: str) -> None:
+        self.assertNotIn("arquivo sem classificacao de impacto", stdout)
+        self.assertNotIn("executando validacoes conservadoras", stdout)
+
+    def test_new_service_directory_runs_conservative_fallback(self) -> None:
+        changed_file = "src/newservice/NewService.Api/Program.cs"
+        stdout, commands, container_commands = self.run_pre_push_detailed([changed_file], [changed_file])
+
+        self.assertIn(f"arquivo sem classificacao de impacto: {changed_file}", stdout)
+        self.assert_runs_conservative_fallback_once(stdout, commands, container_commands)
+
+    def test_new_root_configuration_runs_conservative_fallback(self) -> None:
+        changed_file = "new-tooling.config"
+        stdout, commands, container_commands = self.run_pre_push_detailed([changed_file])
+
+        self.assertIn(f"arquivo sem classificacao de impacto: {changed_file}", stdout)
+        self.assert_runs_conservative_fallback_once(stdout, commands, container_commands)
+
+    def test_unknown_file_under_tools_runs_conservative_fallback(self) -> None:
+        changed_file = "tools/NewTool/settings.custom"
+        stdout, commands, container_commands = self.run_pre_push_detailed([changed_file])
+
+        self.assertIn(f"arquivo sem classificacao de impacto: {changed_file}", stdout)
+        self.assert_runs_conservative_fallback_once(stdout, commands, container_commands)
+
+    def test_unknown_file_under_scripts_runs_conservative_fallback(self) -> None:
+        changed_file = "scripts/new-tool.custom"
+        stdout, commands, container_commands = self.run_pre_push_detailed([changed_file])
+
+        self.assertIn(f"arquivo sem classificacao de impacto: {changed_file}", stdout)
+        self.assert_runs_conservative_fallback_once(stdout, commands, container_commands)
+
+    def test_unknown_file_mixed_with_markdown_runs_conservative_fallback(self) -> None:
+        unknown_file = "eng/new-input.custom"
+        markdown_file = "docs/development/git-hooks.md"
+        stdout, commands, container_commands = self.run_pre_push_detailed([markdown_file, unknown_file])
+
+        self.assertIn(f"alteracao documental ou nao impactante detectada em {markdown_file}", stdout)
+        self.assertIn(f"arquivo sem classificacao de impacto: {unknown_file}", stdout)
+        self.assert_runs_conservative_fallback_once(stdout, commands, container_commands)
+
+    def test_multiple_unknown_files_are_logged_and_fallback_runs_once(self) -> None:
+        first_file = "eng/new-input.custom"
+        second_file = "tools/NewTool/settings.custom"
+        stdout, commands, container_commands = self.run_pre_push_detailed([first_file, second_file])
+
+        self.assertIn(f"arquivo sem classificacao de impacto: {first_file}", stdout)
+        self.assertIn(f"arquivo sem classificacao de impacto: {second_file}", stdout)
+        self.assert_runs_conservative_fallback_once(stdout, commands, container_commands)
+
+    def test_unsafe_diff_uses_conservative_fallback(self) -> None:
+        stdout, commands, container_commands = self.run_pre_push_detailed(
+            [],
+            git_diff_exit_code=1,
+        )
+
+        self.assertIn("validacoes serao executadas por seguranca", stdout)
+        self.assert_runs_conservative_fallback_once(stdout, commands, container_commands)
+
+    def test_ci_only_file_logs_without_local_validation(self) -> None:
+        changed_file = ".github/workflows/infrastructure-security.yml"
+        stdout, commands, container_commands = self.run_pre_push_detailed([changed_file])
+
+        self.assertIn(f"arquivo validado exclusivamente no CI reconhecido em {changed_file}", stdout)
+        self.assertIn(f"nenhuma validacao local sera executada para {changed_file}", stdout)
+        self.assertIn("gate correspondente permanece no Pull Request/GitHub Actions", stdout)
+        self.assert_no_conservative_fallback(stdout)
+        self.assertEqual([], commands)
+        self.assertEqual([], container_commands)
+
     def test_src_payment_change_runs_payment(self) -> None:
         changed_file = "src/payment/PaymentService.Application/Foo.cs"
         stdout, commands = self.run_pre_push([changed_file], [changed_file])
 
         self.assertIn(f"alteracao Payment detectada em {changed_file}", stdout)
+        self.assert_no_conservative_fallback(stdout)
         self.assert_runs_payment_only(commands)
         self.assertIn(
             f"format whitespace ./PaymentService.slnx --verify-no-changes --no-restore --verbosity minimal --include {changed_file}",
@@ -274,6 +386,7 @@ class PrePushPaymentTests(unittest.TestCase):
         stdout, commands, container_commands = self.run_pre_push_detailed([changed_file])
 
         self.assertIn(f"alteracao de Dockerfile detectada em {changed_file}", stdout)
+        self.assert_no_conservative_fallback(stdout)
         self.assertIn("run --project ./tools/ContainerBaselineValidator/ContainerBaselineValidator.csproj -- --root .", commands)
         self.assertEqual([], container_commands)
 
@@ -289,9 +402,19 @@ class PrePushPaymentTests(unittest.TestCase):
         stdout, commands, container_commands = self.run_pre_push_detailed(["compose.yaml"])
 
         self.assertIn("alteracao Docker Compose detectada em compose.yaml", stdout)
+        self.assert_no_conservative_fallback(stdout)
         self.assertEqual([], commands)
         self.assertIn("docker compose version", container_commands)
         self.assertIn("bash ./scripts/quality/containers/validate-compose-configs.sh", container_commands)
+
+    def test_terraform_known_path_runs_terraform_validation_without_fallback(self) -> None:
+        changed_file = "infra/terraform/environments/dev/main.tf"
+        stdout, commands, container_commands = self.run_pre_push_detailed([changed_file])
+
+        self.assertIn(f"alteracao Terraform detectada em {changed_file}", stdout)
+        self.assert_no_conservative_fallback(stdout)
+        self.assertEqual([], commands)
+        self.assertIn("terraform fmt -check -recursive", "\n".join(container_commands))
 
     def test_observability_compose_runs_compose_validation(self) -> None:
         stdout, _, container_commands = self.run_pre_push_detailed(["compose.observability.yaml"])
@@ -309,6 +432,8 @@ class PrePushPaymentTests(unittest.TestCase):
     def test_docs_only_does_not_run_container_validation(self) -> None:
         stdout, commands, container_commands = self.run_pre_push_detailed(["docs/development/git-hooks.md"])
 
+        self.assertIn("alteracao documental ou nao impactante detectada em docs/development/git-hooks.md", stdout)
+        self.assert_no_conservative_fallback(stdout)
         self.assertIn("nenhuma alteracao localmente impactante detectada", stdout)
         self.assertEqual([], commands)
         self.assertEqual([], container_commands)
