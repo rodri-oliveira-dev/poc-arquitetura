@@ -157,9 +157,29 @@ deployment {
         }
       }
 
+      composeService auditApi "audit-service" {
+        technology "Docker container / ASP.NET Core"
+        description "Servico Docker Compose que executa a AuditService.Api."
+
+        api = instanceOf audit.auditApi {
+          title "poc-audit-service"
+          description "Container local da AuditService.Api exposto na porta 5235 do host e 8080 no container, usando Keycloak e PostgreSQL schema audit."
+        }
+      }
+
+      composeService auditWorker "audit-worker" {
+        technology "Docker container / .NET Worker Service"
+        description "Servico Docker Compose padrao que executa o consumer Kafka de AuditRecordRequested.v1. No overlay compose.pubsub.yaml ele fica desativado porque o modo legado desliga Kafka."
+
+        worker = instanceOf audit.auditWorker {
+          title "poc-audit-worker"
+          description "Worker local do AuditService para consumir audit.record.requested, persistir registros no schema audit e publicar audit.record.requested.dlq para falhas definitivas."
+        }
+      }
+
       composeService postgresDb "postgres-db" {
         technology "PostgreSQL 16"
-        description "Servico Docker Compose que executa o PostgreSQL local unico com database appdb, schemas ledger, balance, transfer, payment e identity, e roles separadas por responsabilidade."
+        description "Servico Docker Compose que executa o PostgreSQL local unico com database appdb, schemas ledger, balance, transfer, payment, audit e identity, e roles separadas por responsabilidade."
 
         ledgerSchema = instanceOf ledger.ledgerDb {
           title "poc-postgres-db / schema ledger"
@@ -181,6 +201,11 @@ deployment {
           description "Schema local do PaymentService no PostgreSQL unico, acessado por payment_app_user em runtime e payment_migrator_user para migrations."
         }
 
+        auditSchema = instanceOf audit.auditDb {
+          title "poc-postgres-db / schema audit"
+          description "Schema local do AuditService no PostgreSQL unico, acessado por audit_app_user em runtime e audit_migrator_user para migrations."
+        }
+
         identitySchema = instanceOf identityService.identityDb {
           title "poc-postgres-db / schema identity"
           description "Schema local do IdentityService no PostgreSQL unico, acessado por identity_app_user em runtime e identity_migrator_user para migrations."
@@ -199,7 +224,7 @@ deployment {
 
       composeService kafkaInitTopics "kafka-init-topics" {
         technology "Apache Kafka 3.7.0 / init container"
-        description "Container auxiliar e idempotente que cria os topicos Kafka locais apos o broker ficar saudavel; nao possui elemento logico proprio."
+        description "Container auxiliar e idempotente que cria os topicos Kafka locais de Ledger, Transfer e Audit apos o broker ficar saudavel; nao possui elemento logico proprio."
       }
 
       composeService pubsubEmulator "pubsub-emulator" {

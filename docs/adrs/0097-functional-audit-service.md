@@ -128,7 +128,7 @@ contexts.
 
 ## Evolucao posterior
 
-Em etapa posterior, o `AuditService.Worker` passou a consumir opcionalmente
+Em etapa posterior, o `AuditService.Worker` passou a consumir
 `AuditRecordRequested.v1` via Kafka, sem criar producers em Ledger, Balance ou
 Transfer. A estrategia assincrona e a idempotencia por `eventId` ficam
 registradas na [ADR-0099](./0099-audit-async-integration-strategy.md).

@@ -123,7 +123,7 @@ O mesmo `KEYCLOAK_CLIENT_SECRET` alimenta o client local `poc-automation` usado 
 
 O compose executa o job idempotente `keycloak-identity-admin-init` depois que o Keycloak fica healthy. Esse job usa `kcadm.sh` para atribuir `realm-management:manage-users` e `realm-management:view-users` a service account do client `identity-service-admin`; ele deve terminar com sucesso antes do `IdentityService.Api` iniciar.
 
-O PostgreSQL local roda em um unico container `postgres-db`, com volume `postgres-data`, database `appdb`, schemas `ledger`, `balance`, `transfer`, `payment` e `identity`, e usuarios separados por servico/responsabilidade. A inicializacao fica nos scripts versionados em `infra/postgres/init`. As connection strings dos servicos runtime no compose usam `postgres-db:5432/appdb`; as variaveis `LEDGER_DB_*`, `BALANCE_DB_*`, `TRANSFER_DB_*`, `PAYMENT_DB_*` e `IDENTITY_DB_*` configuram as senhas locais usadas pelo init do container e pelas connection strings do compose. Em volumes PostgreSQL existentes, alterar `.env.local` ou `compose.yaml` nao altera automaticamente roles, grants ou senhas ja gravadas no banco; para reaplicar o init, recrie conscientemente o volume local ou execute o SQL manualmente.
+O PostgreSQL local roda em um unico container `postgres-db`, com volume `postgres-data`, database `appdb`, schemas `ledger`, `balance`, `transfer`, `payment`, `audit` e `identity`, e usuarios separados por servico/responsabilidade. A inicializacao fica nos scripts versionados em `infra/postgres/init`. As connection strings dos servicos runtime no compose usam `postgres-db:5432/appdb`; as variaveis `LEDGER_DB_*`, `BALANCE_DB_*`, `TRANSFER_DB_*`, `PAYMENT_DB_*`, `AUDIT_DB_*` e `IDENTITY_DB_*` configuram as senhas locais usadas pelo init do container e pelas connection strings do compose. Em volumes PostgreSQL existentes, alterar `.env.local` ou `compose.yaml` nao altera automaticamente roles, grants ou senhas ja gravadas no banco; para reaplicar o init, recrie conscientemente o volume local ou execute o SQL manualmente.
 
 Topologia local de banco:
 
@@ -138,6 +138,8 @@ Topologia local de banco:
 | Migrations do TransferService | `appdb.transfer` | `transfer_migrator_user` |
 | Runtime do PaymentService.Api e PaymentService.Worker | `appdb.payment` | `payment_app_user` |
 | Migrations do PaymentService | `appdb.payment` | `payment_migrator_user` |
+| Runtime do AuditService.Api e AuditService.Worker | `appdb.audit` | `audit_app_user` |
+| Migrations do AuditService | `appdb.audit` | `audit_migrator_user` |
 | Runtime do IdentityService.Api | `appdb.identity` | `identity_app_user` |
 | Migrations do IdentityService | `appdb.identity` | `identity_migrator_user` |
 
@@ -158,14 +160,16 @@ Os scripts `scripts/local/start-stack.*` sobem por padrao o core funcional de de
 - `TransferService.Worker`;
 - `PaymentService.Api`;
 - `PaymentService.Worker`;
+- `AuditService.Api`;
+- `AuditService.Worker`;
 - `IdentityService.Api`;
 - job idempotente `keycloak-identity-admin-init` para permissao administrativa local do IdentityService no Keycloak;
-- PostgreSQL unico (`postgres-db`) com schemas `ledger`, `balance`, `transfer`, `payment` e `identity`;
+- PostgreSQL unico (`postgres-db`) com schemas `ledger`, `balance`, `transfer`, `payment`, `audit` e `identity`;
 - Kafka local;
-- job idempotente de inicializacao dos topicos Kafka de Ledger, Balance e Transfer.
+- job idempotente de inicializacao dos topicos Kafka de Ledger, Balance, Transfer e Audit.
 - Mailpit para capturar e-mails locais sem envio real.
 
-Esse modo tambem pode ser chamado de Dev Lite quando o foco for reduzir consumo local: ele significa core funcional sem observabilidade, SonarQube, k6 e Nginx overlay. Dev Lite nao significa "sem workers"; `LedgerService.Worker`, `BalanceService.Worker`, `TransferService.Worker` e `PaymentService.Worker` continuam no fluxo padrao porque validam Outbox, Kafka, projecao, processamento de Saga e materializacao Payment -> Ledger ponta a ponta.
+Esse modo tambem pode ser chamado de Dev Lite quando o foco for reduzir consumo local: ele significa core funcional sem observabilidade, SonarQube, k6 e Nginx overlay. Dev Lite nao significa "sem workers"; `LedgerService.Worker`, `BalanceService.Worker`, `TransferService.Worker`, `PaymentService.Worker` e `AuditService.Worker` continuam no fluxo padrao porque validam Outbox, Kafka, projecao, processamento de Saga, materializacao Payment -> Ledger e ingestao Kafka de auditoria ponta a ponta.
 
 Componentes opcionais ficam em arquivos Compose separados. Eles complementam o `compose.yaml`; nao substituem a stack principal nem duplicam banco, Kafka ou servicos .NET:
 
@@ -202,7 +206,7 @@ No Linux/macOS:
 ./scripts/local/start-stack.sh
 ```
 
-Esse fluxo sobe banco, Kafka, Keycloak e Mailpit, aplica migrations pelo host e depois inicia `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api`, `BalanceService.Worker`, `TransferService.Api`, `TransferService.Worker` e `IdentityService.Api`.
+Esse fluxo sobe banco, Kafka, Keycloak e Mailpit, aplica migrations pelo host e depois inicia `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api`, `BalanceService.Worker`, `TransferService.Api`, `TransferService.Worker`, `PaymentService.Api`, `PaymentService.Worker`, `AuditService.Api`, `AuditService.Worker` e `IdentityService.Api`.
 
 Para validar somente as dependencias do `IdentityService.Api` via Compose, use a stack minima:
 
@@ -889,8 +893,8 @@ O compose nao aplica migrations automaticamente. Na primeira execucao com banco 
 
 Os `DbContext` usam schemas dedicados e tabelas de historico separadas:
 `ledger.__EFMigrationsHistory`, `balance.__EFMigrationsHistory`,
-`transfer.__EFMigrationsHistory`, `payment.__EFMigrationsHistory` e
-`identity.__EFMigrationsHistory`. Como esta POC ja trata o PostgreSQL local como
+`transfer.__EFMigrationsHistory`, `payment.__EFMigrationsHistory`,
+`audit.__EFMigrationsHistory` e `identity.__EFMigrationsHistory`. Como esta POC ja trata o PostgreSQL local como
 descartavel e os schemas sao criados pelo bootstrap em `infra/postgres/init`, as
 migrations atuais foram consolidadas em baselines iniciais por servico, em vez
 de uma cadeia incremental para mover objetos antigos do schema `public`.
@@ -943,6 +947,17 @@ dotnet tool run dotnet-ef -- database update `
   -c PaymentDbContext
 ```
 
+AuditService:
+
+```powershell
+$env:AUDIT_SERVICE_CONNECTION_STRING = "Host=127.0.0.1;Port=15432;Database=appdb;Username=audit_migrator_user;Password=<AUDIT_DB_MIGRATOR_PASSWORD>"
+dotnet tool restore
+dotnet tool run dotnet-ef -- database update `
+  -p src\audit\AuditService.Infrastructure\AuditService.Infrastructure.csproj `
+  -s src\audit\AuditService.Api\AuditService.Api.csproj `
+  -c AuditDbContext
+```
+
 ## Execucao no host
 
 Use este modo quando PostgreSQL, Kafka, Keycloak e Mailpit ja estiverem disponiveis pelo Compose e voce quiser rodar ou depurar processos no host. Fora do container, APIs usam `ASPNETCORE_ENVIRONMENT=Development` e workers usam `DOTNET_ENVIRONMENT=Development`; assim os processos carregam `appsettings.Development.json` e usam hosts publicados em `localhost` ou `127.0.0.1`.
@@ -967,6 +982,8 @@ Portas locais padrao:
 | LedgerService.Api | `http://localhost:5226` |
 | BalanceService.Api | `http://localhost:5228` |
 | TransferService.Api | `http://localhost:${TRANSFER_SERVICE_HOST_PORT:-5230}` |
+| PaymentService.Api | `http://localhost:${PAYMENT_SERVICE_HOST_PORT:-5234}` |
+| AuditService.Api | `http://localhost:${AUDIT_SERVICE_HOST_PORT:-5235}` |
 | IdentityService.Api | `http://localhost:${IDENTITY_SERVICE_HOST_PORT:-5232}` |
 
 Restaure as ferramentas:
@@ -981,6 +998,8 @@ Execute APIs no host:
 dotnet run --project src\ledger\LedgerService.Api\LedgerService.Api.csproj
 dotnet run --project src\balance\BalanceService.Api\BalanceService.Api.csproj
 dotnet run --project src\transfer\TransferService.Api\TransferService.Api.csproj
+dotnet run --project src\payment\PaymentService.Api\PaymentService.Api.csproj
+dotnet run --project src\audit\AuditService.Api\AuditService.Api.csproj
 dotnet run --project src\identity\IdentityService.Api\IdentityService.Api.csproj
 ```
 
@@ -1006,9 +1025,11 @@ Execute workers no host:
 dotnet run --project src\ledger\LedgerService.Worker\LedgerService.Worker.csproj
 dotnet run --project src\balance\BalanceService.Worker\BalanceService.Worker.csproj
 dotnet run --project src\transfer\TransferService.Worker\TransferService.Worker.csproj
+dotnet run --project src\payment\PaymentService.Worker\PaymentService.Worker.csproj
+dotnet run --project src\audit\AuditService.Worker\AuditService.Worker.csproj
 ```
 
-Os `launchSettings.json` dos workers configuram `DOTNET_ENVIRONMENT=Development`. `LedgerService.Worker` e `BalanceService.Worker` usam Kafka em `127.0.0.1:19092` pelos `appsettings.Development.json`. `TransferService.Worker` usa Kafka em `127.0.0.1:19092`, Ledger em `http://localhost:5226` e token endpoint em `http://localhost:8081/realms/poc/protocol/openid-connect/token`; informe `TransferService__Worker__Ledger__Auth__ClientSecret` por variavel local ou User Secrets.
+Os `launchSettings.json` dos workers configuram `DOTNET_ENVIRONMENT=Development`. `LedgerService.Worker`, `BalanceService.Worker` e `AuditService.Worker` usam Kafka em `127.0.0.1:19092` pelos `appsettings.Development.json`. `TransferService.Worker` usa Kafka em `127.0.0.1:19092`, Ledger em `http://localhost:5226` e token endpoint em `http://localhost:8081/realms/poc/protocol/openid-connect/token`; informe `TransferService__Worker__Ledger__Auth__ClientSecret` por variavel local ou User Secrets. `PaymentService.Worker` usa a Inbox local e chama Ledger com client credentials; informe o segredo em `PaymentService__Worker__Ledger__Auth__ClientSecret` quando executar no host.
 
 Workers nao expoem porta HTTP; acompanhe pelo console, logs e topicos Kafka locais. Evite rodar workers contra uma stack compartilhada ou contra topicos com dados que voce nao queira processar.
 

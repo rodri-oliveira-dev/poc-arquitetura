@@ -17,7 +17,7 @@ volumes:
       auto-prune: "false"
       environment: "local"
       owner: "docker-compose"
-      description: "PostgreSQL local database data for Ledger, Balance, Transfer, Payment and Identity schemas"
+      description: "PostgreSQL local database data for Ledger, Balance, Transfer, Payment, Audit and Identity schemas"
 
 
 services:
@@ -39,6 +39,8 @@ services:
       TRANSFER_DB_MIGRATOR_PASSWORD: "${TRANSFER_DB_MIGRATOR_PASSWORD:?Defina TRANSFER_DB_MIGRATOR_PASSWORD em .env.local}"
       PAYMENT_DB_PASSWORD: "${PAYMENT_DB_PASSWORD:?Defina PAYMENT_DB_PASSWORD em .env.local}"
       PAYMENT_DB_MIGRATOR_PASSWORD: "${PAYMENT_DB_MIGRATOR_PASSWORD:?Defina PAYMENT_DB_MIGRATOR_PASSWORD em .env.local}"
+      AUDIT_DB_PASSWORD: "${AUDIT_DB_PASSWORD:?Defina AUDIT_DB_PASSWORD em .env.local}"
+      AUDIT_DB_MIGRATOR_PASSWORD: "${AUDIT_DB_MIGRATOR_PASSWORD:?Defina AUDIT_DB_MIGRATOR_PASSWORD em .env.local}"
       IDENTITY_DB_PASSWORD: "${IDENTITY_DB_PASSWORD:?Defina IDENTITY_DB_PASSWORD em .env.local}"
       IDENTITY_DB_MIGRATOR_PASSWORD: "${IDENTITY_DB_MIGRATOR_PASSWORD:?Defina IDENTITY_DB_MIGRATOR_PASSWORD em .env.local}"
     ports:
@@ -238,6 +240,10 @@ services:
           --topic transfer.transferencia.falhou --partitions 1 --replication-factor 1;
         /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists \
           --topic transfer.transferencia.dlq --partitions 1 --replication-factor 1;
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists \
+          --topic audit.record.requested --partitions 1 --replication-factor 1;
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists \
+          --topic audit.record.requested.dlq --partitions 1 --replication-factor 1;
         echo "[kafka-init-topics] OK.";
 
   # --- Local email capture ---
@@ -576,6 +582,78 @@ services:
       Observability__OpenTelemetry__UseConsoleExporter: "false"
       Observability__OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"
       Observability__OpenTelemetry__ServiceName: "PaymentService.Worker"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512m
+          pids: 256
+    networks:
+      - poc-net
+
+  audit-service:
+    build:
+      context: .
+      dockerfile: src/audit/Dockerfile
+      target: api-final
+    container_name: poc-audit-service
+    logging: *default-logging
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_URLS: "http://+:8080"
+      ASPNETCORE_ENVIRONMENT: "Local"
+
+      Jwt__Issuer: "${JWT_ISSUER:-http://localhost:8081/realms/poc}"
+      Jwt__Audience: "audit-api"
+      Jwt__JwksUrl: "${JWT_JWKS_URL:-http://keycloak:8080/realms/poc/protocol/openid-connect/certs}"
+      Jwt__RequireHttpsMetadata: "${JWT_REQUIRE_HTTPS_METADATA:-false}"
+
+      ConnectionStrings__DefaultConnection: "Host=postgres-db;Port=5432;Database=appdb;Username=audit_app_user;Password=${AUDIT_DB_PASSWORD:?Defina AUDIT_DB_PASSWORD em .env.local}"
+      Observability__OpenTelemetry__Enabled: "${OTEL_ENABLED:-false}"
+      Observability__OpenTelemetry__UseConsoleExporter: "false"
+      Observability__OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"
+      Observability__OpenTelemetry__ServiceName: "AuditService.Api"
+    ports:
+      - "${AUDIT_SERVICE_HOST_PORT:-5235}:8080"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512m
+          pids: 256
+    networks:
+      - poc-net
+
+  audit-worker:
+    build:
+      context: .
+      dockerfile: src/audit/Dockerfile
+      target: worker-final
+    container_name: poc-audit-worker
+    logging: *default-logging
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+      kafka-init-topics:
+        condition: service_completed_successfully
+    environment:
+      DOTNET_ENVIRONMENT: "Local"
+
+      ConnectionStrings__DefaultConnection: "Host=postgres-db;Port=5432;Database=appdb;Username=audit_app_user;Password=${AUDIT_DB_PASSWORD:?Defina AUDIT_DB_PASSWORD em .env.local}"
+      AuditService__Worker__Enabled: "true"
+      Kafka__AuditRecordRequestedConsumer__Enabled: "true"
+      Kafka__AuditRecordRequestedConsumer__BootstrapServers: "kafka:9092"
+      Kafka__AuditRecordRequestedConsumer__SecurityProtocol: "Plaintext"
+      Kafka__AuditRecordRequestedConsumer__Topic: "audit.record.requested"
+      Kafka__AuditRecordRequestedConsumer__DeadLetterTopic: "audit.record.requested.dlq"
+      Observability__OpenTelemetry__Enabled: "${OTEL_ENABLED:-false}"
+      Observability__OpenTelemetry__UseConsoleExporter: "false"
+      Observability__OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"
+      Observability__OpenTelemetry__ServiceName: "AuditService.Worker"
     deploy:
       resources:
         limits:

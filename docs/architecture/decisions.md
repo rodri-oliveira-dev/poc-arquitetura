@@ -101,7 +101,7 @@ Simplificacoes recomendadas:
 Camadas atuais: adequadas, com uma ressalva operacional.
 
 O contexto possui API HTTP canonica, schema `audit`, contrato agnostico ao
-chamador e Worker Kafka opcional para `AuditRecordRequested.v1`. A implementacao
+chamador e Worker Kafka para `AuditRecordRequested.v1`. A implementacao
 do Worker nao significa que Ledger, Balance, Transfer ou Payment ja produzam
 eventos reais de auditoria; essa integracao continua dependente de decisao e
 producer futuro.
@@ -155,7 +155,7 @@ Simplificacoes recomendadas:
 - E-mail de boas-vindas no IdentityService e side effect pos-commit sem garantia duravel; isso e aceitavel para a POC, mas deve ser reavaliado se virar requisito critico.
 - PaymentService pode ser confundido com fonte de fato financeiro se os diagramas nao mostrarem que Ledger continua dono do lancamento e Balance continua derivado apenas dos eventos do Ledger.
 - Pub/Sub pode ser confundido com provider recomendado se aparecer nas views principais; por isso o caminho fica isolado em view propria e marcado como legado/opcional.
-- AuditService pode parecer integrado aos fluxos financeiros se o consumer Kafka opcional for mostrado sem a ressalva de que ainda nao ha producers reais.
+- AuditService pode parecer integrado aos fluxos financeiros se o consumer Kafka for mostrado sem a ressalva de que ainda nao ha producers reais.
 - Outbox/DLQ exigem operacao cuidadosa de reprocessamento; ja existem runbooks e casos de uso internos, mas ainda nao ha automacao operacional completa para todos os cenarios produtivos.
 - Baseline produtivo GCP/seguranca foi consolidado como referencia arquitetural em [production-readiness.md](production-readiness.md), mas ainda precisa virar decisoes e automacoes especificas antes de tratar o projeto como referencia operacional fora do laboratorio local.
 - DAST/ZAP segue sem workflow ou gate automatizado.
@@ -200,7 +200,7 @@ Adotar arquitetura minimalista e pragmatica, robusta onde a complexidade e real:
 - LedgerService e BalanceService continuam com camadas `Api`, `Application`, `Domain` e `Infrastructure`.
 - IdentityService continua com camadas `Api`, `Application`, `Domain` e `Infrastructure`, sem Worker ou mensageria nesta etapa.
 - PaymentService continua com `Api`, `Application`, `Domain`, `Infrastructure` e `Worker`, sem Balance direto e sem Kafka financeiro proprio.
-- AuditService continua com `Api`, `Application`, `Domain`, `Infrastructure` e `Worker` opcional, sem producers reais nos demais contexts nesta etapa.
+- AuditService continua com `Api`, `Application`, `Domain`, `Infrastructure` e `Worker`, sem producers reais nos demais contexts nesta etapa.
 - `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker` sao processos separados, com composition roots explicitos e `ServiceName` proprio.
 - Boundaries devem ser reforcados por documentacao, testes de contrato e revisao de dependencias, nao por novas camadas preventivas.
 - Refactors estruturais devem ser planejados em etapas pequenas, com motivo concreto e ADR propria quando alterarem a decisao.

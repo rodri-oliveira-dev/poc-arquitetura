@@ -1,6 +1,79 @@
 // LikeC4 views for poc-arquitetura.
 
+global {
+  styleGroup architectureTheme {
+    style element.tag = #api {
+      notation "API HTTP"
+      shape browser
+      color indigo
+    }
+
+    style element.tag = #worker {
+      notation "Worker / processo sem HTTP"
+      shape component
+      color amber
+    }
+
+    style element.tag = #database {
+      notation "Persistencia / schema logico"
+      shape cylinder
+      color green
+    }
+
+    style element.tag = #broker {
+      notation "Broker de mensageria"
+      shape queue
+      color red
+    }
+
+    style element.tag = #topic {
+      notation "Topico ou subscription"
+      shape queue
+      color secondary
+    }
+
+    style element.tag = #external {
+      notation "Sistema externo ou ator"
+      color muted
+      border solid
+    }
+
+    style element.tag = #identity-provider {
+      notation "Identity provider"
+      shape component
+      color secondary
+    }
+
+    style element.tag = #observability {
+      notation "Observabilidade"
+      shape component
+      color gray
+    }
+
+    style element.tag = #optional {
+      notation "Opcional / habilitado por configuracao ou overlay"
+      border dotted
+      opacity 80%
+    }
+
+    style element.tag = #future {
+      notation "Futuro / ainda nao integrado ao fluxo principal"
+      color muted
+      border dotted
+      opacity 70%
+    }
+
+    style element.tag = #legacy {
+      notation "Legado / alternativa explicita"
+      border dashed
+      opacity 75%
+    }
+  }
+}
+
 views {
+  global style architectureTheme
+
   view systemLandscape {
     title "System Landscape - poc-arquitetura"
     description "Mostra os sistemas e atores ao redor da POC. Use esta view para entender o ecossistema sem detalhes de classes, workers internos ou tabelas."
@@ -21,8 +94,8 @@ views {
   }
 
   view containers {
-    title "Container View - APIs, workers, bancos, Kafka e observabilidade"
-    description "Mostra executaveis, schemas/boundaries de banco, o broker Kafka e sistemas externos da arquitetura atual. Schemas PostgreSQL representam isolamento logico por bounded context, nao necessariamente instancias fisicas separadas."
+    title "Container View expandida - referencia completa"
+    description "Responde: qual e o mapa completo de containers da POC quando preciso ver APIs, workers, schemas/boundaries de banco, Kafka, externos e observabilidade juntos? Use como referencia expandida, nao como primeira leitura de onboarding. Schemas PostgreSQL representam isolamento logico por bounded context, nao necessariamente instancias fisicas separadas."
     include customer
     include edge.nginx
     include identity.keycloak
@@ -58,6 +131,84 @@ views {
     autoLayout LeftRight
   }
 
+  view businessContainers {
+    title "Containers de negocio - servicos e dados por bounded context"
+    description "Responde: quais servicos de negocio existem, quais executaveis e bancos pertencem a cada bounded context e quais relacoes funcionais principais conectam cliente, Identity, Ledger, Balance, Transfer, Payment e Audit? Omite a stack completa de observabilidade para reduzir densidade visual. Schemas PostgreSQL representam isolamento logico por bounded context, embora o ambiente local use PostgreSQL compartilhado."
+    include customer
+    include identity.keycloak
+    include identityService.identityApi
+    include identityService.identityDb
+    include ledger.ledgerApi
+    include ledger.ledgerWorker
+    include ledger.ledgerDb
+    include balance.balanceApi
+    include balance.balanceWorker
+    include balance.balanceDb
+    include transfer.transferApi
+    include transfer.transferWorker
+    include transfer.transferDb
+    include payment.paymentApi
+    include payment.paymentWorker
+    include payment.paymentDb
+    include audit.auditApi
+    include audit.auditWorker
+    include audit.auditDb
+    autoLayout LeftRight
+  }
+
+  view integrationContainers {
+    title "Containers de integracao - mensageria, identidade e provedores externos"
+    description "Responde: por onde os servicos se integram fora do proprio bounded context, incluindo chamadas HTTP service-to-service, JWT/JWKS, Kafka, Stripe e e-mail? Mostra produtores e consumidores no nivel de executaveis e topicos principais, sem componentes internos."
+    include customer
+    include identity.keycloak
+    include identityService.identityApi
+    include ledger.ledgerApi
+    include ledger.ledgerWorker
+    include balance.balanceApi
+    include balance.balanceWorker
+    include transfer.transferApi
+    include transfer.transferWorker
+    include payment.paymentApi
+    include payment.paymentWorker
+    include audit.auditApi
+    include audit.auditWorker
+    include kafka.ledgerTopic
+    include kafka.ledgerEstornoTopic
+    include kafka.ledgerReprocessamentoTopic
+    include kafka.ledgerDlq
+    include kafka.transferSagaTopics
+    include kafka.transferSagaDlq
+    include kafka.auditRecordTopic
+    include kafka.auditRecordDlq
+    include stripe.stripeApi
+    include stripe.stripeWebhooks
+    include email.mailpit
+    include email.resend
+    autoLayout LeftRight
+  }
+
+  view platformContainers {
+    title "Containers de plataforma local - borda, dados, mensageria e observabilidade"
+    description "Responde: quais containers de plataforma sustentam o runtime local? Destaca Nginx, Keycloak, PostgreSQL compartilhado logicamente por schemas, Kafka e a stack OpenTelemetry/Jaeger/Prometheus/Loki/Alloy/Alertmanager/Grafana sem repetir todos os executaveis de negocio."
+    include edge.nginx
+    include identity.keycloak
+    include identityService.identityDb
+    include ledger.ledgerDb
+    include balance.balanceDb
+    include transfer.transferDb
+    include payment.paymentDb
+    include audit.auditDb
+    include kafka
+    include observability.collector
+    include observability.jaeger
+    include observability.prometheus
+    include observability.loki
+    include observability.alloy
+    include observability.alertmanager
+    include observability.grafana
+    autoLayout LeftRight
+  }
+
   dynamic view ledgerBalanceProjectionFlow {
     title "Dynamic View - lancamento financeiro vira saldo"
     description "Estado atual: LedgerService.Api e dono do fato financeiro; LedgerService.Worker publica a Outbox no Kafka; BalanceService.Worker projeta saldo de forma idempotente."
@@ -67,7 +218,7 @@ views {
     ledger.ledgerApi -> ledger.ledgerDb "3. Persiste LedgerEntry, idempotencia e Outbox na mesma transacao"
     ledger.ledgerWorker.ledgerOutbox -> ledger.ledgerDb "4. Reclama outbox_messages pendentes"
     ledger.ledgerWorker.ledgerKafkaOutboxPublisher -> kafka.ledgerTopic "5. Publica LedgerEntryCreated.v2"
-    balance.balanceWorker.balanceConsumer -> kafka.ledgerTopic "6. Consome evento financeiro do Ledger"
+    kafka.ledgerTopic -> balance.balanceWorker.balanceConsumer "6. Entrega evento financeiro do Ledger"
     balance.balanceWorker.balanceReceivedMessageMapper -> balance.balanceWorker.balanceMessageProcessor "7. Mapeia transporte Kafka para ReceivedMessage"
     balance.balanceWorker.balanceMessageProcessor -> balance.balanceDb "8. Atualiza daily_balances e processed_events"
     customer -> balance.balanceApi "9. Consulta saldo projetado"
@@ -100,7 +251,7 @@ views {
 
   view kafkaFlow {
     title "Kafka - mensageria assincrona documentada"
-    description "Mostra onde Kafka e usado no runtime documentado como provider padrao: fluxo financeiro Ledger/Balance, eventos da Saga do TransferService e consumer opcional do AuditService sem producers reais nesta etapa."
+    description "Mostra onde Kafka e usado no runtime documentado como provider padrao: fluxo financeiro Ledger/Balance, eventos da Saga do TransferService e consumer do AuditService sem producers reais nesta etapa."
     include ledger.ledgerWorker
     include ledger.ledgerKafkaOutboxPublisher
     include ledger.ledgerReprocessamentoConsumer
@@ -112,6 +263,8 @@ views {
     include balance.balanceConsumer
     include balance.balanceDeadLetterPort
     include transfer.transferWorker
+    include transfer.transferWorker.transferOutboxPublisher
+    include transfer.transferWorker.transferKafkaProducer
     include kafka.transferSagaTopics
     include kafka.transferSagaDlq
     include audit.auditWorker
@@ -149,18 +302,11 @@ views {
 
   view identityServiceComponents of identityService.identityApi {
     title "Component View - IdentityService.Api"
+    description "Visao estrutural da API de identidade: superficie HTTP, camadas internas, persistencia e integracoes externas. O fluxo de cadastro detalha adapters, dispatcher e template de e-mail."
     include identityService.identityEndpoints
     include identityService.identityApplication
     include identityService.identityDomain
     include identityService.identityInfrastructure
-    include identityService.keycloakAdminClient
-    include identityService.identityDbContext
-    include identityService.domainEventDispatcher
-    include identityService.emailHandlers
-    include identityService.emailSenderPort
-    include identityService.mailpitEmailSender
-    include identityService.resendEmailSender
-    include identityService.welcomeEmailTemplate
     include identityService.identityDb
     include identity.keycloak
     include email.mailpit
@@ -188,9 +334,8 @@ views {
 
   view ledgerWorkerComponents of ledger.ledgerWorker {
     title "Component View - LedgerService.Worker"
+    description "Visao tecnica do pipeline do Worker: composition root, HostedServices, porta/adapters de mensageria, processors, topicos e persistencia. Camadas compartilhadas ficam na API/assembly e nao sao repetidas aqui como detalhe estrutural."
     include ledger.ledgerWorkerComposition
-    include ledger.ledgerWorkerApplication
-    include ledger.ledgerWorkerInfrastructure
     include ledger.ledgerOutbox
     include ledger.ledgerOutboxPublisherPort
     include ledger.ledgerKafkaOutboxPublisher
@@ -213,7 +358,7 @@ views {
     ledger.ledgerWorker.ledgerOutboxPublisherPort -> ledger.ledgerWorker.ledgerPubSubOutboxPublisher "2. Seleciona adapter Pub/Sub quando Messaging:Provider=PubSub"
     ledger.ledgerWorker.ledgerPubSubOutboxPublisher -> pubsub.ledgerEventsTopic "3. Publica LedgerEntryCreated.v1/v2"
     pubsub.ledgerEventsTopic -> pubsub.balanceSubscription "4. Entrega mensagem para a pull subscription do Balance"
-    balance.balanceWorker.balancePubSubConsumer -> pubsub.balanceSubscription "5. Recebe PubsubMessage e controla ack/nack"
+    pubsub.balanceSubscription -> balance.balanceWorker.balancePubSubConsumer "5. Disponibiliza PubsubMessage para pull e ack/nack"
     balance.balanceWorker.balancePubSubConsumer -> balance.balanceWorker.balanceMessageProcessor "6. Entrega ReceivedMessage ao processor neutro"
     balance.balanceWorker.balanceMessageProcessor -> balance.balanceDb "7. Atualiza daily_balances e processed_events"
     balance.balanceWorker.balanceMessageProcessor -> balance.balanceWorker.balanceDeadLetterPort "8. Classifica invalidas ou definitivas"
@@ -239,9 +384,8 @@ views {
 
   view balanceWorkerComponents of balance.balanceWorker {
     title "Component View - BalanceService.Worker"
+    description "Visao tecnica do pipeline de projecao: consumer Kafka, mapper, processor neutro, porta de DLQ, topicos e schema balance. O caminho Pub/Sub legado fica isolado na view propria."
     include balance.balanceWorkerComposition
-    include balance.balanceWorkerApplication
-    include balance.balanceWorkerInfrastructure
     include balance.balanceConsumer
     include balance.balanceReceivedMessageMapper
     include balance.balanceMessageProcessor
@@ -249,6 +393,86 @@ views {
     include balance.balanceDb
     include kafka.ledgerTopic
     include kafka.ledgerDlq
+    autoLayout LeftRight
+  }
+
+  view transferApiComponents of transfer.transferApi {
+    title "Component View - TransferService.Api"
+    description "Mostra a superficie HTTP do TransferService e os assemblies compartilhados que registram Saga, idempotencia e Outbox no schema transfer. Keycloak aparece como emissor/JWKS, nao como regra de dominio."
+    include transfer.transferApiLayer
+    include transfer.transferApplication
+    include transfer.transferDomain
+    include transfer.transferInfrastructure
+    include transfer.transferDb
+    include identity.keycloak
+    autoLayout LeftRight
+  }
+
+  view transferWorkerComponents of transfer.transferWorker {
+    title "Component View - TransferService.Worker"
+    description "Mostra o processo sem HTTP que reclama Sagas, chama Ledger com autenticacao service-to-service, aplica retry/backoff/compensacao e publica a Outbox Kafka ou DLQ."
+    include transfer.transferWorker.transferWorkerComposition
+    include transfer.transferWorker.transferSagaProcessor
+    include transfer.transferWorker.transferSagaClaim
+    include transfer.transferWorker.transferLedgerClient
+    include transfer.transferWorker.transferLedgerAuth
+    include transfer.transferWorker.transferOutboxPublisher
+    include transfer.transferWorker.transferKafkaProducer
+    include transfer.transferDb
+    include identity.keycloak
+    include ledger.ledgerApi
+    include kafka.transferSagaTopics
+    include kafka.transferSagaDlq
+    autoLayout LeftRight
+  }
+
+  dynamic view transferSagaSuccessFlow {
+    title "Dynamic View - Saga de transferencia concluida"
+    description "Fluxo feliz real: API registra a Saga Pending e TransferenciaSolicitada.v1; Worker cria debito e credito no Ledger com idempotencia por etapa; Outbox publica eventos de Saga no Kafka. Eventos da Saga nao sao fatos financeiros do Ledger."
+
+    customer -> identity.keycloak "1. Obtem JWT com audience transfer-api, scope transfer.write/transfer.read e merchant_id autorizado"
+    customer -> transfer.transferApi.transferApiLayer "2. POST /api/v1/transferencias com JWT, Idempotency-Key UUID e X-Correlation-Id"
+    transfer.transferApi.transferApiLayer -> transfer.transferApplication "3. Envia SolicitarTransferenciaCommand apos validar contrato, scope e merchant de origem"
+    transfer.transferApplication -> transfer.transferDomain "4. Cria TransferenciaSaga Pending/Created e metadados de idempotencia/correlacao"
+    transfer.transferApplication -> transfer.transferDb "5. Persiste Saga, idempotency_records e Outbox TransferenciaSolicitada.v1 na mesma transacao"
+    transfer.transferApi.transferApiLayer -> customer "6. Retorna 202 Accepted, Location e statusUrl"
+    transfer.transferWorker.transferSagaProcessor -> transfer.transferWorker.transferSagaClaim "7. Polling reclama Saga elegivel e aplica lease persistido"
+    transfer.transferWorker.transferSagaClaim -> transfer.transferDb "8. Marca Processing e ProcessingLockedUntil"
+    transfer.transferWorker.transferLedgerAuth -> identity.keycloak "9. Obtem/cacheia token client_credentials com scope ledger.write"
+    transfer.transferWorker.transferLedgerClient -> ledger.ledgerApi "10. POST /api/v1/lancamentos DEBIT negativo com Idempotency-Key deterministica da etapa debit"
+    ledger.ledgerApi -> ledger.ledgerDb "11. Persiste fato financeiro do Ledger, idempotencia e Outbox financeira"
+    transfer.transferWorker.transferSagaProcessor -> transfer.transferDb "12. Salva DebitCreated, debitLancamentoId e Outbox TransferenciaDebitoCriado.v1"
+    transfer.transferWorker.transferLedgerClient -> ledger.ledgerApi "13. POST /api/v1/lancamentos CREDIT positivo com Idempotency-Key deterministica da etapa credit"
+    ledger.ledgerApi -> ledger.ledgerDb "14. Persiste fato financeiro de credito do Ledger"
+    transfer.transferWorker.transferSagaProcessor -> transfer.transferDb "15. Salva Completed, creditLancamentoId, TransferenciaCreditoCriado.v1 e TransferenciaConcluida.v1"
+    transfer.transferWorker.transferOutboxPublisher -> transfer.transferDb "16. Reclama Outbox Pending/Processing com lease e retry/backoff"
+    transfer.transferWorker.transferKafkaProducer -> kafka.transferSagaTopics "17. Publica TransferenciaSolicitada/DebitoCriado/CreditoCriado/Concluida.v1 com key transferenciaId"
+    customer -> transfer.transferApi.transferApiLayer "18. GET /api/v1/transferencias/{transferenciaId} com scope transfer.read"
+    transfer.transferApi.transferApiLayer -> transfer.transferApplication "19. Envia ObterStatusTransferenciaQuery e valida merchant autorizado"
+    transfer.transferApplication -> transfer.transferDb "20. Le estado atual da Saga"
+
+    autoLayout LeftRight
+  }
+
+  dynamic view transferSagaCompensationFlow {
+    title "Dynamic View - Saga de transferencia com compensacao"
+    description "Fluxo de falha compensavel real: debito foi criado no Ledger, credito falha, Worker solicita estorno do debito e marca CompensationRequested. O runtime atual nao confirma Compensated; essa confirmacao fica reservada para evolucao futura."
+
+    transfer.transferWorker.transferSagaProcessor -> transfer.transferWorker.transferSagaClaim "1. Reclama Saga elegivel ja em Processing/DebitCreated/CreditCreating ou com lease expirado"
+    transfer.transferWorker.transferLedgerAuth -> identity.keycloak "2. Obtem/cacheia token client_credentials com scope ledger.write"
+    transfer.transferWorker.transferLedgerClient -> ledger.ledgerApi "3. Cria debito DEBIT no Ledger com Idempotency-Key deterministica debit"
+    ledger.ledgerApi -> ledger.ledgerDb "4. Persiste lancamento de debito e Outbox financeira do Ledger"
+    transfer.transferWorker.transferSagaProcessor -> transfer.transferDb "5. Salva DebitCreated, debitLancamentoId e Outbox TransferenciaDebitoCriado.v1"
+    transfer.transferWorker.transferLedgerClient -> ledger.ledgerApi "6. Tenta criar credito CREDIT com Idempotency-Key deterministica credit"
+    ledger.ledgerApi -> transfer.transferWorker.transferLedgerClient "7. Retorna erro do credito; falhas transitorias usam retry HTTP configurado"
+    transfer.transferWorker.transferLedgerClient -> ledger.ledgerApi "8. Solicita POST /api/v1/lancamentos/{debitLancamentoId}/estornos com Idempotency-Key compensate-debit"
+    ledger.ledgerApi -> ledger.ledgerDb "9. Registra solicitacao de estorno do Ledger; estorno financeiro sera processado pelo LedgerService.Worker"
+    transfer.transferWorker.transferSagaProcessor -> transfer.transferDb "10. Salva CompensationRequested, compensationEstornoId e Outbox TransferenciaCompensacaoSolicitada.v1"
+    transfer.transferWorker.transferOutboxPublisher -> transfer.transferDb "11. Publica Outbox ou agenda retry/backoff quando Kafka falha temporariamente"
+    transfer.transferWorker.transferKafkaProducer -> kafka.transferSagaTopics "12. Publica TransferenciaDebitoCriado.v1 e TransferenciaCompensacaoSolicitada.v1 com key transferenciaId"
+    transfer.transferWorker.transferKafkaProducer -> kafka.transferSagaDlq "13. Envia payload invalido ou erro definitivo da Outbox para transfer.transferencia.dlq"
+    transfer.transferWorker.transferSagaProcessor -> transfer.transferDb "14. Se a compensacao nao puder ser solicitada ate MaxRetryCount, marca Failed e grava TransferenciaFalhou.v1"
+
     autoLayout LeftRight
   }
 
@@ -264,15 +488,14 @@ views {
     description "Estado atual: PaymentService.Api recebe comando autenticado, Application cria Payment local, Infrastructure chama Stripe/Fake via IPaymentGateway e persiste a referencia externa no schema payment."
 
     customer -> identity.keycloak "1. Obtem token Keycloak com audience payment-api e scope payment.write"
-    customer -> payment.paymentApi.paymentApiLayer "2. Chama POST /api/v1/payments com JWT, Idempotency-Key e merchant_id autorizado"
-    payment.paymentApi.paymentApiLayer -> payment.paymentApi.paymentApiLayer "3. Valida contrato HTTP, scope payment.write, merchant_id e correlation id"
-    payment.paymentApi.paymentApiLayer -> payment.paymentApplication "4. Envia CreatePaymentCommand"
-    payment.paymentApplication -> payment.paymentDb "5. Reserva idempotencia e cria Payment Pending no schema payment"
-    payment.paymentApplication -> payment.paymentApi.paymentInfrastructure "6. Chama IPaymentGateway com modelos internos"
-    payment.paymentApi.paymentInfrastructure -> stripe.stripeApi "7. Cria PaymentIntent quando PaymentGateway:Provider=Stripe"
-    stripe.stripeApi -> payment.paymentApi.paymentInfrastructure "8. Retorna status externo traduzido"
-    payment.paymentApplication -> payment.paymentDb "9. Salva externalPaymentReference e providerStatus"
-    payment.paymentApi.paymentApiLayer -> customer "10. Retorna 202 Accepted e statusUrl sem prometer efeito financeiro"
+    customer -> payment.paymentApi.paymentApiLayer "2. Chama POST /api/v1/payments com JWT, Idempotency-Key e merchant_id; API valida contrato HTTP, scope payment.write e correlation id"
+    payment.paymentApi.paymentApiLayer -> payment.paymentApplication "3. Envia CreatePaymentCommand"
+    payment.paymentApplication -> payment.paymentDb "4. Reserva idempotencia e cria Payment Pending no schema payment"
+    payment.paymentApplication -> payment.paymentInfrastructure "5. Chama IPaymentGateway com modelos internos"
+    payment.paymentInfrastructure -> stripe.stripeApi "6. Cria PaymentIntent quando PaymentGateway:Provider=Stripe"
+    stripe.stripeApi -> payment.paymentInfrastructure "7. Retorna status externo traduzido"
+    payment.paymentApplication -> payment.paymentDb "8. Salva externalPaymentReference e providerStatus"
+    payment.paymentApi.paymentApiLayer -> customer "9. Retorna 202 Accepted e statusUrl sem prometer efeito financeiro"
 
     autoLayout LeftRight
   }
@@ -281,16 +504,15 @@ views {
     title "Dynamic View - webhook Stripe, Inbox e Worker"
     description "Estado atual: webhook entra pela API, assinatura e raw body sao validados, evento e persistido na Inbox e o Worker processa assincronamente a state machine."
 
-    stripe.stripeWebhooks -> payment.paymentApi.paymentApiLayer "1. Entrega POST /api/v1/webhooks/stripe com Stripe-Signature e raw body"
-    payment.paymentApi.paymentApiLayer -> payment.paymentApi.paymentApiLayer "2. Valida assinatura, timestamp, payload e limite tecnico"
-    payment.paymentApi.paymentApiLayer -> payment.paymentApplication "3. Envia ReceiveStripeWebhookCommand"
-    payment.paymentApplication -> payment.paymentDb "4. Persiste Inbox ou reconhece duplicidade por provider + provider_event_id"
-    payment.paymentApi.paymentApiLayer -> stripe.stripeWebhooks "5. Responde 2xx apos assinatura valida e persistencia/duplicidade reconhecida"
-    payment.paymentWorker.paymentInboxWorker -> payment.paymentDb "6. Faz claim atomico de Inbox Pending/RetryScheduled/lease expirado"
-    payment.paymentWorker.paymentInboxWorker -> payment.paymentApplication "7. Envia ProcessPaymentInboxMessageCommand"
-    payment.paymentApplication -> payment.paymentProviderEventMapper "8. Traduz evento Stripe para modelo interno de provider"
-    payment.paymentApplication -> payment.paymentDomain "9. Aplica state machine monotona de Payment/Refund"
-    payment.paymentApplication -> payment.paymentDb "10. Salva Payment e resultado da Inbox como Processed, Ignored, RetryScheduled ou DeadLetter"
+    stripe.stripeWebhooks -> payment.paymentApi.paymentApiLayer "1. Entrega POST /api/v1/webhooks/stripe com Stripe-Signature e raw body; API valida assinatura, timestamp, payload e limite tecnico"
+    payment.paymentApi.paymentApiLayer -> payment.paymentApplication "2. Envia ReceiveStripeWebhookCommand"
+    payment.paymentApplication -> payment.paymentDb "3. Persiste Inbox ou reconhece duplicidade por provider + provider_event_id"
+    payment.paymentApi.paymentApiLayer -> stripe.stripeWebhooks "4. Responde 2xx apos assinatura valida e persistencia/duplicidade reconhecida"
+    payment.paymentWorker.paymentInboxWorker -> payment.paymentDb "5. Faz claim atomico de Inbox Pending/RetryScheduled/lease expirado"
+    payment.paymentWorker.paymentInboxWorker -> payment.paymentApplication "6. Envia ProcessPaymentInboxMessageCommand"
+    payment.paymentApplication -> payment.paymentProviderEventMapper "7. Traduz evento Stripe para modelo interno de provider"
+    payment.paymentApplication -> payment.paymentDomain "8. Aplica state machine monotona de Payment/Refund"
+    payment.paymentApplication -> payment.paymentDb "9. Salva Payment e resultado da Inbox como Processed, Ignored, RetryScheduled ou DeadLetter"
 
     autoLayout LeftRight
   }
@@ -309,7 +531,7 @@ views {
     payment.paymentWorker.paymentLedgerProcessor -> payment.paymentDb "8. Salva ledgerEntryId e transita Payment para Completed"
     ledger.ledgerWorker.ledgerOutbox -> ledger.ledgerDb "9. Reclama outbox_messages pendentes"
     ledger.ledgerWorker.ledgerKafkaOutboxPublisher -> kafka.ledgerTopic "10. Publica LedgerEntryCreated.v2"
-    balance.balanceWorker.balanceConsumer -> kafka.ledgerTopic "11. Consome evento financeiro do Ledger"
+    kafka.ledgerTopic -> balance.balanceWorker.balanceConsumer "11. Entrega evento financeiro do Ledger"
     balance.balanceWorker.balanceMessageProcessor -> balance.balanceDb "12. Atualiza daily_balances e processed_events"
 
     autoLayout LeftRight
@@ -322,8 +544,8 @@ views {
     customer -> payment.paymentApi.paymentApiLayer "1. Chama POST /api/v1/payments/{paymentId}/refunds com scope payment.refund"
     payment.paymentApi.paymentApiLayer -> payment.paymentApplication "2. Envia RequestRefundCommand apos validar merchant"
     payment.paymentApplication -> payment.paymentDb "3. Registra PaymentRefund no aggregate"
-    payment.paymentApplication -> payment.paymentApi.paymentInfrastructure "4. Chama IPaymentGateway para CreateRefundAsync"
-    payment.paymentApi.paymentInfrastructure -> stripe.stripeApi "5. Cria Refund total com idempotencia externa deterministica"
+    payment.paymentApplication -> payment.paymentInfrastructure "4. Chama IPaymentGateway para CreateRefundAsync"
+    payment.paymentInfrastructure -> stripe.stripeApi "5. Cria Refund total com idempotencia externa deterministica"
     payment.paymentApi.paymentApiLayer -> customer "6. Retorna 202 Accepted"
     stripe.stripeWebhooks -> payment.paymentApi.paymentApiLayer "7. Entrega webhook refund.created/refund.updated/refund.failed"
     payment.paymentApi.paymentApiLayer -> payment.paymentDb "8. Persiste evento na Inbox duravel"
@@ -334,18 +556,18 @@ views {
     ledger.ledgerWorker.ledgerEstornoProcessor -> ledger.ledgerDb "13. Busca estornos Pending e cria lancamento compensatorio idempotente"
     ledger.ledgerWorker.ledgerOutbox -> ledger.ledgerDb "14. Reclama Outbox financeira do Ledger"
     ledger.ledgerWorker.ledgerKafkaOutboxPublisher -> kafka.ledgerTopic "15. Publica LedgerEntryCreated.v2 compensatorio no Kafka"
-    balance.balanceWorker.balanceConsumer -> kafka.ledgerTopic "16. Projeta estorno no Balance DB"
+    kafka.ledgerTopic -> balance.balanceWorker.balanceConsumer "16. Entrega evento compensatorio para projecao no Balance"
 
     autoLayout LeftRight
   }
 
   view paymentApiComponents of payment.paymentApi {
     title "Component View - PaymentService.Api"
+    description "Visao estrutural da API: superficie HTTP, assemblies compartilhados, persistencia e externos. O mapper de eventos de provider aparece nos fluxos/Worker onde participa do processamento assincrono."
     include payment.paymentApiLayer
     include payment.paymentApplication
     include payment.paymentDomain
     include payment.paymentInfrastructure
-    include payment.paymentProviderEventMapper
     include payment.paymentDb
     include identity.keycloak
     include stripe.stripeApi
@@ -355,15 +577,13 @@ views {
 
   view paymentWorkerComponents of payment.paymentWorker {
     title "Component View - PaymentService.Worker"
+    description "Visao tecnica do Worker: composition root, HostedServices de Inbox e materializacao Ledger, processor, gateway HTTP e persistencia. Assemblies compartilhados nao sao repetidos para evitar mistura de camada com pipeline."
     include payment.paymentWorkerComposition
     include payment.paymentInboxWorker
     include payment.paymentProviderEventMapper
     include payment.paymentWorker.paymentLedgerWorker
     include payment.paymentWorker.paymentLedgerProcessor
     include payment.paymentWorker.ledgerHttpGateway
-    include payment.paymentApplication
-    include payment.paymentDomain
-    include payment.paymentInfrastructure
     include payment.paymentDb
     autoLayout LeftRight
   }
@@ -381,12 +601,11 @@ views {
 
   view auditWorkerComponents of audit.auditWorker {
     title "Component View - AuditService.Worker"
+    description "Visao tecnica do Worker Kafka de auditoria: consumer, processor, DLQ, topicos e persistencia. Ainda nao ha producers reais nos demais bounded contexts."
     include audit.auditWorkerComposition
     include audit.auditRecordConsumer
     include audit.auditRecordProcessor
     include audit.auditDeadLetterPublisher
-    include audit.auditApplication
-    include audit.auditInfrastructure
     include audit.auditDb
     include kafka.auditRecordTopic
     include kafka.auditRecordDlq
@@ -394,10 +613,10 @@ views {
   }
 
   dynamic view auditKafkaIngestionFlow {
-    title "Dynamic View - auditoria Kafka opcional"
+    title "Dynamic View - auditoria Kafka"
     description "Estado atual: AuditService.Worker pode consumir AuditRecordRequested.v1, mas Ledger, Balance, Transfer e Payment ainda nao publicam eventos reais de auditoria."
 
-    kafka.auditRecordTopic -> audit.auditWorker.auditRecordConsumer "1. Entrega AuditRecordRequested.v1 quando um producer futuro existir"
+    kafka.auditRecordTopic -> audit.auditWorker.auditRecordConsumer "1. Entrega AuditRecordRequested.v1 quando houver producer habilitado"
     audit.auditWorker.auditRecordConsumer -> audit.auditWorker.auditRecordProcessor "2. Controla retry local e envia mensagem ao processor"
     audit.auditWorker.auditRecordProcessor -> audit.auditApplication "3. Valida contrato canonico e envia CreateAuditRecordCommand"
     audit.auditApplication -> audit.auditDb "4. Persiste functional_audit_records com source_event_id idempotente"

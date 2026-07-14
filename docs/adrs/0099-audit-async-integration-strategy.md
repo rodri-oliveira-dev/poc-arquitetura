@@ -54,7 +54,7 @@ Portanto, nesta etapa:
 - `BalanceService` nao publica eventos de auditoria;
 - `TransferService` nao publica eventos de auditoria;
 - nenhum producer Kafka de auditoria foi criado;
-- o `AuditService.Worker` consome opcionalmente `AuditRecordRequested.v1` do
+- o `AuditService.Worker` consome `AuditRecordRequested.v1` do
   topico `audit.record.requested`;
 - nenhum contrato HTTP existente foi alterado;
 - nenhum contrato financeiro foi alterado.

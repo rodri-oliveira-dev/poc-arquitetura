@@ -33,6 +33,8 @@ $transferRuntimePassword = Get-RequiredLocalConfigValue "TRANSFER_DB_PASSWORD"
 $transferMigratorPassword = Get-RequiredLocalConfigValue "TRANSFER_DB_MIGRATOR_PASSWORD"
 $paymentRuntimePassword = Get-RequiredLocalConfigValue "PAYMENT_DB_PASSWORD"
 $paymentMigratorPassword = Get-RequiredLocalConfigValue "PAYMENT_DB_MIGRATOR_PASSWORD"
+$auditRuntimePassword = Get-RequiredLocalConfigValue "AUDIT_DB_PASSWORD"
+$auditMigratorPassword = Get-RequiredLocalConfigValue "AUDIT_DB_MIGRATOR_PASSWORD"
 $identityRuntimePassword = Get-RequiredLocalConfigValue "IDENTITY_DB_PASSWORD"
 $identityMigratorPassword = Get-RequiredLocalConfigValue "IDENTITY_DB_MIGRATOR_PASSWORD"
 
@@ -215,6 +217,8 @@ try {
   Assert-DatabaseAuthentication "transfer_migrator_user" (ConvertTo-LocalSecureString $transferMigratorPassword)
   Assert-DatabaseAuthentication "payment_app_user" (ConvertTo-LocalSecureString $paymentRuntimePassword)
   Assert-DatabaseAuthentication "payment_migrator_user" (ConvertTo-LocalSecureString $paymentMigratorPassword)
+  Assert-DatabaseAuthentication "audit_app_user" (ConvertTo-LocalSecureString $auditRuntimePassword)
+  Assert-DatabaseAuthentication "audit_migrator_user" (ConvertTo-LocalSecureString $auditMigratorPassword)
   Assert-DatabaseAuthentication "identity_app_user" (ConvertTo-LocalSecureString $identityRuntimePassword)
   Assert-DatabaseAuthentication "identity_migrator_user" (ConvertTo-LocalSecureString $identityMigratorPassword)
 
@@ -245,6 +249,13 @@ try {
     "PAYMENT_SERVICE_CONNECTION_STRING"
 
   Invoke-Migration `
+    "Host=127.0.0.1;Port=$postgresHostPort;Database=$postgresDatabase;Username=audit_migrator_user;Password=$auditMigratorPassword" `
+    "src/audit/AuditService.Infrastructure/AuditService.Infrastructure.csproj" `
+    "src/audit/AuditService.Api/AuditService.Api.csproj" `
+    "AuditDbContext" `
+    "AUDIT_SERVICE_CONNECTION_STRING"
+
+  Invoke-Migration `
     "Host=127.0.0.1;Port=$postgresHostPort;Database=$postgresDatabase;Username=identity_migrator_user;Password=$identityMigratorPassword" `
     "src/identity/IdentityService.Infrastructure/IdentityService.Infrastructure.csproj" `
     "src/identity/IdentityService.Infrastructure/IdentityService.Infrastructure.csproj" `
@@ -260,9 +271,9 @@ try {
     $apiArgs += "--build"
   }
 
-  $apiArgs += @("ledger-service", "ledger-worker", "balance-service", "balance-worker", "transfer-service", "payment-service", "payment-worker", "identity-service", "mailpit")
+  $apiArgs += @("ledger-service", "ledger-worker", "balance-service", "balance-worker", "transfer-service", "payment-service", "payment-worker", "audit-service", "identity-service", "mailpit")
   if ($MessagingProvider -eq "Kafka") {
-    $apiArgs += "transfer-worker"
+    $apiArgs += @("transfer-worker", "audit-worker")
   }
   Invoke-DockerCompose $apiArgs
 

@@ -340,7 +340,7 @@ APIs nao devem hospedar consumers e workers por acidente; workers nao devem expo
 
 #### Como funciona neste repositorio
 
-Cada executavel registra somente os adapters necessarios. Ledger/Balance usam Kafka para mensageria assincrona documentada; Transfer usa Kafka no fluxo da Saga; Payment Worker registra Inbox e materializacao Ledger; Audit Worker registra consumer opcional.
+Cada executavel registra somente os adapters necessarios. Ledger/Balance usam Kafka para mensageria assincrona documentada; Transfer usa Kafka no fluxo da Saga; Payment Worker registra Inbox e materializacao Ledger; Audit Worker registra consumer Kafka de auditoria sem producer real nos demais dominios nesta etapa.
 
 #### Beneficios obtidos
 
@@ -970,7 +970,7 @@ Alguns fluxos precisam desacoplar produtor e consumidor no tempo, mas nem toda c
 
 #### Onde foi aplicado
 
-Eventos financeiros Ledger/Balance, eventos de Saga do Transfer e consumer Kafka opcional de Audit. Identity usa Domain Events intra-processo.
+Eventos financeiros Ledger/Balance, eventos de Saga do Transfer e consumer Kafka de Audit sem producers reais nos demais dominios nesta etapa. Identity usa Domain Events intra-processo.
 
 #### Como funciona neste repositorio
 
