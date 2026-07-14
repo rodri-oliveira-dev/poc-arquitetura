@@ -119,7 +119,7 @@ Variaveis nao sensiveis ou identificadores locais continuam com defaults no comp
 
 O Docker Compose roda os containers com ambiente `Local` e usa hostnames internos da rede Docker, como `postgres-db:5432`, `kafka:9092`, `keycloak:8080` e `mailpit:1025`. Debug ou `dotnet run` no host usa ambiente `Development` e deve apontar para as portas publicadas no host: `127.0.0.1:15432`, `127.0.0.1:19092`, `http://localhost:8081` e `localhost:1025`.
 
-O mesmo `KEYCLOAK_CLIENT_SECRET` alimenta o client local `poc-automation` usado pelos scripts e pelos workers de `TransferService` e `PaymentService` quando eles chamam o `LedgerService.Api`, e o client local `identity-service-admin` usado pelo `IdentityService.Api` para administrar usuarios no realm `poc`. Os scopes service-to-service dos workers ficam em `TRANSFER_WORKER_LEDGER_AUTH_SCOPE` e `PAYMENT_WORKER_LEDGER_AUTH_SCOPE`, ambos com default `ledger.write`.
+O mesmo `KEYCLOAK_CLIENT_SECRET` alimenta o client local `poc-automation` usado pelos scripts, pelos smokes locais e pelos workers de `TransferService` e `PaymentService` quando eles chamam o `LedgerService.Api`, e o client local `identity-service-admin` usado pelo `IdentityService.Api` para administrar usuarios no realm `poc`. Os scopes service-to-service dos workers ficam em `TRANSFER_WORKER_LEDGER_AUTH_SCOPE` e `PAYMENT_WORKER_LEDGER_AUTH_SCOPE`, ambos com default `ledger.write`.
 
 O compose executa o job idempotente `keycloak-identity-admin-init` depois que o Keycloak fica healthy. Esse job usa `kcadm.sh` para atribuir `realm-management:manage-users` e `realm-management:view-users` a service account do client `identity-service-admin`; ele deve terminar com sucesso antes do `IdentityService.Api` iniciar.
 
@@ -492,8 +492,8 @@ O realm local importado se chama `poc` e expoe:
 - client administrativo local do IdentityService: `identity-service-admin`;
 - clients locais de debug manual: `poc-local-ledger-debug`, `poc-local-balance-debug` e `poc-local-admin-debug`;
 - fluxo preferencial para scripts: `client_credentials`;
-- audiences: `ledger-api`, `balance-api` e `transfer-api`;
-- scopes: `ledger.write`, `ledger.read`, `balance.read`, `transfer.write`, `transfer.read` e `outbox.admin`;
+- audiences: `ledger-api`, `balance-api`, `transfer-api`, `identity-api`, `payment-api` e `audit-api`;
+- scopes: `ledger.write`, `ledger.read`, `balance.read`, `transfer.write`, `transfer.read`, `identity.write`, `identity.read`, `payment.write`, `payment.read`, `payment.refund`, `audit.write`, `audit.read`, `audit.admin` e `outbox.admin`;
 - claim `merchant_id`: `tese m1 m2`.
 
 As APIs continuam usando `Jwt:JwksUrl` direto, sem introspeccao por request e sem consumir discovery metadata nesta etapa. No compose, `JWT_ISSUER` deve corresponder ao `iss` publico do token (`http://localhost:8081/realms/poc`) e `JWT_JWKS_URL` deve apontar para o endpoint de certificados acessivel pela rede interna (`http://keycloak:8080/realms/poc/protocol/openid-connect/certs`).
@@ -530,7 +530,7 @@ Usuarios locais de debug importados no realm:
 | --- | --- | --- | --- | --- | --- |
 | `local_ledger_user` | `KEYCLOAK_LOCAL_LEDGER_USER_PASSWORD` | `poc-local-ledger-debug` | Debug manual do LedgerService | `ledger.write ledger.read` | `tese m1` |
 | `local_balance_user` | `KEYCLOAK_LOCAL_BALANCE_USER_PASSWORD` | `poc-local-balance-debug` | Debug manual do BalanceService | `balance.read` | `tese m1` |
-| `local_admin_user` | `KEYCLOAK_LOCAL_ADMIN_USER_PASSWORD` | `poc-local-admin-debug` | Debug manual completo | `ledger.write ledger.read balance.read transfer.write transfer.read outbox.admin` | `tese m1 m2` |
+| `local_admin_user` | `KEYCLOAK_LOCAL_ADMIN_USER_PASSWORD` | `poc-local-admin-debug` | Debug manual completo | `ledger.write ledger.read balance.read transfer.write transfer.read identity.write identity.read payment.write payment.read payment.refund audit.write audit.read audit.admin outbox.admin` | `tese m1 m2` |
 
 Esses usuarios sao apenas conveniencia de desenvolvimento local. Eles nao devem ser usados em ambiente compartilhado, homologacao ou producao, e nao substituem `client_credentials` para automacoes.
 
@@ -545,7 +545,7 @@ curl -s -X POST http://localhost:8081/realms/poc/protocol/openid-connect/token \
   -d "password=local_ledger_password"
 ```
 
-Troque `client_id`, `username` e `password` para `poc-local-balance-debug` / `local_balance_user` ou `poc-local-admin-debug` / `local_admin_user` quando quiser validar os demais perfis. O token deve manter `iss=http://localhost:8081/realms/poc`, `aud` com as APIs autorizadas, `merchant_id` conforme o perfil e a claim `scope` conforme o perfil escolhido. Para testar `TransferService.Api`, use o token do `poc-automation` ou `poc-local-admin-debug`, que inclui `transfer-api`, `transfer.write`, `transfer.read` e merchants `m1 m2`.
+Troque `client_id`, `username` e `password` para `poc-local-balance-debug` / `local_balance_user` ou `poc-local-admin-debug` / `local_admin_user` quando quiser validar os demais perfis. O token deve manter `iss=http://localhost:8081/realms/poc`, `aud` com as APIs autorizadas, `merchant_id` conforme o perfil e a claim `scope` conforme o perfil escolhido. Para testar `TransferService.Api`, use o token do `poc-automation` ou `poc-local-admin-debug`, que inclui `transfer-api`, `transfer.write`, `transfer.read` e merchants `m1 m2`. Para testar `AuditService.Api`, o `poc-automation` cobre criacao e consulta com `audit.write`/`audit.read`; use `poc-local-admin-debug` quando precisar validar `audit.admin`.
 
 Para validar discovery e JWKS:
 

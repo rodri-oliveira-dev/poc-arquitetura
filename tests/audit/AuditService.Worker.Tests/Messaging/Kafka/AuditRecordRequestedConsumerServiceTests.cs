@@ -4,6 +4,7 @@ using AuditService.Worker.Observability;
 
 using Confluent.Kafka;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace AuditService.Worker.Tests.Messaging.Kafka;
@@ -15,72 +16,102 @@ public sealed class AuditRecordRequestedConsumerServiceTests
     [Fact]
     public async Task ConsumeOnceAsync_should_commit_after_processor_success()
     {
-        var processor = new FakeProcessor(AuditRecordRequestedProcessingResult.Success);
-        using var service = CreateService(processor);
+        var scopeFactory = new TrackingScopeFactory(
+            () => new FakeProcessor(AuditRecordRequestedProcessingResult.Success));
+        using var service = CreateService(scopeFactory);
         using var consumer = new FakeConsumer("message");
 
         bool consumed = await service.ConsumeOnceAsync(consumer, TestContext.Current.CancellationToken);
 
         Assert.True(consumed);
-        Assert.Equal("message", processor.Messages.Single().Payload);
+        Assert.Equal("message", scopeFactory.Processors.Single().Messages.Single().Payload);
         Assert.Equal(1, consumer.CommitCalls);
+        Assert.All(scopeFactory.Scopes, scope => Assert.True(scope.Disposed));
     }
 
     [Fact]
     public async Task ConsumeOnceAsync_should_not_commit_when_processor_does_not_complete()
     {
-        var processor = new FakeProcessor(AuditRecordRequestedProcessingResult.NotProcessed);
-        using var service = CreateService(processor);
+        var scopeFactory = new TrackingScopeFactory(
+            () => new FakeProcessor(AuditRecordRequestedProcessingResult.NotProcessed));
+        using var service = CreateService(scopeFactory);
         using var consumer = new FakeConsumer("message");
 
         bool consumed = await service.ConsumeOnceAsync(consumer, TestContext.Current.CancellationToken);
 
         Assert.False(consumed);
         Assert.Empty(consumer.CommittedOffsets);
+        Assert.All(scopeFactory.Scopes, scope => Assert.True(scope.Disposed));
     }
 
     [Fact]
     public async Task ConsumeOnceAsync_should_not_commit_when_processor_throws()
     {
-        var processor = new FakeProcessor(AuditRecordRequestedProcessingResult.Success)
-        {
-            Exception = new InvalidOperationException("database unavailable")
-        };
-        using var service = CreateService(processor);
+        var scopeFactory = new TrackingScopeFactory(
+            () => new FakeProcessor(AuditRecordRequestedProcessingResult.Success)
+            {
+                Exception = new InvalidOperationException("database unavailable")
+            });
+        using var service = CreateService(scopeFactory);
         using var consumer = new FakeConsumer("message");
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             service.ConsumeOnceAsync(consumer, TestContext.Current.CancellationToken));
 
         Assert.Empty(consumer.CommittedOffsets);
-        Assert.Equal(3, processor.Attempts);
+        Assert.Equal(3, scopeFactory.Processors.Count);
+        Assert.All(scopeFactory.Processors, processor => Assert.Equal(1, processor.Attempts));
+        Assert.All(scopeFactory.Scopes, scope => Assert.True(scope.Disposed));
     }
 
     [Fact]
     public async Task ConsumeOnceAsync_should_retry_transient_failure_before_commit()
     {
-        var processor = new FakeProcessor(AuditRecordRequestedProcessingResult.Success)
-        {
-            RemainingFailures = 1
-        };
-        using var service = CreateService(processor);
+        var scopeFactory = new TrackingScopeFactory(
+            () => new FakeProcessor(AuditRecordRequestedProcessingResult.Success)
+            {
+                Exception = new InvalidOperationException("database unavailable")
+            },
+            () => new FakeProcessor(AuditRecordRequestedProcessingResult.Success));
+        using var service = CreateService(scopeFactory);
         using var consumer = new FakeConsumer("message");
 
         bool consumed = await service.ConsumeOnceAsync(consumer, TestContext.Current.CancellationToken);
 
         Assert.True(consumed);
-        Assert.Equal(2, processor.Attempts);
+        Assert.Equal(2, scopeFactory.Processors.Count);
+        Assert.All(scopeFactory.Processors, processor => Assert.Equal(1, processor.Attempts));
         Assert.Equal(1, consumer.CommitCalls);
+        Assert.All(scopeFactory.Scopes, scope => Assert.True(scope.Disposed));
+    }
+
+    [Fact]
+    public async Task ConsumeOnceAsync_should_resolve_new_processor_for_different_messages()
+    {
+        var scopeFactory = new TrackingScopeFactory(
+            () => new FakeProcessor(AuditRecordRequestedProcessingResult.Success));
+        using var service = CreateService(scopeFactory);
+        using var firstConsumer = new FakeConsumer("first");
+        using var secondConsumer = new FakeConsumer("second");
+
+        await service.ConsumeOnceAsync(firstConsumer, TestContext.Current.CancellationToken);
+        await service.ConsumeOnceAsync(secondConsumer, TestContext.Current.CancellationToken);
+
+        Assert.Equal(2, scopeFactory.Processors.Count);
+        Assert.NotSame(scopeFactory.Processors[0], scopeFactory.Processors[1]);
+        Assert.Equal("first", scopeFactory.Processors[0].Messages.Single().Payload);
+        Assert.Equal("second", scopeFactory.Processors[1].Messages.Single().Payload);
     }
 
     [Fact]
     public async Task ConsumeOnceAsync_should_respect_cancellation_token_during_retry_delay()
     {
-        var processor = new FakeProcessor(AuditRecordRequestedProcessingResult.Success)
-        {
-            Exception = new InvalidOperationException("database unavailable")
-        };
-        using var service = CreateService(processor, processingRetryDelay: TimeSpan.FromSeconds(5));
+        var scopeFactory = new TrackingScopeFactory(
+            () => new FakeProcessor(AuditRecordRequestedProcessingResult.Success)
+            {
+                Exception = new InvalidOperationException("database unavailable")
+            });
+        using var service = CreateService(scopeFactory, processingRetryDelay: TimeSpan.FromSeconds(5));
         using var consumer = new FakeConsumer("message");
         using var cts = new CancellationTokenSource();
 
@@ -90,6 +121,8 @@ public sealed class AuditRecordRequestedConsumerServiceTests
             service.ConsumeOnceAsync(consumer, cts.Token));
 
         Assert.Empty(consumer.CommittedOffsets);
+        Assert.Single(scopeFactory.Processors);
+        Assert.All(scopeFactory.Scopes, scope => Assert.True(scope.Disposed));
     }
 
     [Fact]
@@ -233,7 +266,7 @@ public sealed class AuditRecordRequestedConsumerServiceTests
     }
 
     private static AuditRecordRequestedConsumerService CreateService(
-        FakeProcessor processor,
+        TrackingScopeFactory scopeFactory,
         TimeSpan? processingRetryDelay = null)
         => new(
             Microsoft.Extensions.Options.Options.Create(new AuditRecordRequestedConsumerOptions
@@ -243,7 +276,7 @@ public sealed class AuditRecordRequestedConsumerServiceTests
                 ProcessingRetryDelay = processingRetryDelay ?? TimeSpan.FromMilliseconds(1)
             }),
             new FakeConsumerFactory(),
-            processor,
+            scopeFactory,
             Metrics,
             NullLogger<AuditRecordRequestedConsumerService>.Instance);
 
@@ -281,6 +314,52 @@ public sealed class AuditRecordRequestedConsumerServiceTests
             Messages.Add(message);
             return Task.FromResult(result);
         }
+    }
+
+    private sealed class TrackingScopeFactory(params Func<FakeProcessor>[] processorFactories) : IServiceScopeFactory
+    {
+        private readonly Queue<Func<FakeProcessor>> _processorFactories = new(processorFactories);
+        private readonly Func<FakeProcessor> _defaultProcessorFactory = processorFactories.LastOrDefault()
+            ?? (() => new FakeProcessor(AuditRecordRequestedProcessingResult.Success));
+
+        public List<FakeScope> Scopes { get; } = [];
+
+        public List<FakeProcessor> Processors { get; } = [];
+
+        public IServiceScope CreateScope()
+        {
+            Func<FakeProcessor> processorFactory = _processorFactories.Count > 0
+                ? _processorFactories.Dequeue()
+                : _defaultProcessorFactory;
+
+            var processor = processorFactory();
+            Processors.Add(processor);
+
+            var scope = new FakeScope(processor);
+            Scopes.Add(scope);
+            return scope;
+        }
+    }
+
+    private sealed class FakeScope(FakeProcessor processor) : IServiceScope
+    {
+        public bool Disposed
+        {
+            get; private set;
+        }
+
+        public IServiceProvider ServiceProvider { get; } = new FakeScopedServiceProvider(processor);
+
+        public void Dispose()
+            => Disposed = true;
+    }
+
+    private sealed class FakeScopedServiceProvider(FakeProcessor processor) : IServiceProvider
+    {
+        public object? GetService(Type serviceType)
+            => serviceType == typeof(IAuditRecordRequestedProcessor)
+                ? processor
+                : null;
     }
 
     private sealed class FakeConsumerFactory : IAuditKafkaConsumerFactory

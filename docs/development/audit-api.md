@@ -7,7 +7,8 @@ versionado fica em [`docs/openapi/audit.v1.json`](../openapi/audit.v1.json).
 O `AuditService` registra trilhas funcionais canonicas por operacao, com
 idempotencia, correlacao, filtros seguros e autorizacao por scope e
 `merchant_id`. Nesta etapa, ele nao esta integrado a `LedgerService`,
-`BalanceService` ou `TransferService`, nao possui worker e nao consome Kafka.
+`BalanceService` ou `TransferService`. O worker Kafka existe para o contrato
+`AuditRecordRequested.v1`, mas ainda nao ha producers reais nos demais servicos.
 
 ## Ingestao futura
 
@@ -42,6 +43,12 @@ ou evento real foi criado.
 
 Consultas aceitam `audit.read` ou `audit.admin`. Tokens com `audit.read`
 precisam ter claim `merchant_id` compativel com o registro ou filtro solicitado.
+
+No ambiente local, `scripts/validation/get-token.*` usa o client
+`poc-automation`, que emite audience `audit-api` e scopes `audit.write` e
+`audit.read`. Para validar cenarios administrativos com `audit.admin`, obtenha
+um token Direct Grant do usuario `local_admin_user` com o client
+`poc-local-admin-debug`, conforme [`authentication.md`](authentication.md).
 
 ## POST /api/v1/audit-records
 
