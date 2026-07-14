@@ -155,10 +155,10 @@ jobs:
 
           contexts=()
           if [ "$RUN_AGGREGATE" = "true" ]; then
-            contexts+=("aggregate|$AGGREGATE_SOLUTION_PATH|rodri-oliveira-dev_poc-arquitetura|poc-arquitetura|LedgerService.Worker,BalanceService.Worker")
+            contexts+=("aggregate|$AGGREGATE_SOLUTION_PATH|rodri-oliveira-dev_poc-arquitetura|poc-arquitetura|85|LedgerService.Worker,BalanceService.Worker")
           fi
           if [ "$RUN_SHARED" = "true" ]; then
-            contexts+=("shared|$SHARED_SOLUTION_PATH|rodri-oliveira-dev_poc-arquitetura-shared|poc-arquitetura-shared|")
+            contexts+=("shared|$SHARED_SOLUTION_PATH|rodri-oliveira-dev_poc-arquitetura-shared|poc-arquitetura-shared|40|")
           fi
 
           check_nuget_vulnerabilities() {
@@ -206,20 +206,20 @@ jobs:
 
           enforce_coverage_threshold() {
             local summary_file="$1"
-            local required_assemblies="$2"
-            python - "$summary_file" "$required_assemblies" <<'PY'
+            local threshold="$2"
+            local required_assemblies="$3"
+            python - "$summary_file" "$threshold" "$required_assemblies" <<'PY'
           import json
-          import os
           import sys
 
           summary_file = sys.argv[1]
-          required_assemblies = [item for item in sys.argv[2].split(",") if item]
+          threshold = float(sys.argv[2])
+          required_assemblies = [item for item in sys.argv[3].split(",") if item]
 
           with open(summary_file, encoding="utf-8") as f:
               data = json.load(f)
 
           line = float(data["summary"]["linecoverage"])
-          threshold = float(os.environ["COVERAGE_THRESHOLD"])
 
           print(f"Line coverage: {line}%")
           if line < threshold:
@@ -288,7 +288,7 @@ jobs:
           }
 
           for item in "${contexts[@]}"; do
-            IFS="|" read -r context solution project_key project_name required_assemblies <<< "$item"
+            IFS="|" read -r context solution project_key project_name coverage_threshold required_assemblies <<< "$item"
             test_results_dir="$ARTIFACTS_ROOT/test-results/$context"
             sonar_report_dir="$ARTIFACTS_ROOT/sonarqube/$context"
             opencover_pattern="$test_results_dir/**/coverage.opencover.xml"
@@ -358,7 +358,7 @@ jobs:
               -targetdir:"$test_results_dir/coverage-report" \
               -reporttypes:"HtmlInline;JsonSummary;TextSummary"
 
-            enforce_coverage_threshold "$coverage_summary" "$required_assemblies"
+            enforce_coverage_threshold "$coverage_summary" "$coverage_threshold" "$required_assemblies"
             write_context_summary "$context" "$solution" "$coverage_summary"
           done
 

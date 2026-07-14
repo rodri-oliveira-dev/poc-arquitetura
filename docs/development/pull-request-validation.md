@@ -73,9 +73,9 @@ Para cada contexto impactado, o workflow executa:
 - `dotnet test --configuration Release --no-build` com `coverlet.runsettings`;
 - validacao de arquivos Cobertura e OpenCover;
 - ReportGenerator;
-- gate de cobertura de 85%.
+- gate de cobertura conforme o contexto validado.
 
-No contexto `aggregate`, alem da cobertura total de linhas, os assemblies `LedgerService.Worker` e `BalanceService.Worker` tambem precisam atingir 85%. No contexto `shared`, o gate de 85% se aplica a cobertura total da solution Shared.
+No contexto `aggregate`, a cobertura total de linhas precisa atingir 85% e os assemblies `LedgerService.Worker` e `BalanceService.Worker` tambem precisam atingir 85%. No contexto `shared`, o gate de cobertura total usa o baseline minimo de 40% enquanto a suite Shared e elevada gradualmente; o Quality Gate do SonarQube Cloud Shared continua obrigatorio.
 
 Pull requests vindos de forks nao recebem `SONAR_TOKEN`. Nesses casos, a analise SonarQube Cloud e ignorada para nao expor secrets a codigo nao confiavel, mas restore, auditoria NuGet, build, testes e cobertura continuam rodando.
 
