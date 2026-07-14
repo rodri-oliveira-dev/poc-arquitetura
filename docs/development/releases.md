@@ -126,9 +126,16 @@ dotnet pack ./src/Shared/ApiDefaults/ApiDefaults.csproj --configuration Release 
 
 `SemVer` e adequado para NuGet porque gera uma versao SemVer sem metadados de build (`+...`), por exemplo `0.18.1-lib.1` em branch de feature ou `0.18.1` em uma versao estavel. Quando o GitVersion calcular uma pre-release apenas numerica em `main`, como `0.18.1-8`, o workflow deve normalizar o valor para `0.18.1-main.8` antes do `dotnet pack`, porque o NuGet.org rejeita esse sufixo numerico puro no push. Na versao atual do `GitVersion.Tool` usada pelo repositorio, `NuGetVersionV2` e `NuGetVersion` nao estao disponiveis como variaveis de saida; por isso o workflow deve extrair `SemVer` e aplicar essa normalizacao pequena.
 
-O workflow `.github/workflows/publish-shared-nuget.yml` restaura, compila, testa, empacota, valida os metadados dos `.nupkg` e publica os pacotes no NuGet.org. A publicacao usa Trusted Publishing com GitHub Actions OIDC por meio de `NuGet/login@v1`; nao ha API key persistente nem secret `NUGET_API_KEY`.
+O workflow `.github/workflows/publish-shared-nuget.yml` restaura, compila, testa, empacota, valida os metadados dos `.nupkg` e, somente quando a execucao pedir publicacao, publica os pacotes no NuGet.org. A publicacao usa Trusted Publishing com GitHub Actions OIDC por meio de `NuGet/login@v1`; nao ha API key persistente nem secret `NUGET_API_KEY`. A permissao `id-token: write` fica restrita ao job de publicacao.
 
-O workflow usa a solution dedicada `PocArquitetura.Shared.slnx`, que contem apenas os tres pacotes Shared e seus testes em `tests/Shared`. O gatilho de `push` para `main` fica restrito a alteracoes relevantes para esses pacotes: `src/Shared/**`, `tests/Shared/**`, `PocArquitetura.Shared.slnx`, `GitVersion.yml`, o proprio workflow, `LICENSE` e os arquivos `Directory.Build.props`/`Directory.Packages.props` da raiz e de `src/Shared`. Os arquivos `Directory.*` da raiz permanecem no gatilho porque os projetos de teste em `tests/Shared` os herdam; os arquivos `Directory.*` de `src/Shared` permanecem porque definem propriedades e versoes usadas pelos pacotes publicados.
+O workflow usa a solution dedicada `PocArquitetura.Shared.slnx`, que contem apenas os tres pacotes Shared e seus testes em `tests/Shared`. Ele nao publica diretamente em `push`: a execucao automatica ocorre por `workflow_run`, apos sucesso do `main-dotnet-ci` na `main`, e faz checkout de `${{ github.event.workflow_run.head_sha }}`, o mesmo SHA validado pelo CI. Antes de empacotar automaticamente, o workflow confere se o commit aprovado alterou entradas relevantes para os pacotes: `src/Shared/**`, `tests/Shared/**`, `PocArquitetura.Shared.slnx`, `GitVersion.yml`, o proprio workflow, `LICENSE` e os arquivos `Directory.Build.props`/`Directory.Packages.props` da raiz e de `src/Shared`. Os arquivos `Directory.*` da raiz permanecem relevantes porque os projetos de teste em `tests/Shared` os herdam; os arquivos `Directory.*` de `src/Shared` permanecem porque definem propriedades e versoes usadas pelos pacotes publicados.
+
+Na execucao manual, o input `publish` separa empacotamento de publicacao:
+
+| `publish` | Comportamento |
+| --- | --- |
+| `false` | Restaura, compila, testa, empacota, valida e publica o artifact, sem login NuGet e sem push. |
+| `true` | Executa as mesmas validacoes e, apenas depois delas, faz login via Trusted Publishing e publica. |
 
 Para a publicacao funcionar, deve existir no NuGet.org uma Trusted Publishing policy com:
 
@@ -146,9 +153,9 @@ Os pacotes sao publicados em ordem para respeitar a dependencia de `ApiDefaults`
 2. `PocArquitetura.ApplicationDefaults`
 3. `PocArquitetura.ApiDefaults`
 
-Antes do upload do artifact e da publicacao, o workflow abre cada `.nupkg` e valida `id`, versao, descricao, autores, tags, `projectUrl`, licenca MIT, `README.md`, repository metadata e o `README.md` na raiz do pacote. Para `PocArquitetura.ApiDefaults`, tambem valida a dependencia interna para `PocArquitetura.HttpResilienceDefaults`.
+Antes do upload do artifact e da publicacao, o workflow abre cada `.nupkg` e valida `id`, versao, descricao, autores, tags, `projectUrl`, licenca MIT, `README.md`, repository metadata e o `README.md` na raiz do pacote. Para `PocArquitetura.ApiDefaults`, tambem valida a dependencia interna para `PocArquitetura.HttpResilienceDefaults`. O job de publicacao baixa o artifact validado e confirma novamente que os tres arquivos esperados existem antes de iniciar qualquer `dotnet nuget push`.
 
-O push para o NuGet.org nao usa `--skip-duplicate`. Se o GitVersion calcular uma versao ja publicada, a execucao deve falhar em vez de mascarar que uma nova versao nao foi gerada.
+Os comandos `dotnet nuget push` usam `--skip-duplicate`. Reruns da mesma versao ou cenarios em que parte dos pacotes ja exista no NuGet.org nao devem falhar apenas por duplicidade; falhas reais de autenticacao, arquivo ausente, validacao ou erro operacional continuam falhando a execucao.
 
 O artifact `shared-nuget-packages` continua sendo enviado em toda execucao bem-sucedida de pack, mesmo quando a publicacao tambem ocorre. Para baixa-lo, abra a execucao do workflow no GitHub Actions e use a secao **Artifacts** da pagina da run.
 

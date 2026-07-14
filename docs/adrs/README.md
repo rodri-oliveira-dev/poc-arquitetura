@@ -15,6 +15,7 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 
 | ADR                                                                   | Status      | Resumo                                                                                           |
 | --------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------ |
+| [ADR-0108](./0108-publicacao-nuget-shared-pos-ci-idempotente.md) | Aceito | Define publicacao NuGet dos pacotes Shared apos CI da main, com input manual explicito e push idempotente. |
 | [ADR-0107](./0107-orquestracao-pos-ci-main-release-zap-mutation.md) | Aceito | Orquestra release, OWASP ZAP e mutation testing apos sucesso do CI da main usando o SHA validado. |
 | [ADR-0106](./0106-ci-principal-contextual-pull-requests-main.md) | Aceito | Consolida o CI principal para PR, Merge Queue, main e manual com validacao contextual aggregate/Shared. |
 | [ADR-0105](./0105-payment-provider-event-ordering-deduplication.md) | Aceito | Define politica de deduplicacao, ordenacao, regressao e replay seguro para eventos externos de pagamento. |
