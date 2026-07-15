@@ -1,0 +1,7 @@
+# NOME|SLUG|BASE_URL
+LedgerService.Api|ledger-service-api|http://ledger-service:8080
+BalanceService.Api|balance-service-api|http://balance-service:8080
+TransferService.Api|transfer-service-api|http://transfer-service:8080
+PaymentService.Api|payment-service-api|http://payment-service:8080
+AuditService.Api|audit-service-api|http://audit-service:8080
+IdentityService.Api|identity-service-api|http://identity-service:8080
