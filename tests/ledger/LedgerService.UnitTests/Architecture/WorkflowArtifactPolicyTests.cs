@@ -224,7 +224,7 @@ public sealed partial class WorkflowArtifactPolicyTests
         Assert.Contains("sonar_required=false", workflow);
         Assert.Contains("""if [ "$sonar_required" = "true" ] && [ "$sonar_allowed" = "true" ] && [ -z "${SONAR_TOKEN:-}" ]; then""", workflow);
         Assert.Contains("""if [ "$sonar_enabled" = "true" ] && [ "$sonar_allowed" = "true" ]; then""", workflow);
-        Assert.Contains("""SONAR_REPORT_DIR="$sonar_report_dir" \""", workflow);
+        Assert.Contains("""SONAR_REPORT_DIR="$sonar_report_dir" \"""", workflow);
         Assert.Contains("""if: ${{ steps.changes.outputs.run_aggregate != 'true' && steps.changes.outputs.run_shared != 'true' }}""", workflow);
         Assert.Contains("""Restore, auditoria NuGet, SonarQube, build, testes e cobertura foram ignorados.""", workflow);
         Assert.Single(DotnetSonarscannerBeginRegex().Matches(workflow));
@@ -274,22 +274,48 @@ public sealed partial class WorkflowArtifactPolicyTests
     }
 
     [Fact]
-    public void Owasp_zap_workflow_should_keep_host_health_checks_and_scan_through_compose_network()
+    public void Owasp_zap_workflow_should_scan_all_http_apis_through_the_compose_network()
     {
         var repositoryRoot = GetRepositoryRoot();
         var workflow = File.ReadAllText(Path.Combine(repositoryRoot.FullName, ".github/workflows/owasp-zap.yml"));
 
-        Assert.Contains("http://localhost:5226/health", workflow);
-        Assert.Contains("http://localhost:5228/health", workflow);
-        Assert.Contains("docker inspect \"$ledger_container_id\"", workflow);
+        foreach (var healthUrl in new[]
+        {
+            "http://localhost:5226/health",
+            "http://localhost:5228/health",
+            "http://localhost:5230/health",
+            "http://localhost:5232/health",
+            "http://localhost:5234/health",
+            "http://localhost:5235/health",
+        })
+        {
+            Assert.Contains(healthUrl, workflow);
+        }
+
+        foreach (var service in new[]
+        {
+            "ledger-service",
+            "balance-service",
+            "transfer-service",
+            "payment-service",
+            "audit-service",
+            "identity-service",
+        })
+        {
+            Assert.Contains(service, workflow);
+        }
+
+        Assert.Contains("docker inspect \"$first_container_id\"", workflow);
+        Assert.Contains("docker inspect \"$container_id\"", workflow);
         Assert.Contains("awk '/(^|_)poc-net$/ { print; exit }'", workflow);
-        Assert.Contains("grep -Fx \"$zap_network\"", workflow);
-        Assert.Contains("--docker-network \"$zap_network\"", workflow);
-        Assert.Contains("--ledger-zap-url http://ledger-service:8080", workflow);
-        Assert.Contains("--balance-zap-url http://balance-service:8080", workflow);
+        Assert.Contains("grep -Fx \"$api_network\"", workflow);
+        Assert.Contains("--docker-network \"$api_network\"", workflow);
+        Assert.Contains("--use-authentication", workflow);
+        Assert.Contains("--targets-file ./scripts/security/owasp-zap-ci-targets.txt", workflow);
+        Assert.Contains("bash ./scripts/security/run-owasp-zap-all-apis.sh", workflow);
         Assert.Contains("${{ env.ZAP_ARTIFACTS_DIR }}/**/*.log", workflow);
         Assert.DoesNotContain("continue-on-error", workflow);
-        Assert.DoesNotContain("|| true", GetWorkflowStep(workflow, "Run OWASP ZAP baseline"));
+        Assert.DoesNotContain("|| true", GetWorkflowStep(workflow, "Run authenticated OWASP ZAP against all APIs"));
     }
 
     [Fact]
