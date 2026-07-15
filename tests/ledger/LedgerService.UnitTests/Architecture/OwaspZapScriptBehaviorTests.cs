@@ -32,6 +32,7 @@ public sealed class OwaspZapScriptBehaviorTests : IDisposable
             ],
             new Dictionary<string, string>
             {
+                ["ZAP_FAKE_SETFACL_RESULT"] = "success",
                 ["ZAP_LEDGER_EXIT_CODE"] = "3",
                 ["ZAP_BALANCE_NO_SERVERS"] = "true",
             });
@@ -71,7 +72,42 @@ public sealed class OwaspZapScriptBehaviorTests : IDisposable
     }
 
     [Fact]
-    public void Zap_workdir_should_be_prepared_before_validation_only_for_timestamped_output_directory()
+    public void Zap_workdir_should_use_setfacl_when_acl_preparation_succeeds()
+    {
+        var result = RunZapScript(
+            [
+                "--output-root", $"./{_relativeRunRoot}/acl-reports",
+                "--health-timeout", "1",
+                "--health-interval", "0",
+            ],
+            new Dictionary<string, string>
+            {
+                ["ZAP_FAKE_SETFACL_RESULT"] = "success",
+            });
+
+        Assert.True(
+            result.ExitCode == 0,
+            $"Exit code esperado: 0. Obtido: {result.ExitCode}.{Environment.NewLine}STDOUT:{Environment.NewLine}{result.StandardOutput}{Environment.NewLine}STDERR:{Environment.NewLine}{result.StandardError}");
+
+        AssertFakeCommandsResolvedFromFakeBin();
+
+        var reportDirectory = Directory.GetDirectories(Path.Combine(_repositoryRoot.FullName, _relativeRunRoot, "acl-reports")).Single();
+        var setfaclOperations = File.ReadAllLines(Path.Combine(_repositoryRoot.FullName, _relativeRunRoot, "setfacl.log"));
+        var aclOperation = Assert.Single(setfaclOperations, operation => operation.StartsWith("u:1000:rwx|", StringComparison.Ordinal));
+        var aclPath = aclOperation["u:1000:rwx|".Length..];
+
+        Assert.Equal(NormalizePathForComparison(reportDirectory), NormalizePathForComparison(aclPath));
+        Assert.True(File.Exists(Path.Combine(reportDirectory, ".fake-acl")));
+        Assert.Equal("1000:rwx", File.ReadAllText(Path.Combine(reportDirectory, ".fake-acl")).Trim());
+
+        var chmodOperations = File.Exists(Path.Combine(_repositoryRoot.FullName, _relativeRunRoot, "chmod.log"))
+            ? File.ReadAllLines(Path.Combine(_repositoryRoot.FullName, _relativeRunRoot, "chmod.log"))
+            : [];
+        Assert.DoesNotContain(chmodOperations, operation => operation.StartsWith("0777|", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Zap_workdir_should_fallback_to_chmod_only_for_timestamped_output_directory_when_setfacl_fails()
     {
         var result = RunZapScript(
             [
@@ -79,13 +115,21 @@ public sealed class OwaspZapScriptBehaviorTests : IDisposable
                 "--health-timeout", "1",
                 "--health-interval", "0",
             ],
-            new Dictionary<string, string>());
+            new Dictionary<string, string>
+            {
+                ["ZAP_FAKE_SETFACL_RESULT"] = "failure",
+            });
 
         Assert.True(
             result.ExitCode == 0,
             $"Exit code esperado: 0. Obtido: {result.ExitCode}.{Environment.NewLine}STDOUT:{Environment.NewLine}{result.StandardOutput}{Environment.NewLine}STDERR:{Environment.NewLine}{result.StandardError}");
 
+        AssertFakeCommandsResolvedFromFakeBin();
+
         var reportDirectory = Directory.GetDirectories(Path.Combine(_repositoryRoot.FullName, _relativeRunRoot, "permission-reports")).Single();
+        var setfaclOperations = File.ReadAllLines(Path.Combine(_repositoryRoot.FullName, _relativeRunRoot, "setfacl.log"));
+        Assert.Single(setfaclOperations, operation => operation.StartsWith("u:1000:rwx|", StringComparison.Ordinal));
+
         var chmodOperations = File.ReadAllLines(Path.Combine(_repositoryRoot.FullName, _relativeRunRoot, "chmod.log"));
         var widenedOperation = Assert.Single(chmodOperations, operation => operation.StartsWith("0777|", StringComparison.Ordinal));
         var widenedPath = widenedOperation["0777|".Length..];
@@ -118,6 +162,7 @@ public sealed class OwaspZapScriptBehaviorTests : IDisposable
             ],
             new Dictionary<string, string>
             {
+                ["ZAP_FAKE_SETFACL_RESULT"] = "failure",
                 ["ZAP_SKIP_CHMOD_MARKER"] = "true",
             });
 
@@ -150,7 +195,10 @@ public sealed class OwaspZapScriptBehaviorTests : IDisposable
                 "--health-timeout", "1",
                 "--health-interval", "0",
             ],
-            new Dictionary<string, string>());
+            new Dictionary<string, string>
+            {
+                ["ZAP_FAKE_SETFACL_RESULT"] = "success",
+            });
 
         Assert.True(
             result.ExitCode == 0,
@@ -176,13 +224,23 @@ public sealed class OwaspZapScriptBehaviorTests : IDisposable
         WriteFakeExecutable(Path.Combine(fakeBin, "docker"), FakeDockerScript);
         WriteFakeExecutable(Path.Combine(fakeBin, "chmod"), FakeChmodScript);
         WriteFakeExecutable(Path.Combine(fakeBin, "setfacl"), FakeSetfaclScript);
+        var fakeExecutables = new[]
+        {
+            Path.Combine(fakeBin, "curl"),
+            Path.Combine(fakeBin, "docker"),
+            Path.Combine(fakeBin, "chmod"),
+            Path.Combine(fakeBin, "setfacl"),
+        };
 
         var commandBuilder = new StringBuilder();
         commandBuilder.Append("set -e; ");
-        commandBuilder.Append("chmod +x ");
-        commandBuilder.Append(ShellQuote(ToBashPath(Path.Combine(fakeBin, "curl"))));
-        commandBuilder.Append(' ');
-        commandBuilder.Append(ShellQuote(ToBashPath(Path.Combine(fakeBin, "docker"))));
+        commandBuilder.Append("chmod +x");
+        foreach (var executable in fakeExecutables)
+        {
+            commandBuilder.Append(' ');
+            commandBuilder.Append(ShellQuote(ToBashPath(executable)));
+        }
+
         commandBuilder.Append("; ");
         commandBuilder.Append("export PATH=");
         commandBuilder.Append(ShellQuote(ToBashPath(fakeBin)));
@@ -196,6 +254,13 @@ public sealed class OwaspZapScriptBehaviorTests : IDisposable
         commandBuilder.Append("export ZAP_CHMOD_LOG=");
         commandBuilder.Append(ShellQuote($"./{_relativeRunRoot}/chmod.log"));
         commandBuilder.Append("; ");
+        commandBuilder.Append("export ZAP_SETFACL_LOG=");
+        commandBuilder.Append(ShellQuote($"./{_relativeRunRoot}/setfacl.log"));
+        commandBuilder.Append("; ");
+        commandBuilder.Append("export ZAP_COMMAND_RESOLUTION_LOG=");
+        commandBuilder.Append(ShellQuote($"./{_relativeRunRoot}/command-resolution.log"));
+        commandBuilder.Append("; ");
+        commandBuilder.Append("for command_name in curl docker chmod setfacl; do printf '%s=%s\\n' \"$command_name\" \"$(command -v \"$command_name\")\" >> \"$ZAP_COMMAND_RESOLUTION_LOG\"; done; ");
         foreach (var pair in environment)
         {
             commandBuilder.Append("export ");
@@ -258,6 +323,9 @@ public sealed class OwaspZapScriptBehaviorTests : IDisposable
 
     private static string NormalizePathForComparison(string path)
     {
+        if (OperatingSystem.IsWindows() && path.Length >= 3 && path[0] == '/' && path[2] == '/')
+            path = char.ToUpperInvariant(path[1]) + ":" + path[2..];
+
         return Path.GetFullPath(path).Replace('\\', '/').TrimEnd('/').ToUpperInvariant();
     }
 
@@ -277,6 +345,20 @@ public sealed class OwaspZapScriptBehaviorTests : IDisposable
         })
         {
             Assert.True(File.Exists(Path.Combine(reportDirectory, fileName)), $"Artifact esperado nao encontrado: {fileName}");
+        }
+    }
+
+    private void AssertFakeCommandsResolvedFromFakeBin()
+    {
+        var fakeBin = NormalizePathForComparison(Path.Combine(_repositoryRoot.FullName, _relativeRunRoot, "fakebin"));
+        var resolutionPath = Path.Combine(_repositoryRoot.FullName, _relativeRunRoot, "command-resolution.log");
+        var resolutions = File.ReadAllLines(resolutionPath);
+
+        foreach (var commandName in new[] { "curl", "docker", "chmod", "setfacl" })
+        {
+            var resolution = Assert.Single(resolutions, line => line.StartsWith($"{commandName}=", StringComparison.Ordinal));
+            var commandPath = resolution[(commandName.Length + 1)..];
+            Assert.StartsWith(fakeBin, NormalizePathForComparison(commandPath), StringComparison.Ordinal);
         }
     }
 
@@ -349,7 +431,42 @@ exit 0
 
     private const string FakeSetfaclScript = """
 #!/usr/bin/env bash
-exit 1
+set -euo pipefail
+
+spec=""
+target=""
+previous=""
+
+for arg in "$@"; do
+  if [[ "$previous" == "-m" ]]; then
+    spec="$arg"
+  fi
+  target="$arg"
+  previous="$arg"
+done
+
+host_path="$target"
+if [[ "$host_path" =~ ^([A-Za-z]):\\(.*)$ ]]; then
+  drive="${BASH_REMATCH[1],,}"
+  rest="${BASH_REMATCH[2]//\\//}"
+  host_path="/$drive/$rest"
+else
+  host_path="${host_path//\\//}"
+fi
+
+if [[ -n "${ZAP_SETFACL_LOG:-}" ]]; then
+  printf '%s|%s\n' "$spec" "$target" >> "$ZAP_SETFACL_LOG"
+fi
+
+if [[ "${ZAP_FAKE_SETFACL_RESULT:-failure}" != "success" ]]; then
+  exit 1
+fi
+
+if [[ "$spec" =~ ^u:([0-9]+):(.+)$ && -d "$host_path" ]]; then
+  printf '%s:%s\n' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" > "$host_path/.fake-acl"
+fi
+
+exit 0
 """;
 
     private const string FakeDockerScript = """
@@ -406,11 +523,15 @@ case "${1:-}" in
     for arg in "$@"; do
       if [[ "$arg" == "sh" ]]; then
         mode=""
+        acl=""
         if [[ -f "$workdir/.fake-mode" ]]; then
           mode="$(cat "$workdir/.fake-mode")"
         fi
+        if [[ -f "$workdir/.fake-acl" ]]; then
+          acl="$(cat "$workdir/.fake-acl")"
+        fi
 
-        if [[ "$mode" == "0777" || "$mode" == "777" ]]; then
+        if [[ "$acl" == "1000:rwx" || "$mode" == "0777" || "$mode" == "777" ]]; then
           exit 0
         fi
 
