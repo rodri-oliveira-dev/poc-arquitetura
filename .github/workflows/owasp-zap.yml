@@ -74,6 +74,7 @@ jobs:
           docker compose \
             --env-file .env.ci \
             -f compose.yaml \
+            -f compose.owasp-zap.yaml \
             config --quiet
 
           # shellcheck source=/dev/null
@@ -112,14 +113,17 @@ jobs:
           if ! docker compose \
             --env-file .env.ci \
             -f compose.yaml \
+            -f compose.owasp-zap.yaml \
             up -d postgres-db keycloak mailpit keycloak-identity-admin-init; then
             docker compose \
               --env-file .env.ci \
               -f compose.yaml \
+              -f compose.owasp-zap.yaml \
               ps
             docker compose \
               --env-file .env.ci \
               -f compose.yaml \
+              -f compose.owasp-zap.yaml \
               logs --no-color postgres-db keycloak mailpit keycloak-identity-admin-init || true
             exit 1
           fi
@@ -131,6 +135,7 @@ jobs:
             if docker compose \
               --env-file .env.ci \
               -f compose.yaml \
+              -f compose.owasp-zap.yaml \
               exec -T postgres-db \
               pg_isready -U postgres_admin -d appdb >/dev/null 2>&1; then
               exit 0
@@ -143,6 +148,7 @@ jobs:
           docker compose \
             --env-file .env.ci \
             -f compose.yaml \
+            -f compose.owasp-zap.yaml \
             logs --no-color postgres-db
           exit 1
 
@@ -218,6 +224,7 @@ jobs:
           if ! docker compose \
             --env-file .env.ci \
             -f compose.yaml \
+            -f compose.owasp-zap.yaml \
             up -d --build \
             ledger-service \
             balance-service \
@@ -228,10 +235,12 @@ jobs:
             docker compose \
               --env-file .env.ci \
               -f compose.yaml \
+              -f compose.owasp-zap.yaml \
               ps
             docker compose \
               --env-file .env.ci \
               -f compose.yaml \
+              -f compose.owasp-zap.yaml \
               logs --no-color \
               ledger-service \
               balance-service \
@@ -269,10 +278,12 @@ jobs:
                 docker compose \
                   --env-file .env.ci \
                   -f compose.yaml \
+                  -f compose.owasp-zap.yaml \
                   ps
                 docker compose \
                   --env-file .env.ci \
                   -f compose.yaml \
+                  -f compose.owasp-zap.yaml \
                   logs --no-color \
                   ledger-service \
                   balance-service \
@@ -310,6 +321,7 @@ jobs:
             docker compose \
               --env-file .env.ci \
               -f compose.yaml \
+              -f compose.owasp-zap.yaml \
               ps -q "${api_services[0]}"
           )"
 
@@ -334,6 +346,7 @@ jobs:
               docker compose \
                 --env-file .env.ci \
                 -f compose.yaml \
+                -f compose.owasp-zap.yaml \
                 ps -q "$service"
             )"
 
@@ -415,6 +428,7 @@ jobs:
             docker compose \
               --env-file .env.ci \
               -f compose.yaml \
+              -f compose.owasp-zap.yaml \
               down --volumes --remove-orphans
 
             cleanup_exit_code=$?

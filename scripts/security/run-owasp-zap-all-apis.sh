@@ -197,11 +197,39 @@ if [[ "$USE_AUTHENTICATION" == true ]]; then
     if [[ -z "$token_env_file" ]]; then
       token_env_file="$ROOT_DIR/.env.local"
     fi
-    TOKEN="$(ENV_FILE="$token_env_file" "$ROOT_DIR/scripts/validation/get-token.sh")"
+
+    token_output=""
+    token_exit_code=0
+    set +e
+    token_output="$(ENV_FILE="$token_env_file" bash "$ROOT_DIR/scripts/validation/get-token.sh" 2>&1)"
+    token_exit_code=$?
+    set -e
+
+    if [[ "$token_exit_code" -ne 0 ]]; then
+      echo "Falha ao obter token para o scan autenticado. Exit code: $token_exit_code" >&2
+      echo "$token_output" >&2
+      {
+        echo "# OWASP ZAP multi-API scan"
+        echo
+        echo "- Etapa que falhou: obtencao do token de autenticacao."
+        echo "- Exit code: \`$token_exit_code\`"
+        echo "- Artifact gerado antes do scan por falha operacional."
+      } > "$OUTPUT_DIR/summary.md"
+      exit "$token_exit_code"
+    fi
+
+    TOKEN="$token_output"
   fi
 
   if [[ -z "$TOKEN" ]]; then
     echo "Token vazio para o scan autenticado." >&2
+    {
+      echo "# OWASP ZAP multi-API scan"
+      echo
+      echo "- Etapa que falhou: obtencao do token de autenticacao."
+      echo "- Exit code: \`1\`"
+      echo "- Artifact gerado antes do scan por token vazio."
+    } > "$OUTPUT_DIR/summary.md"
     exit 1
   fi
 
@@ -239,7 +267,7 @@ validate_target() {
 
   set +e
   validation_output="$(
-    docker run --rm \
+    docker run --rm -i \
       --network "$DOCKER_NETWORK" \
       "$ZAP_IMAGE" \
       python3 - "$openapi_url" <<'PY' 2>&1
@@ -256,15 +284,19 @@ try:
         body = response.read(4 * 1024 * 1024)
 except HTTPError as error:
     detail = error.read(4096).decode("utf-8", errors="replace")
+    print(f"HTTP_STATUS={error.code}")
     print(f"HTTP {error.code}: {detail[:500]}", file=sys.stderr)
     sys.exit(10)
 except URLError as error:
+    print("HTTP_STATUS=<indisponivel>")
     print(f"Erro de conectividade: {error.reason}", file=sys.stderr)
     sys.exit(11)
 except Exception as error:
+    print("HTTP_STATUS=<indisponivel>")
     print(f"Erro ao acessar OpenAPI: {error}", file=sys.stderr)
     sys.exit(12)
 
+print(f"HTTP_STATUS={status}")
 if status < 200 or status >= 400:
     print(f"HTTP {status}", file=sys.stderr)
     sys.exit(13)
@@ -275,10 +307,14 @@ except Exception as error:
     print(f"Resposta nao e JSON valido: {error}", file=sys.stderr)
     sys.exit(14)
 
+if not isinstance(document.get("openapi"), str) and not isinstance(document.get("swagger"), str):
+    print("Documento JSON nao contem campo 'openapi' ou 'swagger'.", file=sys.stderr)
+    sys.exit(15)
+
 paths = document.get("paths")
 if not isinstance(paths, dict) or not paths:
     print("Documento OpenAPI nao contem paths validos.", file=sys.stderr)
-    sys.exit(15)
+    sys.exit(16)
 
 http_methods = {"get", "put", "post", "delete", "options", "head", "patch", "trace"}
 operations = []
@@ -293,7 +329,7 @@ for path, path_item in paths.items():
 operations.sort()
 if not operations:
     print("Documento OpenAPI nao contem operacoes HTTP.", file=sys.stderr)
-    sys.exit(16)
+    sys.exit(17)
 
 print(f"OPERATION_COUNT={len(operations)}")
 for operation in operations:
@@ -307,6 +343,10 @@ PY
 
   if [[ "$validation_exit_code" -ne 0 ]]; then
     echo "Falha ao validar OpenAPI de $name em $openapi_url." >&2
+    echo "Status HTTP: $(printf '%s\n' "$validation_output" | sed -n 's/^HTTP_STATUS=//p' | tail -n 1)" >&2
+    echo "Rede Docker utilizada: $DOCKER_NETWORK" >&2
+    echo "Exit code da validacao: $validation_exit_code" >&2
+    echo "Saida da validacao:" >&2
     echo "$validation_output" >&2
     return "$validation_exit_code"
   fi
@@ -315,6 +355,12 @@ PY
   operation_count="$(printf '%s\n' "$validation_output" | sed -n 's/^OPERATION_COUNT=//p' | tail -n 1)"
   if [[ -z "$operation_count" || ! "$operation_count" =~ ^[0-9]+$ || "$operation_count" -eq 0 ]]; then
     echo "Contagem de operacoes invalida para $name: ${operation_count:-<vazia>}" >&2
+    echo "URL consultada: $openapi_url" >&2
+    echo "Status HTTP: $(printf '%s\n' "$validation_output" | sed -n 's/^HTTP_STATUS=//p' | tail -n 1)" >&2
+    echo "Rede Docker utilizada: $DOCKER_NETWORK" >&2
+    echo "Exit code da validacao: 17" >&2
+    echo "Saida da validacao:" >&2
+    echo "$validation_output" >&2
     return 17
   fi
 

@@ -278,6 +278,18 @@ public sealed partial class WorkflowArtifactPolicyTests
     {
         var repositoryRoot = GetRepositoryRoot();
         var workflow = File.ReadAllText(Path.Combine(repositoryRoot.FullName, ".github/workflows/owasp-zap.yml"));
+        var targets = File.ReadAllText(Path.Combine(repositoryRoot.FullName, "scripts/security/owasp-zap-ci-targets.txt"));
+        var overlay = File.ReadAllText(Path.Combine(repositoryRoot.FullName, "compose.owasp-zap.yaml"));
+
+        var expectedTargets = new[]
+        {
+            "LedgerService.Api|ledger-service-api|http://ledger-service:8080",
+            "BalanceService.Api|balance-service-api|http://balance-service:8080",
+            "TransferService.Api|transfer-service-api|http://transfer-service:8080",
+            "PaymentService.Api|payment-service-api|http://payment-service:8080",
+            "AuditService.Api|audit-service-api|http://audit-service:8080",
+            "IdentityService.Api|identity-service-api|http://identity-service:8080",
+        };
 
         foreach (var healthUrl in new[]
         {
@@ -305,6 +317,22 @@ public sealed partial class WorkflowArtifactPolicyTests
             Assert.Contains(service, workflow);
         }
 
+        foreach (var target in expectedTargets)
+        {
+            Assert.Contains(target, targets);
+        }
+
+        Assert.Equal(expectedTargets.Length, targets.Split('\n', StringSplitOptions.RemoveEmptyEntries).Count(line => !line.StartsWith('#')));
+        Assert.Equal(expectedTargets.Length, SwaggerEnabledOverlayRegex().Count(overlay));
+        Assert.DoesNotContain("ports:", overlay);
+        Assert.DoesNotContain("0.0.0.0", overlay);
+        Assert.DoesNotContain("api-gateway", overlay, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("api-gateway", workflow, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("nginx", overlay, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("nginx", workflow, StringComparison.OrdinalIgnoreCase);
+
+        Assert.Contains("compose.owasp-zap.yaml", workflow);
+        Assert.Equal(DockerComposeCommandRegex().Count(workflow), OwaspZapComposeFileRegex().Count(workflow));
         Assert.Contains("docker inspect \"$first_container_id\"", workflow);
         Assert.Contains("docker inspect \"$container_id\"", workflow);
         Assert.Contains("awk '/(^|_)poc-net$/ { print; exit }'", workflow);
@@ -316,6 +344,17 @@ public sealed partial class WorkflowArtifactPolicyTests
         Assert.Contains("${{ env.ZAP_ARTIFACTS_DIR }}/**/*.log", workflow);
         Assert.DoesNotContain("continue-on-error", workflow);
         Assert.DoesNotContain("|| true", GetWorkflowStep(workflow, "Run authenticated OWASP ZAP against all APIs"));
+    }
+
+    [Fact]
+    public void Owasp_zap_all_apis_script_should_keep_stdin_open_for_heredoc_openapi_validation()
+    {
+        var repositoryRoot = GetRepositoryRoot();
+        var script = File.ReadAllText(Path.Combine(repositoryRoot.FullName, "scripts/security/run-owasp-zap-all-apis.sh"));
+
+        Assert.Matches(
+            @"docker run --rm -i\s*\\\s*[\s\S]*?python3 - ""\$openapi_url"" <<'PY'",
+            script);
     }
 
     [Fact]
@@ -570,6 +609,15 @@ public sealed partial class WorkflowArtifactPolicyTests
 
     [GeneratedRegex("dotnet-sonarscanner end")]
     private static partial Regex DotnetSonarscannerEndRegex();
+
+    [GeneratedRegex(@"Swagger__Enabled:\s*""true""")]
+    private static partial Regex SwaggerEnabledOverlayRegex();
+
+    [GeneratedRegex(@"docker compose\s*\\")]
+    private static partial Regex DockerComposeCommandRegex();
+
+    [GeneratedRegex(@"-f compose\.owasp-zap\.yaml")]
+    private static partial Regex OwaspZapComposeFileRegex();
 
     private static DirectoryInfo GetRepositoryRoot()
     {
