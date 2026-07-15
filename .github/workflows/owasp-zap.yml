@@ -193,12 +193,46 @@ jobs:
         env:
           FAIL_ON_ALERTS: ${{ github.event_name == 'workflow_dispatch' && inputs.fail_on_alerts }}
         run: |
+          set -euo pipefail
+
           mkdir -p "$ZAP_ARTIFACTS_DIR"
+
+          ledger_container_id="$(docker compose --env-file .env.ci -f compose.yaml ps -q ledger-service)"
+          balance_container_id="$(docker compose --env-file .env.ci -f compose.yaml ps -q balance-service)"
+
+          if [ -z "$ledger_container_id" ] || [ -z "$balance_container_id" ]; then
+            echo "Nao foi possivel descobrir os containers das APIs para o scan ZAP." >&2
+            docker compose --env-file .env.ci -f compose.yaml ps
+            exit 1
+          fi
+
+          ledger_networks="$(
+            docker inspect "$ledger_container_id" \
+              --format '{{range $name, $_ := .NetworkSettings.Networks}}{{println $name}}{{end}}'
+          )"
+          zap_network="$(printf '%s\n' "$ledger_networks" | awk '/(^|_)poc-net$/ { print; exit }')"
+
+          if [ -z "$zap_network" ]; then
+            echo "Rede poc-net nao encontrada no container ledger-service." >&2
+            docker inspect "$ledger_container_id" --format '{{json .NetworkSettings.Networks}}'
+            exit 1
+          fi
+
+          if ! docker inspect "$balance_container_id" \
+            --format '{{range $name, $_ := .NetworkSettings.Networks}}{{println $name}}{{end}}' |
+            grep -Fx "$zap_network" >/dev/null; then
+            echo "balance-service nao esta conectado a rede Docker usada pelo Ledger: $zap_network" >&2
+            docker inspect "$balance_container_id" --format '{{json .NetworkSettings.Networks}}'
+            exit 1
+          fi
 
           args=(
             --output-root "$ZAP_ARTIFACTS_DIR"
             --health-timeout 180
             --health-interval 5
+            --docker-network "$zap_network"
+            --ledger-zap-url http://ledger-service:8080
+            --balance-zap-url http://balance-service:8080
           )
 
           if [ "$FAIL_ON_ALERTS" = "true" ]; then
