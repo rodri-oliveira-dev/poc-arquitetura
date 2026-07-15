@@ -70,9 +70,11 @@ Isso reinstala ferramentas versionadas em `.config/dotnet-tools.json` quando nec
 Antes de executar validacoes, o `pre-push` tenta identificar os arquivos alterados entre o branch local e o upstream/remoto:
 
 - em pushes de branches ja existentes no remoto, usa o intervalo informado pelo Git para comparar o SHA remoto atual com o SHA local enviado (`remote_sha..local_sha`);
-- em pushes de branches novas, tenta calcular a base da branch usando o upstream da propria branch, a configuracao local de tracking, o `HEAD` dos remotos conhecidos ou o melhor merge-base entre refs remotas disponiveis;
+- em pushes de branches novas, tenta calcular a base da branch usando `PRE_PUSH_BASE_REF`, quando informada, o upstream da propria branch, a configuracao local de tracking, o `HEAD` dos remotos conhecidos ou o melhor merge-base entre refs remotas disponiveis;
 - em execucoes manuais sem entrada padrao do Git, aplica a mesma estrategia contra `HEAD`;
 - se nenhuma base segura estiver disponivel, executa as validacoes por seguranca.
+
+A responsabilidade de descobrir arquivos enviados fica no script reutilizavel `scripts/ci/collect-pre-push-files.py`. Ele le a entrada padrao do hook no formato `<local-ref> <local-sha> <remote-ref> <remote-sha>`, executa `git diff -C --find-copies-harder --name-status -z` somente sobre os commits enviados, deduplica registros repetidos entre multiplas refs e grava o resultado em arquivo temporario informado por `--output`. O formato do arquivo e uma sequencia de campos delimitados por NUL: `status\0path\0` para add/modify/delete e `status\0old-path\0new-path\0` para rename/copy. O hook tambem solicita `--paths-output` para gerar uma lista derivada de caminhos, usada apenas pela classificacao local de impacto.
 
 Quando existem alteracoes em `*.tf` ou `*.tfvars`, o hook executa apenas `terraform fmt -check -recursive ./infra/terraform`, se a Terraform CLI estiver disponivel. Se a ferramenta nao existir localmente, o hook avisa e permite o push, porque o workflow `terraform-validation` executa a validacao completa no Pull Request.
 
@@ -179,7 +181,7 @@ Quando um arquivo nao recebe classificacao, o hook registra cada caminho:
 
 O fallback conservador roda uma unica vez por push, mesmo com varios arquivos desconhecidos. Ele executa restore, build e testes unitarios rapidos sem cobertura de `PocArquitetura.Shared.slnx` e `PocArquitetura.slnx`, executa as validacoes leves de Dockerfile e Compose, e aplica `terraform fmt -check` quando a Terraform CLI estiver disponivel. Esse fluxo nao executa cobertura, Testcontainers, testes de integracao, testes de contrato, SonarQube, Trivy completo, `terraform init`, `terraform validate`, build de imagens nem `dotnet format` com lista inventada de arquivos C#.
 
-O detector do CI (`scripts/ci/detect-dotnet-impact.py`) permanece separado do hook local. A divergencia e intencional: no CI, o detector decide apenas impacto .NET para a matriz de PR e desconhecidos viram impacto agregado + Shared; no hook, a classificacao tambem cobre Terraform, Dockerfile, Compose, manifesto de ferramentas e `ci-only`, alem de preservar a execucao local leve sem exigir Python para decidir o push. Os testes de `scripts/ci/tests/` cobrem os cenarios comuns para evitar drift perigoso: Payment conhecido nao cai no fallback, Markdown puro continua leve e arquivos desconhecidos acionam validacao conservadora.
+O detector do CI (`scripts/ci/detect-dotnet-impact.py`) permanece separado do hook local. A divergencia e intencional: no CI, o detector decide apenas impacto .NET para a matriz de PR e desconhecidos viram impacto agregado + Shared; no hook, a classificacao tambem cobre Terraform, Dockerfile, Compose, manifesto de ferramentas e `ci-only`, alem de preservar a execucao local leve. Os testes de `scripts/ci/tests/` cobrem os cenarios comuns para evitar drift perigoso: Payment conhecido nao cai no fallback, Markdown puro continua leve, arquivos desconhecidos acionam validacao conservadora e o coletor do `pre-push` preserva status, renames e copies em registros NUL.
 
 Quando o diff contem ate 30 arquivos C#, o hook divide a verificacao de
 formatacao em lotes para evitar limites locais de tamanho da linha de comando,

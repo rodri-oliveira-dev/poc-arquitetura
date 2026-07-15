@@ -4,7 +4,6 @@ set -eu
 CONFIGURATION="${CONFIGURATION:-Release}"
 COVERAGE_THRESHOLD="${COVERAGE_THRESHOLD:-85}"
 FULL_TESTS="${FULL_TESTS:-false}"
-ZERO_SHA="0000000000000000000000000000000000000000"
 UNIT_TEST_FILTER="${UNIT_TEST_FILTER:-Category!=Integration&Category!=Container&Category!=Contract}"
 DOTNET_FORMAT_FILE_LIMIT="${DOTNET_FORMAT_FILE_LIMIT:-30}"
 
@@ -15,6 +14,20 @@ else
 fi
 
 cd "$repo_root"
+
+find_python() {
+  if command -v python3 >/dev/null 2>&1; then
+    command -v python3
+    return 0
+  fi
+
+  if command -v python >/dev/null 2>&1; then
+    command -v python
+    return 0
+  fi
+
+  return 1
+}
 
 run_timed() {
   step_name="$1"
@@ -80,6 +93,7 @@ run_requested_full_tests() {
 }
 
 if command -v mktemp >/dev/null 2>&1; then
+  changed_file_records="$(mktemp "${TMPDIR:-/tmp}/pre-push-changed-records.XXXXXX")"
   changed_files="$(mktemp "${TMPDIR:-/tmp}/pre-push-changed.XXXXXX")"
   audit_dotnet_format_files="$(mktemp "${TMPDIR:-/tmp}/pre-push-audit-format.XXXXXX")"
   balance_dotnet_format_files="$(mktemp "${TMPDIR:-/tmp}/pre-push-balance-format.XXXXXX")"
@@ -90,6 +104,7 @@ if command -v mktemp >/dev/null 2>&1; then
   shared_dotnet_format_files="$(mktemp "${TMPDIR:-/tmp}/pre-push-shared-format.XXXXXX")"
   aggregate_dotnet_format_files="$(mktemp "${TMPDIR:-/tmp}/pre-push-aggregate-format.XXXXXX")"
 else
+  changed_file_records="${TMPDIR:-/tmp}/pre-push-changed-records.$$"
   changed_files="${TMPDIR:-/tmp}/pre-push-changed.$$"
   audit_dotnet_format_files="${TMPDIR:-/tmp}/pre-push-audit-format.$$"
   balance_dotnet_format_files="${TMPDIR:-/tmp}/pre-push-balance-format.$$"
@@ -99,6 +114,7 @@ else
   transfer_dotnet_format_files="${TMPDIR:-/tmp}/pre-push-transfer-format.$$"
   shared_dotnet_format_files="${TMPDIR:-/tmp}/pre-push-shared-format.$$"
   aggregate_dotnet_format_files="${TMPDIR:-/tmp}/pre-push-aggregate-format.$$"
+  : >"$changed_file_records"
   : >"$changed_files"
   : >"$audit_dotnet_format_files"
   : >"$balance_dotnet_format_files"
@@ -110,7 +126,7 @@ else
   : >"$aggregate_dotnet_format_files"
 fi
 
-trap 'rm -f "$changed_files" "$audit_dotnet_format_files" "$balance_dotnet_format_files" "$identity_dotnet_format_files" "$ledger_dotnet_format_files" "$payment_dotnet_format_files" "$transfer_dotnet_format_files" "$shared_dotnet_format_files" "$aggregate_dotnet_format_files"' EXIT
+trap 'rm -f "$changed_file_records" "$changed_files" "$audit_dotnet_format_files" "$balance_dotnet_format_files" "$identity_dotnet_format_files" "$ledger_dotnet_format_files" "$payment_dotnet_format_files" "$transfer_dotnet_format_files" "$shared_dotnet_format_files" "$aggregate_dotnet_format_files"' EXIT
 
 is_shared_path() {
   case "$1" in
@@ -419,203 +435,17 @@ is_terraform_impacting_path() {
   return 1
 }
 
-append_changed_files_from_ref_range() {
-  base_ref="$1"
-  head_ref="$2"
-
-  git diff --name-only "$base_ref" "$head_ref" >>"$changed_files"
-}
-
-append_changed_files_from_base_ref() {
-  base_ref="$1"
-  head_ref="$2"
-
-  if ! git rev-parse --verify "$base_ref^{commit}" >/dev/null 2>&1; then
-    return 1
-  fi
-
-  merge_base="$(git merge-base "$head_ref" "$base_ref" 2>/dev/null || true)"
-  if [ -z "$merge_base" ]; then
-    return 1
-  fi
-
-  git diff --name-only "$merge_base" "$head_ref" >>"$changed_files"
-}
-
-is_valid_base_ref() {
-  base_ref="$1"
-  head_ref="$2"
-
-  base_commit="$(git rev-parse --verify "$base_ref^{commit}" 2>/dev/null || true)"
-  [ -n "$base_commit" ] || return 1
-
-  head_commit="$(git rev-parse --verify "$head_ref^{commit}" 2>/dev/null || true)"
-  [ -n "$head_commit" ] || return 1
-
-  merge_base="$(git merge-base "$head_commit" "$base_commit" 2>/dev/null || true)"
-  [ -n "$merge_base" ] || return 1
-  [ "$merge_base" != "$head_commit" ] || return 1
-
-  return 0
-}
-
-resolve_safe_base_ref() {
-  head_ref="$1"
-  local_ref="${2:-}"
-  resolved_base_ref=""
-  branch_name=""
-
-  case "$local_ref" in
-    refs/heads/*)
-      branch_name="${local_ref#refs/heads/}"
-      ;;
-  esac
-
-  if [ -n "$branch_name" ]; then
-    upstream_ref="$(git rev-parse --abbrev-ref --symbolic-full-name "$branch_name@{u}" 2>/dev/null || true)"
-  else
-    upstream_ref="$(git rev-parse --abbrev-ref --symbolic-full-name "@{u}" 2>/dev/null || true)"
-  fi
-
-  if [ -n "$upstream_ref" ] && is_valid_base_ref "$upstream_ref" "$head_ref"; then
-    resolved_base_ref="$upstream_ref"
-    return 0
-  fi
-
-  if [ -n "$branch_name" ]; then
-    configured_remote="$(git config "branch.$branch_name.remote" 2>/dev/null || true)"
-    configured_merge="$(git config "branch.$branch_name.merge" 2>/dev/null || true)"
-
-    if [ -n "$configured_remote" ] && [ -n "$configured_merge" ]; then
-      case "$configured_merge" in
-        refs/heads/*)
-          if [ "$configured_remote" = "." ]; then
-            configured_base="$configured_merge"
-          else
-            configured_base="$configured_remote/${configured_merge#refs/heads/}"
-          fi
-
-          if is_valid_base_ref "$configured_base" "$head_ref"; then
-            resolved_base_ref="$configured_base"
-            return 0
-          fi
-          ;;
-      esac
-    fi
-  fi
-
-  remote_refs="$(git for-each-ref --format='%(refname)' refs/remotes 2>/dev/null || true)"
-  while IFS= read -r remote_ref
-  do
-    [ -n "$remote_ref" ] || continue
-
-    case "$remote_ref" in
-      */HEAD)
-        remote_head_ref="$(git symbolic-ref --short "$remote_ref" 2>/dev/null || true)"
-        if [ -n "$remote_head_ref" ] && is_valid_base_ref "$remote_head_ref" "$head_ref"; then
-          resolved_base_ref="$remote_head_ref"
-          return 0
-        fi
-        ;;
-    esac
-  done <<EOF
-$remote_refs
-EOF
-
-  head_commit="$(git rev-parse --verify "$head_ref^{commit}" 2>/dev/null || true)"
-  [ -n "$head_commit" ] || return 1
-
-  best_base_ref=""
-  best_base_time="-1"
-  remote_short_refs="$(git for-each-ref --format='%(refname:short)' refs/remotes 2>/dev/null || true)"
-  while IFS= read -r candidate_ref
-  do
-    [ -n "$candidate_ref" ] || continue
-
-    case "$candidate_ref" in
-      */HEAD)
-        continue
-        ;;
-    esac
-
-    candidate_commit="$(git rev-parse --verify "$candidate_ref^{commit}" 2>/dev/null || true)"
-    [ -n "$candidate_commit" ] || continue
-
-    candidate_merge_base="$(git merge-base "$head_commit" "$candidate_commit" 2>/dev/null || true)"
-    [ -n "$candidate_merge_base" ] || continue
-    [ "$candidate_merge_base" != "$head_commit" ] || continue
-
-    candidate_base_time="$(git show -s --format=%ct "$candidate_merge_base" 2>/dev/null || echo 0)"
-    if [ "$candidate_base_time" -gt "$best_base_time" ]; then
-      best_base_time="$candidate_base_time"
-      best_base_ref="$candidate_ref"
-    fi
-  done <<EOF
-$remote_short_refs
-EOF
-
-  if [ -n "$best_base_ref" ]; then
-    resolved_base_ref="$best_base_ref"
-    return 0
-  fi
-
-  return 1
-}
-
-append_changed_files_from_safe_base() {
-  head_ref="$1"
-  local_ref="${2:-}"
-
-  echo "==> pre-push: tentando identificar branch de origem/base"
-  if resolve_safe_base_ref "$head_ref" "$local_ref"; then
-    echo "==> pre-push: base identificada: $resolved_base_ref"
-    echo "==> pre-push: range analisado: $resolved_base_ref...$head_ref"
-    append_changed_files_from_base_ref "$resolved_base_ref" "$head_ref"
-    return 0
-  fi
-
-  echo "==> pre-push: nao foi possivel determinar a base com seguranca; executando validacoes"
-  return 1
-}
-
 diff_is_safe=true
-stdin_seen=false
 
 echo "==> pre-push: analisando alteracoes pendentes de push"
 
-while read -r local_ref local_sha remote_ref remote_sha
-do
-  [ -n "$local_ref" ] || continue
-  [ -n "$local_sha" ] || continue
-  [ -n "$remote_ref" ] || continue
-  [ -n "$remote_sha" ] || continue
-
-  stdin_seen=true
-
-  if [ "$local_sha" = "$ZERO_SHA" ]; then
-    echo "==> pre-push: ref removida detectada; ignorando $remote_ref"
-    continue
-  fi
-
-  if [ -n "$remote_sha" ] && [ "$remote_sha" != "$ZERO_SHA" ]; then
-    echo "==> pre-push: branch remota existente detectada"
-    echo "==> pre-push: range analisado: $remote_sha..$local_sha"
-    if ! append_changed_files_from_ref_range "$remote_sha" "$local_sha"; then
-      diff_is_safe=false
-    fi
-    continue
-  fi
-
-  echo "==> pre-push: branch remota ainda nao existe"
-  if ! append_changed_files_from_safe_base "$local_sha" "$local_ref"; then
-    diff_is_safe=false
-  fi
-done
-
-if [ "$stdin_seen" = false ]; then
-  if ! append_changed_files_from_safe_base "HEAD" ""; then
-    diff_is_safe=false
-  fi
+python_cmd="$(find_python || true)"
+if [ -z "$python_cmd" ]; then
+  echo "==> pre-push: Python nao encontrado; nao foi possivel identificar arquivos do push com registros NUL" >&2
+  diff_is_safe=false
+elif ! "$python_cmd" ./scripts/ci/collect-pre-push-files.py --output "$changed_file_records" --paths-output "$changed_files" 2>&1; then
+  diff_is_safe=false
+  : >"$changed_files"
 fi
 
 dotnet_changes=false

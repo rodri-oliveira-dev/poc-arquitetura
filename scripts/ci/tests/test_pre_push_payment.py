@@ -75,6 +75,11 @@ class PrePushPaymentTests(unittest.TestCase):
             container_log = temp_path / "container.log"
             tools_path.mkdir()
             repo_path.mkdir()
+            (repo_path / "scripts" / "ci").mkdir(parents=True)
+            shutil.copyfile(
+                REPO_ROOT / "scripts" / "ci" / "collect-pre-push-files.py",
+                repo_path / "scripts" / "ci" / "collect-pre-push-files.py",
+            )
 
             for relative_file in existing_files:
                 file_path = repo_path / relative_file
@@ -92,11 +97,15 @@ class PrePushPaymentTests(unittest.TestCase):
                   exit 0
                 fi
 
-                if [ "$1" = "diff" ] && [ "$2" = "--name-only" ]; then
+                if [ "$1" = "diff" ] && [ "$2" = "-C" ] && [ "$3" = "--find-copies-harder" ] && [ "$4" = "--name-status" ] && [ "$5" = "-z" ]; then
                   if [ "${{PRE_PUSH_TEST_GIT_DIFF_EXIT_CODE:-0}}" -ne 0 ]; then
                     exit "$PRE_PUSH_TEST_GIT_DIFF_EXIT_CODE"
                   fi
-                  printf '%s\\n' "$PRE_PUSH_TEST_CHANGED_FILES"
+                  printf '%s\\n' "$PRE_PUSH_TEST_CHANGED_FILES" | while IFS= read -r changed_file
+                  do
+                    [ -n "$changed_file" ] || continue
+                    printf 'M\\0%s\\0' "$changed_file"
+                  done
                   exit 0
                 fi
 
@@ -104,6 +113,20 @@ class PrePushPaymentTests(unittest.TestCase):
                 exit 1
                 """,
             )
+            self.write_windows_command_shim(tools_path / "git.cmd", tools_path / "git")
+
+            real_python = shutil.which("python")
+            self.assertIsNotNone(real_python, "python nao encontrado no PATH")
+            for python_name in ("python", "python3"):
+                self.write_executable(
+                    tools_path / python_name,
+                    f"""\
+                    #!/usr/bin/env sh
+                    set -eu
+                    export PATH="$PRE_PUSH_TEST_WINDOWS_PATH"
+                    exec {shlex.quote(self.to_sh_path(pathlib.Path(real_python)))} "$@"
+                    """,
+                )
 
             self.write_executable(
                 tools_path / "dotnet",
@@ -162,6 +185,8 @@ class PrePushPaymentTests(unittest.TestCase):
             env["PRE_PUSH_TEST_BASELINE_EXIT_CODE"] = str(baseline_exit_code)
             env["PRE_PUSH_TEST_DOCKER_COMPOSE_VERSION_EXIT_CODE"] = str(docker_compose_version_exit_code)
             env["PRE_PUSH_TEST_GIT_DIFF_EXIT_CODE"] = str(git_diff_exit_code)
+            env["PRE_PUSH_TEST_WINDOWS_PATH"] = f"{tools_path}{os.pathsep}{env.get('Path', env.get('PATH', ''))}"
+            env["PRE_PUSH_GIT"] = str(tools_path / "git.cmd")
             command = (
                 f"PATH={shlex.quote(self.to_sh_path(tools_path))}:$PATH "
                 f"exec {shlex.quote(self.to_sh_path(PRE_PUSH_HOOK))}"
@@ -203,6 +228,13 @@ class PrePushPaymentTests(unittest.TestCase):
     def write_executable(self, path: pathlib.Path, content: str) -> None:
         path.write_text(textwrap.dedent(content), encoding="utf-8", newline="\n")
         path.chmod(path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+    def write_windows_command_shim(self, path: pathlib.Path, shell_script: pathlib.Path) -> None:
+        path.write_text(
+            f'@"{self.sh}" "{shell_script}" %*\n',
+            encoding="utf-8",
+            newline="\r\n",
+        )
 
     def assert_runs_payment_only(self, commands: list[str]) -> None:
         self.assertIn("restore ./PaymentService.slnx", commands)
