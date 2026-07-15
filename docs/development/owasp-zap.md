@@ -51,6 +51,15 @@ O `compose.yaml` mantem as portas das APIs publicadas somente em `127.0.0.1` par
 
 Antes de chamar `zap-api-scan.py`, o runner valida que a rede Docker informada existe e que um container consegue baixar e interpretar cada `/swagger/v1/swagger.json` como JSON OpenAPI valido. Falhas de conectividade, HTTP de erro ou documento invalido continuam sendo falhas operacionais.
 
+Como os contratos podem declarar servidores locais absolutos para uso direto no host, o runner tambem calcula o servidor efetivo acessivel pelo container e passa esse valor ao `zap-api-scan.py` com `-O`. No workflow Compose, os comandos efetivos usam:
+
+```bash
+zap-api-scan.py -t http://ledger-service:8080/swagger/v1/swagger.json -f openapi -O http://ledger-service:8080
+zap-api-scan.py -t http://balance-service:8080/swagger/v1/swagger.json -f openapi -O http://balance-service:8080
+```
+
+A validacao previa registra o array `servers` do OpenAPI quando existir. Divergencias entre o servidor declarado e o servidor efetivo aparecem no log, mas sao aceitas quando o override `-O` foi calculado. Quando `servers` estiver ausente, a execucao continua.
+
 Por padrao, o runner aguarda ate 90 segundos por API, com tentativas a cada 3 segundos. Ajuste esse comportamento quando a maquina local estiver mais lenta:
 
 ```powershell
@@ -190,9 +199,10 @@ Arquivos esperados:
 
 - `ledger-service-api.html`, `ledger-service-api.json`, `ledger-service-api.md`
 - `balance-service-api.html`, `balance-service-api.json`, `balance-service-api.md`
+- `ledger-service-api.log`, `balance-service-api.log`
 - `summary.md`
 
-O `summary.md` registra data/hora, imagem ZAP, URLs analisadas, alvo visto pelo container, arquivos gerados e status final por API. A pasta `zap-reports/` e ignorada pelo Git; relatorios gerados nao devem ser versionados.
+O `summary.md` registra data/hora, imagem ZAP, URLs analisadas, alvo visto pelo container, servidor declarado pelo OpenAPI, servidor efetivo usado com `-O`, arquivos gerados e status final por API. A pasta `zap-reports/` e ignorada pelo Git; relatorios gerados nao devem ser versionados.
 
 Quando o modo autenticado estiver ativo, o summary registra apenas que `Authorization: Bearer` foi injetado via ZAP Replacer. O token nao e gravado no summary.
 
@@ -228,9 +238,12 @@ Depois do scan, o workflow publica o artifact `owasp-zap-baseline-reports` com r
 - relatorios HTML;
 - relatorios JSON;
 - relatorios Markdown;
+- logs brutos stdout/stderr por API;
 - summaries de texto ou Markdown.
 
 Por padrao, alertas do ZAP nao falham o job. O job falha para problemas operacionais, como erro ao subir a stack, migrations com falha, APIs indisponiveis, falha operacional do container ZAP ou erro do runner. Ao disparar manualmente, o input `fail_on_alerts=true` pode ser usado para propagar alertas como falha, mas isso continua sendo uma decisao manual e nao altera os checks obrigatorios de PR.
+
+Ledger e Balance sao sempre tentados dentro de uma execucao iniciada com sucesso. Se um alvo retornar falha operacional, o runner registra o resultado, continua para o proximo alvo e calcula o exit code final somente depois de atualizar o summary.
 
 Na execucao automatica pos-CI, alertas permanecem consultivos e `fail_on_alerts` nao e aplicado. Nao use `owasp-zap-baseline` como required check enquanto essa politica consultiva estiver vigente; branch protection deve continuar focada no check `Build and test` e nos checks de seguranca definidos como bloqueantes.
 

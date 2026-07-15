@@ -287,6 +287,7 @@ public sealed partial class WorkflowArtifactPolicyTests
         Assert.Contains("--docker-network \"$zap_network\"", workflow);
         Assert.Contains("--ledger-zap-url http://ledger-service:8080", workflow);
         Assert.Contains("--balance-zap-url http://balance-service:8080", workflow);
+        Assert.Contains("${{ env.ZAP_ARTIFACTS_DIR }}/**/*.log", workflow);
         Assert.DoesNotContain("continue-on-error", workflow);
         Assert.DoesNotContain("|| true", GetWorkflowStep(workflow, "Run OWASP ZAP baseline"));
     }
@@ -309,6 +310,8 @@ public sealed partial class WorkflowArtifactPolicyTests
         Assert.Contains("assert_openapi_from_container \"BalanceService.Api\" \"$BALANCE_URL\" \"$BALANCE_ZAP_URL\"", script);
         Assert.Contains("run_zap_scan \"LedgerService.Api\" \"ledger-service-api\" \"$LEDGER_URL\" \"$LEDGER_ZAP_URL\"", script);
         Assert.Contains("run_zap_scan \"BalanceService.Api\" \"balance-service-api\" \"$BALANCE_URL\" \"$BALANCE_ZAP_URL\"", script);
+        Assert.Contains("zap_accessible_base_url()", script);
+        Assert.Contains("-O \"$effective_server_url\"", script);
     }
 
     [Fact]
@@ -350,6 +353,8 @@ public sealed partial class WorkflowArtifactPolicyTests
         Assert.Contains("docker network inspect \"$DOCKER_NETWORK\"", script);
         Assert.Contains("Documento JSON nao contem campo 'openapi' ou 'swagger'.", script);
         Assert.Contains("Documento OpenAPI nao contem paths validos.", script);
+        Assert.Contains("Campo 'servers' existe, mas nao e um array.", script);
+        Assert.Contains("Servidor declarado no OpenAPI difere do servidor efetivo acessivel pelo container ZAP.", script);
         Assert.Contains("Falha ao validar OpenAPI do $api_name a partir do container ZAP.", script);
         Assert.Contains("URL vista pelo host: $host_openapi_url", script);
         Assert.Contains("URL vista pelo container: $target_url", script);
@@ -357,6 +362,8 @@ public sealed partial class WorkflowArtifactPolicyTests
         Assert.Contains("elif [[ \"$exit_code\" -ge 3 ]]; then", script);
         Assert.Contains("if [[ \"$exit_code\" -ge 3 ]]; then", script);
         Assert.Contains("if [[ \"$FAIL_ON_ALERTS\" == true && \"$exit_code\" -ne 0 ]]; then", script);
+        Assert.Contains("final_exit_code()", script);
+        Assert.Contains("Falha operacional: /zap/wrk nao esta gravavel pelo usuario da imagem ZAP.", script);
     }
 
     public static TheoryData<string> GetAllPolicyYamlFiles()

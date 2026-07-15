@@ -272,6 +272,7 @@ jobs:
             ${{ env.ZAP_ARTIFACTS_DIR }}/**/*.json
             ${{ env.ZAP_ARTIFACTS_DIR }}/**/*.md
             ${{ env.ZAP_ARTIFACTS_DIR }}/**/*.txt
+            ${{ env.ZAP_ARTIFACTS_DIR }}/**/*.log
           if-no-files-found: warn
           retention-days: 7
 
