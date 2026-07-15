@@ -1,0 +1,24 @@
+services:
+  ledger-service:
+    environment:
+      Swagger__Enabled: "true"
+
+  balance-service:
+    environment:
+      Swagger__Enabled: "true"
+
+  transfer-service:
+    environment:
+      Swagger__Enabled: "true"
+
+  payment-service:
+    environment:
+      Swagger__Enabled: "true"
+
+  audit-service:
+    environment:
+      Swagger__Enabled: "true"
+
+  identity-service:
+    environment:
+      Swagger__Enabled: "true"
