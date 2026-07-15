@@ -21,11 +21,11 @@ Conteudo publicado:
 - arquivos `coverage.opencover.xml` importados pelo SonarQube Cloud;
 - `coverage-report/Summary.json`;
 - `coverage-report/Summary.txt`;
-- `artifacts/sonarqube/<contexto>/quality-gate.json`;
-- `artifacts/sonarqube/<contexto>/measures.json`;
-- `artifacts/sonarqube/<contexto>/issues.json`;
-- `artifacts/sonarqube/<contexto>/sonarqube-cloud-report.md`;
-- `artifacts/sonarqube/<contexto>/report.md`;
+- `artifacts/sonarqube/aggregate/quality-gate.json`;
+- `artifacts/sonarqube/aggregate/measures.json`;
+- `artifacts/sonarqube/aggregate/issues.json`;
+- `artifacts/sonarqube/aggregate/sonarqube-cloud-report.md`;
+- `artifacts/sonarqube/aggregate/report.md`;
 - `artifacts/nuget-vulnerabilities-<contexto>.json`.
 
 Motivo:

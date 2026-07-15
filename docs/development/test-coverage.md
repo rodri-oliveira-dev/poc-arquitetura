@@ -138,9 +138,9 @@ Quando o gate falhar:
 3. Priorize testes que validem comportamento de dominio, aplicacao, infraestrutura critica ou contratos HTTP.
 4. Use exclusao somente quando houver justificativa tecnica clara e localizada.
 
-O workflow `main-dotnet-ci` e o CI principal para `pull_request`, `merge_group`, `push` na `main` e execucao manual. Ele usa `scripts/ci/detect-dotnet-impact.py` para pular PRs apenas documentais e para escolher os contextos impactados: `aggregate` (`PocArquitetura.slnx`), `shared` (`PocArquitetura.Shared.slnx`) ou ambos. Cada contexto executado passa por auditoria NuGet, SonarQube Cloud, build, testes com cobertura, ReportGenerator e gate local: 85% para aggregate e 80% para Shared.
+O workflow `main-dotnet-ci` e o CI principal para `pull_request`, `merge_group`, `push` na `main` e execucao manual. Ele usa `scripts/ci/detect-dotnet-impact.py` para pular PRs apenas documentais e para escolher os contextos impactados: `aggregate` (`PocArquitetura.slnx`), `shared` (`PocArquitetura.Shared.slnx`) ou ambos. Cada contexto executado passa por auditoria NuGet, build, testes com cobertura, ReportGenerator e gate local: 85% para aggregate e 80% para Shared. Somente aggregate executa SonarQube Cloud.
 
-O artifact contem arquivos `.trx`, `coverage.cobertura.xml`, `coverage.opencover.xml`, `coverage-report/Summary.json`, `coverage-report/Summary.txt`, snapshots do SonarQube Cloud em `artifacts/sonarqube/<contexto>` e os JSONs da auditoria NuGet por contexto. O HTML completo do ReportGenerator nao e publicado como artifact porque o XML e os summaries atendem ao diagnostico principal com menor exposicao de paths e trechos renderizados.
+O artifact contem arquivos `.trx`, `coverage.cobertura.xml`, `coverage.opencover.xml`, `coverage-report/Summary.json`, `coverage-report/Summary.txt`, snapshots do SonarQube Cloud em `artifacts/sonarqube/aggregate` e os JSONs da auditoria NuGet por contexto. O HTML completo do ReportGenerator nao e publicado como artifact porque o XML e os summaries atendem ao diagnostico principal com menor exposicao de paths e trechos renderizados.
 
 O workflow reutilizavel contextual antigo foi removido para evitar uma segunda implementacao de restore, build, testes, cobertura, Sonar e relatorios.
 

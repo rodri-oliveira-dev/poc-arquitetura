@@ -139,26 +139,34 @@ jobs:
             sonar_allowed=false
           fi
 
-          if [ "$sonar_allowed" = "true" ] && [ -z "${SONAR_TOKEN:-}" ]; then
+          contexts=()
+          if [ "$RUN_AGGREGATE" = "true" ]; then
+            contexts+=("aggregate|$AGGREGATE_SOLUTION_PATH|true|85|LedgerService.Worker,BalanceService.Worker|rodri-oliveira-dev_poc-arquitetura|poc-arquitetura")
+          fi
+          if [ "$RUN_SHARED" = "true" ]; then
+            contexts+=("shared|$SHARED_SOLUTION_PATH|false|80|||")
+          fi
+
+          sonar_required=false
+          for item in "${contexts[@]}"; do
+            IFS="|" read -r _context _solution sonar_enabled _coverage_threshold _required_assemblies _project_key _project_name <<< "$item"
+            if [ "$sonar_enabled" = "true" ]; then
+              sonar_required=true
+            fi
+          done
+
+          if [ "$sonar_required" = "true" ] && [ "$sonar_allowed" = "true" ] && [ -z "${SONAR_TOKEN:-}" ]; then
             echo "SONAR_TOKEN is not configured. Create the GitHub Actions repository secret before running SonarQube Cloud analysis." >&2
             exit 1
           fi
 
-          if [ "$sonar_allowed" = "false" ]; then
+          if [ "$sonar_required" = "true" ] && [ "$sonar_allowed" = "false" ]; then
             cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
 
           ### SonarQube Cloud
 
           Pull request de fork detectado. A analise SonarQube Cloud foi ignorada para nao expor secrets a codigo nao confiavel; restore, auditoria NuGet, build, testes e cobertura continuam ativos.
           EOF
-          fi
-
-          contexts=()
-          if [ "$RUN_AGGREGATE" = "true" ]; then
-            contexts+=("aggregate|$AGGREGATE_SOLUTION_PATH|rodri-oliveira-dev_poc-arquitetura|poc-arquitetura|85|LedgerService.Worker,BalanceService.Worker")
-          fi
-          if [ "$RUN_SHARED" = "true" ]; then
-            contexts+=("shared|$SHARED_SOLUTION_PATH|rodri-oliveira-dev_poc-arquitetura-shared|poc-arquitetura-shared|80|")
           fi
 
           check_nuget_vulnerabilities() {
@@ -251,14 +259,17 @@ jobs:
           }
 
           for item in "${contexts[@]}"; do
-            IFS="|" read -r context solution project_key project_name coverage_threshold required_assemblies <<< "$item"
+            IFS="|" read -r context solution sonar_enabled coverage_threshold required_assemblies project_key project_name <<< "$item"
             test_results_dir="$ARTIFACTS_ROOT/test-results/$context"
             sonar_report_dir="$ARTIFACTS_ROOT/sonarqube/$context"
             opencover_pattern="$test_results_dir/**/coverage.opencover.xml"
             coverage_summary="$test_results_dir/coverage-report/Summary.json"
 
             echo "Running $context validation with $solution"
-            mkdir -p "$test_results_dir" "$sonar_report_dir"
+            mkdir -p "$test_results_dir"
+            if [ "$sonar_enabled" = "true" ]; then
+              mkdir -p "$sonar_report_dir"
+            fi
             sonar_begin_exit_code=0
 
             dotnet restore "$solution" \
@@ -268,7 +279,7 @@ jobs:
             dotnet list "$solution" package --vulnerable --include-transitive --no-restore --format json > "$ARTIFACTS_ROOT/nuget-vulnerabilities-$context.json"
             check_nuget_vulnerabilities "$ARTIFACTS_ROOT/nuget-vulnerabilities-$context.json"
 
-            if [ "$sonar_allowed" = "true" ]; then
+            if [ "$sonar_enabled" = "true" ] && [ "$sonar_allowed" = "true" ]; then
               rm -rf .sonarqube
               dotnet tool run dotnet-sonarscanner begin \
                 /k:"$project_key" \
@@ -302,7 +313,7 @@ jobs:
             fi
 
             if ! find "$test_results_dir" -name coverage.opencover.xml -print -quit | grep -q .; then
-              echo "Testes de $context finalizaram com sucesso, mas nenhum arquivo coverage.opencover.xml foi gerado para o SonarQube Cloud." >&2
+              echo "Testes de $context finalizaram com sucesso, mas nenhum arquivo coverage.opencover.xml foi gerado." >&2
               exit 1
             fi
 
@@ -314,7 +325,7 @@ jobs:
             enforce_coverage_threshold "$coverage_summary" "$coverage_threshold" "$required_assemblies"
             write_context_summary "$context" "$solution" "$coverage_summary"
 
-            if [ "$sonar_allowed" = "true" ]; then
+            if [ "$sonar_enabled" = "true" ] && [ "$sonar_allowed" = "true" ]; then
               if [ "$sonar_begin_exit_code" -ne 0 ]; then
                 exit "$sonar_begin_exit_code"
               fi

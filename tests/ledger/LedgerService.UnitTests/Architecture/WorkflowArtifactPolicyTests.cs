@@ -214,6 +214,28 @@ public sealed partial class WorkflowArtifactPolicyTests
     }
 
     [Fact]
+    public void Dotnet_ci_should_send_sonar_analysis_only_for_aggregate_context()
+    {
+        var repositoryRoot = GetRepositoryRoot();
+        var workflow = File.ReadAllText(Path.Combine(repositoryRoot.FullName, ".github/workflows/dotnet.yml"));
+
+        Assert.Contains("aggregate|$AGGREGATE_SOLUTION_PATH|true|85|LedgerService.Worker,BalanceService.Worker|rodri-oliveira-dev_poc-arquitetura|poc-arquitetura", workflow);
+        Assert.Contains("shared|$SHARED_SOLUTION_PATH|false|80|||", workflow);
+        Assert.Contains("sonar_required=false", workflow);
+        Assert.Contains("""if [ "$sonar_required" = "true" ] && [ "$sonar_allowed" = "true" ] && [ -z "${SONAR_TOKEN:-}" ]; then""", workflow);
+        Assert.Contains("""if [ "$sonar_enabled" = "true" ] && [ "$sonar_allowed" = "true" ]; then""", workflow);
+        Assert.Contains("""SONAR_REPORT_DIR="$sonar_report_dir" \""", workflow);
+        Assert.Contains("""if: ${{ steps.changes.outputs.run_aggregate != 'true' && steps.changes.outputs.run_shared != 'true' }}""", workflow);
+        Assert.Contains("""Restore, auditoria NuGet, SonarQube, build, testes e cobertura foram ignorados.""", workflow);
+        Assert.Single(DotnetSonarscannerBeginRegex().Matches(workflow));
+        Assert.Single(DotnetSonarscannerEndRegex().Matches(workflow));
+
+        Assert.DoesNotContain("rodri-oliveira-dev_poc-arquitetura" + "-shared", workflow);
+        Assert.DoesNotContain("poc-arquitetura" + "-shared", workflow);
+        Assert.DoesNotContain("artifacts/sonarqube/" + "shared", workflow);
+    }
+
+    [Fact]
     public void Dotnet_ci_should_suppress_only_placeholder_secret_lines_in_sonar()
     {
         var repositoryRoot = GetRepositoryRoot();
@@ -388,6 +410,12 @@ public sealed partial class WorkflowArtifactPolicyTests
 
     [GeneratedRegex(PlaceholderSecretLinePattern)]
     private static partial Regex PlaceholderSecretLineRegex();
+
+    [GeneratedRegex("dotnet-sonarscanner begin")]
+    private static partial Regex DotnetSonarscannerBeginRegex();
+
+    [GeneratedRegex("dotnet-sonarscanner end")]
+    private static partial Regex DotnetSonarscannerEndRegex();
 
     private static DirectoryInfo GetRepositoryRoot()
     {
