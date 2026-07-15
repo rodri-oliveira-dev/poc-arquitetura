@@ -200,6 +200,8 @@ fi
 
 TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 OUTPUT_DIR="$OUTPUT_ROOT/$TIMESTAMP"
+ZAP_IMAGE_IDENTITY="<nao consultado>"
+ZAP_WORKDIR_PERMISSION_STRATEGY="<nao preparada>"
 SCAN_COMMAND="zap-api-scan.py"
 SCAN_TYPE="api-baseline"
 if [[ "$ACTIVE_SCAN" == true ]]; then
@@ -213,6 +215,7 @@ cleanup() {
   docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
   if [[ -d "$OUTPUT_DIR" ]]; then
     write_summary
+    restore_zap_workdir_permissions
   fi
 }
 
@@ -245,6 +248,84 @@ ensure_zap_image() {
 
   echo "Imagem ZAP nao encontrada localmente. Baixando $ZAP_IMAGE..." >&2
   docker pull "$ZAP_IMAGE"
+}
+
+absolute_path() {
+  python3 - "$1" <<'PY'
+import os
+import sys
+
+print(os.path.abspath(sys.argv[1]))
+PY
+}
+
+host_directory_stat() {
+  if command -v stat >/dev/null 2>&1; then
+    if stat -c '%u:%g %a %n' "$OUTPUT_DIR" >/dev/null 2>&1; then
+      stat -c '%u:%g %a %n' "$OUTPUT_DIR"
+      return 0
+    fi
+
+    if stat -f '%u:%g %Lp %N' "$OUTPUT_DIR" >/dev/null 2>&1; then
+      stat -f '%u:%g %Lp %N' "$OUTPUT_DIR"
+      return 0
+    fi
+  fi
+
+  ls -ld "$OUTPUT_DIR"
+}
+
+detect_zap_image_identity() {
+  local output
+  local exit_code=0
+
+  set +e
+  output="$(docker run --rm --entrypoint sh "$ZAP_IMAGE" -c 'id && printf "UID_GID=%s:%s\n" "$(id -u)" "$(id -g)"' 2>&1)"
+  exit_code=$?
+  set -e
+
+  if [[ "$exit_code" -eq 0 ]]; then
+    ZAP_IMAGE_IDENTITY="$output"
+    return 0
+  fi
+
+  ZAP_IMAGE_IDENTITY="falha ao consultar usuario da imagem ZAP: $output"
+  return 1
+}
+
+zap_image_uid() {
+  local uid_gid
+  uid_gid="$(printf '%s\n' "$ZAP_IMAGE_IDENTITY" | sed -n 's/^UID_GID=\([0-9][0-9]*\):[0-9][0-9]*$/\1/p' | tail -n 1)"
+  printf '%s' "$uid_gid"
+}
+
+prepare_zap_workdir() {
+  local zap_uid
+
+  mkdir -p "$OUTPUT_DIR"
+  detect_zap_image_identity || true
+  zap_uid="$(zap_image_uid)"
+
+  if [[ -n "$zap_uid" ]] && command -v setfacl >/dev/null 2>&1; then
+    if setfacl -m "u:${zap_uid}:rwx" "$OUTPUT_DIR"; then
+      ZAP_WORKDIR_PERMISSION_STRATEGY="setfacl u:${zap_uid}:rwx em $OUTPUT_DIR"
+      return 0
+    fi
+  fi
+
+  chmod 0777 "$OUTPUT_DIR"
+  ZAP_WORKDIR_PERMISSION_STRATEGY="chmod 0777 em $OUTPUT_DIR (fallback restrito ao diretorio timestampado)"
+}
+
+restore_zap_workdir_permissions() {
+  if [[ ! -d "$OUTPUT_DIR" ]]; then
+    return 0
+  fi
+
+  chmod 0755 "$OUTPUT_DIR" >/dev/null 2>&1 || {
+    echo "::warning::Falha ao restaurar permissao 0755 em $OUTPUT_DIR; artifacts continuam preservados." >&2
+    return 0
+  }
 }
 
 assert_docker_network() {
@@ -676,6 +757,7 @@ assert_zap_workdir_writable() {
   local docker_args=()
   local arg
   local output
+  local host_stat
   local exit_code=0
 
   docker_args=(run --rm -v "$OUTPUT_DIR:/zap/wrk:rw")
@@ -691,12 +773,16 @@ assert_zap_workdir_writable() {
   set -e
 
   if [[ "$exit_code" -ne 0 ]]; then
+    host_stat="$(host_directory_stat 2>&1 || true)"
     {
       echo "Falha operacional: /zap/wrk nao esta gravavel pelo usuario da imagem ZAP."
-      echo "  Diretorio montado: $OUTPUT_DIR"
+      echo "  Caminho absoluto montado: $OUTPUT_DIR"
+      echo "  Ownership e permissoes no host: $host_stat"
+      echo "  UID/GID usados pela imagem ZAP: $ZAP_IMAGE_IDENTITY"
       echo "  Imagem ZAP: $ZAP_IMAGE"
       echo "  Rede Docker utilizada: ${DOCKER_NETWORK:-<padrao do Docker>}"
-      echo "  Erro: $output"
+      echo "  Estrategia de permissao aplicada: $ZAP_WORKDIR_PERMISSION_STRATEGY"
+      echo "  Saida completa da validacao: $output"
     } >&2
     exit 1
   fi
@@ -736,6 +822,8 @@ write_summary() {
     echo "- Container temporario: \`$CONTAINER_NAME\`"
     echo "- Rede Docker do ZAP: \`${DOCKER_NETWORK:-<padrao do Docker>}\`"
     echo "- Diretorio de saida: \`$OUTPUT_DIR\`"
+    echo "- Usuario da imagem ZAP: \`$(printf '%s' "$ZAP_IMAGE_IDENTITY" | tr '\n' ' ')\`"
+    echo "- Preparacao do diretorio de saida: \`$ZAP_WORKDIR_PERMISSION_STRATEGY\`"
     echo
     echo "## APIs analisadas"
     echo
@@ -774,6 +862,7 @@ write_summary() {
 require_command docker
 require_command curl
 require_command python3
+OUTPUT_DIR="$(absolute_path "$OUTPUT_DIR")"
 assert_docker
 
 if [[ "$START_STACK" == true ]]; then
@@ -790,7 +879,7 @@ fi
 ensure_zap_image
 assert_docker_network
 
-mkdir -p "$OUTPUT_DIR"
+prepare_zap_workdir
 assert_zap_workdir_writable
 
 assert_openapi_from_container "LedgerService.Api" "$LEDGER_URL" "$LEDGER_ZAP_URL"

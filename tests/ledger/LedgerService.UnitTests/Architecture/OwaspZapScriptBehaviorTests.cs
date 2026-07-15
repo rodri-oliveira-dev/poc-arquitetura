@@ -53,6 +53,8 @@ public sealed class OwaspZapScriptBehaviorTests : IDisposable
         Assert.Contains("Servidor declarado no documento: <ausente>", result.StandardError);
 
         var reportDirectory = Directory.GetDirectories(Path.Combine(_repositoryRoot.FullName, _relativeRunRoot, "reports")).Single();
+        AssertExpectedZapArtifacts(reportDirectory);
+
         var ledgerLog = File.ReadAllText(Path.Combine(reportDirectory, "ledger-service-api.log"));
         var balanceLog = File.ReadAllText(Path.Combine(reportDirectory, "balance-service-api.log"));
         Assert.Contains("stdout for http://ledger-service:8080/swagger/v1/swagger.json", ledgerLog);
@@ -66,6 +68,77 @@ public sealed class OwaspZapScriptBehaviorTests : IDisposable
         Assert.Contains("failed-operational", summary);
         Assert.Contains("Servidor efetivo para o ZAP (-O): `http://ledger-service:8080`", summary);
         Assert.Contains("Servidor efetivo para o ZAP (-O): `http://balance-service:8080`", summary);
+    }
+
+    [Fact]
+    public void Zap_workdir_should_be_prepared_before_validation_only_for_timestamped_output_directory()
+    {
+        var result = RunZapScript(
+            [
+                "--output-root", $"./{_relativeRunRoot}/permission-reports",
+                "--health-timeout", "1",
+                "--health-interval", "0",
+            ],
+            new Dictionary<string, string>());
+
+        Assert.True(
+            result.ExitCode == 0,
+            $"Exit code esperado: 0. Obtido: {result.ExitCode}.{Environment.NewLine}STDOUT:{Environment.NewLine}{result.StandardOutput}{Environment.NewLine}STDERR:{Environment.NewLine}{result.StandardError}");
+
+        var reportDirectory = Directory.GetDirectories(Path.Combine(_repositoryRoot.FullName, _relativeRunRoot, "permission-reports")).Single();
+        var chmodOperations = File.ReadAllLines(Path.Combine(_repositoryRoot.FullName, _relativeRunRoot, "chmod.log"));
+        var widenedOperation = Assert.Single(chmodOperations, operation => operation.StartsWith("0777|", StringComparison.Ordinal));
+        var widenedPath = widenedOperation["0777|".Length..];
+
+        Assert.Equal(NormalizePathForComparison(reportDirectory), NormalizePathForComparison(widenedPath));
+        Assert.NotEqual(NormalizePathForComparison(_repositoryRoot.FullName), NormalizePathForComparison(widenedPath));
+        Assert.NotEqual(
+            NormalizePathForComparison(Path.Combine(_repositoryRoot.FullName, "artifacts")),
+            NormalizePathForComparison(widenedPath));
+        Assert.NotEqual(
+            NormalizePathForComparison(Path.Combine(_repositoryRoot.FullName, _relativeRunRoot, "permission-reports")),
+            NormalizePathForComparison(widenedPath));
+
+        var dockerLog = File.ReadAllLines(Path.Combine(_repositoryRoot.FullName, _relativeRunRoot, "docker.log"));
+        var firstWorkdirValidation = dockerLog.First(line => line.Contains("/zap/wrk", StringComparison.Ordinal) && line.Contains("mktemp", StringComparison.Ordinal));
+        Assert.Contains("-v", firstWorkdirValidation);
+        Assert.Contains(":/zap/wrk:rw", firstWorkdirValidation);
+        Assert.DoesNotContain($"./{_relativeRunRoot}", firstWorkdirValidation);
+        Assert.True(Path.IsPathFullyQualified(widenedPath), $"O diretorio preparado deveria ser absoluto: {widenedPath}");
+    }
+
+    [Fact]
+    public void Zap_workdir_validation_should_fail_clearly_when_container_user_cannot_write()
+    {
+        var result = RunZapScript(
+            [
+                "--output-root", $"./{_relativeRunRoot}/unwritable-reports",
+                "--health-timeout", "1",
+                "--health-interval", "0",
+            ],
+            new Dictionary<string, string>
+            {
+                ["ZAP_SKIP_CHMOD_MARKER"] = "true",
+            });
+
+        Assert.True(
+            result.ExitCode == 1,
+            $"Exit code esperado: 1. Obtido: {result.ExitCode}.{Environment.NewLine}STDOUT:{Environment.NewLine}{result.StandardOutput}{Environment.NewLine}STDERR:{Environment.NewLine}{result.StandardError}");
+
+        Assert.Contains("Falha operacional: /zap/wrk nao esta gravavel pelo usuario da imagem ZAP.", result.StandardError);
+        Assert.Contains("Caminho absoluto montado:", result.StandardError);
+        Assert.Contains("Ownership e permissoes no host:", result.StandardError);
+        Assert.Contains("UID/GID usados pela imagem ZAP:", result.StandardError);
+        Assert.Contains("uid=1000(zap) gid=1000(zap)", result.StandardError);
+        Assert.Contains("Imagem ZAP: ghcr.io/zaproxy/zaproxy:stable", result.StandardError);
+        Assert.Contains("Saida completa da validacao:", result.StandardError);
+        Assert.Contains("Permission denied", result.StandardError);
+
+        var scanCommandsPath = Path.Combine(_repositoryRoot.FullName, _relativeRunRoot, "scan-commands.log");
+        Assert.False(File.Exists(scanCommandsPath), "O scan nao deveria iniciar quando a validacao do workdir falha.");
+
+        var reportDirectory = Directory.GetDirectories(Path.Combine(_repositoryRoot.FullName, _relativeRunRoot, "unwritable-reports")).Single();
+        Assert.True(File.Exists(Path.Combine(reportDirectory, "summary.md")));
     }
 
     [Fact]
@@ -101,6 +174,8 @@ public sealed class OwaspZapScriptBehaviorTests : IDisposable
         Directory.CreateDirectory(fakeBin);
         WriteFakeExecutable(Path.Combine(fakeBin, "curl"), FakeCurlScript);
         WriteFakeExecutable(Path.Combine(fakeBin, "docker"), FakeDockerScript);
+        WriteFakeExecutable(Path.Combine(fakeBin, "chmod"), FakeChmodScript);
+        WriteFakeExecutable(Path.Combine(fakeBin, "setfacl"), FakeSetfaclScript);
 
         var commandBuilder = new StringBuilder();
         commandBuilder.Append("set -e; ");
@@ -117,6 +192,9 @@ public sealed class OwaspZapScriptBehaviorTests : IDisposable
         commandBuilder.Append("; ");
         commandBuilder.Append("export ZAP_SCAN_COMMANDS=");
         commandBuilder.Append(ShellQuote($"./{_relativeRunRoot}/scan-commands.log"));
+        commandBuilder.Append("; ");
+        commandBuilder.Append("export ZAP_CHMOD_LOG=");
+        commandBuilder.Append(ShellQuote($"./{_relativeRunRoot}/chmod.log"));
         commandBuilder.Append("; ");
         foreach (var pair in environment)
         {
@@ -162,7 +240,7 @@ public sealed class OwaspZapScriptBehaviorTests : IDisposable
 
     private static void WriteFakeExecutable(string path, string content)
     {
-        File.WriteAllText(path, content.ReplaceLineEndings("\n"), Encoding.UTF8);
+        File.WriteAllText(path, content.ReplaceLineEndings("\n"), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
     }
 
     private static string ShellQuote(string value)
@@ -176,6 +254,30 @@ public sealed class OwaspZapScriptBehaviorTests : IDisposable
         return normalized.Length >= 3 && normalized[1] == ':' && normalized[2] == '/'
             ? "/" + char.ToLowerInvariant(normalized[0]) + normalized[2..]
             : normalized;
+    }
+
+    private static string NormalizePathForComparison(string path)
+    {
+        return Path.GetFullPath(path).Replace('\\', '/').TrimEnd('/').ToUpperInvariant();
+    }
+
+    private static void AssertExpectedZapArtifacts(string reportDirectory)
+    {
+        foreach (var fileName in new[]
+        {
+            "ledger-service-api.log",
+            "ledger-service-api.html",
+            "ledger-service-api.json",
+            "ledger-service-api.md",
+            "balance-service-api.log",
+            "balance-service-api.html",
+            "balance-service-api.json",
+            "balance-service-api.md",
+            "summary.md",
+        })
+        {
+            Assert.True(File.Exists(Path.Combine(reportDirectory, fileName)), $"Artifact esperado nao encontrado: {fileName}");
+        }
     }
 
     private static DirectoryInfo GetRepositoryRoot()
@@ -218,6 +320,38 @@ public sealed class OwaspZapScriptBehaviorTests : IDisposable
 exit 0
 """;
 
+    private const string FakeChmodScript = """
+#!/usr/bin/env bash
+set -euo pipefail
+
+mode="${1:-}"
+target="${2:-}"
+
+if [[ -n "${ZAP_CHMOD_LOG:-}" && "$mode" =~ ^0?[0-9]{3,4}$ && -n "$target" ]]; then
+  printf '%s|%s\n' "$mode" "$target" >> "$ZAP_CHMOD_LOG"
+  if [[ "${ZAP_SKIP_CHMOD_MARKER:-}" != "true" ]]; then
+    host_path="$target"
+    if [[ "$host_path" =~ ^([A-Za-z]):\\(.*)$ ]]; then
+      drive="${BASH_REMATCH[1],,}"
+      rest="${BASH_REMATCH[2]//\\//}"
+      host_path="/$drive/$rest"
+    else
+      host_path="${host_path//\\//}"
+    fi
+    if [[ -d "$host_path" ]]; then
+      printf '%s\n' "$mode" > "$host_path/.fake-mode"
+    fi
+  fi
+fi
+
+exit 0
+""";
+
+    private const string FakeSetfaclScript = """
+#!/usr/bin/env bash
+exit 1
+""";
+
     private const string FakeDockerScript = """
 #!/usr/bin/env bash
 set -euo pipefail
@@ -255,13 +389,33 @@ case "${1:-}" in
     done
 
     workdir="${volume%:/zap/wrk:rw}"
+    if [[ "$workdir" =~ ^([A-Za-z]):\\(.*)$ ]]; then
+      drive="${BASH_REMATCH[1],,}"
+      rest="${BASH_REMATCH[2]//\\//}"
+      workdir="/$drive/$rest"
+    else
+      workdir="${workdir//\\//}"
+    fi
+
+    if [[ -z "$volume" && " $* " == *" --entrypoint sh "* ]]; then
+      echo "uid=1000(zap) gid=1000(zap) groups=1000(zap)"
+      echo "UID_GID=1000:1000"
+      exit 0
+    fi
 
     for arg in "$@"; do
       if [[ "$arg" == "sh" ]]; then
-        mkdir -p "$workdir"
-        touch "$workdir/.zap-write-test.fake"
-        rm -f "$workdir/.zap-write-test.fake"
-        exit 0
+        mode=""
+        if [[ -f "$workdir/.fake-mode" ]]; then
+          mode="$(cat "$workdir/.fake-mode")"
+        fi
+
+        if [[ "$mode" == "0777" || "$mode" == "777" ]]; then
+          exit 0
+        fi
+
+        echo "mktemp: failed to create file '/zap/wrk/.zap-write-test.XXXXXX': Permission denied" >&2
+        exit 1
       fi
     done
 
