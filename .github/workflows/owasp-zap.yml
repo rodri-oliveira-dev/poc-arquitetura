@@ -57,14 +57,70 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore "$SOLUTION_PATH"
 
+      - name: Prepare Compose CI environment
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          bash ./scripts/local/create-env-local.sh \
+            --force \
+            --output .env.ci
+
+          docker compose \
+            --env-file .env.ci \
+            -f compose.yaml \
+            config --quiet
+
+          # shellcheck source=/dev/null
+          source ./scripts/lib/common.sh
+
+          ledger_migrator_password="$(read_env_value .env.ci LEDGER_DB_MIGRATOR_PASSWORD)"
+          balance_migrator_password="$(read_env_value .env.ci BALANCE_DB_MIGRATOR_PASSWORD)"
+          postgres_host_port="$(read_env_value .env.ci POSTGRES_HOST_PORT)"
+
+          if [ -z "$ledger_migrator_password" ] || [ -z "$balance_migrator_password" ] || [ -z "$postgres_host_port" ]; then
+            echo "Variaveis obrigatorias nao encontradas em .env.ci." >&2
+            exit 1
+          fi
+
+          echo "::add-mask::$ledger_migrator_password"
+          echo "::add-mask::$balance_migrator_password"
+
+          {
+            echo "LEDGER_DB_MIGRATOR_PASSWORD=$ledger_migrator_password"
+            echo "BALANCE_DB_MIGRATOR_PASSWORD=$balance_migrator_password"
+            echo "POSTGRES_HOST_PORT=$postgres_host_port"
+          } >> "$GITHUB_ENV"
+
       - name: Start controlled HTTP stack dependencies
-        run: docker compose -f compose.yaml up -d --build postgres-db keycloak
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if ! docker compose \
+            --env-file .env.ci \
+            -f compose.yaml \
+            up -d --build postgres-db keycloak; then
+            docker compose \
+              --env-file .env.ci \
+              -f compose.yaml \
+              ps
+            docker compose \
+              --env-file .env.ci \
+              -f compose.yaml \
+              logs --no-color postgres-db keycloak || true
+            exit 1
+          fi
 
       - name: Wait for PostgreSQL
         shell: bash
         run: |
           for _ in {1..60}; do
-            if docker compose -f compose.yaml exec -T postgres-db pg_isready -U postgres_admin -d appdb >/dev/null 2>&1; then
+            if docker compose \
+              --env-file .env.ci \
+              -f compose.yaml \
+              exec -T postgres-db \
+              pg_isready -U postgres_admin -d appdb >/dev/null 2>&1; then
               exit 0
             fi
 
@@ -72,23 +128,25 @@ jobs:
           done
 
           echo "PostgreSQL indisponivel apos timeout." >&2
-          docker compose -f compose.yaml logs postgres-db
+          docker compose \
+            --env-file .env.ci \
+            -f compose.yaml \
+            logs --no-color postgres-db
           exit 1
 
       - name: Apply database migrations
         shell: bash
-        env:
-          LEDGER_DB_MIGRATOR_PASSWORD: local_dev_password
-          BALANCE_DB_MIGRATOR_PASSWORD: local_dev_password
         run: |
-          ConnectionStrings__DefaultConnection="Host=127.0.0.1;Port=15432;Database=appdb;Username=ledger_migrator_user;Password=$LEDGER_DB_MIGRATOR_PASSWORD" \
+          set -euo pipefail
+
+          ConnectionStrings__DefaultConnection="Host=127.0.0.1;Port=${POSTGRES_HOST_PORT:-15432};Database=appdb;Username=ledger_migrator_user;Password=$LEDGER_DB_MIGRATOR_PASSWORD" \
             dotnet tool run dotnet-ef -- database update \
             -p src/ledger/LedgerService.Infrastructure/LedgerService.Infrastructure.csproj \
             -s src/ledger/LedgerService.Api/LedgerService.Api.csproj \
             -c AppDbContext \
             -- --environment Development
 
-          ConnectionStrings__DefaultConnection="Host=127.0.0.1;Port=15432;Database=appdb;Username=balance_migrator_user;Password=$BALANCE_DB_MIGRATOR_PASSWORD" \
+          ConnectionStrings__DefaultConnection="Host=127.0.0.1;Port=${POSTGRES_HOST_PORT:-15432};Database=appdb;Username=balance_migrator_user;Password=$BALANCE_DB_MIGRATOR_PASSWORD" \
             dotnet tool run dotnet-ef -- database update \
             -p src/balance/BalanceService.Infrastructure/BalanceService.Infrastructure.csproj \
             -s src/balance/BalanceService.Api/BalanceService.Api.csproj \
@@ -96,7 +154,14 @@ jobs:
             -- --environment Development
 
       - name: Start APIs
-        run: docker compose -f compose.yaml up -d --build ledger-service balance-service
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker compose \
+            --env-file .env.ci \
+            -f compose.yaml \
+            up -d --build ledger-service balance-service
 
       - name: Wait for APIs
         shell: bash
@@ -112,7 +177,10 @@ jobs:
 
               if [ "$i" -eq 60 ]; then
                 echo "API indisponivel: $url" >&2
-                docker compose -f compose.yaml logs ledger-service balance-service
+                docker compose \
+                  --env-file .env.ci \
+                  -f compose.yaml \
+                  logs --no-color ledger-service balance-service
                 exit 1
               fi
 
@@ -175,4 +243,25 @@ jobs:
 
       - name: Stop controlled HTTP stack
         if: ${{ always() }}
-        run: docker compose -f compose.yaml down --volumes --remove-orphans
+        shell: bash
+        run: |
+          set +e
+
+          if [ -f .env.ci ]; then
+            docker compose \
+              --env-file .env.ci \
+              -f compose.yaml \
+              down --volumes --remove-orphans
+
+            cleanup_exit_code=$?
+
+            if [ "$cleanup_exit_code" -ne 0 ]; then
+              echo "::warning::Falha ao encerrar o ambiente Docker Compose. Exit code: $cleanup_exit_code"
+            fi
+          else
+            echo "Arquivo .env.ci não foi criado; cleanup do Compose ignorado."
+          fi
+
+          rm -f .env.ci
+
+          exit 0
