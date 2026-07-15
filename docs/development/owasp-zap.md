@@ -206,6 +206,10 @@ O `summary.md` registra data/hora, imagem ZAP, URLs analisadas, alvo visto pelo 
 
 Quando o modo autenticado estiver ativo, o summary registra apenas que `Authorization: Bearer` foi injetado via ZAP Replacer. O token nao e gravado no summary.
 
+Antes de montar os relatorios em `/zap/wrk`, o runner normaliza o diretorio de saida para caminho absoluto e prepara somente a subpasta timestampada da execucao. A imagem oficial do ZAP roda com usuario nao privilegiado, entao o script descobre o UID/GID efetivo da imagem e tenta conceder escrita via ACL (`setfacl`) quando disponivel. Se ACL nao estiver disponivel, aplica `chmod 0777` apenas nesse diretorio temporario de relatorios, nunca no repositorio inteiro nem na pasta `artifacts` completa. No cleanup, depois de escrever `summary.md`, o script tenta restaurar o diretorio para `0755` sem mascarar o exit code original do scan.
+
+Se a validacao de escrita em `/zap/wrk` falhar, o erro operacional registra o caminho absoluto montado, ownership/permissoes do host, UID/GID da imagem ZAP, imagem usada, rede Docker e a saida completa do comando de validacao. Esses dados nao incluem secrets e existem para diagnosticar problemas de bind mount no runner.
+
 ## GitHub Actions
 
 O workflow `owasp-zap-baseline` e executado manualmente em `Actions > owasp-zap-baseline > Run workflow` ou automaticamente por `workflow_run` quando o workflow `main-dotnet-ci` conclui com sucesso na branch `main`.

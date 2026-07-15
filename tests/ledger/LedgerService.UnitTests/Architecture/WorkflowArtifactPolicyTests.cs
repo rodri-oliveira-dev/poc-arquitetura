@@ -315,6 +315,28 @@ public sealed partial class WorkflowArtifactPolicyTests
     }
 
     [Fact]
+    public void Owasp_zap_script_should_prepare_only_timestamped_workdir_for_non_root_container_user()
+    {
+        var repositoryRoot = GetRepositoryRoot();
+        var script = File.ReadAllText(Path.Combine(repositoryRoot.FullName, "scripts/security/run-owasp-zap.sh"));
+
+        Assert.Contains("OUTPUT_DIR=\"$(absolute_path \"$OUTPUT_DIR\")\"", script);
+        Assert.Contains("prepare_zap_workdir()", script);
+        Assert.Contains("detect_zap_image_identity", script);
+        Assert.Contains("setfacl -m \"u:${zap_uid}:rwx\" \"$OUTPUT_DIR\"", script);
+        Assert.Contains("chmod 0777 \"$OUTPUT_DIR\"", script);
+        Assert.Contains("restore_zap_workdir_permissions", script);
+        Assert.Contains("chmod 0755 \"$OUTPUT_DIR\"", script);
+        Assert.Contains("prepare_zap_workdir", script);
+        Assert.Contains("assert_zap_workdir_writable", script);
+        Assert.True(script.IndexOf("prepare_zap_workdir", StringComparison.Ordinal) < script.IndexOf("assert_zap_workdir_writable", StringComparison.Ordinal));
+        Assert.DoesNotContain("chmod -R 777", script);
+        Assert.DoesNotContain("chmod -R 0777", script);
+        Assert.DoesNotContain("--user root", script);
+        Assert.DoesNotContain("--user 0", script);
+    }
+
+    [Fact]
     public void Owasp_zap_script_should_add_network_to_docker_run_only_when_informed()
     {
         var repositoryRoot = GetRepositoryRoot();
@@ -364,6 +386,10 @@ public sealed partial class WorkflowArtifactPolicyTests
         Assert.Contains("if [[ \"$FAIL_ON_ALERTS\" == true && \"$exit_code\" -ne 0 ]]; then", script);
         Assert.Contains("final_exit_code()", script);
         Assert.Contains("Falha operacional: /zap/wrk nao esta gravavel pelo usuario da imagem ZAP.", script);
+        Assert.Contains("Caminho absoluto montado: $OUTPUT_DIR", script);
+        Assert.Contains("Ownership e permissoes no host: $host_stat", script);
+        Assert.Contains("UID/GID usados pela imagem ZAP: $ZAP_IMAGE_IDENTITY", script);
+        Assert.Contains("Saida completa da validacao: $output", script);
     }
 
     public static TheoryData<string> GetAllPolicyYamlFiles()
