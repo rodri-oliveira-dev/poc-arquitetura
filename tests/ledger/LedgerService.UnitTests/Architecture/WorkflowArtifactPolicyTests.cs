@@ -224,7 +224,7 @@ public sealed partial class WorkflowArtifactPolicyTests
         Assert.Contains("sonar_required=false", workflow);
         Assert.Contains("""if [ "$sonar_required" = "true" ] && [ "$sonar_allowed" = "true" ] && [ -z "${SONAR_TOKEN:-}" ]; then""", workflow);
         Assert.Contains("""if [ "$sonar_enabled" = "true" ] && [ "$sonar_allowed" = "true" ]; then""", workflow);
-        Assert.Contains("""SONAR_REPORT_DIR="$sonar_report_dir" \"""", workflow);
+        Assert.Contains("""SONAR_REPORT_DIR="$sonar_report_dir" \""", workflow);
         Assert.Contains("""if: ${{ steps.changes.outputs.run_aggregate != 'true' && steps.changes.outputs.run_shared != 'true' }}""", workflow);
         Assert.Contains("""Restore, auditoria NuGet, SonarQube, build, testes e cobertura foram ignorados.""", workflow);
         Assert.Single(DotnetSonarscannerBeginRegex().Matches(workflow));
