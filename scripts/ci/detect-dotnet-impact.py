@@ -183,7 +183,7 @@ def classify_path(path: str) -> tuple[bool, bool, bool, str]:
         return False, False, True, "documentation"
 
     if matches(path, SHARED_PATTERNS):
-        return False, True, False, "shared"
+        return True, True, False, "shared"
 
     if matches(path, AGGREGATE_PATTERNS):
         return True, False, False, "service-or-architecture"

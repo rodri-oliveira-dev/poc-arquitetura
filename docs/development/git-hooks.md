@@ -176,7 +176,7 @@ Directory.Packages.props + Ledger
 -> PocArquitetura.slnx
 ```
 
-`contracts/events/**` seleciona Ledger e Balance porque esses contexts produzem e consomem schemas versionados usados nos fluxos principais. Uma mudanca de source em Shared seleciona apenas `PocArquitetura.Shared.slnx` no pre-push porque os servicos consomem Shared por pacotes; a validacao de todos os servicos continua no fluxo global/PR quando aplicavel.
+`contracts/events/**` seleciona Ledger e Balance porque esses contexts produzem e consomem schemas versionados usados nos fluxos principais. Uma mudanca de source em Shared seleciona apenas `PocArquitetura.Shared.slnx` no pre-push porque os servicos consomem Shared por pacotes; no CI principal, Shared tambem dispara aggregate para preservar a analise SonarQube Cloud completa no projeto oficial unico.
 
 O hook pula restore, build, testes e validacoes de containers quando todas as alteracoes sao claramente nao impactantes para validacao local, como Markdown, arquivos em `docs/` e imagens documentais reconhecidas (`png`, `jpg`, `jpeg`, `gif`, `svg`, `webp`).
 

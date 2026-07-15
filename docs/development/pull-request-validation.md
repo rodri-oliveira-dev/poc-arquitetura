@@ -33,7 +33,7 @@ Sao tratados como documentais:
 
 Quando ha arquivos de codigo, configuracao ou automacao fora desse conjunto, o workflow classifica o impacto antes de executar restore, auditoria, SonarQube, build, testes e cobertura:
 
-- mudancas apenas em `src/Shared/**`, `tests/Shared/**` ou `PocArquitetura.Shared.slnx` validam somente `./PocArquitetura.Shared.slnx`;
+- mudancas em `src/Shared/**`, `tests/Shared/**` ou `PocArquitetura.Shared.slnx` validam `./PocArquitetura.slnx` e `./PocArquitetura.Shared.slnx`;
 - mudancas apenas em servicos, testes de servico, `tests/Architecture.Tests/**`, `tools/**`, `PocArquitetura.slnx` ou alguma solution de contexto de servico validam somente `./PocArquitetura.slnx`;
 - mudancas globais validam `./PocArquitetura.slnx` e `./PocArquitetura.Shared.slnx`;
 - quando a deteccao de arquivos falha, o workflow valida aggregate e Shared por seguranca.
@@ -68,18 +68,18 @@ Para cada contexto impactado, o workflow executa:
 
 - `dotnet restore` em Release com `NuGetAuditMode=all`;
 - `dotnet list package --vulnerable --include-transitive` e bloqueio para severidades `moderate`, `high` e `critical`;
-- SonarQube Cloud begin/end, quando o token esta disponivel e o evento pode acessar secrets com seguranca;
+- SonarQube Cloud begin/end somente no contexto `aggregate`, quando o token esta disponivel e o evento pode acessar secrets com seguranca;
 - `dotnet build --configuration Release --no-restore`;
 - `dotnet test --configuration Release --no-build` com `coverlet.runsettings`;
 - validacao de arquivos Cobertura e OpenCover;
 - ReportGenerator;
 - gate de cobertura conforme o contexto validado.
 
-No contexto `aggregate`, a cobertura total de linhas precisa atingir 85% e os assemblies `LedgerService.Worker` e `BalanceService.Worker` tambem precisam atingir 85%. No contexto `shared`, a cobertura total de linhas precisa atingir 80%. O Quality Gate do SonarQube Cloud Shared continua obrigatorio.
+No contexto `aggregate`, a cobertura total de linhas precisa atingir 85% e os assemblies `LedgerService.Worker` e `BalanceService.Worker` tambem precisam atingir 85%. No contexto `shared`, a cobertura total de linhas precisa atingir 80%. Shared nao possui Quality Gate remoto proprio.
 
 Pull requests vindos de forks nao recebem `SONAR_TOKEN`. Nesses casos, a analise SonarQube Cloud e ignorada para nao expor secrets a codigo nao confiavel, mas restore, auditoria NuGet, build, testes e cobertura continuam rodando.
 
-Em PRs internos, `push` na `main`, Merge Queue e execucao manual, a ausencia de `SONAR_TOKEN` falha o job quando ha impacto .NET.
+Em PRs internos, `push` na `main`, Merge Queue e execucao manual, a ausencia de `SONAR_TOKEN` falha o job quando o aggregate exige analise Sonar. Em PR documental sem impacto .NET, o token nao e exigido.
 
 O workflow gera o ReportGenerator, aplica o gate local e escreve o summary de cobertura antes de retornar uma eventual falha do `dotnet-sonarscanner end` ou do relatorio Sonar. Assim, uma falha do Sonar continua bloqueante, mas os artefatos locais de teste e cobertura permanecem disponiveis para diagnostico.
 
@@ -87,12 +87,12 @@ O SonarScanner for .NET roda com `sonar.scanner.scanAll=false` no CI principal. 
 
 ## SonarQube e cobertura
 
-A estrategia oficial e contextual por aggregate e Shared dentro de um unico workflow:
+A estrategia oficial usa SonarQube Cloud apenas no contexto aggregate dentro de um unico workflow:
 
-| Contexto | Solution | Projeto SonarQube Cloud | Resultados |
+| Contexto | Solution | SonarQube Cloud | Resultados |
 | --- | --- | --- | --- |
 | `aggregate` | `./PocArquitetura.slnx` | `rodri-oliveira-dev_poc-arquitetura` | `artifacts/test-results/aggregate`, `artifacts/sonarqube/aggregate` |
-| `shared` | `./PocArquitetura.Shared.slnx` | `rodri-oliveira-dev_poc-arquitetura-shared` | `artifacts/test-results/shared`, `artifacts/sonarqube/shared` |
+| `shared` | `./PocArquitetura.Shared.slnx` | Sem analise Sonar propria | `artifacts/test-results/shared` |
 
 O workflow reutilizavel `.github/workflows/sonarqube-context.yml` foi removido. Sonar begin/end, cobertura, ReportGenerator, relatorio e upload de artifacts existem apenas em `.github/workflows/dotnet.yml`.
 
@@ -198,7 +198,7 @@ Configuracao recomendada em `Settings > Branches > Branch protection rules` ou e
 - exigir status checks passarem antes do merge;
 - selecionar o check `Build and test`;
 - tratar ausencia do check `Build and test` como bloqueante;
-- impedir merge quando build, testes, cobertura Shared abaixo de 80%, Quality Gate Sonar reprovado ou analise Sonar inconclusiva deixarem o check vermelho;
+- impedir merge quando build, testes, cobertura Shared abaixo de 80%, Quality Gate Sonar agregado reprovado ou analise Sonar inconclusiva deixarem o check vermelho;
 - preservar checks de seguranca ja exigidos, como `dependency-security-review` ou `codeql-security-analysis`;
 - nao marcar `owasp-zap-baseline`, `mutation-tests` ou `release-on-merge` como required checks enquanto eles forem pos-CI informativos/operacionais;
 - exigir branch atualizada antes do merge, se o fluxo do repositorio usar essa politica;

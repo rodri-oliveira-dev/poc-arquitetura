@@ -8,22 +8,23 @@ Essa integracao nao substitui build, testes automatizados, gate local de cobertu
 
 ## Modelo oficial atual
 
-O modelo oficial operacional e analise contextual por aggregate e Shared via GitHub Actions, usando o workflow `.github/workflows/dotnet.yml`.
+O modelo oficial operacional e analise agregada unica via GitHub Actions, usando o workflow `.github/workflows/dotnet.yml`.
 
 Automatic Analysis deve ficar desabilitada no SonarQube Cloud. Automatic Analysis e CI Analysis nao devem ficar ativas ao mesmo tempo para o mesmo projeto, porque podem gerar analises duplicadas, resultados inconsistentes e conflitos de configuracao.
 
 A analise via CI e a abordagem correta neste repositorio porque a cobertura .NET precisa ser gerada durante `dotnet test` e importada explicitamente pelo scanner.
 
-Configuracao oficial:
+Configuracao oficial do projeto Sonar unico:
 
 | Contexto | Solution | Project Key | Project Name | Test results | Sonar report | OpenCover |
 | --- | --- | --- | --- | --- | --- | --- |
 | `aggregate` | `./PocArquitetura.slnx` | `rodri-oliveira-dev_poc-arquitetura` | `poc-arquitetura` | `./artifacts/test-results/aggregate` | `./artifacts/sonarqube/aggregate` | `./artifacts/test-results/aggregate/**/coverage.opencover.xml` |
-| `shared` | `./PocArquitetura.Shared.slnx` | `rodri-oliveira-dev_poc-arquitetura-shared` | `poc-arquitetura-shared` | `./artifacts/test-results/shared` | `./artifacts/sonarqube/shared` | `./artifacts/test-results/shared/**/coverage.opencover.xml` |
+
+O contexto Shared nao possui projeto Sonar separado. Ele continua executando restore, auditoria NuGet, build, testes, cobertura, ReportGenerator, gate local de 80% e resumo do GitHub Actions, mas nao envia analise SonarQube Cloud.
 
 O artifact unico do workflow e `test-results-coverage-and-sonarqube`, com retencao de 7 dias.
 
-Os projetos SonarQube Cloud oficiais do CI principal sao `rodri-oliveira-dev_poc-arquitetura` para o contexto aggregate e `rodri-oliveira-dev_poc-arquitetura-shared` para o contexto Shared. Nao crie projetos remotos adicionais, nao altere secrets e nao altere Quality Gates sem decisao explicita.
+O projeto SonarQube Cloud oficial do CI principal e `rodri-oliveira-dev_poc-arquitetura`. Nao crie projetos remotos adicionais por bounded context, por solution ou para Shared; nao altere secrets e nao altere Quality Gates sem decisao explicita.
 
 ## Fluxo do CI
 
@@ -34,28 +35,45 @@ O workflow `main-dotnet-ci` roda em:
 - `push` para `main`;
 - `workflow_dispatch`.
 
-Em `pull_request`, o workflow usa `scripts/ci/detect-dotnet-impact.py` para executar apenas os contextos necessarios. Em `merge_group`, `push` na `main` e `workflow_dispatch`, executa aggregate e Shared por seguranca.
+Em `pull_request`, o workflow usa `scripts/ci/detect-dotnet-impact.py` para executar apenas os contextos necessarios. Alteracoes em `src/Shared/**`, `tests/Shared/**` ou `PocArquitetura.Shared.slnx` executam aggregate e Shared: aggregate envia a analise Sonar completa do projeto oficial, e Shared preserva o gate local de 80%. Em `merge_group`, `push` na `main` e `workflow_dispatch`, executa aggregate e Shared por seguranca.
 
-O fluxo por contexto e:
+O fluxo aggregate e:
 
 ```text
 GitHub Event
   -> main-dotnet-ci
   -> detect-dotnet-impact.py
   -> resolve aggregate/shared/both/docs-only
-  -> restore da solution do contexto
+  -> restore de ./PocArquitetura.slnx
   -> auditoria NuGet
   -> SonarQube Cloud begin
-  -> build da solution do contexto
-  -> test da solution do contexto + coverage
+  -> build de ./PocArquitetura.slnx
+  -> test de ./PocArquitetura.slnx + coverage
   -> coverage.cobertura.xml e coverage.opencover.xml
   -> ReportGenerator
   -> gate local de cobertura
   -> summary local de cobertura
   -> SonarQube Cloud end
-  -> Quality Gate do contexto
+  -> Quality Gate agregado
   -> consulta API SonarQube Cloud
-  -> relatorio do contexto
+  -> relatorio aggregate
+  -> artifact unico do workflow
+```
+
+O fluxo Shared, quando impactado, roda no mesmo workflow sem Sonar:
+
+```text
+GitHub Event
+  -> main-dotnet-ci
+  -> detect-dotnet-impact.py
+  -> restore de ./PocArquitetura.Shared.slnx
+  -> auditoria NuGet
+  -> build de ./PocArquitetura.Shared.slnx
+  -> test de ./PocArquitetura.Shared.slnx + coverage
+  -> coverage.cobertura.xml e coverage.opencover.xml
+  -> ReportGenerator
+  -> gate local de cobertura de 80%
+  -> summary local de cobertura
   -> artifact unico do workflow
 ```
 
@@ -63,7 +81,7 @@ O `begin` do SonarQube Cloud precisa ocorrer antes do build. O `end` precisa oco
 
 O `main-dotnet-ci` executa o SonarScanner for .NET com `sonar.scanner.scanAll=false`. Isso desliga a analise multi-language automatica do scanner .NET e evita que sensores de IaC/Terraform, YAML, JSON, shell ou outros arquivos fora do build MSBuild entrem no caminho critico de build/test/cobertura. Infraestrutura e Terraform continuam cobertos pelos workflows dedicados `infrastructure-security` e `terraform-validation`; eles nao devem ser reintroduzidos no Sonar do CI .NET sem nova decisao explicita.
 
-O workflow limpa `./artifacts/test-results` e `./artifacts/sonarqube` antes da execucao. Cada contexto grava em subpastas isoladas: `artifacts/test-results/aggregate`, `artifacts/test-results/shared`, `artifacts/sonarqube/aggregate` e `artifacts/sonarqube/shared`.
+O workflow limpa `./artifacts/test-results` e `./artifacts/sonarqube` antes da execucao. Os resultados locais gravam em `artifacts/test-results/aggregate` e `artifacts/test-results/shared`; o relatorio Sonar existe somente em `artifacts/sonarqube/aggregate`.
 
 O workflow reutilizavel `.github/workflows/sonarqube-context.yml` foi removido e deve permanecer ausente. SonarQube Cloud, restore, build, testes, cobertura, ReportGenerator, relatorio e artifact ficam concentrados em `.github/workflows/dotnet.yml`; nao deve existir uma segunda implementacao completa desse fluxo.
 
@@ -74,11 +92,10 @@ O arquivo `coverlet.runsettings` gera dois formatos:
 - `coverage.cobertura.xml`, usado pelo ReportGenerator, pelo resumo de cobertura e pelo gate local;
 - `coverage.opencover.xml`, importado pelo SonarQube Cloud.
 
-Os parametros usados pelo scanner seguem o contexto executado:
+O parametro usado pelo scanner aponta para a cobertura aggregate:
 
 ```text
 aggregate: sonar.cs.opencover.reportsPaths="./artifacts/test-results/aggregate/**/coverage.opencover.xml"
-shared: sonar.cs.opencover.reportsPaths="./artifacts/test-results/shared/**/coverage.opencover.xml"
 ```
 
 Nao use cobertura generica do Sonar para este caso. Para C#/.NET, a importacao deve usar `sonar.cs.opencover.reportsPaths` apontando para os arquivos OpenCover gerados pelo Coverlet.
@@ -91,7 +108,7 @@ Nao use essa exclusao para esconder codigo produtivo .NET sem testes. Se um arqu
 
 ## Quality Gate
 
-O SonarQube Cloud aplica seu proprio Quality Gate com base nas regras configuradas em cada projeto do contexto executado.
+O SonarQube Cloud aplica seu proprio Quality Gate com base nas regras configuradas no projeto agregado.
 
 O workflow tambem possui um gate local de cobertura: 85% para cobertura total de linhas no contexto aggregate e 80% para cobertura total de linhas no contexto Shared. No contexto aggregate, os assemblies `LedgerService.Worker` e `BalanceService.Worker` tambem precisam atingir 85%.
 
@@ -106,10 +123,10 @@ Nao ajuste thresholds remotamente como parte de manutencao de YAML. Divergencias
 
 ## Relatorio no GitHub Actions
 
-Apos o `SonarQube Cloud end` de cada contexto, o workflow chama `scripts/quality/sonarqube_cloud_report.py`, consulta a API do SonarQube Cloud com `secrets.SONAR_TOKEN`, sem imprimir o token em logs, e grava um snapshot da execucao em:
+Apos o `SonarQube Cloud end` do aggregate, o workflow chama `scripts/quality/sonarqube_cloud_report.py`, consulta a API do SonarQube Cloud com `secrets.SONAR_TOKEN`, sem imprimir o token em logs, e grava um snapshot da execucao em:
 
 ```text
-artifacts/sonarqube/<contexto>/
+artifacts/sonarqube/aggregate/
 ```
 
 Arquivos gerados:
@@ -122,7 +139,7 @@ Arquivos gerados:
 
 Em eventos de pull request, o relatorio consulta a API com `pullRequest=<numero>`. Isso evita confundir o status do projeto principal com o Quality Gate especifico do PR.
 
-O script aceita parametros por contexto. O workflow oficial usa os project keys e diretorios do contexto executado:
+O workflow oficial usa o project key agregado e o diretorio aggregate:
 
 ```bash
 python scripts/quality/sonarqube_cloud_report.py \
@@ -130,8 +147,6 @@ python scripts/quality/sonarqube_cloud_report.py \
   --organization-key rodri-oliveira-dev \
   --output-dir artifacts/sonarqube/aggregate
 ```
-
-Para Shared, o project key e `rodri-oliveira-dev_poc-arquitetura-shared` e o output e `artifacts/sonarqube/shared`.
 
 ## Artifact do GitHub Actions
 
@@ -143,12 +158,12 @@ Esse artifact contem:
 - arquivos `coverage.cobertura.xml` usados pelo ReportGenerator e pelo gate local;
 - arquivos `coverage.opencover.xml` importados pelo SonarQube Cloud;
 - summaries de cobertura `coverage-report/Summary.json` e `coverage-report/Summary.txt`;
-- resumo do SonarQube Cloud em `artifacts/sonarqube/<contexto>/sonarqube-cloud-report.md`;
-- alias do resumo em `artifacts/sonarqube/<contexto>/report.md`;
-- JSONs retornados pela API do SonarQube Cloud em `artifacts/sonarqube/<contexto>/*.json`;
+- resumo do SonarQube Cloud em `artifacts/sonarqube/aggregate/sonarqube-cloud-report.md`;
+- alias do resumo em `artifacts/sonarqube/aggregate/report.md`;
+- JSONs retornados pela API do SonarQube Cloud em `artifacts/sonarqube/aggregate/*.json`;
 - JSONs `nuget-vulnerabilities-<contexto>.json`.
 
-O workflow oficial nao publica artifacts separados por job; aggregate e Shared ficam dentro do artifact unico `test-results-coverage-and-sonarqube`.
+O workflow oficial nao publica artifacts separados por job. Aggregate e Shared ficam dentro do artifact unico `test-results-coverage-and-sonarqube`, mas apenas aggregate possui subdiretorio Sonar.
 
 ## Scripts locais
 
@@ -158,7 +173,7 @@ Para SonarQube local:
 ./scripts/quality/sonar-analyze.sh
 ```
 
-Por default, o script usa o contexto `global`, que resolve para `PocArquitetura.slnx` e para o project key global configurado em `scripts/quality/sonar-contexts.json`. O modo por contexto continua disponivel para experimento local ou retomada futura, mas nao faz parte do fluxo oficial de CI.
+Por default, o script usa o contexto `global`, que resolve para `PocArquitetura.slnx` e para o project key global configurado em `scripts/quality/sonar-contexts.json`. O fluxo oficial de CI usa somente esse projeto agregado para SonarQube Cloud.
 
 ## Tratativas de erro
 
@@ -229,8 +244,10 @@ Use o dashboard do SonarQube Cloud como fonte principal e o artifact gerado como
 ## Criterios de aceite
 
 - O workflow executa restore, auditoria NuGet, build e testes com cobertura para os contextos impactados.
-- O SonarQube Cloud recebe analise aggregate e/ou Shared conforme a deteccao de impacto.
-- O SonarQube Cloud exibe cobertura de testes importada via OpenCover do contexto.
+- O SonarQube Cloud recebe analise aggregate quando ha impacto .NET que exige Sonar.
+- Alteracoes em Shared tambem disparam aggregate para preservar a analise completa do projeto oficial.
+- O contexto Shared executa build, testes e gate local proprio sem projeto Sonar separado.
+- O SonarQube Cloud exibe cobertura de testes importada via OpenCover do aggregate.
 - O GitHub Step Summary exibe o resumo do SonarQube Cloud quando a API pode ser consultada.
 - O artifact `test-results-coverage-and-sonarqube` contem `artifacts/sonarqube`.
 - O workflow falha com mensagem clara quando `SONAR_TOKEN` nao esta configurado.

@@ -25,8 +25,14 @@ class DetectDotnetImpactTests(unittest.TestCase):
     def test_documentation_only(self) -> None:
         self.assert_impact(["docs/development/pull-request-validation.md", "docs/image.png"], False, False, True)
 
-    def test_shared_change_runs_shared_only(self) -> None:
-        self.assert_impact(["src/Shared/Contracts/EventEnvelope.cs"], False, True)
+    def test_shared_source_change_runs_aggregate_and_shared(self) -> None:
+        self.assert_impact(["src/Shared/Contracts/EventEnvelope.cs"], True, True)
+
+    def test_shared_tests_change_runs_aggregate_and_shared(self) -> None:
+        self.assert_impact(["tests/Shared/Contracts/EventEnvelopeTests.cs"], True, True)
+
+    def test_shared_solution_change_runs_aggregate_and_shared(self) -> None:
+        self.assert_impact(["PocArquitetura.Shared.slnx"], True, True)
 
     def test_each_service_change_runs_aggregate(self) -> None:
         for service in ("audit", "balance", "identity", "ledger", "payment", "transfer"):
@@ -72,6 +78,13 @@ class DetectDotnetImpactTests(unittest.TestCase):
 
     def test_empty_list_falls_back_to_both(self) -> None:
         self.assert_impact([], True, True)
+
+    def test_non_pull_request_fallback_runs_aggregate_and_shared(self) -> None:
+        result = detect_dotnet_impact.fallback_result("push to main")
+
+        self.assertTrue(result["run_aggregate"])
+        self.assertTrue(result["run_shared"])
+        self.assertFalse(result["docs_only"])
 
     def test_invalid_json_raises_for_callers_to_fallback(self) -> None:
         with self.assertRaises(ValueError):

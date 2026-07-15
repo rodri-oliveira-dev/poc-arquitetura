@@ -9,7 +9,7 @@ from sonar_context import load_contexts, normalize_path, repo_root
 from path_security import resolve_existing_file
 
 
-CONTEXTS = ["ledger", "balance", "transfer", "identity", "audit", "shared"]
+CONTEXTS = ["ledger", "balance", "transfer", "identity", "audit"]
 
 CONTEXT_PATTERNS = {
     "ledger": ["src/ledger/**", "tests/ledger/**", "LedgerService.slnx", "tools/ComposeEnvGen/**"],
@@ -17,7 +17,6 @@ CONTEXT_PATTERNS = {
     "transfer": ["src/transfer/**", "tests/transfer/**", "TransferService.slnx"],
     "identity": ["src/identity/**", "tests/identity/**", "IdentityService.slnx"],
     "audit": ["src/audit/**", "tests/audit/**", "AuditService.slnx"],
-    "shared": ["src/Shared/**", "tests/Shared/**", "PocArquitetura.Shared.slnx", "src/Shared/Directory.*"],
 }
 
 GLOBAL_PATTERNS = [
@@ -40,6 +39,7 @@ GLOBAL_PATTERNS = [
 ]
 
 EVENT_CONTRACT_PATTERNS = ["contracts/events/**"]
+SHARED_PATTERNS = ["src/Shared/**", "tests/Shared/**", "PocArquitetura.Shared.slnx", "src/Shared/Directory.*"]
 DOC_PATTERNS = ["docs/**", "*.md", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.svg", "*.webp"]
 
 
@@ -97,6 +97,9 @@ def apply_changed_file_impact(changed_file: str, selected: dict[str, bool]) -> l
 
     if matches(changed_file, EVENT_CONTRACT_PATTERNS):
         return [{"path": changed_file, "reason": "contrato de evento sem ownership Sonar contextual"}]
+
+    if matches(changed_file, SHARED_PATTERNS):
+        return [{"path": changed_file, "reason": "Shared sem Sonar contextual dedicado"}]
 
     reasons = []
     for context, patterns in CONTEXT_PATTERNS.items():
