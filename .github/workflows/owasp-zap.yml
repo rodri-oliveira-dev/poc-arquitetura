@@ -379,7 +379,11 @@ jobs:
             echo
           } >> "$GITHUB_STEP_SUMMARY"
 
-          latest_summary="$(find "$ZAP_ARTIFACTS_DIR" -type f -name summary.md -print 2>/dev/null | sort | tail -n 1 || true)"
+          latest_summary=""
+          if [ -d "$ZAP_ARTIFACTS_DIR" ]; then
+            latest_summary="$(find "$ZAP_ARTIFACTS_DIR" -type f -name summary.md -print 2>/dev/null | sort | tail -n 1)"
+          fi
+
           if [ -n "$latest_summary" ]; then
             cat "$latest_summary" >> "$GITHUB_STEP_SUMMARY"
           else
