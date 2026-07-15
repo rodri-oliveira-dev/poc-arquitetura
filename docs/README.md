@@ -23,7 +23,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 
 - [Autenticacao e autorizacao](development/authentication.md): obter token local, validar scopes, audiences e autorizacao por merchant.
 - [Mensageria, Outbox e DLQ](development/kafka-outbox.md): validar Kafka default, Pub/Sub explicito/legado, publicacao, consumo, DLQ, requeue e fluxos assincronos.
-- [Cobertura de testes](development/test-coverage.md): executar testes com cobertura, interpretar falhas e entender os gates de 85% global e dos workers.
+- [Cobertura de testes](development/test-coverage.md): executar testes com cobertura, interpretar falhas e entender os gates de 85% global, 80% Shared e 85% dos workers.
 - [SonarQube Cloud](development/sonarqube-cloud.md): configurar analise via GitHub Actions, token, importacao OpenCover, quality gate e troubleshooting.
 - [SonarQube local](quality/sonarqube.md): subir SonarQube com Docker Compose e executar analise estatica local.
 - [Mutation testing com Stryker.NET](development/mutation-testing-stryker.md): executar mutation testing local e interpretar relatorios.
@@ -93,6 +93,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [Baseline dos contratos OpenAPI](reports/openapi-contract-baseline.md): contratos gerados, contagem de endpoints, warnings e determinismo da geracao.
 - [Diagnostico de contratos de eventos](reports/event-contracts-diagnostics.md): fluxo atual de eventos entre Ledger e Balance, Pub/Sub, Kafka, Outbox, DLQ, idempotencia e riscos de contrato.
 - [Diagnostico de replay, DLQ e projecao](reports/replay-dlq-projection-diagnostics.md): estado atual de Outbox, retry, replay, redrive, idempotencia e reconstrucao de projecao.
+- [Diagnostico de cobertura do Shared](reports/shared-coverage-diagnostic.md): baseline local, matriz por classe/metodo, gaps priorizados e ordem recomendada para evoluir `PocArquitetura.Shared.slnx`.
 
 ## Explicacao
 

@@ -445,6 +445,8 @@ Se houver containers antigos ou rede local presa do proprio projeto, o script pe
 | Build Release | `dotnet build ./PocArquitetura.slnx --configuration Release --no-restore` |
 | Testes sem rebuild | `dotnet test ./PocArquitetura.slnx --configuration Release --no-build --settings ./coverlet.runsettings` |
 | Testes com cobertura e gate | `./test.ps1` ou `./test.sh` |
+| Configurar Git hooks locais | `./scripts/setup/configure-git-hooks.ps1` ou `./scripts/setup/configure-git-hooks.sh` |
+| Verificar Git hooks locais | `./scripts/setup/configure-git-hooks.ps1 -Check` ou `./scripts/setup/configure-git-hooks.sh --check` |
 | Criar `.env.local` de onboarding | `./scripts/local/create-env-local.ps1` ou `./scripts/local/create-env-local.sh` |
 | SonarQube local | `docker compose --env-file .env.local -f compose.sonar.yaml --profile quality up -d` |
 | Analise SonarQube local | `./scripts/quality/sonar-analyze.sh` |

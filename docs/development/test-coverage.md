@@ -6,7 +6,8 @@ Este repositorio valida cobertura de testes na solution agregadora (`PocArquitet
 - `coverlet.runsettings` como configuracao unica de coleta;
 - ReportGenerator para consolidar os arquivos `coverage.cobertura.xml`;
 - OpenCover para importacao de cobertura no SonarQube Cloud;
-- gate minimo de 85% de cobertura total de linhas;
+- gate minimo de 85% de cobertura total de linhas na solution agregadora;
+- gate minimo de 80% de cobertura total de linhas na solution Shared;
 - gate minimo de 85% de cobertura de linhas para `LedgerService.Worker` e `BalanceService.Worker`.
 
 ## Comando oficial
@@ -94,8 +95,9 @@ Depois da coleta, os scripts executam o ReportGenerator e leem `TestResults/cove
 
 - A validacao considera a cobertura consolidada da solution inteira.
 - `LedgerService.Worker` e `BalanceService.Worker` tambem precisam atingir 85% de cobertura de linhas por assembly.
-- O minimo aceito e 85% de cobertura de linhas.
-- O mesmo limite deve ser usado localmente pelos scripts `test.sh`/`test.ps1` e no CI completo.
+- O minimo aceito para `PocArquitetura.slnx` e 85% de cobertura de linhas.
+- O minimo aceito para `PocArquitetura.Shared.slnx` e 80% de cobertura de linhas.
+- O mesmo criterio deve ser usado localmente e no CI completo. Para validar um `Summary.json` local, use `python scripts/quality/enforce_coverage_threshold.py <Summary.json> <threshold> [assemblies]`.
 - Se `LedgerService.Worker` ou `BalanceService.Worker` estiver ausente do `Summary.json`/`Summary.txt`, o gate falha; assembly ausente nao e tratado como sucesso.
 - Relatorios ficam em `TestResults/`, que nao e versionado.
 
@@ -136,7 +138,7 @@ Quando o gate falhar:
 3. Priorize testes que validem comportamento de dominio, aplicacao, infraestrutura critica ou contratos HTTP.
 4. Use exclusao somente quando houver justificativa tecnica clara e localizada.
 
-O workflow `main-dotnet-ci` e o CI principal para `pull_request`, `merge_group`, `push` na `main` e execucao manual. Ele usa `scripts/ci/detect-dotnet-impact.py` para pular PRs apenas documentais e para escolher os contextos impactados: `aggregate` (`PocArquitetura.slnx`), `shared` (`PocArquitetura.Shared.slnx`) ou ambos. Cada contexto executado passa por auditoria NuGet, SonarQube Cloud, build, testes com cobertura, ReportGenerator e gate de 85%.
+O workflow `main-dotnet-ci` e o CI principal para `pull_request`, `merge_group`, `push` na `main` e execucao manual. Ele usa `scripts/ci/detect-dotnet-impact.py` para pular PRs apenas documentais e para escolher os contextos impactados: `aggregate` (`PocArquitetura.slnx`), `shared` (`PocArquitetura.Shared.slnx`) ou ambos. Cada contexto executado passa por auditoria NuGet, SonarQube Cloud, build, testes com cobertura, ReportGenerator e gate local: 85% para aggregate e 80% para Shared.
 
 O artifact contem arquivos `.trx`, `coverage.cobertura.xml`, `coverage.opencover.xml`, `coverage-report/Summary.json`, `coverage-report/Summary.txt`, snapshots do SonarQube Cloud em `artifacts/sonarqube/<contexto>` e os JSONs da auditoria NuGet por contexto. O HTML completo do ReportGenerator nao e publicado como artifact porque o XML e os summaries atendem ao diagnostico principal com menor exposicao de paths e trechos renderizados.
 

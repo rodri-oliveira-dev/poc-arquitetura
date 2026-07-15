@@ -8,4 +8,7 @@ public sealed record ApiJwtAuthenticationOptions(
     bool RequireHttpsMetadata,
     int JwksTimeoutSeconds,
     int JwksRetryCount,
-    int JwksRetryBaseDelayMilliseconds);
+    int JwksRetryBaseDelayMilliseconds)
+{
+    public int ClockSkewSeconds { get; init; } = 30;
+}

@@ -53,6 +53,67 @@ public sealed class ValidationErrorResponseFactoryTests
     }
 
     [Fact]
+    public void Create_should_preserve_multiple_errors_for_the_same_field()
+    {
+        var context = CreateContext();
+        var exception = new ValidationException(
+        [
+            new ValidationFailure("request.Amount", "Amount is required."),
+            new ValidationFailure("Amount", "Amount must be greater than zero.")
+        ]);
+
+        var response = ValidationErrorResponseFactory.Create(context, exception, CreateResponse);
+
+        Assert.Collection(
+            response.Errors["amount"],
+            message => Assert.Equal("Amount is required.", message),
+            message => Assert.Equal("Amount must be greater than zero.", message));
+    }
+
+    [Fact]
+    public void Create_should_support_empty_field_and_empty_message_as_global_error()
+    {
+        var context = CreateContext();
+        var exception = new ValidationException([new ValidationFailure("", "")]);
+
+        var response = ValidationErrorResponseFactory.Create(context, exception, CreateResponse);
+
+        string message = Assert.Single(response.Errors["$"]);
+        Assert.Equal(string.Empty, message);
+    }
+
+    [Fact]
+    public void CreateResult_should_use_default_message_when_model_error_message_is_empty()
+    {
+        var httpContext = CreateContext();
+        var actionContext = new ActionContext(
+            httpContext,
+            new RouteData(),
+            new ActionDescriptor(),
+            new ModelStateDictionary());
+        actionContext.ModelState.AddModelError("request", string.Empty);
+
+        var result = Assert.IsType<BadRequestObjectResult>(
+            ValidationErrorResponseFactory.CreateResult(actionContext, CreateResponse));
+
+        var response = Assert.IsType<ValidationErrorResponse>(result.Value);
+        string message = Assert.Single(response.Errors["$"]);
+        Assert.Equal("The input was not valid.", message);
+    }
+
+    [Fact]
+    public void Create_should_create_single_field_error_from_json_validation_path()
+    {
+        var context = CreateContext();
+
+        var response = ValidationErrorResponseFactory.Create(context, "$.Items[0].Amount", "Invalid amount.", CreateResponse);
+
+        string message = Assert.Single(response.Errors["items[0].amount"]);
+        Assert.Equal("Invalid amount.", message);
+        Assert.Equal("correlation-1", response.CorrelationId);
+    }
+
+    [Fact]
     public void Create_should_validate_public_arguments()
     {
         var context = CreateContext();

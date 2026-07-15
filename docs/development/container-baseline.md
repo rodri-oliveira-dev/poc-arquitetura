@@ -42,6 +42,21 @@ Construa todas as imagens definidas no Compose base:
 docker compose --env-file .env.local.example -f compose.yaml build
 ```
 
+## Validacao local no pre-push
+
+O hook `.githooks/pre-push` executa uma pre-validacao leve quando o diff contem arquivos de container:
+
+- Dockerfiles (`Dockerfile`, `**/Dockerfile`, `Dockerfile.*`, `**/Dockerfile.*`) executam uma unica vez o `ContainerBaselineValidator`;
+- arquivos Compose (`compose.yaml`, `compose.yml`, `compose.*.yaml`, `compose.*.yml` em qualquer diretorio) executam uma unica vez o script oficial `scripts/quality/containers/validate-compose-configs.sh`;
+- mudancas em `tools/ContainerBaselineValidator/**`, `.dockerignore`, `global.json`, `Directory.Build.props` ou `Directory.Packages.props` tambem executam o validador estrutural;
+- mudancas em `scripts/quality/containers/validate-compose-configs.*`, `scripts/lib/common.*` ou `.env.local.example` executam a validacao oficial de Compose.
+
+O hook nao mantem uma segunda matriz de Compose. A lista oficial de combinacoes permanece nos scripts `validate-compose-configs.*`.
+
+O `pre-push` bloqueia o envio quando o `ContainerBaselineValidator` encontra uma violacao real ou quando `docker compose config --quiet` falha para alguma combinacao suportada. Ele nao faz build completo de imagens, nao executa `docker compose up`, nao sobe containers, nao faz push de imagens e nao executa Trivy completo.
+
+Se `docker`/`docker compose` nao estiver disponivel localmente, o hook informa que a validacao Compose nao foi executada e lembra que o gate bloqueante continua no Pull Request/GitHub Actions. Se o SDK .NET nao estiver disponivel, o mesmo comportamento vale para o `ContainerBaselineValidator`. Nesses casos, a etapa nao e apresentada como aprovada.
+
 ## Como adicionar um novo executavel
 
 1. Crie o projeto em `src/<contexto>/<Nome>.Api` ou `src/<contexto>/<Nome>.Worker`.

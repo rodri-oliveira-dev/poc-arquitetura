@@ -15,6 +15,7 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 
 | ADR                                                                   | Status      | Resumo                                                                                           |
 | --------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------ |
+| [ADR-0109](./0109-setup-explicito-git-hooks-locais.md) | Aceito | Substitui instalacao de hooks durante build por setup local explicito, seguro e idempotente. |
 | [ADR-0108](./0108-publicacao-nuget-shared-pos-ci-idempotente.md) | Aceito | Define publicacao NuGet dos pacotes Shared apos CI da main, com input manual explicito e push idempotente. |
 | [ADR-0107](./0107-orquestracao-pos-ci-main-release-zap-mutation.md) | Aceito | Orquestra release, OWASP ZAP e mutation testing apos sucesso do CI da main usando o SHA validado. |
 | [ADR-0106](./0106-ci-principal-contextual-pull-requests-main.md) | Aceito | Consolida o CI principal para PR, Merge Queue, main e manual com validacao contextual aggregate/Shared. |
@@ -88,7 +89,7 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 | [ADR-0038](./0038-automacao-releases-prs-mergeados-main.md)           | Parcialmente substituido | Historico da release por PR mergeado; gatilho atual pos-CI fica na ADR-0107. |
 | [ADR-0037](./0037-otimizacao-hooks-workflows-arquivos-impactantes.md) | Parcialmente substituido | Historico de otimizacao por arquivos impactantes; `dotnet.yml` passou a usar skip interno pela ADR-0106. |
 | [ADR-0036](./0036-padronizacao-cobertura-testes-solution.md) | Aceito | Padroniza cobertura consolidada da solution com gate minimo de 80%. |
-| [ADR-0035](./0035-padronizacao-git-hooks-locais.md) | Aceito | Padroniza hooks locais para commit, post-merge e pre-push. |
+| [ADR-0035](./0035-padronizacao-git-hooks-locais.md) | Parcialmente substituido | Padroniza hooks locais para commit, post-merge e pre-push; instalacao automatica por build foi substituida pela ADR-0109. |
 | [ADR-0034](./0034-boundaries-arquiteturais-e-estrutura-de-camadas.md) | Aceito      | Define boundaries arquiteturais, nivel de camadas por servico e documentacao LikeC4.             |
 | [ADR-0033](./0033-governanca-documentacao-operacional.md)             | Aceito      | Define docs operacionais obrigatorios, responsaveis e criterios de atualizacao.                  |
 | [ADR-0032](./0032-baseline-seguranca-containers.md)                   | Aceito      | Define usuario non-root, politica de tags/digests, scan de imagem e limites locais de recursos.  |

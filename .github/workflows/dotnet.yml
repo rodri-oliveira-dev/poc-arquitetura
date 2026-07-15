@@ -32,7 +32,7 @@ jobs:
   build-test:
     name: Build and test
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
 
     steps:
       - name: Checkout
@@ -158,7 +158,7 @@ jobs:
             contexts+=("aggregate|$AGGREGATE_SOLUTION_PATH|rodri-oliveira-dev_poc-arquitetura|poc-arquitetura|85|LedgerService.Worker,BalanceService.Worker")
           fi
           if [ "$RUN_SHARED" = "true" ]; then
-            contexts+=("shared|$SHARED_SOLUTION_PATH|rodri-oliveira-dev_poc-arquitetura-shared|poc-arquitetura-shared|40|")
+            contexts+=("shared|$SHARED_SOLUTION_PATH|rodri-oliveira-dev_poc-arquitetura-shared|poc-arquitetura-shared|80|")
           fi
 
           check_nuget_vulnerabilities() {
@@ -208,43 +208,7 @@ jobs:
             local summary_file="$1"
             local threshold="$2"
             local required_assemblies="$3"
-            python - "$summary_file" "$threshold" "$required_assemblies" <<'PY'
-          import json
-          import sys
-
-          summary_file = sys.argv[1]
-          threshold = float(sys.argv[2])
-          required_assemblies = [item for item in sys.argv[3].split(",") if item]
-
-          with open(summary_file, encoding="utf-8") as f:
-              data = json.load(f)
-
-          line = float(data["summary"]["linecoverage"])
-
-          print(f"Line coverage: {line}%")
-          if line < threshold:
-              print(f"Coverage below threshold ({threshold}%).", file=sys.stderr)
-              sys.exit(1)
-
-          assemblies = {
-              assembly["name"]: float(assembly["coverage"])
-              for assembly in data.get("coverage", {}).get("assemblies", [])
-          }
-
-          for assembly_name in required_assemblies:
-              if assembly_name not in assemblies:
-                  print(f"Coverage assembly not found: {assembly_name}", file=sys.stderr)
-                  sys.exit(1)
-
-              assembly_line = assemblies[assembly_name]
-              print(f"{assembly_name} line coverage: {assembly_line}%")
-              if assembly_line < threshold:
-                  print(
-                      f"{assembly_name} coverage below threshold ({threshold}%).",
-                      file=sys.stderr,
-                  )
-                  sys.exit(1)
-          PY
+            python scripts/quality/enforce_coverage_threshold.py "$summary_file" "$threshold" "$required_assemblies"
           }
 
           write_context_summary() {
@@ -280,9 +244,8 @@ jobs:
           print(f"- Cobertura de linhas: {data['linecoverage']}%")
           print(f"- Cobertura de branches: {data['branchcoverage']}%")
           print(f"- Cobertura de metodos: {data['methodcoverage']}%")
-          for assembly_name in ("LedgerService.Worker", "BalanceService.Worker"):
-              if assembly_name in assemblies:
-                  print(f"- {assembly_name}: {assemblies[assembly_name]}% de linhas")
+          for assembly_name, coverage in sorted(assemblies.items()):
+              print(f"- {assembly_name}: {coverage}% de linhas")
           print()
           PY
           }
@@ -296,6 +259,7 @@ jobs:
 
             echo "Running $context validation with $solution"
             mkdir -p "$test_results_dir" "$sonar_report_dir"
+            sonar_begin_exit_code=0
 
             dotnet restore "$solution" \
               -p:NuGetAuditMode=all \
@@ -313,12 +277,13 @@ jobs:
                 /d:sonar.token="$SONAR_TOKEN" \
                 /d:sonar.host.url="$SONAR_HOST_URL" \
                 /d:sonar.cs.opencover.reportsPaths="$opencover_pattern" \
+                /d:sonar.scanner.scanAll=false \
                 /d:sonar.exclusions="$SONAR_NON_CSHARP_SCRIPT_EXCLUSIONS" \
                 /d:sonar.issue.ignore.block=placeholderSecrets \
                 /d:sonar.issue.ignore.block.placeholderSecrets.beginBlockRegexp=".*(PASSWORD|[Pp]assword|PWD|PGPASSWORD|CLIENT_SECRET|[Cc]lient[_-]?[Ss]ecret|SECRET|[Ss]ecret|TOKEN|[Tt]oken|API[_-]?KEY|[Aa]pi[_-]?[Kk]ey).*<[A-Z0-9_]*(PASSWORD|SECRET|TOKEN|API_KEY)[A-Z0-9_]*>.*" \
                 /d:sonar.issue.ignore.block.placeholderSecrets.endBlockRegexp=".*(PASSWORD|[Pp]assword|PWD|PGPASSWORD|CLIENT_SECRET|[Cc]lient[_-]?[Ss]ecret|SECRET|[Ss]ecret|TOKEN|[Tt]oken|API[_-]?KEY|[Aa]pi[_-]?[Kk]ey).*<[A-Z0-9_]*(PASSWORD|SECRET|TOKEN|API_KEY)[A-Z0-9_]*>.*" \
                 /d:sonar.coverage.exclusions=".github/**,docs/**,infra/**,loadtests/**,**/Program.cs,**/Migrations/*.cs,**/*.g.cs,**/*.g.*.cs" \
-                /d:sonar.qualitygate.wait=true
+                /d:sonar.qualitygate.wait=true || sonar_begin_exit_code=$?
             fi
 
             dotnet build "$solution" --configuration "$BUILD_CONFIGURATION" --no-restore
@@ -341,18 +306,6 @@ jobs:
               exit 1
             fi
 
-            if [ "$sonar_allowed" = "true" ]; then
-              dotnet tool run dotnet-sonarscanner end /d:sonar.token="$SONAR_TOKEN"
-              rm -rf .sonarqube
-              SONAR_PROJECT_KEY="$project_key" \
-              SONAR_PROJECT_NAME="$project_name" \
-              SONAR_REPORT_DIR="$sonar_report_dir" \
-              SONAR_PULL_REQUEST="$SONAR_PULL_REQUEST" \
-              SONAR_TOKEN="$SONAR_TOKEN" \
-                python scripts/quality/sonarqube_cloud_report.py
-              cat "$sonar_report_dir/sonarqube-cloud-report.md" >> "$GITHUB_STEP_SUMMARY"
-            fi
-
             dotnet tool run reportgenerator \
               -reports:"$test_results_dir/**/coverage.cobertura.xml" \
               -targetdir:"$test_results_dir/coverage-report" \
@@ -360,6 +313,37 @@ jobs:
 
             enforce_coverage_threshold "$coverage_summary" "$coverage_threshold" "$required_assemblies"
             write_context_summary "$context" "$solution" "$coverage_summary"
+
+            if [ "$sonar_allowed" = "true" ]; then
+              if [ "$sonar_begin_exit_code" -ne 0 ]; then
+                exit "$sonar_begin_exit_code"
+              fi
+
+              sonar_exit_code=0
+              report_exit_code=0
+
+              dotnet tool run dotnet-sonarscanner end /d:sonar.token="$SONAR_TOKEN" || sonar_exit_code=$?
+              rm -rf .sonarqube
+
+              SONAR_PROJECT_KEY="$project_key" \
+              SONAR_PROJECT_NAME="$project_name" \
+              SONAR_REPORT_DIR="$sonar_report_dir" \
+              SONAR_PULL_REQUEST="$SONAR_PULL_REQUEST" \
+              SONAR_TOKEN="$SONAR_TOKEN" \
+                python scripts/quality/sonarqube_cloud_report.py || report_exit_code=$?
+
+              if [ -f "$sonar_report_dir/sonarqube-cloud-report.md" ]; then
+                cat "$sonar_report_dir/sonarqube-cloud-report.md" >> "$GITHUB_STEP_SUMMARY"
+              fi
+
+              if [ "$sonar_exit_code" -ne 0 ]; then
+                exit "$sonar_exit_code"
+              fi
+
+              if [ "$report_exit_code" -ne 0 ]; then
+                exit "$report_exit_code"
+              fi
+            fi
           done
 
       - name: Upload test results, coverage and SonarQube report

@@ -1,7 +1,7 @@
 # ADR-0035: Padronizacao de Git Hooks Locais para Commit Semantico, Build, Testes e Cobertura
 
 ## Status
-Aceito
+Parcialmente substituido pela [ADR-0109](./0109-setup-explicito-git-hooks-locais.md)
 
 ## Data
 2026-04-26

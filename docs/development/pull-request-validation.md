@@ -75,11 +75,15 @@ Para cada contexto impactado, o workflow executa:
 - ReportGenerator;
 - gate de cobertura conforme o contexto validado.
 
-No contexto `aggregate`, a cobertura total de linhas precisa atingir 85% e os assemblies `LedgerService.Worker` e `BalanceService.Worker` tambem precisam atingir 85%. No contexto `shared`, o gate de cobertura total usa o baseline minimo de 40% enquanto a suite Shared e elevada gradualmente; o Quality Gate do SonarQube Cloud Shared continua obrigatorio.
+No contexto `aggregate`, a cobertura total de linhas precisa atingir 85% e os assemblies `LedgerService.Worker` e `BalanceService.Worker` tambem precisam atingir 85%. No contexto `shared`, a cobertura total de linhas precisa atingir 80%. O Quality Gate do SonarQube Cloud Shared continua obrigatorio.
 
 Pull requests vindos de forks nao recebem `SONAR_TOKEN`. Nesses casos, a analise SonarQube Cloud e ignorada para nao expor secrets a codigo nao confiavel, mas restore, auditoria NuGet, build, testes e cobertura continuam rodando.
 
 Em PRs internos, `push` na `main`, Merge Queue e execucao manual, a ausencia de `SONAR_TOKEN` falha o job quando ha impacto .NET.
+
+O workflow gera o ReportGenerator, aplica o gate local e escreve o summary de cobertura antes de retornar uma eventual falha do `dotnet-sonarscanner end` ou do relatorio Sonar. Assim, uma falha do Sonar continua bloqueante, mas os artefatos locais de teste e cobertura permanecem disponiveis para diagnostico.
+
+O SonarScanner for .NET roda com `sonar.scanner.scanAll=false` no CI principal. Assim, o `main-dotnet-ci` permanece focado em .NET, cobertura OpenCover e Quality Gate dos projetos C#; IaC/Terraform fica nos workflows dedicados `infrastructure-security` e `terraform-validation`.
 
 ## SonarQube e cobertura
 
@@ -193,6 +197,8 @@ Configuracao recomendada em `Settings > Branches > Branch protection rules` ou e
 - exigir pull request antes do merge;
 - exigir status checks passarem antes do merge;
 - selecionar o check `Build and test`;
+- tratar ausencia do check `Build and test` como bloqueante;
+- impedir merge quando build, testes, cobertura Shared abaixo de 80%, Quality Gate Sonar reprovado ou analise Sonar inconclusiva deixarem o check vermelho;
 - preservar checks de seguranca ja exigidos, como `dependency-security-review` ou `codeql-security-analysis`;
 - nao marcar `owasp-zap-baseline`, `mutation-tests` ou `release-on-merge` como required checks enquanto eles forem pos-CI informativos/operacionais;
 - exigir branch atualizada antes do merge, se o fluxo do repositorio usar essa politica;

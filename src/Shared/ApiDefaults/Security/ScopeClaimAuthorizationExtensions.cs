@@ -24,10 +24,9 @@ public static class ScopeClaimAuthorizationExtensions
         ArgumentException.ThrowIfNullOrWhiteSpace(claimType);
         ArgumentException.ThrowIfNullOrWhiteSpace(scope);
 
-        string? scopeClaim = user.FindFirst(claimType)?.Value;
-        return !string.IsNullOrWhiteSpace(scopeClaim)
-            && scopeClaim
-                .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Contains(scope, StringComparer.Ordinal);
+        return user.Identity?.IsAuthenticated == true
+            && user.FindAll(claimType)
+            .SelectMany(static claim => claim.Value.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            .Contains(scope, StringComparer.Ordinal);
     }
 }
