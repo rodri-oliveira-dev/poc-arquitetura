@@ -14,6 +14,9 @@ ROOT_DIR="$(resolve_repo_root "$SCRIPT_DIR")"
 USE_NGINX=false
 LEDGER_URL=""
 BALANCE_URL=""
+LEDGER_ZAP_URL=""
+BALANCE_ZAP_URL=""
+DOCKER_NETWORK=""
 ZAP_IMAGE="ghcr.io/zaproxy/zaproxy:stable"
 OUTPUT_ROOT="$ROOT_DIR/zap-reports"
 START_STACK=false
@@ -33,8 +36,13 @@ usage() {
 Uso: ./scripts/security/run-owasp-zap.sh [opcoes]
 
 Opcoes:
-  --ledger-url URL     Sobrescreve a URL do LedgerService.Api.
-  --balance-url URL    Sobrescreve a URL do BalanceService.Api.
+  --ledger-url URL     Sobrescreve a URL do LedgerService.Api vista pelo host para /health.
+  --balance-url URL    Sobrescreve a URL do BalanceService.Api vista pelo host para /health.
+  --ledger-zap-url URL URL do LedgerService.Api vista pelo container ZAP.
+  --balance-zap-url URL
+                      URL do BalanceService.Api vista pelo container ZAP.
+  --docker-network NETWORK
+                      Conecta o container temporario do ZAP a rede Docker informada.
   --use-nginx          Usa URLs HTTPS via Nginx local.
   --zap-image IMAGE    Imagem oficial do OWASP ZAP.
   --output-root DIR    Diretorio raiz dos relatorios.
@@ -67,6 +75,30 @@ while [[ $# -gt 0 ]]; do
         exit 2
       }
       BALANCE_URL="${2:-}"
+      shift 2
+      ;;
+    --ledger-zap-url)
+      require_option_value "$1" "${2:-}" || {
+        usage
+        exit 2
+      }
+      LEDGER_ZAP_URL="${2:-}"
+      shift 2
+      ;;
+    --balance-zap-url)
+      require_option_value "$1" "${2:-}" || {
+        usage
+        exit 2
+      }
+      BALANCE_ZAP_URL="${2:-}"
+      shift 2
+      ;;
+    --docker-network)
+      require_option_value "$1" "${2:-}" || {
+        usage
+        exit 2
+      }
+      DOCKER_NETWORK="${2:-}"
       shift 2
       ;;
     --use-nginx)
@@ -159,6 +191,12 @@ fi
 if [[ -z "$BALANCE_URL" ]]; then
   if [[ "$USE_NGINX" == true ]]; then BALANCE_URL="https://balance.localhost:7443"; else BALANCE_URL="http://localhost:5228"; fi
 fi
+if [[ -z "$LEDGER_ZAP_URL" ]]; then
+  LEDGER_ZAP_URL="$LEDGER_URL"
+fi
+if [[ -z "$BALANCE_ZAP_URL" ]]; then
+  BALANCE_ZAP_URL="$BALANCE_URL"
+fi
 
 TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 OUTPUT_DIR="$OUTPUT_ROOT/$TIMESTAMP"
@@ -206,6 +244,17 @@ ensure_zap_image() {
 
   echo "Imagem ZAP nao encontrada localmente. Baixando $ZAP_IMAGE..." >&2
   docker pull "$ZAP_IMAGE"
+}
+
+assert_docker_network() {
+  if [[ -z "$DOCKER_NETWORK" ]]; then
+    return 0
+  fi
+
+  if ! docker network inspect "$DOCKER_NETWORK" >/dev/null 2>&1; then
+    echo "Rede Docker informada para o ZAP nao existe: $DOCKER_NETWORK" >&2
+    exit 1
+  fi
 }
 
 get_zap_token() {
@@ -333,7 +382,7 @@ docker_host_args() {
   local hosts=("host.docker.internal")
   local host
 
-  local urls=("$LEDGER_URL" "$BALANCE_URL")
+  local urls=("$LEDGER_URL" "$BALANCE_URL" "$LEDGER_ZAP_URL" "$BALANCE_ZAP_URL")
 
   for url in "${urls[@]}"; do
     host="$(url_host "$url")"
@@ -348,10 +397,114 @@ docker_host_args() {
   done
 }
 
+container_openapi_url() {
+  local container_base_url="$1"
+  local host_base_url="$2"
+  local openapi_url
+
+  openapi_url="$(swagger_url "$container_base_url")"
+  if [[ "$container_base_url" == "$host_base_url" ]]; then
+    zap_target_url "$openapi_url"
+  else
+    printf '%s' "$openapi_url"
+  fi
+}
+
+docker_common_run_args() {
+  if [[ -n "$DOCKER_NETWORK" ]]; then
+    printf '%s\n' "--network" "$DOCKER_NETWORK"
+  fi
+}
+
+assert_openapi_from_container() {
+  local api_name="$1"
+  local host_base_url="$2"
+  local container_base_url="$3"
+  local host_openapi_url
+  local target_url
+  local docker_args=()
+  local arg
+  local output
+  local exit_code=0
+
+  host_openapi_url="$(swagger_url "$host_base_url")"
+  target_url="$(container_openapi_url "$container_base_url" "$host_base_url")"
+
+  docker_args=(run --rm)
+  while IFS= read -r arg; do
+    docker_args+=("$arg")
+  done < <(docker_common_run_args)
+  while IFS= read -r arg; do
+    docker_args+=("$arg")
+  done < <(docker_host_args)
+
+  echo "Validando OpenAPI do $api_name antes do scan." >&2
+  set +e
+  output="$(
+    docker "${docker_args[@]}" "$ZAP_IMAGE" python3 - "$target_url" <<'PY' 2>&1
+import json
+import sys
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
+
+url = sys.argv[1]
+request = Request(url, headers={"Accept": "application/json"})
+
+try:
+    with urlopen(request, timeout=20) as response:
+        status = response.getcode()
+        body = response.read(1024 * 1024)
+except HTTPError as error:
+    body = error.read(4096).decode("utf-8", errors="replace")
+    print(f"HTTP {error.code}: {body[:500]}", file=sys.stderr)
+    sys.exit(10)
+except URLError as error:
+    print(f"Erro de conectividade: {error.reason}", file=sys.stderr)
+    sys.exit(11)
+except Exception as error:
+    print(f"Erro ao acessar OpenAPI: {error}", file=sys.stderr)
+    sys.exit(12)
+
+if status < 200 or status >= 400:
+    print(f"HTTP {status}", file=sys.stderr)
+    sys.exit(13)
+
+try:
+    document = json.loads(body.decode("utf-8"))
+except Exception as error:
+    print(f"Resposta nao e JSON valido: {error}", file=sys.stderr)
+    sys.exit(14)
+
+if not isinstance(document, dict) or not (document.get("openapi") or document.get("swagger")):
+    print("Documento JSON nao contem campo 'openapi' ou 'swagger'.", file=sys.stderr)
+    sys.exit(15)
+
+paths = document.get("paths")
+if not isinstance(paths, dict) or not paths:
+    print("Documento OpenAPI nao contem paths validos.", file=sys.stderr)
+    sys.exit(16)
+PY
+  )"
+  exit_code=$?
+  set -e
+
+  if [[ "$exit_code" -ne 0 ]]; then
+    {
+      echo "Falha ao validar OpenAPI do $api_name a partir do container ZAP."
+      echo "  URL vista pelo host: $host_openapi_url"
+      echo "  URL vista pelo container: $target_url"
+      echo "  Rede Docker utilizada: ${DOCKER_NETWORK:-<padrao do Docker>}"
+      echo "  Erro: $output"
+    } >&2
+    exit 1
+  fi
+}
+
 run_zap_scan() {
   local api_name="$1"
   local slug="$2"
-  local url="$3"
+  local host_url="$3"
+  local container_url="$4"
   local target_url
   local openapi_url
   local html="$slug.html"
@@ -363,10 +516,13 @@ run_zap_scan() {
   local host_arg
 
   docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
-  openapi_url="$(swagger_url "$url")"
-  target_url="$(zap_target_url "$openapi_url")"
+  openapi_url="$(swagger_url "$host_url")"
+  target_url="$(container_openapi_url "$container_url" "$host_url")"
 
   docker_args=(run --name "$CONTAINER_NAME" -v "$OUTPUT_DIR:/zap/wrk:rw")
+  while IFS= read -r host_arg; do
+    docker_args+=("$host_arg")
+  done < <(docker_common_run_args)
   while IFS= read -r host_arg; do
     docker_args+=("$host_arg")
   done < <(docker_host_args)
@@ -390,7 +546,7 @@ run_zap_scan() {
     docker_args+=(-I)
   fi
 
-  echo "Executando ZAP $SCAN_TYPE em $api_name: $url" >&2
+  echo "Executando ZAP $SCAN_TYPE em $api_name: host=$host_url container=$container_url rede=${DOCKER_NETWORK:-<padrao do Docker>}" >&2
   set +e
   docker "${docker_args[@]}"
   exit_code=$?
@@ -408,10 +564,15 @@ run_zap_scan() {
     status="completed-with-alerts"
   fi
 
-  SCAN_RESULTS+=("$api_name|$url|$openapi_url|$target_url|$status|$exit_code|$html,$json,$markdown")
+  SCAN_RESULTS+=("$api_name|$host_url|$openapi_url|$target_url|${DOCKER_NETWORK:-<padrao do Docker>}|$status|$exit_code|$html,$json,$markdown")
 
   if [[ "$exit_code" -ge 3 ]]; then
-    echo "Falha operacional no ZAP para $api_name. Exit code: $exit_code" >&2
+    {
+      echo "Falha operacional no ZAP para $api_name. Exit code: $exit_code"
+      echo "  URL vista pelo host: $openapi_url"
+      echo "  URL vista pelo container: $target_url"
+      echo "  Rede Docker utilizada: ${DOCKER_NETWORK:-<padrao do Docker>}"
+    } >&2
     exit 1
   fi
 
@@ -436,17 +597,19 @@ write_summary() {
       echo "- Autenticacao Bearer: \`desabilitada\`"
     fi
     echo "- Container temporario: \`$CONTAINER_NAME\`"
+    echo "- Rede Docker do ZAP: \`${DOCKER_NETWORK:-<padrao do Docker>}\`"
     echo "- Diretorio de saida: \`$OUTPUT_DIR\`"
     echo
     echo "## APIs analisadas"
     echo
 
-    local result api_name url openapi_url target_url status exit_code files
+    local result api_name url openapi_url target_url network status exit_code files
     for result in "${SCAN_RESULTS[@]}"; do
-      IFS='|' read -r api_name url openapi_url target_url status exit_code files <<<"$result"
+      IFS='|' read -r api_name url openapi_url target_url network status exit_code files <<<"$result"
       echo "- $api_name: \`$url\`"
       echo "  - Swagger/OpenAPI: \`$openapi_url\`"
       echo "  - OpenAPI visto pelo container: \`$target_url\`"
+      echo "  - Rede Docker: \`$network\`"
       echo "  - Status: \`$status\`"
       echo "  - Exit code ZAP: \`$exit_code\`"
       echo "  - Arquivos: $files"
@@ -486,10 +649,14 @@ if [[ "$USE_AUTHENTICATION" == true ]]; then
 fi
 
 ensure_zap_image
+assert_docker_network
 
 mkdir -p "$OUTPUT_DIR"
 
-run_zap_scan "LedgerService.Api" "ledger-service-api" "$LEDGER_URL"
-run_zap_scan "BalanceService.Api" "balance-service-api" "$BALANCE_URL"
+assert_openapi_from_container "LedgerService.Api" "$LEDGER_URL" "$LEDGER_ZAP_URL"
+assert_openapi_from_container "BalanceService.Api" "$BALANCE_URL" "$BALANCE_ZAP_URL"
+
+run_zap_scan "LedgerService.Api" "ledger-service-api" "$LEDGER_URL" "$LEDGER_ZAP_URL"
+run_zap_scan "BalanceService.Api" "balance-service-api" "$BALANCE_URL" "$BALANCE_ZAP_URL"
 
 echo "OK. Relatorios OWASP ZAP em: $OUTPUT_DIR" >&2

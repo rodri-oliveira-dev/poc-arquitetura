@@ -273,6 +273,92 @@ public sealed partial class WorkflowArtifactPolicyTests
         Assert.True(RetentionDaysSevenRegex().Count(workflow) >= 2);
     }
 
+    [Fact]
+    public void Owasp_zap_workflow_should_keep_host_health_checks_and_scan_through_compose_network()
+    {
+        var repositoryRoot = GetRepositoryRoot();
+        var workflow = File.ReadAllText(Path.Combine(repositoryRoot.FullName, ".github/workflows/owasp-zap.yml"));
+
+        Assert.Contains("http://localhost:5226/health", workflow);
+        Assert.Contains("http://localhost:5228/health", workflow);
+        Assert.Contains("docker inspect \"$ledger_container_id\"", workflow);
+        Assert.Contains("awk '/(^|_)poc-net$/ { print; exit }'", workflow);
+        Assert.Contains("grep -Fx \"$zap_network\"", workflow);
+        Assert.Contains("--docker-network \"$zap_network\"", workflow);
+        Assert.Contains("--ledger-zap-url http://ledger-service:8080", workflow);
+        Assert.Contains("--balance-zap-url http://balance-service:8080", workflow);
+        Assert.DoesNotContain("continue-on-error", workflow);
+        Assert.DoesNotContain("|| true", GetWorkflowStep(workflow, "Run OWASP ZAP baseline"));
+    }
+
+    [Fact]
+    public void Owasp_zap_script_should_support_optional_network_and_separate_host_and_container_urls()
+    {
+        var repositoryRoot = GetRepositoryRoot();
+        var script = File.ReadAllText(Path.Combine(repositoryRoot.FullName, "scripts/security/run-owasp-zap.sh"));
+
+        Assert.Contains("--docker-network", script);
+        Assert.Contains("--ledger-zap-url", script);
+        Assert.Contains("--balance-zap-url", script);
+        Assert.Contains("DOCKER_NETWORK=\"\"", script);
+        Assert.Contains("LEDGER_ZAP_URL=\"\"", script);
+        Assert.Contains("BALANCE_ZAP_URL=\"\"", script);
+        Assert.Contains("assert_health \"LedgerService.Api\" \"$LEDGER_URL\"", script);
+        Assert.Contains("assert_health \"BalanceService.Api\" \"$BALANCE_URL\"", script);
+        Assert.Contains("assert_openapi_from_container \"LedgerService.Api\" \"$LEDGER_URL\" \"$LEDGER_ZAP_URL\"", script);
+        Assert.Contains("assert_openapi_from_container \"BalanceService.Api\" \"$BALANCE_URL\" \"$BALANCE_ZAP_URL\"", script);
+        Assert.Contains("run_zap_scan \"LedgerService.Api\" \"ledger-service-api\" \"$LEDGER_URL\" \"$LEDGER_ZAP_URL\"", script);
+        Assert.Contains("run_zap_scan \"BalanceService.Api\" \"balance-service-api\" \"$BALANCE_URL\" \"$BALANCE_ZAP_URL\"", script);
+    }
+
+    [Fact]
+    public void Owasp_zap_script_should_add_network_to_docker_run_only_when_informed()
+    {
+        var repositoryRoot = GetRepositoryRoot();
+        var script = File.ReadAllText(Path.Combine(repositoryRoot.FullName, "scripts/security/run-owasp-zap.sh"));
+
+        Assert.Contains("if [[ -n \"$DOCKER_NETWORK\" ]]; then", script);
+        Assert.Contains("printf '%s\\n' \"--network\" \"$DOCKER_NETWORK\"", script);
+        Assert.Contains("docker_args=(run --rm)", script);
+        Assert.Contains("docker_args=(run --name \"$CONTAINER_NAME\" -v \"$OUTPUT_DIR:/zap/wrk:rw\")", script);
+        Assert.Contains("done < <(docker_common_run_args)", script);
+        Assert.DoesNotContain("--network poc-arquitetura_poc-net", script);
+    }
+
+    [Fact]
+    public void Owasp_zap_script_should_preserve_legacy_localhost_gateway_behavior()
+    {
+        var repositoryRoot = GetRepositoryRoot();
+        var script = File.ReadAllText(Path.Combine(repositoryRoot.FullName, "scripts/security/run-owasp-zap.sh"));
+
+        Assert.Contains("LEDGER_ZAP_URL=\"$LEDGER_URL\"", script);
+        Assert.Contains("BALANCE_ZAP_URL=\"$BALANCE_URL\"", script);
+        Assert.Contains("host in (\"localhost\", \"127.0.0.1\", \"::1\")", script);
+        Assert.Contains("netloc = \"host.docker.internal\"", script);
+        Assert.Contains("local hosts=(\"host.docker.internal\")", script);
+        Assert.Contains("if [[ \"$USE_NGINX\" == true ]]; then LEDGER_URL=\"https://ledger.localhost:7443\"; else LEDGER_URL=\"http://localhost:5226\"; fi", script);
+        Assert.Contains("if [[ \"$USE_NGINX\" == true ]]; then BALANCE_URL=\"https://balance.localhost:7443\"; else BALANCE_URL=\"http://localhost:5228\"; fi", script);
+    }
+
+    [Fact]
+    public void Owasp_zap_script_should_fail_operational_errors_and_invalid_openapi_imports()
+    {
+        var repositoryRoot = GetRepositoryRoot();
+        var script = File.ReadAllText(Path.Combine(repositoryRoot.FullName, "scripts/security/run-owasp-zap.sh"));
+
+        Assert.Contains("assert_docker_network", script);
+        Assert.Contains("docker network inspect \"$DOCKER_NETWORK\"", script);
+        Assert.Contains("Documento JSON nao contem campo 'openapi' ou 'swagger'.", script);
+        Assert.Contains("Documento OpenAPI nao contem paths validos.", script);
+        Assert.Contains("Falha ao validar OpenAPI do $api_name a partir do container ZAP.", script);
+        Assert.Contains("URL vista pelo host: $host_openapi_url", script);
+        Assert.Contains("URL vista pelo container: $target_url", script);
+        Assert.Contains("Rede Docker utilizada: ${DOCKER_NETWORK:-<padrao do Docker>}", script);
+        Assert.Contains("elif [[ \"$exit_code\" -ge 3 ]]; then", script);
+        Assert.Contains("if [[ \"$exit_code\" -ge 3 ]]; then", script);
+        Assert.Contains("if [[ \"$FAIL_ON_ALERTS\" == true && \"$exit_code\" -ne 0 ]]; then", script);
+    }
+
     public static TheoryData<string> GetAllPolicyYamlFiles()
     {
         var data = new TheoryData<string>();
@@ -382,6 +468,15 @@ public sealed partial class WorkflowArtifactPolicyTests
     private static bool HasKey(YamlMappingNode node, string key)
     {
         return TryGetChild(node, key, out _);
+    }
+
+    private static string GetWorkflowStep(string workflow, string stepName)
+    {
+        var stepStart = workflow.IndexOf($"- name: {stepName}", StringComparison.Ordinal);
+        Assert.True(stepStart >= 0, $"Step not found: {stepName}");
+
+        var nextStepStart = workflow.IndexOf("\n      - name:", stepStart + 1, StringComparison.Ordinal);
+        return nextStepStart < 0 ? workflow[stepStart..] : workflow[stepStart..nextStepStart];
     }
 
     [GeneratedRegex(@"uses:\s*actions/upload-artifact@[0-9a-f]{40}\s*#\s*v4[\s\S]*?(?=\n\s{6}- name:|\z)", RegexOptions.Multiline)]

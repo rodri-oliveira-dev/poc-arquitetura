@@ -38,6 +38,19 @@ Depois do health check, o alvo analisado pelo ZAP e o documento OpenAPI de cada 
 - LedgerService.Api: `/swagger/v1/swagger.json`
 - BalanceService.Api: `/swagger/v1/swagger.json`
 
+Ha duas perspectivas de rede diferentes no runner:
+
+- o host acessa as APIs pelas portas publicadas em `127.0.0.1`, por exemplo `http://localhost:5226/health`;
+- o container temporario do ZAP acessa as APIs pela rede Docker quando `--docker-network` e `--ledger-zap-url`/`--balance-zap-url` sao informados;
+- quando esses parametros nao sao informados, o comportamento local legado continua convertendo `localhost` para `host.docker.internal`.
+
+O `compose.yaml` mantem as portas das APIs publicadas somente em `127.0.0.1` para evitar exposicao acidental na interface de rede da maquina de desenvolvimento ou do runner. Em GitHub Actions, como o ZAP roda em outro container, ele entra na mesma rede Compose das APIs e usa os nomes internos de servico:
+
+- LedgerService.Api: `http://ledger-service:8080`
+- BalanceService.Api: `http://balance-service:8080`
+
+Antes de chamar `zap-api-scan.py`, o runner valida que a rede Docker informada existe e que um container consegue baixar e interpretar cada `/swagger/v1/swagger.json` como JSON OpenAPI valido. Falhas de conectividade, HTTP de erro ou documento invalido continuam sendo falhas operacionais.
+
 Por padrao, o runner aguarda ate 90 segundos por API, com tentativas a cada 3 segundos. Ajuste esse comportamento quando a maquina local estiver mais lenta:
 
 ```powershell
@@ -136,6 +149,17 @@ Sobrescrevendo URLs ou imagem:
   --zap-image ghcr.io/zaproxy/zaproxy:stable
 ```
 
+Usando uma rede Docker e URLs internas para o container ZAP:
+
+```bash
+./scripts/security/run-owasp-zap.sh \
+  --ledger-url http://localhost:5226 \
+  --balance-url http://localhost:5228 \
+  --docker-network poc-arquitetura_poc-net \
+  --ledger-zap-url http://ledger-service:8080 \
+  --balance-zap-url http://balance-service:8080
+```
+
 Sobrescrevendo o caminho do documento OpenAPI:
 
 ```bash
@@ -189,6 +213,13 @@ O workflow aplica migrations dos bancos antes de iniciar as APIs e aguarda `/hea
 
 - `http://localhost:5226/health`;
 - `http://localhost:5228/health`.
+
+Esses health checks continuam usando o acesso do host pelas portas publicadas. Para o scan, o workflow descobre programaticamente a rede `poc-net` associada aos containers do Compose, conecta o container temporario do ZAP a essa rede e importa os contratos por:
+
+- `http://ledger-service:8080/swagger/v1/swagger.json`;
+- `http://balance-service:8080/swagger/v1/swagger.json`.
+
+Esse desenho evita trocar os bindings locais para `0.0.0.0`, preserva o isolamento do Compose local e impede que falhas como rede inexistente, OpenAPI inacessivel ou importacao invalida sejam mascaradas como sucesso.
 
 Workers, Kafka, Pub/Sub emulator legado e Nginx local ficam fora do escopo padrao porque o baseline atual analisa a superficie HTTP descrita por `/swagger/v1/swagger.json` das APIs principais. Se uma evolucao futura passar a validar endpoints autenticados, fluxos assincronos ponta a ponta ou Nginx, o workflow deve ser ajustado junto com o criterio de falha e a documentacao.
 
