@@ -155,28 +155,27 @@ public sealed class JwksDocumentRetrieverTests
     [Fact]
     public async Task GetDocumentAsync_should_treat_timeout_as_transient_failure_Async()
     {
-        using var server = await TestHttpServer.StartAsync([
-            new HttpResponse(HttpStatusCode.OK, EmptyJwksDocument, TimeSpan.FromMilliseconds(200)),
-            new HttpResponse(HttpStatusCode.OK, EmptyJwksDocument)
-        ]);
+        using var handler = new TimeoutThenSuccessHttpMessageHandler();
         using ServiceProvider provider = CreateProvider(
             retryCount: 1,
             new Dictionary<string, string?>
             {
-                ["HttpResilience:Clients:JWKS:AttemptTimeout"] = "00:00:00.050",
-                ["HttpResilience:Clients:JWKS:TotalTimeout"] = "00:00:01"
-            });
+                ["HttpResilience:Clients:JWKS:AttemptTimeout"] = "00:00:00.250",
+                ["HttpResilience:Clients:JWKS:TotalTimeout"] = "00:00:03"
+            },
+            handler);
         var sut = CreateRetriever(provider);
 
-        string document = await sut.GetDocumentAsync(server.Address, TestContext.Current.CancellationToken);
+        string document = await sut.GetDocumentAsync("http://jwks.test/.well-known/jwks.json", TestContext.Current.CancellationToken);
 
         Assert.Equal(EmptyJwksDocument, document);
-        Assert.Equal(2, server.RequestCount);
+        Assert.Equal(2, handler.RequestCount);
     }
 
     private static ServiceProvider CreateProvider(
         int retryCount,
-        Dictionary<string, string?>? overrides = null)
+        Dictionary<string, string?>? overrides = null,
+        HttpMessageHandler? primaryHandler = null)
     {
         Dictionary<string, string?> settings = new(StringComparer.OrdinalIgnoreCase)
         {
@@ -204,8 +203,15 @@ public sealed class JwksDocumentRetrieverTests
 
         ServiceCollection services = new();
         services.AddLogging();
-        services
-            .AddHttpClient(JwtAuthenticationServiceCollectionExtensions.JwksHttpClientName)
+        IHttpClientBuilder httpClientBuilder = services
+            .AddHttpClient(JwtAuthenticationServiceCollectionExtensions.JwksHttpClientName);
+
+        if (primaryHandler is not null)
+        {
+            httpClientBuilder.ConfigurePrimaryHttpMessageHandler(() => primaryHandler);
+        }
+
+        httpClientBuilder
             .AddConfiguredHttpResilience(configuration, JwtAuthenticationServiceCollectionExtensions.JwksHttpClientName);
 
         return services.BuildServiceProvider();
@@ -225,6 +231,31 @@ public sealed class JwksDocumentRetrieverTests
             ["HttpResilience:Clients:JWKS:CircuitBreakerSamplingDuration"] = "00:00:05",
             ["HttpResilience:Clients:JWKS:CircuitBreakerBreakDuration"] = "00:00:00.500"
         };
+
+    private sealed class TimeoutThenSuccessHttpMessageHandler : HttpMessageHandler
+    {
+        private int _requestCount;
+
+        public int RequestCount => Volatile.Read(ref _requestCount);
+
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            int attempt = Interlocked.Increment(ref _requestCount);
+
+            if (attempt == 1)
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                throw new InvalidOperationException("The first JWKS attempt should be cancelled by the attempt timeout.");
+            }
+
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(EmptyJwksDocument)
+            };
+        }
+    }
 
     private sealed record HttpResponse(
         HttpStatusCode StatusCode,
