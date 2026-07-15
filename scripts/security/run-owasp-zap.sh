@@ -207,6 +207,7 @@ if [[ "$ACTIVE_SCAN" == true ]]; then
 fi
 
 SCAN_RESULTS=()
+declare -A OPENAPI_DECLARED_SERVERS=()
 
 cleanup() {
   docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
@@ -378,6 +379,39 @@ print(urlunparse(parsed).rstrip("/"))
 PY
 }
 
+normalize_api_base_url() {
+  python3 - "$1" "$SWAGGER_PATH" <<'PY'
+import sys
+from urllib.parse import urlparse, urlunparse
+
+url = sys.argv[1].rstrip("/")
+swagger_path = sys.argv[2] or "/swagger/v1/swagger.json"
+if not swagger_path.startswith("/"):
+    swagger_path = "/" + swagger_path
+
+parsed = urlparse(url)
+path = parsed.path.rstrip("/")
+if path.endswith(swagger_path.rstrip("/")):
+    path = path[: -len(swagger_path.rstrip("/"))] or ""
+    parsed = parsed._replace(path=path.rstrip("/"), params="", query="", fragment="")
+
+print(urlunparse(parsed).rstrip("/"))
+PY
+}
+
+zap_accessible_base_url() {
+  local host_base_url="$1"
+  local container_base_url="$2"
+  local base_url
+
+  base_url="$(normalize_api_base_url "$container_base_url")"
+  if [[ "$base_url" == "$(normalize_api_base_url "$host_base_url")" ]]; then
+    zap_target_url "$base_url"
+  else
+    zap_target_url "$base_url"
+  fi
+}
+
 docker_host_args() {
   local hosts=("host.docker.internal")
   local host
@@ -400,14 +434,10 @@ docker_host_args() {
 container_openapi_url() {
   local container_base_url="$1"
   local host_base_url="$2"
-  local openapi_url
+  local accessible_base_url
 
-  openapi_url="$(swagger_url "$container_base_url")"
-  if [[ "$container_base_url" == "$host_base_url" ]]; then
-    zap_target_url "$openapi_url"
-  else
-    printf '%s' "$openapi_url"
-  fi
+  accessible_base_url="$(zap_accessible_base_url "$host_base_url" "$container_base_url")"
+  swagger_url "$accessible_base_url"
 }
 
 docker_common_run_args() {
@@ -422,6 +452,8 @@ assert_openapi_from_container() {
   local container_base_url="$3"
   local host_openapi_url
   local target_url
+  local effective_server_url
+  local declared_servers="<ausente>"
   local docker_args=()
   local arg
   local output
@@ -429,6 +461,7 @@ assert_openapi_from_container() {
 
   host_openapi_url="$(swagger_url "$host_base_url")"
   target_url="$(container_openapi_url "$container_base_url" "$host_base_url")"
+  effective_server_url="$(zap_accessible_base_url "$host_base_url" "$container_base_url")"
 
   docker_args=(run --rm)
   while IFS= read -r arg; do
@@ -483,6 +516,21 @@ paths = document.get("paths")
 if not isinstance(paths, dict) or not paths:
     print("Documento OpenAPI nao contem paths validos.", file=sys.stderr)
     sys.exit(16)
+
+servers = document.get("servers")
+if servers is None:
+    server_urls = []
+elif isinstance(servers, list):
+    server_urls = [
+        server.get("url")
+        for server in servers
+        if isinstance(server, dict) and isinstance(server.get("url"), str) and server.get("url")
+    ]
+else:
+    print("Campo 'servers' existe, mas nao e um array.", file=sys.stderr)
+    sys.exit(17)
+
+print("DECLARED_SERVERS=" + json.dumps(server_urls, ensure_ascii=False))
 PY
   )"
   exit_code=$?
@@ -498,6 +546,33 @@ PY
     } >&2
     exit 1
   fi
+
+  while IFS= read -r line; do
+    if [[ "$line" == DECLARED_SERVERS=* ]]; then
+      declared_servers="${line#DECLARED_SERVERS=}"
+    fi
+  done <<<"$output"
+
+  if [[ "$declared_servers" == "[]" ]]; then
+    declared_servers="<ausente>"
+  fi
+
+  OPENAPI_DECLARED_SERVERS["$api_name"]="$declared_servers"
+
+  {
+    echo "OpenAPI validado para $api_name."
+    echo "  URL do documento OpenAPI: $target_url"
+    echo "  Servidor declarado no documento: $declared_servers"
+    echo "  Servidor efetivo para o ZAP (-O): $effective_server_url"
+    echo "  Rede Docker utilizada: ${DOCKER_NETWORK:-<padrao do Docker>}"
+  } >&2
+
+  if [[ "$declared_servers" != "<ausente>" && "$declared_servers" != *"$effective_server_url"* ]]; then
+    {
+      echo "Servidor declarado no OpenAPI difere do servidor efetivo acessivel pelo container ZAP."
+      echo "  Divergencia aceita porque o scan usara override explicito com -O."
+    } >&2
+  fi
 }
 
 run_zap_scan() {
@@ -507,9 +582,12 @@ run_zap_scan() {
   local container_url="$4"
   local target_url
   local openapi_url
+  local effective_server_url
+  local declared_servers
   local html="$slug.html"
   local json="$slug.json"
   local markdown="$slug.md"
+  local log_file="$slug.log"
   local exit_code=0
   local status
   local docker_args=()
@@ -518,6 +596,8 @@ run_zap_scan() {
   docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
   openapi_url="$(swagger_url "$host_url")"
   target_url="$(container_openapi_url "$container_url" "$host_url")"
+  effective_server_url="$(zap_accessible_base_url "$host_url" "$container_url")"
+  declared_servers="${OPENAPI_DECLARED_SERVERS[$api_name]:-<nao validado>}"
 
   docker_args=(run --name "$CONTAINER_NAME" -v "$OUTPUT_DIR:/zap/wrk:rw")
   while IFS= read -r host_arg; do
@@ -532,6 +612,7 @@ run_zap_scan() {
     "$SCAN_COMMAND"
     -t "$target_url"
     -f openapi
+    -O "$effective_server_url"
     -r "$html"
     -J "$json"
     -w "$markdown"
@@ -546,9 +627,16 @@ run_zap_scan() {
     docker_args+=(-I)
   fi
 
-  echo "Executando ZAP $SCAN_TYPE em $api_name: host=$host_url container=$container_url rede=${DOCKER_NETWORK:-<padrao do Docker>}" >&2
+  {
+    echo "Executando ZAP $SCAN_TYPE em $api_name."
+    echo "  URL do documento OpenAPI: $target_url"
+    echo "  Servidor declarado no documento: $declared_servers"
+    echo "  Servidor efetivo para o ZAP (-O): $effective_server_url"
+    echo "  Rede Docker utilizada: ${DOCKER_NETWORK:-<padrao do Docker>}"
+    echo "  Log bruto: $OUTPUT_DIR/$log_file"
+  } >&2
   set +e
-  docker "${docker_args[@]}"
+  docker "${docker_args[@]}" >"$OUTPUT_DIR/$log_file" 2>&1
   exit_code=$?
   set -e
 
@@ -564,22 +652,71 @@ run_zap_scan() {
     status="completed-with-alerts"
   fi
 
-  SCAN_RESULTS+=("$api_name|$host_url|$openapi_url|$target_url|${DOCKER_NETWORK:-<padrao do Docker>}|$status|$exit_code|$html,$json,$markdown")
+  SCAN_RESULTS+=("$api_name|$host_url|$openapi_url|$target_url|$effective_server_url|$declared_servers|${DOCKER_NETWORK:-<padrao do Docker>}|$status|$exit_code|$html,$json,$markdown,$log_file")
 
   if [[ "$exit_code" -ge 3 ]]; then
     {
       echo "Falha operacional no ZAP para $api_name. Exit code: $exit_code"
       echo "  URL vista pelo host: $openapi_url"
       echo "  URL vista pelo container: $target_url"
+      echo "  Servidor efetivo para o ZAP (-O): $effective_server_url"
       echo "  Rede Docker utilizada: ${DOCKER_NETWORK:-<padrao do Docker>}"
     } >&2
-    exit 1
+    return 0
   fi
 
   if [[ "$FAIL_ON_ALERTS" == true && "$exit_code" -ne 0 ]]; then
     echo "ZAP encontrou alertas para $api_name e --fail-on-alerts esta ativo. Exit code: $exit_code" >&2
+  fi
+
+  return 0
+}
+
+assert_zap_workdir_writable() {
+  local docker_args=()
+  local arg
+  local output
+  local exit_code=0
+
+  docker_args=(run --rm -v "$OUTPUT_DIR:/zap/wrk:rw")
+  while IFS= read -r arg; do
+    docker_args+=("$arg")
+  done < <(docker_common_run_args)
+
+  set +e
+  output="$(
+    docker "${docker_args[@]}" "$ZAP_IMAGE" sh -c 'test -d /zap/wrk && test -w /zap/wrk && tmp="$(mktemp /zap/wrk/.zap-write-test.XXXXXX)" && rm -f "$tmp"' 2>&1
+  )"
+  exit_code=$?
+  set -e
+
+  if [[ "$exit_code" -ne 0 ]]; then
+    {
+      echo "Falha operacional: /zap/wrk nao esta gravavel pelo usuario da imagem ZAP."
+      echo "  Diretorio montado: $OUTPUT_DIR"
+      echo "  Imagem ZAP: $ZAP_IMAGE"
+      echo "  Rede Docker utilizada: ${DOCKER_NETWORK:-<padrao do Docker>}"
+      echo "  Erro: $output"
+    } >&2
     exit 1
   fi
+}
+
+final_exit_code() {
+  local result
+  local api_name url openapi_url target_url effective_server_url declared_servers network status exit_code files
+  local final_code=0
+
+  for result in "${SCAN_RESULTS[@]}"; do
+    IFS='|' read -r api_name url openapi_url target_url effective_server_url declared_servers network status exit_code files <<<"$result"
+    if [[ "$exit_code" -ge 3 ]]; then
+      final_code="$exit_code"
+    elif [[ "$FAIL_ON_ALERTS" == true && "$exit_code" -ne 0 && "$final_code" -eq 0 ]]; then
+      final_code="$exit_code"
+    fi
+  done
+
+  printf '%s' "$final_code"
 }
 
 write_summary() {
@@ -603,12 +740,14 @@ write_summary() {
     echo "## APIs analisadas"
     echo
 
-    local result api_name url openapi_url target_url network status exit_code files
+    local result api_name url openapi_url target_url effective_server_url declared_servers network status exit_code files
     for result in "${SCAN_RESULTS[@]}"; do
-      IFS='|' read -r api_name url openapi_url target_url network status exit_code files <<<"$result"
+      IFS='|' read -r api_name url openapi_url target_url effective_server_url declared_servers network status exit_code files <<<"$result"
       echo "- $api_name: \`$url\`"
       echo "  - Swagger/OpenAPI: \`$openapi_url\`"
       echo "  - OpenAPI visto pelo container: \`$target_url\`"
+      echo "  - Servidor declarado no OpenAPI: \`$declared_servers\`"
+      echo "  - Servidor efetivo para o ZAP (-O): \`$effective_server_url\`"
       echo "  - Rede Docker: \`$network\`"
       echo "  - Status: \`$status\`"
       echo "  - Exit code ZAP: \`$exit_code\`"
@@ -652,11 +791,18 @@ ensure_zap_image
 assert_docker_network
 
 mkdir -p "$OUTPUT_DIR"
+assert_zap_workdir_writable
 
 assert_openapi_from_container "LedgerService.Api" "$LEDGER_URL" "$LEDGER_ZAP_URL"
 assert_openapi_from_container "BalanceService.Api" "$BALANCE_URL" "$BALANCE_ZAP_URL"
 
 run_zap_scan "LedgerService.Api" "ledger-service-api" "$LEDGER_URL" "$LEDGER_ZAP_URL"
 run_zap_scan "BalanceService.Api" "balance-service-api" "$BALANCE_URL" "$BALANCE_ZAP_URL"
+
+FINAL_EXIT_CODE="$(final_exit_code)"
+if [[ "$FINAL_EXIT_CODE" -ne 0 ]]; then
+  echo "OWASP ZAP concluiu com falha reportada apos executar todos os alvos. Exit code final: $FINAL_EXIT_CODE" >&2
+  exit "$FINAL_EXIT_CODE"
+fi
 
 echo "OK. Relatorios OWASP ZAP em: $OUTPUT_DIR" >&2
