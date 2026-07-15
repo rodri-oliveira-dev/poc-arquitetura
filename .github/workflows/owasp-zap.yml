@@ -12,6 +12,11 @@ on:
         required: false
         default: false
         type: boolean
+      active_scan:
+        description: "Executar active scan nas APIs efemeras"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -28,7 +33,7 @@ env:
 
 jobs:
   zap-baseline:
-    name: OWASP ZAP baseline
+    name: OWASP ZAP all APIs
     if: >-
       ${{
         github.event_name == 'workflow_dispatch' ||
@@ -40,7 +45,7 @@ jobs:
         )
       }}
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
       - name: Checkout
@@ -74,23 +79,30 @@ jobs:
           # shellcheck source=/dev/null
           source ./scripts/lib/common.sh
 
-          ledger_migrator_password="$(read_env_value .env.ci LEDGER_DB_MIGRATOR_PASSWORD)"
-          balance_migrator_password="$(read_env_value .env.ci BALANCE_DB_MIGRATOR_PASSWORD)"
-          postgres_host_port="$(read_env_value .env.ci POSTGRES_HOST_PORT)"
+          required_keys=(
+            POSTGRES_HOST_PORT
+            LEDGER_DB_MIGRATOR_PASSWORD
+            BALANCE_DB_MIGRATOR_PASSWORD
+            TRANSFER_DB_MIGRATOR_PASSWORD
+            PAYMENT_DB_MIGRATOR_PASSWORD
+            AUDIT_DB_MIGRATOR_PASSWORD
+            IDENTITY_DB_MIGRATOR_PASSWORD
+            KEYCLOAK_CLIENT_SECRET
+          )
 
-          if [ -z "$ledger_migrator_password" ] || [ -z "$balance_migrator_password" ] || [ -z "$postgres_host_port" ]; then
-            echo "Variaveis obrigatorias nao encontradas em .env.ci." >&2
-            exit 1
-          fi
+          for key in "${required_keys[@]}"; do
+            value="$(read_env_value .env.ci "$key")"
+            if [ -z "$value" ]; then
+              echo "Variavel obrigatoria nao encontrada em .env.ci: $key" >&2
+              exit 1
+            fi
 
-          echo "::add-mask::$ledger_migrator_password"
-          echo "::add-mask::$balance_migrator_password"
+            if [ "$key" != "POSTGRES_HOST_PORT" ]; then
+              echo "::add-mask::$value"
+            fi
 
-          {
-            echo "LEDGER_DB_MIGRATOR_PASSWORD=$ledger_migrator_password"
-            echo "BALANCE_DB_MIGRATOR_PASSWORD=$balance_migrator_password"
-            echo "POSTGRES_HOST_PORT=$postgres_host_port"
-          } >> "$GITHUB_ENV"
+            printf '%s=%s\n' "$key" "$value" >> "$GITHUB_ENV"
+          done
 
       - name: Start controlled HTTP stack dependencies
         shell: bash
@@ -100,7 +112,7 @@ jobs:
           if ! docker compose \
             --env-file .env.ci \
             -f compose.yaml \
-            up -d --build postgres-db keycloak; then
+            up -d postgres-db keycloak mailpit keycloak-identity-admin-init; then
             docker compose \
               --env-file .env.ci \
               -f compose.yaml \
@@ -108,7 +120,7 @@ jobs:
             docker compose \
               --env-file .env.ci \
               -f compose.yaml \
-              logs --no-color postgres-db keycloak || true
+              logs --no-color postgres-db keycloak mailpit keycloak-identity-admin-init || true
             exit 1
           fi
 
@@ -139,48 +151,135 @@ jobs:
         run: |
           set -euo pipefail
 
-          ConnectionStrings__DefaultConnection="Host=127.0.0.1;Port=${POSTGRES_HOST_PORT:-15432};Database=appdb;Username=ledger_migrator_user;Password=$LEDGER_DB_MIGRATOR_PASSWORD" \
-            dotnet tool run dotnet-ef -- database update \
-            -p src/ledger/LedgerService.Infrastructure/LedgerService.Infrastructure.csproj \
-            -s src/ledger/LedgerService.Api/LedgerService.Api.csproj \
-            -c AppDbContext \
-            -- --environment Development
+          run_migration() {
+            local connection_string="$1"
+            local project="$2"
+            local startup_project="$3"
+            local db_context="$4"
+            local connection_string_env="${5:-ConnectionStrings__DefaultConnection}"
 
-          ConnectionStrings__DefaultConnection="Host=127.0.0.1;Port=${POSTGRES_HOST_PORT:-15432};Database=appdb;Username=balance_migrator_user;Password=$BALANCE_DB_MIGRATOR_PASSWORD" \
-            dotnet tool run dotnet-ef -- database update \
-            -p src/balance/BalanceService.Infrastructure/BalanceService.Infrastructure.csproj \
-            -s src/balance/BalanceService.Api/BalanceService.Api.csproj \
-            -c BalanceDbContext \
-            -- --environment Development
+            env \
+              ConnectionStrings__DefaultConnection="$connection_string" \
+              "$connection_string_env=$connection_string" \
+              dotnet tool run dotnet-ef -- database update \
+                -p "$project" \
+                -s "$startup_project" \
+                -c "$db_context" \
+                -- --environment Development
+          }
 
-      - name: Start APIs
+          postgres_connection_prefix="Host=127.0.0.1;Port=${POSTGRES_HOST_PORT:-15432};Database=appdb"
+
+          run_migration \
+            "$postgres_connection_prefix;Username=ledger_migrator_user;Password=$LEDGER_DB_MIGRATOR_PASSWORD" \
+            src/ledger/LedgerService.Infrastructure/LedgerService.Infrastructure.csproj \
+            src/ledger/LedgerService.Api/LedgerService.Api.csproj \
+            AppDbContext
+
+          run_migration \
+            "$postgres_connection_prefix;Username=balance_migrator_user;Password=$BALANCE_DB_MIGRATOR_PASSWORD" \
+            src/balance/BalanceService.Infrastructure/BalanceService.Infrastructure.csproj \
+            src/balance/BalanceService.Api/BalanceService.Api.csproj \
+            BalanceDbContext
+
+          run_migration \
+            "$postgres_connection_prefix;Username=transfer_migrator_user;Password=$TRANSFER_DB_MIGRATOR_PASSWORD" \
+            src/transfer/TransferService.Infrastructure/TransferService.Infrastructure.csproj \
+            src/transfer/TransferService.Api/TransferService.Api.csproj \
+            TransferServiceDbContext \
+            TRANSFER_SERVICE_CONNECTION_STRING
+
+          run_migration \
+            "$postgres_connection_prefix;Username=payment_migrator_user;Password=$PAYMENT_DB_MIGRATOR_PASSWORD" \
+            src/payment/PaymentService.Infrastructure/PaymentService.Infrastructure.csproj \
+            src/payment/PaymentService.Api/PaymentService.Api.csproj \
+            PaymentDbContext \
+            PAYMENT_SERVICE_CONNECTION_STRING
+
+          run_migration \
+            "$postgres_connection_prefix;Username=audit_migrator_user;Password=$AUDIT_DB_MIGRATOR_PASSWORD" \
+            src/audit/AuditService.Infrastructure/AuditService.Infrastructure.csproj \
+            src/audit/AuditService.Infrastructure/AuditService.Infrastructure.csproj \
+            AuditDbContext \
+            AUDIT_SERVICE_CONNECTION_STRING
+
+          run_migration \
+            "$postgres_connection_prefix;Username=identity_migrator_user;Password=$IDENTITY_DB_MIGRATOR_PASSWORD" \
+            src/identity/IdentityService.Infrastructure/IdentityService.Infrastructure.csproj \
+            src/identity/IdentityService.Infrastructure/IdentityService.Infrastructure.csproj \
+            IdentityDbContext \
+            IDENTITY_SERVICE_CONNECTION_STRING
+
+      - name: Start all HTTP APIs
         shell: bash
         run: |
           set -euo pipefail
 
-          docker compose \
+          if ! docker compose \
             --env-file .env.ci \
             -f compose.yaml \
-            up -d --build ledger-service balance-service
+            up -d --build \
+            ledger-service \
+            balance-service \
+            transfer-service \
+            payment-service \
+            audit-service \
+            identity-service; then
+            docker compose \
+              --env-file .env.ci \
+              -f compose.yaml \
+              ps
+            docker compose \
+              --env-file .env.ci \
+              -f compose.yaml \
+              logs --no-color \
+              ledger-service \
+              balance-service \
+              transfer-service \
+              payment-service \
+              audit-service \
+              identity-service || true
+            exit 1
+          fi
 
-      - name: Wait for APIs
+      - name: Wait for all APIs
         shell: bash
         run: |
-          for url in \
-            http://localhost:5226/health \
-            http://localhost:5228/health
-          do
-            for i in {1..60}; do
+          set -euo pipefail
+
+          targets=(
+            "LedgerService.Api|http://localhost:5226/health"
+            "BalanceService.Api|http://localhost:5228/health"
+            "TransferService.Api|http://localhost:5230/health"
+            "IdentityService.Api|http://localhost:5232/health"
+            "PaymentService.Api|http://localhost:5234/health"
+            "AuditService.Api|http://localhost:5235/health"
+          )
+
+          for target in "${targets[@]}"; do
+            IFS='|' read -r name url <<<"$target"
+            for attempt in {1..90}; do
               if curl -fsS "$url" >/dev/null; then
+                echo "$name disponivel em $url"
                 break
               fi
 
-              if [ "$i" -eq 60 ]; then
-                echo "API indisponivel: $url" >&2
+              if [ "$attempt" -eq 90 ]; then
+                echo "API indisponivel: $name ($url)" >&2
                 docker compose \
                   --env-file .env.ci \
                   -f compose.yaml \
-                  logs --no-color ledger-service balance-service
+                  ps
+                docker compose \
+                  --env-file .env.ci \
+                  -f compose.yaml \
+                  logs --no-color \
+                  ledger-service \
+                  balance-service \
+                  transfer-service \
+                  payment-service \
+                  audit-service \
+                  identity-service || true
                 exit 1
               fi
 
@@ -188,70 +287,100 @@ jobs:
             done
           done
 
-      - name: Run OWASP ZAP baseline
+      - name: Run authenticated OWASP ZAP against all APIs
         shell: bash
         env:
           FAIL_ON_ALERTS: ${{ github.event_name == 'workflow_dispatch' && inputs.fail_on_alerts }}
+          ACTIVE_SCAN: ${{ github.event_name == 'workflow_dispatch' && inputs.active_scan }}
         run: |
           set -euo pipefail
 
           mkdir -p "$ZAP_ARTIFACTS_DIR"
 
-          ledger_container_id="$(docker compose --env-file .env.ci -f compose.yaml ps -q ledger-service)"
-          balance_container_id="$(docker compose --env-file .env.ci -f compose.yaml ps -q balance-service)"
+          api_services=(
+            ledger-service
+            balance-service
+            transfer-service
+            payment-service
+            audit-service
+            identity-service
+          )
 
-          if [ -z "$ledger_container_id" ] || [ -z "$balance_container_id" ]; then
-            echo "Nao foi possivel descobrir os containers das APIs para o scan ZAP." >&2
-            docker compose --env-file .env.ci -f compose.yaml ps
-            exit 1
-          fi
-
-          ledger_networks="$(
-            docker inspect "$ledger_container_id" \
-              --format '{{range $name, $_ := .NetworkSettings.Networks}}{{println $name}}{{end}}'
+          first_container_id="$(
+            docker compose \
+              --env-file .env.ci \
+              -f compose.yaml \
+              ps -q "${api_services[0]}"
           )"
-          zap_network="$(printf '%s\n' "$ledger_networks" | awk '/(^|_)poc-net$/ { print; exit }')"
 
-          if [ -z "$zap_network" ]; then
-            echo "Rede poc-net nao encontrada no container ledger-service." >&2
-            docker inspect "$ledger_container_id" --format '{{json .NetworkSettings.Networks}}'
+          if [ -z "$first_container_id" ]; then
+            echo "Nao foi possivel descobrir o container ${api_services[0]}." >&2
             exit 1
           fi
 
-          if ! docker inspect "$balance_container_id" \
-            --format '{{range $name, $_ := .NetworkSettings.Networks}}{{println $name}}{{end}}' |
-            grep -Fx "$zap_network" >/dev/null; then
-            echo "balance-service nao esta conectado a rede Docker usada pelo Ledger: $zap_network" >&2
-            docker inspect "$balance_container_id" --format '{{json .NetworkSettings.Networks}}'
+          api_network="$(
+            docker inspect "$first_container_id" \
+              --format '{{range $name, $_ := .NetworkSettings.Networks}}{{println $name}}{{end}}' |
+              awk '/(^|_)poc-net$/ { print; exit }'
+          )"
+
+          if [ -z "$api_network" ]; then
+            echo "Rede poc-net nao encontrada no container ${api_services[0]}." >&2
             exit 1
           fi
+
+          for service in "${api_services[@]}"; do
+            container_id="$(
+              docker compose \
+                --env-file .env.ci \
+                -f compose.yaml \
+                ps -q "$service"
+            )"
+
+            if [ -z "$container_id" ]; then
+              echo "Container da API nao encontrado: $service" >&2
+              exit 1
+            fi
+
+            if ! docker inspect "$container_id" \
+              --format '{{range $name, $_ := .NetworkSettings.Networks}}{{println $name}}{{end}}' |
+              grep -Fx "$api_network" >/dev/null; then
+              echo "$service nao esta conectado a rede Docker $api_network." >&2
+              exit 1
+            fi
+          done
 
           args=(
             --output-root "$ZAP_ARTIFACTS_DIR"
-            --health-timeout 180
-            --health-interval 5
-            --docker-network "$zap_network"
-            --ledger-zap-url http://ledger-service:8080
-            --balance-zap-url http://balance-service:8080
+            --docker-network "$api_network"
+            --env-file "$GITHUB_WORKSPACE/.env.ci"
+            --use-authentication
+            --targets-file ./scripts/security/owasp-zap-ci-targets.txt
           )
+
+          if [ "$ACTIVE_SCAN" = "true" ]; then
+            args+=(--active-scan)
+          fi
 
           if [ "$FAIL_ON_ALERTS" = "true" ]; then
             args+=(--fail-on-alerts)
           fi
 
-          bash ./scripts/security/run-owasp-zap.sh "${args[@]}"
+          bash ./scripts/security/run-owasp-zap-all-apis.sh "${args[@]}"
 
       - name: Write ZAP summary
         if: ${{ always() }}
         shell: bash
         run: |
           {
-            echo "## OWASP ZAP baseline"
+            echo "## OWASP ZAP all APIs"
             echo
-            echo "- Execucao manual via workflow_dispatch ou automatica apos sucesso do main-dotnet-ci na main."
-            echo "- Alvos padrao: LedgerService.Api e BalanceService.Api."
-            echo "- Alerts do ZAP so falham o job em execucao manual com fail_on_alerts=true."
-            echo "- Falhas operacionais de Docker, migrations, build, timeout ou APIs indisponiveis continuam falhando o job."
+            echo "- Sem API Gateway: cada microservico e analisado diretamente pela rede Compose."
+            echo "- Alvos: Ledger, Balance, Transfer, Payment, Audit e Identity."
+            echo "- Scan autenticado com o client local poc-automation."
+            echo "- Todas as operacoes HTTP documentadas em cada OpenAPI sao importadas."
+            echo "- Active scan permanece desabilitado na execucao automatica."
+            echo "- Alerts so falham o job em execucao manual com fail_on_alerts=true."
             echo
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -266,7 +395,7 @@ jobs:
         if: ${{ always() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: owasp-zap-baseline-reports
+          name: owasp-zap-all-api-reports
           path: |
             ${{ env.ZAP_ARTIFACTS_DIR }}/**/*.html
             ${{ env.ZAP_ARTIFACTS_DIR }}/**/*.json
@@ -298,5 +427,4 @@ jobs:
           fi
 
           rm -f .env.ci
-
           exit 0
