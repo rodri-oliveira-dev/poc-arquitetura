@@ -6,6 +6,7 @@ using HttpResilienceDefaults;
 
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.IdentityModel.Tokens;
@@ -34,10 +35,14 @@ public static class JwtAuthenticationServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(environment);
         ArgumentNullException.ThrowIfNull(configureAuthorization);
 
-        ValidateRequired(jwtOptions.SectionName, nameof(jwtOptions.Issuer), jwtOptions.Issuer);
-        ValidateRequired(jwtOptions.SectionName, nameof(jwtOptions.Audience), jwtOptions.Audience);
-        ValidateRequired(jwtOptions.SectionName, nameof(jwtOptions.JwksUrl), jwtOptions.JwksUrl);
-        ValidateTransport(jwtOptions, environment);
+        var validator = new ApiJwtAuthenticationOptionsValidator(environment);
+        ValidateOptionsResult validation = validator.Validate(name: null, jwtOptions);
+        if (validation.Failed)
+        {
+            throw new InvalidOperationException(string.Join(" ", validation.Failures));
+        }
+
+        services.AddSingleton<IValidateOptions<ApiJwtAuthenticationOptions>>(validator);
 
         IConfiguration jwksResilienceConfiguration = BuildJwksResilienceConfiguration(jwtOptions, configuration);
         services
@@ -57,7 +62,7 @@ public static class JwtAuthenticationServiceCollectionExtensions
             .Configure<IHttpClientFactory>((options, httpClientFactory) =>
             {
                 options.ConfigurationManager = new ConfigurationManager<OpenIdConnectConfiguration>(
-                    jwtOptions.JwksUrl,
+                    jwtOptions.JwksUrl.Trim(),
                     new JwksConfigurationRetriever(),
                     new JwksHttpClientDocumentRetriever(httpClientFactory, JwksHttpClientName));
             });
@@ -105,25 +110,28 @@ public static class JwtAuthenticationServiceCollectionExtensions
         {
             NameClaimType = "preferred_username",
             ValidateIssuer = true,
-            ValidIssuer = options.Issuer,
+            ValidIssuer = options.Issuer.Trim(),
             ValidateAudience = true,
-            AudienceValidator = (audiences, _, _) => ContainsAudience(audiences, options.Audience),
+            AudienceValidator = (audiences, _, _) => ContainsAudience(audiences, options.Audience.Trim()),
             ValidateIssuerSigningKey = true,
             ValidateLifetime = true,
-            ClockSkew = TimeSpan.FromSeconds(30),
+            ClockSkew = TimeSpan.FromSeconds(options.ClockSkewSeconds),
             ValidAlgorithms = [SecurityAlgorithms.RsaSha256],
         };
 
     private static ApiJwtAuthenticationOptions ReadOptions(IConfiguration configuration, string sectionName)
         => new(
             sectionName,
-            configuration.GetValue<string>(nameof(ApiJwtAuthenticationOptions.Issuer)) ?? string.Empty,
-            configuration.GetValue<string>(nameof(ApiJwtAuthenticationOptions.Audience)) ?? string.Empty,
-            configuration.GetValue<string>(nameof(ApiJwtAuthenticationOptions.JwksUrl)) ?? string.Empty,
+            configuration.GetValue<string>(nameof(ApiJwtAuthenticationOptions.Issuer))?.Trim() ?? string.Empty,
+            configuration.GetValue<string>(nameof(ApiJwtAuthenticationOptions.Audience))?.Trim() ?? string.Empty,
+            configuration.GetValue<string>(nameof(ApiJwtAuthenticationOptions.JwksUrl))?.Trim() ?? string.Empty,
             configuration.GetValue(nameof(ApiJwtAuthenticationOptions.RequireHttpsMetadata), true),
             configuration.GetValue(nameof(ApiJwtAuthenticationOptions.JwksTimeoutSeconds), 5),
             configuration.GetValue(nameof(ApiJwtAuthenticationOptions.JwksRetryCount), 2),
-            configuration.GetValue(nameof(ApiJwtAuthenticationOptions.JwksRetryBaseDelayMilliseconds), 200));
+            configuration.GetValue(nameof(ApiJwtAuthenticationOptions.JwksRetryBaseDelayMilliseconds), 200))
+        {
+            ClockSkewSeconds = configuration.GetValue(nameof(ApiJwtAuthenticationOptions.ClockSkewSeconds), 30)
+        };
 
     private static JwtBearerEvents BuildJwtBearerEvents()
         => new()
@@ -188,33 +196,6 @@ public static class JwtAuthenticationServiceCollectionExtensions
         }
 
         return false;
-    }
-
-    private static void ValidateRequired(string sectionName, string optionName, string value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            throw new InvalidOperationException($"{sectionName}:{optionName} e obrigatorio.");
-        }
-    }
-
-    private static void ValidateTransport(ApiJwtAuthenticationOptions options, IHostEnvironment environment)
-    {
-        if (environment.IsDevelopment() || environment.IsEnvironment("Local") || environment.IsEnvironment("Test"))
-        {
-            return;
-        }
-
-        if (!options.RequireHttpsMetadata)
-        {
-            throw new InvalidOperationException($"{options.SectionName}:RequireHttpsMetadata=false e permitido apenas em Development/Local.");
-        }
-
-        if (!Uri.TryCreate(options.JwksUrl, UriKind.Absolute, out Uri? jwksUri)
-            || !string.Equals(jwksUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException($"{options.SectionName}:JwksUrl deve usar HTTPS fora de Development/Local.");
-        }
     }
 
     private sealed class JwksConfigurationRetriever : IConfigurationRetriever<OpenIdConnectConfiguration>

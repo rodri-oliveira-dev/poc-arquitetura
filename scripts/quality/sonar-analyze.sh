@@ -58,6 +58,7 @@ dotnet sonarscanner begin \
   /n:"$PROJECT_NAME" \
   /d:sonar.host.url="$SONAR_HOST_URL" \
   /d:sonar.token="$SONAR_TOKEN" \
+  /d:sonar.scanner.scanAll=false \
   /d:sonar.exclusions="$SONAR_NON_CSHARP_SCRIPT_EXCLUSIONS" \
   /d:sonar.coverage.exclusions="$SONAR_COVERAGE_EXCLUSIONS" \
   /d:sonar.issue.ignore.block=placeholderSecrets \

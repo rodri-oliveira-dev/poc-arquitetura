@@ -43,10 +43,23 @@ class DetectDotnetImpactTests(unittest.TestCase):
         self.assert_impact(["Directory.Build.targets"], True, True)
 
     def test_workflow_runs_both(self) -> None:
-        self.assert_impact([".github/workflows/pull-request-validation.yml"], True, True)
+        result = detect_impact([".github/workflows/pull-request-validation.yml"])
+
+        self.assertTrue(result["run_aggregate"])
+        self.assertTrue(result["run_shared"])
+        self.assertEqual("global", result["classification"][0]["reason"])
 
     def test_action_runs_both(self) -> None:
-        self.assert_impact([".github/actions/setup-dotnet/action.yml"], True, True)
+        result = detect_impact([".github/actions/setup-dotnet/action.yml"])
+
+        self.assertTrue(result["run_aggregate"])
+        self.assertTrue(result["run_shared"])
+        self.assertEqual("global", result["classification"][0]["reason"])
+
+    def test_normalize_path_preserves_dot_github_directory(self) -> None:
+        paths = parse_changed_paths(".github/workflows/dotnet.yml", "lines")
+
+        self.assertEqual([".github/workflows/dotnet.yml"], paths)
 
     def test_unknown_file_runs_both(self) -> None:
         self.assert_impact(["eng/new-build-input.txt"], True, True)
