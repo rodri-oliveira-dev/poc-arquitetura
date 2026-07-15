@@ -27,7 +27,10 @@ try
     var result = resolver.Resolve(records);
 
     Directory.CreateDirectory(Path.GetDirectoryName(outputFile) ?? ".");
-    File.WriteAllText(outputFile, string.Join(Environment.NewLine, result.Solutions) + (result.Solutions.Count > 0 ? Environment.NewLine : ""), Encoding.UTF8);
+    File.WriteAllText(
+        outputFile,
+        string.Join(Environment.NewLine, result.Solutions) + (result.Solutions.Count > 0 ? Environment.NewLine : ""),
+        new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
 
     ReportPrinter.Print(result);
     return result.UnresolvedPotentialDotnetFiles.Count == 0 ? 0 : 2;

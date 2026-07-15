@@ -29,6 +29,8 @@ Manter o `pre-push` como validacao local leve:
 
 Nota de manutencao: em 2026-07-14, o `pre-push` passou a executar `ContainerBaselineValidator` para alteracoes de Dockerfile/baseline e `scripts/quality/containers/validate-compose-configs.sh` para alteracoes de Compose. Essas validacoes continuam estaticas: nao constroem imagens, nao sobem containers, nao executam Trivy e nao substituem os gates de CI.
 
+Nota de manutencao: em 2026-07-15, a selecao .NET do `pre-push` deixou de manter flags manuais por contexto dentro do hook. O hook passou a usar `scripts/ci/collect-pre-push-files.py` para coletar os arquivos enviados e `scripts/quality/resolve-solutions.cs` para resolver as `.slnx` impactadas a partir dos projetos e das regras transversais preservadas. O hook permanece como adaptador fino: cria arquivos temporarios, chama os componentes reutilizaveis, mostra `Solutions impactadas:`, executa `restore`, `build` e testes rapidos por solution, e bloqueia o push na primeira falha com etapa, solution e comando. A verificacao local de `dotnet format whitespace` foi removida do caminho rapido padrao; formatacao continua responsabilidade de comandos manuais, IDE/editor e gates de PR quando aplicavel.
+
 O Pull Request permanece como gate forte:
 
 - `pr-build-and-test` executa restore, build e testes completos sem filtro quando ha mudanca impactante;
