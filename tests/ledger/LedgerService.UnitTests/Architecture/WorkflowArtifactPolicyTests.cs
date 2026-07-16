@@ -333,6 +333,8 @@ public sealed partial class WorkflowArtifactPolicyTests
         Assert.DoesNotContain("docker inspect \"$first_container_id\"", workflow);
         Assert.DoesNotContain("bash ./scripts/security/run-owasp-zap-all-apis.sh", workflow);
         Assert.DoesNotContain("|| true", GetWorkflowStep(workflow, "Run local OWASP ZAP orchestration"));
+        Assert.DoesNotContain("--fail-on-alerts", GetWorkflowStep(workflow, "Run local OWASP ZAP orchestration"));
+        Assert.Contains("--fail-on-alerts", GetWorkflowStep(workflow, "Validate authenticated ZAP coverage"));
     }
 
     [Fact]

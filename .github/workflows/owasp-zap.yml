@@ -78,7 +78,6 @@ jobs:
         continue-on-error: true
         shell: bash
         env:
-          FAIL_ON_ALERTS: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.fail_on_alerts) }}
           ACTIVE_SCAN: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.active_scan) }}
         run: |
           set -euo pipefail
@@ -90,10 +89,6 @@ jobs:
 
           if [ "$ACTIVE_SCAN" = "true" ]; then
             args+=(--active-scan)
-          fi
-
-          if [ "$FAIL_ON_ALERTS" = "true" ]; then
-            args+=(--fail-on-alerts)
           fi
 
           bash ./scripts/security/run-owasp-zap-local.sh "${args[@]}"
