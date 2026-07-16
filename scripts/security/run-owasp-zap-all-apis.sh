@@ -236,13 +236,6 @@ if [[ "$USE_AUTHENTICATION" == true ]]; then
   if [[ "${GITHUB_ACTIONS:-false}" == "true" ]]; then
     echo "::add-mask::$TOKEN"
   fi
-
-  ZAP_OPTIONS+=" -config replacer.full_list(0).description=authorization-header"
-  ZAP_OPTIONS+=" -config replacer.full_list(0).enabled=true"
-  ZAP_OPTIONS+=" -config replacer.full_list(0).matchtype=REQ_HEADER"
-  ZAP_OPTIONS+=" -config replacer.full_list(0).matchstr=Authorization"
-  ZAP_OPTIONS+=" -config replacer.full_list(0).regex=false"
-  ZAP_OPTIONS+=" -config replacer.full_list(0).replacement=Bearer $TOKEN"
 fi
 
 SCAN_TYPE="api-baseline"
@@ -422,6 +415,16 @@ run_target() {
     --name "$container_name"
     --network "$DOCKER_NETWORK"
     -v "$OUTPUT_DIR:/zap/wrk:rw"
+  )
+
+  if [[ "$USE_AUTHENTICATION" == true ]]; then
+    args+=(
+      --env "ZAP_AUTH_HEADER=Authorization"
+      --env "ZAP_AUTH_HEADER_VALUE=Bearer $TOKEN"
+    )
+  fi
+
+  args+=(
     "$ZAP_IMAGE"
     zap-api-scan.py
     -t "$openapi_url"
