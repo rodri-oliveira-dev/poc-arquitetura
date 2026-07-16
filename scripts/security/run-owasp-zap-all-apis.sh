@@ -21,6 +21,7 @@ TOKEN=""
 ACTIVE_SCAN=false
 FAIL_ON_ALERTS=false
 TARGETS=()
+PYTHON_BIN=""
 
 usage() {
   cat >&2 <<'EOF'
@@ -147,12 +148,21 @@ if [[ -z "$DOCKER_NETWORK" ]]; then
   exit 2
 fi
 
-for command_name in docker python3 sed; do
+for command_name in docker sed; do
   if ! command -v "$command_name" >/dev/null 2>&1; then
     echo "Comando obrigatorio nao encontrado: $command_name" >&2
     exit 1
   fi
 done
+
+if command -v python3 >/dev/null 2>&1 && python3 --version >/dev/null 2>&1; then
+  PYTHON_BIN="python3"
+elif command -v python >/dev/null 2>&1 && python --version >/dev/null 2>&1; then
+  PYTHON_BIN="python"
+else
+  echo "Comando obrigatorio nao encontrado: python3 ou python" >&2
+  exit 1
+fi
 
 if ! docker version >/dev/null 2>&1; then
   echo "Docker nao esta disponivel." >&2
@@ -169,7 +179,7 @@ if ! docker image inspect "$ZAP_IMAGE" >/dev/null 2>&1; then
 fi
 
 TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
-OUTPUT_DIR="$(python3 - "$OUTPUT_ROOT/$TIMESTAMP" <<'PY'
+OUTPUT_DIR="$("$PYTHON_BIN" - "$OUTPUT_ROOT/$TIMESTAMP" <<'PY'
 import os
 import sys
 print(os.path.abspath(sys.argv[1]))

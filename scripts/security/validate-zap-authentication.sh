@@ -12,6 +12,7 @@ TOKEN=""
 ENV_FILE=""
 BASE_URL_PREFIX=""
 EMPTY_UUID="00000000-0000-0000-0000-000000000000"
+AUTHORIZED_TEST_MERCHANT_ID="m1"
 
 usage() {
   cat >&2 <<'EOF'
@@ -212,7 +213,7 @@ AUDIT_BASE_URL="${AUDIT_API_URL:-$(default_base_url 5235)}"
 failures=0
 
 validate_api "LedgerService.Api" "GET" "$LEDGER_BASE_URL" "/api/v1/lancamentos/estornos/$EMPTY_UUID" || failures=$((failures + 1))
-validate_api "BalanceService.Api" "GET" "$BALANCE_BASE_URL" "/api/v1/consolidados/periodo?from=2024-01-01&to=2024-01-01&merchantId=$EMPTY_UUID" || failures=$((failures + 1))
+validate_api "BalanceService.Api" "GET" "$BALANCE_BASE_URL" "/api/v1/consolidados/periodo?from=2024-01-01&to=2024-01-01&merchantId=$AUTHORIZED_TEST_MERCHANT_ID" || failures=$((failures + 1))
 validate_api "TransferService.Api" "GET" "$TRANSFER_BASE_URL" "/api/v1/transferencias/$EMPTY_UUID" || failures=$((failures + 1))
 validate_api "PaymentService.Api" "GET" "$PAYMENT_BASE_URL" "/api/v1/payments/$EMPTY_UUID" || failures=$((failures + 1))
 validate_api "AuditService.Api" "GET" "$AUDIT_BASE_URL" "/api/v1/audit-records/$EMPTY_UUID" || failures=$((failures + 1))
