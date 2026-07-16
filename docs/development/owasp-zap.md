@@ -1,5 +1,78 @@
 # OWASP ZAP local
 
+## Comando local completo
+
+Para reproduzir localmente o fluxo relevante da pipeline antes de enviar mudancas, use:
+
+```bash
+bash ./scripts/security/run-owasp-zap-local.sh
+```
+
+Esse comando cria um arquivo de ambiente efemero, valida `docker compose config`, sobe PostgreSQL, Keycloak, Mailpit e inicializadores necessarios, aplica as migrations das seis aplicacoes, inicia as seis APIs, aguarda `/health`, obtem um token de automacao, executa o preflight autenticado e roda o OWASP ZAP contra todos os alvos de `scripts/security/owasp-zap-ci-targets.txt`.
+
+Para manter o ambiente depois da execucao:
+
+```bash
+bash ./scripts/security/run-owasp-zap-local.sh --keep-environment
+```
+
+Nesse modo o script nao executa `docker compose down`. A saida informa os comandos para inspecionar e encerrar o ambiente manualmente.
+
+Para active scan:
+
+```bash
+bash ./scripts/security/run-owasp-zap-local.sh \
+  --active-scan \
+  --fail-on-alerts
+```
+
+Use active scan somente em ambiente local descartavel e autorizado. Ele pode enviar trafego mais invasivo e tentar payloads de ataque contra endpoints de escrita.
+
+Opcoes suportadas:
+
+- `--active-scan`: habilita active scan; o padrao e baseline seguro.
+- `--fail-on-alerts`: propaga alertas do ZAP como falha.
+- `--keep-environment`: preserva containers e volumes ao final.
+- `--skip-build`: inicia as APIs sem reconstruir imagens.
+- `--env-file PATH`: usa um arquivo de ambiente existente e nao o remove no cleanup.
+- `--output-root PATH`: define a raiz dos relatorios, por padrao `artifacts/zap`.
+
+Por padrao, o cleanup executa o equivalente a:
+
+```bash
+docker compose \
+  --env-file "<arquivo>" \
+  -f compose.yaml \
+  -f compose.owasp-zap.yaml \
+  down --volumes --remove-orphans
+```
+
+Relatorios HTML, JSON, Markdown, logs, manifests de operacoes e summaries ficam preservados em `artifacts/zap/<timestamp>/`. O arquivo de ambiente efemero e removido ao final; arquivos passados com `--env-file` nao sao removidos.
+
+O token, senhas e client secrets nao sao impressos. Em GitHub Actions, o token e mascarado com `::add-mask::`.
+
+## Gate de cobertura autenticada
+
+O script `scripts/security/validate-zap-coverage.py` analisa os JSONs gerados pelo ZAP e gera `authenticated-coverage-summary.md`. A politica atual falha quando:
+
+- nenhum relatorio JSON existe;
+- nenhuma operacao de negocio em `/api/` foi observada;
+- qualquer chamada de negocio em `/api/` retorna `401`;
+- qualquer chamada de negocio em `/api/` retorna `403`;
+- qualquer alerta High ou Medium aparece no relatorio.
+
+Alertas Low aparecem no resumo, mas nao falham inicialmente. Status `400`, `404` e `422` nao falham por si so, porque payloads genericos e IDs ficticios podem ser esperados em API Scan.
+
+O resumo inclui, por API, operacoes OpenAPI declaradas, operacoes de negocio observadas, distribuicao de status HTTP, contagem de `2xx`, `4xx`, `5xx` e alertas por severidade. O parser ignora `/health`, `/ready`, Swagger, OpenAPI e endpoints tecnicos explicitamente nao protegidos.
+
+Para diagnosticar `401` e `403`, rode primeiro:
+
+```bash
+bash ./scripts/security/validate-zap-authentication.sh --env-file .env.local
+```
+
+Se houver `401`, verifique issuer, JWKS, audience, clock skew e se o token foi emitido pelo Keycloak local correto. Se houver `403`, verifique scopes, policies e autorizacao por merchant do endpoint testado. O preflight aceita `400`, `404`, `409` e `422` como sinais de que o token ultrapassou a autenticacao.
+
 Este guia documenta a execucao local versionada do OWASP ZAP contra as APIs HTTP da POC. O fluxo usa container Docker, assume que a stack ja esta no ar e salva relatorios em `zap-reports/<timestamp>/`.
 
 Os scripts usam por padrao a imagem oficial `ghcr.io/zaproxy/zaproxy:stable`, conforme a documentacao Docker do ZAP: <https://www.zaproxy.org/docs/docker/>. O scan usa `zap-api-scan.py` importando OpenAPI/Swagger em `/swagger/v1/swagger.json`, conforme a documentacao de API Scan do ZAP: <https://www.zaproxy.org/docs/docker/api-scan/>.

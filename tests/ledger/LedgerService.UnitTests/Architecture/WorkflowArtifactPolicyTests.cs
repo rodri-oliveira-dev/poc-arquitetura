@@ -278,19 +278,19 @@ public sealed partial class WorkflowArtifactPolicyTests
     {
         var repositoryRoot = GetRepositoryRoot();
         var workflow = File.ReadAllText(Path.Combine(repositoryRoot.FullName, ".github/workflows/owasp-zap.yml"));
+        var targets = File.ReadAllText(Path.Combine(repositoryRoot.FullName, "scripts/security/owasp-zap-ci-targets.txt"));
+        var overlay = File.ReadAllText(Path.Combine(repositoryRoot.FullName, "compose.owasp-zap.yaml"));
+        var localScript = File.ReadAllText(Path.Combine(repositoryRoot.FullName, "scripts/security/run-owasp-zap-local.sh"));
 
-        foreach (var healthUrl in new[]
+        var expectedTargets = new[]
         {
-            "http://localhost:5226/health",
-            "http://localhost:5228/health",
-            "http://localhost:5230/health",
-            "http://localhost:5232/health",
-            "http://localhost:5234/health",
-            "http://localhost:5235/health",
-        })
-        {
-            Assert.Contains(healthUrl, workflow);
-        }
+            "LedgerService.Api|ledger-service-api|http://ledger-service:8080",
+            "BalanceService.Api|balance-service-api|http://balance-service:8080",
+            "TransferService.Api|transfer-service-api|http://transfer-service:8080",
+            "PaymentService.Api|payment-service-api|http://payment-service:8080",
+            "AuditService.Api|audit-service-api|http://audit-service:8080",
+            "IdentityService.Api|identity-service-api|http://identity-service:8080",
+        };
 
         foreach (var service in new[]
         {
@@ -302,20 +302,44 @@ public sealed partial class WorkflowArtifactPolicyTests
             "identity-service",
         })
         {
-            Assert.Contains(service, workflow);
+            Assert.Contains(service, localScript);
         }
 
-        Assert.Contains("docker inspect \"$first_container_id\"", workflow);
-        Assert.Contains("docker inspect \"$container_id\"", workflow);
-        Assert.Contains("awk '/(^|_)poc-net$/ { print; exit }'", workflow);
-        Assert.Contains("grep -Fx \"$api_network\"", workflow);
-        Assert.Contains("--docker-network \"$api_network\"", workflow);
-        Assert.Contains("--use-authentication", workflow);
-        Assert.Contains("--targets-file ./scripts/security/owasp-zap-ci-targets.txt", workflow);
-        Assert.Contains("bash ./scripts/security/run-owasp-zap-all-apis.sh", workflow);
+        foreach (var target in expectedTargets)
+        {
+            Assert.Contains(target, targets);
+        }
+
+        Assert.Equal(expectedTargets.Length, targets.Split('\n', StringSplitOptions.RemoveEmptyEntries).Count(line => !line.StartsWith('#')));
+        Assert.Equal(expectedTargets.Length, SwaggerEnabledOverlayRegex().Count(overlay));
+        Assert.DoesNotContain("ports:", overlay);
+        Assert.DoesNotContain("0.0.0.0", overlay);
+        Assert.DoesNotContain("api-gateway", overlay, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("api-gateway", workflow, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("nginx", overlay, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("nginx", workflow, StringComparison.OrdinalIgnoreCase);
+
+        Assert.Contains("compose.owasp-zap.yaml", workflow);
+        Assert.Contains("bash ./scripts/security/run-owasp-zap-local.sh", workflow);
+        Assert.Contains("python3 ./scripts/security/validate-zap-coverage.py", workflow);
+        Assert.Contains("--summary-output \"$ZAP_ARTIFACTS_DIR/authenticated-coverage-summary.md\"", workflow);
+        Assert.Contains("continue-on-error: true", workflow);
         Assert.Contains("${{ env.ZAP_ARTIFACTS_DIR }}/**/*.log", workflow);
-        Assert.DoesNotContain("continue-on-error", workflow);
-        Assert.DoesNotContain("|| true", GetWorkflowStep(workflow, "Run authenticated OWASP ZAP against all APIs"));
+        Assert.Contains("${{ env.ZAP_ARTIFACTS_DIR }}/**/*.txt", workflow);
+        Assert.DoesNotContain("docker inspect \"$first_container_id\"", workflow);
+        Assert.DoesNotContain("bash ./scripts/security/run-owasp-zap-all-apis.sh", workflow);
+        Assert.DoesNotContain("|| true", GetWorkflowStep(workflow, "Run local OWASP ZAP orchestration"));
+    }
+
+    [Fact]
+    public void Owasp_zap_all_apis_script_should_keep_stdin_open_for_heredoc_openapi_validation()
+    {
+        var repositoryRoot = GetRepositoryRoot();
+        var script = File.ReadAllText(Path.Combine(repositoryRoot.FullName, "scripts/security/run-owasp-zap-all-apis.sh"));
+
+        Assert.Matches(
+            @"docker run --rm -i\s*\\\s*[\s\S]*?python3 - ""\$openapi_url"" <<'PY'",
+            script);
     }
 
     [Fact]
@@ -570,6 +594,15 @@ public sealed partial class WorkflowArtifactPolicyTests
 
     [GeneratedRegex("dotnet-sonarscanner end")]
     private static partial Regex DotnetSonarscannerEndRegex();
+
+    [GeneratedRegex(@"Swagger__Enabled:\s*""true""")]
+    private static partial Regex SwaggerEnabledOverlayRegex();
+
+    [GeneratedRegex(@"docker compose\s*\\")]
+    private static partial Regex DockerComposeCommandRegex();
+
+    [GeneratedRegex(@"-f compose\.owasp-zap\.yaml")]
+    private static partial Regex OwaspZapComposeFileRegex();
 
     private static DirectoryInfo GetRepositoryRoot()
     {
