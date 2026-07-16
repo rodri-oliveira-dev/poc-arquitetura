@@ -1,4 +1,5 @@
 using ApiDefaults.Extensions;
+using ApiDefaults.RateLimiting;
 
 using IdentityService.Api.Endpoints;
 using IdentityService.Api.Extensions;
@@ -19,12 +20,13 @@ app.UseApiDefaults();
 app.UseApiSwaggerDefaults(builder.Configuration, "IdentityService API");
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 
 app.MapApiHealthEndpoints(
     static (services, cancellationToken) =>
         services.GetRequiredService<IdentityDbContext>().Database.CanConnectAsync(cancellationToken),
     "Valida dependencias necessarias para aceitar trafego HTTP: banco.");
 
-app.MapUserEndpoints().RequireRateLimiting("fixed");
+app.MapUserEndpoints().RequireRateLimiting(ApiRateLimitPolicies.AuthenticatedWrite);
 
 await app.RunAsync();

@@ -16,13 +16,14 @@ app.UseApiDefaults();
 app.UseApiSwagger(builder.Configuration);
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 
 app.MapApiHealthEndpoints(
     static (services, cancellationToken) =>
         services.GetRequiredService<BalanceDbContext>().Database.CanConnectAsync(cancellationToken),
     "Valida dependencias necessarias para aceitar trafego HTTP: banco.");
 
-app.MapControllers().RequireRateLimiting("fixed");
+app.MapControllers();
 
 app.Run();
 

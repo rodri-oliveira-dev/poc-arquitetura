@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 
 using ApiDefaults.Middlewares;
+using ApiDefaults.RateLimiting;
 
 using Asp.Versioning;
 
@@ -9,6 +10,7 @@ using MediatR;
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 using PaymentService.Api.Webhooks;
 using PaymentService.Application.Abstractions.Persistence;
@@ -22,6 +24,7 @@ namespace PaymentService.Api.Controllers;
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/webhooks/stripe")]
 [AllowAnonymous]
+[EnableRateLimiting(ApiRateLimitPolicies.AnonymousWebhook)]
 public sealed class StripeWebhooksController(
     StripeWebhookValidator validator,
     PaymentWebhookTelemetry telemetry,

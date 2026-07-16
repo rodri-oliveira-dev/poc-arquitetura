@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 
 using ApiDefaults.Middlewares;
+using ApiDefaults.RateLimiting;
 
 using Asp.Versioning;
 
@@ -16,6 +17,7 @@ using MediatR;
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 using Swashbuckle.AspNetCore.Annotations;
 
@@ -30,6 +32,7 @@ public sealed class AuditRecordsController(ISender sender) : ControllerBase
 
     [HttpGet("{id:guid}")]
     [Authorize(Policy = AuditScopePolicies.AuditRead)]
+    [EnableRateLimiting(ApiRateLimitPolicies.AuthenticatedRead)]
     [SwaggerOperation(
         OperationId = "GetAuditRecordById",
         Summary = "Consulta um registro de auditoria funcional por id.",
@@ -56,6 +59,7 @@ public sealed class AuditRecordsController(ISender sender) : ControllerBase
 
     [HttpGet("operations/{operationId}")]
     [Authorize(Policy = AuditScopePolicies.AuditRead)]
+    [EnableRateLimiting(ApiRateLimitPolicies.AuthenticatedRead)]
     [SwaggerOperation(
         OperationId = "GetAuditRecordsByOperationId",
         Summary = "Consulta a trilha funcional de uma operacao.",
@@ -83,6 +87,7 @@ public sealed class AuditRecordsController(ISender sender) : ControllerBase
 
     [HttpGet]
     [Authorize(Policy = AuditScopePolicies.AuditRead)]
+    [EnableRateLimiting(ApiRateLimitPolicies.AuthenticatedRead)]
     [SwaggerOperation(
         OperationId = "SearchAuditRecords",
         Summary = "Pesquisa registros de auditoria funcional.",
@@ -134,6 +139,7 @@ public sealed class AuditRecordsController(ISender sender) : ControllerBase
 
     [HttpPost]
     [Authorize(Policy = AuditScopePolicies.AuditWrite)]
+    [EnableRateLimiting(ApiRateLimitPolicies.AuthenticatedWrite)]
     [SwaggerOperation(
         OperationId = "CreateAuditRecord",
         Summary = "Cria um registro de auditoria funcional.",

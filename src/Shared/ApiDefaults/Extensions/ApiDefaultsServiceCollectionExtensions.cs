@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Threading.RateLimiting;
 
 using ApiDefaults.Options;
+using ApiDefaults.RateLimiting;
 using ApiDefaults.Swagger;
 
 using Asp.Versioning;
@@ -18,7 +19,7 @@ namespace ApiDefaults.Extensions;
 public static class ApiDefaultsServiceCollectionExtensions
 {
     public const string CorsPolicyName = "ApiCorsPolicy";
-    public const string RateLimitPolicyName = "fixed";
+    public const string RateLimitPolicyName = ApiRateLimitPolicies.LegacyFixed;
 
     public static IServiceCollection AddApiDefaults<TExceptionHandler>(
         this IServiceCollection services,
@@ -52,6 +53,7 @@ public static class ApiDefaultsServiceCollectionExtensions
             .Validate(options => options.RateLimitPermitLimit > 0, "ApiLimits:RateLimitPermitLimit must be greater than zero.")
             .Validate(options => options.RateLimitWindowSeconds > 0, "ApiLimits:RateLimitWindowSeconds must be greater than zero.")
             .Validate(options => options.RateLimitQueueLimit >= 0, "ApiLimits:RateLimitQueueLimit must be zero or greater.")
+            .Validate(HasValidRateLimitPolicies, "ApiLimits policy rate limits must have PermitLimit greater than zero, WindowSeconds greater than zero and QueueLimit zero or greater when configured.")
             .ValidateOnStart();
         services
             .AddOptions<CorsOptions>()
@@ -61,6 +63,7 @@ public static class ApiDefaultsServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IPostConfigureOptions<Microsoft.AspNetCore.Cors.Infrastructure.CorsOptions>, CorsPolicyPostConfigureOptions>());
 
         AddRateLimiting(services, configuration);
+        services.AddSingleton<ApiRateLimitMetrics>();
         services.AddCors();
         AddVersioningAndExplorer(services);
 
@@ -105,15 +108,110 @@ public static class ApiDefaultsServiceCollectionExtensions
         services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-            options.AddFixedWindowLimiter(RateLimitPolicyName, config =>
+            options.OnRejected = async (context, cancellationToken) =>
             {
-                config.PermitLimit = apiLimits.RateLimitPermitLimit;
-                config.Window = TimeSpan.FromSeconds(apiLimits.RateLimitWindowSeconds);
-                config.QueueLimit = apiLimits.RateLimitQueueLimit;
-                config.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
-            });
+                string policy = context.HttpContext.GetEndpoint()?.Metadata
+                    .GetMetadata<EnableRateLimitingAttribute>()?.PolicyName
+                    ?? "unknown";
+                string partitionType = string.Equals(policy, ApiRateLimitPolicies.AnonymousWebhook, StringComparison.Ordinal)
+                    || string.Equals(policy, ApiRateLimitPolicies.Swagger, StringComparison.Ordinal)
+                        ? "anonymous_ip"
+                        : ApiRateLimitPartitionKeyFactory.DescribeAuthenticatedPartitionType(context.HttpContext);
+
+                ApiRateLimitMetrics metrics = context.HttpContext.RequestServices.GetRequiredService<ApiRateLimitMetrics>();
+                metrics.RecordRejected(policy, partitionType);
+
+                if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out TimeSpan retryAfter))
+                {
+                    context.HttpContext.Response.Headers.RetryAfter = Math.Ceiling(retryAfter.TotalSeconds).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                }
+
+                await ValueTask.CompletedTask;
+            };
+
+            AddAuthenticatedPolicy(
+                options,
+                ApiRateLimitPolicies.AuthenticatedRead,
+                ResolvePolicyOptions(apiLimits, apiLimits.AuthenticatedReadRateLimit));
+            AddAuthenticatedPolicy(
+                options,
+                ApiRateLimitPolicies.AuthenticatedWrite,
+                ResolvePolicyOptions(apiLimits, apiLimits.AuthenticatedWriteRateLimit));
+            AddAuthenticatedPolicy(
+                options,
+                ApiRateLimitPolicies.Administrative,
+                ResolvePolicyOptions(apiLimits, apiLimits.AdministrativeRateLimit));
+            AddAnonymousIpPolicy(
+                options,
+                ApiRateLimitPolicies.AnonymousWebhook,
+                ResolvePolicyOptions(apiLimits, apiLimits.AnonymousWebhookRateLimit));
+            AddAnonymousIpPolicy(
+                options,
+                ApiRateLimitPolicies.Swagger,
+                ResolvePolicyOptions(apiLimits, apiLimits.SwaggerRateLimit));
+            AddAuthenticatedPolicy(
+                options,
+                ApiRateLimitPolicies.LegacyFixed,
+                ResolvePolicyOptions(apiLimits, apiLimits.AuthenticatedWriteRateLimit));
         });
     }
+
+    private static void AddAuthenticatedPolicy(
+        RateLimiterOptions options,
+        string policyName,
+        ResolvedRateLimitPolicyOptions policyOptions)
+    {
+        options.AddPolicy(policyName, httpContext =>
+            RateLimitPartition.GetFixedWindowLimiter(
+                ApiRateLimitPartitionKeyFactory.CreateAuthenticatedKey(httpContext),
+                _ => CreateFixedWindowOptions(policyOptions)));
+    }
+
+    private static void AddAnonymousIpPolicy(
+        RateLimiterOptions options,
+        string policyName,
+        ResolvedRateLimitPolicyOptions policyOptions)
+    {
+        options.AddPolicy(policyName, httpContext =>
+            RateLimitPartition.GetFixedWindowLimiter(
+                ApiRateLimitPartitionKeyFactory.CreateAnonymousIpKey(httpContext),
+                _ => CreateFixedWindowOptions(policyOptions)));
+    }
+
+    private static FixedWindowRateLimiterOptions CreateFixedWindowOptions(ResolvedRateLimitPolicyOptions policyOptions)
+        => new()
+        {
+            PermitLimit = policyOptions.PermitLimit,
+            Window = TimeSpan.FromSeconds(policyOptions.WindowSeconds),
+            QueueLimit = policyOptions.QueueLimit,
+            QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+            AutoReplenishment = true
+        };
+
+    private static ResolvedRateLimitPolicyOptions ResolvePolicyOptions(
+        ApiDefaultsOptions apiLimits,
+        RateLimitPolicyOptions policyOptions)
+        => new(
+            policyOptions.PermitLimit ?? apiLimits.RateLimitPermitLimit,
+            policyOptions.WindowSeconds ?? apiLimits.RateLimitWindowSeconds,
+            policyOptions.QueueLimit ?? apiLimits.RateLimitQueueLimit);
+
+    private static bool HasValidRateLimitPolicies(ApiDefaultsOptions options)
+        => HasValidRateLimitPolicy(options.AuthenticatedReadRateLimit)
+            && HasValidRateLimitPolicy(options.AuthenticatedWriteRateLimit)
+            && HasValidRateLimitPolicy(options.AdministrativeRateLimit)
+            && HasValidRateLimitPolicy(options.AnonymousWebhookRateLimit)
+            && HasValidRateLimitPolicy(options.SwaggerRateLimit);
+
+    private static bool HasValidRateLimitPolicy(RateLimitPolicyOptions options)
+        => options.PermitLimit is null or > 0
+            && options.WindowSeconds is null or > 0
+            && options.QueueLimit is null or >= 0;
+
+    private readonly record struct ResolvedRateLimitPolicyOptions(
+        int PermitLimit,
+        int WindowSeconds,
+        int QueueLimit);
 
     private static void AddVersioningAndExplorer(IServiceCollection services)
     {

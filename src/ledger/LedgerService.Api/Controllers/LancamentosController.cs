@@ -1,4 +1,5 @@
 using ApiDefaults.Middlewares;
+using ApiDefaults.RateLimiting;
 
 using Asp.Versioning;
 
@@ -15,6 +16,7 @@ using MediatR;
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 using Swashbuckle.AspNetCore.Annotations;
 
@@ -32,6 +34,7 @@ public sealed class LancamentosController(
 
     [HttpPost]
     [Authorize(Policy = ScopePolicies.LedgerWritePolicy)]
+    [EnableRateLimiting(ApiRateLimitPolicies.AuthenticatedWrite)]
     [SwaggerOperation(
         OperationId = "CreateLancamento",
         Summary = "Cria um lançamento no ledger.",
@@ -71,6 +74,7 @@ public sealed class LancamentosController(
 
     [HttpPost("{lancamentoId:guid}/estornos")]
     [Authorize(Policy = ScopePolicies.LedgerWritePolicy)]
+    [EnableRateLimiting(ApiRateLimitPolicies.AuthenticatedWrite)]
     [SwaggerOperation(
         OperationId = "SolicitarEstornoLancamento",
         Summary = "Solicita estorno de um lancamento.",
@@ -114,6 +118,7 @@ public sealed class LancamentosController(
 
     [HttpPost("reprocessar")]
     [Authorize(Policy = ScopePolicies.LedgerWritePolicy)]
+    [EnableRateLimiting(ApiRateLimitPolicies.AuthenticatedWrite)]
     [SwaggerOperation(
         OperationId = "SolicitarReprocessamentoLancamentos",
         Summary = "Solicita reprocessamento de lancamentos.",
@@ -153,6 +158,7 @@ public sealed class LancamentosController(
 
     [HttpGet("estornos/{estornoId:guid}")]
     [Authorize(Policy = ScopePolicies.LedgerReadPolicy)]
+    [EnableRateLimiting(ApiRateLimitPolicies.AuthenticatedRead)]
     [SwaggerOperation(
         OperationId = "ObterStatusEstornoLancamento",
         Summary = "Consulta status de uma solicitacao de estorno.",
@@ -183,6 +189,7 @@ public sealed class LancamentosController(
 
     [HttpGet("reprocessamentos/{reprocessamentoId:guid}")]
     [Authorize(Policy = ScopePolicies.LedgerReadPolicy)]
+    [EnableRateLimiting(ApiRateLimitPolicies.AuthenticatedRead)]
     [SwaggerOperation(
         OperationId = "ObterStatusReprocessamentoLancamentos",
         Summary = "Consulta status de uma solicitacao de reprocessamento.",

@@ -210,6 +210,24 @@ public sealed class ApiDefaultsServiceCollectionExtensionsTests
     }
 
     [Fact]
+    public void AddApiDefaults_WhenPolicyRateLimitIsInvalid_ShouldFailOptionsValidation()
+    {
+        IServiceCollection services = CreateHostServices();
+        IConfiguration configuration = CreateConfiguration(new Dictionary<string, string?>
+        {
+            ["ApiLimits:AuthenticatedReadRateLimit:PermitLimit"] = "0"
+        });
+
+        services.AddApiDefaults<TestExceptionHandler>(configuration, "localhost");
+
+        using ServiceProvider provider = BuildValidatedProvider(services);
+
+        OptionsValidationException exception = Assert.Throws<OptionsValidationException>(() =>
+            provider.GetRequiredService<IOptions<ApiDefaultsOptions>>().Value);
+        Assert.Contains("policy rate limits", string.Join(" ", exception.Failures));
+    }
+
+    [Fact]
     public void AddApiDefaults_ShouldConfigureCorsAndApiVersioningDefaults()
     {
         IServiceCollection services = CreateHostServices();

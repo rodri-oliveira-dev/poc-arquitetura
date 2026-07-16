@@ -1225,9 +1225,21 @@ Detalhes de operacao ficam em [observabilidade e operacao minima](../observabili
 - `ApiLimits:RateLimitPermitLimit`;
 - `ApiLimits:RateLimitWindowSeconds`;
 - `ApiLimits:RateLimitQueueLimit`;
+- `ApiLimits:AuthenticatedReadRateLimit:*`;
+- `ApiLimits:AuthenticatedWriteRateLimit:*`;
+- `ApiLimits:AdministrativeRateLimit:*`;
+- `ApiLimits:AnonymousWebhookRateLimit:*`;
 - `ApiLimits:MaxBalancePeriodDays`.
 
 Em variaveis de ambiente, use `ApiLimits__MaxRequestBodySizeBytes`, `ApiLimits__MaxBalancePeriodDays` e os demais nomes equivalentes.
+
+Os limites de rate limiting sao particionados por cliente/subject e merchant
+quando ha JWT autenticado, ou por IP remoto normalizado para endpoints anonimos
+como webhooks. As chaves antigas `RateLimitPermitLimit`,
+`RateLimitWindowSeconds` e `RateLimitQueueLimit` continuam como defaults das
+policies; cada policy pode sobrescrever `PermitLimit`, `WindowSeconds` e
+`QueueLimit`. O limite e local a cada replica e nao representa quota global
+distribuida.
 
 Clientes HTTP externos podem usar a base compartilhada `HttpResilience:Clients:<NomeDoCliente>` para configurar timeout, retry e circuit breaker via `Microsoft.Extensions.Http.Resilience`. A configuracao aceita valores por cliente, como `Ledger`, `Keycloak` e `JWKS`, com defaults seguros quando uma chave nao e informada. Valores de timeout, retry count, delay, janela de amostragem e duracao de abertura do circuit breaker devem ser maiores que zero; configuracoes invalidas falham no startup do consumidor. A politica trata como transitorias falhas como `HttpRequestException`, timeout, `408`, `429` e `5xx`; erros esperados de negocio, como `400`, `401`, `403` e `404`, nao devem acionar retry.
 

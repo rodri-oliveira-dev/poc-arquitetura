@@ -51,8 +51,6 @@ public static class ApiDefaultsApplicationExtensions
             app.UseCors(ApiDefaultsServiceCollectionExtensions.CorsPolicyName);
         }
 
-        app.UseRateLimiter();
-
         return app;
     }
 

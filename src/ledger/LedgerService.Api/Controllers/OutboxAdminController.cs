@@ -1,5 +1,7 @@
 using System.Security.Claims;
 
+using ApiDefaults.RateLimiting;
+
 using Asp.Versioning;
 
 using LedgerService.Api.Contracts.Requests;
@@ -12,6 +14,7 @@ using MediatR;
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 using Swashbuckle.AspNetCore.Annotations;
 
@@ -20,6 +23,7 @@ namespace LedgerService.Api.Controllers;
 [ApiController]
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/outbox")]
+[EnableRateLimiting(ApiRateLimitPolicies.Administrative)]
 public sealed class OutboxAdminController(ISender sender) : ControllerBase
 {
     private const int DefaultPage = 1;

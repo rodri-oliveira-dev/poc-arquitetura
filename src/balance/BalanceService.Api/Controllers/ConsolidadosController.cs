@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 
 using ApiDefaults.Middlewares;
+using ApiDefaults.RateLimiting;
 
 using Asp.Versioning;
 
@@ -14,6 +15,7 @@ using MediatR;
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 
 using Swashbuckle.AspNetCore.Annotations;
@@ -23,6 +25,7 @@ namespace BalanceService.Api.Controllers;
 [ApiController]
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/consolidados")]
+[EnableRateLimiting(ApiRateLimitPolicies.AuthenticatedRead)]
 public sealed class ConsolidadosController : ControllerBase
 {
     private static readonly ActivitySource ActivitySource = new("BalanceService.Api");

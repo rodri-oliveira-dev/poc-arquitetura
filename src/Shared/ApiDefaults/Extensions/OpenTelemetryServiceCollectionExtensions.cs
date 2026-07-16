@@ -1,3 +1,5 @@
+using ApiDefaults.RateLimiting;
+
 using HttpResilienceDefaults;
 
 using OpenTelemetry.Metrics;
@@ -72,6 +74,7 @@ public static class OpenTelemetryServiceCollectionExtensions
                     .AddAspNetCoreInstrumentation()
                     .AddHttpClientInstrumentation()
                     .AddRuntimeInstrumentation()
+                    .AddMeter(ApiRateLimitMetrics.MeterName)
                     .AddMeter(HttpResilienceMetrics.MeterName);
 
                 configureMetrics?.Invoke(metrics);
