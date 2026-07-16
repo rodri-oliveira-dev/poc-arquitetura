@@ -41,6 +41,15 @@
     <ProjectReference Include="..\..\src\payment\PaymentService.Domain\PaymentService.Domain.csproj" />
     <ProjectReference Include="..\..\src\payment\PaymentService.Infrastructure\PaymentService.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\payment\PaymentService.Worker\PaymentService.Worker.csproj" />
+    <ProjectReference Include="..\..\src\identity\IdentityService.Api\IdentityService.Api.csproj" />
+    <ProjectReference Include="..\..\src\identity\IdentityService.Application\IdentityService.Application.csproj" />
+    <ProjectReference Include="..\..\src\identity\IdentityService.Domain\IdentityService.Domain.csproj" />
+    <ProjectReference Include="..\..\src\identity\IdentityService.Infrastructure\IdentityService.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\audit\AuditService.Api\AuditService.Api.csproj" />
+    <ProjectReference Include="..\..\src\audit\AuditService.Application\AuditService.Application.csproj" />
+    <ProjectReference Include="..\..\src\audit\AuditService.Domain\AuditService.Domain.csproj" />
+    <ProjectReference Include="..\..\src\audit\AuditService.Infrastructure\AuditService.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\audit\AuditService.Worker\AuditService.Worker.csproj" />
   </ItemGroup>
 
 </Project>

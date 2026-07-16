@@ -1,5 +1,3 @@
-using System.Xml.Linq;
-
 using ArchUnitNET.Loader;
 using ArchUnitNET.xUnitV3;
 
@@ -13,8 +11,6 @@ namespace Architecture.Tests;
 
 public sealed class LayerDependencyTests
 {
-    private static readonly string[] _serviceNames = ["LedgerService", "BalanceService", "TransferService", "PaymentService"];
-    private static readonly string[] _servicesWithPersistence = ["LedgerService", "BalanceService", "PaymentService"];
     private static readonly string[] _domainForbiddenReferences =
     [
         "Microsoft.AspNetCore",
@@ -23,6 +19,7 @@ public sealed class LayerDependencyTests
         "Google.Cloud.PubSub.V1",
         "Stripe"
     ];
+
     private static readonly string[] _applicationForbiddenReferences =
     [
         "Microsoft.AspNetCore.Http",
@@ -31,287 +28,340 @@ public sealed class LayerDependencyTests
         "Microsoft.OpenApi",
         "Swashbuckle.AspNetCore",
         "Confluent.Kafka",
-        "Google.Cloud.PubSub.V1",
-        "Stripe"
+        "Google.Cloud.PubSub.V1"
     ];
-    private static readonly string[] _messagingProviderNames = ["Kafka", "PubSub"];
-    private static readonly string[] _ledgerDomainForbiddenTechnicalNames =
-    [
-        "Outbox",
-        "Idempotency",
-        "Kafka",
-        "PubSub",
-        "Persistence",
-        "Serialization"
-    ];
-    private static readonly string[] _balanceDomainForbiddenTechnicalTerms =
-    [
-        "JsonPropertyName",
-        "Kafka",
-        "PubSub",
-        "Inbox",
-        "Outbox",
-        "ProcessedEvent",
-        "Consumer",
-        "LedgerEntryCreatedEvent"
-    ];
-    private static readonly string[] _balanceDomainForbiddenTechnicalTypeNames =
-    [
-        .. _balanceDomainForbiddenTechnicalTerms,
-        "Message"
-    ];
-    private static readonly string[] _concreteKafkaProducerConsumerNames =
-    [
-        "KafkaOutboxMessagePublisher",
-        "KafkaDeadLetterPublisher",
-        "KafkaTransferenciaOutboxPublisher",
-        "LedgerEventsConsumer",
-        "ReprocessamentoLancamentosConsumerService",
-        "ITransferenciaKafkaProducer"
-    ];
+
     private static readonly string[] _workerForbiddenReferences =
     [
         "Microsoft.OpenApi",
         "Swashbuckle.AspNetCore"
     ];
+
+    private static readonly string[] _workerHttpPresentationTerms =
+    [
+        "ControllerBase",
+        "MapControllers",
+        "Swagger"
+    ];
+
+    private static readonly string[] _apiWorkerTerms =
+    [
+        "AddHostedService",
+        "BackgroundService"
+    ];
+
     private static readonly ReflectionAssembly[] _productionAssemblies =
     [
-        .. _serviceNames.SelectMany(serviceName => new[]
-        {
-            LoadAssembly($"{serviceName}.Domain"),
-            LoadAssembly($"{serviceName}.Application"),
-            LoadAssembly($"{serviceName}.Infrastructure"),
-            LoadAssembly($"{serviceName}.Api"),
-            LoadAssembly($"{serviceName}.Worker")
-        })
+        .. BoundedContextCatalog.Contexts.SelectMany(context =>
+            context.Layers.Select(layer => LoadAssembly(context.AssemblyName(layer))))
     ];
+
     private static readonly ArchArchitecture _architecture = new ArchLoader()
         .LoadAssemblies(_productionAssemblies)
         .Build();
-    private static readonly DirectoryInfo _repositoryRoot = GetRepositoryRoot();
-
-    [Theory]
-    [MemberData(nameof(Services))]
-    public void Domain_should_not_depend_on_web_ef_core_or_messaging_providers(string serviceName)
-    {
-        // Domain stays independent from framework and infrastructure concerns.
-        AssertNoForbiddenDependencies($"{serviceName}.Domain", _domainForbiddenReferences);
-        AssertProjectHasNoForbiddenReferences(serviceName, "Domain", _domainForbiddenReferences);
-        AssertProjectHasNoForbiddenLayerReferences(
-            serviceName,
-            "Domain",
-            ["Api", "Application", "Infrastructure", "Worker"]);
-    }
-
-    [Theory]
-    [MemberData(nameof(Services))]
-    public void Application_should_not_depend_on_http_swagger_or_messaging_providers(string serviceName)
-    {
-        // Application orchestrates use cases without transport or messaging implementations.
-        AssertNoForbiddenDependencies($"{serviceName}.Application", _applicationForbiddenReferences);
-        AssertProjectHasNoForbiddenReferences(serviceName, "Application", _applicationForbiddenReferences);
-        AssertProjectHasNoForbiddenLayerReferences(serviceName, "Application", ["Api", "Infrastructure", "Worker"]);
-    }
-
-    [Theory]
-    [MemberData(nameof(Services))]
-    public void Domain_and_application_should_not_name_messaging_providers(string serviceName)
-    {
-        AssertSourceFilesDoNotContainProviderNames(serviceName, "Domain");
-        AssertSourceFilesDoNotContainProviderNames(serviceName, "Application");
-    }
 
     [Fact]
-    public void Ledger_domain_should_not_define_technical_namespaces_or_types()
+    public void Source_context_folders_should_be_cataloged()
     {
-        ReflectionType[] violations = [.. LoadAssembly("LedgerService.Domain")
-            .GetTypes()
-            .Where(type => type.FullName is not null)
-            .Where(type => _ledgerDomainForbiddenTechnicalNames.Any(term =>
-                type.FullName!.Contains(term, StringComparison.OrdinalIgnoreCase)))];
+        IReadOnlyList<string> uncataloged = CatalogGovernance.FindUncatalogedContextFolders(
+            ArchitectureTestPaths.RepositoryRoot,
+            BoundedContextCatalog.Contexts);
 
         Assert.True(
-            violations.Length == 0,
-            "LedgerService.Domain must not define technical Outbox, Idempotency, provider, persistence or serialization concepts. "
-            + $"Found: {string.Join(", ", violations.Select(type => type.FullName))}");
-    }
-
-    [Fact]
-    public void Balance_domain_should_not_define_integration_contract_or_inbox_concepts()
-    {
-        ReflectionType[] violations = [.. LoadAssembly("BalanceService.Domain")
-            .GetTypes()
-            .Where(type => type.FullName is not null)
-            .Where(type => _balanceDomainForbiddenTechnicalTypeNames.Any(term =>
-                type.FullName!.Contains(term, StringComparison.OrdinalIgnoreCase)))];
-
-        Assert.True(
-            violations.Length == 0,
-            "BalanceService.Domain must not define integration contracts, messaging, Inbox or idempotency concepts. "
-            + $"Found: {string.Join(", ", violations.Select(type => type.FullName))}");
-
-        AssertSourceFilesDoNotContain("BalanceService", "Domain", _balanceDomainForbiddenTechnicalTerms);
+            uncataloged.Count == 0,
+            "Every bounded context folder under src must be represented in BoundedContextCatalog. "
+            + $"Uncataloged folders: {string.Join(", ", uncataloged)}");
     }
 
     [Theory]
-    [MemberData(nameof(Services))]
+    [MemberData(nameof(ContextLayers), ArchitectureLayer.Domain)]
+    public void Domain_should_not_depend_on_web_ef_core_or_providers(string serviceName)
+    {
+        BoundedContextDescriptor context = BoundedContextCatalog.Get(serviceName);
+
+        AssertNoForbiddenDependencies(context.AssemblyName(ArchitectureLayer.Domain), _domainForbiddenReferences);
+        AssertProjectHasNoForbiddenReferences(context, ArchitectureLayer.Domain, _domainForbiddenReferences);
+        AssertProjectReferencesOnlyAllowedLayers(context, ArchitectureLayer.Domain);
+        AssertDomainDoesNotDefineForbiddenTechnicalTypes(context);
+    }
+
+    [Theory]
+    [MemberData(nameof(ContextLayers), ArchitectureLayer.Application)]
+    public void Application_should_not_depend_on_http_swagger_ef_core_or_provider_adapters(string serviceName)
+    {
+        BoundedContextDescriptor context = BoundedContextCatalog.Get(serviceName);
+
+        AssertNoForbiddenDependencies(context.AssemblyName(ArchitectureLayer.Application), _applicationForbiddenReferences);
+        AssertProjectHasNoForbiddenReferences(context, ArchitectureLayer.Application, _applicationForbiddenReferences);
+        AssertProjectReferencesOnlyAllowedLayers(context, ArchitectureLayer.Application);
+    }
+
+    [Theory]
+    [MemberData(nameof(ContextLayers), ArchitectureLayer.Api)]
+    public void Api_should_not_depend_on_worker_components(string serviceName)
+    {
+        BoundedContextDescriptor context = BoundedContextCatalog.Get(serviceName);
+
+        AssertProjectReferencesOnlyAllowedLayers(context, ArchitectureLayer.Api);
+        AssertSourceFilesDoNotContainCodeTerms(context, ArchitectureLayer.Api, _apiWorkerTerms);
+
+        Types().That().ResideInAssembly(context.AssemblyName(ArchitectureLayer.Api))
+            .Should().NotDependOnAny(
+                Types().That().ResideInNamespace($"{context.ServiceName}.Worker"))
+            .Because($"{context.ServiceName}.Api must not depend on Worker components")
+            .WithoutRequiringPositiveResults()
+            .Check(_architecture);
+    }
+
+    [Theory]
+    [MemberData(nameof(ContextLayers), ArchitectureLayer.Api)]
     public void Api_should_not_depend_on_concrete_repositories(string serviceName)
     {
-        // APIs call application use cases instead of executing rules through concrete repositories.
-        Types().That().ResideInAssembly($"{serviceName}.Api")
+        BoundedContextDescriptor context = BoundedContextCatalog.Get(serviceName);
+
+        Types().That().ResideInAssembly(context.AssemblyName(ArchitectureLayer.Api))
             .Should().NotDependOnAny(
-                Types().That().ResideInNamespace($"{serviceName}.Infrastructure.Persistence.Repositories"))
-            .Because($"{serviceName}.Api must not depend on concrete persistence repositories")
+                Types().That().ResideInNamespace($"{context.ServiceName}.Infrastructure.Persistence.Repositories"))
+            .Because($"{context.ServiceName}.Api must call application use cases instead of concrete repositories")
             .WithoutRequiringPositiveResults()
             .Check(_architecture);
     }
 
     [Theory]
-    [MemberData(nameof(Services))]
-    public void Api_should_not_depend_on_concrete_kafka_producers_or_consumers(string serviceName)
+    [MemberData(nameof(ContextLayers), ArchitectureLayer.Worker)]
+    public void Worker_should_not_depend_on_http_presentation(string serviceName)
     {
-        // APIs may configure application/infrastructure composition, but Kafka adapters stay outside HTTP entry points.
-        AssertProjectHasNoForbiddenReferences(serviceName, "Api", ["Confluent.Kafka"]);
-        AssertSourceFilesDoNotContain(serviceName, "Api", _concreteKafkaProducerConsumerNames);
-    }
+        BoundedContextDescriptor context = BoundedContextCatalog.Get(serviceName);
 
-    [Theory]
-    [MemberData(nameof(Services))]
-    public void Worker_should_not_depend_on_controllers_or_swagger(string serviceName)
-    {
-        // Workers are independent processes and must not reuse HTTP presentation code.
-        Types().That().ResideInAssembly($"{serviceName}.Worker")
+        AssertProjectReferencesOnlyAllowedLayers(context, ArchitectureLayer.Worker);
+        AssertProjectHasNoForbiddenReferences(context, ArchitectureLayer.Worker, _workerForbiddenReferences);
+        AssertNoForbiddenDependencies(context.AssemblyName(ArchitectureLayer.Worker), _workerForbiddenReferences);
+        AssertSourceFilesDoNotContainCodeTerms(context, ArchitectureLayer.Worker, _workerHttpPresentationTerms);
+
+        Types().That().ResideInAssembly(context.AssemblyName(ArchitectureLayer.Worker))
             .Should().NotDependOnAny(
-                Types().That().ResideInNamespace($"{serviceName}.Api.Controllers")
-                    .Or().ResideInNamespace($"{serviceName}.Api.Swagger"))
-            .Because($"{serviceName}.Worker must not depend on controllers or Swagger types")
+                Types().That().ResideInNamespace($"{context.ServiceName}.Api.Controllers")
+                    .Or().ResideInNamespace($"{context.ServiceName}.Api.Swagger"))
+            .Because($"{context.ServiceName}.Worker must not depend on controllers or Swagger types")
             .WithoutRequiringPositiveResults()
             .Check(_architecture);
-
-        AssertNoForbiddenDependencies($"{serviceName}.Worker", _workerForbiddenReferences);
-        AssertProjectHasNoForbiddenLayerReferences(serviceName, "Worker", ["Api"]);
     }
 
-    [Fact]
-    public void TransferService_projects_should_reference_only_allowed_internal_layers()
+    [Theory]
+    [MemberData(nameof(Contexts))]
+    public void Projects_should_reference_only_allowed_internal_layers(string serviceName)
     {
-        AssertProjectReferencesOnlyInternalLayers("TransferService", "Domain", []);
-        AssertProjectReferencesOnlyInternalLayers("TransferService", "Application", ["Domain"]);
-        AssertProjectReferencesOnlyInternalLayers("TransferService", "Infrastructure", ["Application", "Domain"]);
-        AssertProjectReferencesOnlyInternalLayers("TransferService", "Api", ["Application", "Infrastructure"]);
-        AssertProjectReferencesOnlyInternalLayers("TransferService", "Worker", ["Application", "Infrastructure"]);
-    }
+        BoundedContextDescriptor context = BoundedContextCatalog.Get(serviceName);
 
-    [Fact]
-    public void PaymentService_projects_should_reference_only_allowed_internal_layers()
-    {
-        AssertProjectReferencesOnlyInternalLayers("PaymentService", "Domain", []);
-        AssertProjectReferencesOnlyInternalLayers("PaymentService", "Application", ["Domain"]);
-        AssertProjectReferencesOnlyInternalLayers("PaymentService", "Infrastructure", ["Application", "Domain"]);
-        AssertProjectReferencesOnlyInternalLayers("PaymentService", "Api", ["Application", "Infrastructure"]);
-        AssertProjectReferencesOnlyInternalLayers("PaymentService", "Worker", ["Application", "Infrastructure"]);
-    }
-
-    [Fact]
-    public void PaymentService_should_not_use_messaging_or_stripe_sdk_in_prompt_2()
-    {
-        foreach (string layerName in new[] { "Api", "Application", "Domain", "Infrastructure", "Worker" })
+        foreach (ArchitectureLayer layer in context.Layers)
         {
-            AssertProjectHasNoForbiddenReferences("PaymentService", layerName, ["Confluent.Kafka", "Google.Cloud.PubSub.V1", "Stripe"]);
-            AssertSourceFilesDoNotContain("PaymentService", layerName, ["PubSub", "Pub/Sub", "Google.Cloud.PubSub"]);
-        }
-    }
-
-    [Fact]
-    public void PaymentService_should_not_reference_ledger_or_balance_infrastructure()
-    {
-        foreach (string layerName in new[] { "Api", "Application", "Domain", "Infrastructure", "Worker" })
-        {
-            AssertSourceFilesDoNotContain("PaymentService", layerName, ["LedgerService.Infrastructure", "BalanceService.Infrastructure"]);
-        }
-    }
-
-    [Fact]
-    public void TransferService_should_not_use_pubsub()
-    {
-        foreach (string layerName in new[] { "Api", "Application", "Domain", "Infrastructure", "Worker" })
-        {
-            AssertProjectHasNoForbiddenReferences("TransferService", layerName, ["Google.Cloud.PubSub.V1"]);
-            AssertSourceFilesDoNotContain("TransferService", layerName, ["PubSub", "Pub/Sub", "Google.Cloud.PubSub"]);
+            AssertProjectReferencesOnlyAllowedLayers(context, layer);
         }
     }
 
     [Theory]
-    [InlineData("LedgerService")]
-    [InlineData("BalanceService")]
-    public void PubSub_should_remain_only_in_legacy_worker_adapters_for_ledger_and_balance(string serviceName)
+    [MemberData(nameof(Contexts))]
+    public void Provider_packages_should_exist_only_where_catalog_allows_them(string serviceName)
     {
-        foreach (string layerName in new[] { "Api", "Application", "Domain", "Infrastructure" })
+        BoundedContextDescriptor context = BoundedContextCatalog.Get(serviceName);
+
+        foreach (ArchitectureLayer layer in context.Layers)
         {
-            AssertProjectHasNoForbiddenReferences(serviceName, layerName, ["Google.Cloud.PubSub.V1"]);
-            AssertSourceFilesDoNotContain(serviceName, layerName, ["PubSub", "Pub/Sub", "Google.Cloud.PubSub"]);
+            AssertProviderPackagePolicy(context, layer);
         }
     }
 
-    [Fact]
-    public void TransferService_api_should_not_register_worker_hosted_services()
-    {
-        AssertProjectHasNoForbiddenLayerReferences("TransferService", "Api", ["Worker"]);
-        AssertSourceFilesDoNotContain("TransferService", "Api", ["AddHostedService", "BackgroundService"]);
-    }
-
-    [Fact]
-    public void TransferService_worker_should_not_reference_controllers_or_swagger_sources()
-    {
-        AssertProjectHasNoForbiddenReferences("TransferService", "Worker", ["Swashbuckle.AspNetCore", "Microsoft.OpenApi"]);
-        AssertSourceFilesDoNotContain("TransferService", "Worker", ["ControllerBase", "MapControllers", "Swagger"]);
-    }
-
     [Theory]
-    [MemberData(nameof(PersistentServices))]
-    public void Infrastructure_should_reference_ef_core_and_implement_repository_ports(string serviceName)
+    [MemberData(nameof(PersistentContexts))]
+    public void Persistent_contexts_should_keep_ef_core_in_infrastructure(string serviceName)
     {
-        // Infrastructure owns EF Core and concrete adapters behind application or domain ports.
-        AssertProjectReferencesPackage(serviceName, "Infrastructure", "Microsoft.EntityFrameworkCore");
+        BoundedContextDescriptor context = BoundedContextCatalog.Get(serviceName);
 
-        ReflectionType[] repositoryTypes = [.. LoadAssembly($"{serviceName}.Infrastructure")
+        ProjectModel infrastructure = LoadProject(context, ArchitectureLayer.Infrastructure);
+
+        Assert.Contains(
+            "Microsoft.EntityFrameworkCore",
+            infrastructure.PackageAndFrameworkReferences);
+
+        ReflectionType[] persistenceAdapterTypes = [.. LoadAssembly(context.AssemblyName(ArchitectureLayer.Infrastructure))
             .GetTypes()
             .Where(type => type is { IsClass: true, IsAbstract: false })
             .Where(type => !type.IsNested)
-            .Where(type => type.Namespace == $"{serviceName}.Infrastructure.Persistence.Repositories")];
+            .Where(type => type.Namespace?.Contains(".Infrastructure.Persistence.", StringComparison.Ordinal) == true)
+            .Where(type => type.Name.EndsWith("Repository", StringComparison.Ordinal)
+                || type.Name.EndsWith("QueryService", StringComparison.Ordinal)
+                || type.Name.EndsWith("IdempotencyService", StringComparison.Ordinal))];
 
-        Assert.NotEmpty(repositoryTypes);
+        Assert.NotEmpty(persistenceAdapterTypes);
 
-        foreach (ReflectionType repositoryType in repositoryTypes)
+        foreach (ReflectionType adapterType in persistenceAdapterTypes)
         {
             Assert.True(
-                repositoryType.GetInterfaces().Any(IsServicePort),
-                $"{repositoryType.FullName} must implement an application or domain port.");
+                adapterType.GetInterfaces().Any(IsServicePort),
+                $"{adapterType.FullName} must implement an application or domain port.");
         }
     }
 
-    public static TheoryData<string> Services()
+    [Fact]
+    public void PubSub_should_remain_only_in_legacy_ledger_and_balance_workers()
     {
-        TheoryData<string> services = [];
-
-        foreach (string serviceName in _serviceNames)
+        foreach (BoundedContextDescriptor context in BoundedContextCatalog.Contexts)
         {
-            services.Add(serviceName);
-        }
+            foreach (ArchitectureLayer layer in context.Layers)
+            {
+                bool pubSubAllowed = layer == ArchitectureLayer.Worker
+                    && context.AllowedMessagingProviders.Contains(MessagingProvider.PubSub);
 
-        return services;
+                if (pubSubAllowed)
+                {
+                    continue;
+                }
+
+                AssertProjectHasNoForbiddenReferences(context, layer, ["Google.Cloud.PubSub.V1"]);
+                AssertSourceFilesDoNotContainCodeTerms(context, layer, ["PubSub", "Pub/Sub", "Google.Cloud.PubSub"]);
+            }
+        }
     }
 
-    public static TheoryData<string> PersistentServices()
+    [Fact]
+    public void TransferService_should_remain_kafka_only()
     {
-        TheoryData<string> services = [];
+        BoundedContextDescriptor context = BoundedContextCatalog.Get("TransferService");
 
-        foreach (string serviceName in _servicesWithPersistence)
+        Assert.DoesNotContain(MessagingProvider.PubSub, context.AllowedMessagingProviders);
+
+        foreach (ArchitectureLayer layer in context.Layers)
         {
-            services.Add(serviceName);
+            AssertProjectHasNoForbiddenReferences(context, layer, ["Google.Cloud.PubSub.V1"]);
+            AssertSourceFilesDoNotContainCodeTerms(context, layer, ["PubSub", "Pub/Sub", "Google.Cloud.PubSub"]);
+        }
+    }
+
+    [Fact]
+    public void Stripe_concepts_should_remain_specific_to_payment()
+    {
+        foreach (BoundedContextDescriptor context in BoundedContextCatalog.Contexts.Where(context => context.ServiceName != "PaymentService"))
+        {
+            foreach (ArchitectureLayer layer in context.Layers)
+            {
+                AssertProjectHasNoForbiddenReferences(context, layer, ["Stripe"]);
+                AssertSourceFilesDoNotContainCodeTerms(context, layer, ["Stripe"]);
+            }
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(Contexts))]
+    public void Contexts_should_not_reference_other_context_projects(string serviceName)
+    {
+        BoundedContextDescriptor context = BoundedContextCatalog.Get(serviceName);
+
+        foreach (ArchitectureLayer layer in context.Layers)
+        {
+            ProjectModel project = LoadProject(context, layer);
+            string[] violations = [.. project.ProjectReferenceFileNames
+                .Where(reference => reference.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
+                .Where(reference => reference.Contains("Service.", StringComparison.Ordinal))
+                .Where(reference => !reference.StartsWith($"{context.ServiceName}.", StringComparison.OrdinalIgnoreCase))
+                .Order(StringComparer.OrdinalIgnoreCase)];
+
+            Assert.True(
+                violations.Length == 0,
+                $"{context.ServiceName}.{layer}.csproj must not reference projects from another bounded context. "
+                + $"Found: {string.Join(", ", violations)}");
+        }
+    }
+
+    public static TheoryData<string> Contexts()
+    {
+        TheoryData<string> data = [];
+
+        foreach (BoundedContextDescriptor context in BoundedContextCatalog.Contexts)
+        {
+            data.Add(context.ServiceName);
         }
 
-        return services;
+        return data;
+    }
+
+    public static TheoryData<string> PersistentContexts()
+    {
+        TheoryData<string> data = [];
+
+        foreach (BoundedContextDescriptor context in BoundedContextCatalog.Contexts.Where(context => context.HasPersistence))
+        {
+            data.Add(context.ServiceName);
+        }
+
+        return data;
+    }
+
+    public static TheoryData<string> ContextLayers(ArchitectureLayer layer)
+    {
+        TheoryData<string> data = [];
+
+        foreach (BoundedContextDescriptor context in BoundedContextCatalog.Contexts.Where(context => context.Layers.Contains(layer)))
+        {
+            data.Add(context.ServiceName);
+        }
+
+        return data;
+    }
+
+    private static void AssertProviderPackagePolicy(BoundedContextDescriptor context, ArchitectureLayer layer)
+    {
+        bool kafkaAllowed = layer == ArchitectureLayer.Worker
+            && context.AllowedMessagingProviders.Contains(MessagingProvider.Kafka);
+        bool pubSubAllowed = layer == ArchitectureLayer.Worker
+            && context.AllowedMessagingProviders.Contains(MessagingProvider.PubSub);
+
+        if (!kafkaAllowed)
+        {
+            AssertProjectHasNoForbiddenReferences(context, layer, ["Confluent.Kafka"]);
+        }
+
+        if (!pubSubAllowed)
+        {
+            AssertProjectHasNoForbiddenReferences(context, layer, ["Google.Cloud.PubSub.V1"]);
+        }
+    }
+
+    private static void AssertProjectReferencesOnlyAllowedLayers(BoundedContextDescriptor context, ArchitectureLayer layer)
+    {
+        ProjectModel project = LoadProject(context, layer);
+        IReadOnlyList<string> forbiddenInternalReferences =
+            CatalogGovernance.FindForbiddenInternalProjectReferences(context, layer, project);
+        IReadOnlyList<string> forbiddenSharedReferences =
+            CatalogGovernance.FindForbiddenSharedProjectReferences(context, layer, project);
+
+        Assert.True(
+            forbiddenInternalReferences.Count == 0,
+            $"{context.ServiceName}.{layer}.csproj references internal layers not allowed by BoundedContextCatalog. "
+            + $"Found: {string.Join(", ", forbiddenInternalReferences)}");
+
+        Assert.True(
+            forbiddenSharedReferences.Count == 0,
+            $"{context.ServiceName}.{layer}.csproj references shared projects not allowed by BoundedContextCatalog. "
+            + $"Found: {string.Join(", ", forbiddenSharedReferences)}");
+    }
+
+    private static void AssertDomainDoesNotDefineForbiddenTechnicalTypes(BoundedContextDescriptor context)
+    {
+        if (context.DomainForbiddenTypeNameTerms.Count == 0)
+        {
+            return;
+        }
+
+        ReflectionType[] violations = [.. LoadAssembly(context.AssemblyName(ArchitectureLayer.Domain))
+            .GetTypes()
+            .Where(type => type.FullName is not null)
+            .Where(type => context.DomainForbiddenTypeNameTerms.Any(term =>
+                type.FullName!.Contains(term, StringComparison.OrdinalIgnoreCase)))];
+
+        Assert.True(
+            violations.Length == 0,
+            $"{context.ServiceName}.Domain must not define catalog-forbidden technical concepts. "
+            + $"Found: {string.Join(", ", violations.Select(type => type.FullName))}");
     }
 
     private static void AssertNoForbiddenDependencies(string assemblyName, IEnumerable<string> forbiddenReferences)
@@ -322,7 +372,8 @@ public sealed class LayerDependencyTests
 
         foreach (string forbiddenReference in forbiddenReferences)
         {
-            string[] violations = [.. referencedAssemblies.Where(reference => reference.StartsWith(forbiddenReference, StringComparison.Ordinal))];
+            string[] violations = [.. referencedAssemblies
+                .Where(reference => reference.StartsWith(forbiddenReference, StringComparison.Ordinal))];
 
             Assert.True(
                 violations.Length == 0,
@@ -331,100 +382,33 @@ public sealed class LayerDependencyTests
     }
 
     private static void AssertProjectHasNoForbiddenReferences(
-        string serviceName,
-        string layerName,
+        BoundedContextDescriptor context,
+        ArchitectureLayer layer,
         IEnumerable<string> forbiddenReferences)
     {
-        string[] directReferences = [.. LoadProject(serviceName, layerName)
-            .Descendants()
-            .Where(element => element.Name.LocalName is "PackageReference" or "FrameworkReference")
-            .Select(element => (string?)element.Attribute("Include") ?? string.Empty)];
+        ProjectModel project = LoadProject(context, layer);
 
         foreach (string forbiddenReference in forbiddenReferences)
         {
-            string[] violations = [.. directReferences.Where(reference => reference.StartsWith(forbiddenReference, StringComparison.Ordinal))];
+            string[] violations = [.. project.PackageAndFrameworkReferences
+                .Where(reference => reference.StartsWith(forbiddenReference, StringComparison.Ordinal))];
 
             Assert.True(
                 violations.Length == 0,
-                $"{serviceName}.{layerName}.csproj must not reference {forbiddenReference}. "
+                $"{context.ServiceName}.{layer}.csproj must not reference {forbiddenReference}. "
                 + $"Found: {string.Join(", ", violations)}");
         }
     }
 
-    private static void AssertProjectHasNoForbiddenLayerReferences(
-        string serviceName,
-        string layerName,
-        IEnumerable<string> forbiddenLayers)
-    {
-        string[] projectReferences = [.. LoadProject(serviceName, layerName)
-            .Descendants("ProjectReference")
-            .Select(GetProjectReferenceFileName)
-            .Where(reference => reference is not null)
-            .Select(reference => reference!)];
-
-        foreach (string forbiddenLayer in forbiddenLayers)
-        {
-            string forbiddenProject = $"{serviceName}.{forbiddenLayer}.csproj";
-            string[] violations = [.. projectReferences.Where(reference => reference.EndsWith(forbiddenProject, StringComparison.OrdinalIgnoreCase))];
-
-            Assert.True(
-                violations.Length == 0,
-                $"{serviceName}.{layerName}.csproj must not reference {forbiddenProject}. "
-                + $"Found: {string.Join(", ", violations)}");
-        }
-    }
-
-    private static void AssertProjectReferencesOnlyInternalLayers(
-        string serviceName,
-        string layerName,
-        IEnumerable<string> allowedLayers)
-    {
-        string[] allowedProjects = [.. allowedLayers.Select(allowedLayer => $"{serviceName}.{allowedLayer}.csproj")];
-
-        string[] internalProjectReferences = [.. LoadProject(serviceName, layerName)
-            .Descendants("ProjectReference")
-            .Select(GetProjectReferenceFileName)
-            .Where(reference => reference is not null
-                && reference.StartsWith($"{serviceName}.", StringComparison.OrdinalIgnoreCase))
-            .Select(reference => reference!)
-            .Order(StringComparer.OrdinalIgnoreCase)];
-
-        Assert.Equal(
-            allowedProjects.Order(StringComparer.OrdinalIgnoreCase),
-            internalProjectReferences);
-    }
-
-    private static void AssertProjectReferencesPackage(string serviceName, string layerName, string packageName)
-    {
-        string[] packageReferences = [.. LoadProject(serviceName, layerName)
-            .Descendants("PackageReference")
-            .Select(element => (string?)element.Attribute("Include") ?? string.Empty)];
-
-        Assert.Contains(packageName, packageReferences);
-    }
-
-    private static string? GetProjectReferenceFileName(XElement projectReference)
-    {
-        string normalizedPath = ((string?)projectReference.Attribute("Include") ?? string.Empty)
-            .Replace('\\', Path.DirectorySeparatorChar)
-            .Replace('/', Path.DirectorySeparatorChar);
-
-        return Path.GetFileName(normalizedPath);
-    }
-
-    private static void AssertSourceFilesDoNotContainProviderNames(string serviceName, string layerName)
-        => AssertSourceFilesDoNotContain(serviceName, layerName, _messagingProviderNames);
-
-    private static void AssertSourceFilesDoNotContain(
-        string serviceName,
-        string layerName,
+    private static void AssertSourceFilesDoNotContainCodeTerms(
+        BoundedContextDescriptor context,
+        ArchitectureLayer layer,
         IEnumerable<string> forbiddenTerms)
     {
         string sourceDirectory = Path.Combine(
-            _repositoryRoot.FullName,
-            "src",
-            GetServiceFolderName(serviceName),
-            $"{serviceName}.{layerName}");
+            ArchitectureTestPaths.ContextFolder(context),
+            context.AssemblyName(layer));
+
         string[] sourceFiles = [.. Directory.GetFiles(sourceDirectory, "*.cs", SearchOption.AllDirectories)
             .Where(sourceFile => !sourceFile.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
             .Where(sourceFile => !sourceFile.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))];
@@ -432,37 +416,19 @@ public sealed class LayerDependencyTests
         foreach (string forbiddenTerm in forbiddenTerms)
         {
             string[] violations = [.. sourceFiles
-                .Where(sourceFile => File.ReadAllText(sourceFile).Contains(forbiddenTerm, StringComparison.OrdinalIgnoreCase))
-                .Select(sourceFile => Path.GetRelativePath(_repositoryRoot.FullName, sourceFile))];
+                .Where(sourceFile => CSharpLexicalText.RemoveCommentsAndStrings(File.ReadAllText(sourceFile))
+                    .Contains(forbiddenTerm, StringComparison.OrdinalIgnoreCase))
+                .Select(sourceFile => Path.GetRelativePath(ArchitectureTestPaths.RepositoryRoot.FullName, sourceFile))];
 
             Assert.True(
                 violations.Length == 0,
-                $"{serviceName}.{layerName} must not contain forbidden term {forbiddenTerm}. "
+                $"{context.ServiceName}.{layer} must not contain forbidden code term {forbiddenTerm}. "
                 + $"Found: {string.Join(", ", violations)}");
         }
     }
 
-    private static XDocument LoadProject(string serviceName, string layerName)
-    {
-        string projectPath = Path.Combine(
-            _repositoryRoot.FullName,
-            "src",
-            GetServiceFolderName(serviceName),
-            $"{serviceName}.{layerName}",
-            $"{serviceName}.{layerName}.csproj");
-
-        return XDocument.Load(projectPath);
-    }
-
-    private static string GetServiceFolderName(string serviceName)
-        => serviceName switch
-        {
-            "LedgerService" => "ledger",
-            "BalanceService" => "balance",
-            "TransferService" => "transfer",
-            "PaymentService" => "payment",
-            _ => throw new ArgumentOutOfRangeException(nameof(serviceName), serviceName, "Unknown service name.")
-        };
+    private static ProjectModel LoadProject(BoundedContextDescriptor context, ArchitectureLayer layer)
+        => new(ArchitectureTestPaths.ProjectPath(context, layer));
 
     private static bool IsServicePort(ReflectionType interfaceType)
     {
@@ -474,20 +440,5 @@ public sealed class LayerDependencyTests
     }
 
     private static ReflectionAssembly LoadAssembly(string assemblyName)
-    {
-        return ReflectionAssembly.Load(assemblyName);
-    }
-
-    private static DirectoryInfo GetRepositoryRoot()
-    {
-        DirectoryInfo? directory = new(AppContext.BaseDirectory);
-
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "PocArquitetura.slnx")))
-        {
-            directory = directory.Parent;
-        }
-
-        Assert.NotNull(directory);
-        return directory;
-    }
+        => ReflectionAssembly.Load(assemblyName);
 }
