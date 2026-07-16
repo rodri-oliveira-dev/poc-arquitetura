@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import json
 import re
 import sys
@@ -30,6 +31,10 @@ SENSITIVE_QUERY_KEYS = {
     "secret",
     "token",
 }
+AUXILIARY_JSON_SUFFIXES = (
+    "-openapi-raw.json",
+    "-openapi-zap.json",
+)
 
 
 @dataclass(frozen=True)
@@ -47,6 +52,12 @@ class Alert:
     api: str
     name: str
     severity: str
+
+
+@dataclass(frozen=True)
+class OperationManifest:
+    total: int
+    business: int
 
 
 def infer_api(report: Path, payload: Any) -> str:
@@ -229,14 +240,21 @@ def extract_alerts(report: Path, api: str, payload: Any) -> list[Alert]:
     return alerts
 
 
-def load_openapi_operation_counts(root: Path) -> dict[str, int]:
-    counts: dict[str, int] = {}
+def load_openapi_operation_counts(root: Path) -> dict[str, OperationManifest]:
+    counts: dict[str, OperationManifest] = {}
     for manifest in root.rglob("*-openapi-operations.txt"):
-        operations = 0
+        total_operations = 0
+        business_operations = 0
         for line in manifest.read_text(encoding="utf-8", errors="replace").splitlines():
-            if re.match(r"^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|TRACE)\s+", line):
-                operations += 1
-        counts[manifest.name.removesuffix("-openapi-operations.txt")] = operations
+            match = re.match(r"^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|TRACE)\s+(.+)$", line)
+            if match:
+                total_operations += 1
+                if is_business_uri(match.group(2)):
+                    business_operations += 1
+        counts[manifest.name.removesuffix("-openapi-operations.txt")] = OperationManifest(
+            total=total_operations,
+            business=business_operations,
+        )
     return counts
 
 
@@ -244,16 +262,72 @@ def status_bucket(status: int) -> str:
     return f"{status // 100}xx" if 100 <= status <= 599 else "other"
 
 
+def observed_operation_count(requests: list[ObservedRequest]) -> int:
+    return len({(request.method, urlsplit(request.uri).path) for request in requests})
+
+
+def load_accepted_alerts(path: Path | None) -> list[dict[str, Any]]:
+    if path is None:
+        return []
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("Arquivo de allowlist de alertas precisa ser um objeto JSON.")
+    alerts = payload.get("accepted_alerts", [])
+    if not isinstance(alerts, list):
+        raise ValueError("Campo accepted_alerts precisa ser uma lista.")
+    return [item for item in alerts if isinstance(item, dict)]
+
+
+def is_auxiliary_json(report: Path, accepted_alerts_file: Path | None) -> bool:
+    if any(report.name.endswith(suffix) for suffix in AUXILIARY_JSON_SUFFIXES):
+        return True
+    if accepted_alerts_file is not None:
+        try:
+            return report.resolve() == accepted_alerts_file.resolve()
+        except OSError:
+            return False
+    return False
+
+
+def alert_is_accepted(alert: Alert, accepted_alerts: list[dict[str, Any]]) -> bool:
+    today = dt.date.today()
+    for accepted in accepted_alerts:
+        name = accepted.get("name")
+        severity = accepted.get("severity")
+        apis = accepted.get("apis", ["*"])
+        expires = accepted.get("expires")
+
+        if isinstance(expires, str):
+            try:
+                if dt.date.fromisoformat(expires) < today:
+                    continue
+            except ValueError:
+                continue
+
+        if isinstance(name, str) and name != alert.name:
+            continue
+        if isinstance(severity, str) and severity != alert.severity:
+            continue
+        if isinstance(apis, list) and "*" not in apis and alert.api not in apis:
+            continue
+        return True
+
+    return False
+
+
 def build_summary(
     reports: list[Path],
     requests: list[ObservedRequest],
     alerts: list[Alert],
-    operation_counts: dict[str, int],
+    operation_counts: dict[str, OperationManifest],
+    accepted_alert_count: int,
     failures: list[str],
+    warnings: list[str],
 ) -> str:
     lines = ["# OWASP ZAP authenticated coverage", ""]
     lines.append(f"- Relatorios JSON analisados: `{len(reports)}`")
     lines.append(f"- Operacoes de negocio observadas: `{len(requests)}`")
+    lines.append(f"- Alertas aceitos por allowlist: `{accepted_alert_count}`")
     lines.append(f"- Resultado do gate: `{'falha' if failures else 'sucesso'}`")
     lines.append("")
     lines.append("## APIs")
@@ -272,16 +346,28 @@ def build_summary(
         status_counts = Counter(status_bucket(item.status) for item in api_requests)
         exact_status_counts = Counter(str(item.status) for item in api_requests)
         alert_counts = Counter(alert.severity for alert in alerts_by_api.get(api, []))
-        declared = operation_counts.get(api, operation_counts.get(api.replace("-api", "-service-api"), 0))
+        manifest = operation_counts.get(api, operation_counts.get(api.replace("-api", "-service-api"), OperationManifest(0, 0)))
+        observed_operations = observed_operation_count(api_requests)
+        coverage = 0.0 if manifest.business == 0 else observed_operations * 100 / manifest.business
 
         lines.append(f"### {api}")
-        lines.append(f"- Operacoes OpenAPI declaradas: `{declared}`")
+        lines.append(f"- Operacoes OpenAPI declaradas: `{manifest.total}`")
+        lines.append(f"- Operacoes OpenAPI de negocio declaradas: `{manifest.business}`")
         lines.append(f"- Operacoes de negocio observadas: `{len(api_requests)}`")
+        lines.append(f"- Operacoes de negocio distintas observadas: `{observed_operations}`")
+        lines.append(f"- Cobertura aproximada de negocio: `{coverage:.1f}%`")
         lines.append(f"- Status HTTP: `{dict(sorted(exact_status_counts.items()))}`")
         lines.append(f"- 2xx: `{status_counts.get('2xx', 0)}`")
         lines.append(f"- 4xx: `{status_counts.get('4xx', 0)}`")
         lines.append(f"- 5xx: `{status_counts.get('5xx', 0)}`")
         lines.append(f"- Alertas por severidade: `{dict(sorted(alert_counts.items()))}`")
+        lines.append("")
+
+    if warnings:
+        lines.append("## Avisos")
+        lines.append("")
+        for warning in warnings:
+            lines.append(f"- {warning}")
         lines.append("")
 
     if failures:
@@ -294,10 +380,17 @@ def build_summary(
     return "\n".join(lines)
 
 
-def validate(root: Path, summary_output: Path | None, fail_on_alerts: bool) -> int:
-    reports = sorted(root.rglob("*.json"))
+def validate(
+    root: Path,
+    summary_output: Path | None,
+    fail_on_alerts: bool,
+    accepted_alerts_file: Path | None,
+    min_business_operations_per_api: int,
+    min_business_coverage_percent: float,
+) -> int:
+    reports = sorted(report for report in root.rglob("*.json") if not is_auxiliary_json(report, accepted_alerts_file))
     if not reports:
-        summary = build_summary([], [], [], {}, ["nenhum relatorio JSON encontrado."])
+        summary = build_summary([], [], [], {}, 0, ["nenhum relatorio JSON encontrado."], [])
         if summary_output:
             summary_output.parent.mkdir(parents=True, exist_ok=True)
             summary_output.write_text(summary + "\n", encoding="utf-8")
@@ -307,6 +400,9 @@ def validate(root: Path, summary_output: Path | None, fail_on_alerts: bool) -> i
     requests: list[ObservedRequest] = []
     alerts: list[Alert] = []
     failures: list[str] = []
+    warnings: list[str] = []
+    accepted_alerts = load_accepted_alerts(accepted_alerts_file)
+    accepted_alert_count = 0
 
     for report in reports:
         try:
@@ -328,13 +424,41 @@ def validate(root: Path, summary_output: Path | None, fail_on_alerts: bool) -> i
     if fail_on_alerts:
         for alert in alerts:
             if alert.severity in {"High", "Medium"}:
+                if alert_is_accepted(alert, accepted_alerts):
+                    accepted_alert_count += 1
+                    continue
                 failures.append(f"{alert.report}: alerta {alert.severity} - {alert.name}.")
 
     if not requests:
         failures.append("nenhuma operacao de negocio em /api/ foi observada.")
 
     operation_counts = load_openapi_operation_counts(root)
-    summary = build_summary(reports, requests, alerts, operation_counts, failures)
+
+    requests_by_api: dict[str, list[ObservedRequest]] = defaultdict(list)
+    for request in requests:
+        requests_by_api[request.api].append(request)
+
+    for api, manifest in sorted(operation_counts.items()):
+        if manifest.business <= 0:
+            continue
+        api_requests = requests_by_api.get(api, [])
+        distinct_observed = observed_operation_count(api_requests)
+        coverage = distinct_observed * 100 / manifest.business
+
+        if min_business_operations_per_api > 0 and distinct_observed < min_business_operations_per_api:
+            failures.append(
+                f"{api}: cobertura insuficiente; {distinct_observed} operacao(oes) de negocio distinta(s) "
+                f"observada(s), minimo configurado {min_business_operations_per_api}."
+            )
+        if min_business_coverage_percent > 0 and coverage < min_business_coverage_percent:
+            failures.append(
+                f"{api}: cobertura aproximada de negocio {coverage:.1f}% abaixo do minimo "
+                f"{min_business_coverage_percent:.1f}%."
+            )
+        if api_requests and not any(200 <= request.status <= 399 for request in api_requests):
+            warnings.append(f"{api}: nenhuma operacao de negocio retornou 2xx/3xx; revise massa de dados/exemplos do scan.")
+
+    summary = build_summary(reports, requests, alerts, operation_counts, accepted_alert_count, failures, warnings)
 
     if summary_output:
         summary_output.parent.mkdir(parents=True, exist_ok=True)
@@ -353,9 +477,33 @@ def main() -> int:
         action="store_true",
         help="Falha em alertas ZAP High/Medium alem do gate obrigatorio de autenticacao.",
     )
+    parser.add_argument(
+        "--accepted-alerts",
+        type=Path,
+        help="Allowlist JSON versionada para alertas High/Medium conhecidos quando --fail-on-alerts estiver ativo.",
+    )
+    parser.add_argument(
+        "--min-business-operations-per-api",
+        type=int,
+        default=0,
+        help="Minimo de operacoes /api/ distintas observadas por API com operacoes de negocio declaradas.",
+    )
+    parser.add_argument(
+        "--min-business-coverage-percent",
+        type=float,
+        default=0.0,
+        help="Percentual minimo aproximado de operacoes /api/ distintas observadas por API.",
+    )
     args = parser.parse_args()
 
-    return validate(args.reports_root, args.summary_output, args.fail_on_alerts)
+    return validate(
+        args.reports_root,
+        args.summary_output,
+        args.fail_on_alerts,
+        args.accepted_alerts,
+        args.min_business_operations_per_api,
+        args.min_business_coverage_percent,
+    )
 
 
 if __name__ == "__main__":

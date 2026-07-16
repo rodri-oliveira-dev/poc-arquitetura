@@ -16,6 +16,7 @@ DOCKER_NETWORK=""
 ZAP_IMAGE="ghcr.io/zaproxy/zaproxy:stable"
 SWAGGER_PATH="/swagger/v1/swagger.json"
 ENV_FILE=""
+OPENAPI_EXAMPLES_FILE="$ROOT_DIR/scripts/security/owasp-zap-openapi-examples.json"
 USE_AUTHENTICATION=false
 TOKEN=""
 ACTIVE_SCAN=false
@@ -39,6 +40,8 @@ Opcoes:
   --swagger-path PATH  Caminho OpenAPI comum aos targets.
   --zap-image IMAGE    Imagem oficial do OWASP ZAP.
   --env-file PATH      Arquivo usado por get-token.sh.
+  --openapi-examples PATH
+                       JSON com exemplos sinteticos para enriquecer a copia OpenAPI usada pelo ZAP.
   --use-authentication Obtem/injeta Authorization Bearer.
   --token TOKEN        Token Bearer manual.
   --active-scan        Habilita active scan. O padrao e baseline seguro.
@@ -108,6 +111,11 @@ while [[ $# -gt 0 ]]; do
       ENV_FILE="$2"
       shift 2
       ;;
+    --openapi-examples)
+      require_option_value "$1" "${2:-}" || { usage; exit 2; }
+      OPENAPI_EXAMPLES_FILE="$2"
+      shift 2
+      ;;
     --use-authentication)
       USE_AUTHENTICATION=true
       shift
@@ -140,6 +148,11 @@ done
 
 if [[ ${#TARGETS[@]} -eq 0 ]]; then
   echo "Nenhuma API informada. Use --target ou --targets-file." >&2
+  exit 2
+fi
+
+if [[ ! -f "$OPENAPI_EXAMPLES_FILE" ]]; then
+  echo "Arquivo de exemplos OpenAPI para ZAP nao encontrado: $OPENAPI_EXAMPLES_FILE" >&2
   exit 2
 fi
 
@@ -265,6 +278,10 @@ validate_target() {
   local base_url="$3"
   local openapi_url="${base_url%/}${SWAGGER_PATH}"
   local manifest="$OUTPUT_DIR/${slug}-openapi-operations.txt"
+  local raw_openapi="/zap/wrk/${slug}-openapi-raw.json"
+  local host_raw_openapi="$OUTPUT_DIR/${slug}-openapi-raw.json"
+  local host_enriched_openapi="$OUTPUT_DIR/${slug}-openapi-zap.json"
+  local enrichment_summary="$OUTPUT_DIR/${slug}-openapi-enrichment.txt"
   local validation_output
   local validation_exit_code=0
 
@@ -272,14 +289,16 @@ validate_target() {
   validation_output="$(
     docker run --rm -i \
       --network "$DOCKER_NETWORK" \
+      -v "$OUTPUT_DIR:/zap/wrk:rw" \
       "$ZAP_IMAGE" \
-      python3 - "$openapi_url" <<'PY' 2>&1
+      python3 - "$openapi_url" "$raw_openapi" <<'PY' 2>&1
 import json
 import sys
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 url = sys.argv[1]
+output_path = sys.argv[2]
 request = Request(url, headers={"Accept": "application/json"})
 try:
     with urlopen(request, timeout=30) as response:
@@ -309,6 +328,10 @@ try:
 except Exception as error:
     print(f"Resposta nao e JSON valido: {error}", file=sys.stderr)
     sys.exit(14)
+
+with open(output_path, "wb") as output:
+    output.write(json.dumps(document, ensure_ascii=False, indent=2).encode("utf-8"))
+    output.write(b"\n")
 
 if not isinstance(document.get("openapi"), str) and not isinstance(document.get("swagger"), str):
     print("Documento JSON nao contem campo 'openapi' ou 'swagger'.", file=sys.stderr)
@@ -353,6 +376,13 @@ PY
     echo "$validation_output" >&2
     return "$validation_exit_code"
   fi
+
+  "$PYTHON_BIN" "$ROOT_DIR/scripts/security/enrich-zap-openapi.py" \
+    --input "$host_raw_openapi" \
+    --output "$host_enriched_openapi" \
+    --examples "$OPENAPI_EXAMPLES_FILE" \
+    --api "$slug" \
+    --summary-output "$enrichment_summary" >&2
 
   local operation_count
   operation_count="$(printf '%s\n' "$validation_output" | sed -n 's/^OPERATION_COUNT=//p' | tail -n 1)"
@@ -409,7 +439,7 @@ run_target() {
     return 0
   fi
 
-  local openapi_url="${base_url%/}${SWAGGER_PATH}"
+  local zap_openapi_target="/zap/wrk/${slug}-openapi-zap.json"
   local container_name="poc-arquitetura-zap-${slug}"
   local html="${slug}.html"
   local json="${slug}.json"
@@ -437,7 +467,7 @@ run_target() {
   args+=(
     "$ZAP_IMAGE"
     zap-api-scan.py
-    -t "$openapi_url"
+    -t "$zap_openapi_target"
     -f openapi
     -O "$base_url"
     -r "$html"
@@ -476,7 +506,7 @@ run_target() {
     status="completed-with-alerts"
   fi
 
-  SCAN_RESULTS+=("$name|$slug|$base_url|$operation_count|$status|$exit_code|$html,$json,$markdown,$log_file,${slug}-openapi-operations.txt")
+  SCAN_RESULTS+=("$name|$slug|$base_url|$operation_count|$status|$exit_code|$html,$json,$markdown,$log_file,${slug}-openapi-operations.txt,${slug}-openapi-zap.json,${slug}-openapi-enrichment.txt")
 }
 
 for target in "${TARGETS[@]}"; do
@@ -494,6 +524,7 @@ SUMMARY_PATH="$OUTPUT_DIR/summary.md"
   echo "- Rede Docker: \`$DOCKER_NETWORK\`"
   echo "- Autenticacao Bearer: \`$([[ "$USE_AUTHENTICATION" == true ]] && echo habilitada || echo desabilitada)\`"
   echo "- Contrato OpenAPI: \`$SWAGGER_PATH\`"
+  echo "- Exemplos OpenAPI do ZAP: \`$OPENAPI_EXAMPLES_FILE\`"
   echo
   echo "## APIs analisadas"
   echo
@@ -513,6 +544,7 @@ SUMMARY_PATH="$OUTPUT_DIR/summary.md"
   echo "## Criterio de cobertura"
   echo
   echo "- Cada API e importada diretamente pelo respectivo documento OpenAPI."
+  echo "- Antes do scan, uma copia OpenAPI efemera e enriquecida com exemplos sinteticos para reduzir valores genericos do scanner."
   echo "- A execucao falha operacionalmente quando um contrato nao pode ser lido, nao possui paths ou nao declara operacoes HTTP."
   echo "- O baseline usa todas as operacoes descritas no OpenAPI; endpoints nao documentados permanecem fora do alcance do API Scan."
   echo "- Active scan permanece desabilitado por padrao para evitar mutacoes agressivas no ambiente."
