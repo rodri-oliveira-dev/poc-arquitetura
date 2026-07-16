@@ -15,6 +15,7 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 
 | ADR                                                                   | Status      | Resumo                                                                                           |
 | --------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------ |
+| [ADR-0111](./0111-consistencia-cancelamento-cadastro-identity-service.md) | Aceito | Refina o cadastro do IdentityService para compensar Keycloak em cancelamentos pos-efeito externo com token proprio e timeout. |
 | [ADR-0110](./0110-sonarqube-cloud-projeto-unico-agregado.md) | Aceito | Consolida o SonarQube Cloud em um unico projeto agregado e mantem Shared sem analise Sonar propria. |
 | [ADR-0109](./0109-setup-explicito-git-hooks-locais.md) | Aceito | Substitui instalacao de hooks durante build por setup local explicito, seguro e idempotente. |
 | [ADR-0108](./0108-publicacao-nuget-shared-pos-ci-idempotente.md) | Aceito | Define publicacao NuGet dos pacotes Shared apos CI da main, com input manual explicito e push idempotente. |

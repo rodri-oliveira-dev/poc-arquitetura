@@ -31,8 +31,10 @@ public sealed partial class KeycloakAdminClient(
             {
                 await SetPasswordAsync(userId, request.Password, accessToken, cancellationToken);
             }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested)
             {
+                using var compensationTimeout = CreateCompensationTimeout();
+                await CompensateCreatedUserAsync(userId, accessToken, ex, compensationTimeout.Token);
                 throw;
             }
             catch (Exception ex)
@@ -231,6 +233,18 @@ public sealed partial class KeycloakAdminClient(
                 keycloakUserId,
                 originalException.GetType().Name);
         }
+    }
+
+    private CancellationTokenSource CreateCompensationTimeout()
+    {
+        var timeout = RequiredOptions.CompensationTimeout;
+        if (timeout <= TimeSpan.Zero)
+            timeout = new KeycloakAdminOptions().CompensationTimeout;
+
+        var source = new CancellationTokenSource();
+        source.CancelAfter(timeout);
+
+        return source;
     }
 
     private async Task DeleteKeycloakUserAsync(

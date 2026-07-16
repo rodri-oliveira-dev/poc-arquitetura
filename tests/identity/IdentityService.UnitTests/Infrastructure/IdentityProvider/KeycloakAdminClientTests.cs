@@ -128,6 +128,30 @@ public sealed class KeycloakAdminClientTests
     }
 
     [Fact]
+    public async Task CreateUserAsync_should_delete_keycloak_user_when_request_is_canceled_after_user_creation_Async()
+    {
+        using var fixture = new KeycloakAdminClientFixture();
+        using var cts = new CancellationTokenSource();
+        fixture.Handler.EnqueueJson(HttpStatusCode.OK, /*lang=json,strict*/ """{ "access_token": "admin-token" }""");
+        fixture.Handler.Enqueue(
+            HttpStatusCode.Created,
+            string.Empty,
+            "/admin/realms/poc/users/keycloak-user-1",
+            onSend: () => cts.Cancel());
+        fixture.Handler.Enqueue(HttpStatusCode.NoContent, string.Empty);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            fixture.Client.CreateUserAsync(
+                new CreateIdentityProviderUserRequest("User Name", "user@example.com", "user-name", "N3ver-log-me!"),
+                cts.Token));
+
+        Assert.Equal(3, fixture.Handler.Requests.Count);
+        Assert.Equal(HttpMethod.Delete, fixture.Handler.Requests[2].Method);
+        Assert.Equal("/admin/realms/poc/users/keycloak-user-1", fixture.Handler.Requests[2].RequestUri?.PathAndQuery);
+        Assert.Contains("Compensando usuario criado no Keycloak", fixture.Logger.JoinedMessages, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task CreateUserAsync_should_preserve_original_exception_when_compensation_fails_Async()
     {
         using var fixture = new KeycloakAdminClientFixture();
@@ -320,7 +344,8 @@ public sealed class KeycloakAdminClientTests
                     TokenEndpoint = tokenEndpoint,
                     ClientId = "identity-service-admin",
                     ClientSecret = "admin-secret",
-                    Timeout = TimeSpan.FromSeconds(10)
+                    Timeout = TimeSpan.FromSeconds(10),
+                    CompensationTimeout = TimeSpan.FromSeconds(1)
                 }),
                 Logger);
         }
@@ -370,10 +395,16 @@ public sealed class KeycloakAdminClientTests
         public void EnqueueJson(HttpStatusCode statusCode, string json)
             => Enqueue(statusCode, json, contentType: "application/json");
 
-        public void Enqueue(HttpStatusCode statusCode, string content, string? location = null, string contentType = "text/plain")
+        public void Enqueue(
+            HttpStatusCode statusCode,
+            string content,
+            string? location = null,
+            string contentType = "text/plain",
+            Action? onSend = null)
         {
             _responses.Enqueue((_, _) =>
             {
+                onSend?.Invoke();
                 var response = new HttpResponseMessage(statusCode)
                 {
                     Content = new StringContent(content, Encoding.UTF8, contentType)

@@ -60,6 +60,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [IdentityService API](development/identity-api.md): contrato HTTP de cadastro de usuarios, `Idempotency-Key`, retries e conflitos.
 - [AuditService API](development/audit-api.md): contrato HTTP de criacao e consulta de registros funcionais de auditoria, agnostico ao servico chamador.
 - [Spec SDD de idempotencia do IdentityService](specs/identity-idempotency.md): comportamento esperado para `Idempotency-Key` opcional em `POST /api/v1/users`.
+- [Spec SDD de consistencia em cancelamentos do IdentityService](specs/identity-cancellation-consistency/requirements.md): requisitos, design e tarefas para compensacao Keycloak quando o cadastro e cancelado entre efeitos.
 - [Spec SDD PaymentService + Stripe - requisitos](specs/payment-stripe/requirements.md): contexto, objetivos, nao objetivos, atores, regras, riscos e criterios para o novo fluxo de pagamentos externos.
 - [Spec SDD PaymentService + Stripe - design](specs/payment-stripe/design.md): bounded context, ACL Stripe, Inbox, webhook security, integracao com Ledger, observabilidade, testes e configuracao futura.
 - [Spec SDD PaymentService + Stripe - state machine](specs/payment-stripe/state-machine.md): estados internos, transicoes, eventos duplicados, atrasados, fora de ordem e refund futuro.

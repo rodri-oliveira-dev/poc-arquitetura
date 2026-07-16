@@ -61,14 +61,14 @@ public sealed partial class IdempotencyService(
                 request.ResponseStatusCode,
                 null);
         }
-        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+        catch (Exception exception)
         {
             var failureStage = IdempotencyFailureMetadata.GetFailureStage(exception);
             if (failureStage is null && record.Status == IdempotencyStatus.Completed)
             {
                 failureStage = request.OnPersistenceFailureAsync is null
                     ? IdempotencyFailureStage.BeforeExternalSideEffect
-                    : await request.OnPersistenceFailureAsync(exception, cancellationToken);
+                    : await request.OnPersistenceFailureAsync(exception, CancellationToken.None);
             }
 
             record.MarkFailed(
@@ -77,7 +77,7 @@ public sealed partial class IdempotencyService(
                 GetUtcNow());
 
             LogStatusTransition(logger, request.OperationName, idempotencyKeyHash, nameof(IdempotencyStatus.Processing), nameof(IdempotencyStatus.Failed));
-            await TrySaveFailureAsync(record, cancellationToken);
+            await TrySaveFailureAsync(record, CancellationToken.None);
 
             throw;
         }
@@ -220,14 +220,14 @@ public sealed partial class IdempotencyService(
                 request.ResponseStatusCode,
                 null);
         }
-        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+        catch (Exception exception)
         {
             var failureStage = IdempotencyFailureMetadata.GetFailureStage(exception);
             if (failureStage is null && record.Status == IdempotencyStatus.Completed)
             {
                 failureStage = request.OnPersistenceFailureAsync is null
                     ? IdempotencyFailureStage.BeforeExternalSideEffect
-                    : await request.OnPersistenceFailureAsync(exception, cancellationToken);
+                    : await request.OnPersistenceFailureAsync(exception, CancellationToken.None);
             }
 
             record.MarkFailed(
@@ -235,7 +235,7 @@ public sealed partial class IdempotencyService(
                 exception.Message,
                 GetUtcNow());
             LogStatusTransition(logger, request.OperationName, idempotencyKeyHash, nameof(IdempotencyStatus.Processing), nameof(IdempotencyStatus.Failed));
-            await TrySaveFailureAsync(record, cancellationToken);
+            await TrySaveFailureAsync(record, CancellationToken.None);
 
             throw;
         }
