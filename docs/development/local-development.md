@@ -836,6 +836,25 @@ O Nginx open source usa uma lista estatica de upstreams nesta POC. Ele demonstra
 
 As APIs executam `UseForwardedHeaders` no inicio do pipeline para reconhecer `X-Forwarded-For`, `X-Forwarded-Proto` e `X-Forwarded-Host` enviados pelo Nginx. Isso permite que componentes ASP.NET Core vejam o scheme externo `https` e o host publico `.localhost` quando a chamada entra pelo proxy, sem mudar o trafego HTTP interno entre containers.
 
+O overlay `compose.nginx.yaml` habilita explicitamente `ForwardedHeaders__EnableLocalPermissiveMode=true` apenas nos servicos atendidos pelo Nginx local. Esse modo existe porque o IP do container `nginx-edge` e dinamico na rede bridge do Docker Compose. Nao copie essa configuracao para GKE, Kubernetes, Cloud Run, ingress ou ambientes produtivos; nesses ambientes configure `ForwardedHeaders__TrustedProxies__0=<ip-do-proxy>` ou `ForwardedHeaders__TrustedNetworks__0=<cidr-do-ingress>` e mantenha `ForwardedHeaders__EnableLocalPermissiveMode=false`.
+
+Exemplo local com Nginx:
+
+```yaml
+environment:
+  ASPNETCORE_ENVIRONMENT: "Local"
+  ForwardedHeaders__EnableLocalPermissiveMode: "true"
+```
+
+Exemplo nao local com ingress ou load balancer:
+
+```yaml
+environment:
+  ASPNETCORE_ENVIRONMENT: "Production"
+  ForwardedHeaders__TrustedNetworks__0: "10.128.0.0/20"
+  ForwardedHeaders__AllowedHosts__0: "api.example.com"
+```
+
 Parar a stack:
 
 ```bash

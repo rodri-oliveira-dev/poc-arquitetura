@@ -49,6 +49,39 @@ app.MapApiHealthEndpoints(
     "Valida dependencias necessarias para aceitar trafego HTTP.");
 ```
 
+## Forwarded Headers confiaveis
+
+`AddApiDefaults` configura `X-Forwarded-For`, `X-Forwarded-Proto` e
+`X-Forwarded-Host` com `ForwardLimit = 1`. Os hosts passados para
+`AddApiDefaults` entram em `ForwardedHeaders:AllowedHosts`.
+
+Para Docker Compose local com Nginx e IP dinamico:
+
+```json
+{
+  "ForwardedHeaders": {
+    "EnableLocalPermissiveMode": true
+  }
+}
+```
+
+Use esse modo somente em `Development` ou `Local`. Em GKE, Kubernetes, Cloud
+Run, ingress ou load balancer, configure proxies ou redes confiaveis:
+
+```json
+{
+  "ForwardedHeaders": {
+    "TrustedProxies": [ "10.0.0.10" ],
+    "TrustedNetworks": [ "10.128.0.0/20" ],
+    "AllowedHosts": [ "api.example.com" ],
+    "EnableLocalPermissiveMode": false
+  }
+}
+```
+
+Ambientes nao locais falham no startup quando nao informam pelo menos um proxy
+ou CIDR confiavel.
+
 Para Swagger/OpenAPI, use `AddApiSwaggerDefaults<TConfigureSwaggerOptions>` e `UseApiSwaggerDefaults` com uma implementacao de `IConfigureOptions<SwaggerGenOptions>` especifica da API.
 
 ## Recursos

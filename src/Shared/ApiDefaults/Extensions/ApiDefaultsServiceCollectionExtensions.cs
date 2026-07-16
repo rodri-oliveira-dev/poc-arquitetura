@@ -8,8 +8,8 @@ using ApiDefaults.Swagger;
 using Asp.Versioning;
 
 using Microsoft.AspNetCore.Diagnostics;
-using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
 using Swashbuckle.AspNetCore.SwaggerGen;
@@ -33,23 +33,19 @@ public static class ApiDefaultsServiceCollectionExtensions
 
         services.AddExceptionHandler<TExceptionHandler>();
         services.AddProblemDetails();
-        services.Configure<ForwardedHeadersOptions>(options =>
-        {
-            options.ForwardedHeaders =
-                ForwardedHeaders.XForwardedFor |
-                ForwardedHeaders.XForwardedProto |
-                ForwardedHeaders.XForwardedHost;
-            options.ForwardLimit = 1;
-
-            foreach (string host in allowedForwardedHosts)
+        services
+            .AddOptions<TrustedForwardedHeadersOptions>()
+            .Bind(configuration.GetSection(TrustedForwardedHeadersOptions.SectionName))
+            .PostConfigure(options =>
             {
-                options.AllowedHosts.Add(host);
-            }
-
-            // O IP do container Nginx e dinamico na rede bridge local.
-            options.KnownIPNetworks.Clear();
-            options.KnownProxies.Clear();
-        });
+                foreach (string host in allowedForwardedHosts)
+                {
+                    options.AllowedHosts.Add(host);
+                }
+            })
+            .ValidateOnStart();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<TrustedForwardedHeadersOptions>, TrustedForwardedHeadersOptionsValidator>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IPostConfigureOptions<ForwardedHeadersOptions>, TrustedForwardedHeadersPostConfigureOptions>());
         services
             .AddOptions<ApiDefaultsOptions>()
             .Bind(configuration.GetSection(ApiDefaultsOptions.SectionName))

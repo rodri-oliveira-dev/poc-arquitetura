@@ -109,6 +109,141 @@ public sealed class ApiDefaultsApplicationExtensionsTests
     }
 
     [Fact]
+    public async Task UseForwardedHeaders_WhenProxyIsTrusted_ShouldApplyForwardedProtoHostAndClientIp()
+    {
+        using HttpResponseMessage response = await SendForwardedRequestAsync(
+            remoteIpAddress: "10.0.0.10",
+            configuration: CreateConfiguration(new Dictionary<string, string?>
+            {
+                ["ForwardedHeaders:TrustedProxies:0"] = "10.0.0.10"
+            }),
+            forwardedFor: "203.0.113.9",
+            forwardedProto: "https",
+            forwardedHost: "api.example.com");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(
+            "https|api.example.com|203.0.113.9",
+            await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task UseForwardedHeaders_WhenProxyIsNotTrusted_ShouldIgnoreForwardedHeaders()
+    {
+        using HttpResponseMessage response = await SendForwardedRequestAsync(
+            remoteIpAddress: "10.0.0.99",
+            configuration: CreateConfiguration(new Dictionary<string, string?>
+            {
+                ["ForwardedHeaders:TrustedProxies:0"] = "10.0.0.10"
+            }),
+            forwardedFor: "203.0.113.9",
+            forwardedProto: "https",
+            forwardedHost: "api.example.com");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(
+            "http|internal.local|10.0.0.99",
+            await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task UseForwardedHeaders_WhenRemoteIpMatchesTrustedNetwork_ShouldApplyForwardedHeaders()
+    {
+        using HttpResponseMessage response = await SendForwardedRequestAsync(
+            remoteIpAddress: "10.0.0.25",
+            configuration: CreateConfiguration(new Dictionary<string, string?>
+            {
+                ["ForwardedHeaders:TrustedNetworks:0"] = "10.0.0.0/24"
+            }),
+            forwardedFor: "203.0.113.10",
+            forwardedProto: "https",
+            forwardedHost: "api.example.com");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(
+            "https|api.example.com|203.0.113.10",
+            await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task UseForwardedHeaders_WhenClientSpoofsSchemeHostOrIpDirectly_ShouldIgnoreForwardedHeaders()
+    {
+        using HttpResponseMessage response = await SendForwardedRequestAsync(
+            remoteIpAddress: "198.51.100.50",
+            configuration: CreateConfiguration(new Dictionary<string, string?>
+            {
+                ["ForwardedHeaders:TrustedProxies:0"] = "10.0.0.10"
+            }),
+            forwardedFor: "203.0.113.99",
+            forwardedProto: "https",
+            forwardedHost: "admin.example.com");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(
+            "http|internal.local|198.51.100.50",
+            await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task UseForwardedHeaders_WhenForwardedForHasMultipleHops_ShouldHonorForwardLimitOne()
+    {
+        using HttpResponseMessage response = await SendForwardedRequestAsync(
+            remoteIpAddress: "10.0.0.10",
+            configuration: CreateConfiguration(new Dictionary<string, string?>
+            {
+                ["ForwardedHeaders:TrustedProxies:0"] = "10.0.0.10"
+            }),
+            forwardedFor: "198.51.100.1, 203.0.113.9",
+            forwardedProto: "https",
+            forwardedHost: "api.example.com");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(
+            "https|api.example.com|203.0.113.9",
+            await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task UseForwardedHeaders_WhenForwardedHostIsAllowed_ShouldApplyHost()
+    {
+        using HttpResponseMessage response = await SendForwardedRequestAsync(
+            remoteIpAddress: "10.0.0.10",
+            configuration: CreateConfiguration(new Dictionary<string, string?>
+            {
+                ["ForwardedHeaders:TrustedProxies:0"] = "10.0.0.10",
+                ["ForwardedHeaders:AllowedHosts:0"] = "api.example.com"
+            }),
+            forwardedFor: "203.0.113.9",
+            forwardedProto: "https",
+            forwardedHost: "api.example.com");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(
+            "https|api.example.com|203.0.113.9",
+            await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task UseForwardedHeaders_WhenForwardedHostIsRejected_ShouldKeepOriginalHost()
+    {
+        using HttpResponseMessage response = await SendForwardedRequestAsync(
+            remoteIpAddress: "10.0.0.10",
+            configuration: CreateConfiguration(new Dictionary<string, string?>
+            {
+                ["ForwardedHeaders:TrustedProxies:0"] = "10.0.0.10",
+                ["ForwardedHeaders:AllowedHosts:0"] = "api.example.com"
+            }),
+            forwardedFor: "203.0.113.9",
+            forwardedProto: "https",
+            forwardedHost: "evil.example.com");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(
+            "https|internal.local|203.0.113.9",
+            await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
     public void ConfigureApiDefaults_ShouldDisableServerHeaderAndApplyConfiguredBodyLimit()
     {
         WebApplicationBuilder builder = CreateBuilder("Test", new Dictionary<string, string?>
@@ -237,10 +372,52 @@ public sealed class ApiDefaultsApplicationExtensionsTests
         return builder;
     }
 
+    private static async Task<HttpResponseMessage> SendForwardedRequestAsync(
+        string remoteIpAddress,
+        IConfiguration configuration,
+        string forwardedFor,
+        string forwardedProto,
+        string forwardedHost)
+    {
+        WebApplicationBuilder builder = CreateBuilder("Test");
+        builder.Services.AddApiDefaults<TestExceptionHandler>(configuration, "api.example.com", "internal.local");
+        await using WebApplication app = builder.Build();
+
+        app.Use((context, next) =>
+        {
+            context.Connection.RemoteIpAddress = IPAddress.Parse(remoteIpAddress);
+            return next(context);
+        });
+        app.UseForwardedHeaders();
+        app.MapGet("/forwarded", (HttpContext context) =>
+            Results.Text($"{context.Request.Scheme}|{context.Request.Host}|{context.Connection.RemoteIpAddress}"));
+        await app.StartAsync(TestContext.Current.CancellationToken);
+
+        HttpClient client = app.GetTestClient();
+        client.BaseAddress = new Uri("http://internal.local");
+        using HttpRequestMessage request = new(HttpMethod.Get, "/forwarded");
+        request.Headers.TryAddWithoutValidation("X-Forwarded-For", forwardedFor);
+        request.Headers.TryAddWithoutValidation("X-Forwarded-Proto", forwardedProto);
+        request.Headers.TryAddWithoutValidation("X-Forwarded-Host", forwardedHost);
+
+        return await client.SendAsync(request, TestContext.Current.CancellationToken);
+    }
+
     private static IConfiguration CreateConfiguration(IReadOnlyDictionary<string, string?>? values = null)
-        => new ConfigurationBuilder()
-            .AddInMemoryCollection(values ?? new Dictionary<string, string?>())
+    {
+        Dictionary<string, string?> effectiveValues = values is null
+            ? []
+            : new Dictionary<string, string?>(values);
+
+        if (!effectiveValues.Keys.Any(key => key.StartsWith("ForwardedHeaders:", StringComparison.Ordinal)))
+        {
+            effectiveValues["ForwardedHeaders:TrustedProxies:0"] = "127.0.0.1";
+        }
+
+        return new ConfigurationBuilder()
+            .AddInMemoryCollection(effectiveValues)
             .Build();
+    }
 
     private sealed class TestExceptionHandler : IExceptionHandler
     {

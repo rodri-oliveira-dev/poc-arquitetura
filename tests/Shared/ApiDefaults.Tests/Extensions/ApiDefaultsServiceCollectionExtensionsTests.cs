@@ -1,3 +1,5 @@
+using System.Net;
+
 using ApiDefaults.Extensions;
 using ApiDefaults.Options;
 
@@ -101,6 +103,97 @@ public sealed class ApiDefaultsServiceCollectionExtensionsTests
     }
 
     [Fact]
+    public void AddApiDefaults_WhenLocalPermissiveModeIsEnabledInLocalEnvironment_ShouldAllowDynamicProxy()
+    {
+        IServiceCollection services = CreateHostServices();
+        IConfiguration configuration = CreateConfiguration(new Dictionary<string, string?>
+        {
+            ["ForwardedHeaders:EnableLocalPermissiveMode"] = "true"
+        });
+
+        services.AddApiDefaults<TestExceptionHandler>(configuration, "ledger.localhost", "localhost");
+
+        using ServiceProvider provider = BuildValidatedProvider(services, "Local");
+
+        TrustedForwardedHeadersOptions trusted = provider.GetRequiredService<IOptions<TrustedForwardedHeadersOptions>>().Value;
+        ForwardedHeadersOptions forwarded = provider.GetRequiredService<IOptions<ForwardedHeadersOptions>>().Value;
+
+        Assert.True(trusted.EnableLocalPermissiveMode);
+        Assert.Empty(forwarded.KnownIPNetworks);
+        Assert.Empty(forwarded.KnownProxies);
+        Assert.Contains("ledger.localhost", forwarded.AllowedHosts);
+    }
+
+    [Fact]
+    public void AddApiDefaults_WhenNonLocalEnvironmentHasNoProxyOrNetwork_ShouldFailOptionsValidation()
+    {
+        IServiceCollection services = CreateHostServices();
+
+        services.AddApiDefaults<TestExceptionHandler>(CreateConfiguration(), "api.example.com");
+
+        using ServiceProvider provider = BuildValidatedProvider(services, "Production");
+
+        OptionsValidationException exception = Assert.Throws<OptionsValidationException>(() =>
+            provider.GetRequiredService<IOptions<TrustedForwardedHeadersOptions>>().Value);
+        Assert.Contains("trusted proxy or trusted network", string.Join(" ", exception.Failures));
+    }
+
+    [Fact]
+    public void AddApiDefaults_WhenTrustedProxyIsConfigured_ShouldPopulateKnownProxies()
+    {
+        IServiceCollection services = CreateHostServices();
+        IConfiguration configuration = CreateConfiguration(new Dictionary<string, string?>
+        {
+            ["ForwardedHeaders:TrustedProxies:0"] = "10.0.0.10"
+        });
+
+        services.AddApiDefaults<TestExceptionHandler>(configuration, "api.example.com");
+
+        using ServiceProvider provider = BuildValidatedProvider(services, "Production");
+
+        ForwardedHeadersOptions forwarded = provider.GetRequiredService<IOptions<ForwardedHeadersOptions>>().Value;
+        Assert.Contains(IPAddress.Parse("10.0.0.10"), forwarded.KnownProxies);
+        Assert.Empty(forwarded.KnownIPNetworks);
+    }
+
+    [Fact]
+    public void AddApiDefaults_WhenTrustedNetworkIsConfigured_ShouldPopulateKnownNetworks()
+    {
+        IServiceCollection services = CreateHostServices();
+        IConfiguration configuration = CreateConfiguration(new Dictionary<string, string?>
+        {
+            ["ForwardedHeaders:TrustedNetworks:0"] = "10.0.0.0/24"
+        });
+
+        services.AddApiDefaults<TestExceptionHandler>(configuration, "api.example.com");
+
+        using ServiceProvider provider = BuildValidatedProvider(services, "Production");
+
+        ForwardedHeadersOptions forwarded = provider.GetRequiredService<IOptions<ForwardedHeadersOptions>>().Value;
+        Assert.Contains(forwarded.KnownIPNetworks, network =>
+            network.BaseAddress.Equals(IPAddress.Parse("10.0.0.0")) && network.PrefixLength == 24);
+        Assert.Empty(forwarded.KnownProxies);
+    }
+
+    [Fact]
+    public void AddApiDefaults_WhenTrustedNetworkCidrIsInvalid_ShouldFailOptionsValidation()
+    {
+        IServiceCollection services = CreateHostServices();
+        IConfiguration configuration = CreateConfiguration(new Dictionary<string, string?>
+        {
+            ["ForwardedHeaders:TrustedNetworks:0"] = "10.0.0.0/129"
+        });
+
+        services.AddApiDefaults<TestExceptionHandler>(configuration, "api.example.com");
+
+        using ServiceProvider provider = BuildValidatedProvider(services, "Production");
+
+        OptionsValidationException exception = Assert.Throws<OptionsValidationException>(() =>
+            provider.GetRequiredService<IOptions<TrustedForwardedHeadersOptions>>().Value);
+        Assert.Contains("invalid CIDR", string.Join(" ", exception.Failures));
+    }
+
+    [Fact]
     public void AddApiDefaults_WhenConfigurationOmitsOptions_ShouldUseDefaults()
     {
         IServiceCollection services = CreateHostServices();
@@ -154,12 +247,17 @@ public sealed class ApiDefaultsServiceCollectionExtensionsTests
             descriptor.Type == typeof(ApiDefaults.Swagger.OpenApiContractQualityDocumentFilter));
     }
 
-    private static ServiceProvider BuildValidatedProvider(IServiceCollection services)
+    private static ServiceProvider BuildValidatedProvider(IServiceCollection services, string environmentName = "Development")
     {
         services.AddLogging();
         services.AddControllers();
-        services.TryAddSingleton<IWebHostEnvironment>(new TestWebHostEnvironment());
-        services.TryAddSingleton<IHostEnvironment>(provider => provider.GetRequiredService<IWebHostEnvironment>());
+        services.RemoveAll<IWebHostEnvironment>();
+        services.RemoveAll<IHostEnvironment>();
+        services.AddSingleton<IWebHostEnvironment>(new TestWebHostEnvironment
+        {
+            EnvironmentName = environmentName
+        });
+        services.AddSingleton<IHostEnvironment>(provider => provider.GetRequiredService<IWebHostEnvironment>());
         return services.BuildServiceProvider(new ServiceProviderOptions
         {
             ValidateOnBuild = true,
