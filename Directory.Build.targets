@@ -1,0 +1,60 @@
+<Project>
+  <!--
+    Optional integrated mode for validating repository consumers against the
+    current Shared source code before the Shared NuGet packages are published.
+    Default mode remains NuGet PackageReference consumption.
+  -->
+
+  <PropertyGroup>
+    <LocalSharedApiDefaultsProject>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)src/Shared/ApiDefaults/ApiDefaults.csproj'))</LocalSharedApiDefaultsProject>
+    <LocalSharedApplicationDefaultsProject>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)src/Shared/ApplicationDefaults/ApplicationDefaults.csproj'))</LocalSharedApplicationDefaultsProject>
+    <LocalSharedHttpResilienceDefaultsProject>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)src/Shared/HttpResilienceDefaults/HttpResilienceDefaults.csproj'))</LocalSharedHttpResilienceDefaultsProject>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(UseLocalSharedProjects)' == 'true'">
+    <_LocalSharedApiDefaultsPackageReference Include="PocArquitetura.ApiDefaults" Condition="'@(PackageReference->AnyHaveMetadataValue('Identity', 'PocArquitetura.ApiDefaults'))' == 'true'" />
+    <_LocalSharedApplicationDefaultsPackageReference Include="PocArquitetura.ApplicationDefaults" Condition="'@(PackageReference->AnyHaveMetadataValue('Identity', 'PocArquitetura.ApplicationDefaults'))' == 'true'" />
+    <_LocalSharedHttpResilienceDefaultsPackageReference Include="PocArquitetura.HttpResilienceDefaults" Condition="'@(PackageReference->AnyHaveMetadataValue('Identity', 'PocArquitetura.HttpResilienceDefaults'))' == 'true'" />
+
+    <_ExistingLocalSharedApiDefaultsProjectReference Include="$(LocalSharedApiDefaultsProject)" Condition="'@(ProjectReference->AnyHaveMetadataValue('FullPath', '$(LocalSharedApiDefaultsProject)'))' == 'true'" />
+    <_ExistingLocalSharedApplicationDefaultsProjectReference Include="$(LocalSharedApplicationDefaultsProject)" Condition="'@(ProjectReference->AnyHaveMetadataValue('FullPath', '$(LocalSharedApplicationDefaultsProject)'))' == 'true'" />
+    <_ExistingLocalSharedHttpResilienceDefaultsProjectReference Include="$(LocalSharedHttpResilienceDefaultsProject)" Condition="'@(ProjectReference->AnyHaveMetadataValue('FullPath', '$(LocalSharedHttpResilienceDefaultsProject)'))' == 'true'" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(UseLocalSharedProjects)' == 'true'">
+    <PackageReference Remove="PocArquitetura.ApiDefaults" />
+    <PackageReference Remove="PocArquitetura.ApplicationDefaults" />
+    <PackageReference Remove="PocArquitetura.HttpResilienceDefaults" />
+
+    <ProjectReference Include="$(LocalSharedApiDefaultsProject)" Condition="'@(_LocalSharedApiDefaultsPackageReference)' != ''">
+      <AdditionalProperties>Configuration=$(Configuration)</AdditionalProperties>
+    </ProjectReference>
+    <ProjectReference Include="$(LocalSharedApplicationDefaultsProject)" Condition="'@(_LocalSharedApplicationDefaultsPackageReference)' != ''">
+      <AdditionalProperties>Configuration=$(Configuration)</AdditionalProperties>
+    </ProjectReference>
+    <ProjectReference Include="$(LocalSharedHttpResilienceDefaultsProject)" Condition="'@(_LocalSharedHttpResilienceDefaultsPackageReference)' != ''">
+      <AdditionalProperties>Configuration=$(Configuration)</AdditionalProperties>
+    </ProjectReference>
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(UseLocalSharedProjects)' == 'true'">
+    <_RemainingLocalSharedPackageReference Include="PocArquitetura.ApiDefaults" Condition="'@(PackageReference->AnyHaveMetadataValue('Identity', 'PocArquitetura.ApiDefaults'))' == 'true'" />
+    <_RemainingLocalSharedPackageReference Include="PocArquitetura.ApplicationDefaults" Condition="'@(PackageReference->AnyHaveMetadataValue('Identity', 'PocArquitetura.ApplicationDefaults'))' == 'true'" />
+    <_RemainingLocalSharedPackageReference Include="PocArquitetura.HttpResilienceDefaults" Condition="'@(PackageReference->AnyHaveMetadataValue('Identity', 'PocArquitetura.HttpResilienceDefaults'))' == 'true'" />
+  </ItemGroup>
+
+  <Target Name="ValidateLocalSharedProjectMode" BeforeTargets="Restore;ResolveReferences" Condition="'$(UseLocalSharedProjects)' == 'true'">
+    <Error
+      Condition="'@(_ExistingLocalSharedApiDefaultsProjectReference)' != '' and '@(_LocalSharedApiDefaultsPackageReference)' != ''"
+      Text="$(MSBuildProjectName) references both PocArquitetura.ApiDefaults and $(LocalSharedApiDefaultsProject). Keep the PackageReference and let UseLocalSharedProjects=true substitute it centrally." />
+    <Error
+      Condition="'@(_ExistingLocalSharedApplicationDefaultsProjectReference)' != '' and '@(_LocalSharedApplicationDefaultsPackageReference)' != ''"
+      Text="$(MSBuildProjectName) references both PocArquitetura.ApplicationDefaults and $(LocalSharedApplicationDefaultsProject). Keep the PackageReference and let UseLocalSharedProjects=true substitute it centrally." />
+    <Error
+      Condition="'@(_ExistingLocalSharedHttpResilienceDefaultsProjectReference)' != '' and '@(_LocalSharedHttpResilienceDefaultsPackageReference)' != ''"
+      Text="$(MSBuildProjectName) references both PocArquitetura.HttpResilienceDefaults and $(LocalSharedHttpResilienceDefaultsProject). Keep the PackageReference and let UseLocalSharedProjects=true substitute it centrally." />
+    <Error
+      Condition="'@(_RemainingLocalSharedPackageReference)' != ''"
+      Text="$(MSBuildProjectName) still has Shared PackageReference(s) after UseLocalSharedProjects substitution: @(_RemainingLocalSharedPackageReference). This would mix package and project references." />
+  </Target>
+</Project>

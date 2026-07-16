@@ -33,7 +33,7 @@ Sao tratados como documentais:
 
 Quando ha arquivos de codigo, configuracao ou automacao fora desse conjunto, o workflow classifica o impacto antes de executar restore, auditoria, SonarQube, build, testes e cobertura:
 
-- mudancas em `src/Shared/**`, `tests/Shared/**` ou `PocArquitetura.Shared.slnx` validam `./PocArquitetura.slnx` e `./PocArquitetura.Shared.slnx`;
+- mudancas em `src/Shared/**`, `tests/Shared/**` ou `PocArquitetura.Shared.slnx` validam `./PocArquitetura.slnx`, `./PocArquitetura.Shared.slnx` e `./PocArquitetura.slnx` em modo integrado com `UseLocalSharedProjects=true`;
 - mudancas apenas em servicos, testes de servico, `tests/Architecture.Tests/**`, `tools/**`, `PocArquitetura.slnx` ou alguma solution de contexto de servico validam somente `./PocArquitetura.slnx`;
 - mudancas globais validam `./PocArquitetura.slnx` e `./PocArquitetura.Shared.slnx`;
 - quando a deteccao de arquivos falha, o workflow valida aggregate e Shared por seguranca.
@@ -75,6 +75,14 @@ Para cada contexto impactado, o workflow executa:
 - ReportGenerator;
 - gate de cobertura conforme o contexto validado.
 
+Quando o contexto `integrated-shared` e executado, os comandos recebem
+`-p:UseLocalSharedProjects=true`. Esse modo remove centralmente os
+`PackageReference` dos pacotes `PocArquitetura.ApiDefaults`,
+`PocArquitetura.ApplicationDefaults` e
+`PocArquitetura.HttpResilienceDefaults` e injeta os `ProjectReference`
+equivalentes para `src/Shared`. Assim, o PR valida os consumidores contra o
+codigo Shared ainda nao publicado, sem abandonar o modo consumidor por NuGet.
+
 No contexto `aggregate`, a cobertura total de linhas precisa atingir 85% e os assemblies `LedgerService.Worker` e `BalanceService.Worker` tambem precisam atingir 85%. No contexto `shared`, a cobertura total de linhas precisa atingir 80%. Shared nao possui Quality Gate remoto proprio.
 
 Pull requests vindos de forks nao recebem `SONAR_TOKEN`. Nesses casos, a analise SonarQube Cloud e ignorada para nao expor secrets a codigo nao confiavel, mas restore, auditoria NuGet, build, testes e cobertura continuam rodando.
@@ -93,6 +101,7 @@ A estrategia oficial usa SonarQube Cloud apenas no contexto aggregate dentro de 
 | --- | --- | --- | --- |
 | `aggregate` | `./PocArquitetura.slnx` | `rodri-oliveira-dev_poc-arquitetura` | `artifacts/test-results/aggregate`, `artifacts/sonarqube/aggregate` |
 | `shared` | `./PocArquitetura.Shared.slnx` | Sem analise Sonar propria | `artifacts/test-results/shared` |
+| `integrated-shared` | `./PocArquitetura.slnx` com `UseLocalSharedProjects=true` | Sem analise Sonar propria | `artifacts/test-results/integrated-shared` |
 
 O workflow reutilizavel `.github/workflows/sonarqube-context.yml` foi removido. Sonar begin/end, cobertura, ReportGenerator, relatorio e upload de artifacts existem apenas em `.github/workflows/dotnet.yml`.
 
