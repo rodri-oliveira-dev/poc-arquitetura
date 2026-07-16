@@ -15,9 +15,8 @@ builder.Services.AddIdentityInfrastructure(builder.Configuration);
 var app = builder.Build();
 
 app.UseForwardedHeaders();
-app.UseApiSwaggerDefaults(builder.Configuration, "IdentityService API");
-
 app.UseApiDefaults();
+app.UseApiSwaggerDefaults(builder.Configuration, "IdentityService API");
 app.UseAuthentication();
 app.UseAuthorization();
 

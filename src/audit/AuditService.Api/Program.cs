@@ -12,9 +12,8 @@ builder.Services.AddAuditApiComposition(builder.Configuration, builder.Environme
 var app = builder.Build();
 
 app.UseForwardedHeaders();
-app.UseApiSwagger(builder.Configuration);
-
 app.UseApiDefaults();
+app.UseApiSwagger(builder.Configuration);
 app.UseAuthentication();
 app.UseAuthorization();
 

@@ -74,9 +74,7 @@ public sealed class SecurityHeadersMiddlewareTests
         Assert.Equal("geolocation=(), microphone=(), camera=()", context.Response.Headers["Permissions-Policy"].ToString());
         Assert.Equal("same-origin", context.Response.Headers["Cross-Origin-Opener-Policy"].ToString());
         Assert.Equal("same-origin", context.Response.Headers["Cross-Origin-Resource-Policy"].ToString());
-        Assert.Equal(
-            "default-src 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'",
-            context.Response.Headers["Content-Security-Policy"].ToString());
+        Assert.Equal(SecurityHeadersMiddleware.ApiContentSecurityPolicy, context.Response.Headers["Content-Security-Policy"].ToString());
 
         if (expectHsts)
         {
@@ -88,5 +86,32 @@ public sealed class SecurityHeadersMiddlewareTests
         }
 
         Assert.False(context.Response.Headers.ContainsKey("Cache-Control"));
+    }
+
+    [Theory]
+    [InlineData("/swagger")]
+    [InlineData("/swagger/index.html")]
+    [InlineData("/swagger/swagger-ui.css")]
+    public async Task InvokeAsync_WhenRequestTargetsSwaggerUi_ShouldUseSwaggerCsp(string path)
+    {
+        DefaultHttpContext context = new HttpContextBuilder().WithHttps().Build();
+        context.Request.Path = path;
+        var middleware = new SecurityHeadersMiddleware(MiddlewareTestDelegate.Success().ToRequestDelegate());
+
+        await middleware.InvokeAsync(context);
+
+        Assert.Equal(SecurityHeadersMiddleware.SwaggerUiContentSecurityPolicy, context.Response.Headers["Content-Security-Policy"].ToString());
+    }
+
+    [Fact]
+    public async Task InvokeAsync_WhenRequestTargetsOpenApiJson_ShouldUseApiCsp()
+    {
+        DefaultHttpContext context = new HttpContextBuilder().WithHttps().Build();
+        context.Request.Path = "/swagger/v1/swagger.json";
+        var middleware = new SecurityHeadersMiddleware(MiddlewareTestDelegate.Success().ToRequestDelegate());
+
+        await middleware.InvokeAsync(context);
+
+        Assert.Equal(SecurityHeadersMiddleware.ApiContentSecurityPolicy, context.Response.Headers["Content-Security-Policy"].ToString());
     }
 }

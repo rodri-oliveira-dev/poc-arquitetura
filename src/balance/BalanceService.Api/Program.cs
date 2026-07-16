@@ -12,9 +12,8 @@ builder.Services.AddBalanceApiComposition(builder.Configuration, builder.Environ
 var app = builder.Build();
 
 app.UseForwardedHeaders();
-app.UseApiSwagger(builder.Configuration);
-
 app.UseApiDefaults();
+app.UseApiSwagger(builder.Configuration);
 app.UseAuthentication();
 app.UseAuthorization();
 
