@@ -157,6 +157,7 @@ public sealed class OwaspZapAllApisScriptBehaviorTests : IDisposable
         };
         startInfo.ArgumentList.Add("-c");
         startInfo.ArgumentList.Add(commandBuilder.ToString());
+        startInfo.Environment["GITHUB_ACTIONS"] = "false";
 
         using var process = Process.Start(startInfo);
         Assert.NotNull(process);

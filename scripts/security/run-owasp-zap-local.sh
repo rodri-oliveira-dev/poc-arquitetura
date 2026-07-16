@@ -72,6 +72,7 @@ create_ephemeral_env_file() {
   ENV_FILE="$TEMP_ENV_FILE"
 }
 
+# shellcheck disable=SC2317,SC2329
 cleanup() {
   local original_exit_code=$?
   local cleanup_exit_code=0
