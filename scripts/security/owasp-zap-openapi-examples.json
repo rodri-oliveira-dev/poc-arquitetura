@@ -6,7 +6,7 @@
     "entityId": "entity-123",
     "entityType": "Lancamento",
     "from": "2026-01-01T00:00:00Z",
-    "merchantId": "merchant-zap",
+    "merchantId": "m1",
     "operationId": "operation-zap-001",
     "operationType": "CreateLancamento",
     "page": 1,
@@ -26,7 +26,7 @@
             "operationType": "CreateLancamento",
             "entityType": "Lancamento",
             "entityId": "entity-123",
-            "merchantId": "merchant-zap",
+            "merchantId": "m1",
             "actor": {
               "type": "System",
               "id": "zap-automation",
@@ -57,7 +57,7 @@
         },
         "POST /api/v1/lancamentos/reprocessar": {
           "requestBody": {
-            "merchantId": "merchant-zap",
+            "merchantId": "m1",
             "dataInicial": "2026-01-01",
             "dataFinal": "2026-01-31",
             "motivo": "zap-baseline"
@@ -77,7 +77,7 @@
       "operations": {
         "POST /api/v1/payments": {
           "requestBody": {
-            "merchantId": "merchant-zap",
+            "merchantId": "m1",
             "amount": 150.25,
             "currency": "BRL",
             "description": "Pagamento ZAP",
@@ -111,8 +111,8 @@
       "operations": {
         "POST /api/v1/transferencias": {
           "requestBody": {
-            "sourceMerchantId": "merchant-origin-zap",
-            "destinationMerchantId": "merchant-destination-zap",
+            "sourceMerchantId": "m1",
+            "destinationMerchantId": "m2",
             "amount": 75.5,
             "description": "Transferencia ZAP",
             "externalReference": "zap-transfer-001"

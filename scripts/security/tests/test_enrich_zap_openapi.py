@@ -8,6 +8,7 @@ import unittest
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
 SCRIPT = REPO_ROOT / "scripts" / "security" / "enrich-zap-openapi.py"
+EXAMPLES = REPO_ROOT / "scripts" / "security" / "owasp-zap-openapi-examples.json"
 
 
 class EnrichZapOpenApiTests(unittest.TestCase):
@@ -104,6 +105,23 @@ class EnrichZapOpenApiTests(unittest.TestCase):
             self.assertEqual("idem-1", operation["parameters"][1]["example"])
             self.assertEqual({"name": "zap"}, operation["requestBody"]["content"]["application/json"]["example"])
             self.assertIn("OPENAPI_EXAMPLES_APPLIED=3", summary_path.read_text(encoding="utf-8"))
+
+    def test_versioned_examples_use_authorized_local_merchants(self) -> None:
+        payload = json.loads(EXAMPLES.read_text(encoding="utf-8"))
+        serialized = json.dumps(payload)
+
+        self.assertNotIn("merchant-zap", serialized)
+        self.assertNotIn("merchant-origin-zap", serialized)
+        self.assertNotIn("merchant-destination-zap", serialized)
+        self.assertEqual("m1", payload["parameters"]["merchantId"])
+        self.assertEqual(
+            "m1",
+            payload["apis"]["transfer-service-api"]["operations"]["POST /api/v1/transferencias"]["requestBody"]["sourceMerchantId"],
+        )
+        self.assertEqual(
+            "m2",
+            payload["apis"]["transfer-service-api"]["operations"]["POST /api/v1/transferencias"]["requestBody"]["destinationMerchantId"],
+        )
 
 
 if __name__ == "__main__":
