@@ -1,7 +1,6 @@
 using System.Reflection;
 using System.Threading.RateLimiting;
 
-using ApiDefaults.Middlewares;
 using ApiDefaults.Options;
 using ApiDefaults.Swagger;
 
@@ -54,9 +53,15 @@ public static class ApiDefaultsServiceCollectionExtensions
             .Validate(options => options.RateLimitWindowSeconds > 0, "ApiLimits:RateLimitWindowSeconds must be greater than zero.")
             .Validate(options => options.RateLimitQueueLimit >= 0, "ApiLimits:RateLimitQueueLimit must be zero or greater.")
             .ValidateOnStart();
+        services
+            .AddOptions<CorsOptions>()
+            .Bind(configuration.GetSection(CorsOptions.SectionName))
+            .ValidateOnStart();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<CorsOptions>, CorsOptionsValidator>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IPostConfigureOptions<Microsoft.AspNetCore.Cors.Infrastructure.CorsOptions>, CorsPolicyPostConfigureOptions>());
 
         AddRateLimiting(services, configuration);
-        AddCors(services);
+        services.AddCors();
         AddVersioningAndExplorer(services);
 
         return services;
@@ -106,25 +111,6 @@ public static class ApiDefaultsServiceCollectionExtensions
                 config.Window = TimeSpan.FromSeconds(apiLimits.RateLimitWindowSeconds);
                 config.QueueLimit = apiLimits.RateLimitQueueLimit;
                 config.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
-            });
-        });
-    }
-
-    private static void AddCors(IServiceCollection services)
-    {
-        services.AddCors(options =>
-        {
-            options.AddPolicy(CorsPolicyName, policy =>
-            {
-                policy
-                    .WithOrigins(
-                        "http://localhost:3000",
-                        "http://localhost:5173",
-                        "https://localhost:3001",
-                        "https://localhost:5173")
-                    .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE")
-                    .WithHeaders("Content-Type", "Authorization", "Idempotency-Key", CorrelationIdMiddleware.HeaderName)
-                    .SetPreflightMaxAge(TimeSpan.FromMinutes(10));
             });
         });
     }

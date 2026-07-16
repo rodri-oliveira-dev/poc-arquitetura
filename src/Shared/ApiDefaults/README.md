@@ -82,6 +82,39 @@ Run, ingress ou load balancer, configure proxies ou redes confiaveis:
 Ambientes nao locais falham no startup quando nao informam pelo menos um proxy
 ou CIDR confiavel.
 
+## CORS configuravel
+
+`ApiDefaults` registra CORS pela secao tipada `Cors`. O comportamento padrao e
+fechado: se `Cors:Enabled=false` ou `Cors:AllowedOrigins` estiver vazio,
+`UseApiDefaults` nao habilita CORS e a API nao emite
+`Access-Control-Allow-Origin`.
+
+Exemplo para uma API com consumidor browser:
+
+```json
+{
+  "Cors": {
+    "Enabled": true,
+    "AllowedOrigins": [ "https://app.example.com" ],
+    "AllowedMethods": [ "GET", "POST" ],
+    "AllowedHeaders": [
+      "Authorization",
+      "Content-Type",
+      "Idempotency-Key",
+      "X-Correlation-Id"
+    ],
+    "ExposedHeaders": [ "X-Correlation-Id" ],
+    "AllowCredentials": false,
+    "PreflightMaxAgeSeconds": 600
+  }
+}
+```
+
+Origens precisam ser absolutas, usar `http` ou `https` e nao podem conter path,
+query string, fragmento ou wildcard. Nao use CORS como autenticacao ou
+autorizacao de negocio; clientes server-to-server nao dependem do navegador e
+nao sao protegidos por CORS.
+
 Para Swagger/OpenAPI, use `AddApiSwaggerDefaults<TConfigureSwaggerOptions>` e `UseApiSwaggerDefaults` com uma implementacao de `IConfigureOptions<SwaggerGenOptions>` especifica da API.
 
 ## Recursos
@@ -90,7 +123,7 @@ Para Swagger/OpenAPI, use `AddApiSwaggerDefaults<TConfigureSwaggerOptions>` e `U
 - Exception handling com `IExceptionHandler` e Problem Details.
 - Swagger/OpenAPI com versionamento.
 - Autenticacao JWT Bearer com JWKS.
-- CORS padronizado.
+- CORS configuravel por API e ambiente.
 - Rate limiting por janela fixa.
 - Endpoints `/health` e `/ready`.
 - OpenTelemetry para traces e metricas, incluindo metrica de resiliencia HTTP.

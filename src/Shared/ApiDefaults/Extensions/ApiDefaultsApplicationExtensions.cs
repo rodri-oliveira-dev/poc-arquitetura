@@ -45,7 +45,12 @@ public static class ApiDefaultsApplicationExtensions
         }
 
         app.UseMiddleware<RequestBodySizeLimitMiddleware>();
-        app.UseCors(ApiDefaultsServiceCollectionExtensions.CorsPolicyName);
+        CorsOptions corsOptions = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<CorsOptions>>().Value;
+        if (corsOptions.Enabled && corsOptions.AllowedOrigins.Count > 0)
+        {
+            app.UseCors(ApiDefaultsServiceCollectionExtensions.CorsPolicyName);
+        }
+
         app.UseRateLimiter();
 
         return app;
