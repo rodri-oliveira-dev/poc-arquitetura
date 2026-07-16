@@ -98,10 +98,19 @@ jobs:
       - name: Validate authenticated ZAP coverage
         if: ${{ always() }}
         shell: bash
+        env:
+          FAIL_ON_ALERTS: ${{ github.event_name == 'workflow_dispatch' && inputs.fail_on_alerts }}
         run: |
-          python3 ./scripts/security/validate-zap-coverage.py \
-            --reports-root "$ZAP_ARTIFACTS_DIR" \
+          args=(
+            --reports-root "$ZAP_ARTIFACTS_DIR"
             --summary-output "$ZAP_ARTIFACTS_DIR/authenticated-coverage-summary.md"
+          )
+
+          if [ "$FAIL_ON_ALERTS" = "true" ]; then
+            args+=(--fail-on-alerts)
+          fi
+
+          python3 ./scripts/security/validate-zap-coverage.py "${args[@]}"
 
       - name: Write ZAP summary
         if: ${{ always() }}

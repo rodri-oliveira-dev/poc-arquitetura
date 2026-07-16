@@ -11,16 +11,20 @@ SCRIPT = REPO_ROOT / "scripts" / "security" / "validate-zap-coverage.py"
 
 
 class ValidateZapCoverageTests(unittest.TestCase):
-    def run_validator(self, root: pathlib.Path) -> subprocess.CompletedProcess[str]:
+    def run_validator(self, root: pathlib.Path, *, fail_on_alerts: bool = False) -> subprocess.CompletedProcess[str]:
+        command = [
+            sys.executable,
+            str(SCRIPT),
+            "--reports-root",
+            str(root),
+            "--summary-output",
+            str(root / "authenticated-coverage-summary.md"),
+        ]
+        if fail_on_alerts:
+            command.append("--fail-on-alerts")
+
         return subprocess.run(
-            [
-                sys.executable,
-                str(SCRIPT),
-                "--reports-root",
-                str(root),
-                "--summary-output",
-                str(root / "authenticated-coverage-summary.md"),
-            ],
+            command,
             cwd=REPO_ROOT,
             text=True,
             stdout=subprocess.PIPE,
@@ -135,22 +139,42 @@ class ValidateZapCoverageTests(unittest.TestCase):
             self.assertIn("ledger-service-api", result.stdout)
             self.assertIn("balance-service-api", result.stdout)
 
-    def test_high_alert_fails(self) -> None:
+    def test_high_alert_does_not_fail_authentication_gate_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
             self.write_report(root, risk="High")
 
             result = self.run_validator(root)
 
-            self.assertNotEqual(0, result.returncode)
-            self.assertIn("alerta High", result.stdout)
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            self.assertIn("High", result.stdout)
 
-    def test_medium_alert_fails(self) -> None:
+    def test_medium_alert_does_not_fail_authentication_gate_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
             self.write_report(root, risk="Medium")
 
             result = self.run_validator(root)
+
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            self.assertIn("Medium", result.stdout)
+
+    def test_high_alert_fails_when_fail_on_alerts_is_enabled(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            self.write_report(root, risk="High")
+
+            result = self.run_validator(root, fail_on_alerts=True)
+
+            self.assertNotEqual(0, result.returncode)
+            self.assertIn("alerta High", result.stdout)
+
+    def test_medium_alert_fails_when_fail_on_alerts_is_enabled(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            self.write_report(root, risk="Medium")
+
+            result = self.run_validator(root, fail_on_alerts=True)
 
             self.assertNotEqual(0, result.returncode)
             self.assertIn("alerta Medium", result.stdout)
