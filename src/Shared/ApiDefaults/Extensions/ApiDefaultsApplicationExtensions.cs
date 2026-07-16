@@ -63,6 +63,11 @@ public static class ApiDefaultsApplicationExtensions
             return app;
         }
 
+        app.Use(async (context, next) =>
+        {
+            context.Response.Headers.TryAdd("X-Content-Type-Options", "nosniff");
+            await next(context);
+        });
         app.UseSwagger();
         app.UseSwaggerUI(options =>
         {

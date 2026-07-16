@@ -11,7 +11,15 @@ SCRIPT = REPO_ROOT / "scripts" / "security" / "validate-zap-coverage.py"
 
 
 class ValidateZapCoverageTests(unittest.TestCase):
-    def run_validator(self, root: pathlib.Path, *, fail_on_alerts: bool = False) -> subprocess.CompletedProcess[str]:
+    def run_validator(
+        self,
+        root: pathlib.Path,
+        *,
+        fail_on_alerts: bool = False,
+        accepted_alerts: pathlib.Path | None = None,
+        min_business_operations_per_api: int = 0,
+        min_business_coverage_percent: float = 0.0,
+    ) -> subprocess.CompletedProcess[str]:
         command = [
             sys.executable,
             str(SCRIPT),
@@ -22,6 +30,12 @@ class ValidateZapCoverageTests(unittest.TestCase):
         ]
         if fail_on_alerts:
             command.append("--fail-on-alerts")
+        if accepted_alerts is not None:
+            command.extend(["--accepted-alerts", str(accepted_alerts)])
+        if min_business_operations_per_api:
+            command.extend(["--min-business-operations-per-api", str(min_business_operations_per_api)])
+        if min_business_coverage_percent:
+            command.extend(["--min-business-coverage-percent", str(min_business_coverage_percent)])
 
         return subprocess.run(
             command,
@@ -169,6 +183,60 @@ class ValidateZapCoverageTests(unittest.TestCase):
             self.assertNotEqual(0, result.returncode)
             self.assertIn("alerta High", result.stdout)
 
+    def test_high_alert_can_be_accepted_by_allowlist_when_fail_on_alerts_is_enabled(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            self.write_report(root, risk="High")
+            allowlist = root / "accepted-alerts.json"
+            allowlist.write_text(
+                json.dumps(
+                    {
+                        "accepted_alerts": [
+                            {
+                                "name": "High alert",
+                                "severity": "High",
+                                "apis": ["*"],
+                                "reason": "teste",
+                                "expires": "2099-12-31",
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            result = self.run_validator(root, fail_on_alerts=True, accepted_alerts=allowlist)
+
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            self.assertIn("Alertas aceitos por allowlist: `1`", result.stdout)
+
+    def test_expired_allowlist_entry_does_not_accept_high_alert(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            self.write_report(root, risk="High")
+            allowlist = root / "accepted-alerts.json"
+            allowlist.write_text(
+                json.dumps(
+                    {
+                        "accepted_alerts": [
+                            {
+                                "name": "High alert",
+                                "severity": "High",
+                                "apis": ["*"],
+                                "reason": "teste",
+                                "expires": "2000-01-01",
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            result = self.run_validator(root, fail_on_alerts=True, accepted_alerts=allowlist)
+
+            self.assertNotEqual(0, result.returncode)
+            self.assertIn("alerta High", result.stdout)
+
     def test_medium_alert_fails_when_fail_on_alerts_is_enabled(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
@@ -197,7 +265,48 @@ class ValidateZapCoverageTests(unittest.TestCase):
 
                 result = self.run_validator(root)
 
-                self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
+    def test_min_business_operations_per_api_fails_when_observed_operations_are_below_threshold(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            self.write_report(root, status=200)
+            (root / "ledger-service-api-openapi-operations.txt").write_text(
+                "\n".join(
+                    [
+                        "GET /health",
+                        "GET /api/v1/lancamentos",
+                        "POST /api/v1/lancamentos",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            result = self.run_validator(root, min_business_operations_per_api=2)
+
+            self.assertNotEqual(0, result.returncode)
+            self.assertIn("cobertura insuficiente", result.stdout)
+
+    def test_min_business_coverage_percent_fails_when_observed_ratio_is_below_threshold(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            self.write_report(root, status=200)
+            (root / "ledger-service-api-openapi-operations.txt").write_text(
+                "\n".join(
+                    [
+                        "GET /api/v1/lancamentos",
+                        "POST /api/v1/lancamentos",
+                        "GET /api/v1/lancamentos/{id}",
+                        "POST /api/v1/lancamentos/{id}/estornos",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            result = self.run_validator(root, min_business_coverage_percent=50)
+
+            self.assertNotEqual(0, result.returncode)
+            self.assertIn("abaixo do minimo", result.stdout)
 
     def test_zap_alert_instance_evidence_can_define_observed_status(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

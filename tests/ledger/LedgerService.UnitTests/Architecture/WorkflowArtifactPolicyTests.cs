@@ -323,12 +323,18 @@ public sealed partial class WorkflowArtifactPolicyTests
         Assert.Contains("bash ./scripts/security/run-owasp-zap-local.sh", workflow);
         Assert.Contains("python3 ./scripts/security/validate-zap-coverage.py", workflow);
         Assert.Contains("--summary-output \"$ZAP_ARTIFACTS_DIR/authenticated-coverage-summary.md\"", workflow);
+        Assert.Contains("cron: \"0 5 * * 0\"", workflow);
+        Assert.Contains("--accepted-alerts ./scripts/security/owasp-zap-accepted-alerts.json", workflow);
+        Assert.Contains("--min-business-coverage-percent 50", workflow);
+        Assert.Contains("--min-business-operations-per-api 1", workflow);
         Assert.Contains("continue-on-error: true", workflow);
         Assert.Contains("${{ env.ZAP_ARTIFACTS_DIR }}/**/*.log", workflow);
         Assert.Contains("${{ env.ZAP_ARTIFACTS_DIR }}/**/*.txt", workflow);
         Assert.DoesNotContain("docker inspect \"$first_container_id\"", workflow);
         Assert.DoesNotContain("bash ./scripts/security/run-owasp-zap-all-apis.sh", workflow);
         Assert.DoesNotContain("|| true", GetWorkflowStep(workflow, "Run local OWASP ZAP orchestration"));
+        Assert.DoesNotContain("--fail-on-alerts", GetWorkflowStep(workflow, "Run local OWASP ZAP orchestration"));
+        Assert.Contains("--fail-on-alerts", GetWorkflowStep(workflow, "Validate authenticated ZAP coverage"));
     }
 
     [Fact]
@@ -338,8 +344,11 @@ public sealed partial class WorkflowArtifactPolicyTests
         var script = File.ReadAllText(Path.Combine(repositoryRoot.FullName, "scripts/security/run-owasp-zap-all-apis.sh"));
 
         Assert.Matches(
-            @"docker run --rm -i\s*\\\s*[\s\S]*?python3 - ""\$openapi_url"" <<'PY'",
+            @"docker run --rm -i\s*\\\s*[\s\S]*?-v ""\$OUTPUT_DIR:/zap/wrk:rw""\s*\\\s*[\s\S]*?python3 - ""\$openapi_url"" ""\$raw_openapi"" <<'PY'",
             script);
+        Assert.Contains("enrich-zap-openapi.py", script);
+        Assert.Contains("owasp-zap-openapi-examples.json", script);
+        Assert.Contains("-t \"$zap_openapi_target\"", script);
     }
 
     [Fact]

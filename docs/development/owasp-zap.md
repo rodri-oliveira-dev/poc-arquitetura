@@ -62,7 +62,21 @@ O script `scripts/security/validate-zap-coverage.py` analisa os JSONs gerados pe
 
 Alertas High, Medium e Low aparecem no resumo por padrao. Quando `--fail-on-alerts` ou o input manual `fail_on_alerts=true` estiver habilitado, alertas High ou Medium tambem falham a validacao. Status `400`, `404` e `422` nao falham por si so, porque payloads genericos e IDs ficticios podem ser esperados em API Scan.
 
+O modo estrito pode receber tambem:
+
+- `--accepted-alerts scripts/security/owasp-zap-accepted-alerts.json`: allowlist versionada de alertas conhecidos, com justificativa e validade;
+- `--min-business-operations-per-api N`: minimo de operacoes `/api/` distintas observadas por API;
+- `--min-business-coverage-percent N`: percentual minimo aproximado de operacoes `/api/` observadas por API.
+
+Mesmo com allowlist, `401` e `403` em `/api/` continuam falhando obrigatoriamente.
+
 O resumo inclui, por API, operacoes OpenAPI declaradas, operacoes de negocio observadas, distribuicao de status HTTP, contagem de `2xx`, `4xx`, `5xx` e alertas por severidade. O parser ignora `/health`, `/ready`, Swagger, OpenAPI e endpoints tecnicos explicitamente nao protegidos.
+
+## Exemplos usados pelo ZAP
+
+Antes de executar `zap-api-scan.py`, o runner baixa o OpenAPI real de cada API e gera uma copia efemera `*-openapi-zap.json` dentro do diretorio de relatorios. Essa copia recebe exemplos sinteticos de `scripts/security/owasp-zap-openapi-examples.json` para reduzir valores genericos como `id`, `date` ou payload vazio.
+
+O arquivo versionado contem apenas dados descartaveis de scan, sem segredos. Ele nao substitui os contratos oficiais em `docs/openapi` e nao altera o comportamento das APIs; serve apenas para aumentar a qualidade das requisicoes que o ZAP tenta executar.
 
 Para diagnosticar `401` e `403`, rode primeiro:
 
@@ -284,7 +298,9 @@ Se a validacao de escrita em `/zap/wrk` falhar, o erro operacional registra o ca
 
 ## GitHub Actions
 
-O workflow `owasp-zap-baseline` e executado manualmente em `Actions > owasp-zap-baseline > Run workflow` ou automaticamente por `workflow_run` quando o workflow `main-dotnet-ci` conclui com sucesso na branch `main`.
+O workflow `owasp-zap-baseline` e executado manualmente em `Actions > owasp-zap-baseline > Run workflow`, automaticamente por `workflow_run` quando o workflow `main-dotnet-ci` conclui com sucesso na branch `main`, e semanalmente pelo agendamento `0 5 * * 0`.
+
+Na execucao automatica pos-CI da `main`, o workflow mantem baseline autenticado e consultivo para alertas, preservando baixo ruido apos cada merge. Na execucao semanal agendada, ele roda active scan, habilita `fail_on_alerts`, aplica a allowlist versionada e exige cobertura minima de negocio por API. Use esse modo semanal apenas contra o ambiente efemero controlado do workflow.
 
 Na execucao automatica, o workflow faz checkout explicito de `${{ github.event.workflow_run.head_sha }}`, o mesmo SHA validado pelo CI. Se o CI falhar ou for cancelado, o job automatico fica pulado.
 

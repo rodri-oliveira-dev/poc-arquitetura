@@ -1,0 +1,13 @@
+{
+  "accepted_alerts": [
+    {
+      "name": "A Client Error response code was returned by the server",
+      "severity": "High",
+      "apis": [
+        "*"
+      ],
+      "reason": "O API scan pode gerar 400/404 ao exercitar IDs e payloads sinteticos do OpenAPI. O gate autenticado continua falhando 401/403 obrigatoriamente.",
+      "expires": "2026-10-31"
+    }
+  ]
+}

@@ -1,6 +1,8 @@
 name: owasp-zap-baseline
 
 on:
+  schedule:
+    - cron: "0 5 * * 0"
   workflow_run:
     workflows: ["main-dotnet-ci"]
     types: [completed]
@@ -37,6 +39,7 @@ jobs:
     if: >-
       ${{
         github.event_name == 'workflow_dispatch' ||
+        github.event_name == 'schedule' ||
         (
           github.event.workflow_run.conclusion == 'success' &&
           github.event.workflow_run.event == 'push' &&
@@ -75,8 +78,7 @@ jobs:
         continue-on-error: true
         shell: bash
         env:
-          FAIL_ON_ALERTS: ${{ github.event_name == 'workflow_dispatch' && inputs.fail_on_alerts }}
-          ACTIVE_SCAN: ${{ github.event_name == 'workflow_dispatch' && inputs.active_scan }}
+          ACTIVE_SCAN: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.active_scan) }}
         run: |
           set -euo pipefail
 
@@ -89,25 +91,28 @@ jobs:
             args+=(--active-scan)
           fi
 
-          if [ "$FAIL_ON_ALERTS" = "true" ]; then
-            args+=(--fail-on-alerts)
-          fi
-
           bash ./scripts/security/run-owasp-zap-local.sh "${args[@]}"
 
       - name: Validate authenticated ZAP coverage
         if: ${{ always() }}
         shell: bash
         env:
-          FAIL_ON_ALERTS: ${{ github.event_name == 'workflow_dispatch' && inputs.fail_on_alerts }}
+          FAIL_ON_ALERTS: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.fail_on_alerts) }}
+          STRICT_COVERAGE: ${{ github.event_name == 'schedule' }}
         run: |
           args=(
             --reports-root "$ZAP_ARTIFACTS_DIR"
             --summary-output "$ZAP_ARTIFACTS_DIR/authenticated-coverage-summary.md"
+            --accepted-alerts ./scripts/security/owasp-zap-accepted-alerts.json
           )
 
           if [ "$FAIL_ON_ALERTS" = "true" ]; then
             args+=(--fail-on-alerts)
+          fi
+
+          if [ "$STRICT_COVERAGE" = "true" ]; then
+            args+=(--min-business-operations-per-api 1)
+            args+=(--min-business-coverage-percent 50)
           fi
 
           python3 ./scripts/security/validate-zap-coverage.py "${args[@]}"
@@ -123,10 +128,12 @@ jobs:
             echo "- Alvos: Ledger, Balance, Transfer, Payment, Audit e Identity."
             echo "- Scan autenticado com o client local poc-automation."
             echo "- Todas as operacoes HTTP documentadas em cada OpenAPI sao importadas."
-            echo "- Active scan: \`${{ github.event_name == 'workflow_dispatch' && inputs.active_scan }}\`."
-            echo "- Fail on alerts: \`${{ github.event_name == 'workflow_dispatch' && inputs.fail_on_alerts }}\`."
+            echo "- Active scan: \`${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.active_scan) }}\`."
+            echo "- Fail on alerts: \`${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.fail_on_alerts) }}\`."
+            echo "- Cobertura estrita semanal: \`${{ github.event_name == 'schedule' }}\`."
             echo "- Preflight autenticado: executado por \`scripts/security/run-owasp-zap-local.sh\`."
             echo "- Gate de cobertura autenticada: executado por \`scripts/security/validate-zap-coverage.py\`."
+            echo "- Allowlist de alertas conhecidos: \`scripts/security/owasp-zap-accepted-alerts.json\`."
             echo "- Artifact: \`owasp-zap-all-api-reports\`."
             echo
           } >> "$GITHUB_STEP_SUMMARY"

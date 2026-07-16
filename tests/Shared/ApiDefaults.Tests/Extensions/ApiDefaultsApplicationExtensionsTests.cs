@@ -175,6 +175,37 @@ public sealed class ApiDefaultsApplicationExtensionsTests
     }
 
     [Fact]
+    public async Task UseApiSwaggerDefaults_WhenEnabled_ShouldAddSecurityHeadersToSwaggerJson()
+    {
+        var configuration = CreateConfiguration(new Dictionary<string, string?>
+        {
+            ["Swagger:Enabled"] = "true"
+        });
+        WebApplicationBuilder builder = CreateBuilder("Test", new Dictionary<string, string?>
+        {
+            ["Swagger:Enabled"] = "true"
+        });
+        builder.Services.AddEndpointsApiExplorer();
+        builder.Services.AddSwaggerGen();
+        builder.Services.AddSingleton<IApiVersionDescriptionProvider>(
+            new TestApiVersionDescriptionProvider(
+            [
+                new ApiVersionDescription(new ApiVersion(1, 0), "v1", false, null, null)
+            ]));
+        await using WebApplication app = builder.Build();
+
+        app.UseApiSwaggerDefaults(configuration, "Shared API");
+        app.MapGet("/api/v1/ping", () => Results.Ok(new { status = "ok" }));
+        await app.StartAsync(TestContext.Current.CancellationToken);
+
+        using HttpResponseMessage response = await app.GetTestClient()
+            .GetAsync("/swagger/v1/swagger.json", TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("nosniff", response.Headers.GetValues("X-Content-Type-Options").Single());
+    }
+
+    [Fact]
     public void UseApiDefaults_WhenAppIsNull_ShouldThrow()
     {
         Assert.Throws<ArgumentNullException>("app", () =>

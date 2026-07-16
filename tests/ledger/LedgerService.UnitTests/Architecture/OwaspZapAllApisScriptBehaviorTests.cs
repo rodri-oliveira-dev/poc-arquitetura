@@ -177,7 +177,7 @@ public sealed class OwaspZapAllApisScriptBehaviorTests : IDisposable
         Assert.Contains("-r ledger-service-api.html", scanCommand);
         Assert.Contains("-J ledger-service-api.json", scanCommand);
         Assert.Contains("-w ledger-service-api.md", scanCommand);
-        Assert.Contains("-t http://ledger-service:8080/swagger/v1/swagger.json", scanCommand);
+        Assert.Contains("-t /zap/wrk/ledger-service-api-openapi-zap.json", scanCommand);
         Assert.Contains("-f openapi", scanCommand);
         Assert.Contains("-O http://ledger-service:8080", scanCommand);
     }
@@ -330,6 +330,19 @@ case "${1:-}" in
 
     for arg in "$@"; do
       if [[ "$arg" == "python3" ]]; then
+        workdir="${volume%:/zap/wrk:rw}"
+        if [[ "$workdir" =~ ^([A-Za-z]):\\(.*)$ ]]; then
+          drive="${BASH_REMATCH[1],,}"
+          rest="${BASH_REMATCH[2]//\\//}"
+          workdir="/$drive/$rest"
+        else
+          workdir="${workdir//\\//}"
+        fi
+        output_path="${@: -1}"
+        if [[ "$output_path" == /zap/wrk/* ]]; then
+          mkdir -p "$workdir"
+          printf '{"openapi":"3.0.4","paths":{"/health":{"get":{"responses":{"200":{"description":"OK"}}}},"/api/v1/lancamentos":{"post":{"requestBody":{"content":{"application/json":{"schema":{"type":"object"}}}},"responses":{"200":{"description":"OK"}}}}}}\n' > "$workdir/${output_path#/zap/wrk/}"
+        fi
         echo "HTTP_STATUS=200"
         echo "OPERATION_COUNT=2"
         echo "GET /health"
