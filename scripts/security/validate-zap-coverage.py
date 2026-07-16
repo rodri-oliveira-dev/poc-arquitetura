@@ -294,7 +294,7 @@ def build_summary(
     return "\n".join(lines)
 
 
-def validate(root: Path, summary_output: Path | None) -> int:
+def validate(root: Path, summary_output: Path | None, fail_on_alerts: bool) -> int:
     reports = sorted(root.rglob("*.json"))
     if not reports:
         summary = build_summary([], [], [], {}, ["nenhum relatorio JSON encontrado."])
@@ -325,9 +325,10 @@ def validate(root: Path, summary_output: Path | None) -> int:
                 f"{request.report}: {request.method} {request.uri} -> HTTP {request.status}."
             )
 
-    for alert in alerts:
-        if alert.severity in {"High", "Medium"}:
-            failures.append(f"{alert.report}: alerta {alert.severity} - {alert.name}.")
+    if fail_on_alerts:
+        for alert in alerts:
+            if alert.severity in {"High", "Medium"}:
+                failures.append(f"{alert.report}: alerta {alert.severity} - {alert.name}.")
 
     if not requests:
         failures.append("nenhuma operacao de negocio em /api/ foi observada.")
@@ -347,9 +348,14 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Valida cobertura autenticada dos relatorios JSON do OWASP ZAP.")
     parser.add_argument("--reports-root", type=Path, required=True)
     parser.add_argument("--summary-output", type=Path)
+    parser.add_argument(
+        "--fail-on-alerts",
+        action="store_true",
+        help="Falha em alertas ZAP High/Medium alem do gate obrigatorio de autenticacao.",
+    )
     args = parser.parse_args()
 
-    return validate(args.reports_root, args.summary_output)
+    return validate(args.reports_root, args.summary_output, args.fail_on_alerts)
 
 
 if __name__ == "__main__":

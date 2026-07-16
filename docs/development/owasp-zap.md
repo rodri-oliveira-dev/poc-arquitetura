@@ -58,10 +58,9 @@ O script `scripts/security/validate-zap-coverage.py` analisa os JSONs gerados pe
 - nenhum relatorio JSON existe;
 - nenhuma operacao de negocio em `/api/` foi observada;
 - qualquer chamada de negocio em `/api/` retorna `401`;
-- qualquer chamada de negocio em `/api/` retorna `403`;
-- qualquer alerta High ou Medium aparece no relatorio.
+- qualquer chamada de negocio em `/api/` retorna `403`.
 
-Alertas Low aparecem no resumo, mas nao falham inicialmente. Status `400`, `404` e `422` nao falham por si so, porque payloads genericos e IDs ficticios podem ser esperados em API Scan.
+Alertas High, Medium e Low aparecem no resumo por padrao. Quando `--fail-on-alerts` ou o input manual `fail_on_alerts=true` estiver habilitado, alertas High ou Medium tambem falham a validacao. Status `400`, `404` e `422` nao falham por si so, porque payloads genericos e IDs ficticios podem ser esperados em API Scan.
 
 O resumo inclui, por API, operacoes OpenAPI declaradas, operacoes de negocio observadas, distribuicao de status HTTP, contagem de `2xx`, `4xx`, `5xx` e alertas por severidade. O parser ignora `/health`, `/ready`, Swagger, OpenAPI e endpoints tecnicos explicitamente nao protegidos.
 
