@@ -139,7 +139,7 @@ public sealed class OwaspZapAllApisScriptBehaviorTests : IDisposable
         }
 
         commandBuilder.Append("curl() { printf '{\"access_token\":\"%s\"}\\n200\\n' \"${FAKE_OIDC_TOKEN:?}\"; }; ");
-        commandBuilder.Append("python3() { python \"$@\"; }; ");
+        commandBuilder.Append("python3() { local python_bin; python_bin=\"$(type -P python3 || type -P python)\"; \"${python_bin:?}\" \"$@\"; }; ");
         commandBuilder.Append("export -f curl python3; ");
         commandBuilder.Append("bash ./scripts/security/run-owasp-zap-all-apis.sh");
         foreach (var argument in arguments)
