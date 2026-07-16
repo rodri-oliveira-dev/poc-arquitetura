@@ -86,6 +86,7 @@ public sealed class OwaspZapAllApisScriptBehaviorTests : IDisposable
             {
                 ["EXPECTED_ZAP_TOKEN"] = token,
                 ["FAKE_OIDC_TOKEN"] = token,
+                ["KEYCLOAK_CLIENT_SECRET"] = "fake-client-secret",
             });
 
         Assert.Equal(0, result.ExitCode);
