@@ -1,11 +1,13 @@
-# Kafka ingestion futura
+# Kafka ingestion
 
-Esta pasta reserva o namespace do adapter Kafka futuro do `AuditService`.
+Esta pasta concentra pontos de extensao de infraestrutura para ingestao Kafka
+do `AuditService`.
 
-Nao ha consumer, worker, topico, subscription, DLQ ou publicacao ativa nesta
-etapa. Nenhum servico financeiro publica eventos de auditoria agora.
+O consumer ativo fica no projeto `AuditService.Worker`, que consome
+`AuditRecordRequested.v1` do topico `audit.record.requested` quando o worker e
+o consumer estao habilitados por configuracao. A persistencia continua no
+schema `audit`.
 
-Se uma ADR futura aprovar ingestao assincrona, o adapter Kafka devera traduzir
-uma mensagem versionada para `AuditRecordEnvelope` e delegar a
-`IAuditRecordIngestionService`, preservando correlacao, idempotencia e
-agnosticismo em relacao aos dominios chamadores.
+Nenhum servico financeiro publica eventos reais de auditoria nesta etapa. O
+contrato e o consumer existem para validar a fatia de ingestao assincrona sem
+acoplar Ledger, Balance, Transfer ou Payment ao modelo interno do Audit.

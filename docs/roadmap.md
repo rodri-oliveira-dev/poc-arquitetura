@@ -25,8 +25,8 @@ Um item deve sair de "Proximos passos" ou "Em andamento ou parcialmente atendido
 - `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api` e `BalanceService.Worker` separados operacionalmente, conforme [README](../README.md) e [boundaries](architecture/boundaries.md).
 - Kafka definido como provider padrao dos workers principais, com Pub/Sub mantido como adapter explicito/legado.
 - Keycloak consolidado como identidade principal local.
-- `AuditService` documentado como bounded context de auditoria funcional isolado, com schema `audit`, contrato HTTP canonico, pontos internos de extensao para ingestao futura e ADR propria.
-- Estrategia futura de integracao do `AuditService` definida como Outbox transacional local + Kafka, sem implementacao ativa nesta etapa.
+- `AuditService` documentado como bounded context de auditoria funcional, com schema `audit`, contrato HTTP canonico, worker Kafka para `AuditRecordRequested.v1` e ADR propria.
+- Estrategia de integracao do `AuditService` evoluiu para consumer Kafka isolado; os demais dominios ainda nao publicam eventos reais de auditoria.
 - Modelo LikeC4 versionado e publicado por workflow de Pages.
 
 ### Em andamento ou parcialmente atendido
@@ -34,14 +34,14 @@ Um item deve sair de "Proximos passos" ou "Em andamento ou parcialmente atendido
 - Algumas diferencas de padrao entre Ledger e Balance continuam aceitas de forma pragmatica, como uso de MediatR no Balance e posicao historica de algumas portas.
 - Readiness das APIs cobre dependencias diretas HTTP, mas pode crescer demais se novas verificacoes forem adicionadas sem extracao.
 - `OutboxMessage` permanece como escolha pragmatica de dominio/integracao, com risco conhecido se a complexidade aumentar.
-- `AuditService` existe como bounded context separado e ja possui contratos internos de ingestao futura e ADR de estrategia assincrona, mas permanece sem integracao ativa com Ledger, Balance ou Transfer.
+- `AuditService` existe como bounded context separado e ja possui consumer Kafka, mas permanece sem producers reais em Ledger, Balance, Transfer ou Payment.
 
 ### Proximos passos
 
 - Padronizar criterio para novas portas de persistencia antes de criar novos servicos ou mover contratos internos.
 - Extrair checks de readiness para componentes pequenos se a composicao em `Program.cs` crescer.
 - Isolar montagem de eventos e Outbox apenas se os casos de uso crescerem ou os testes ficarem ruidosos.
-- Antes de conectar o AuditService a qualquer fluxo de outro bounded context, definir a primeira fatia produtora, contrato canonico versionado, topico Kafka, idempotencia, retry, DLQ, observabilidade e rollout.
+- Antes de conectar o AuditService a qualquer fluxo produtor de outro bounded context, definir a primeira fatia produtora, contrato canonico versionado, idempotencia, retry, DLQ, observabilidade e rollout.
 - Manter diagramas LikeC4 e ADRs alinhados a cada mudanca relevante.
 
 ### Fora de escopo por enquanto
@@ -168,7 +168,7 @@ Um item deve sair de "Proximos passos" ou "Em andamento ou parcialmente atendido
 - Runbooks de DLQ, retry, replay, redrive, descarte e rebuild documentados.
 - Casos de uso internos para replay manual, replay filtrado, rebuild parcial e relatorio de divergencia.
 - Requeue operacional de Outbox exposto no Ledger para mensagens em dead letter.
-- A primeira etapa do AuditService e explicitamente isolada: sem worker, sem Kafka e sem integracao automatica com os demais dominios.
+- A etapa atual do AuditService e isolada do ponto de vista de produtores: ha API e worker Kafka, mas nao ha publicacao automatica dos demais dominios.
 
 ### Em andamento ou parcialmente atendido
 
@@ -305,7 +305,7 @@ Um item deve sair de "Proximos passos" ou "Em andamento ou parcialmente atendido
 
 ### Feito
 
-- `Auth.Api` legado foi removido do repositorio e da stack operacional.
+- `Auth.Api` legado permanece no repositorio para rastreabilidade historica e testes legados, mas Keycloak e o caminho principal local de autenticacao.
 - Keycloak e o caminho principal local de autenticacao.
 - Pub/Sub permanece disponivel apenas como provider explicito/legado opcional.
 - `LedgerEntryCreated.v1` esta documentado como legado aceito para mensagens antigas.

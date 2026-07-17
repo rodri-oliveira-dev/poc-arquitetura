@@ -118,7 +118,7 @@ Ledger, Balance, Transfer, Payment, Identity e Audit usam projetos `Api`, `Appli
 - [`docs/architecture/boundaries.md`](boundaries.md)
 - [`src/ledger/LedgerService.Application/LedgerService.Application.csproj`](../../src/ledger/LedgerService.Application/LedgerService.Application.csproj)
 - [`src/payment/PaymentService.Domain/Payments/Payment.cs`](../../src/payment/PaymentService.Domain/Payments/Payment.cs)
-- [`tests/Architecture.Tests/ArchitectureDependencyTests.cs`](../../tests/Architecture.Tests/ArchitectureDependencyTests.cs)
+- [`tests/Architecture.Tests/LayerDependencyTests.cs`](../../tests/Architecture.Tests/LayerDependencyTests.cs)
 
 #### ADRs e documentacao relacionados
 
@@ -788,7 +788,7 @@ Balance registra `EventId` em tabela com indice unico e atualiza saldo dentro da
 
 #### Evidencias
 
-- [`src/balance/BalanceService.Domain/ProcessedEvents/ProcessedEvent.cs`](../../src/balance/BalanceService.Domain/ProcessedEvents/ProcessedEvent.cs)
+- [`src/balance/BalanceService.Application/Idempotency/ProcessedEvent.cs`](../../src/balance/BalanceService.Application/Idempotency/ProcessedEvent.cs)
 - [`src/balance/BalanceService.Infrastructure/Persistence/Configurations/ProcessedEventConfiguration.cs`](../../src/balance/BalanceService.Infrastructure/Persistence/Configurations/ProcessedEventConfiguration.cs)
 - [`src/audit/AuditService.Infrastructure/Persistence/Repositories/FunctionalAuditRecordRepository.cs`](../../src/audit/AuditService.Infrastructure/Persistence/Repositories/FunctionalAuditRecordRepository.cs)
 - [`tests/balance/BalanceService.IntegrationTests/Workers/ApplyLedgerEntryCreatedConcurrencyTests.cs`](../../tests/balance/BalanceService.IntegrationTests/Workers/ApplyLedgerEntryCreatedConcurrencyTests.cs)
@@ -989,8 +989,8 @@ O fluxo financeiro principal e orientado a eventos. Transfer publica eventos de 
 
 - [`docs/events/README.md`](../events/README.md)
 - [`src/ledger/LedgerService.Worker/Messaging/Kafka/Producers/KafkaOutboxMessagePublisher.cs`](../../src/ledger/LedgerService.Worker/Messaging/Kafka/Producers/KafkaOutboxMessagePublisher.cs)
-- [`src/transfer/TransferService.Worker/Messaging/Kafka/KafkaTransferenciaOutboxPublisher.cs`](../../src/transfer/TransferService.Worker/Messaging/Kafka/KafkaTransferenciaOutboxPublisher.cs)
-- [`src/audit/AuditService.Worker/Messaging/Kafka/AuditRecordRequestedConsumer.cs`](../../src/audit/AuditService.Worker/Messaging/Kafka/AuditRecordRequestedConsumer.cs)
+- [`src/transfer/TransferService.Worker/Messaging/KafkaTransferenciaOutboxPublisher.cs`](../../src/transfer/TransferService.Worker/Messaging/KafkaTransferenciaOutboxPublisher.cs)
+- [`src/audit/AuditService.Worker/Messaging/Kafka/AuditRecordRequestedConsumerService.cs`](../../src/audit/AuditService.Worker/Messaging/Kafka/AuditRecordRequestedConsumerService.cs)
 
 #### ADRs e documentacao relacionados
 
@@ -1121,7 +1121,7 @@ Cada fluxo classifica falhas recuperaveis e definitivas. Recuperaveis usam retry
 - [`src/ledger/LedgerService.Application/Abstractions/Messaging/OutboxStatus.cs`](../../src/ledger/LedgerService.Application/Abstractions/Messaging/OutboxStatus.cs)
 - [`src/balance/BalanceService.Worker/Messaging/Kafka/DeadLetter/KafkaDeadLetterPublisher.cs`](../../src/balance/BalanceService.Worker/Messaging/Kafka/DeadLetter/KafkaDeadLetterPublisher.cs)
 - [`src/payment/PaymentService.Infrastructure/Persistence/Repositories/PaymentInboxRepository.cs`](../../src/payment/PaymentService.Infrastructure/Persistence/Repositories/PaymentInboxRepository.cs)
-- [`src/audit/AuditService.Worker/Messaging/Kafka/AuditKafkaDeadLetterPublisher.cs`](../../src/audit/AuditService.Worker/Messaging/Kafka/AuditKafkaDeadLetterPublisher.cs)
+- [`src/audit/AuditService.Worker/Messaging/Kafka/DeadLetter/ConfluentAuditKafkaDeadLetterProducer.cs`](../../src/audit/AuditService.Worker/Messaging/Kafka/DeadLetter/ConfluentAuditKafkaDeadLetterProducer.cs)
 
 #### ADRs e documentacao relacionados
 
@@ -1198,7 +1198,7 @@ Ha retry HTTP curto para dependencias como JWKS/Keycloak/Ledger. Processamento a
 
 #### Evidencias
 
-- [`src/Shared/HttpResilience`](../../src/Shared/HttpResilience)
+- [`src/Shared/HttpResilienceDefaults`](../../src/Shared/HttpResilienceDefaults)
 - [`src/ledger/LedgerService.Worker/Outbox/OutboxPublisherService.cs`](../../src/ledger/LedgerService.Worker/Outbox/OutboxPublisherService.cs)
 - [`src/payment/PaymentService.Worker/HostedServices/PaymentInboxWorkerService.cs`](../../src/payment/PaymentService.Worker/HostedServices/PaymentInboxWorkerService.cs)
 - [`docs/operations/payment-worker.md`](../operations/payment-worker.md)
@@ -1273,7 +1273,7 @@ O pipeline usa `Microsoft.Extensions.Http.Resilience` e registra metricas/logs p
 
 #### Evidencias
 
-- [`src/Shared/HttpResilience`](../../src/Shared/HttpResilience)
+- [`src/Shared/HttpResilienceDefaults`](../../src/Shared/HttpResilienceDefaults)
 - [`tests/transfer/TransferService.Worker.Tests/Http/HttpClientCircuitBreakerPolicyTests.cs`](../../tests/transfer/TransferService.Worker.Tests/Http/HttpClientCircuitBreakerPolicyTests.cs)
 - [`docs/development/authentication.md`](../development/authentication.md)
 
@@ -1309,7 +1309,7 @@ Timeouts aparecem como attempt timeout e total request timeout no pipeline resil
 
 #### Evidencias
 
-- [`src/Shared/HttpResilience`](../../src/Shared/HttpResilience)
+- [`src/Shared/HttpResilienceDefaults`](../../src/Shared/HttpResilienceDefaults)
 - [`src/identity/IdentityService.Infrastructure/IdentityProvider/KeycloakAdminClient.cs`](../../src/identity/IdentityService.Infrastructure/IdentityProvider/KeycloakAdminClient.cs)
 - [`src/payment/PaymentService.Infrastructure/Gateway/StripePaymentGateway.cs`](../../src/payment/PaymentService.Infrastructure/Gateway/StripePaymentGateway.cs)
 - [`docs/development/authentication.md`](../development/authentication.md)
@@ -1994,7 +1994,7 @@ APIs e Compose local.
 
 - [`src/ledger/LedgerService.Api/Program.cs`](../../src/ledger/LedgerService.Api/Program.cs)
 - [`src/payment/PaymentService.Api/Program.cs`](../../src/payment/PaymentService.Api/Program.cs)
-- [`src/Shared/ApiDefaults/Health`](../../src/Shared/ApiDefaults/Health)
+- [`src/Shared/ApiDefaults/Extensions/HealthEndpointRouteBuilderExtensions.cs`](../../src/Shared/ApiDefaults/Extensions/HealthEndpointRouteBuilderExtensions.cs)
 - [`docs/troubleshooting.md`](../troubleshooting.md)
 
 #### ADRs e documentacao relacionados
