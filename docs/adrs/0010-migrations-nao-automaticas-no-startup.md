@@ -1,7 +1,7 @@
 # ADR-0010: Não aplicar migrations automaticamente no startup
 
 ## Status
-Substituído (ver `docs/development/local-development.md`)
+Substituido (ver `docs/development/local-development.md`)
 
 ## Data
 2026-02-17

@@ -1,7 +1,6 @@
 using System.Globalization;
 
 using BalanceService.Application.Abstractions.Persistence;
-using BalanceService.Application.Abstractions.Time;
 using BalanceService.Application.IntegrationEvents;
 using BalanceService.Domain.Balances;
 using BalanceService.Domain.Exceptions;
@@ -22,26 +21,26 @@ public sealed partial class ProjectionRebuildDivergenceReportHandler
     private readonly IFilteredEventReplaySource _source;
     private readonly EventReplayMessageEvaluator _evaluator;
     private readonly IDailyBalanceReadRepository _dailyBalanceReadRepository;
-    private readonly IClock _clock;
+    private readonly TimeProvider _timeProvider;
     private readonly ILogger<ProjectionRebuildDivergenceReportHandler> _logger;
 
     public ProjectionRebuildDivergenceReportHandler(
         IFilteredEventReplaySource source,
         EventReplayMessageEvaluator evaluator,
         IDailyBalanceReadRepository dailyBalanceReadRepository,
-        IClock clock,
+        TimeProvider timeProvider,
         ILogger<ProjectionRebuildDivergenceReportHandler> logger)
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(evaluator);
         ArgumentNullException.ThrowIfNull(dailyBalanceReadRepository);
-        ArgumentNullException.ThrowIfNull(clock);
+        ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentNullException.ThrowIfNull(logger);
 
         _source = source;
         _evaluator = evaluator;
         _dailyBalanceReadRepository = dailyBalanceReadRepository;
-        _clock = clock;
+        _timeProvider = timeProvider;
         _logger = logger;
     }
 
@@ -176,7 +175,7 @@ public sealed partial class ProjectionRebuildDivergenceReportHandler
         IReadOnlyList<EvaluatedCandidate> eligible)
     {
         var rebuilt = new Dictionary<ProjectionKey, RebuiltBalance>();
-        var now = _clock.UtcNow;
+        var now = _timeProvider.GetUtcNow();
 
         foreach (var candidate in eligible)
         {

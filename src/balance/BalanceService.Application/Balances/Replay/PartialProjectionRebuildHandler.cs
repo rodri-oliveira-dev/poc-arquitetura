@@ -1,7 +1,6 @@
 using System.Globalization;
 
 using BalanceService.Application.Abstractions.Persistence;
-using BalanceService.Application.Abstractions.Time;
 using BalanceService.Application.Idempotency;
 using BalanceService.Application.IntegrationEvents;
 using BalanceService.Domain.Balances;
@@ -23,7 +22,7 @@ public sealed partial class PartialProjectionRebuildHandler
     private readonly IDailyBalanceRepository _dailyBalanceRepository;
     private readonly IProcessedEventRepository _processedEventRepository;
     private readonly IUnitOfWork _unitOfWork;
-    private readonly IClock _clock;
+    private readonly TimeProvider _timeProvider;
     private readonly ILogger<PartialProjectionRebuildHandler> _logger;
 
     public PartialProjectionRebuildHandler(
@@ -32,7 +31,7 @@ public sealed partial class PartialProjectionRebuildHandler
         IDailyBalanceRepository dailyBalanceRepository,
         IProcessedEventRepository processedEventRepository,
         IUnitOfWork unitOfWork,
-        IClock clock,
+        TimeProvider timeProvider,
         ILogger<PartialProjectionRebuildHandler> logger)
     {
         ArgumentNullException.ThrowIfNull(source);
@@ -40,7 +39,7 @@ public sealed partial class PartialProjectionRebuildHandler
         ArgumentNullException.ThrowIfNull(dailyBalanceRepository);
         ArgumentNullException.ThrowIfNull(processedEventRepository);
         ArgumentNullException.ThrowIfNull(unitOfWork);
-        ArgumentNullException.ThrowIfNull(clock);
+        ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentNullException.ThrowIfNull(logger);
 
         _source = source;
@@ -48,7 +47,7 @@ public sealed partial class PartialProjectionRebuildHandler
         _dailyBalanceRepository = dailyBalanceRepository;
         _processedEventRepository = processedEventRepository;
         _unitOfWork = unitOfWork;
-        _clock = clock;
+        _timeProvider = timeProvider;
         _logger = logger;
     }
 
@@ -219,7 +218,7 @@ public sealed partial class PartialProjectionRebuildHandler
             .Distinct(StringComparer.Ordinal)
             .ToArray();
         var merchantId = events[0].MerchantId;
-        var now = _clock.UtcNow;
+        var now = _timeProvider.GetUtcNow();
 
         await using var transaction = await _unitOfWork.BeginTransactionAsync(cancellationToken);
 

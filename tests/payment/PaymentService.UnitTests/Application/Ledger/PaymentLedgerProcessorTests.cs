@@ -1,6 +1,5 @@
 using PaymentService.Application.Abstractions.Ledger;
 using PaymentService.Application.Abstractions.Persistence;
-using PaymentService.Application.Abstractions.Time;
 using PaymentService.Application.Payments.Ledger;
 using PaymentService.Domain.Payments;
 
@@ -267,9 +266,11 @@ public sealed class PaymentLedgerProcessorTests
             => Task.CompletedTask;
     }
 
-    private sealed class FixedClock(DateTimeOffset utcNow) : IClock
+    private sealed class FixedClock(DateTimeOffset utcNow) : TimeProvider
     {
         public DateTimeOffset UtcNow { get; } = utcNow;
+
+        public override DateTimeOffset GetUtcNow() => UtcNow;
     }
 
     private sealed class FakeUnitOfWork : IUnitOfWork

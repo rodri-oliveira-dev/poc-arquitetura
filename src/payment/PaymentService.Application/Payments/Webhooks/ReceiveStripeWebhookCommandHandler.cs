@@ -1,16 +1,15 @@
 using MediatR;
 
 using PaymentService.Application.Abstractions.Persistence;
-using PaymentService.Application.Abstractions.Time;
 
 namespace PaymentService.Application.Payments.Webhooks;
 
 public sealed class ReceiveStripeWebhookCommandHandler(
     IPaymentInboxRepository inboxRepository,
-    IClock clock) : IRequestHandler<ReceiveStripeWebhookCommand, ReceiveStripeWebhookResult>
+    TimeProvider timeProvider) : IRequestHandler<ReceiveStripeWebhookCommand, ReceiveStripeWebhookResult>
 {
     private readonly IPaymentInboxRepository _inboxRepository = inboxRepository;
-    private readonly IClock _clock = clock;
+    private readonly TimeProvider _timeProvider = timeProvider;
 
     public async Task<ReceiveStripeWebhookResult> Handle(
         ReceiveStripeWebhookCommand request,
@@ -22,7 +21,7 @@ public sealed class ReceiveStripeWebhookCommandHandler(
             request.ProviderEventId,
             request.EventType,
             request.RawPayload,
-            _clock.UtcNow,
+            _timeProvider.GetUtcNow(),
             request.CorrelationId,
             request.ProviderPaymentId,
             request.PaymentId);

@@ -1,7 +1,9 @@
 # ADR-0038: Automacao de Releases a partir de Pull Requests Mergeados na Main
 
 ## Status
-Parcialmente substituido pela ADR-0107
+Parcialmente substituido
+
+Substituida parcialmente pela [ADR-0107](./0107-orquestracao-pos-ci-main-release-zap-mutation.md).
 
 ## Data
 2026-04-26

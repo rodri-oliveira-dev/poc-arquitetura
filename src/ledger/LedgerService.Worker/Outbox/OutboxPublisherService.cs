@@ -1,7 +1,6 @@
 using System.Diagnostics;
 
 using LedgerService.Application.Abstractions.Messaging;
-using LedgerService.Application.Abstractions.Time;
 using LedgerService.Application.Outbox.Retry;
 using LedgerService.Domain.Repositories;
 using LedgerService.Infrastructure.Observability;
@@ -19,14 +18,14 @@ public sealed class OutboxPublisherService(
     IOptions<OutboxPublisherOptions> options,
     IRetryStrategy retryStrategy,
     ILogger<OutboxPublisherService> logger,
-    IClock? clock = null) : BackgroundService
+    TimeProvider timeProvider) : BackgroundService
 {
     private static readonly ActivitySource ActivitySource = new("LedgerService.OutboxPublisher");
     private readonly IServiceProvider _serviceProvider = serviceProvider;
     private readonly IOptions<OutboxPublisherOptions> _options = options;
     private readonly IRetryStrategy _retryStrategy = retryStrategy;
     private readonly ILogger<OutboxPublisherService> _logger = logger;
-    private readonly IClock _clock = clock ?? new SystemClock();
+    private readonly TimeProvider _timeProvider = timeProvider;
     private readonly string _lockOwner = $"{Environment.MachineName}:{Guid.NewGuid():N}";
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -60,7 +59,7 @@ public sealed class OutboxPublisherService(
 
             try
             {
-                await Task.Delay(interval, stoppingToken);
+                await Task.Delay(interval, _timeProvider, stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -79,7 +78,7 @@ public sealed class OutboxPublisherService(
         var uow = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
 
         var publisherOptions = _options.Value;
-        var now = _clock.UtcNow.UtcDateTime;
+        var now = _timeProvider.GetUtcNow().UtcDateTime;
         var lockDuration = TimeSpan.FromSeconds(Math.Max(5, publisherOptions.LockDurationSeconds));
 
         var claimed = await outboxRepo.ClaimPendingAsync(
@@ -138,7 +137,7 @@ public sealed class OutboxPublisherService(
         if (message is null)
             return;
 
-        var now = _clock.UtcNow.UtcDateTime;
+        var now = _timeProvider.GetUtcNow().UtcDateTime;
         if (!string.Equals(message.LockOwner, _lockOwner, StringComparison.Ordinal) ||
             (message.LockedUntil is not null && message.LockedUntil <= now))
         {
@@ -178,7 +177,7 @@ public sealed class OutboxPublisherService(
         {
             await publisher.PublishAsync(message, ct);
 
-            await repo.MarkProcessedAsync(message.Id, _clock.UtcNow.UtcDateTime, ct);
+            await repo.MarkProcessedAsync(message.Id, _timeProvider.GetUtcNow().UtcDateTime, ct);
             await uow.SaveChangesAsync(ct);
 
             metrics.RecordPublishAttempt(message.EventType, "success");
@@ -207,7 +206,7 @@ public sealed class OutboxPublisherService(
 
         var retryCountAfterFailure = message.RetryCount + 1;
         var nextRetryAt = _retryStrategy.CalculateNextRetry(
-            _clock.UtcNow.UtcDateTime,
+            _timeProvider.GetUtcNow().UtcDateTime,
             retryCountAfterFailure,
             TimeSpan.FromSeconds(options.BaseBackoffSeconds));
 

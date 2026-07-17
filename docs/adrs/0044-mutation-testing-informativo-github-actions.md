@@ -1,7 +1,9 @@
 # ADR-0044: Mutation testing informativo no GitHub Actions
 
 ## Status
-Parcialmente substituido pela ADR-0107
+Parcialmente substituido
+
+Substituida parcialmente pela [ADR-0107](./0107-orquestracao-pos-ci-main-release-zap-mutation.md).
 
 ## Data
 2026-05-05

@@ -1,6 +1,5 @@
 using ApplicationDefaults.Behaviors;
 
-using BalanceService.Application.Abstractions.Time;
 using BalanceService.Application.Balances.Replay;
 using BalanceService.Application.Common.Observability;
 using BalanceService.Application.Contracts.Events;
@@ -23,7 +22,7 @@ public static class DependencyInjection
 
         services.AddValidatorsFromAssembly(typeof(DependencyInjection).Assembly);
 
-        services.AddSingleton<IClock, SystemClock>();
+        services.AddSingleton(TimeProvider.System);
         services.AddSingleton<BalanceDomainMetrics>();
         services.AddSingleton<IEventContractSchemaCatalog, EmbeddedEventContractSchemaCatalog>();
         services.AddSingleton<IEventContractValidator, JsonSchemaEventContractValidator>();

@@ -43,6 +43,8 @@ public sealed class PostgresLedgerApiFactory : WebApplicationFactory<Program>
                 ["Jwt:Audience"] = "ledger-api",
                 ["Jwt:JwksUrl"] = "https://localhost/jwks.json",
                 ["ApiLimits:MaxRequestBodySizeBytes"] = "128",
+                ["ForwardedHeaders:TrustedProxies:0"] = "127.0.0.1",
+                ["ForwardedHeaders:AllowedHosts:0"] = "localhost",
                 ["ConnectionStrings:DefaultConnection"] = _connectionString
             });
         });

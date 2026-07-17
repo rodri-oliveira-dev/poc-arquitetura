@@ -7,6 +7,8 @@ COPY Directory.Packages.props ./
 COPY Directory.Build.props ./
 COPY global.json ./
 COPY src/Shared/ContainerHealthProbe/ContainerHealthProbe.csproj src/Shared/ContainerHealthProbe/
+COPY src/Shared/HttpResilienceDefaults/HttpResilienceDefaults.csproj src/Shared/HttpResilienceDefaults/
+COPY src/Shared/ApiDefaults/ApiDefaults.csproj src/Shared/ApiDefaults/
 COPY src/audit/AuditService.Api/AuditService.Api.csproj src/audit/AuditService.Api/
 COPY src/audit/AuditService.Application/AuditService.Application.csproj src/audit/AuditService.Application/
 COPY src/audit/AuditService.Domain/AuditService.Domain.csproj src/audit/AuditService.Domain/
@@ -22,6 +24,8 @@ COPY src/audit/AuditService.Application/ ./src/audit/AuditService.Application/
 COPY src/audit/AuditService.Domain/ ./src/audit/AuditService.Domain/
 COPY src/audit/AuditService.Infrastructure/ ./src/audit/AuditService.Infrastructure/
 COPY src/Shared/ContainerHealthProbe/ ./src/Shared/ContainerHealthProbe/
+COPY src/Shared/HttpResilienceDefaults/ ./src/Shared/HttpResilienceDefaults/
+COPY src/Shared/ApiDefaults/ ./src/Shared/ApiDefaults/
 
 RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages,sharing=locked \
     dotnet publish src/audit/AuditService.Api/AuditService.Api.csproj \

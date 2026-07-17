@@ -1,7 +1,7 @@
 # ADR-0085: Separacao de configuracoes locais sensiveis dos arquivos versionados
 
 ## Status
-Proposta
+Proposto
 
 ## Contexto
 Os arquivos `appsettings` versionados dos workers chegaram a conter connection strings locais com `Password=local_dev_password` para facilitar a execucao em ambiente de desenvolvimento. Embora esse valor nao represente uma credencial produtiva nem permita acesso a recurso externo real, ele tem formato de segredo e aparece em um arquivo rastreado pelo Git.

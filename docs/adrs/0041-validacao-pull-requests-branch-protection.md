@@ -1,7 +1,9 @@
 # ADR-0041: Validacao de Pull Requests e Branch Protection
 
 ## Status
-Substituido pela [ADR-0106](./0106-ci-principal-contextual-pull-requests-main.md)
+Substituido
+
+Substituida pela [ADR-0106](./0106-ci-principal-contextual-pull-requests-main.md).
 
 ## Data
 2026-04-27

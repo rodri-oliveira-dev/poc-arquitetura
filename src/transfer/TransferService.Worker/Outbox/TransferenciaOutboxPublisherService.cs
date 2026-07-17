@@ -4,7 +4,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 using TransferService.Application.Abstractions.Persistence;
-using TransferService.Application.Abstractions.Time;
 using TransferService.Infrastructure.Persistence;
 using TransferService.Infrastructure.Persistence.Outbox;
 using TransferService.Worker.Messaging;
@@ -16,7 +15,7 @@ public sealed class TransferenciaOutboxPublisherService : BackgroundService
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly IOptions<TransferWorkerOptions> _options;
-    private readonly IClock _clock;
+    private readonly TimeProvider _timeProvider;
     private readonly ILogger<TransferenciaOutboxPublisherService> _logger;
     private readonly string _lockOwner;
     private static readonly System.Diagnostics.Metrics.Meter _workerMeter = new("TransferService.Worker");
@@ -38,12 +37,12 @@ public sealed class TransferenciaOutboxPublisherService : BackgroundService
     public TransferenciaOutboxPublisherService(
         IServiceProvider serviceProvider,
         IOptions<TransferWorkerOptions> options,
-        IClock clock,
+        TimeProvider timeProvider,
         ILogger<TransferenciaOutboxPublisherService> logger)
     {
         _serviceProvider = serviceProvider;
         _options = options;
-        _clock = clock;
+        _timeProvider = timeProvider;
         _logger = logger;
         _lockOwner = $"{Environment.MachineName}:{Guid.NewGuid():N}";
     }
@@ -69,7 +68,7 @@ public sealed class TransferenciaOutboxPublisherService : BackgroundService
                 _logUnhandledOutboxPublishingError(_logger, ex);
             }
 
-            await Task.Delay(_options.Value.PollingInterval, stoppingToken);
+            await Task.Delay(_options.Value.PollingInterval, _timeProvider, stoppingToken);
         }
     }
 
@@ -83,7 +82,7 @@ public sealed class TransferenciaOutboxPublisherService : BackgroundService
         var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
         var producer = scope.ServiceProvider.GetRequiredService<ITransferenciaKafkaProducer>();
 
-        var now = _clock.UtcNow;
+        var now = _timeProvider.GetUtcNow();
         var lockedUntil = now.Add(_options.Value.LockDuration);
         var messages = await db.OutboxMessages
             .Where(x =>
@@ -131,7 +130,7 @@ public sealed class TransferenciaOutboxPublisherService : BackgroundService
         {
             ValidatePayload(message);
             await producer.PublishAsync(message, message.Topic, cancellationToken);
-            message.MarkPublished(_clock.UtcNow);
+            message.MarkPublished(_timeProvider.GetUtcNow());
             await unitOfWork.SaveChangesAsync(cancellationToken);
             _logOutboxPublished(
                 _logger,
@@ -155,7 +154,7 @@ public sealed class TransferenciaOutboxPublisherService : BackgroundService
                 return;
             }
 
-            var nextRetryAt = _clock.UtcNow.Add(_options.Value.RetryBackoff);
+            var nextRetryAt = _timeProvider.GetUtcNow().Add(_options.Value.RetryBackoff);
             message.MarkFailedPublishAttempt(_options.Value.MaxRetryCount, nextRetryAt, ex.ToString());
             await unitOfWork.SaveChangesAsync(cancellationToken);
         }

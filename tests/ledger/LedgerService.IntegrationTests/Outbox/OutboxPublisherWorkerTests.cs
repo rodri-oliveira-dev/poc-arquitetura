@@ -274,6 +274,7 @@ public sealed class OutboxPublisherWorkerTests(PostgresLedgerFixture fixture)
                 npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "ledger")));
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<AppDbContext>());
         services.AddScoped<IOutboxMessageRepository, OutboxMessageRepository>();
+        services.AddSingleton(TimeProvider.System);
         services.AddSingleton<OutboxMetrics>();
         services.AddSingleton(publisher);
         services.AddSingleton<IJitterProvider>(new FixedJitterProvider(TimeSpan.Zero));
@@ -301,7 +302,7 @@ public sealed class OutboxPublisherWorkerTests(PostgresLedgerFixture fixture)
         await gate;
 
         await using var db = CreateDbContext();
-        var repository = new OutboxMessageRepository(db);
+        var repository = new OutboxMessageRepository(db, TimeProvider.System);
         return await repository.ClaimPendingAsync(
             batchSize: 10,
             now,

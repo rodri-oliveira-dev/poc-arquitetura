@@ -1,7 +1,7 @@
 # ADR-0012: Health endpoint público de liveness (`GET /health`)
 
 ## Status
-Substituído (ver ADR-0005 e ADR-0014)
+Substituido (ver ADR-0005 e ADR-0014)
 
 ## Data
 2026-02-17

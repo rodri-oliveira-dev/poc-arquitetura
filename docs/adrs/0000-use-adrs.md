@@ -1,7 +1,7 @@
 # ADR-0000: Registrar decisões arquiteturais com ADRs
 
 ## Status
-Substituído (consolidado em `docs/adrs/README.md`)
+Substituido (consolidado em `docs/adrs/README.md`)
 
 ## Data
 2026-02-16

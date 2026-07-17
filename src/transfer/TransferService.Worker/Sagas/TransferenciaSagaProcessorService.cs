@@ -6,7 +6,6 @@ using Microsoft.Extensions.Options;
 
 using TransferService.Application.Abstractions.Messaging;
 using TransferService.Application.Abstractions.Persistence;
-using TransferService.Application.Abstractions.Time;
 using TransferService.Application.Transferencias.Events;
 using TransferService.Domain.Sagas;
 using TransferService.Worker.Ledger;
@@ -17,12 +16,12 @@ namespace TransferService.Worker.Sagas;
 public sealed class TransferenciaSagaProcessorService(
     IServiceProvider serviceProvider,
     IOptions<TransferWorkerOptions> options,
-    IClock clock,
+    TimeProvider timeProvider,
     ILogger<TransferenciaSagaProcessorService> logger) : BackgroundService
 {
     private readonly IServiceProvider _serviceProvider = serviceProvider;
     private readonly IOptions<TransferWorkerOptions> _options = options;
-    private readonly IClock _clock = clock;
+    private readonly TimeProvider _timeProvider = timeProvider;
     private readonly ILogger<TransferenciaSagaProcessorService> _logger = logger;
     private readonly string _lockOwner = $"{Environment.MachineName}:{Guid.NewGuid():N}";
     private static readonly System.Diagnostics.Metrics.Meter _workerMeter = new("TransferService.Worker");
@@ -70,7 +69,7 @@ public sealed class TransferenciaSagaProcessorService(
                 _logUnhandledSagaProcessingError(_logger, ex);
             }
 
-            await Task.Delay(_options.Value.PollingInterval, stoppingToken);
+            await Task.Delay(_options.Value.PollingInterval, _timeProvider, stoppingToken);
         }
     }
 
@@ -85,7 +84,7 @@ public sealed class TransferenciaSagaProcessorService(
         var repository = scope.ServiceProvider.GetRequiredService<ITransferenciaSagaRepository>();
         var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
 
-        var now = _clock.UtcNow;
+        var now = _timeProvider.GetUtcNow();
         var sagas = await repository.ClaimPendingAsync(
             _options.Value.BatchSize,
             now,
@@ -171,7 +170,7 @@ public sealed class TransferenciaSagaProcessorService(
         IUnitOfWork unitOfWork,
         CancellationToken cancellationToken)
     {
-        var now = _clock.UtcNow;
+        var now = _timeProvider.GetUtcNow();
         if (saga.Status == TransferenciaSagaStatus.Processing)
         {
             saga.MarkDebitCreating(now);
@@ -191,7 +190,7 @@ public sealed class TransferenciaSagaProcessorService(
                 saga.CorrelationId,
                 cancellationToken);
 
-            now = _clock.UtcNow;
+            now = _timeProvider.GetUtcNow();
             saga.MarkDebitCreated(now, result.LancamentoId);
             await outbox.WriteAsync(TransferenciaSagaEventFactory.TransferenciaDebitoCriado(saga, saga.CorrelationId, now), cancellationToken);
             await unitOfWork.SaveChangesAsync(cancellationToken);
@@ -217,7 +216,7 @@ public sealed class TransferenciaSagaProcessorService(
         IUnitOfWork unitOfWork,
         CancellationToken cancellationToken)
     {
-        var now = _clock.UtcNow;
+        var now = _timeProvider.GetUtcNow();
         if (saga.Status == TransferenciaSagaStatus.DebitCreated)
         {
             saga.MarkCreditCreating(now);
@@ -237,7 +236,7 @@ public sealed class TransferenciaSagaProcessorService(
                 saga.CorrelationId,
                 cancellationToken);
 
-            now = _clock.UtcNow;
+            now = _timeProvider.GetUtcNow();
             saga.MarkCompleted(now, result.LancamentoId);
             await outbox.WriteAsync(TransferenciaSagaEventFactory.TransferenciaCreditoCriado(saga, saga.CorrelationId, now), cancellationToken);
             await outbox.WriteAsync(TransferenciaSagaEventFactory.TransferenciaConcluida(saga, saga.CorrelationId, now), cancellationToken);
@@ -280,7 +279,7 @@ public sealed class TransferenciaSagaProcessorService(
                 saga.CorrelationId,
                 cancellationToken);
 
-            var now = _clock.UtcNow;
+            var now = _timeProvider.GetUtcNow();
             saga.MarkCompensationRequested(now, result.EstornoId);
             await outbox.WriteAsync(TransferenciaSagaEventFactory.TransferenciaCompensacaoSolicitada(saga, saga.CorrelationId, now), cancellationToken);
             await unitOfWork.SaveChangesAsync(cancellationToken);
@@ -308,7 +307,7 @@ public sealed class TransferenciaSagaProcessorService(
         CancellationToken cancellationToken)
     {
         var options = _options.Value;
-        var now = _clock.UtcNow;
+        var now = _timeProvider.GetUtcNow();
 
         if (canRetry && saga.RetryCount + 1 < options.MaxRetryCount)
         {

@@ -8,6 +8,8 @@ COPY Directory.Packages.props ./
 COPY Directory.Build.props ./
 COPY global.json ./
 COPY src/Shared/ContainerHealthProbe/ContainerHealthProbe.csproj src/Shared/ContainerHealthProbe/
+COPY src/Shared/HttpResilienceDefaults/HttpResilienceDefaults.csproj src/Shared/HttpResilienceDefaults/
+COPY src/Shared/ApiDefaults/ApiDefaults.csproj src/Shared/ApiDefaults/
 COPY src/balance/BalanceService.Api/BalanceService.Api.csproj src/balance/BalanceService.Api/
 COPY src/balance/BalanceService.Application/BalanceService.Application.csproj src/balance/BalanceService.Application/
 COPY src/balance/BalanceService.Domain/BalanceService.Domain.csproj src/balance/BalanceService.Domain/
@@ -25,6 +27,8 @@ COPY src/balance/BalanceService.Application/ ./src/balance/BalanceService.Applic
 COPY src/balance/BalanceService.Domain/ ./src/balance/BalanceService.Domain/
 COPY src/balance/BalanceService.Infrastructure/ ./src/balance/BalanceService.Infrastructure/
 COPY src/Shared/ContainerHealthProbe/ ./src/Shared/ContainerHealthProbe/
+COPY src/Shared/HttpResilienceDefaults/ ./src/Shared/HttpResilienceDefaults/
+COPY src/Shared/ApiDefaults/ ./src/Shared/ApiDefaults/
 
 RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages,sharing=locked \
     dotnet publish src/balance/BalanceService.Api/BalanceService.Api.csproj \

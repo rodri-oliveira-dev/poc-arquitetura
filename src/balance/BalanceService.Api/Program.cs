@@ -12,18 +12,18 @@ builder.Services.AddBalanceApiComposition(builder.Configuration, builder.Environ
 var app = builder.Build();
 
 app.UseForwardedHeaders();
-app.UseApiSwagger(builder.Configuration);
-
 app.UseApiDefaults();
+app.UseApiSwagger(builder.Configuration);
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 
 app.MapApiHealthEndpoints(
     static (services, cancellationToken) =>
         services.GetRequiredService<BalanceDbContext>().Database.CanConnectAsync(cancellationToken),
     "Valida dependencias necessarias para aceitar trafego HTTP: banco.");
 
-app.MapControllers().RequireRateLimiting("fixed");
+app.MapControllers();
 
 app.Run();
 

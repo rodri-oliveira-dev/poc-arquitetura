@@ -3,7 +3,6 @@ using System.Text.Json;
 using Json.Schema;
 
 using LedgerService.Application.Abstractions.Messaging;
-using LedgerService.Application.Abstractions.Time;
 using LedgerService.Application.Idempotency;
 using LedgerService.Application.Lancamentos.Commands;
 using LedgerService.Application.Lancamentos.Events;
@@ -252,8 +251,10 @@ public sealed class LedgerEntryCreatedProducerContractTests
         throw new DirectoryNotFoundException("Repository root not found.");
     }
 
-    private sealed class FixedClock(DateTime utcNow) : IClock
+    private sealed class FixedClock(DateTime utcNow) : TimeProvider
     {
         public DateTimeOffset UtcNow { get; } = new(utcNow);
+
+        public override DateTimeOffset GetUtcNow() => UtcNow;
     }
 }

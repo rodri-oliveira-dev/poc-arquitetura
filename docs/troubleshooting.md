@@ -237,6 +237,8 @@ As APIs usam `UseForwardedHeaders` antes de Swagger, redirecionamento HTTPS, aut
 
 - confirme que a chamada entrou por `https://ledger.localhost:7443` ou `https://balance.localhost:7443`;
 - confira se o Nginx esta enviando `X-Forwarded-Proto https` e `X-Forwarded-Host $host`;
+- no overlay local, valide que `ForwardedHeaders__EnableLocalPermissiveMode=true` esta habilitado apenas para os servicos atras do `nginx-edge`;
+- fora de `Development` e `Local`, configure `ForwardedHeaders:TrustedProxies` ou `ForwardedHeaders:TrustedNetworks`; a API deve falhar cedo se nenhum proxy ou CIDR confiavel for informado;
 - recrie as imagens das APIs depois de alterar codigo C#: `docker compose -f compose.yaml -f compose.nginx.yaml up -d --build`;
 - valide a configuracao efetiva: `docker compose -f compose.yaml -f compose.nginx.yaml config`.
 

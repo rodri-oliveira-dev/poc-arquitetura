@@ -33,4 +33,9 @@ public sealed class KeycloakAdminOptions
     {
         get; set;
     } = TimeSpan.FromSeconds(10);
+
+    public TimeSpan CompensationTimeout
+    {
+        get; set;
+    } = TimeSpan.FromSeconds(5);
 }

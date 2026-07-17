@@ -6,7 +6,6 @@ using MediatR;
 using Microsoft.Extensions.Options;
 
 using PaymentService.Application.Abstractions.Persistence;
-using PaymentService.Application.Abstractions.Time;
 using PaymentService.Application.Payments.InboxProcessing;
 using PaymentService.Application.Payments.Webhooks;
 using PaymentService.Worker.Observability;
@@ -20,7 +19,7 @@ namespace PaymentService.Worker.HostedServices;
 public sealed class PaymentInboxWorkerService(
     IServiceProvider serviceProvider,
     IOptions<PaymentInboxWorkerOptions> options,
-    IClock clock,
+    TimeProvider timeProvider,
     PaymentInboxWorkerMetrics metrics,
     ILogger<PaymentInboxWorkerService> logger) : BackgroundService
 {
@@ -30,7 +29,7 @@ public sealed class PaymentInboxWorkerService(
 
     private readonly IServiceProvider _serviceProvider = serviceProvider;
     private readonly IOptions<PaymentInboxWorkerOptions> _options = options;
-    private readonly IClock _clock = clock;
+    private readonly TimeProvider _timeProvider = timeProvider;
     private readonly PaymentInboxWorkerMetrics _metrics = metrics;
     private readonly ILogger<PaymentInboxWorkerService> _logger = logger;
     private readonly string _lockOwner = $"{Environment.MachineName}:{Guid.NewGuid():N}";
@@ -60,7 +59,7 @@ public sealed class PaymentInboxWorkerService(
 
             try
             {
-                await Task.Delay(_options.Value.PollingInterval, stoppingToken);
+                await Task.Delay(_options.Value.PollingInterval, _timeProvider, stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -78,7 +77,7 @@ public sealed class PaymentInboxWorkerService(
 
         var inboxRepository = scope.ServiceProvider.GetRequiredService<IPaymentInboxRepository>();
         var workerOptions = _options.Value;
-        var now = _clock.UtcNow;
+        var now = _timeProvider.GetUtcNow();
 
         var backlog = await inboxRepository.CountBacklogAsync(now, cancellationToken);
         _metrics.SetBacklog(backlog);
@@ -165,7 +164,7 @@ public sealed class PaymentInboxWorkerService(
         var inboxRepository = scope.ServiceProvider.GetRequiredService<IPaymentInboxRepository>();
         var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
         var workerOptions = _options.Value;
-        var now = _clock.UtcNow;
+        var now = _timeProvider.GetUtcNow();
         var nextRetryAt = PaymentInboxRetryPolicy.CalculateNextRetryAt(
             now,
             1,

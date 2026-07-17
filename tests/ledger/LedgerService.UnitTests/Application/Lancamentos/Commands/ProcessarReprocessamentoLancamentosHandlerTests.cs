@@ -86,7 +86,8 @@ public sealed class ProcessarReprocessamentoLancamentosHandlerTests
             new LedgerRepo(state),
             new OutboxRepo(state),
             new UnitOfWork(),
-            NullLogger<ProcessarReprocessamentoLancamentosHandler>.Instance);
+            NullLogger<ProcessarReprocessamentoLancamentosHandler>.Instance,
+            TimeProvider.System);
 
     private static ReprocessamentoLancamentos NewReprocessamento()
         => new(

@@ -444,6 +444,9 @@ Se houver containers antigos ou rede local presa do proprio projeto, o script pe
 | Restaurar pacotes | `dotnet restore ./PocArquitetura.slnx` |
 | Build Release | `dotnet build ./PocArquitetura.slnx --configuration Release --no-restore` |
 | Testes sem rebuild | `dotnet test ./PocArquitetura.slnx --configuration Release --no-build --settings ./coverlet.runsettings` |
+| Restaurar em modo Shared integrado | `dotnet restore ./PocArquitetura.slnx -p:UseLocalSharedProjects=true` |
+| Build em modo Shared integrado | `dotnet build ./PocArquitetura.slnx --configuration Release --no-restore -p:UseLocalSharedProjects=true` |
+| Testes em modo Shared integrado | `dotnet test ./PocArquitetura.slnx --configuration Release --no-build --settings ./coverlet.runsettings -p:UseLocalSharedProjects=true` |
 | Testes com cobertura e gate | `./test.ps1` ou `./test.sh` |
 | Configurar Git hooks locais | `./scripts/setup/configure-git-hooks.ps1` ou `./scripts/setup/configure-git-hooks.sh` |
 | Verificar Git hooks locais | `./scripts/setup/configure-git-hooks.ps1 -Check` ou `./scripts/setup/configure-git-hooks.sh --check` |

@@ -2,7 +2,6 @@ using System.Globalization;
 
 using BalanceService.Application;
 using BalanceService.Application.Abstractions.Persistence;
-using BalanceService.Application.Abstractions.Time;
 using BalanceService.Application.Idempotency;
 using BalanceService.Domain.Balances;
 using BalanceService.Worker.Messaging.Abstractions;
@@ -251,7 +250,7 @@ public sealed class LedgerEntryCreatedConsumerContractTests
             services.AddSingleton<IDailyBalanceRepository>(DailyBalances);
             services.AddSingleton<IProcessedEventRepository>(ProcessedEvents);
             services.AddSingleton<IUnitOfWork>(UnitOfWork);
-            services.AddSingleton<IClock>(new FixedClock(ParseDateTimeOffset("2026-06-06T12:35:30.0000000Z")));
+            services.AddSingleton<TimeProvider>(new FixedClock(ParseDateTimeOffset("2026-06-06T12:35:30.0000000Z")));
 
             _serviceProvider = services.BuildServiceProvider();
             Metrics = new MessagingMetrics($"{MessagingMetrics.MeterName}.ContractTests.{Guid.NewGuid():N}");
@@ -394,9 +393,11 @@ public sealed class LedgerEntryCreatedConsumerContractTests
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
-    private sealed class FixedClock(DateTimeOffset utcNow) : IClock
+    private sealed class FixedClock(DateTimeOffset utcNow) : TimeProvider
     {
         public DateTimeOffset UtcNow { get; } = utcNow;
+
+        public override DateTimeOffset GetUtcNow() => UtcNow;
     }
 
     private sealed class CapturingDeadLetterPublisher : IDeadLetterPublisher

@@ -1,5 +1,4 @@
 using BalanceService.Application.Abstractions.Persistence;
-using BalanceService.Application.Abstractions.Time;
 using BalanceService.Application.Balances.Commands;
 using BalanceService.Infrastructure.Persistence;
 using BalanceService.Infrastructure.Persistence.Repositories;
@@ -81,7 +80,7 @@ public sealed class PostgresBalanceFixture : IAsyncLifetime
         var services = new ServiceCollection();
 
         services.AddLogging(builder => builder.AddDebug());
-        services.AddSingleton<IClock>(new FixedClock(now));
+        services.AddSingleton<TimeProvider>(new FixedClock(now));
         services.AddDbContext<BalanceDbContext>(options =>
             options.UseNpgsql(
                 connectionString,
@@ -155,7 +154,7 @@ public sealed class PostgresBalanceFixture : IAsyncLifetime
         return builder.ConnectionString;
     }
 
-    private sealed class FixedClock : IClock
+    private sealed class FixedClock : TimeProvider
     {
         public FixedClock(DateTimeOffset utcNow)
         {
@@ -166,5 +165,7 @@ public sealed class PostgresBalanceFixture : IAsyncLifetime
         {
             get;
         }
+
+        public override DateTimeOffset GetUtcNow() => UtcNow;
     }
 }

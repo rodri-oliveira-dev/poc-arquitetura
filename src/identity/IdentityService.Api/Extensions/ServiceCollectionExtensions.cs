@@ -31,6 +31,8 @@ public static class ServiceCollectionExtensions
             options => options.RequireAuthenticatedUserByDefault().AddScopePolicies());
 
         services.AddSingleton(TimeProvider.System);
+        services.AddOptions<CreateUserConsistencyOptions>()
+            .Bind(configuration.GetSection(CreateUserConsistencyOptions.SectionName));
         services.AddSingleton<IIdempotencyResponseSerializer, StableJsonIdempotencyResponseSerializer>();
         services.AddSingleton<IIdempotencyRequestHasher, Sha256IdempotencyRequestHasher>();
         services.AddScoped<IIdempotencyService, IdempotencyService>();

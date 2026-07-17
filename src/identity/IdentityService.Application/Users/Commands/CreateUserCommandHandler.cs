@@ -4,6 +4,7 @@ using IdentityService.Application.Users.Ports;
 using IdentityService.Domain.Users;
 
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace IdentityService.Application.Users.Commands;
 
@@ -13,6 +14,7 @@ public sealed partial class CreateUserCommandHandler(
     IMerchantIdGenerator merchantIdGenerator,
     IIdempotencyService idempotencyService,
     IIdempotencyRequestHasher idempotencyRequestHasher,
+    IOptions<CreateUserConsistencyOptions> consistencyOptions,
     ILogger<CreateUserCommandHandler> logger)
 {
     private const int CreatedStatusCode = 201;
@@ -32,7 +34,7 @@ public sealed partial class CreateUserCommandHandler(
 
         LogIdempotentCreateUserRequested(logger, CreateUserIdempotencyPayload.CreateUserOperationName);
 
-        string? createdIdentityProviderUserId = null;
+        var executionState = CreateUserExecutionState.NotStarted();
         var idempotentResult = await idempotencyService.ExecuteAsync(
             new IdempotentOperationRequest<CreateUserResult>(
                 CreateUserIdempotencyPayload.CreateUserOperationName,
@@ -43,12 +45,12 @@ public sealed partial class CreateUserCommandHandler(
                 executeAsync: token => ExecuteCreateAsync(
                     command,
                     saveChanges: false,
-                    keycloakUserId => createdIdentityProviderUserId = keycloakUserId,
+                    executionState,
                     token),
                 resourceIdSelector: response => response.Id,
                 processingLockDuration: _idempotencyProcessingLockDuration,
                 onPersistenceFailureAsync: (exception, token) => CompensateIdentityProviderAsync(
-                    createdIdentityProviderUserId,
+                    executionState,
                     exception,
                     token)),
             cancellationToken);
@@ -84,13 +86,13 @@ public sealed partial class CreateUserCommandHandler(
         => await ExecuteCreateAsync(
             command,
             saveChanges: true,
-            onIdentityProviderCreated: null,
+            CreateUserExecutionState.NotStarted(),
             cancellationToken);
 
     private async Task<CreateUserResult> ExecuteCreateAsync(
         CreateUserCommand command,
         bool saveChanges,
-        Action<string>? onIdentityProviderCreated,
+        CreateUserExecutionState executionState,
         CancellationToken cancellationToken)
     {
         var identityUser = await identityProvider.CreateUserAsync(
@@ -100,7 +102,7 @@ public sealed partial class CreateUserCommandHandler(
                 command.Username,
                 command.Password),
             cancellationToken);
-        onIdentityProviderCreated?.Invoke(identityUser.KeycloakUserId);
+        executionState.MarkIdentityProviderUserCreated(identityUser.KeycloakUserId);
 
         var user = User.Register(
             UserId.New(),
@@ -111,15 +113,19 @@ public sealed partial class CreateUserCommandHandler(
 
         try
         {
+            executionState.MarkLocalPersistenceStarted();
             await users.AddAsync(user, cancellationToken);
 
             if (saveChanges)
+            {
                 await users.SaveChangesAsync(cancellationToken);
+                executionState.MarkLocalPersistenceConfirmed();
+            }
         }
-        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+        catch (Exception exception)
         {
             _ = await CompensateIdentityProviderAsync(
-                identityUser.KeycloakUserId,
+                executionState,
                 exception,
                 CancellationToken.None);
 
@@ -135,18 +141,25 @@ public sealed partial class CreateUserCommandHandler(
     }
 
     private async Task<string?> CompensateIdentityProviderAsync(
-        string? keycloakUserId,
+        CreateUserExecutionState executionState,
         Exception originalException,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(originalException);
+        ArgumentNullException.ThrowIfNull(executionState);
 
-        if (string.IsNullOrWhiteSpace(keycloakUserId))
+        if (!executionState.IdentityProviderUserCreated)
             return IdempotencyFailureStage.BeforeExternalSideEffect;
+
+        if (executionState.LocalPersistenceConfirmed)
+            return IdempotencyFailureStage.AfterLocalPersistenceConfirmed;
+
+        var keycloakUserId = executionState.KeycloakUserId!;
+        using var compensationTimeout = CreateCompensationTimeout(cancellationToken);
 
         try
         {
-            await identityProvider.DeleteUserAsync(keycloakUserId, cancellationToken);
+            await identityProvider.DeleteUserAsync(keycloakUserId, compensationTimeout.Token);
             IdempotencyFailureMetadata.SetFailureStage(
                 originalException,
                 IdempotencyFailureStage.AfterIdentityProviderCompensated);
@@ -168,6 +181,20 @@ public sealed partial class CreateUserCommandHandler(
 
             return IdempotencyFailureStage.AfterIdentityProviderCompensationFailed;
         }
+    }
+
+    private CancellationTokenSource CreateCompensationTimeout(CancellationToken cancellationToken)
+    {
+        var timeout = consistencyOptions.Value.CompensationTimeout;
+        if (timeout <= TimeSpan.Zero)
+            timeout = new CreateUserConsistencyOptions().CompensationTimeout;
+
+        var source = cancellationToken.CanBeCanceled
+            ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)
+            : new CancellationTokenSource();
+        source.CancelAfter(timeout);
+
+        return source;
     }
 
     [LoggerMessage(
@@ -195,4 +222,44 @@ public sealed partial class CreateUserCommandHandler(
         Exception exception,
         string keycloakUserId,
         string originalExceptionType);
+
+    private sealed class CreateUserExecutionState
+    {
+        private CreateUserExecutionState()
+        {
+        }
+
+        public string? KeycloakUserId
+        {
+            get; private set;
+        }
+
+        public bool IdentityProviderUserCreated => !string.IsNullOrWhiteSpace(KeycloakUserId);
+
+        public bool LocalPersistenceStarted
+        {
+            get; private set;
+        }
+
+        public bool LocalPersistenceConfirmed
+        {
+            get; private set;
+        }
+
+        public static CreateUserExecutionState NotStarted() => new();
+
+        public void MarkIdentityProviderUserCreated(string keycloakUserId)
+        {
+            if (string.IsNullOrWhiteSpace(keycloakUserId))
+                throw new ArgumentException("KeycloakUserId is required.", nameof(keycloakUserId));
+
+            KeycloakUserId = keycloakUserId;
+        }
+
+        public void MarkLocalPersistenceStarted()
+            => LocalPersistenceStarted = true;
+
+        public void MarkLocalPersistenceConfirmed()
+            => LocalPersistenceConfirmed = true;
+    }
 }

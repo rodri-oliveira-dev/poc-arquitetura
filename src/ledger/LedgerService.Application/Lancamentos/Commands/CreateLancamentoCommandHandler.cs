@@ -1,6 +1,5 @@
 using System.Globalization;
 
-using LedgerService.Application.Abstractions.Time;
 using LedgerService.Application.Common.Models;
 using LedgerService.Application.Common.Observability;
 using LedgerService.Application.Lancamentos.Inputs.CreateLancamento;
@@ -22,7 +21,7 @@ public sealed class CreateLancamentoCommandHandler
     private readonly CreateLancamentoIdempotencyService _idempotencyService;
     private readonly LedgerEntryCreatedOutboxWriter _outboxWriter;
     private readonly IUnitOfWork _unitOfWork;
-    private readonly IClock _clock;
+    private readonly TimeProvider _timeProvider;
     private readonly LedgerDomainMetrics? _metrics;
 
     public CreateLancamentoCommandHandler(
@@ -30,7 +29,7 @@ public sealed class CreateLancamentoCommandHandler
         CreateLancamentoIdempotencyService idempotencyService,
         LedgerEntryCreatedOutboxWriter outboxWriter,
         IUnitOfWork unitOfWork,
-        IClock? clock = null,
+        TimeProvider timeProvider,
         LedgerDomainMetrics? metrics = null)
     {
         ArgumentNullException.ThrowIfNull(ledgerEntryRepository);
@@ -42,7 +41,9 @@ public sealed class CreateLancamentoCommandHandler
         _idempotencyService = idempotencyService;
         _outboxWriter = outboxWriter;
         _unitOfWork = unitOfWork;
-        _clock = clock ?? new SystemClock();
+        ArgumentNullException.ThrowIfNull(timeProvider);
+
+        _timeProvider = timeProvider;
         _metrics = metrics;
     }
 
@@ -66,7 +67,7 @@ public sealed class CreateLancamentoCommandHandler
             : LedgerEntryType.Debit;
 
         var amount = decimal.Parse(input.Amount, NumberStyles.Number, CultureInfo.InvariantCulture);
-        var occurredAt = _clock.UtcNow.UtcDateTime;
+        var occurredAt = _timeProvider.GetUtcNow().UtcDateTime;
         var correlationId = Guid.Parse(input.CorrelationId);
 
         LedgerEntry ledgerEntry;

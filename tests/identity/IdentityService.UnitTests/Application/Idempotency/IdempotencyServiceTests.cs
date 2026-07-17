@@ -156,6 +156,48 @@ public sealed class IdempotencyServiceTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_should_mark_failed_when_request_is_canceled_after_reservation()
+    {
+        var fixture = new Fixture();
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            fixture.Service.ExecuteAsync(
+                CreateRequest(_ => Task.FromException<TestResponse>(new OperationCanceledException("request canceled"))),
+                cts.Token));
+
+        var record = Assert.Single(fixture.Repository.Records);
+        Assert.Equal(IdempotencyStatus.Failed, record.Status);
+        Assert.Equal(IdempotencyFailureStage.BeforeExternalSideEffect, record.FailureStage);
+        Assert.Equal(2, fixture.Repository.SaveChangesCount);
+        Assert.Equal(CancellationToken.None, fixture.Repository.LastSaveFailureCancellationToken);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_should_keep_failure_deterministic_when_failure_record_save_fails()
+    {
+        var fixture = new Fixture
+        {
+            Repository =
+            {
+                ThrowOnSaveFailure = true
+            }
+        };
+        var expected = new InvalidOperationException("business failed");
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            fixture.Service.ExecuteAsync(
+                CreateRequest(_ => Task.FromException<TestResponse>(expected)),
+                TestContext.Current.CancellationToken));
+
+        Assert.Same(expected, exception);
+        var record = Assert.Single(fixture.Repository.Records);
+        Assert.Equal(IdempotencyStatus.Failed, record.Status);
+        Assert.Equal(IdempotencyFailureStage.BeforeExternalSideEffect, record.FailureStage);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_should_treat_unique_constraint_as_concurrent_processing()
     {
         var fixture = new Fixture();
@@ -457,6 +499,18 @@ public sealed class IdempotencyServiceTests
             set;
         }
 
+        public bool ThrowOnSaveFailure
+        {
+            get;
+            set;
+        }
+
+        public CancellationToken LastSaveFailureCancellationToken
+        {
+            get;
+            private set;
+        }
+
         public Task<IdempotencyRecord?> GetByOperationAndKeyAsync(
             string operationName,
             string idempotencyKey,
@@ -541,8 +595,11 @@ public sealed class IdempotencyServiceTests
 
         public Task<int> SaveFailureAsync(IdempotencyRecord record, CancellationToken cancellationToken = default)
         {
+            LastSaveFailureCancellationToken = cancellationToken;
             SaveChangesCount++;
-            return Task.FromResult(1);
+            return ThrowOnSaveFailure
+                ? Task.FromException<int>(new InvalidOperationException("failure save failed"))
+                : Task.FromResult(1);
         }
 
         public void SeedProcessing(DateTime? lockedUntilUtc = null)

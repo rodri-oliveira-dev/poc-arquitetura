@@ -6,7 +6,6 @@ using Testcontainers.PostgreSql;
 
 using TransferService.Application.Abstractions.Messaging;
 using TransferService.Application.Abstractions.Persistence;
-using TransferService.Application.Abstractions.Time;
 using TransferService.Application.Transferencias.Commands;
 using TransferService.Infrastructure.Messaging.Kafka;
 using TransferService.Infrastructure.Persistence;
@@ -55,7 +54,7 @@ public sealed class PostgresTransferFixture : IAsyncLifetime
     {
         var services = new ServiceCollection();
 
-        services.AddSingleton<IClock>(new FixedClock(now));
+        services.AddSingleton<TimeProvider>(new FixedClock(now));
         services.AddDbContext<TransferServiceDbContext>(options =>
             options.UseNpgsql(
                 ConnectionString,
@@ -85,7 +84,7 @@ public sealed class PostgresTransferFixture : IAsyncLifetime
         await _postgres.DisposeAsync();
     }
 
-    private sealed class FixedClock : IClock
+    private sealed class FixedClock : TimeProvider
     {
         public FixedClock(DateTimeOffset utcNow)
         {
@@ -96,5 +95,7 @@ public sealed class PostgresTransferFixture : IAsyncLifetime
         {
             get;
         }
+
+        public override DateTimeOffset GetUtcNow() => UtcNow;
     }
 }

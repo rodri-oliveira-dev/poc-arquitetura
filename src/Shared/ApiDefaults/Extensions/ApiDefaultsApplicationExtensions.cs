@@ -34,18 +34,22 @@ public static class ApiDefaultsApplicationExtensions
             app.UseHsts();
         }
 
+        app.UseMiddleware<CorrelationIdMiddleware>();
+        app.UseMiddleware<SecurityHeadersMiddleware>();
         app.UseExceptionHandler();
         app.UseStatusCodePages();
+
         if (!app.Environment.IsEnvironment("Test"))
         {
             app.UseHttpsRedirection();
         }
 
-        app.UseMiddleware<CorrelationIdMiddleware>();
         app.UseMiddleware<RequestBodySizeLimitMiddleware>();
-        app.UseMiddleware<SecurityHeadersMiddleware>();
-        app.UseCors(ApiDefaultsServiceCollectionExtensions.CorsPolicyName);
-        app.UseRateLimiter();
+        CorsOptions corsOptions = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<CorsOptions>>().Value;
+        if (corsOptions.Enabled && corsOptions.AllowedOrigins.Count > 0)
+        {
+            app.UseCors(ApiDefaultsServiceCollectionExtensions.CorsPolicyName);
+        }
 
         return app;
     }
@@ -63,11 +67,6 @@ public static class ApiDefaultsApplicationExtensions
             return app;
         }
 
-        app.Use(async (context, next) =>
-        {
-            context.Response.Headers.TryAdd("X-Content-Type-Options", "nosniff");
-            await next(context);
-        });
         app.UseSwagger();
         app.UseSwaggerUI(options =>
         {
@@ -79,7 +78,7 @@ public static class ApiDefaultsApplicationExtensions
                     name: $"{apiDisplayName} {description.GroupName}{(description.IsDeprecated ? " (DEPRECATED)" : string.Empty)}");
             }
 
-            options.RoutePrefix = string.Empty;
+            options.RoutePrefix = "swagger";
         });
 
         return app;

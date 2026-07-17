@@ -1,7 +1,6 @@
 using System.Globalization;
 
 using BalanceService.Application.Abstractions.Persistence;
-using BalanceService.Application.Abstractions.Time;
 using BalanceService.Application.Balances.Commands;
 using BalanceService.Application.Idempotency;
 using BalanceService.Domain.Balances;
@@ -21,13 +20,13 @@ public sealed class ApplyLedgerEntryCreatedHandlerTests
         var dailyRepo = new Mock<IDailyBalanceRepository>(MockBehavior.Strict);
         var processedRepo = new Mock<IProcessedEventRepository>(MockBehavior.Strict);
         var uow = new Mock<IUnitOfWork>(MockBehavior.Strict);
-        var clock = new Mock<IClock>(MockBehavior.Strict);
+        var timeProvider = new FixedTimeProvider();
         var logger = new Mock<ILogger<ApplyLedgerEntryCreatedHandler>>();
         var tx = new Mock<IAppTransaction>(MockBehavior.Strict);
 
         var evt = BalanceFixture.Event(id: "e1");
         var now = DateTimeOffset.Parse("2026-02-16T03:00:00Z", CultureInfo.InvariantCulture);
-        clock.SetupGet(x => x.UtcNow).Returns(now);
+        timeProvider.SetUtcNow(now);
 
         uow.Setup(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>())).ReturnsAsync(tx.Object);
         ProcessedEvent? processedEvent = null;
@@ -38,7 +37,7 @@ public sealed class ApplyLedgerEntryCreatedHandlerTests
         tx.Setup(x => x.CommitAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         tx.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask);
 
-        var sut = new ApplyLedgerEntryCreatedHandler(dailyRepo.Object, processedRepo.Object, uow.Object, clock.Object, logger.Object);
+        var sut = new ApplyLedgerEntryCreatedHandler(dailyRepo.Object, processedRepo.Object, uow.Object, timeProvider, logger.Object);
 
         await sut.Handle(new ApplyLedgerEntryCreatedCommand(evt), CancellationToken.None);
 
@@ -62,13 +61,13 @@ public sealed class ApplyLedgerEntryCreatedHandlerTests
         var dailyRepo = new Mock<IDailyBalanceRepository>(MockBehavior.Strict);
         var processedRepo = new Mock<IProcessedEventRepository>(MockBehavior.Strict);
         var uow = new Mock<IUnitOfWork>(MockBehavior.Strict);
-        var clock = new Mock<IClock>(MockBehavior.Strict);
+        var timeProvider = new FixedTimeProvider();
         var logger = new Mock<ILogger<ApplyLedgerEntryCreatedHandler>>();
         var tx = new Mock<IAppTransaction>(MockBehavior.Strict);
 
         var evt = BalanceFixture.Event(id: "e1", type: "CREDIT", amount: "10.00", occurredAt: DateTimeOffset.Parse("2026-02-16T10:00:00-03:00", CultureInfo.InvariantCulture));
         var now = DateTimeOffset.Parse("2026-02-16T03:00:00Z", CultureInfo.InvariantCulture);
-        clock.SetupGet(x => x.UtcNow).Returns(now);
+        timeProvider.SetUtcNow(now);
 
         uow.Setup(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>())).ReturnsAsync(tx.Object);
         ProcessedEvent? processedEvent = null;
@@ -97,7 +96,7 @@ public sealed class ApplyLedgerEntryCreatedHandlerTests
         tx.Setup(x => x.CommitAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         tx.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask);
 
-        var sut = new ApplyLedgerEntryCreatedHandler(dailyRepo.Object, processedRepo.Object, uow.Object, clock.Object, logger.Object);
+        var sut = new ApplyLedgerEntryCreatedHandler(dailyRepo.Object, processedRepo.Object, uow.Object, timeProvider, logger.Object);
 
         await sut.Handle(new ApplyLedgerEntryCreatedCommand(evt), CancellationToken.None);
         Assert.NotNull(created);
@@ -119,5 +118,14 @@ public sealed class ApplyLedgerEntryCreatedHandlerTests
         processedRepo.VerifyAll();
         uow.VerifyAll();
         tx.VerifyAll();
+    }
+
+    private sealed class FixedTimeProvider : TimeProvider
+    {
+        private DateTimeOffset _utcNow = new(2026, 2, 16, 12, 0, 0, TimeSpan.Zero);
+
+        public void SetUtcNow(DateTimeOffset utcNow) => _utcNow = utcNow;
+
+        public override DateTimeOffset GetUtcNow() => _utcNow;
     }
 }

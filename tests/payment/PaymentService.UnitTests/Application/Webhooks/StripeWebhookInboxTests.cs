@@ -1,7 +1,6 @@
 using Moq;
 
 using PaymentService.Application.Abstractions.Persistence;
-using PaymentService.Application.Abstractions.Time;
 using PaymentService.Application.Payments.Webhooks;
 using PaymentService.Domain.Payments;
 
@@ -119,8 +118,10 @@ public sealed class StripeWebhookInboxTests
         repository.VerifyAll();
     }
 
-    private sealed class FixedClock(DateTimeOffset utcNow) : IClock
+    private sealed class FixedClock(DateTimeOffset utcNow) : TimeProvider
     {
         public DateTimeOffset UtcNow { get; } = utcNow;
+
+        public override DateTimeOffset GetUtcNow() => UtcNow;
     }
 }

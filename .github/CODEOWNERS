@@ -1,0 +1,28 @@
+# Ownership simples: repositorio mantido por um unico mantenedor publico.
+
+* @rodri-oliveira-dev
+
+/src/ledger/ @rodri-oliveira-dev
+/tests/ledger/ @rodri-oliveira-dev
+/src/balance/ @rodri-oliveira-dev
+/tests/balance/ @rodri-oliveira-dev
+/src/transfer/ @rodri-oliveira-dev
+/tests/transfer/ @rodri-oliveira-dev
+/src/identity/ @rodri-oliveira-dev
+/tests/identity/ @rodri-oliveira-dev
+/src/audit/ @rodri-oliveira-dev
+/tests/audit/ @rodri-oliveira-dev
+/src/payment/ @rodri-oliveira-dev
+/tests/payment/ @rodri-oliveira-dev
+
+/src/Shared/ @rodri-oliveira-dev
+/tests/Shared/ @rodri-oliveira-dev
+
+/.github/ @rodri-oliveira-dev
+/infra/ @rodri-oliveira-dev
+/scripts/ @rodri-oliveira-dev
+/docs/ @rodri-oliveira-dev
+/SECURITY.md @rodri-oliveira-dev
+/CONTRIBUTING.md @rodri-oliveira-dev
+/Directory.Build.props @rodri-oliveira-dev
+/Directory.Packages.props @rodri-oliveira-dev

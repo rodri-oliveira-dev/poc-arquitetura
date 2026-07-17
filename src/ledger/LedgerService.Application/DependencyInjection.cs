@@ -2,7 +2,6 @@ using ApplicationDefaults.Behaviors;
 
 using FluentValidation;
 
-using LedgerService.Application.Abstractions.Time;
 using LedgerService.Application.Common.Observability;
 using LedgerService.Application.Lancamentos.Commands;
 using LedgerService.Application.Lancamentos.Services;
@@ -25,7 +24,7 @@ public static class DependencyInjection
 
         services.AddValidatorsFromAssembly(typeof(DependencyInjection).Assembly);
 
-        services.AddSingleton<IClock, SystemClock>();
+        services.AddSingleton(TimeProvider.System);
         services.AddSingleton<LedgerDomainMetrics>();
         services.AddScoped<CreateLancamentoIdempotencyService>();
         services.AddScoped<LedgerEntryCreatedOutboxWriter>();

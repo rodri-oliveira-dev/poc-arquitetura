@@ -99,6 +99,7 @@ Baseline recomendado:
 - definir onde ocorre a terminacao de TLS, por exemplo load balancer, gateway, ingress ou plataforma gerenciada;
 - proteger chamadas internas com TLS quando aplicavel ao runtime, rede, regulacao ou fronteira de confianca;
 - revisar headers de proxy, `X-Forwarded-*`, `X-Correlation-Id`, host original e logging de origem;
+- configurar `ForwardedHeaders:TrustedProxies` ou `ForwardedHeaders:TrustedNetworks` com IPs/CIDRs reais do load balancer, ingress ou gateway; nao habilitar `ForwardedHeaders:EnableLocalPermissiveMode` fora de `Development` ou `Local`;
 - habilitar HSTS apenas quando o dominio, certificados, rollback e politica de subdominios estiverem maduros;
 - manter CORS restrito por ambiente e origem real, sem usar wildcard em ambiente compartilhado ou produtivo;
 - documentar certificados, responsaveis, renovacao, monitoramento de expiracao e procedimento de troca.

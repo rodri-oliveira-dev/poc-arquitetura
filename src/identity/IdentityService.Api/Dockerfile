@@ -8,6 +8,8 @@ COPY Directory.Packages.props ./
 COPY Directory.Build.props ./
 COPY global.json ./
 COPY src/Shared/ContainerHealthProbe/ContainerHealthProbe.csproj src/Shared/ContainerHealthProbe/
+COPY src/Shared/HttpResilienceDefaults/HttpResilienceDefaults.csproj src/Shared/HttpResilienceDefaults/
+COPY src/Shared/ApiDefaults/ApiDefaults.csproj src/Shared/ApiDefaults/
 COPY src/identity/IdentityService.Api/IdentityService.Api.csproj src/identity/IdentityService.Api/
 COPY src/identity/IdentityService.Application/IdentityService.Application.csproj src/identity/IdentityService.Application/
 COPY src/identity/IdentityService.Domain/IdentityService.Domain.csproj src/identity/IdentityService.Domain/
@@ -24,6 +26,8 @@ COPY src/identity/IdentityService.Application/ ./src/identity/IdentityService.Ap
 COPY src/identity/IdentityService.Domain/ ./src/identity/IdentityService.Domain/
 COPY src/identity/IdentityService.Infrastructure/ ./src/identity/IdentityService.Infrastructure/
 COPY src/Shared/ContainerHealthProbe/ ./src/Shared/ContainerHealthProbe/
+COPY src/Shared/HttpResilienceDefaults/ ./src/Shared/HttpResilienceDefaults/
+COPY src/Shared/ApiDefaults/ ./src/Shared/ApiDefaults/
 
 RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages,sharing=locked \
     dotnet publish src/identity/IdentityService.Api/IdentityService.Api.csproj \

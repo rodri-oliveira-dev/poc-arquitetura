@@ -1,7 +1,6 @@
 using MediatR;
 
 using PaymentService.Application.Abstractions.Persistence;
-using PaymentService.Application.Abstractions.Time;
 using PaymentService.Application.Payments.Webhooks;
 using PaymentService.Domain.Exceptions;
 using PaymentService.Domain.Payments;
@@ -13,7 +12,7 @@ public sealed class ProcessPaymentInboxMessageCommandHandler(
     IPaymentRepository paymentRepository,
     IUnitOfWork unitOfWork,
     IProviderEventMapper providerEventMapper,
-    IClock clock,
+    TimeProvider timeProvider,
     PaymentInboxProcessingOptions options)
     : IRequestHandler<ProcessPaymentInboxMessageCommand, ProcessPaymentInboxMessageResult>
 {
@@ -23,7 +22,7 @@ public sealed class ProcessPaymentInboxMessageCommandHandler(
     private readonly IPaymentRepository _paymentRepository = paymentRepository;
     private readonly IUnitOfWork _unitOfWork = unitOfWork;
     private readonly IProviderEventMapper _providerEventMapper = providerEventMapper;
-    private readonly IClock _clock = clock;
+    private readonly TimeProvider _timeProvider = timeProvider;
     private readonly PaymentInboxProcessingOptions _options = options;
 
     public async Task<ProcessPaymentInboxMessageResult> Handle(
@@ -43,7 +42,7 @@ public sealed class ProcessPaymentInboxMessageCommandHandler(
             return new ProcessPaymentInboxMessageResult(message.Id, message.Status, "claim_lost", false);
         }
 
-        var now = _clock.UtcNow;
+        var now = _timeProvider.GetUtcNow();
 
         if (message.EventCategory != StripeWebhookEventCategory.Supported)
         {

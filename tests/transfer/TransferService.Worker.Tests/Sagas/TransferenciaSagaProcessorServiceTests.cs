@@ -5,7 +5,6 @@ using Microsoft.Extensions.Options;
 
 using TransferService.Application.Abstractions.Messaging;
 using TransferService.Application.Abstractions.Persistence;
-using TransferService.Application.Abstractions.Time;
 using TransferService.Application.Transferencias.Events;
 using TransferService.Domain.Sagas;
 using TransferService.Infrastructure.Messaging.Kafka;
@@ -275,7 +274,7 @@ public sealed class TransferenciaSagaProcessorServiceTests
             services.AddScoped<ITransferenciaSagaRepository, TransferenciaSagaRepository>();
             services.AddScoped<ITransferenciaOutboxWriter, TransferenciaOutboxWriter>();
             services.AddSingleton(new TransferenciaSagaKafkaMetadataMapper(OptionsFactory.Create(new TransferenciaKafkaTopicOptions())));
-            services.AddSingleton<IClock>(Clock);
+            services.AddSingleton<TimeProvider>(Clock);
             services.AddSingleton(Ledger);
             services.AddSingleton<ILedgerServiceClient>(Ledger);
             services.AddSingleton(Kafka);
@@ -291,12 +290,12 @@ public sealed class TransferenciaSagaProcessorServiceTests
             services.AddSingleton<TransferenciaSagaProcessorService>(sp => new(
                 sp,
                 sp.GetRequiredService<IOptions<TransferWorkerOptions>>(),
-                sp.GetRequiredService<IClock>(),
+                sp.GetRequiredService<TimeProvider>(),
                 NullLogger<TransferenciaSagaProcessorService>.Instance));
             services.AddSingleton<TransferenciaOutboxPublisherService>(sp => new(
                 sp,
                 sp.GetRequiredService<IOptions<TransferWorkerOptions>>(),
-                sp.GetRequiredService<IClock>(),
+                sp.GetRequiredService<TimeProvider>(),
                 NullLogger<TransferenciaOutboxPublisherService>.Instance));
 
             _provider = services.BuildServiceProvider();
@@ -352,9 +351,11 @@ public sealed class TransferenciaSagaProcessorServiceTests
     private static void AssertValidUuidIdempotencyKey(string value)
         => Assert.True(Guid.TryParse(value, out _), $"Idempotency-Key '{value}' deve ser UUID valido.");
 
-    private sealed class FakeClock : IClock
+    private sealed class FakeClock : TimeProvider
     {
         public DateTimeOffset UtcNow { get; set; } = new(2026, 6, 17, 12, 0, 0, TimeSpan.Zero);
+
+        public override DateTimeOffset GetUtcNow() => UtcNow;
     }
 
     private sealed class FakeLedgerClient : ILedgerServiceClient

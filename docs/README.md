@@ -60,6 +60,13 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [IdentityService API](development/identity-api.md): contrato HTTP de cadastro de usuarios, `Idempotency-Key`, retries e conflitos.
 - [AuditService API](development/audit-api.md): contrato HTTP de criacao e consulta de registros funcionais de auditoria, agnostico ao servico chamador.
 - [Spec SDD de idempotencia do IdentityService](specs/identity-idempotency.md): comportamento esperado para `Idempotency-Key` opcional em `POST /api/v1/users`.
+- [Spec SDD de consistencia em cancelamentos do IdentityService](specs/identity-cancellation-consistency/requirements.md): requisitos, design e tarefas para compensacao Keycloak quando o cadastro e cancelado entre efeitos.
+- [Spec SDD do catalogo de testes arquiteturais](specs/architecture-test-catalog/requirements.md): catalogo declarativo de bounded contexts, regras por camada, providers permitidos e governanca para novos contextos.
+- [Spec SDD de Forwarded Headers confiaveis](specs/trusted-forwarded-headers/requirements.md): requisitos, design e tarefas para confiar em `X-Forwarded-*` somente por ambiente e proxy/rede configurados.
+- [Spec SDD de TimeProvider e governanca residual](specs/time-provider-governance/requirements.md): inventario, requisitos, design, tarefas e relatorio para determinismo temporal e manutencao do repositorio.
+- [Spec SDD de rate limiting particionado](specs/partitioned-rate-limiting/requirements.md): requisitos, design, tarefas e relatorio para limites por cliente/merchant/IP e operacao, locais a cada replica.
+- [Spec SDD de CORS configuravel](specs/configurable-cors/requirements.md): requisitos, design, tarefas e relatorio para CORS tipado, fechado por padrao e validado por ambiente.
+- [Spec SDD de ordenacao de middlewares e seguranca do Swagger](specs/api-middleware-security-order/requirements.md): ordem canonica das APIs, headers de seguranca para OpenAPI/Swagger UI e CSP restrita por superficie.
 - [Spec SDD PaymentService + Stripe - requisitos](specs/payment-stripe/requirements.md): contexto, objetivos, nao objetivos, atores, regras, riscos e criterios para o novo fluxo de pagamentos externos.
 - [Spec SDD PaymentService + Stripe - design](specs/payment-stripe/design.md): bounded context, ACL Stripe, Inbox, webhook security, integracao com Ledger, observabilidade, testes e configuracao futura.
 - [Spec SDD PaymentService + Stripe - state machine](specs/payment-stripe/state-machine.md): estados internos, transicoes, eventos duplicados, atrasados, fora de ordem e refund futuro.

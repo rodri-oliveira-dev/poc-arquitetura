@@ -3,11 +3,11 @@
   <ItemGroup>
     <ProjectReference Include="..\BalanceService.Application\BalanceService.Application.csproj" />
     <ProjectReference Include="..\BalanceService.Infrastructure\BalanceService.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\Shared\ApiDefaults\ApiDefaults.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Asp.Versioning.Mvc" />
-    <PackageReference Include="PocArquitetura.ApiDefaults" />
     <PackageReference Include="Asp.Versioning.Mvc.ApiExplorer" />
     <PackageReference Include="FluentValidation" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />

@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text;
 
 using ApiDefaults.Extensions;
 using ApiDefaults.Middlewares;
@@ -10,6 +11,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.HttpsPolicy;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -43,6 +45,7 @@ public sealed class ApiDefaultsApplicationExtensionsTests
         Assert.Equal("11111111-1111-1111-1111-111111111111", response.Headers.GetValues(CorrelationIdMiddleware.HeaderName).Single());
         Assert.Equal("nosniff", response.Headers.GetValues("X-Content-Type-Options").Single());
         Assert.Equal("DENY", response.Headers.GetValues("X-Frame-Options").Single());
+        Assert.Equal(SecurityHeadersMiddleware.ApiContentSecurityPolicy, response.Headers.GetValues("Content-Security-Policy").Single());
         Assert.Equal(expectHsts, response.Headers.Contains("Strict-Transport-Security"));
     }
 
@@ -106,6 +109,167 @@ public sealed class ApiDefaultsApplicationExtensionsTests
         using HttpResponseMessage exception = await client.GetAsync("/boom", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.InternalServerError, exception.StatusCode);
         Assert.Equal("handled", await exception.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        Assert.True(exception.Headers.Contains(CorrelationIdMiddleware.HeaderName));
+        Assert.Equal("nosniff", exception.Headers.GetValues("X-Content-Type-Options").Single());
+    }
+
+    [Fact]
+    public async Task ApiDefaultsIntegration_WhenValidationErrorOccurs_ShouldKeepSecurityAndCorrelationHeaders()
+    {
+        WebApplicationBuilder builder = CreateBuilder("Test");
+        builder.Services.AddApiDefaults<TestExceptionHandler>(CreateConfiguration(), "localhost");
+        await using WebApplication app = builder.Build();
+
+        app.UseApiDefaults();
+        app.MapPost("/validate", () => Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            ["name"] = ["The name field is required."]
+        }));
+        await app.StartAsync(TestContext.Current.CancellationToken);
+
+        using StringContent content = new("{}", Encoding.UTF8, "application/json");
+        using HttpResponseMessage response = await app.GetTestClient()
+            .PostAsync("/validate", content, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("nosniff", response.Headers.GetValues("X-Content-Type-Options").Single());
+        Assert.True(response.Headers.Contains(CorrelationIdMiddleware.HeaderName));
+        Assert.Equal(SecurityHeadersMiddleware.ApiContentSecurityPolicy, response.Headers.GetValues("Content-Security-Policy").Single());
+    }
+
+    [Fact]
+    public async Task UseForwardedHeaders_WhenProxyIsTrusted_ShouldApplyForwardedProtoHostAndClientIp()
+    {
+        using HttpResponseMessage response = await SendForwardedRequestAsync(
+            remoteIpAddress: "10.0.0.10",
+            configuration: CreateConfiguration(new Dictionary<string, string?>
+            {
+                ["ForwardedHeaders:TrustedProxies:0"] = "10.0.0.10"
+            }),
+            forwardedFor: "203.0.113.9",
+            forwardedProto: "https",
+            forwardedHost: "api.example.com");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(
+            "https|api.example.com|203.0.113.9",
+            await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task UseForwardedHeaders_WhenProxyIsNotTrusted_ShouldIgnoreForwardedHeaders()
+    {
+        using HttpResponseMessage response = await SendForwardedRequestAsync(
+            remoteIpAddress: "10.0.0.99",
+            configuration: CreateConfiguration(new Dictionary<string, string?>
+            {
+                ["ForwardedHeaders:TrustedProxies:0"] = "10.0.0.10"
+            }),
+            forwardedFor: "203.0.113.9",
+            forwardedProto: "https",
+            forwardedHost: "api.example.com");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(
+            "http|internal.local|10.0.0.99",
+            await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task UseForwardedHeaders_WhenRemoteIpMatchesTrustedNetwork_ShouldApplyForwardedHeaders()
+    {
+        using HttpResponseMessage response = await SendForwardedRequestAsync(
+            remoteIpAddress: "10.0.0.25",
+            configuration: CreateConfiguration(new Dictionary<string, string?>
+            {
+                ["ForwardedHeaders:TrustedNetworks:0"] = "10.0.0.0/24"
+            }),
+            forwardedFor: "203.0.113.10",
+            forwardedProto: "https",
+            forwardedHost: "api.example.com");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(
+            "https|api.example.com|203.0.113.10",
+            await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task UseForwardedHeaders_WhenClientSpoofsSchemeHostOrIpDirectly_ShouldIgnoreForwardedHeaders()
+    {
+        using HttpResponseMessage response = await SendForwardedRequestAsync(
+            remoteIpAddress: "198.51.100.50",
+            configuration: CreateConfiguration(new Dictionary<string, string?>
+            {
+                ["ForwardedHeaders:TrustedProxies:0"] = "10.0.0.10"
+            }),
+            forwardedFor: "203.0.113.99",
+            forwardedProto: "https",
+            forwardedHost: "admin.example.com");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(
+            "http|internal.local|198.51.100.50",
+            await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task UseForwardedHeaders_WhenForwardedForHasMultipleHops_ShouldHonorForwardLimitOne()
+    {
+        using HttpResponseMessage response = await SendForwardedRequestAsync(
+            remoteIpAddress: "10.0.0.10",
+            configuration: CreateConfiguration(new Dictionary<string, string?>
+            {
+                ["ForwardedHeaders:TrustedProxies:0"] = "10.0.0.10"
+            }),
+            forwardedFor: "198.51.100.1, 203.0.113.9",
+            forwardedProto: "https",
+            forwardedHost: "api.example.com");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(
+            "https|api.example.com|203.0.113.9",
+            await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task UseForwardedHeaders_WhenForwardedHostIsAllowed_ShouldApplyHost()
+    {
+        using HttpResponseMessage response = await SendForwardedRequestAsync(
+            remoteIpAddress: "10.0.0.10",
+            configuration: CreateConfiguration(new Dictionary<string, string?>
+            {
+                ["ForwardedHeaders:TrustedProxies:0"] = "10.0.0.10",
+                ["ForwardedHeaders:AllowedHosts:0"] = "api.example.com"
+            }),
+            forwardedFor: "203.0.113.9",
+            forwardedProto: "https",
+            forwardedHost: "api.example.com");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(
+            "https|api.example.com|203.0.113.9",
+            await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task UseForwardedHeaders_WhenForwardedHostIsRejected_ShouldKeepOriginalHost()
+    {
+        using HttpResponseMessage response = await SendForwardedRequestAsync(
+            remoteIpAddress: "10.0.0.10",
+            configuration: CreateConfiguration(new Dictionary<string, string?>
+            {
+                ["ForwardedHeaders:TrustedProxies:0"] = "10.0.0.10",
+                ["ForwardedHeaders:AllowedHosts:0"] = "api.example.com"
+            }),
+            forwardedFor: "203.0.113.9",
+            forwardedProto: "https",
+            forwardedHost: "evil.example.com");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(
+            "https|internal.local|203.0.113.9",
+            await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -140,14 +304,24 @@ public sealed class ApiDefaultsApplicationExtensionsTests
     }
 
     [Fact]
-    public async Task UseApiSwaggerDefaults_WhenDisabledOutsideDevelopment_ShouldReturnAppWithoutSwaggerServices()
+    public async Task UseApiSwaggerDefaults_WhenDisabledOutsideDevelopment_ShouldNotServeSwagger()
     {
         WebApplicationBuilder builder = CreateBuilder("Production");
+        builder.Services.AddApiDefaults<TestExceptionHandler>(CreateConfiguration(), "localhost");
+        builder.Services.AddEndpointsApiExplorer();
+        builder.Services.AddSwaggerGen();
         await using WebApplication app = builder.Build();
 
+        app.UseApiDefaults();
         WebApplication returned = app.UseApiSwaggerDefaults(CreateConfiguration(), "Shared API");
+        await app.StartAsync(TestContext.Current.CancellationToken);
+
+        using HttpResponseMessage response = await app.GetTestClient()
+            .GetAsync("/swagger/v1/swagger.json", TestContext.Current.CancellationToken);
 
         Assert.Same(app, returned);
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Equal("nosniff", response.Headers.GetValues("X-Content-Type-Options").Single());
     }
 
     [Fact]
@@ -185,6 +359,7 @@ public sealed class ApiDefaultsApplicationExtensionsTests
         {
             ["Swagger:Enabled"] = "true"
         });
+        builder.Services.AddApiDefaults<TestExceptionHandler>(CreateConfiguration(), "localhost");
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddSwaggerGen();
         builder.Services.AddSingleton<IApiVersionDescriptionProvider>(
@@ -194,6 +369,7 @@ public sealed class ApiDefaultsApplicationExtensionsTests
             ]));
         await using WebApplication app = builder.Build();
 
+        app.UseApiDefaults();
         app.UseApiSwaggerDefaults(configuration, "Shared API");
         app.MapGet("/api/v1/ping", () => Results.Ok(new { status = "ok" }));
         await app.StartAsync(TestContext.Current.CancellationToken);
@@ -202,6 +378,88 @@ public sealed class ApiDefaultsApplicationExtensionsTests
             .GetAsync("/swagger/v1/swagger.json", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("nosniff", response.Headers.GetValues("X-Content-Type-Options").Single());
+        Assert.Equal(SecurityHeadersMiddleware.ApiContentSecurityPolicy, response.Headers.GetValues("Content-Security-Policy").Single());
+        Assert.DoesNotContain("unsafe-inline", response.Headers.GetValues("Content-Security-Policy").Single(), StringComparison.Ordinal);
+        Assert.True(response.Headers.Contains(CorrelationIdMiddleware.HeaderName));
+    }
+
+    [Fact]
+    public async Task UseApiSwaggerDefaults_WhenEnabled_ShouldServeSwaggerUiWithDocumentationCsp()
+    {
+        var configuration = CreateConfiguration(new Dictionary<string, string?>
+        {
+            ["Swagger:Enabled"] = "true"
+        });
+        WebApplicationBuilder builder = CreateBuilder("Test", new Dictionary<string, string?>
+        {
+            ["Swagger:Enabled"] = "true"
+        });
+        builder.Services.AddApiDefaults<TestExceptionHandler>(CreateConfiguration(), "localhost");
+        builder.Services.AddEndpointsApiExplorer();
+        builder.Services.AddSwaggerGen();
+        builder.Services.AddSingleton<IApiVersionDescriptionProvider>(
+            new TestApiVersionDescriptionProvider(
+            [
+                new ApiVersionDescription(new ApiVersion(1, 0), "v1", false, null, null)
+            ]));
+        await using WebApplication app = builder.Build();
+
+        app.UseApiDefaults();
+        app.UseApiSwaggerDefaults(configuration, "Shared API");
+        app.MapGet("/api/v1/ping", () => Results.Ok(new { status = "ok" }));
+        await app.StartAsync(TestContext.Current.CancellationToken);
+
+        using HttpResponseMessage response = await app.GetTestClient()
+            .GetAsync("/swagger/index.html", TestContext.Current.CancellationToken);
+        string html = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Swagger UI", html, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("nosniff", response.Headers.GetValues("X-Content-Type-Options").Single());
+        Assert.Equal(SecurityHeadersMiddleware.SwaggerUiContentSecurityPolicy, response.Headers.GetValues("Content-Security-Policy").Single());
+        Assert.Contains("unsafe-inline", response.Headers.GetValues("Content-Security-Policy").Single(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task UseApiDefaults_ShouldNotDuplicateSecurityHeaders()
+    {
+        WebApplicationBuilder builder = CreateBuilder("Test");
+        builder.Services.AddApiDefaults<TestExceptionHandler>(CreateConfiguration(), "localhost");
+        await using WebApplication app = builder.Build();
+
+        app.UseApiDefaults();
+        app.MapGet("/ok", () => Results.Ok());
+        await app.StartAsync(TestContext.Current.CancellationToken);
+
+        using HttpResponseMessage response = await app.GetTestClient().GetAsync("/ok", TestContext.Current.CancellationToken);
+
+        Assert.Single(response.Headers.GetValues("X-Content-Type-Options"));
+        Assert.Single(response.Headers.GetValues("X-Frame-Options"));
+        Assert.Single(response.Headers.GetValues("Referrer-Policy"));
+        Assert.Single(response.Headers.GetValues("Content-Security-Policy"));
+        Assert.Single(response.Headers.GetValues(CorrelationIdMiddleware.HeaderName));
+    }
+
+    [Fact]
+    public async Task UseApiDefaults_WhenEnvironmentAllowsHttpsRedirection_ShouldRedirectHttpRequests()
+    {
+        WebApplicationBuilder builder = CreateBuilder("Production");
+        builder.Services.AddApiDefaults<TestExceptionHandler>(CreateConfiguration(), "localhost");
+        builder.Services.Configure<HttpsRedirectionOptions>(options => options.HttpsPort = 443);
+        await using WebApplication app = builder.Build();
+
+        app.UseApiDefaults();
+        app.MapGet("/ok", () => Results.Ok());
+        await app.StartAsync(TestContext.Current.CancellationToken);
+
+        HttpClient client = app.GetTestClient();
+        client.BaseAddress = new Uri("http://localhost");
+        using HttpResponseMessage response = await client.GetAsync("/ok", TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.TemporaryRedirect, response.StatusCode);
+        Assert.Equal(new Uri("https://localhost/ok"), response.Headers.Location);
+        Assert.True(response.Headers.Contains(CorrelationIdMiddleware.HeaderName));
         Assert.Equal("nosniff", response.Headers.GetValues("X-Content-Type-Options").Single());
     }
 
@@ -237,10 +495,52 @@ public sealed class ApiDefaultsApplicationExtensionsTests
         return builder;
     }
 
+    private static async Task<HttpResponseMessage> SendForwardedRequestAsync(
+        string remoteIpAddress,
+        IConfiguration configuration,
+        string forwardedFor,
+        string forwardedProto,
+        string forwardedHost)
+    {
+        WebApplicationBuilder builder = CreateBuilder("Test");
+        builder.Services.AddApiDefaults<TestExceptionHandler>(configuration, "api.example.com", "internal.local");
+        await using WebApplication app = builder.Build();
+
+        app.Use((context, next) =>
+        {
+            context.Connection.RemoteIpAddress = IPAddress.Parse(remoteIpAddress);
+            return next(context);
+        });
+        app.UseForwardedHeaders();
+        app.MapGet("/forwarded", (HttpContext context) =>
+            Results.Text($"{context.Request.Scheme}|{context.Request.Host}|{context.Connection.RemoteIpAddress}"));
+        await app.StartAsync(TestContext.Current.CancellationToken);
+
+        HttpClient client = app.GetTestClient();
+        client.BaseAddress = new Uri("http://internal.local");
+        using HttpRequestMessage request = new(HttpMethod.Get, "/forwarded");
+        request.Headers.TryAddWithoutValidation("X-Forwarded-For", forwardedFor);
+        request.Headers.TryAddWithoutValidation("X-Forwarded-Proto", forwardedProto);
+        request.Headers.TryAddWithoutValidation("X-Forwarded-Host", forwardedHost);
+
+        return await client.SendAsync(request, TestContext.Current.CancellationToken);
+    }
+
     private static IConfiguration CreateConfiguration(IReadOnlyDictionary<string, string?>? values = null)
-        => new ConfigurationBuilder()
-            .AddInMemoryCollection(values ?? new Dictionary<string, string?>())
+    {
+        Dictionary<string, string?> effectiveValues = values is null
+            ? []
+            : new Dictionary<string, string?>(values);
+
+        if (!effectiveValues.Keys.Any(key => key.StartsWith("ForwardedHeaders:", StringComparison.Ordinal)))
+        {
+            effectiveValues["ForwardedHeaders:TrustedProxies:0"] = "127.0.0.1";
+        }
+
+        return new ConfigurationBuilder()
+            .AddInMemoryCollection(effectiveValues)
             .Build();
+    }
 
     private sealed class TestExceptionHandler : IExceptionHandler
     {
@@ -282,4 +582,5 @@ public sealed class ApiDefaultsApplicationExtensionsTests
             get;
         } = descriptions;
     }
+
 }

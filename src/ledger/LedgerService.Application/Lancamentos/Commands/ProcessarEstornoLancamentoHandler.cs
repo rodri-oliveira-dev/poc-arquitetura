@@ -2,7 +2,6 @@ using System.Globalization;
 using System.Text.Json;
 
 using LedgerService.Application.Abstractions.Messaging;
-using LedgerService.Application.Abstractions.Time;
 using LedgerService.Application.Common.Exceptions;
 using LedgerService.Application.Common.Observability;
 using LedgerService.Application.Lancamentos.Events;
@@ -40,24 +39,25 @@ public sealed partial class ProcessarEstornoLancamentoHandler : IRequestHandler<
     private readonly ProcessarEstornoLancamentoDependencies _dependencies;
     private readonly LedgerReversalPolicy _reversalPolicy;
     private readonly ILogger<ProcessarEstornoLancamentoHandler> _logger;
-    private readonly IClock _clock;
+    private readonly TimeProvider _timeProvider;
     private readonly LedgerDomainMetrics? _metrics;
 
     public ProcessarEstornoLancamentoHandler(
         ProcessarEstornoLancamentoDependencies dependencies,
         LedgerReversalPolicy reversalPolicy,
         ILogger<ProcessarEstornoLancamentoHandler> logger,
-        IClock? clock = null,
+        TimeProvider timeProvider,
         LedgerDomainMetrics? metrics = null)
     {
         ArgumentNullException.ThrowIfNull(dependencies);
         ArgumentNullException.ThrowIfNull(reversalPolicy);
         ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(timeProvider);
 
         _dependencies = dependencies;
         _reversalPolicy = reversalPolicy;
         _logger = logger;
-        _clock = clock ?? new SystemClock();
+        _timeProvider = timeProvider;
         _metrics = metrics;
     }
 
@@ -105,7 +105,7 @@ public sealed partial class ProcessarEstornoLancamentoHandler : IRequestHandler<
         }
 
         var previousStatus = estorno.Status;
-        var now = _clock.UtcNow.UtcDateTime;
+        var now = _timeProvider.GetUtcNow().UtcDateTime;
         estorno.MarkProcessing(now);
 
         var lancamentoOriginal = await _dependencies.LedgerEntryRepository.GetByIdAsync(estorno.LancamentoOriginalId, cancellationToken) ?? throw new NotFoundException("Lancamento original nao encontrado.");
@@ -159,7 +159,7 @@ public sealed partial class ProcessarEstornoLancamentoHandler : IRequestHandler<
         var estorno = await _dependencies.EstornoRepository.GetByIdForUpdateAsync(estornoId, cancellationToken);
         if (estorno is not null && !estorno.IsCompleted())
         {
-            estorno.Reject(reason, _clock.UtcNow.UtcDateTime);
+            estorno.Reject(reason, _timeProvider.GetUtcNow().UtcDateTime);
             await _dependencies.UnitOfWork.SaveChangesAsync(cancellationToken);
         }
 
@@ -174,7 +174,7 @@ public sealed partial class ProcessarEstornoLancamentoHandler : IRequestHandler<
         var estorno = await _dependencies.EstornoRepository.GetByIdForUpdateAsync(estornoId, cancellationToken);
         if (estorno is not null && !estorno.IsCompleted())
         {
-            estorno.Fail(reason, _clock.UtcNow.UtcDateTime);
+            estorno.Fail(reason, _timeProvider.GetUtcNow().UtcDateTime);
             await _dependencies.UnitOfWork.SaveChangesAsync(cancellationToken);
         }
 

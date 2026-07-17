@@ -1,4 +1,3 @@
-using LedgerService.Application.Abstractions.Time;
 using LedgerService.Domain.Entities;
 using LedgerService.Domain.Repositories;
 using LedgerService.Infrastructure.Persistence;
@@ -14,12 +13,14 @@ namespace LedgerService.Infrastructure.Persistence.Repositories;
 public sealed class EstornoLancamentoRepository : IEstornoLancamentoRepository
 {
     private readonly AppDbContext _context;
-    private readonly IClock _clock;
+    private readonly TimeProvider _timeProvider;
 
-    public EstornoLancamentoRepository(AppDbContext context, IClock? clock = null)
+    public EstornoLancamentoRepository(AppDbContext context, TimeProvider timeProvider)
     {
+        ArgumentNullException.ThrowIfNull(timeProvider);
+
         _context = context;
-        _clock = clock ?? new SystemClock();
+        _timeProvider = timeProvider;
     }
 
     public async Task<EstornoLancamento?> GetByIdAsync(
@@ -76,12 +77,12 @@ RETURNING e.*;
                 sql,
                 new NpgsqlParameter("p_pending", NpgsqlDbType.Text) { Value = EstornoLancamentoStatus.Pending.ToString() },
                 new NpgsqlParameter("p_processing", NpgsqlDbType.Text) { Value = EstornoLancamentoStatus.Processing.ToString() },
-                new NpgsqlParameter("p_now", NpgsqlDbType.TimestampTz) { Value = _clock.UtcNow.UtcDateTime },
+                new NpgsqlParameter("p_now", NpgsqlDbType.TimestampTz) { Value = _timeProvider.GetUtcNow().UtcDateTime },
                 new NpgsqlParameter("p_batch", NpgsqlDbType.Integer) { Value = maxItems })
                 .ToListAsync(cancellationToken);
         }
 
-        var now = _clock.UtcNow.UtcDateTime;
+        var now = _timeProvider.GetUtcNow().UtcDateTime;
         var candidates = await _context.EstornosLancamentos
             .Where(x => x.Status == EstornoLancamentoStatus.Pending)
             .OrderBy(x => x.CreatedAt)

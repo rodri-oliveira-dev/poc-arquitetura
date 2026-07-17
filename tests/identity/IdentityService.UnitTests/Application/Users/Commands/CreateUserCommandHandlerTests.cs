@@ -7,6 +7,7 @@ using IdentityService.Domain.Users;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace IdentityService.UnitTests.Application.Users.Commands;
 
@@ -175,7 +176,27 @@ public sealed class CreateUserCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_should_not_compensate_when_save_is_canceled_Async()
+    public async Task Handle_should_not_compensate_when_create_is_canceled_before_keycloak_effect_Async()
+    {
+        var fixture = new HandlerFixture
+        {
+            IdentityProvider =
+            {
+                CreateException = new OperationCanceledException("create canceled before external effect")
+            }
+        };
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            fixture.Handler.Handle(CreateCommand(), cts.Token));
+
+        Assert.Empty(fixture.IdentityProvider.DeletedUserIds);
+        Assert.False(fixture.Repository.AddWasCalled);
+    }
+
+    [Fact]
+    public async Task Handle_should_compensate_with_independent_token_when_save_is_canceled_after_keycloak_effect_Async()
     {
         var fixture = new HandlerFixture
         {
@@ -190,7 +211,31 @@ public sealed class CreateUserCommandHandlerTests
         await Assert.ThrowsAsync<OperationCanceledException>(() =>
             fixture.Handler.Handle(CreateCommand(), cts.Token));
 
-        Assert.Empty(fixture.IdentityProvider.DeletedUserIds);
+        Assert.Equal(["keycloak-user-1"], fixture.IdentityProvider.DeletedUserIds);
+        Assert.NotEqual(cts.Token, fixture.IdentityProvider.DeleteCancellationToken);
+        Assert.True(fixture.IdentityProvider.DeleteCancellationToken.CanBeCanceled);
+    }
+
+    [Fact]
+    public async Task Handle_should_compensate_when_save_changes_is_canceled_during_idempotent_operation_Async()
+    {
+        var fixture = new HandlerFixture
+        {
+            IdempotencyRepository =
+            {
+                SaveChangesException = new OperationCanceledException("commit canceled")
+            }
+        };
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            fixture.Handler.Handle(CreateCommand(idempotencyKey: "idem-canceled-save-1"), cts.Token));
+
+        var record = Assert.Single(fixture.IdempotencyRepository.Records);
+        Assert.Equal(["keycloak-user-1"], fixture.IdentityProvider.DeletedUserIds);
+        Assert.Equal(IdempotencyStatus.Failed, record.Status);
+        Assert.Equal(IdempotencyFailureStage.AfterIdentityProviderCompensated, record.FailureStage);
     }
 
     [Fact]
@@ -342,6 +387,37 @@ public sealed class CreateUserCommandHandlerTests
             message.Contains("Falha ao compensar usuario criado no provedor de identidade", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public async Task Handle_should_not_compensate_when_local_operation_is_confirmed_Async()
+    {
+        var fixture = new HandlerFixture();
+
+        var result = await fixture.Handler.Handle(CreateCommand(idempotencyKey: "idem-confirmed-1"), CancellationToken.None);
+
+        var record = Assert.Single(fixture.IdempotencyRepository.Records);
+        Assert.Equal("keycloak-user-1", result.KeycloakUserId);
+        Assert.Equal(IdempotencyStatus.Completed, record.Status);
+        Assert.Empty(fixture.IdentityProvider.DeletedUserIds);
+    }
+
+    [Fact]
+    public async Task Handle_should_retry_after_expired_processing_record_without_creating_user_twice_concurrently_Async()
+    {
+        var fixture = new HandlerFixture();
+        var command = CreateCommand(idempotencyKey: "idem-expired-processing-1");
+        fixture.IdempotencyRepository.SeedProcessing(
+            "idem-expired-processing-1",
+            fixture.Hasher.ComputeHash(CreateUserIdempotencyPayload.From(command)),
+            expiresAtUtc: DateTime.UtcNow.AddMinutes(-1));
+
+        var first = await fixture.Handler.Handle(command, CancellationToken.None);
+        var second = await fixture.Handler.Handle(command, CancellationToken.None);
+
+        Assert.Equal(first, second);
+        Assert.Single(fixture.IdentityProvider.CreateRequests);
+        Assert.Equal(1, fixture.Repository.AddCallCount);
+    }
+
     private static CreateUserCommand CreateCommand(
         string email = "user@example.com",
         string password = "N3ver-save-me!",
@@ -373,6 +449,10 @@ public sealed class CreateUserCommandHandlerTests
                 MerchantIds,
                 IdempotencyService,
                 Hasher,
+                Options.Create(new CreateUserConsistencyOptions
+                {
+                    CompensationTimeout = TimeSpan.FromSeconds(1)
+                }),
                 Logger);
         }
 
@@ -454,6 +534,12 @@ public sealed class CreateUserCommandHandlerTests
             private set;
         }
 
+        public CancellationToken DeleteCancellationToken
+        {
+            get;
+            private set;
+        }
+
         public int CreateAttemptCount
         {
             get;
@@ -476,6 +562,7 @@ public sealed class CreateUserCommandHandlerTests
 
         public Task DeleteUserAsync(string keycloakUserId, CancellationToken cancellationToken = default)
         {
+            DeleteCancellationToken = cancellationToken;
             DeletedUserIds.Add(keycloakUserId);
             return DeleteException is null
                 ? Task.CompletedTask
@@ -671,14 +758,17 @@ public sealed class CreateUserCommandHandlerTests
         public Task<int> SaveFailureAsync(IdempotencyRecord record, CancellationToken cancellationToken = default)
             => Task.FromResult(1);
 
-        public void SeedProcessing(string idempotencyKey, string requestHash)
+        public void SeedProcessing(
+            string idempotencyKey,
+            string requestHash,
+            DateTime? expiresAtUtc = null)
         {
             _records.Add(IdempotencyRecord.StartProcessing(
                 CreateUserIdempotencyPayload.CreateUserOperationName,
                 idempotencyKey,
                 requestHash,
                 DateTime.UtcNow,
-                DateTime.UtcNow.AddHours(24)));
+                expiresAtUtc ?? DateTime.UtcNow.AddHours(24)));
         }
     }
 

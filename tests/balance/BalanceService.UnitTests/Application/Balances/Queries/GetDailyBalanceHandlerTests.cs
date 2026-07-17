@@ -1,7 +1,6 @@
 using System.Globalization;
 
 using BalanceService.Application.Abstractions.Persistence;
-using BalanceService.Application.Abstractions.Time;
 using BalanceService.Application.Balances.Queries;
 using BalanceService.Application.Balances.Queries.Models;
 
@@ -15,7 +14,7 @@ public sealed class GetDailyBalanceHandlerTests
     public async Task Handle_should_return_repository_value_when_found()
     {
         var repo = new Mock<IDailyBalanceReadRepository>(MockBehavior.Strict);
-        var clock = new Mock<IClock>(MockBehavior.Strict);
+        var timeProvider = new FixedTimeProvider();
         var query = new GetDailyBalanceQuery("m1", new DateOnly(2026, 2, 10));
         var found = new DailyBalanceReadModel(
             MerchantId: query.MerchantId,
@@ -30,11 +29,10 @@ public sealed class GetDailyBalanceHandlerTests
         repo.Setup(x => x.GetDailyAsync(query.MerchantId, query.Date, It.IsAny<CancellationToken>()))
             .ReturnsAsync(found);
 
-        var sut = new GetDailyBalanceHandler(repo.Object, clock.Object);
+        var sut = new GetDailyBalanceHandler(repo.Object, timeProvider);
 
         var result = await sut.Handle(query, CancellationToken.None);
         Assert.Equal(found, result);
-        clock.VerifyNoOtherCalls();
         repo.VerifyAll();
     }
 
@@ -42,16 +40,16 @@ public sealed class GetDailyBalanceHandlerTests
     public async Task Handle_should_return_zeros_when_not_found_and_use_clock_utcnow()
     {
         var repo = new Mock<IDailyBalanceReadRepository>(MockBehavior.Strict);
-        var clock = new Mock<IClock>(MockBehavior.Strict);
+        var timeProvider = new FixedTimeProvider();
         var query = new GetDailyBalanceQuery("m1", new DateOnly(2026, 2, 10));
 
         repo.Setup(x => x.GetDailyAsync(query.MerchantId, query.Date, It.IsAny<CancellationToken>()))
             .ReturnsAsync((DailyBalanceReadModel?)null);
 
         var now = DateTimeOffset.Parse("2026-02-10T12:00:00Z", CultureInfo.InvariantCulture);
-        clock.SetupGet(x => x.UtcNow).Returns(now);
+        timeProvider.SetUtcNow(now);
 
-        var sut = new GetDailyBalanceHandler(repo.Object, clock.Object);
+        var sut = new GetDailyBalanceHandler(repo.Object, timeProvider);
 
         var result = await sut.Handle(query, CancellationToken.None);
         Assert.Equal("m1", result.MerchantId);
@@ -63,6 +61,14 @@ public sealed class GetDailyBalanceHandlerTests
         Assert.Equal(DateTimeOffset.MinValue, result.AsOf);
         Assert.Equal(now, result.UpdatedAt);
         repo.VerifyAll();
-        clock.VerifyAll();
+    }
+
+    private sealed class FixedTimeProvider : TimeProvider
+    {
+        private DateTimeOffset _utcNow = new(2026, 2, 16, 12, 0, 0, TimeSpan.Zero);
+
+        public void SetUtcNow(DateTimeOffset utcNow) => _utcNow = utcNow;
+
+        public override DateTimeOffset GetUtcNow() => _utcNow;
     }
 }

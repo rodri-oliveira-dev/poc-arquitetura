@@ -1,6 +1,5 @@
 using PaymentService.Application.Abstractions.Ledger;
 using PaymentService.Application.Abstractions.Persistence;
-using PaymentService.Application.Abstractions.Time;
 using PaymentService.Domain.Payments;
 
 namespace PaymentService.Application.Payments.Ledger;
@@ -9,13 +8,13 @@ public sealed class PaymentLedgerProcessor(
     IPaymentRepository paymentRepository,
     ILedgerEntryGateway ledgerEntryGateway,
     IUnitOfWork unitOfWork,
-    IClock clock,
+    TimeProvider timeProvider,
     PaymentLedgerProcessingOptions options) : IPaymentLedgerProcessor
 {
     private readonly IPaymentRepository _paymentRepository = paymentRepository;
     private readonly ILedgerEntryGateway _ledgerEntryGateway = ledgerEntryGateway;
     private readonly IUnitOfWork _unitOfWork = unitOfWork;
-    private readonly IClock _clock = clock;
+    private readonly TimeProvider _timeProvider = timeProvider;
     private readonly PaymentLedgerProcessingOptions _options = options;
 
     public async Task<PaymentLedgerProcessorResult> ProcessBatchAsync(
@@ -27,7 +26,7 @@ public sealed class PaymentLedgerProcessor(
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(batchSize);
         ArgumentException.ThrowIfNullOrWhiteSpace(lockOwner);
 
-        var now = _clock.UtcNow;
+        var now = _timeProvider.GetUtcNow();
         var claimed = await _paymentRepository.ClaimLedgerIntegrationAsync(
             batchSize,
             now,
@@ -41,7 +40,7 @@ public sealed class PaymentLedgerProcessor(
 
         var refundClaimed = await _paymentRepository.ClaimRefundLedgerReversalAsync(
             batchSize,
-            _clock.UtcNow,
+            _timeProvider.GetUtcNow(),
             lockOwner,
             leaseTimeout,
             cancellationToken);
@@ -135,7 +134,7 @@ public sealed class PaymentLedgerProcessor(
         if (!string.Equals(payment.LedgerLockOwner, lockOwner, StringComparison.Ordinal))
             return PersistedOutcome.None;
 
-        var now = _clock.UtcNow;
+        var now = _timeProvider.GetUtcNow();
         var outcome = ApplyResult(payment, result, now);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -191,7 +190,7 @@ public sealed class PaymentLedgerProcessor(
         if (!string.Equals(refund.LedgerLockOwner, lockOwner, StringComparison.Ordinal))
             return PersistedOutcome.None;
 
-        var now = _clock.UtcNow;
+        var now = _timeProvider.GetUtcNow();
         var outcome = ApplyRefundResult(payment, refund, result, now);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);

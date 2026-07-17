@@ -25,6 +25,7 @@ env:
   DOTNET_NOLOGO: true
   BUILD_CONFIGURATION: Release
   SOLUTION_PATH: PocArquitetura.Shared.slnx
+  INTEGRATED_SOLUTION_PATH: PocArquitetura.slnx
   PACKAGE_OUTPUT_DIR: artifacts/packages
 
 jobs:
@@ -67,7 +68,7 @@ jobs:
             "/repos/$REPOSITORY/commits/$APPROVED_SHA" \
             --jq '.files[].filename' > changed-files.txt
 
-          if grep -E '^(src/Shared/|tests/Shared/|PocArquitetura\.Shared\.slnx$|GitVersion\.yml$|Directory\.Build\.props$|Directory\.Packages\.props$|src/Shared/Directory\.Build\.props$|src/Shared/Directory\.Packages\.props$|\.github/workflows/publish-shared-nuget\.yml$|LICENSE$)' changed-files.txt >/dev/null; then
+          if grep -E '^(src/Shared/|tests/Shared/|PocArquitetura\.Shared\.slnx$|GitVersion\.yml$|Directory\.Build\.props$|Directory\.Build\.targets$|Directory\.Packages\.props$|src/Shared/Directory\.Build\.props$|src/Shared/Directory\.Packages\.props$|\.github/workflows/publish-shared-nuget\.yml$|LICENSE$)' changed-files.txt >/dev/null; then
             echo "should_publish=true" >> "$GITHUB_OUTPUT"
             echo "reason=Approved CI commit changed Shared package inputs." >> "$GITHUB_OUTPUT"
           else
@@ -107,7 +108,7 @@ jobs:
         )
       }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 60
     permissions:
       contents: read
 
@@ -150,6 +151,23 @@ jobs:
           echo "package_version=$package_version" >> "$GITHUB_OUTPUT"
           echo "GitVersion SemVer: $raw_package_version"
           echo "Package version: $package_version"
+
+      - name: Restore consumers in integrated Shared mode
+        run: dotnet restore "$INTEGRATED_SOLUTION_PATH" -p:UseLocalSharedProjects=true
+
+      - name: Build consumers in integrated Shared mode
+        run: >
+          dotnet build "$INTEGRATED_SOLUTION_PATH"
+          -c "$BUILD_CONFIGURATION"
+          --no-restore
+          -p:UseLocalSharedProjects=true
+
+      - name: Test consumers in integrated Shared mode
+        run: >
+          dotnet test "$INTEGRATED_SOLUTION_PATH"
+          -c "$BUILD_CONFIGURATION"
+          --no-build
+          -p:UseLocalSharedProjects=true
 
       - name: Restore dependencies
         run: dotnet restore "$SOLUTION_PATH"

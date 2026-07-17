@@ -467,13 +467,13 @@ public sealed class CreateLancamentoCommandHandlerTests
         IIdempotencyRecordRepository idempotencyRecordRepository,
         IOutboxMessageRepository outboxMessageRepository,
         IUnitOfWork unitOfWork,
-        LedgerService.Application.Abstractions.Time.IClock? clock = null)
+        TimeProvider? timeProvider = null)
         => new(
             ledgerEntryRepository,
             new CreateLancamentoIdempotencyService(idempotencyRecordRepository),
             new LedgerEntryCreatedOutboxWriter(outboxMessageRepository),
             unitOfWork,
-            clock);
+            timeProvider ?? TimeProvider.System);
 
     private static void AssertPayloadMatchesFormalSchemaShape(string payload)
     {

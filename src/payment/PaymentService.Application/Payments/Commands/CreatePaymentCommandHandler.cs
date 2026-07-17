@@ -6,7 +6,6 @@ using MediatR;
 
 using PaymentService.Application.Abstractions.Gateway;
 using PaymentService.Application.Abstractions.Persistence;
-using PaymentService.Application.Abstractions.Time;
 using PaymentService.Application.Common.Exceptions;
 using PaymentService.Domain.Payments;
 
@@ -17,7 +16,7 @@ public sealed class CreatePaymentCommandHandler(
     IPaymentIdempotencyService idempotencyService,
     IPaymentGateway paymentGateway,
     IUnitOfWork unitOfWork,
-    IClock clock)
+    TimeProvider timeProvider)
         : IRequestHandler<CreatePaymentCommand, CreatePaymentResult>
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -26,7 +25,7 @@ public sealed class CreatePaymentCommandHandler(
     private readonly IPaymentIdempotencyService _idempotencyService = idempotencyService;
     private readonly IPaymentGateway _paymentGateway = paymentGateway;
     private readonly IUnitOfWork _unitOfWork = unitOfWork;
-    private readonly IClock _clock = clock;
+    private readonly TimeProvider _timeProvider = timeProvider;
 
     public async Task<CreatePaymentResult> Handle(
         CreatePaymentCommand request,
@@ -69,7 +68,7 @@ public sealed class CreatePaymentCommandHandler(
                 cancellationToken);
         }
 
-        var now = _clock.UtcNow;
+        var now = _timeProvider.GetUtcNow();
         var payment = new Payment(
             PaymentId.New(),
             new MerchantId(merchantId),
@@ -141,7 +140,7 @@ public sealed class CreatePaymentCommandHandler(
                     correlationId),
                 cancellationToken);
 
-            ApplyExternalResult(payment, externalResult, _clock.UtcNow);
+            ApplyExternalResult(payment, externalResult, _timeProvider.GetUtcNow());
 
             var response = ToResult(payment, idempotentReplay) with
             {
@@ -165,7 +164,7 @@ public sealed class CreatePaymentCommandHandler(
         {
             if (!ex.IsTransient)
             {
-                payment.MarkFailed(_clock.UtcNow, ex.Code ?? ex.Category.ToString());
+                payment.MarkFailed(_timeProvider.GetUtcNow(), ex.Code ?? ex.Category.ToString());
                 var failedResponse = ToResult(payment, idempotentReplay: false);
                 await _idempotencyService.UpdateResponseAsync(
                     payment.MerchantId.Value,

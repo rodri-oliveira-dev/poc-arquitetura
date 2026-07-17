@@ -1,4 +1,5 @@
 using ApiDefaults.Middlewares;
+using ApiDefaults.RateLimiting;
 
 using Asp.Versioning;
 
@@ -6,6 +7,7 @@ using MediatR;
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 using Swashbuckle.AspNetCore.Annotations;
 
@@ -30,6 +32,7 @@ public sealed class TransferenciasController(
 
     [HttpPost]
     [Authorize(Policy = ScopePolicies.TransferWritePolicy)]
+    [EnableRateLimiting(ApiRateLimitPolicies.AuthenticatedWrite)]
     [SwaggerOperation(
         OperationId = "SolicitarTransferencia",
         Summary = "Solicita uma transferencia entre merchants.",
@@ -68,6 +71,7 @@ public sealed class TransferenciasController(
 
     [HttpGet("{transferenciaId:guid}")]
     [Authorize(Policy = ScopePolicies.TransferReadPolicy)]
+    [EnableRateLimiting(ApiRateLimitPolicies.AuthenticatedRead)]
     [SwaggerOperation(
         OperationId = "ObterStatusTransferencia",
         Summary = "Consulta status de uma transferencia.",

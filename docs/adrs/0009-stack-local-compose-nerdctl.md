@@ -1,7 +1,7 @@
 # ADR-0009: Stack local via compose (nerdctl) com Kafka e Postgres
 
 ## Status
-Substituído (ver `docs/development/local-development.md` e ADR-0055)
+Substituido (ver `docs/development/local-development.md` e ADR-0055)
 
 ## Data
 2026-02-17

@@ -1,4 +1,5 @@
 using ApiDefaults.Middlewares;
+using ApiDefaults.RateLimiting;
 
 using Asp.Versioning;
 
@@ -6,6 +7,7 @@ using MediatR;
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 using PaymentService.Api.Contracts.Requests;
 using PaymentService.Api.Contracts.Responses;
@@ -30,6 +32,7 @@ public sealed class PaymentsController(
 
     [HttpPost]
     [Authorize(Policy = ScopePolicies.PaymentWritePolicy)]
+    [EnableRateLimiting(ApiRateLimitPolicies.AuthenticatedWrite)]
     [SwaggerOperation(
         OperationId = "CreatePayment",
         Summary = "Cria um payment externo.",
@@ -67,6 +70,7 @@ public sealed class PaymentsController(
 
     [HttpPost("{paymentId:guid}/refunds")]
     [Authorize(Policy = ScopePolicies.PaymentRefundPolicy)]
+    [EnableRateLimiting(ApiRateLimitPolicies.AuthenticatedWrite)]
     [SwaggerOperation(
         OperationId = "RequestPaymentRefund",
         Summary = "Solicita refund de um payment.",
@@ -112,6 +116,7 @@ public sealed class PaymentsController(
 
     [HttpGet("{paymentId:guid}")]
     [Authorize(Policy = ScopePolicies.PaymentReadPolicy)]
+    [EnableRateLimiting(ApiRateLimitPolicies.AuthenticatedRead)]
     [SwaggerOperation(
         OperationId = "GetPaymentById",
         Summary = "Consulta um payment.",

@@ -8,6 +8,8 @@ COPY Directory.Packages.props ./
 COPY Directory.Build.props ./
 COPY global.json ./
 COPY src/Shared/ContainerHealthProbe/ContainerHealthProbe.csproj src/Shared/ContainerHealthProbe/
+COPY src/Shared/HttpResilienceDefaults/HttpResilienceDefaults.csproj src/Shared/HttpResilienceDefaults/
+COPY src/Shared/ApiDefaults/ApiDefaults.csproj src/Shared/ApiDefaults/
 COPY src/transfer/TransferService.Api/TransferService.Api.csproj src/transfer/TransferService.Api/
 COPY src/transfer/TransferService.Application/TransferService.Application.csproj src/transfer/TransferService.Application/
 COPY src/transfer/TransferService.Domain/TransferService.Domain.csproj src/transfer/TransferService.Domain/
@@ -24,6 +26,8 @@ COPY src/transfer/TransferService.Application/ ./src/transfer/TransferService.Ap
 COPY src/transfer/TransferService.Domain/ ./src/transfer/TransferService.Domain/
 COPY src/transfer/TransferService.Infrastructure/ ./src/transfer/TransferService.Infrastructure/
 COPY src/Shared/ContainerHealthProbe/ ./src/Shared/ContainerHealthProbe/
+COPY src/Shared/HttpResilienceDefaults/ ./src/Shared/HttpResilienceDefaults/
+COPY src/Shared/ApiDefaults/ ./src/Shared/ApiDefaults/
 
 RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages,sharing=locked \
     dotnet publish src/transfer/TransferService.Api/TransferService.Api.csproj \

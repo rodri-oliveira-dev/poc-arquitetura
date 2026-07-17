@@ -36,6 +36,7 @@ services:
       Observability__OpenTelemetry__UseConsoleExporter: "false"
       Observability__OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"
       Observability__OpenTelemetry__ServiceName: "LedgerService.Api"
+      ForwardedHeaders__EnableLocalPermissiveMode: "true"
     deploy:
       resources:
         limits:
@@ -63,6 +64,7 @@ services:
       Observability__OpenTelemetry__UseConsoleExporter: "false"
       Observability__OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"
       Observability__OpenTelemetry__ServiceName: "LedgerService.Api"
+      ForwardedHeaders__EnableLocalPermissiveMode: "true"
     deploy:
       resources:
         limits:
@@ -96,6 +98,10 @@ services:
         condition: service_healthy
     environment:
       PaymentService__Ledger__BaseAddress: "http://ledger-service-1:8080"
+
+  balance-service:
+    environment:
+      ForwardedHeaders__EnableLocalPermissiveMode: "true"
 
   nginx-certs-init:
     image: alpine:3.22

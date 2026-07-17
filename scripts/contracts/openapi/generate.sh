@@ -108,6 +108,8 @@ EOF
   Jwt__JwksUrl="${Jwt__JwksUrl:-https://openapi.local/.well-known/jwks.json}" \
   Jwt__RequireHttpsMetadata="${Jwt__RequireHttpsMetadata:-true}" \
   ConnectionStrings__DefaultConnection="${ConnectionStrings__DefaultConnection:-Host=localhost;Database=openapi;Username=openapi;Password=openapi}" \
+  ForwardedHeaders__TrustedProxies__0="${ForwardedHeaders__TrustedProxies__0:-127.0.0.1}" \
+  ForwardedHeaders__AllowedHosts__0="${ForwardedHeaders__AllowedHosts__0:-openapi.local}" \
   ApiLimits__MaxRequestBodySizeBytes="${ApiLimits__MaxRequestBodySizeBytes:-1048576}" \
   ApiLimits__MaxBalancePeriodDays="${ApiLimits__MaxBalancePeriodDays:-31}" \
   ApiLimits__RateLimitPermitLimit="${ApiLimits__RateLimitPermitLimit:-100}" \
