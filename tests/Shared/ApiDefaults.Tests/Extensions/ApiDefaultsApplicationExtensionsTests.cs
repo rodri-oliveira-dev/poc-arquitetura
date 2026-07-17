@@ -28,7 +28,7 @@ public sealed class ApiDefaultsApplicationExtensionsTests
     public async Task UseApiDefaults_ShouldConfigurePipelineForEnvironment(string environment, bool expectHsts)
     {
         WebApplicationBuilder builder = CreateBuilder(environment);
-        builder.Services.AddApiDefaults<TestExceptionHandler>(CreateConfiguration(), "localhost");
+        builder.Services.AddApiDefaults<TestExceptionHandler>(CreateConfiguration());
         await using WebApplication app = builder.Build();
 
         app.UseApiDefaults();
@@ -53,7 +53,7 @@ public sealed class ApiDefaultsApplicationExtensionsTests
     public async Task UseApiDefaults_ShouldHandleExceptionsWithRegisteredHandler()
     {
         WebApplicationBuilder builder = CreateBuilder("Test");
-        builder.Services.AddApiDefaults<TestExceptionHandler>(CreateConfiguration(), "localhost");
+        builder.Services.AddApiDefaults<TestExceptionHandler>(CreateConfiguration());
         await using WebApplication app = builder.Build();
 
         app.UseApiDefaults();
@@ -77,7 +77,7 @@ public sealed class ApiDefaultsApplicationExtensionsTests
             .AddAuthentication("Test")
             .AddScheme<AuthenticationSchemeOptions, TestAuthenticationHandler>("Test", _ => { });
         builder.Services.AddAuthorization();
-        builder.Services.AddApiDefaults<TestExceptionHandler>(CreateConfiguration(), "localhost");
+        builder.Services.AddApiDefaults<TestExceptionHandler>(CreateConfiguration());
         await using WebApplication app = builder.Build();
 
         app.UseApiDefaults();
@@ -117,7 +117,7 @@ public sealed class ApiDefaultsApplicationExtensionsTests
     public async Task ApiDefaultsIntegration_WhenValidationErrorOccurs_ShouldKeepSecurityAndCorrelationHeaders()
     {
         WebApplicationBuilder builder = CreateBuilder("Test");
-        builder.Services.AddApiDefaults<TestExceptionHandler>(CreateConfiguration(), "localhost");
+        builder.Services.AddApiDefaults<TestExceptionHandler>(CreateConfiguration());
         await using WebApplication app = builder.Build();
 
         app.UseApiDefaults();
@@ -307,7 +307,7 @@ public sealed class ApiDefaultsApplicationExtensionsTests
     public async Task UseApiSwaggerDefaults_WhenDisabledOutsideDevelopment_ShouldNotServeSwagger()
     {
         WebApplicationBuilder builder = CreateBuilder("Production");
-        builder.Services.AddApiDefaults<TestExceptionHandler>(CreateConfiguration(), "localhost");
+        builder.Services.AddApiDefaults<TestExceptionHandler>(CreateConfiguration());
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddSwaggerGen();
         await using WebApplication app = builder.Build();
@@ -359,7 +359,7 @@ public sealed class ApiDefaultsApplicationExtensionsTests
         {
             ["Swagger:Enabled"] = "true"
         });
-        builder.Services.AddApiDefaults<TestExceptionHandler>(CreateConfiguration(), "localhost");
+        builder.Services.AddApiDefaults<TestExceptionHandler>(CreateConfiguration());
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddSwaggerGen();
         builder.Services.AddSingleton<IApiVersionDescriptionProvider>(
@@ -395,7 +395,7 @@ public sealed class ApiDefaultsApplicationExtensionsTests
         {
             ["Swagger:Enabled"] = "true"
         });
-        builder.Services.AddApiDefaults<TestExceptionHandler>(CreateConfiguration(), "localhost");
+        builder.Services.AddApiDefaults<TestExceptionHandler>(CreateConfiguration());
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddSwaggerGen();
         builder.Services.AddSingleton<IApiVersionDescriptionProvider>(
@@ -425,7 +425,7 @@ public sealed class ApiDefaultsApplicationExtensionsTests
     public async Task UseApiDefaults_ShouldNotDuplicateSecurityHeaders()
     {
         WebApplicationBuilder builder = CreateBuilder("Test");
-        builder.Services.AddApiDefaults<TestExceptionHandler>(CreateConfiguration(), "localhost");
+        builder.Services.AddApiDefaults<TestExceptionHandler>(CreateConfiguration());
         await using WebApplication app = builder.Build();
 
         app.UseApiDefaults();
@@ -445,7 +445,7 @@ public sealed class ApiDefaultsApplicationExtensionsTests
     public async Task UseApiDefaults_WhenEnvironmentAllowsHttpsRedirection_ShouldRedirectHttpRequests()
     {
         WebApplicationBuilder builder = CreateBuilder("Production");
-        builder.Services.AddApiDefaults<TestExceptionHandler>(CreateConfiguration(), "localhost");
+        builder.Services.AddApiDefaults<TestExceptionHandler>(CreateConfiguration());
         builder.Services.Configure<HttpsRedirectionOptions>(options => options.HttpsPort = 443);
         await using WebApplication app = builder.Build();
 
@@ -503,7 +503,7 @@ public sealed class ApiDefaultsApplicationExtensionsTests
         string forwardedHost)
     {
         WebApplicationBuilder builder = CreateBuilder("Test");
-        builder.Services.AddApiDefaults<TestExceptionHandler>(configuration, "api.example.com", "internal.local");
+        builder.Services.AddApiDefaults<TestExceptionHandler>(configuration);
         await using WebApplication app = builder.Build();
 
         app.Use((context, next) =>
@@ -535,6 +535,12 @@ public sealed class ApiDefaultsApplicationExtensionsTests
         if (!effectiveValues.Keys.Any(key => key.StartsWith("ForwardedHeaders:", StringComparison.Ordinal)))
         {
             effectiveValues["ForwardedHeaders:TrustedProxies:0"] = "127.0.0.1";
+        }
+
+        if (!effectiveValues.Keys.Any(key => key.StartsWith("ForwardedHeaders:AllowedHosts:", StringComparison.Ordinal)))
+        {
+            effectiveValues["ForwardedHeaders:AllowedHosts:0"] = "api.example.com";
+            effectiveValues["ForwardedHeaders:AllowedHosts:1"] = "internal.local";
         }
 
         return new ConfigurationBuilder()

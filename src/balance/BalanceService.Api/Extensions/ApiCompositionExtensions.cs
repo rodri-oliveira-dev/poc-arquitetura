@@ -20,7 +20,7 @@ public static class ApiCompositionExtensions
         ArgumentNullException.ThrowIfNull(environment);
 
         services
-            .AddApiDefaults<GlobalExceptionHandler>(configuration, "balance.localhost", "localhost")
+            .AddApiDefaults<GlobalExceptionHandler>(configuration)
             .AddApiSwagger()
             .AddApiObservability(configuration);
 

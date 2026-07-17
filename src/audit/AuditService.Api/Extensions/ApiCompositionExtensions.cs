@@ -18,7 +18,7 @@ public static class ApiCompositionExtensions
         ArgumentNullException.ThrowIfNull(environment);
 
         services
-            .AddApiDefaults<GlobalExceptionHandler>(configuration, "audit.localhost", "localhost")
+            .AddApiDefaults<GlobalExceptionHandler>(configuration)
             .AddApiSwagger()
             .AddAuditApiSecurity(configuration, environment)
             .AddApiObservability(configuration);

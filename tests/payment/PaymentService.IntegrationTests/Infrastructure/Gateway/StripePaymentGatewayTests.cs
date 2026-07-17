@@ -12,6 +12,8 @@ namespace PaymentService.IntegrationTests.Infrastructure.Gateway;
 
 public sealed class StripePaymentGatewayTests
 {
+    private static readonly DateTimeOffset Now = new(2026, 07, 09, 12, 00, 00, TimeSpan.Zero);
+
     [Fact]
     public async Task CreatePaymentIntentAsync_should_send_expected_stripe_request()
     {
@@ -63,6 +65,34 @@ public sealed class StripePaymentGatewayTests
         Assert.Equal("stripe_error_code", exception.Code);
     }
 
+    [Fact]
+    public async Task CreateRefundAsync_should_preserve_stripe_created_timestamp()
+    {
+        using var handler = new FakeHttpMessageHandler();
+        handler.EnqueueJson(
+            HttpStatusCode.OK,
+            /*lang=json,strict*/ """{ "id": "re_123", "status": "succeeded", "payment_intent": "pi_123", "amount": 10000, "currency": "brl", "created": 1783598400 }""");
+        using var fixture = CreateGateway(handler);
+
+        var result = await fixture.Gateway.CreateRefundAsync(RefundRequest(), TestContext.Current.CancellationToken);
+
+        Assert.Equal(DateTimeOffset.FromUnixTimeSeconds(1783598400), result.CreatedAt);
+    }
+
+    [Fact]
+    public async Task CreateRefundAsync_should_use_controlled_fallback_when_stripe_omits_created()
+    {
+        using var handler = new FakeHttpMessageHandler();
+        handler.EnqueueJson(
+            HttpStatusCode.OK,
+            /*lang=json,strict*/ """{ "id": "re_123", "status": "succeeded", "payment_intent": "pi_123", "amount": 10000, "currency": "brl" }""");
+        using var fixture = CreateGateway(handler);
+
+        var result = await fixture.Gateway.CreateRefundAsync(RefundRequest(), TestContext.Current.CancellationToken);
+
+        Assert.Equal(Now, result.CreatedAt);
+    }
+
     private static StripeGatewayFixture CreateGateway(FakeHttpMessageHandler handler)
     {
         var services = new ServiceCollection();
@@ -87,6 +117,7 @@ public sealed class StripePaymentGatewayTests
                 }
             }),
             telemetry,
+            new FixedClock(Now),
             NullLogger<StripePaymentGateway>.Instance);
 
         return new StripeGatewayFixture(gateway, httpClient, telemetry, provider);
@@ -103,6 +134,18 @@ public sealed class StripePaymentGatewayTests
             "payment-idempotency-key",
             "corr-1");
 
+    private static CreateExternalRefundRequest RefundRequest()
+        => new(
+            Guid.Parse("11111111-1111-1111-1111-111111111111"),
+            Guid.Parse("22222222-2222-2222-2222-222222222222"),
+            "pi_123",
+            100m,
+            "BRL",
+            "requested_by_customer",
+            "refund-idempotency-key",
+            "corr-1",
+            "refund-ext");
+
     private sealed class StripeGatewayFixture(
         StripePaymentGateway gateway,
         HttpClient httpClient,
@@ -117,5 +160,10 @@ public sealed class StripePaymentGatewayTests
             telemetry.Dispose();
             serviceProvider.Dispose();
         }
+    }
+
+    private sealed class FixedClock(DateTimeOffset utcNow) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => utcNow;
     }
 }

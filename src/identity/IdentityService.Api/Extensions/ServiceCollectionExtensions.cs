@@ -22,7 +22,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(configuration);
         ArgumentNullException.ThrowIfNull(environment);
 
-        services.AddApiDefaults<GlobalExceptionHandler>(configuration, "identity.localhost", "localhost");
+        services.AddApiDefaults<GlobalExceptionHandler>(configuration);
         services.AddIdentityApiSwagger();
 
         services.AddApiJwtBearerAuthentication(
@@ -36,6 +36,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IIdempotencyResponseSerializer, StableJsonIdempotencyResponseSerializer>();
         services.AddSingleton<IIdempotencyRequestHasher, Sha256IdempotencyRequestHasher>();
         services.AddScoped<IIdempotencyService, IdempotencyService>();
+        services.AddScoped<CreateUserCommandHandlerDependencies>();
         services.AddScoped<CreateUserCommandHandler>();
         services.AddEndpointsApiExplorer();
 

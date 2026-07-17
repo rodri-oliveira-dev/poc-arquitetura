@@ -9,11 +9,13 @@ namespace AuditService.Application.Tests.FunctionalAuditing;
 
 public sealed class CreateAuditRecordCommandHandlerTests
 {
+    private static readonly DateTimeOffset Now = new(2026, 06, 30, 12, 00, 00, TimeSpan.Zero);
+
     [Fact]
     public async Task Handle_should_create_functional_audit_record()
     {
         var repository = new FakeFunctionalAuditRecordRepository();
-        var handler = new CreateAuditRecordCommandHandler(repository);
+        var handler = CreateHandler(repository);
 
         CreateAuditRecordResult result = await handler.Handle(ValidCommand(), TestContext.Current.CancellationToken);
 
@@ -23,6 +25,7 @@ public sealed class CreateAuditRecordCommandHandlerTests
         Assert.Equal("LedgerService", record.SourceService);
         Assert.Equal("LancamentoCriado", record.OperationType);
         Assert.Equal("Succeeded", record.Status);
+        Assert.Equal(Now, record.CreatedAt);
         Assert.Equal("100.00", record.Metadata["amount"]);
     }
 
@@ -30,7 +33,7 @@ public sealed class CreateAuditRecordCommandHandlerTests
     public async Task Handle_should_return_existing_id_for_same_idempotency_key_and_payload()
     {
         var repository = new FakeFunctionalAuditRecordRepository();
-        var handler = new CreateAuditRecordCommandHandler(repository);
+        var handler = CreateHandler(repository);
 
         CreateAuditRecordResult first = await handler.Handle(ValidCommand(), TestContext.Current.CancellationToken);
         CreateAuditRecordResult second = await handler.Handle(ValidCommand(), TestContext.Current.CancellationToken);
@@ -43,7 +46,7 @@ public sealed class CreateAuditRecordCommandHandlerTests
     public async Task Handle_should_reject_same_idempotency_key_with_different_payload()
     {
         var repository = new FakeFunctionalAuditRecordRepository();
-        var handler = new CreateAuditRecordCommandHandler(repository);
+        var handler = CreateHandler(repository);
 
         await handler.Handle(ValidCommand(), TestContext.Current.CancellationToken);
 
@@ -63,7 +66,7 @@ public sealed class CreateAuditRecordCommandHandlerTests
     public async Task Handle_should_return_existing_id_for_same_source_event_id_and_payload()
     {
         var repository = new FakeFunctionalAuditRecordRepository();
-        var handler = new CreateAuditRecordCommandHandler(repository);
+        var handler = CreateHandler(repository);
         var command = ValidCommand() with
         {
             IdempotencyKey = null,
@@ -87,7 +90,7 @@ public sealed class CreateAuditRecordCommandHandlerTests
         var command = ValidCommand();
         FunctionalAuditRecord existing = CreateRecord(command);
         repository.ExistingAfterCollision = existing;
-        var handler = new CreateAuditRecordCommandHandler(repository);
+        var handler = CreateHandler(repository);
 
         CreateAuditRecordResult result = await handler.Handle(command, TestContext.Current.CancellationToken);
 
@@ -108,7 +111,7 @@ public sealed class CreateAuditRecordCommandHandlerTests
         {
             OperationType = "LancamentoEstornado"
         });
-        var handler = new CreateAuditRecordCommandHandler(repository);
+        var handler = CreateHandler(repository);
 
         var exception = await Assert.ThrowsAsync<ConflictException>(() =>
             handler.Handle(command, TestContext.Current.CancellationToken));
@@ -138,6 +141,9 @@ public sealed class CreateAuditRecordCommandHandlerTests
             },
             OccurredAt: DateTimeOffset.Parse("2026-06-30T10:30:00Z", CultureInfo.InvariantCulture));
 
+    private static CreateAuditRecordCommandHandler CreateHandler(FakeFunctionalAuditRecordRepository repository)
+        => new(repository, new FixedClock(Now));
+
     private static FunctionalAuditRecord CreateRecord(CreateAuditRecordCommand command)
         => FunctionalAuditRecord.Create(
             operationId: command.OperationId.ToString(),
@@ -155,7 +161,13 @@ public sealed class CreateAuditRecordCommandHandlerTests
             actorSubject: command.Actor?.Subject,
             actorClientId: command.Actor?.ClientId,
             reason: command.Reason,
-            metadata: command.Metadata);
+            metadata: command.Metadata,
+            createdAt: Now);
+
+    private sealed class FixedClock(DateTimeOffset utcNow) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => utcNow;
+    }
 
     private sealed class FakeFunctionalAuditRecordRepository : IFunctionalAuditRecordRepository
     {

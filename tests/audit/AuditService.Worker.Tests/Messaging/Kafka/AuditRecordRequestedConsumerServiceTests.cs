@@ -278,6 +278,7 @@ public sealed class AuditRecordRequestedConsumerServiceTests
             new FakeConsumerFactory(),
             scopeFactory,
             Metrics,
+            TimeProvider.System,
             NullLogger<AuditRecordRequestedConsumerService>.Instance);
 
     private sealed class FakeProcessor(AuditRecordRequestedProcessingResult result) : IAuditRecordRequestedProcessor

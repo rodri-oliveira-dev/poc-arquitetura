@@ -1,13 +1,12 @@
-# HTTP ingestion futura
+# HTTP ingestion
 
-Esta pasta reserva o namespace do adapter HTTP interno de ingestao do
+Esta pasta reserva o namespace para uma possivel ingestao HTTP interna do
 `AuditService`.
 
 Nao ha endpoint interno novo nesta etapa. O endpoint publico atual continua em
 `Controllers/AuditRecordsController` e segue usando diretamente o caso de uso
 `CreateAuditRecord`.
 
-Quando houver decisao de integracao entre bounded contexts, um adapter HTTP
-interno pode desserializar `AuditRecordEnvelope`, validar o envelope e delegar a
-`IAuditRecordIngestionService`, sem acoplar o `AuditService` a tipos de
-Ledger, Balance ou Transfer.
+Se houver decisao futura de integracao HTTP entre bounded contexts, um adapter
+interno pode validar um envelope canonico e delegar ao caso de uso de criacao,
+sem acoplar o `AuditService` a tipos de Ledger, Balance, Transfer ou Payment.

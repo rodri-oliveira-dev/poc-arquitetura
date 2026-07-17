@@ -258,6 +258,7 @@ public sealed class LedgerEntryCreatedConsumerContractTests
                 _serviceProvider,
                 DeadLetters,
                 Metrics,
+                _serviceProvider.GetRequiredService<TimeProvider>(),
                 NullLogger<LedgerEntryCreatedMessageProcessor>.Instance);
         }
 

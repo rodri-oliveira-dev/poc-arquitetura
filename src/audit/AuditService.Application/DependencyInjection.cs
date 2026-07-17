@@ -21,6 +21,7 @@ public static class DependencyInjection
         });
 
         services.AddValidatorsFromAssembly(typeof(DependencyInjection).Assembly);
+        services.AddSingleton(TimeProvider.System);
         services.AddSingleton<IAuditRecordMapper, AuditRecordMapper>();
         services.AddSingleton<IAuditRecordSerializer, AuditRecordSerializer>();
         services.AddSingleton<IAuditRecordValidator, AuditRecordValidator>();

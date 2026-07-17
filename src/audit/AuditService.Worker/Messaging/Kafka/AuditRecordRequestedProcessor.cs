@@ -16,6 +16,7 @@ internal sealed partial class AuditRecordRequestedProcessor(
     AuditRecordRequestedValidator validator,
     IAuditRecordDeadLetterPublisher deadLetterPublisher,
     ISender sender,
+    TimeProvider timeProvider,
     ILogger<AuditRecordRequestedProcessor> logger) : IAuditRecordRequestedProcessor
 {
     public async Task<AuditRecordRequestedProcessingResult> ProcessAsync(
@@ -117,7 +118,7 @@ internal sealed partial class AuditRecordRequestedProcessor(
             failure.Message.Offset,
             failure.FailureReason,
             failure.FailureCategory,
-            DateTimeOffset.UtcNow,
+            timeProvider.GetUtcNow(),
             ComputeSha256(failure.Message.Payload));
 
         await deadLetterPublisher.PublishAsync(deadLetterMessage, cancellationToken);

@@ -8,8 +8,6 @@ As policies ficam centralizadas em `ApiDefaults.RateLimiting.ApiRateLimitPolicie
 - `authenticated-write`: comandos autenticados.
 - `administrative`: operacoes administrativas, hoje Outbox DLQ/requeue.
 - `anonymous-webhook`: webhooks anonimos, hoje Stripe.
-- `swagger`: reservado para documentacao roteada explicitamente por endpoint em
-  evolucao futura.
 - `fixed`: alias legado para escrita autenticada, mantido para compatibilidade
   durante migracoes.
 
@@ -19,12 +17,12 @@ de Identity aplica `RequireRateLimiting(ApiRateLimitPolicies.AuthenticatedWrite)
 
 ## Chave de particao autenticada
 
-A chave prioriza claims confiaveis do token autenticado:
+A chave segue um modelo misto com predominancia de usuario final quando o token
+possui subject:
 
-1. `client_id`;
-2. `azp`;
-3. `sub`;
-4. `ClaimTypes.NameIdentifier`.
+1. `sub` ou `ClaimTypes.NameIdentifier`;
+2. `client_id` ou `azp`, como componente adicional quando presente;
+3. `client_id` ou `azp` sozinho, para tokens machine-to-machine sem subject.
 
 Quando `merchant_id` existe, seus valores sao normalizados, ordenados e
 incluidos na composicao. Isso permite que tokens para merchants diferentes
@@ -62,6 +60,11 @@ claims. As APIs seguem a ordem:
 5. `UseAuthorization()`;
 6. `UseRateLimiter()`;
 7. endpoints.
+
+Swagger e registrado por middleware antes de `UseRateLimiter()` e nao possui
+policy nominal. A protecao de Swagger em desenvolvimento local fica na borda
+Nginx quando o overlay e usado; fora de `Development`, a exposicao continua
+dependendo de `Swagger:Enabled=true`.
 
 ## Configuracao
 

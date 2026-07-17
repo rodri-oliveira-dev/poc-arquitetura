@@ -9,11 +9,16 @@ using PocArquitetura.KafkaWorkerDefaults;
 
 namespace LedgerService.Worker.Messaging.Kafka.Consumers;
 
-public sealed partial class ReprocessamentoLancamentosConsumerService : BackgroundService
+public sealed partial class ReprocessamentoLancamentosConsumerService(
+    IOptions<ReprocessamentoLancamentosConsumerOptions> options,
+    ReprocessamentoLancamentosMessageProcessor messageProcessor,
+    TimeProvider timeProvider,
+    ILogger<ReprocessamentoLancamentosConsumerService> logger) : BackgroundService
 {
-    private readonly ReprocessamentoLancamentosConsumerOptions _options;
-    private readonly ReprocessamentoLancamentosMessageProcessor _messageProcessor;
-    private readonly ILogger<ReprocessamentoLancamentosConsumerService> _logger;
+    private readonly ReprocessamentoLancamentosConsumerOptions _options = options.Value;
+    private readonly ReprocessamentoLancamentosMessageProcessor _messageProcessor = messageProcessor;
+    private readonly TimeProvider _timeProvider = timeProvider;
+    private readonly ILogger<ReprocessamentoLancamentosConsumerService> _logger = logger;
 
     [LoggerMessage(EventId = 1, Level = LogLevel.Warning, Message = "Kafka consumer de reprocessamento reportou erro: {Reason} (IsFatal={IsFatal})")]
     private static partial void LogKafkaConsumerError(ILogger logger, string reason, bool isFatal);
@@ -35,16 +40,6 @@ public sealed partial class ReprocessamentoLancamentosConsumerService : Backgrou
 
     [LoggerMessage(EventId = 7, Level = LogLevel.Information, Message = "Consumer de reprocessamento parado.")]
     private static partial void LogConsumerStopped(ILogger logger);
-
-    public ReprocessamentoLancamentosConsumerService(
-        IOptions<ReprocessamentoLancamentosConsumerOptions> options,
-        ReprocessamentoLancamentosMessageProcessor messageProcessor,
-        ILogger<ReprocessamentoLancamentosConsumerService> logger)
-    {
-        _options = options.Value;
-        _messageProcessor = messageProcessor;
-        _logger = logger;
-    }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -71,7 +66,7 @@ public sealed partial class ReprocessamentoLancamentosConsumerService : Backgrou
             catch (ConsumeException ex)
             {
                 LogConsumeFailure(_logger, ex);
-                await Task.Delay(_options.ConsumeErrorRetryDelay, stoppingToken);
+                await Task.Delay(_options.ConsumeErrorRetryDelay, _timeProvider, stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -86,7 +81,7 @@ public sealed partial class ReprocessamentoLancamentosConsumerService : Backgrou
                     result?.Topic,
                     result?.Partition.Value,
                     result?.Offset.Value);
-                await Task.Delay(_options.ProcessingErrorRetryDelay, stoppingToken);
+                await Task.Delay(_options.ProcessingErrorRetryDelay, _timeProvider, stoppingToken);
             }
             catch (TimeoutException ex)
             {
@@ -97,7 +92,7 @@ public sealed partial class ReprocessamentoLancamentosConsumerService : Backgrou
                     result?.Topic,
                     result?.Partition.Value,
                     result?.Offset.Value);
-                await Task.Delay(_options.ProcessingErrorRetryDelay, stoppingToken);
+                await Task.Delay(_options.ProcessingErrorRetryDelay, _timeProvider, stoppingToken);
             }
             catch (Exception ex)
             {
@@ -108,7 +103,7 @@ public sealed partial class ReprocessamentoLancamentosConsumerService : Backgrou
                     result?.Topic,
                     result?.Partition.Value,
                     result?.Offset.Value);
-                await Task.Delay(_options.ProcessingErrorRetryDelay, stoppingToken);
+                await Task.Delay(_options.ProcessingErrorRetryDelay, _timeProvider, stoppingToken);
             }
         }
 

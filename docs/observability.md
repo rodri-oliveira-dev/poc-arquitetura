@@ -1,6 +1,8 @@
 # Observabilidade e operacao minima
 
-Este documento define o inventario operacional minimo da POC para Keycloak, `LedgerService.Api`, `LedgerService.Worker`, `BalanceService.Api`, `BalanceService.Worker`, `PaymentService.Api` e `PaymentService.Worker`.
+Este documento define o inventario operacional minimo da POC para Keycloak e
+para as APIs/workers dos bounded contexts `LedgerService`, `BalanceService`,
+`TransferService`, `PaymentService`, `IdentityService` e `AuditService`.
 
 OpenTelemetry fica desabilitado por padrao. A correlacao via `X-Correlation-Id` permanece sempre ativa nas APIs e e usada para conectar logs, respostas HTTP e mensagens do provider selecionado. O core funcional local usa `compose.yaml` para PostgreSQL, Kafka, Keycloak, APIs e workers; Pub/Sub emulator fica restrito ao modo explicito/legado. OpenTelemetry Collector, Jaeger, Prometheus, Loki, Grafana Alloy, Alertmanager e Grafana ficam no overlay `compose.observability.yaml` com profile `observability`, conforme documentado em [desenvolvimento local](development/local-development.md).
 
@@ -18,9 +20,9 @@ OpenTelemetry fica desabilitado por padrao. A correlacao via `X-Correlation-Id` 
 - Metricas: OpenTelemetry opcional para ASP.NET Core, `HttpClient` e runtime .NET nas APIs, e runtime/custom metrics nos workers.
 - Exporters: console para validacao local e OTLP quando `OtlpEndpoint` estiver configurado.
 - Correlacao: header HTTP `X-Correlation-Id`, campo `CorrelationId` em logs e atributo `correlation_id` nas mensagens do provider selecionado.
-- Health: `GET /health` em `LedgerService.Api` e `BalanceService.Api`.
+- Health: `GET /health` nas APIs de negocio.
 - Keycloak expoe health/readiness propria no compose local.
-- Readiness: `GET /ready` em `LedgerService.Api` e `BalanceService.Api`.
+- Readiness: `GET /ready` nas APIs de negocio, conforme dependencias diretas de cada contexto.
 - Mensageria: Kafka local com topic principal `ledger.ledgerentry.created`, topicos operacionais do Ledger e DLQ de aplicacao `ledger.ledgerentry.created.dlq`; Pub/Sub emulator permanece como provider explicito/legado.
 - Outbox: publicacao assincrona do Ledger com polling, lock, tentativas e backoff configuraveis.
 - Payment Inbox: processamento assincrono de webhooks Stripe persistidos, com polling, claim concorrente, lease, retry persistido, backoff e DeadLetter logico.
@@ -96,8 +98,13 @@ Use `ServiceName` conforme o servico:
 - `LedgerService.Worker`
 - `BalanceService.Api`
 - `BalanceService.Worker`
+- `TransferService.Api`
+- `TransferService.Worker`
 - `PaymentService.Api`
 - `PaymentService.Worker`
+- `IdentityService.Api`
+- `AuditService.Api`
+- `AuditService.Worker`
 
 ## Ambientes
 

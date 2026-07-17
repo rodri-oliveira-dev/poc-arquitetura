@@ -48,7 +48,7 @@ public sealed class LedgerApiFactory : WebApplicationFactory<Program>
                 ["Jwt:JwksUrl"] = "https://localhost/jwks.json",
                 ["ApiLimits:MaxRequestBodySizeBytes"] = "128",
                 ["ForwardedHeaders:TrustedProxies:0"] = "127.0.0.1",
-                ["ForwardedHeaders:AllowedHosts:0"] = "localhost",
+                ["ForwardedHeaders:AllowedHosts:0"] = "api.example.com",
                 ["Cors:Enabled"] = "true",
                 ["Cors:AllowedOrigins:0"] = "http://localhost:5173",
                 ["Cors:AllowedMethods:0"] = "GET",

@@ -8,6 +8,7 @@ namespace PaymentService.Infrastructure.Gateway;
 public sealed partial class FakePaymentGateway(
     IOptions<PaymentGatewayOptions> options,
     PaymentGatewayTelemetry telemetry,
+    TimeProvider timeProvider,
     ILogger<FakePaymentGateway> logger) : IPaymentGateway
 {
     private const string CreateOperation = "create";
@@ -24,7 +25,7 @@ public sealed partial class FakePaymentGateway(
         var start = TimeProvider.System.GetTimestamp();
 
         if (_options.SimulatedDelay > TimeSpan.Zero)
-            await Task.Delay(_options.SimulatedDelay, cancellationToken);
+            await Task.Delay(_options.SimulatedDelay, timeProvider, cancellationToken);
 
         try
         {
@@ -62,7 +63,7 @@ public sealed partial class FakePaymentGateway(
         var start = TimeProvider.System.GetTimestamp();
 
         if (_options.SimulatedDelay > TimeSpan.Zero)
-            await Task.Delay(_options.SimulatedDelay, cancellationToken);
+            await Task.Delay(_options.SimulatedDelay, timeProvider, cancellationToken);
 
         try
         {
@@ -100,7 +101,7 @@ public sealed partial class FakePaymentGateway(
             status);
     }
 
-    private static CreateExternalRefundResult RefundSuccess(CreateExternalRefundRequest request, string status)
+    private CreateExternalRefundResult RefundSuccess(CreateExternalRefundRequest request, string status)
     {
         var suffix = request.RefundId.ToString("N")[..12];
         return new CreateExternalRefundResult(
@@ -110,8 +111,8 @@ public sealed partial class FakePaymentGateway(
             status,
             request.Amount,
             request.Currency,
-            DateTimeOffset.UtcNow,
-            status);
+                timeProvider.GetUtcNow(),
+                status);
     }
 
     private static PaymentGatewayException Failure(

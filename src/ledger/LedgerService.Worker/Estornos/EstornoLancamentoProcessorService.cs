@@ -7,11 +7,16 @@ using Microsoft.Extensions.Options;
 
 namespace LedgerService.Worker.Estornos;
 
-public sealed partial class EstornoLancamentoProcessorService : BackgroundService
+public sealed partial class EstornoLancamentoProcessorService(
+    IServiceProvider serviceProvider,
+    IOptions<EstornoProcessingOptions> options,
+    TimeProvider timeProvider,
+    ILogger<EstornoLancamentoProcessorService> logger) : BackgroundService
 {
-    private readonly IServiceProvider _serviceProvider;
-    private readonly IOptions<EstornoProcessingOptions> _options;
-    private readonly ILogger<EstornoLancamentoProcessorService> _logger;
+    private readonly IServiceProvider _serviceProvider = serviceProvider;
+    private readonly IOptions<EstornoProcessingOptions> _options = options;
+    private readonly TimeProvider _timeProvider = timeProvider;
+    private readonly ILogger<EstornoLancamentoProcessorService> _logger = logger;
 
     [LoggerMessage(EventId = 1, Level = LogLevel.Information, Message = "Worker de estornos iniciado. pollingIntervalSeconds={PollingIntervalSeconds}")]
     private static partial void LogWorkerStarted(ILogger logger, double pollingIntervalSeconds);
@@ -28,16 +33,6 @@ public sealed partial class EstornoLancamentoProcessorService : BackgroundServic
         Exception exception,
         Guid estornoId,
         Guid lancamentoOriginalId);
-
-    public EstornoLancamentoProcessorService(
-        IServiceProvider serviceProvider,
-        IOptions<EstornoProcessingOptions> options,
-        ILogger<EstornoLancamentoProcessorService> logger)
-    {
-        _serviceProvider = serviceProvider;
-        _options = options;
-        _logger = logger;
-    }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -61,7 +56,7 @@ public sealed partial class EstornoLancamentoProcessorService : BackgroundServic
 
             try
             {
-                await Task.Delay(interval, stoppingToken);
+                await Task.Delay(interval, _timeProvider, stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

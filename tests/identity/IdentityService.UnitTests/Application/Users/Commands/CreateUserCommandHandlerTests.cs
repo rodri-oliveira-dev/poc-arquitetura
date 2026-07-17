@@ -3,6 +3,7 @@ using IdentityService.Application.Idempotency;
 using IdentityService.Application.Idempotency.Ports;
 using IdentityService.Application.Users.Commands;
 using IdentityService.Application.Users.Ports;
+using IdentityService.Domain.Exceptions;
 using IdentityService.Domain.Users;
 
 using Microsoft.Extensions.Logging;
@@ -13,6 +14,8 @@ namespace IdentityService.UnitTests.Application.Users.Commands;
 
 public sealed class CreateUserCommandHandlerTests
 {
+    private static readonly DateTimeOffset Now = new(2026, 06, 26, 12, 00, 00, TimeSpan.Zero);
+
     [Fact]
     public async Task Handle_should_create_user_in_keycloak_then_save_user_Async()
     {
@@ -38,6 +41,7 @@ public sealed class CreateUserCommandHandlerTests
         Assert.Equal(fixture.Repository.SavedUser.Id, domainEvent.UserId);
         Assert.Equal(fixture.Repository.SavedUser.MerchantId, domainEvent.MerchantId);
         Assert.Equal(fixture.Repository.SavedUser.KeycloakUserId, domainEvent.KeycloakUserId);
+        Assert.Equal(Now.UtcDateTime, domainEvent.OccurredAt);
     }
 
     [Fact]
@@ -95,6 +99,59 @@ public sealed class CreateUserCommandHandlerTests
 
         Assert.Equal("add failed", exception.Message);
         Assert.False(fixture.Repository.SaveWasCalled);
+        Assert.Equal(["keycloak-user-1"], fixture.IdentityProvider.DeletedUserIds);
+    }
+
+    [Fact]
+    public async Task Handle_should_compensate_keycloak_when_merchant_generation_fails_after_keycloak_effect_Async()
+    {
+        var fixture = new HandlerFixture();
+        fixture.MerchantIds.GenerateException = new InvalidOperationException("merchant generation failed");
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            fixture.Handler.Handle(CreateCommand(), CancellationToken.None));
+
+        Assert.Equal("merchant generation failed", exception.Message);
+        Assert.False(fixture.Repository.AddWasCalled);
+        Assert.Equal(["keycloak-user-1"], fixture.IdentityProvider.DeletedUserIds);
+    }
+
+    [Fact]
+    public async Task Handle_should_compensate_keycloak_when_merchant_id_is_invalid_after_keycloak_effect_Async()
+    {
+        var fixture = new HandlerFixture(merchantId: "");
+
+        var exception = await Assert.ThrowsAsync<DomainException>(() =>
+            fixture.Handler.Handle(CreateCommand(), CancellationToken.None));
+
+        Assert.Equal("MerchantId is required.", exception.Message);
+        Assert.False(fixture.Repository.AddWasCalled);
+        Assert.Equal(["keycloak-user-1"], fixture.IdentityProvider.DeletedUserIds);
+    }
+
+    [Fact]
+    public async Task Handle_should_compensate_keycloak_when_email_is_invalid_after_keycloak_effect_Async()
+    {
+        var fixture = new HandlerFixture();
+
+        var exception = await Assert.ThrowsAsync<DomainException>(() =>
+            fixture.Handler.Handle(CreateCommand(email: "not-an-email"), CancellationToken.None));
+
+        Assert.Equal("Email is invalid.", exception.Message);
+        Assert.False(fixture.Repository.AddWasCalled);
+        Assert.Equal(["keycloak-user-1"], fixture.IdentityProvider.DeletedUserIds);
+    }
+
+    [Fact]
+    public async Task Handle_should_compensate_keycloak_when_username_is_invalid_after_keycloak_effect_Async()
+    {
+        var fixture = new HandlerFixture();
+
+        var exception = await Assert.ThrowsAsync<DomainException>(() =>
+            fixture.Handler.Handle(CreateCommand(username: ""), CancellationToken.None));
+
+        Assert.Equal("Username is required.", exception.Message);
+        Assert.False(fixture.Repository.AddWasCalled);
         Assert.Equal(["keycloak-user-1"], fixture.IdentityProvider.DeletedUserIds);
     }
 
@@ -214,6 +271,53 @@ public sealed class CreateUserCommandHandlerTests
         Assert.Equal(["keycloak-user-1"], fixture.IdentityProvider.DeletedUserIds);
         Assert.NotEqual(cts.Token, fixture.IdentityProvider.DeleteCancellationToken);
         Assert.True(fixture.IdentityProvider.DeleteCancellationToken.CanBeCanceled);
+    }
+
+    [Fact]
+    public async Task Handle_should_compensate_with_independent_token_when_add_is_canceled_after_keycloak_effect_Async()
+    {
+        var fixture = new HandlerFixture
+        {
+            Repository =
+            {
+                AddException = new OperationCanceledException("add canceled")
+            }
+        };
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            fixture.Handler.Handle(CreateCommand(), cts.Token));
+
+        Assert.Equal(["keycloak-user-1"], fixture.IdentityProvider.DeletedUserIds);
+        Assert.NotEqual(cts.Token, fixture.IdentityProvider.DeleteCancellationToken);
+        Assert.True(fixture.IdentityProvider.DeleteCancellationToken.CanBeCanceled);
+        Assert.False(fixture.Repository.SaveWasCalled);
+    }
+
+    [Fact]
+    public async Task Handle_should_preserve_original_exception_when_compensation_exceeds_timeout_Async()
+    {
+        var fixture = new HandlerFixture(compensationTimeout: TimeSpan.FromMilliseconds(10))
+        {
+            IdentityProvider =
+            {
+                WaitForDeleteCancellation = true
+            },
+            Repository =
+            {
+                SaveException = new InvalidOperationException("database failed")
+            }
+        };
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            fixture.Handler.Handle(CreateCommand(), CancellationToken.None));
+
+        Assert.Equal("database failed", exception.Message);
+        Assert.Equal(["keycloak-user-1"], fixture.IdentityProvider.DeletedUserIds);
+        Assert.True(fixture.IdentityProvider.DeleteCancellationToken.IsCancellationRequested);
+        Assert.Contains(fixture.Logger.Messages, message =>
+            message.Contains("Falha ao compensar usuario criado no provedor de identidade", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -388,6 +492,62 @@ public sealed class CreateUserCommandHandlerTests
     }
 
     [Fact]
+    public async Task Handle_should_allow_retry_after_idempotent_failure_with_confirmed_compensation_Async()
+    {
+        var expected = new InvalidOperationException("database failed");
+        var fixture = new HandlerFixture
+        {
+            IdempotencyRepository =
+            {
+                SaveChangesException = expected
+            }
+        };
+        var command = CreateCommand(idempotencyKey: "idem-compensated-retry-1");
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            fixture.Handler.Handle(command, CancellationToken.None));
+
+        var failedRecord = Assert.Single(fixture.IdempotencyRepository.Records);
+        Assert.Equal(IdempotencyStatus.Failed, failedRecord.Status);
+        Assert.Equal(IdempotencyFailureStage.AfterIdentityProviderCompensated, failedRecord.FailureStage);
+
+        fixture.IdempotencyRepository.SaveChangesException = null;
+        var result = await fixture.Handler.Handle(command, CancellationToken.None);
+
+        Assert.Equal("keycloak-user-1", result.KeycloakUserId);
+        Assert.Equal(IdempotencyStatus.Completed, failedRecord.Status);
+        Assert.Equal(2, fixture.IdentityProvider.CreateAttemptCount);
+        Assert.Equal(["keycloak-user-1"], fixture.IdentityProvider.DeletedUserIds);
+    }
+
+    [Fact]
+    public async Task Handle_should_block_retry_after_idempotent_failure_with_failed_compensation_Async()
+    {
+        var fixture = new HandlerFixture
+        {
+            IdentityProvider =
+            {
+                DeleteException = new InvalidOperationException("compensation failed")
+            },
+            IdempotencyRepository =
+            {
+                SaveChangesException = new InvalidOperationException("database failed")
+            }
+        };
+        var command = CreateCommand(idempotencyKey: "idem-compensation-blocks-retry-1");
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            fixture.Handler.Handle(command, CancellationToken.None));
+
+        fixture.IdempotencyRepository.SaveChangesException = null;
+        var exception = await Assert.ThrowsAsync<IdempotencyConflictException>(() =>
+            fixture.Handler.Handle(command, CancellationToken.None));
+
+        Assert.Equal("Idempotency key is still processing", exception.Title);
+        Assert.Equal(1, fixture.IdentityProvider.CreateAttemptCount);
+    }
+
+    [Fact]
     public async Task Handle_should_not_compensate_when_local_operation_is_confirmed_Async()
     {
         var fixture = new HandlerFixture();
@@ -408,7 +568,7 @@ public sealed class CreateUserCommandHandlerTests
         fixture.IdempotencyRepository.SeedProcessing(
             "idem-expired-processing-1",
             fixture.Hasher.ComputeHash(CreateUserIdempotencyPayload.From(command)),
-            expiresAtUtc: DateTime.UtcNow.AddMinutes(-1));
+            expiresAtUtc: Now.UtcDateTime.AddMinutes(-1));
 
         var first = await fixture.Handler.Handle(command, CancellationToken.None);
         var second = await fixture.Handler.Handle(command, CancellationToken.None);
@@ -420,19 +580,22 @@ public sealed class CreateUserCommandHandlerTests
 
     private static CreateUserCommand CreateCommand(
         string email = "user@example.com",
+        string username = "user-name",
         string password = "N3ver-save-me!",
         string? idempotencyKey = null)
         => new(
             Name: "User Name",
             Email: email,
-            Username: "user-name",
+            Username: username,
             Password: password,
             Document: "12345678900",
             IdempotencyKey: idempotencyKey);
 
     private sealed class HandlerFixture
     {
-        public HandlerFixture(string merchantId = "merchant-generated")
+        public HandlerFixture(
+            string merchantId = "merchant-generated",
+            TimeSpan? compensationTimeout = null)
         {
             MerchantIds = new StubMerchantIdGenerator(merchantId);
             Serializer = new StableJsonIdempotencyResponseSerializer();
@@ -441,17 +604,19 @@ public sealed class CreateUserCommandHandlerTests
             IdempotencyService = new IdempotencyService(
                 IdempotencyRepository,
                 Serializer,
-                TimeProvider.System,
+                new FixedClock(Now),
                 NullLogger<IdempotencyService>.Instance);
             Handler = new CreateUserCommandHandler(
-                IdentityProvider,
-                Repository,
-                MerchantIds,
+                new CreateUserCommandHandlerDependencies(
+                    IdentityProvider,
+                    Repository,
+                    MerchantIds,
+                    new FixedClock(Now)),
                 IdempotencyService,
                 Hasher,
                 Options.Create(new CreateUserConsistencyOptions
                 {
-                    CompensationTimeout = TimeSpan.FromSeconds(1)
+                    CompensationTimeout = compensationTimeout ?? TimeSpan.FromSeconds(1)
                 }),
                 Logger);
         }
@@ -528,6 +693,12 @@ public sealed class CreateUserCommandHandlerTests
             set;
         }
 
+        public bool WaitForDeleteCancellation
+        {
+            get;
+            set;
+        }
+
         public CancellationToken CreateCancellationToken
         {
             get;
@@ -560,13 +731,16 @@ public sealed class CreateUserCommandHandlerTests
             return Task.FromResult(new CreateIdentityProviderUserResult("keycloak-user-1"));
         }
 
-        public Task DeleteUserAsync(string keycloakUserId, CancellationToken cancellationToken = default)
+        public async Task DeleteUserAsync(string keycloakUserId, CancellationToken cancellationToken = default)
         {
             DeleteCancellationToken = cancellationToken;
             DeletedUserIds.Add(keycloakUserId);
-            return DeleteException is null
-                ? Task.CompletedTask
-                : Task.FromException(DeleteException);
+
+            if (WaitForDeleteCancellation)
+                await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+
+            if (DeleteException is not null)
+                throw DeleteException;
         }
     }
 
@@ -671,10 +845,18 @@ public sealed class CreateUserCommandHandlerTests
             private set;
         }
 
+        public Exception? GenerateException
+        {
+            get;
+            set;
+        }
+
         public string Generate()
         {
             GenerateCount++;
-            return merchantId;
+            return GenerateException is null
+                ? merchantId
+                : throw GenerateException;
         }
     }
 
@@ -767,9 +949,14 @@ public sealed class CreateUserCommandHandlerTests
                 CreateUserIdempotencyPayload.CreateUserOperationName,
                 idempotencyKey,
                 requestHash,
-                DateTime.UtcNow,
-                expiresAtUtc ?? DateTime.UtcNow.AddHours(24)));
+                Now.UtcDateTime,
+                expiresAtUtc ?? Now.UtcDateTime.AddHours(24)));
         }
+    }
+
+    private sealed class FixedClock(DateTimeOffset utcNow) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => utcNow;
     }
 
     private sealed class CapturingLogger<T> : ILogger<T>

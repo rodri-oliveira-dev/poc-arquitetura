@@ -146,9 +146,11 @@ tentar novamente depois.
   [ADR-0095](../adrs/0095-evolucao-futura-email-identity-service.md).
 - Falha de compensacao no Keycloak pode exigir recuperacao operacional antes de
   liberar novo retry seguro.
-- Cancelamento da requisicao depois da criacao do usuario no Keycloak e antes
-  da confirmacao local aciona compensacao com timeout configuravel em
-  `IdentityService:CreateUserConsistency:CompensationTimeout`; cancelamento
-  antes do efeito externo nao tenta remover usuario no Keycloak. Cancelamento
-  dentro do client administrativo apos criacao externa e antes da senha usa
+- Qualquer falha conhecida depois da criacao confirmada do usuario no Keycloak
+  e antes da confirmacao local aciona compensacao com timeout configuravel em
+  `IdentityService:CreateUserConsistency:CompensationTimeout`; isso inclui
+  cancelamento da requisicao, geracao de `MerchantId`, construcao dos value
+  objects, criacao do agregado e persistencia local. Falhas antes do efeito
+  externo nao tentam remover usuario no Keycloak. Cancelamento dentro do client
+  administrativo apos criacao externa e antes da senha usa
   `IdentityProvider:Keycloak:CompensationTimeout`.

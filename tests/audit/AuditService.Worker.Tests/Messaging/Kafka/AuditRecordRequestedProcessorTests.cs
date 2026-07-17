@@ -142,6 +142,7 @@ public sealed class AuditRecordRequestedProcessorTests
             new AuditRecordRequestedValidator(),
             deadLetterPublisher ?? new RecordingDeadLetterPublisher(),
             sender,
+            TimeProvider.System,
             NullLogger<AuditRecordRequestedProcessor>.Instance);
 
     private static AuditKafkaReceivedMessage ReceivedMessage(string payload)

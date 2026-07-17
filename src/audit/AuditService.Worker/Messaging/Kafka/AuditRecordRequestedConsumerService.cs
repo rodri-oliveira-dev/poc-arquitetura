@@ -15,6 +15,7 @@ internal sealed partial class AuditRecordRequestedConsumerService(
     IAuditKafkaConsumerFactory consumerFactory,
     IServiceScopeFactory scopeFactory,
     AuditWorkerMetrics metrics,
+    TimeProvider timeProvider,
     ILogger<AuditRecordRequestedConsumerService> logger) : BackgroundService
 {
     private readonly AuditRecordRequestedConsumerOptions _options = options.Value;
@@ -37,7 +38,7 @@ internal sealed partial class AuditRecordRequestedConsumerService(
             catch (ConsumeException ex)
             {
                 LogConsumeFailure(logger, ex);
-                await Task.Delay(_options.ConsumeErrorRetryDelay, stoppingToken);
+                await Task.Delay(_options.ConsumeErrorRetryDelay, timeProvider, stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -46,12 +47,12 @@ internal sealed partial class AuditRecordRequestedConsumerService(
             catch (KafkaException ex)
             {
                 LogKafkaProcessingFailure(logger, ex);
-                await Task.Delay(_options.ProcessingErrorRetryDelay, stoppingToken);
+                await Task.Delay(_options.ProcessingErrorRetryDelay, timeProvider, stoppingToken);
             }
             catch (Exception ex)
             {
                 LogUnexpectedKafkaProcessingFailure(logger, ex);
-                await Task.Delay(_options.ProcessingErrorRetryDelay, stoppingToken);
+                await Task.Delay(_options.ProcessingErrorRetryDelay, timeProvider, stoppingToken);
             }
         }
 
@@ -127,7 +128,7 @@ internal sealed partial class AuditRecordRequestedConsumerService(
                         _options.MaxProcessingAttempts,
                         _options.ProcessingRetryDelay));
 
-                await Task.Delay(_options.ProcessingRetryDelay, cancellationToken);
+                await Task.Delay(_options.ProcessingRetryDelay, timeProvider, cancellationToken);
             }
         }
 

@@ -38,7 +38,7 @@ public sealed class TransferApiFactory : WebApplicationFactory<Program>, IDispos
         SetProcessEnvironmentDefault("ApiLimits__MaxRequestBodySizeBytes", "1024");
         SetProcessEnvironmentDefault("ConnectionStrings__DefaultConnection", "Host=unused;Database=ignore;Username=ignore;Password=ignore");
         SetProcessEnvironmentDefault("ForwardedHeaders__TrustedProxies__0", "127.0.0.1");
-        SetProcessEnvironmentDefault("ForwardedHeaders__AllowedHosts__0", "localhost");
+        SetProcessEnvironmentDefault("ForwardedHeaders__AllowedHosts__0", "api.example.com");
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -63,7 +63,7 @@ public sealed class TransferApiFactory : WebApplicationFactory<Program>, IDispos
                 ["Jwt:JwksUrl"] = "https://localhost/jwks.json",
                 ["ApiLimits:MaxRequestBodySizeBytes"] = "1024",
                 ["ForwardedHeaders:TrustedProxies:0"] = "127.0.0.1",
-                ["ForwardedHeaders:AllowedHosts:0"] = "localhost",
+                ["ForwardedHeaders:AllowedHosts:0"] = "api.example.com",
                 ["ConnectionStrings:DefaultConnection"] = "Host=unused;Database=ignore;Username=ignore;Password=ignore"
             });
         });

@@ -64,7 +64,6 @@ public sealed class BoundedContextCatalogTests
                 [ArchitectureLayer.Application] = new HashSet<ArchitectureLayer> { ArchitectureLayer.Domain }
             },
             new Dictionary<ArchitectureLayer, IReadOnlySet<string>>(),
-            new HashSet<ArchitectureLayer>(),
             new HashSet<string>());
 
         ProjectModel project = new(tempRepository.ProjectPath("bad", "BadService", ArchitectureLayer.Application));
@@ -94,7 +93,6 @@ public sealed class BoundedContextCatalogTests
                 [ArchitectureLayer.Application] = new HashSet<ArchitectureLayer> { ArchitectureLayer.Domain }
             },
             new Dictionary<ArchitectureLayer, IReadOnlySet<string>>(),
-            new HashSet<ArchitectureLayer>(),
             new HashSet<string>());
 
         ProjectModel project = new(tempRepository.ProjectPath("ok", "OkService", ArchitectureLayer.Application));

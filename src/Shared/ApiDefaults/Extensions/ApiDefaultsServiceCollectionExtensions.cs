@@ -23,26 +23,17 @@ public static class ApiDefaultsServiceCollectionExtensions
 
     public static IServiceCollection AddApiDefaults<TExceptionHandler>(
         this IServiceCollection services,
-        IConfiguration configuration,
-        params string[] allowedForwardedHosts)
+        IConfiguration configuration)
         where TExceptionHandler : class, IExceptionHandler
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
-        ArgumentNullException.ThrowIfNull(allowedForwardedHosts);
 
         services.AddExceptionHandler<TExceptionHandler>();
         services.AddProblemDetails();
         services
             .AddOptions<TrustedForwardedHeadersOptions>()
             .Bind(configuration.GetSection(TrustedForwardedHeadersOptions.SectionName))
-            .PostConfigure(options =>
-            {
-                foreach (string host in allowedForwardedHosts)
-                {
-                    options.AllowedHosts.Add(host);
-                }
-            })
             .ValidateOnStart();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<TrustedForwardedHeadersOptions>, TrustedForwardedHeadersOptionsValidator>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IPostConfigureOptions<ForwardedHeadersOptions>, TrustedForwardedHeadersPostConfigureOptions>());
@@ -114,7 +105,6 @@ public static class ApiDefaultsServiceCollectionExtensions
                     .GetMetadata<EnableRateLimitingAttribute>()?.PolicyName
                     ?? "unknown";
                 string partitionType = string.Equals(policy, ApiRateLimitPolicies.AnonymousWebhook, StringComparison.Ordinal)
-                    || string.Equals(policy, ApiRateLimitPolicies.Swagger, StringComparison.Ordinal)
                         ? "anonymous_ip"
                         : ApiRateLimitPartitionKeyFactory.DescribeAuthenticatedPartitionType(context.HttpContext);
 
@@ -145,10 +135,6 @@ public static class ApiDefaultsServiceCollectionExtensions
                 options,
                 ApiRateLimitPolicies.AnonymousWebhook,
                 ResolvePolicyOptions(apiLimits, apiLimits.AnonymousWebhookRateLimit));
-            AddAnonymousIpPolicy(
-                options,
-                ApiRateLimitPolicies.Swagger,
-                ResolvePolicyOptions(apiLimits, apiLimits.SwaggerRateLimit));
             AddAuthenticatedPolicy(
                 options,
                 ApiRateLimitPolicies.LegacyFixed,
@@ -200,8 +186,7 @@ public static class ApiDefaultsServiceCollectionExtensions
         => HasValidRateLimitPolicy(options.AuthenticatedReadRateLimit)
             && HasValidRateLimitPolicy(options.AuthenticatedWriteRateLimit)
             && HasValidRateLimitPolicy(options.AdministrativeRateLimit)
-            && HasValidRateLimitPolicy(options.AnonymousWebhookRateLimit)
-            && HasValidRateLimitPolicy(options.SwaggerRateLimit);
+            && HasValidRateLimitPolicy(options.AnonymousWebhookRateLimit);
 
     private static bool HasValidRateLimitPolicy(RateLimitPolicyOptions options)
         => options.PermitLimit is null or > 0

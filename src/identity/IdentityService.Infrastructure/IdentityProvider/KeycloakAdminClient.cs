@@ -14,6 +14,7 @@ namespace IdentityService.Infrastructure.IdentityProvider;
 public sealed partial class KeycloakAdminClient(
     HttpClient httpClient,
     IOptions<KeycloakAdminOptions> options,
+    TimeProvider timeProvider,
     ILogger<KeycloakAdminClient> logger) : IIdentityProviderUserService
 {
     public async Task<CreateIdentityProviderUserResult> CreateUserAsync(
@@ -242,9 +243,30 @@ public sealed partial class KeycloakAdminClient(
             timeout = new KeycloakAdminOptions().CompensationTimeout;
 
         var source = new CancellationTokenSource();
-        source.CancelAfter(timeout);
+        ScheduleCancellation(source, timeout);
 
         return source;
+    }
+
+    private void ScheduleCancellation(CancellationTokenSource source, TimeSpan timeout)
+    {
+        var timer = timeProvider.CreateTimer(
+            static state =>
+            {
+                try
+                {
+                    ((CancellationTokenSource)state!).Cancel();
+                }
+                catch (ObjectDisposedException)
+                {
+                    return;
+                }
+            },
+            source,
+            timeout,
+            Timeout.InfiniteTimeSpan);
+
+        source.Token.Register(static state => ((ITimer)state!).Dispose(), timer);
     }
 
     private async Task DeleteKeycloakUserAsync(

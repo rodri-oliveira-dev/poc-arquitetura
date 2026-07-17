@@ -13,6 +13,7 @@ namespace PaymentService.Worker.HostedServices;
 public sealed partial class PaymentLedgerWorkerService(
     IServiceProvider serviceProvider,
     IOptions<PaymentLedgerWorkerOptions> options,
+    TimeProvider timeProvider,
     PaymentLedgerWorkerMetrics metrics,
     ILogger<PaymentLedgerWorkerService> logger) : BackgroundService
 {
@@ -22,6 +23,7 @@ public sealed partial class PaymentLedgerWorkerService(
 
     private readonly IServiceProvider _serviceProvider = serviceProvider;
     private readonly IOptions<PaymentLedgerWorkerOptions> _options = options;
+    private readonly TimeProvider _timeProvider = timeProvider;
     private readonly PaymentLedgerWorkerMetrics _metrics = metrics;
     private readonly ILogger<PaymentLedgerWorkerService> _logger = logger;
     private readonly string _lockOwner = $"{Environment.MachineName}:{Guid.NewGuid():N}";
@@ -48,7 +50,7 @@ public sealed partial class PaymentLedgerWorkerService(
 
             try
             {
-                await Task.Delay(_options.Value.PollingInterval, stoppingToken);
+                await Task.Delay(_options.Value.PollingInterval, _timeProvider, stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

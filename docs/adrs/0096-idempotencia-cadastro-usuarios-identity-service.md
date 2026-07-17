@@ -111,9 +111,10 @@ duplicidade externa.
 - **E-mail** permanece side effect pos-commit via Domain Event. Replay de uma
   resposta `Completed` nao dispara novo Domain Event e nao reenvia e-mail.
 - **Compensacao** continua removendo o usuario recem-criado no Keycloak quando a
-  persistencia local falha. O `failure_stage` registra se a falha ocorreu antes
-  de efeito externo, depois de compensacao concluida ou depois de compensacao
-  nao confirmada.
+  modelagem ou persistencia local falha apos a criacao externa e antes da
+  confirmacao local. O `failure_stage` registra se a falha ocorreu antes de
+  efeito externo, depois de compensacao concluida ou depois de compensacao nao
+  confirmada.
 
 ## Fora do escopo
 - Reset, troca ou reenvio de senha.
