@@ -129,25 +129,20 @@ internal sealed class CorsOptionsValidator : IValidateOptions<CorsOptions>
 
     private static void ValidateHeaders(IEnumerable<string> headers, string sectionName, List<string> failures)
     {
-        foreach (string header in headers)
-        {
-            if (!ValidateHeader(header, sectionName, failures))
-            {
-                failures.Add($"{sectionName} contains invalid header '{header}'. Configure explicit HTTP header names.");
-            }
-        }
-    }
-
-    private static bool ValidateHeader(string header, string sectionName, List<string> failures)
-    {
-        if (string.IsNullOrWhiteSpace(header))
+        foreach (string header in headers.Where(string.IsNullOrWhiteSpace))
         {
             failures.Add($"{sectionName} must not contain empty values.");
-            return true;
         }
 
-        return header.Trim() != "*" && IsToken(header);
+        foreach (string header in headers.Where(IsInvalidHeader))
+        {
+            failures.Add($"{sectionName} contains invalid header '{header}'. Configure explicit HTTP header names.");
+        }
     }
+
+    private static bool IsInvalidHeader(string header)
+        => !string.IsNullOrWhiteSpace(header) &&
+            (header.Trim() == "*" || !IsToken(header));
 
     private static bool IsToken(string value)
         => value.All(IsTokenCharacter);
