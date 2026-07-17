@@ -36,6 +36,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IIdempotencyResponseSerializer, StableJsonIdempotencyResponseSerializer>();
         services.AddSingleton<IIdempotencyRequestHasher, Sha256IdempotencyRequestHasher>();
         services.AddScoped<IIdempotencyService, IdempotencyService>();
+        services.AddScoped<CreateUserCommandHandlerDependencies>();
         services.AddScoped<CreateUserCommandHandler>();
         services.AddEndpointsApiExplorer();
 

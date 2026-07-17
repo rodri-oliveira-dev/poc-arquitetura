@@ -607,16 +607,17 @@ public sealed class CreateUserCommandHandlerTests
                 new FixedClock(Now),
                 NullLogger<IdempotencyService>.Instance);
             Handler = new CreateUserCommandHandler(
-                IdentityProvider,
-                Repository,
-                MerchantIds,
+                new CreateUserCommandHandlerDependencies(
+                    IdentityProvider,
+                    Repository,
+                    MerchantIds,
+                    new FixedClock(Now)),
                 IdempotencyService,
                 Hasher,
                 Options.Create(new CreateUserConsistencyOptions
                 {
                     CompensationTimeout = compensationTimeout ?? TimeSpan.FromSeconds(1)
                 }),
-                new FixedClock(Now),
                 Logger);
         }
 

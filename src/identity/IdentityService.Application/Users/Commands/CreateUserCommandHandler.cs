@@ -9,13 +9,10 @@ using Microsoft.Extensions.Options;
 namespace IdentityService.Application.Users.Commands;
 
 public sealed partial class CreateUserCommandHandler(
-    IIdentityProviderUserService identityProvider,
-    IUserRepository users,
-    IMerchantIdGenerator merchantIdGenerator,
+    CreateUserCommandHandlerDependencies dependencies,
     IIdempotencyService idempotencyService,
     IIdempotencyRequestHasher idempotencyRequestHasher,
     IOptions<CreateUserConsistencyOptions> consistencyOptions,
-    TimeProvider timeProvider,
     ILogger<CreateUserCommandHandler> logger)
 {
     private const int CreatedStatusCode = 201;
@@ -96,7 +93,7 @@ public sealed partial class CreateUserCommandHandler(
         CreateUserExecutionState executionState,
         CancellationToken cancellationToken)
     {
-        var identityUser = await identityProvider.CreateUserAsync(
+        var identityUser = await dependencies.IdentityProvider.CreateUserAsync(
             new CreateIdentityProviderUserRequest(
                 command.Name,
                 command.Email,
@@ -112,16 +109,16 @@ public sealed partial class CreateUserCommandHandler(
                 UserId.New(),
                 new Email(command.Email),
                 new Username(command.Username),
-                new MerchantId(merchantIdGenerator.Generate()),
+                new MerchantId(dependencies.MerchantIdGenerator.Generate()),
                 identityUser.KeycloakUserId,
-                timeProvider.GetUtcNow().UtcDateTime);
+                dependencies.TimeProvider.GetUtcNow().UtcDateTime);
 
             executionState.MarkLocalPersistenceStarted();
-            await users.AddAsync(user, cancellationToken);
+            await dependencies.Users.AddAsync(user, cancellationToken);
 
             if (saveChanges)
             {
-                await users.SaveChangesAsync(cancellationToken);
+                await dependencies.Users.SaveChangesAsync(cancellationToken);
                 executionState.MarkLocalPersistenceConfirmed();
             }
         }
@@ -162,7 +159,7 @@ public sealed partial class CreateUserCommandHandler(
 
         try
         {
-            await identityProvider.DeleteUserAsync(keycloakUserId, compensationTimeout.Token);
+            await dependencies.IdentityProvider.DeleteUserAsync(keycloakUserId, compensationTimeout.Token);
             IdempotencyFailureMetadata.SetFailureStage(
                 originalException,
                 IdempotencyFailureStage.AfterIdentityProviderCompensated);
@@ -202,7 +199,7 @@ public sealed partial class CreateUserCommandHandler(
 
     private void ScheduleCancellation(CancellationTokenSource source, TimeSpan timeout)
     {
-        var timer = timeProvider.CreateTimer(
+        var timer = dependencies.TimeProvider.CreateTimer(
             static state =>
             {
                 try
@@ -211,6 +208,7 @@ public sealed partial class CreateUserCommandHandler(
                 }
                 catch (ObjectDisposedException)
                 {
+                    return;
                 }
             },
             source,

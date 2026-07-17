@@ -259,6 +259,7 @@ public sealed partial class KeycloakAdminClient(
                 }
                 catch (ObjectDisposedException)
                 {
+                    return;
                 }
             },
             source,
