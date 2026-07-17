@@ -31,6 +31,10 @@
 - [x] Executar validacao de eventos.
 - [x] Executar build LikeC4.
 - [x] Executar lint OpenAPI.
+- [x] Executar geracao OpenAPI.
+- [x] Executar stack local padrao.
+- [x] Executar k6 smoke Kafka.
+- [x] Executar OWASP ZAP local.
 - [x] Registrar validacoes nao executadas ou nao aplicaveis.
 
 ## Entrega

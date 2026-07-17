@@ -182,11 +182,16 @@ Total analisado apos a criacao desta spec: 263 arquivos Markdown. Revisados dire
 - `npm run events:validate`
 - `npm run openapi:lint`
 
+### Execucoes adicionais solicitadas
+
+- Geracao OpenAPI executada com `./scripts/contracts/openapi/generate.ps1`; nao houve drift em `docs/openapi`.
+- Stack local padrao executada com `./scripts/local/start-stack.ps1`; migrations, build de imagens e subida dos containers concluidos com sucesso.
+- k6 smoke Kafka executado com `./scripts/performance/run-loadtests.ps1 -Mode smoke-kafka`; checks e thresholds passaram, a Outbox foi publicada, o evento foi projetado no Balance e a DLQ do Balance nao cresceu.
+- OWASP ZAP local executado com `./scripts/security/run-owasp-zap.ps1`; LedgerService.Api e BalanceService.Api terminaram com `FAIL-NEW: 0`, `WARN-NEW: 0`, `INFO: 0` e `PASS: 118` em cada API.
+
 ### Referencias nao verificadas integralmente
 
-- Execucao real da stack local completa nao foi feita nesta revisao documental para evitar custo operacional e dependencias externas.
-- Geracao OpenAPI nao foi executada porque nao houve alteracao de contrato HTTP.
-- Load tests k6 e OWASP ZAP nao foram executados porque a mudanca nao altera API nem runtime.
+- Load tests mais pesados, Nginx local, Pub/Sub legado e active scan do ZAP nao foram executados porque o pedido complementar cobriu stack padrao, k6 smoke Kafka e ZAP baseline local.
 
 ## Validacoes executadas
 
@@ -198,6 +203,10 @@ Resultado registrado apos a revisao:
 - `npm run events:validate`;
 - `npm run architecture:build`;
 - `npm run openapi:lint`.
+- `./scripts/contracts/openapi/generate.ps1`;
+- `./scripts/local/start-stack.ps1`;
+- `./scripts/performance/run-loadtests.ps1 -Mode smoke-kafka`;
+- `./scripts/security/run-owasp-zap.ps1`.
 
 ## Riscos residuais
 
