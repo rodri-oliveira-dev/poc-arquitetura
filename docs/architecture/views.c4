@@ -76,7 +76,7 @@ views {
 
   view systemLandscape {
     title "System Landscape - poc-arquitetura"
-    description "Mostra os sistemas e atores ao redor da POC. Use esta view para entender o ecossistema sem detalhes de classes, workers internos ou tabelas."
+    description "Mostra os sistemas e atores ao redor da POC. Use esta view para entender o ecossistema sem detalhes de classes, workers internos, tabelas ou telemetria; observabilidade fica em platformContainers e observabilityFlow."
     include customer
     include edge
     include identity
@@ -89,7 +89,6 @@ views {
     include stripe
     include kafka
     include email
-    include observability
     autoLayout LeftRight
   }
 

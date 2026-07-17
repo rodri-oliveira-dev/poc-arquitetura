@@ -100,6 +100,53 @@ Use esta ordem de leitura para onboarding:
 Evite ler todas as views em sequencia como se fossem capitulos. Cada view deve
 ser usada como resposta a uma pergunta.
 
+## Jornadas arquiteturais
+
+### Jornada rapida
+
+Para entender o projeto em cerca de 10 minutos, leia `systemLandscape`,
+`businessContainers`, `ledgerBalanceProjectionFlow`,
+`transferSagaSuccessFlow` e `paymentLedgerMaterializationFlow`. Essa jornada
+mostra o ecossistema, os servicos de negocio e os tres fluxos que mais explicam
+a POC atual.
+
+### Jornada para iniciantes
+
+Comece por esta pagina, leia as secoes "O que e C4 Model", "O que e LikeC4" e
+"Niveis usados neste repositorio", depois abra `systemLandscape`,
+`businessContainers`, `integrationContainers` e um fluxo dynamic por vez. Se um
+termo aparecer estranho, use `boundaries.md`, `patterns-catalog.md`,
+`docs/development/kafka-outbox.md` e `docs/events/README.md` antes de ir para
+component views.
+
+### Jornada por bounded context
+
+Escolha o servico e siga a view de containers antes da view de componentes:
+Ledger usa `ledgerApiComponents` e `ledgerWorkerComponents`; Balance usa
+`balanceApiComponents` e `balanceWorkerComponents`; Transfer usa
+`transferApiComponents` e `transferWorkerComponents`; Payment usa
+`paymentApiComponents` e `paymentWorkerComponents`; Identity usa
+`identityServiceComponents` e `identityComponents`; Audit usa
+`auditApiComponents` e `auditWorkerComponents`.
+
+### Jornada por fluxo
+
+Para seguir uma operacao entre servicos, use as dynamic views: lancamento e
+saldo em `ledgerBalanceProjectionFlow`, cadastro em
+`identityRegistrationFlow`, transferencia em `transferSagaSuccessFlow` ou
+`transferSagaCompensationFlow`, pagamento em `paymentCreateFlow`,
+`paymentWebhookInboxFlow`, `paymentLedgerMaterializationFlow` e
+`paymentRefundFlow`, auditoria em `auditKafkaIngestionFlow` e modo legado em
+`pubSubLegacyProjectionFlow`.
+
+### Jornada operacional
+
+Para runtime e falhas, leia `platformContainers`, `localDeployment`,
+`kafkaFlow`, `observabilityFlow`, `docs/operations/dlq-strategy.md`,
+`docs/operations/replay-strategy.md`, `docs/operations/payment-worker.md` e
+`docs/operations/audit-worker.md`. Essa jornada separa o ambiente local atual
+de baselines futuros descritos em `production-readiness.md`.
+
 ## Niveis usados neste repositorio
 
 ### System Context
