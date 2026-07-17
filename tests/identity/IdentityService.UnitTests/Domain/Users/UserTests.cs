@@ -6,6 +6,8 @@ namespace IdentityService.UnitTests.Domain.Users;
 
 public sealed class UserTests
 {
+    private static readonly DateTime OccurredAt = new(2026, 06, 26, 12, 00, 00, DateTimeKind.Utc);
+
     [Fact]
     public void Register_should_create_valid_user()
     {
@@ -27,7 +29,8 @@ public sealed class UserTests
                 new Email("invalid-email"),
                 new Username("user-name"),
                 new MerchantId("merchant-1"),
-                "keycloak-user-1"));
+                "keycloak-user-1",
+                OccurredAt));
 
         Assert.Contains("Email", exception.Message);
     }
@@ -41,7 +44,8 @@ public sealed class UserTests
                 new Email("user@example.com"),
                 new Username("user-name"),
                 new MerchantId(" "),
-                "keycloak-user-1"));
+                "keycloak-user-1",
+                OccurredAt));
 
         Assert.Contains("MerchantId", exception.Message);
     }
@@ -55,7 +59,8 @@ public sealed class UserTests
                 new Email("user@example.com"),
                 new Username("user-name"),
                 new MerchantId(new string('m', MerchantId.MaxLength + 1)),
-                "keycloak-user-1"));
+                "keycloak-user-1",
+                OccurredAt));
 
         Assert.Contains("100", exception.Message);
     }
@@ -85,7 +90,7 @@ public sealed class UserTests
     [Fact]
     public void Register_should_add_user_registered_domain_event()
     {
-        var occurredAt = new DateTime(2026, 06, 26, 12, 00, 00, DateTimeKind.Utc);
+        var occurredAt = OccurredAt;
 
         var user = CreateUser(occurredAt);
 
@@ -123,7 +128,22 @@ public sealed class UserTests
     {
         var domainEvent = Assert.IsType<IDomainEvent>(Assert.Single(CreateUser().DomainEvents), exactMatch: false);
 
-        Assert.NotEqual(default, domainEvent.OccurredAt);
+        Assert.Equal(OccurredAt, domainEvent.OccurredAt);
+    }
+
+    [Fact]
+    public void Register_should_reject_non_utc_occurred_at()
+    {
+        var exception = Assert.Throws<DomainException>(() =>
+            User.Register(
+                UserId.New(),
+                new Email("user@example.com"),
+                new Username("user-name"),
+                new MerchantId("merchant-1"),
+                "keycloak-user-1",
+                new DateTime(2026, 06, 26, 12, 00, 00, DateTimeKind.Local)));
+
+        Assert.Contains("UTC", exception.Message, StringComparison.Ordinal);
     }
 
     private static User CreateUser(DateTime? occurredAt = null)
@@ -133,5 +153,5 @@ public sealed class UserTests
             new Username("user-name"),
             new MerchantId("merchant-1"),
             "keycloak-user-1",
-            occurredAt);
+            occurredAt ?? OccurredAt);
 }

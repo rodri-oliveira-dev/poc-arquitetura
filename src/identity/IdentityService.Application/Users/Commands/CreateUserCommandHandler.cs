@@ -15,6 +15,7 @@ public sealed partial class CreateUserCommandHandler(
     IIdempotencyService idempotencyService,
     IIdempotencyRequestHasher idempotencyRequestHasher,
     IOptions<CreateUserConsistencyOptions> consistencyOptions,
+    TimeProvider timeProvider,
     ILogger<CreateUserCommandHandler> logger)
 {
     private const int CreatedStatusCode = 201;
@@ -112,7 +113,8 @@ public sealed partial class CreateUserCommandHandler(
                 new Email(command.Email),
                 new Username(command.Username),
                 new MerchantId(merchantIdGenerator.Generate()),
-                identityUser.KeycloakUserId);
+                identityUser.KeycloakUserId,
+                timeProvider.GetUtcNow().UtcDateTime);
 
             executionState.MarkLocalPersistenceStarted();
             await users.AddAsync(user, cancellationToken);
@@ -193,9 +195,29 @@ public sealed partial class CreateUserCommandHandler(
         var source = cancellationToken.CanBeCanceled
             ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)
             : new CancellationTokenSource();
-        source.CancelAfter(timeout);
+        ScheduleCancellation(source, timeout);
 
         return source;
+    }
+
+    private void ScheduleCancellation(CancellationTokenSource source, TimeSpan timeout)
+    {
+        var timer = timeProvider.CreateTimer(
+            static state =>
+            {
+                try
+                {
+                    ((CancellationTokenSource)state!).Cancel();
+                }
+                catch (ObjectDisposedException)
+                {
+                }
+            },
+            source,
+            timeout,
+            Timeout.InfiniteTimeSpan);
+
+        source.Token.Register(static state => ((ITimer)state!).Dispose(), timer);
     }
 
     [LoggerMessage(

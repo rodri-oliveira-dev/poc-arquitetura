@@ -314,6 +314,7 @@ public sealed class LedgerEntryCreatedMessageProcessorTests
             services.BuildServiceProvider(),
             dlq,
             new MessagingMetrics($"{MessagingMetrics.MeterName}.Tests.{Guid.NewGuid():N}"),
+            TimeProvider.System,
             NullLogger<LedgerEntryCreatedMessageProcessor>.Instance);
 #pragma warning restore CA2000
     }

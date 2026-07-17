@@ -347,6 +347,7 @@ public sealed class KeycloakAdminClientTests
                     Timeout = TimeSpan.FromSeconds(10),
                     CompensationTimeout = TimeSpan.FromSeconds(1)
                 }),
+                TimeProvider.System,
                 Logger);
         }
 

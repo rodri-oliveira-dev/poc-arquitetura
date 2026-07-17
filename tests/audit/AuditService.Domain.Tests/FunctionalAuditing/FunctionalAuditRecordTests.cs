@@ -5,10 +5,12 @@ namespace AuditService.Domain.Tests.FunctionalAuditing;
 
 public sealed class FunctionalAuditRecordTests
 {
+    private static readonly DateTimeOffset CreatedAt = new(2026, 06, 30, 12, 00, 00, TimeSpan.Zero);
+
     [Fact]
     public void Create_should_create_valid_functional_audit_record()
     {
-        var occurredAt = DateTimeOffset.UtcNow;
+        var occurredAt = new DateTimeOffset(2026, 06, 30, 10, 00, 00, TimeSpan.Zero);
 
         var record = FunctionalAuditRecord.Create(
             operationId: "op-123",
@@ -24,7 +26,8 @@ public sealed class FunctionalAuditRecordTests
             metadata: new Dictionary<string, string>
             {
                 ["channel"] = "api"
-            });
+            },
+            createdAt: CreatedAt);
 
         Assert.NotEqual(Guid.Empty, record.Id);
         Assert.Equal("op-123", record.OperationId);
@@ -32,6 +35,7 @@ public sealed class FunctionalAuditRecordTests
         Assert.Equal("PaymentAuthorized", record.OperationType);
         Assert.Equal("Received", record.Status);
         Assert.Equal(occurredAt, record.OccurredAt);
+        Assert.Equal(CreatedAt, record.CreatedAt);
         Assert.Equal("api", record.Metadata["channel"]);
     }
 
@@ -44,7 +48,8 @@ public sealed class FunctionalAuditRecordTests
                 sourceService: " ",
                 operationType: "PaymentAuthorized",
                 status: "Received",
-                occurredAt: DateTimeOffset.UtcNow));
+                occurredAt: CreatedAt,
+                createdAt: CreatedAt));
 
         Assert.Contains("SourceService", exception.Message);
     }
@@ -58,7 +63,8 @@ public sealed class FunctionalAuditRecordTests
                 sourceService: "AnyCallingService",
                 operationType: " ",
                 status: "Received",
-                occurredAt: DateTimeOffset.UtcNow));
+                occurredAt: CreatedAt,
+                createdAt: CreatedAt));
 
         Assert.Contains("OperationType", exception.Message);
     }
@@ -72,7 +78,8 @@ public sealed class FunctionalAuditRecordTests
                 sourceService: "AnyCallingService",
                 operationType: "PaymentAuthorized",
                 status: "Unknown",
-                occurredAt: DateTimeOffset.UtcNow));
+                occurredAt: CreatedAt,
+                createdAt: CreatedAt));
 
         Assert.Contains("Status", exception.Message);
     }
@@ -86,7 +93,8 @@ public sealed class FunctionalAuditRecordTests
                 sourceService: "AnyCallingService",
                 operationType: "PaymentAuthorized",
                 status: "Received",
-                occurredAt: DateTimeOffset.UtcNow,
+                occurredAt: CreatedAt,
+                createdAt: CreatedAt,
                 entityType: new string('a', FunctionalAuditRecord.EntityTypeMaxLength + 1)));
 
         Assert.Contains("EntityType", exception.Message);
@@ -100,9 +108,10 @@ public sealed class FunctionalAuditRecordTests
             sourceService: "AnyCallingService",
             operationType: "PaymentAuthorized",
             status: "Succeeded",
-            occurredAt: DateTimeOffset.UtcNow,
+            occurredAt: CreatedAt,
             correlationId: "corr-123",
-            idempotencyKey: "idem-123");
+            idempotencyKey: "idem-123",
+            createdAt: CreatedAt);
 
         Assert.Equal("op-123", record.OperationId);
         Assert.Equal("corr-123", record.CorrelationId);

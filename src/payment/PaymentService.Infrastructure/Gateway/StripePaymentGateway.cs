@@ -14,6 +14,7 @@ public sealed partial class StripePaymentGateway(
     HttpClient httpClient,
     IOptions<PaymentGatewayOptions> options,
     PaymentGatewayTelemetry telemetry,
+    TimeProvider timeProvider,
     ILogger<StripePaymentGateway> logger) : IPaymentGateway
 {
     private const string ProviderName = "stripe";
@@ -223,7 +224,7 @@ public sealed partial class StripePaymentGateway(
             status);
     }
 
-    private static CreateExternalRefundResult ParseRefund(string responseBody)
+    private CreateExternalRefundResult ParseRefund(string responseBody)
     {
         using var document = JsonDocument.Parse(responseBody);
         var root = document.RootElement;
@@ -239,7 +240,7 @@ public sealed partial class StripePaymentGateway(
         var currency = GetRequiredString(root, "currency").ToUpperInvariant();
         var createdAt = root.TryGetProperty("created", out var createdProperty)
             ? DateTimeOffset.FromUnixTimeSeconds(createdProperty.GetInt64())
-            : DateTimeOffset.UtcNow;
+            : timeProvider.GetUtcNow();
 
         return new CreateExternalRefundResult(
             "Stripe",

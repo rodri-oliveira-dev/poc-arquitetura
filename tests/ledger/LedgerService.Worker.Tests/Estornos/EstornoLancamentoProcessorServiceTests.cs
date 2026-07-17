@@ -67,7 +67,7 @@ public sealed class EstornoLancamentoProcessorServiceTests
 
         using var sut = CreateSut(repo.Object, sender.Object);
 
-        var act = async () => await sut.ProcessOnceAsync(cts.Token);
+        async Task act() => await sut.ProcessOnceAsync(cts.Token);
         await Assert.ThrowsAsync<OperationCanceledException>(act);
     }
 
@@ -82,6 +82,7 @@ public sealed class EstornoLancamentoProcessorServiceTests
         return new EstornoLancamentoProcessorService(
             services.BuildServiceProvider(),
             Options.Create(new EstornoProcessingOptions { PollingIntervalSeconds = 1, BatchSize = 10 }),
+            TimeProvider.System,
             NullLogger<EstornoLancamentoProcessorService>.Instance);
     }
 }

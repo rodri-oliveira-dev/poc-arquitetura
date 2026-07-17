@@ -12,24 +12,18 @@ using PocArquitetura.KafkaWorkerDefaults;
 
 namespace BalanceService.Worker.Messaging.Kafka.Consumers;
 
-public sealed class LedgerEventsConsumer : BackgroundService
+public sealed class LedgerEventsConsumer(
+    IOptions<KafkaConsumerOptions> options,
+    LedgerEntryCreatedMessageProcessor messageProcessor,
+    MessagingMetrics metrics,
+    TimeProvider timeProvider,
+    ILogger<LedgerEventsConsumer> logger) : BackgroundService
 {
-    private readonly KafkaConsumerOptions _options;
-    private readonly LedgerEntryCreatedMessageProcessor _messageProcessor;
-    private readonly MessagingMetrics _metrics;
-    private readonly ILogger<LedgerEventsConsumer> _logger;
-
-    public LedgerEventsConsumer(
-        IOptions<KafkaConsumerOptions> options,
-        LedgerEntryCreatedMessageProcessor messageProcessor,
-        MessagingMetrics metrics,
-        ILogger<LedgerEventsConsumer> logger)
-    {
-        _options = options.Value;
-        _messageProcessor = messageProcessor;
-        _metrics = metrics;
-        _logger = logger;
-    }
+    private readonly KafkaConsumerOptions _options = options.Value;
+    private readonly LedgerEntryCreatedMessageProcessor _messageProcessor = messageProcessor;
+    private readonly MessagingMetrics _metrics = metrics;
+    private readonly TimeProvider _timeProvider = timeProvider;
+    private readonly ILogger<LedgerEventsConsumer> _logger = logger;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -64,7 +58,7 @@ public sealed class LedgerEventsConsumer : BackgroundService
             {
                 RecordConsumerError(result, ex);
                 _logger.KafkaConsumeError(ex);
-                await Task.Delay(_options.ConsumeErrorRetryDelay, stoppingToken);
+                await Task.Delay(_options.ConsumeErrorRetryDelay, _timeProvider, stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -75,21 +69,21 @@ public sealed class LedgerEventsConsumer : BackgroundService
                 RecordConsumerError(result, ex);
                 _logger.KafkaProcessingError(ex, result?.Topic, result?.Partition.Value, result?.Offset.Value);
 
-                await Task.Delay(_options.ProcessingErrorRetryDelay, stoppingToken);
+                await Task.Delay(_options.ProcessingErrorRetryDelay, _timeProvider, stoppingToken);
             }
             catch (TimeoutException ex)
             {
                 RecordConsumerError(result, ex);
                 _logger.KafkaProcessingError(ex, result?.Topic, result?.Partition.Value, result?.Offset.Value);
 
-                await Task.Delay(_options.ProcessingErrorRetryDelay, stoppingToken);
+                await Task.Delay(_options.ProcessingErrorRetryDelay, _timeProvider, stoppingToken);
             }
             catch (KafkaException ex)
             {
                 RecordConsumerError(result, ex);
                 _logger.KafkaProcessingErrorWithKafkaException(ex, result?.Topic, result?.Partition.Value, result?.Offset.Value);
 
-                await Task.Delay(_options.ProcessingErrorRetryDelay, stoppingToken);
+                await Task.Delay(_options.ProcessingErrorRetryDelay, _timeProvider, stoppingToken);
             }
         }
 

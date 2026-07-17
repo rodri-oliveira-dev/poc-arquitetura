@@ -13,6 +13,7 @@ public sealed class FakePaymentGatewayTests
 {
     private static readonly Guid PaymentId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
     private static readonly Guid RefundId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+    private static readonly DateTimeOffset Now = new(2026, 07, 09, 12, 00, 00, TimeSpan.Zero);
 
     [Theory]
     [InlineData(FakePaymentGatewayScenarios.Success, "requires_payment_method", true)]
@@ -68,6 +69,7 @@ public sealed class FakePaymentGatewayTests
         Assert.Equal(expectedStatus, result.ProviderStatus);
         Assert.Equal(100m, result.Amount);
         Assert.Equal("BRL", result.Currency);
+        Assert.Equal(Now, result.CreatedAt);
     }
 
     [Theory]
@@ -104,6 +106,7 @@ public sealed class FakePaymentGatewayTests
                 }
             }),
             telemetry,
+            new FixedClock(Now),
             NullLogger<FakePaymentGateway>.Instance);
         return new FakeGatewayFixture(gateway, telemetry, provider);
     }
@@ -143,5 +146,10 @@ public sealed class FakePaymentGatewayTests
             telemetry.Dispose();
             serviceProvider.Dispose();
         }
+    }
+
+    private sealed class FixedClock(DateTimeOffset utcNow) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => utcNow;
     }
 }

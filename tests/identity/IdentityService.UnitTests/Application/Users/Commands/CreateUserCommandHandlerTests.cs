@@ -14,6 +14,8 @@ namespace IdentityService.UnitTests.Application.Users.Commands;
 
 public sealed class CreateUserCommandHandlerTests
 {
+    private static readonly DateTimeOffset Now = new(2026, 06, 26, 12, 00, 00, TimeSpan.Zero);
+
     [Fact]
     public async Task Handle_should_create_user_in_keycloak_then_save_user_Async()
     {
@@ -39,6 +41,7 @@ public sealed class CreateUserCommandHandlerTests
         Assert.Equal(fixture.Repository.SavedUser.Id, domainEvent.UserId);
         Assert.Equal(fixture.Repository.SavedUser.MerchantId, domainEvent.MerchantId);
         Assert.Equal(fixture.Repository.SavedUser.KeycloakUserId, domainEvent.KeycloakUserId);
+        Assert.Equal(Now.UtcDateTime, domainEvent.OccurredAt);
     }
 
     [Fact]
@@ -565,7 +568,7 @@ public sealed class CreateUserCommandHandlerTests
         fixture.IdempotencyRepository.SeedProcessing(
             "idem-expired-processing-1",
             fixture.Hasher.ComputeHash(CreateUserIdempotencyPayload.From(command)),
-            expiresAtUtc: DateTime.UtcNow.AddMinutes(-1));
+            expiresAtUtc: Now.UtcDateTime.AddMinutes(-1));
 
         var first = await fixture.Handler.Handle(command, CancellationToken.None);
         var second = await fixture.Handler.Handle(command, CancellationToken.None);
@@ -601,7 +604,7 @@ public sealed class CreateUserCommandHandlerTests
             IdempotencyService = new IdempotencyService(
                 IdempotencyRepository,
                 Serializer,
-                TimeProvider.System,
+                new FixedClock(Now),
                 NullLogger<IdempotencyService>.Instance);
             Handler = new CreateUserCommandHandler(
                 IdentityProvider,
@@ -613,6 +616,7 @@ public sealed class CreateUserCommandHandlerTests
                 {
                     CompensationTimeout = compensationTimeout ?? TimeSpan.FromSeconds(1)
                 }),
+                new FixedClock(Now),
                 Logger);
         }
 
@@ -944,9 +948,14 @@ public sealed class CreateUserCommandHandlerTests
                 CreateUserIdempotencyPayload.CreateUserOperationName,
                 idempotencyKey,
                 requestHash,
-                DateTime.UtcNow,
-                expiresAtUtc ?? DateTime.UtcNow.AddHours(24)));
+                Now.UtcDateTime,
+                expiresAtUtc ?? Now.UtcDateTime.AddHours(24)));
         }
+    }
+
+    private sealed class FixedClock(DateTimeOffset utcNow) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => utcNow;
     }
 
     private sealed class CapturingLogger<T> : ILogger<T>

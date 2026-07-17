@@ -15,7 +15,12 @@ using MediatR;
 
 namespace BalanceService.Worker.Messaging.Processors;
 
-public sealed partial class LedgerEntryCreatedMessageProcessor
+public sealed partial class LedgerEntryCreatedMessageProcessor(
+    IServiceProvider serviceProvider,
+    IDeadLetterPublisher deadLetterPublisher,
+    MessagingMetrics metrics,
+    TimeProvider timeProvider,
+    ILogger<LedgerEntryCreatedMessageProcessor> logger)
 {
     public const string ActivitySourceName = "BalanceService.MessageProcessor";
 
@@ -37,22 +42,11 @@ public sealed partial class LedgerEntryCreatedMessageProcessor
         string? offset,
         string reason);
 
-    private readonly IServiceProvider _serviceProvider;
-    private readonly IDeadLetterPublisher _deadLetterPublisher;
-    private readonly MessagingMetrics _metrics;
-    private readonly ILogger<LedgerEntryCreatedMessageProcessor> _logger;
-
-    public LedgerEntryCreatedMessageProcessor(
-        IServiceProvider serviceProvider,
-        IDeadLetterPublisher deadLetterPublisher,
-        MessagingMetrics metrics,
-        ILogger<LedgerEntryCreatedMessageProcessor> logger)
-    {
-        _serviceProvider = serviceProvider;
-        _deadLetterPublisher = deadLetterPublisher;
-        _metrics = metrics;
-        _logger = logger;
-    }
+    private readonly IServiceProvider _serviceProvider = serviceProvider;
+    private readonly IDeadLetterPublisher _deadLetterPublisher = deadLetterPublisher;
+    private readonly MessagingMetrics _metrics = metrics;
+    private readonly TimeProvider _timeProvider = timeProvider;
+    private readonly ILogger<LedgerEntryCreatedMessageProcessor> _logger = logger;
 
     public async Task<bool> ProcessAsync(ReceivedMessage message, CancellationToken cancellationToken)
     {
@@ -165,7 +159,7 @@ public sealed partial class LedgerEntryCreatedMessageProcessor
             ResolveEventType(receivedMessage),
             reason,
             exception.GetType().Name,
-            DateTimeOffset.UtcNow,
+            _timeProvider.GetUtcNow(),
             receivedMessage.Attributes,
             receivedMessage.Transport.Metadata);
 
@@ -309,10 +303,9 @@ public sealed partial class LedgerEntryCreatedMessageProcessor
     {
         public static LedgerEntryCreatedContractVersion ValidateEventType(ReceivedMessage message)
         {
-            if (string.IsNullOrWhiteSpace(message.EventType))
-                throw new MessageValidationException("Missing required message attribute event_type.");
-
-            return message.EventType switch
+            return string.IsNullOrWhiteSpace(message.EventType)
+                ? throw new MessageValidationException("Missing required message attribute event_type.")
+                : message.EventType switch
             {
                 LedgerEntryCreatedV1Contract.EventType => LedgerEntryCreatedContractVersion.V1,
                 LedgerEntryCreatedV2Contract.EventType => LedgerEntryCreatedContractVersion.V2,
@@ -387,10 +380,9 @@ public sealed partial class LedgerEntryCreatedMessageProcessor
 
             currency = currency.Trim().ToUpperInvariant();
 
-            if (!CurrencyPattern().IsMatch(currency))
-                throw new MessageValidationException("Message payload currency is invalid.");
-
-            return currency;
+            return !CurrencyPattern().IsMatch(currency)
+                ? throw new MessageValidationException("Message payload currency is invalid.")
+                : currency;
         }
 
         private static string? ResolveCurrency(
@@ -399,20 +391,16 @@ public sealed partial class LedgerEntryCreatedMessageProcessor
         {
             if (contractVersion == LedgerEntryCreatedContractVersion.V1)
             {
-                if (evt.Currency is not null)
-                    throw new MessageValidationException("Message payload currency is not supported in LedgerEntryCreated.v1.");
-
-                return LegacyV1CurrencyFallback;
+                return evt.Currency is not null
+                    ? throw new MessageValidationException("Message payload currency is not supported in LedgerEntryCreated.v1.")
+                    : LegacyV1CurrencyFallback;
             }
 
             return evt.Currency;
         }
     }
 
-    public sealed class MessageValidationException : Exception
+    public sealed class MessageValidationException(string message) : Exception(message)
     {
-        public MessageValidationException(string message) : base(message)
-        {
-        }
     }
 }

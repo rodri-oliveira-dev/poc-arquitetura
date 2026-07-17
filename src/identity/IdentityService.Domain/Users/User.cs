@@ -50,10 +50,13 @@ public sealed class User : AggregateRoot
         Username username,
         MerchantId merchantId,
         string keycloakUserId,
-        DateTime? occurredAt = null)
+        DateTime occurredAt)
     {
         if (string.IsNullOrWhiteSpace(keycloakUserId))
             throw new DomainException("KeycloakUserId is required.");
+
+        if (occurredAt.Kind != DateTimeKind.Utc)
+            throw new DomainException("OccurredAt must be UTC.");
 
         var user = new User(id, email, username, merchantId, keycloakUserId.Trim());
 
@@ -63,7 +66,7 @@ public sealed class User : AggregateRoot
             user.Username,
             user.MerchantId,
             user.KeycloakUserId,
-            occurredAt ?? DateTime.UtcNow));
+            occurredAt));
 
         return user;
     }

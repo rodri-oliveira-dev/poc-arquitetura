@@ -10,12 +10,15 @@ using MediatR;
 
 namespace AuditService.Application.FunctionalAuditing.CreateAuditRecord;
 
-public sealed class CreateAuditRecordCommandHandler(IFunctionalAuditRecordRepository repository)
+public sealed class CreateAuditRecordCommandHandler(
+    IFunctionalAuditRecordRepository repository,
+    TimeProvider timeProvider)
         : IRequestHandler<CreateAuditRecordCommand, CreateAuditRecordResult>
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     private readonly IFunctionalAuditRecordRepository _repository = repository;
+    private readonly TimeProvider _timeProvider = timeProvider;
 
     public async Task<CreateAuditRecordResult> Handle(
         CreateAuditRecordCommand request,
@@ -48,7 +51,8 @@ public sealed class CreateAuditRecordCommandHandler(IFunctionalAuditRecordReposi
             actorSubject: request.Actor?.Subject,
             actorClientId: request.Actor?.ClientId,
             reason: request.Reason,
-            metadata: request.Metadata);
+            metadata: request.Metadata,
+            createdAt: _timeProvider.GetUtcNow());
 
         await _repository.AddAsync(record, cancellationToken);
         try

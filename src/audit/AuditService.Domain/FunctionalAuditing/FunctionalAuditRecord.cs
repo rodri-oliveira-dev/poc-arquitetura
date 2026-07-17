@@ -201,7 +201,7 @@ public sealed class FunctionalAuditRecord
         string? actorClientId = null,
         string? reason = null,
         IReadOnlyDictionary<string, string>? metadata = null,
-        DateTimeOffset? createdAt = null)
+        DateTimeOffset createdAt = default)
         => new(
             Guid.NewGuid(),
             operationId,
@@ -220,7 +220,7 @@ public sealed class FunctionalAuditRecord
             reason,
             metadata,
             occurredAt,
-            createdAt ?? DateTimeOffset.UtcNow);
+            createdAt);
 
     private static string Required(string value, string name)
         => string.IsNullOrWhiteSpace(value)
