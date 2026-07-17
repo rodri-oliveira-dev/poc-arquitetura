@@ -61,6 +61,7 @@ Este indice organiza a documentacao por finalidade. O `README.md` da raiz e a po
 - [AuditService API](development/audit-api.md): contrato HTTP de criacao e consulta de registros funcionais de auditoria, agnostico ao servico chamador.
 - [Spec SDD de idempotencia do IdentityService](specs/identity-idempotency.md): comportamento esperado para `Idempotency-Key` opcional em `POST /api/v1/users`.
 - [Spec SDD de consistencia em cancelamentos do IdentityService](specs/identity-cancellation-consistency/requirements.md): requisitos, design e tarefas para compensacao Keycloak quando o cadastro e cancelado entre efeitos.
+- [Spec SDD de compensacao completa do IdentityService](specs/identity-complete-compensation/requirements.md): requisitos, design, tarefas e relatorio para cobrir todas as falhas apos criacao no Keycloak e antes do commit local.
 - [Spec SDD do catalogo de testes arquiteturais](specs/architecture-test-catalog/requirements.md): catalogo declarativo de bounded contexts, regras por camada, providers permitidos e governanca para novos contextos.
 - [Spec SDD de Forwarded Headers confiaveis](specs/trusted-forwarded-headers/requirements.md): requisitos, design e tarefas para confiar em `X-Forwarded-*` somente por ambiente e proxy/rede configurados.
 - [Spec SDD de TimeProvider e governanca residual](specs/time-provider-governance/requirements.md): inventario, requisitos, design, tarefas e relatorio para determinismo temporal e manutencao do repositorio.

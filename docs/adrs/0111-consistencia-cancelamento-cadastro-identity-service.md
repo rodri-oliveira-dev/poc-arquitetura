@@ -56,3 +56,11 @@ compensacao continuam bloqueando retry automatico.
   confirmacao, ainda exigem diagnostico operacional.
 - Falha da propria compensacao do Keycloak pode deixar usuario externo sem
   vinculo local; retry automatico permanece bloqueado nesse caso.
+
+## Atualizacao em 2026-07-17
+Uma revisao posterior fechou a janela restante entre a criacao confirmada no
+Keycloak e o inicio do bloco compensavel. A regiao compensavel agora comeca logo
+apos o `KeycloakUserId` ser registrado no estado de execucao e inclui geracao de
+`MerchantId`, construcao de value objects, criacao do agregado, persistencia
+local e confirmacao de commit. A decisao continua sem Saga, Outbox ou Worker
+novo para este fluxo.

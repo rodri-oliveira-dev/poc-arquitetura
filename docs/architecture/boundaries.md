@@ -168,7 +168,7 @@ Boundaries atuais:
 Pontos de atencao:
 
 - A senha e enviada ao Keycloak e nao deve ser persistida localmente.
-- Se a persistencia local falha apos criar o usuario no Keycloak, o handler tenta compensar removendo o usuario recem-criado no provider. Essa compensacao e best effort.
+- Se qualquer operacao apos criar o usuario no Keycloak e antes da confirmacao local falha, o handler tenta compensar removendo o usuario recem-criado no provider. Essa compensacao e best effort.
 - Domain events sao despachados depois do commit do EF Core. Falhas nos handlers sao logadas e nao revertem o cadastro.
 - O envio de e-mail atual e side effect intra-processo, sem Outbox, retry duravel, DLQ ou worker dedicado. A evolucao futura esta registrada na ADR-0095, mas nao esta implementada.
 - Mailpit e somente local/teste controlado; Resend e provider real configuravel via secret.

@@ -104,15 +104,16 @@ public sealed partial class CreateUserCommandHandler(
             cancellationToken);
         executionState.MarkIdentityProviderUserCreated(identityUser.KeycloakUserId);
 
-        var user = User.Register(
-            UserId.New(),
-            new Email(command.Email),
-            new Username(command.Username),
-            new MerchantId(merchantIdGenerator.Generate()),
-            identityUser.KeycloakUserId);
-
+        User user;
         try
         {
+            user = User.Register(
+                UserId.New(),
+                new Email(command.Email),
+                new Username(command.Username),
+                new MerchantId(merchantIdGenerator.Generate()),
+                identityUser.KeycloakUserId);
+
             executionState.MarkLocalPersistenceStarted();
             await users.AddAsync(user, cancellationToken);
 

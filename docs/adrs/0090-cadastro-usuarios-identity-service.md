@@ -34,8 +34,9 @@ O fluxo decidido e:
   `MerchantId` e `KeycloakUserId`;
 - `IUserRepository` persiste o usuario local no schema `identity`;
 - a senha e enviada somente ao Keycloak e nao e salva localmente;
-- se a persistencia local falhar apos criar o usuario no Keycloak, o fluxo tenta
-  remover o usuario recem-criado do provider para evitar vinculo orfao.
+- se qualquer operacao apos a criacao confirmada no Keycloak e antes da
+  confirmacao local falhar, o fluxo tenta remover o usuario recem-criado do
+  provider para evitar vinculo orfao.
 
 O banco local do `IdentityService` persiste a identidade de dominio e o
 `KeycloakUserId`, mas nao persiste senha, hash de senha ou segredo equivalente.
@@ -48,7 +49,7 @@ O banco local do `IdentityService` persiste a identidade de dominio e o
 - Evita armazenamento local de senha.
 - Permite rastrear o vinculo entre usuario local e usuario do Keycloak.
 - Reduz risco de usuario criado no provider sem registro local por meio de
-  compensacao imediata quando a persistencia falha.
+  compensacao imediata quando a modelagem ou persistencia local falha.
 
 ### Custos e limitacoes
 - O cadastro depende da disponibilidade do Keycloak Admin API.
