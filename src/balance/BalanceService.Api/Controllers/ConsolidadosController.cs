@@ -33,17 +33,21 @@ public sealed class ConsolidadosController : ControllerBase
     private readonly ISender _sender;
     private readonly IMerchantAuthorizationService _merchantAuthorizationService;
     private readonly ApiLimitsOptions _apiLimitsOptions;
+    private readonly TimeProvider _timeProvider;
 
     public ConsolidadosController(
         ISender sender,
         IMerchantAuthorizationService merchantAuthorizationService,
-        IOptions<ApiLimitsOptions> apiLimitsOptions)
+        IOptions<ApiLimitsOptions> apiLimitsOptions,
+        TimeProvider timeProvider)
     {
         ArgumentNullException.ThrowIfNull(apiLimitsOptions);
+        ArgumentNullException.ThrowIfNull(timeProvider);
 
         _sender = sender;
         _merchantAuthorizationService = merchantAuthorizationService;
         _apiLimitsOptions = apiLimitsOptions.Value;
+        _timeProvider = timeProvider;
     }
 
     [HttpGet("diario/{date}")]
@@ -76,7 +80,7 @@ public sealed class ConsolidadosController : ControllerBase
         activity?.SetTag("balance.date", query.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
 
         var result = await _sender.Send(query, cancellationToken);
-        return Ok(BalanceResponseMapper.ToResponse(result, DateTimeOffset.UtcNow));
+        return Ok(BalanceResponseMapper.ToResponse(result, _timeProvider.GetUtcNow()));
     }
 
     [HttpGet("periodo")]
@@ -116,6 +120,6 @@ public sealed class ConsolidadosController : ControllerBase
         activity?.SetTag("balance.to", query.To.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
 
         var result = await _sender.Send(query, cancellationToken);
-        return Ok(BalanceResponseMapper.ToResponse(result, DateTimeOffset.UtcNow));
+        return Ok(BalanceResponseMapper.ToResponse(result, _timeProvider.GetUtcNow()));
     }
 }

@@ -150,7 +150,7 @@ public sealed class SolicitarReprocessamentoLancamentosHandlerTests
         Mock<IIdempotencyRecordRepository> idemRepo,
         Mock<IOutboxMessageRepository> outboxRepo,
         Mock<IUnitOfWork> uow)
-        => new(reprocessamentoRepo.Object, idemRepo.Object, outboxRepo.Object, uow.Object);
+        => new(reprocessamentoRepo.Object, idemRepo.Object, outboxRepo.Object, uow.Object, TimeProvider.System);
 
     private static SolicitarReprocessamentoLancamentosCommand ValidCommand()
         => new(

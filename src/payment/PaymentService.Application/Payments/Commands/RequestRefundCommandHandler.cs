@@ -6,7 +6,6 @@ using MediatR;
 
 using PaymentService.Application.Abstractions.Gateway;
 using PaymentService.Application.Abstractions.Persistence;
-using PaymentService.Application.Abstractions.Time;
 using PaymentService.Application.Common.Exceptions;
 using PaymentService.Domain.Payments;
 
@@ -17,7 +16,7 @@ public sealed class RequestRefundCommandHandler(
     IPaymentIdempotencyService idempotencyService,
     IPaymentGateway paymentGateway,
     IUnitOfWork unitOfWork,
-    IClock clock)
+    TimeProvider timeProvider)
     : IRequestHandler<RequestRefundCommand, RequestRefundResult>
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -26,7 +25,7 @@ public sealed class RequestRefundCommandHandler(
     private readonly IPaymentIdempotencyService _idempotencyService = idempotencyService;
     private readonly IPaymentGateway _paymentGateway = paymentGateway;
     private readonly IUnitOfWork _unitOfWork = unitOfWork;
-    private readonly IClock _clock = clock;
+    private readonly TimeProvider _timeProvider = timeProvider;
 
     public async Task<RequestRefundResult> Handle(RequestRefundCommand request, CancellationToken cancellationToken)
     {
@@ -77,7 +76,7 @@ public sealed class RequestRefundCommandHandler(
         if (!request.AuthorizedMerchantIds.Contains(payment.MerchantId.Value))
             throw new ForbiddenException("Token sem autorizacao para o merchant do Payment.");
 
-        var now = _clock.UtcNow;
+        var now = _timeProvider.GetUtcNow();
         var refund = payment.RequestRefund(
             RefundId.New(),
             new Money(amount, payment.Amount.Currency),
@@ -234,7 +233,7 @@ public sealed class RequestRefundCommandHandler(
         if (CanMarkProviderFailed(refund))
         {
             payment.MarkRefundProviderFailed(
-                _clock.UtcNow,
+                _timeProvider.GetUtcNow(),
                 refundId,
                 refund.ProviderRefundId ?? $"refund:{refundId.Value:N}",
                 exception.Code,
@@ -277,18 +276,18 @@ public sealed class RequestRefundCommandHandler(
         if (string.Equals(externalResult.ProviderStatus, "failed", StringComparison.OrdinalIgnoreCase))
         {
             if (CanMarkProviderFailed(refund))
-                payment.MarkRefundProviderFailed(_clock.UtcNow, refund.RefundId, externalResult.ProviderRefundId, externalResult.RawStatus, "Provider reported refund failed.");
+                payment.MarkRefundProviderFailed(_timeProvider.GetUtcNow(), refund.RefundId, externalResult.ProviderRefundId, externalResult.RawStatus, "Provider reported refund failed.");
 
             return;
         }
 
         if (string.Equals(externalResult.ProviderStatus, "succeeded", StringComparison.OrdinalIgnoreCase))
         {
-            payment.MarkRefundProviderSucceeded(_clock.UtcNow, refund.RefundId, externalResult.ProviderRefundId, externalResult.RawStatus);
+            payment.MarkRefundProviderSucceeded(_timeProvider.GetUtcNow(), refund.RefundId, externalResult.ProviderRefundId, externalResult.RawStatus);
             return;
         }
 
-        payment.RegisterRefundProviderCreated(_clock.UtcNow, refund.RefundId, externalResult.ProviderRefundId, externalResult.RawStatus);
+        payment.RegisterRefundProviderCreated(_timeProvider.GetUtcNow(), refund.RefundId, externalResult.ProviderRefundId, externalResult.RawStatus);
     }
 
     private static bool IsIncompleteRefundReplay(RequestRefundResult response)

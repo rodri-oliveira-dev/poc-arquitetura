@@ -1,7 +1,6 @@
 using Moq;
 
 using PaymentService.Application.Abstractions.Persistence;
-using PaymentService.Application.Abstractions.Time;
 using PaymentService.Application.Payments.InboxProcessing;
 using PaymentService.Application.Payments.Webhooks;
 using PaymentService.Domain.Payments;
@@ -414,9 +413,11 @@ public sealed class PaymentInboxProcessingTests
         return message;
     }
 
-    private sealed class FixedClock(DateTimeOffset utcNow) : IClock
+    private sealed class FixedClock(DateTimeOffset utcNow) : TimeProvider
     {
         public DateTimeOffset UtcNow { get; } = utcNow;
+
+        public override DateTimeOffset GetUtcNow() => UtcNow;
     }
 
     private sealed class FakeUnitOfWork : IUnitOfWork

@@ -1,7 +1,9 @@
 # ADR-0025: Gestao de dependencias vulneraveis
 
 ## Status
-Aceito, parcialmente substituido pela ADR-0026
+Parcialmente substituido
+
+Substituida parcialmente pela [ADR-0026](./0026-atualizar-opentelemetry-api-vulneravel.md).
 
 ## Contexto
 

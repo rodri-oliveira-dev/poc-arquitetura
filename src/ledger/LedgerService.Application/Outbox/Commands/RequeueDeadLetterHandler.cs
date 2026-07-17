@@ -1,5 +1,4 @@
 using LedgerService.Application.Abstractions.Messaging;
-using LedgerService.Application.Abstractions.Time;
 using LedgerService.Domain.Repositories;
 
 using MediatR;
@@ -9,11 +8,11 @@ namespace LedgerService.Application.Outbox.Commands;
 public sealed class RequeueDeadLetterHandler(
     IOutboxMessageRepository outboxMessageRepository,
     IUnitOfWork unitOfWork,
-    IClock? clock = null) : IRequestHandler<RequeueDeadLetterCommand, RequeueDeadLetterResult>
+    TimeProvider timeProvider) : IRequestHandler<RequeueDeadLetterCommand, RequeueDeadLetterResult>
 {
     private readonly IOutboxMessageRepository _outboxMessageRepository = outboxMessageRepository;
     private readonly IUnitOfWork _unitOfWork = unitOfWork;
-    private readonly IClock _clock = clock ?? new SystemClock();
+    private readonly TimeProvider _timeProvider = timeProvider;
 
     public async Task<RequeueDeadLetterResult> Handle(
         RequeueDeadLetterCommand request,
@@ -27,7 +26,7 @@ public sealed class RequeueDeadLetterHandler(
             occurredFrom: null,
             occurredUntil: null,
             limit: 1,
-            requeuedAt: _clock.UtcNow.UtcDateTime,
+            requeuedAt: _timeProvider.GetUtcNow().UtcDateTime,
             requeuedBy: request.RequeuedBy,
             reason: request.Reason,
             cancellationToken: cancellationToken);

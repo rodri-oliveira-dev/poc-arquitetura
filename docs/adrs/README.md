@@ -5,10 +5,14 @@ Também documentamos aqui **pontos de melhoria** (ADRs com status **Proposto**) 
 
 ## Como usar
 
-- **Aceito**: decisão em vigor e refletida no código/infra atual.
-- **Proposto**: melhoria planejada, ainda não implementada (ou parcialmente).
-- **Rejeitado/Substituído**: mantido apenas como histórico.
+- **Aceito**: decisao em vigor e refletida no codigo/infra atual.
+- **Proposto**: melhoria planejada, ainda nao implementada.
+- **Parcialmente implementado**: decisao iniciada, mas ainda incompleta.
+- **Parcialmente substituido**: parte da decisao historica continua valida e parte foi substituida.
+- **Substituido**: mantido apenas como historico.
+- **Rejeitado**: decisao avaliada e descartada.
 
+Quando uma ADR substituir outra, registre a relacao no indice e, quando aplicavel, no corpo da ADR com `Substitui`/`Substituida por`, preservando o texto historico.
 Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-once.md`).
 
 ## Índice de ADRs (da mais nova para a mais antiga)
@@ -41,7 +45,7 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 | [ADR-0088](./0088-kafka-default-ledger-balance-workers.md) | Aceito | Define Kafka como default dos workers principais Ledger/Balance e mantem Pub/Sub apenas por selecao explicita. |
 | [ADR-0087](./0087-saga-orquestrada-transfer-service-kafka.md) | Aceito | Define Saga Orquestrada no `TransferService` para transferencias entre merchants usando Kafka, Outbox transacional, worker assincrono, idempotencia por etapa e DLQ de aplicacao. |
 | [ADR-0086](./0086-pre-push-leve-gates-pesados-no-pr.md) | Parcialmente substituido | Mantem o pre-push leve; a organizacao do CI de PR foi substituida pela ADR-0106. |
-| [ADR-0085](./0085-separacao-configuracoes-locais-sensiveis-arquivos-versionados.md) | Proposta | Define a separacao entre configuracoes locais sensiveis nao versionadas e exemplos versionados com placeholders. |
+| [ADR-0085](./0085-separacao-configuracoes-locais-sensiveis-arquivos-versionados.md) | Proposto | Define a separacao entre configuracoes locais sensiveis nao versionadas e exemplos versionados com placeholders. |
 | [ADR-0084](./0084-ledger-entry-created-v2-currency-explicita.md) | Aceito | Cria `LedgerEntryCreated.v2` com `currency` obrigatoria e mantem leitura de v1 como legado. |
 | [ADR-0083](./0083-conexao-futura-cloud-run-job-cloud-sql-postgresql.md) | Proposto | Registra a direcao futura para Cloud Run Job acessar Cloud SQL PostgreSQL com service account, secrets e rede definidos na etapa de implementacao. |
 | [ADR-0082](./0082-cloud-sql-postgresql-desenvolvimento-local-auth-proxy.md) | Aceito | Registra Cloud SQL PostgreSQL no Terraform dev com acesso local via Auth Proxy e suporte por Compose. |
@@ -114,11 +118,11 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 | [ADR-0015](./0015-api-resilience-timeouts-retries-circuit-breaker.md) | Parcialmente implementado | HTTP resiliente com `Microsoft.Extensions.Http.Resilience` para JWKS, Keycloak e Ledger; readiness permanece em ADRs próprias. |
 | [ADR-0014](./0014-contratos-eventos-kafka-versionamento-e-dlq.md)     | Proposto    | Ponto de melhoria: versionamento/compatibilidade de eventos e DLQ para poison messages no Kafka. |
 | [ADR-0013](./0013-readiness-healthchecks-db-kafka.md)                 | Proposto    | Ponto de melhoria: endpoint de readiness verificando DB e Kafka com timeouts.                    |
-| [ADR-0012](./0012-health-liveness-publico.md)                         | Substituído | Consolidado em observabilidade + readiness.                                                      |
-| [ADR-0011](./0011-padronizacao-repo-cpm-build-props-editorconfig.md)  | Substituído | Consolidado em [`docs/development/repository-standards.md`](../development/repository-standards.md). |
-| [ADR-0010](./0010-migrations-nao-automaticas-no-startup.md)           | Substituído | Consolidado em [`docs/development/local-development.md`](../development/local-development.md). |
-| [ADR-0009](./0009-stack-local-compose-nerdctl.md)                     | Substituído | Substituido por [`ADR-0055`](./0055-runtime-docker-compatible-testcontainers.md) e consolidado em [`docs/development/local-development.md`](../development/local-development.md). |
-| [ADR-0008](./0008-scopes-por-endpoint-policy-based.md)                | Substituído | Consolidado em ADR-0004 (segurança).                                                             |
+| [ADR-0012](./0012-health-liveness-publico.md)                         | Substituido | Consolidado em observabilidade + readiness.                                                      |
+| [ADR-0011](./0011-padronizacao-repo-cpm-build-props-editorconfig.md)  | Substituido | Consolidado em [`docs/development/repository-standards.md`](../development/repository-standards.md). |
+| [ADR-0010](./0010-migrations-nao-automaticas-no-startup.md)           | Substituido | Consolidado em [`docs/development/local-development.md`](../development/local-development.md). |
+| [ADR-0009](./0009-stack-local-compose-nerdctl.md)                     | Substituido | Substituido por [`ADR-0055`](./0055-runtime-docker-compatible-testcontainers.md) e consolidado em [`docs/development/local-development.md`](../development/local-development.md). |
+| [ADR-0008](./0008-scopes-por-endpoint-policy-based.md)                | Substituido | Consolidado em ADR-0004 (segurança).                                                             |
 | [ADR-0007](./0007-banco-por-microservico-postgres-efcore.md)          | Aceito      | Banco por microserviço (PostgreSQL) com EF Core.                                                 |
 | [ADR-0006](./0006-migrar-auth-api-para-keycloak.md)                   | Proposto    | Ponto de melhoria: substituir Auth.Api por Keycloak (OIDC) mantendo validação via JWKS.          |
 | [ADR-0005](./0005-observabilidade-correlationid-otel.md)              | Aceito      | Correlação via `X-Correlation-Id` e base para tracing/métricas (OpenTelemetry opcional).         |
@@ -126,4 +130,4 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 | [ADR-0003](./0003-integracao-assincrona-kafka-com-outbox.md)          | Aceito      | Integração assíncrona via Kafka usando Outbox para entrega *at-least-once*.                      |
 | [ADR-0002](./0002-clean-architecture-ddd-por-servico.md)              | Aceito      | Clean Architecture + DDD (camadas Domain/Application/Infrastructure/Api) por microserviço.       |
 | [ADR-0001](./0001-separar-ledger-e-balance-com-projecao.md)           | Aceito      | Separar escrita (Ledger) e leitura (Balance) com projeção assíncrona (CQRS básico).              |
-| [ADR-0000](./0000-use-adrs.md)                                        | Substituído | Consolidado neste README.                                                                        |
+| [ADR-0000](./0000-use-adrs.md)                                        | Substituido | Consolidado neste README.                                                                        |

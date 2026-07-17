@@ -4,7 +4,6 @@ using FluentValidation;
 
 using Microsoft.Extensions.DependencyInjection;
 
-using TransferService.Application.Abstractions.Time;
 
 namespace TransferService.Application;
 
@@ -19,7 +18,7 @@ public static class DependencyInjection
         });
 
         services.AddValidatorsFromAssembly(typeof(DependencyInjection).Assembly);
-        services.AddSingleton<IClock, SystemClock>();
+        services.AddSingleton(TimeProvider.System);
 
         return services;
     }

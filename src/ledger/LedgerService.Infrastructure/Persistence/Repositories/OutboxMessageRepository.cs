@@ -1,5 +1,4 @@
 using LedgerService.Application.Abstractions.Messaging;
-using LedgerService.Application.Abstractions.Time;
 using LedgerService.Infrastructure.Observability;
 
 using Microsoft.EntityFrameworkCore;
@@ -14,14 +13,15 @@ public sealed class OutboxMessageRepository : IOutboxMessageRepository
 {
     private readonly AppDbContext _context;
     private readonly OutboxMetrics? _metrics;
-    private readonly IClock _clock;
+    private readonly TimeProvider _timeProvider;
 
-    public OutboxMessageRepository(AppDbContext context, IClock? clock = null, OutboxMetrics? metrics = null)
+    public OutboxMessageRepository(AppDbContext context, TimeProvider timeProvider, OutboxMetrics? metrics = null)
     {
         ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(timeProvider);
 
         _context = context;
-        _clock = clock ?? new SystemClock();
+        _timeProvider = timeProvider;
         _metrics = metrics;
     }
 
@@ -160,7 +160,7 @@ WHERE id = @p_id;
             new NpgsqlParameter("p_dead_letter", NpgsqlDbType.Text) { Value = OutboxStatus.DeadLetter.ToString() },
             new NpgsqlParameter("p_pending", NpgsqlDbType.Text) { Value = OutboxStatus.Pending.ToString() },
             new NpgsqlParameter("p_next_retry_at", NpgsqlDbType.TimestampTz) { Value = nextRetryAt },
-            new NpgsqlParameter("p_processed_at", NpgsqlDbType.TimestampTz) { Value = _clock.UtcNow.UtcDateTime },
+            new NpgsqlParameter("p_processed_at", NpgsqlDbType.TimestampTz) { Value = _timeProvider.GetUtcNow().UtcDateTime },
             new NpgsqlParameter("p_id", NpgsqlDbType.Uuid) { Value = id });
 
         return affected == 0

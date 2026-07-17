@@ -10,7 +10,6 @@ using Microsoft.Extensions.Options;
 using TransferService.Api.Contracts.Responses;
 using TransferService.Application.Abstractions.Messaging;
 using TransferService.Application.Abstractions.Persistence;
-using TransferService.Application.Abstractions.Time;
 using TransferService.Application.Transferencias.Events;
 using TransferService.Domain.Sagas;
 using TransferService.Infrastructure.Messaging.Kafka;
@@ -157,7 +156,7 @@ public sealed class TransferenciaSagaKafkaFlowTests : IClassFixture<TransferApiF
         services.AddScoped<ITransferenciaSagaRepository, TransferenciaSagaRepository>();
         services.AddScoped<ITransferenciaOutboxWriter, TransferenciaOutboxWriter>();
         services.AddSingleton(new TransferenciaSagaKafkaMetadataMapper(Options.Create(new TransferenciaKafkaTopicOptions())));
-        services.AddSingleton<IClock>(new FixedClock());
+        services.AddSingleton<TimeProvider>(new FixedClock());
         services.AddSingleton<ILedgerServiceClient>(ledger);
         services.AddSingleton<ITransferenciaKafkaProducer>(kafka);
         services.AddSingleton(Options.Create(new TransferWorkerOptions
@@ -234,9 +233,9 @@ public sealed class TransferenciaSagaKafkaFlowTests : IClassFixture<TransferApiF
         }
     }
 
-    private sealed class FixedClock : IClock
+    private sealed class FixedClock : TimeProvider
     {
-        public DateTimeOffset UtcNow => DateTimeOffset.UtcNow;
+        public override DateTimeOffset GetUtcNow() => DateTimeOffset.UtcNow;
     }
 
     private sealed class FakeLedgerClient : ILedgerServiceClient

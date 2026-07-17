@@ -1,7 +1,7 @@
 # ADR-0011: Padronização do repositório (CPM, Build.props, EditorConfig, Gitattributes)
 
 ## Status
-Substituído (ver `docs/development/repository-standards.md`)
+Substituido (ver `docs/development/repository-standards.md`)
 
 ## Data
 2026-02-17

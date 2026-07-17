@@ -15,7 +15,7 @@ public sealed class OutboxMessageClaimTests
             .UseInMemoryDatabase($"outbox-claim-{Guid.NewGuid():N}")
             .Options;
         await using var db = new AppDbContext(options);
-        var repo = new OutboxMessageRepository(db);
+        var repo = new OutboxMessageRepository(db, TimeProvider.System);
 
         var now = new DateTime(2026, 2, 16, 12, 0, 0, DateTimeKind.Utc);
         var older = NewMessage(now.AddMinutes(-20));

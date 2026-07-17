@@ -3,7 +3,6 @@ using System.Text;
 using System.Text.Json;
 
 using LedgerService.Application.Abstractions.Messaging;
-using LedgerService.Application.Abstractions.Time;
 using LedgerService.Application.Common.Exceptions;
 using LedgerService.Application.Common.Observability;
 using LedgerService.Application.Idempotency;
@@ -24,13 +23,13 @@ public sealed class SolicitarEstornoLancamentoHandler
 
     private readonly SolicitarEstornoLancamentoDependencies _dependencies;
     private readonly LedgerReversalPolicy _reversalPolicy;
-    private readonly IClock _clock;
+    private readonly TimeProvider _timeProvider;
     private readonly LedgerDomainMetrics? _metrics;
 
     public SolicitarEstornoLancamentoHandler(
         SolicitarEstornoLancamentoDependencies dependencies,
         LedgerReversalPolicy reversalPolicy,
-        IClock? clock = null,
+        TimeProvider timeProvider,
         LedgerDomainMetrics? metrics = null)
     {
         ArgumentNullException.ThrowIfNull(dependencies);
@@ -38,7 +37,9 @@ public sealed class SolicitarEstornoLancamentoHandler
 
         _dependencies = dependencies;
         _reversalPolicy = reversalPolicy;
-        _clock = clock ?? new SystemClock();
+        ArgumentNullException.ThrowIfNull(timeProvider);
+
+        _timeProvider = timeProvider;
         _metrics = metrics;
     }
 
@@ -50,7 +51,7 @@ public sealed class SolicitarEstornoLancamentoHandler
 
         var requestHash = GenerateRequestHash(request);
         var correlationId = Guid.Parse(request.CorrelationId);
-        var now = _clock.UtcNow.UtcDateTime;
+        var now = _timeProvider.GetUtcNow().UtcDateTime;
 
         await using var transaction = await _dependencies.UnitOfWork.BeginTransactionAsync(cancellationToken);
 

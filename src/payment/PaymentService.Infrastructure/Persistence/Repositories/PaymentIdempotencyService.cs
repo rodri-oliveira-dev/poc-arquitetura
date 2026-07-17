@@ -3,25 +3,24 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 
 using PaymentService.Application.Abstractions.Persistence;
-using PaymentService.Application.Abstractions.Time;
 using PaymentService.Application.Payments.Commands;
 
 namespace PaymentService.Infrastructure.Persistence.Repositories;
 
-public sealed class PaymentIdempotencyService(PaymentDbContext context, IClock clock) : IPaymentIdempotencyService
+public sealed class PaymentIdempotencyService(PaymentDbContext context, TimeProvider timeProvider) : IPaymentIdempotencyService
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private const string RefundKeyPrefix = "refund:";
 
     private readonly PaymentDbContext _context = context;
-    private readonly IClock _clock = clock;
+    private readonly TimeProvider _timeProvider = timeProvider;
 
     public async Task<PaymentIdempotencyEntry?> GetAsync(
         string merchantId,
         string idempotencyKey,
         CancellationToken cancellationToken)
     {
-        var now = _clock.UtcNow;
+        var now = _timeProvider.GetUtcNow();
         var record = await _context.IdempotencyRecords
             .AsNoTracking()
             .FirstOrDefaultAsync(
@@ -53,7 +52,7 @@ public sealed class PaymentIdempotencyService(PaymentDbContext context, IClock c
             idempotencyKey,
             requestHash,
             JsonSerializer.Serialize(response, JsonOptions),
-            _clock.UtcNow,
+            _timeProvider.GetUtcNow(),
             expiresAt);
 
         await _context.IdempotencyRecords.AddAsync(record, cancellationToken);
@@ -82,7 +81,7 @@ public sealed class PaymentIdempotencyService(PaymentDbContext context, IClock c
         ArgumentNullException.ThrowIfNull(merchantId);
         ArgumentNullException.ThrowIfNull(idempotencyKey);
 
-        var now = _clock.UtcNow;
+        var now = _timeProvider.GetUtcNow();
         var effectiveKey = BuildRefundKey(idempotencyKey);
         var record = await _context.IdempotencyRecords
             .AsNoTracking()
@@ -120,7 +119,7 @@ public sealed class PaymentIdempotencyService(PaymentDbContext context, IClock c
             BuildRefundKey(idempotencyKey),
             requestHash,
             JsonSerializer.Serialize(response, JsonOptions),
-            _clock.UtcNow,
+            _timeProvider.GetUtcNow(),
             expiresAt);
 
         await _context.IdempotencyRecords.AddAsync(record, cancellationToken);

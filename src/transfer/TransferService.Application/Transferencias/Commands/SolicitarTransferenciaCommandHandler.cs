@@ -6,7 +6,6 @@ using MediatR;
 
 using TransferService.Application.Abstractions.Messaging;
 using TransferService.Application.Abstractions.Persistence;
-using TransferService.Application.Abstractions.Time;
 using TransferService.Application.Common.Exceptions;
 using TransferService.Application.Transferencias.Events;
 using TransferService.Domain.Sagas;
@@ -22,20 +21,20 @@ public sealed class SolicitarTransferenciaCommandHandler
     private readonly ITransferenciaIdempotencyService _idempotencyService;
     private readonly ITransferenciaOutboxWriter _outboxWriter;
     private readonly IUnitOfWork _unitOfWork;
-    private readonly IClock _clock;
+    private readonly TimeProvider _timeProvider;
 
     public SolicitarTransferenciaCommandHandler(
         ITransferenciaSagaRepository sagaRepository,
         ITransferenciaIdempotencyService idempotencyService,
         ITransferenciaOutboxWriter outboxWriter,
         IUnitOfWork unitOfWork,
-        IClock clock)
+        TimeProvider timeProvider)
     {
         _sagaRepository = sagaRepository;
         _idempotencyService = idempotencyService;
         _outboxWriter = outboxWriter;
         _unitOfWork = unitOfWork;
-        _clock = clock;
+        _timeProvider = timeProvider;
     }
 
     public async Task<SolicitarTransferenciaResult> Handle(
@@ -68,7 +67,7 @@ public sealed class SolicitarTransferenciaCommandHandler
             };
         }
 
-        var now = _clock.UtcNow;
+        var now = _timeProvider.GetUtcNow();
         var saga = new TransferenciaSaga(
             new MerchantId(sourceMerchantId),
             new MerchantId(destinationMerchantId),

@@ -5,7 +5,6 @@ using System.Text.Json;
 
 using Microsoft.Extensions.Options;
 
-using PaymentService.Application.Abstractions.Time;
 using PaymentService.Domain.Payments;
 using PaymentService.Infrastructure.Gateway;
 
@@ -13,10 +12,10 @@ namespace PaymentService.Api.Webhooks;
 
 public sealed class StripeWebhookValidator(
     IOptions<PaymentGatewayOptions> options,
-    IClock clock)
+    TimeProvider timeProvider)
 {
     private readonly IOptions<PaymentGatewayOptions> _options = options;
-    private readonly IClock _clock = clock;
+    private readonly TimeProvider _timeProvider = timeProvider;
 
     public StripeWebhookValidationResult Validate(byte[] rawBody, string? signatureHeader)
     {
@@ -47,7 +46,7 @@ public sealed class StripeWebhookValidator(
     private bool IsOutsideTolerance(long timestamp, TimeSpan tolerance)
     {
         var signedAt = DateTimeOffset.FromUnixTimeSeconds(timestamp);
-        var age = (_clock.UtcNow - signedAt).Duration();
+        var age = (_timeProvider.GetUtcNow() - signedAt).Duration();
         return age > tolerance;
     }
 

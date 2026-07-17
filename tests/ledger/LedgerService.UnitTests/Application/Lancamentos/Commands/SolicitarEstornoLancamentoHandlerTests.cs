@@ -217,7 +217,8 @@ public sealed class SolicitarEstornoLancamentoHandlerTests
                 idemRepo.Object,
                 outboxRepo.Object,
                 uow.Object),
-            new LedgerReversalPolicy(estornoRepo.Object, ledgerRepo.Object));
+            new LedgerReversalPolicy(estornoRepo.Object, ledgerRepo.Object),
+            TimeProvider.System);
 
     private static LedgerEntry ValidLedgerEntry()
         => new(

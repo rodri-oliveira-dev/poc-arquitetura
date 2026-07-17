@@ -3,7 +3,6 @@ using System.Globalization;
 using System.Text.Json;
 
 using LedgerService.Application.Abstractions.Messaging;
-using LedgerService.Application.Abstractions.Time;
 using LedgerService.Application.Common.Exceptions;
 using LedgerService.Application.Common.Observability;
 using LedgerService.Application.Lancamentos.Events;
@@ -47,7 +46,7 @@ public sealed partial class ProcessarReprocessamentoLancamentosHandler
     private readonly IOutboxMessageRepository _outboxMessageRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<ProcessarReprocessamentoLancamentosHandler> _logger;
-    private readonly IClock _clock;
+    private readonly TimeProvider _timeProvider;
     private readonly LedgerDomainMetrics? _metrics;
 
     public ProcessarReprocessamentoLancamentosHandler(
@@ -56,7 +55,7 @@ public sealed partial class ProcessarReprocessamentoLancamentosHandler
         IOutboxMessageRepository outboxMessageRepository,
         IUnitOfWork unitOfWork,
         ILogger<ProcessarReprocessamentoLancamentosHandler> logger,
-        IClock? clock = null,
+        TimeProvider timeProvider,
         LedgerDomainMetrics? metrics = null)
     {
         ArgumentNullException.ThrowIfNull(reprocessamentoRepository);
@@ -64,13 +63,14 @@ public sealed partial class ProcessarReprocessamentoLancamentosHandler
         ArgumentNullException.ThrowIfNull(outboxMessageRepository);
         ArgumentNullException.ThrowIfNull(unitOfWork);
         ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(timeProvider);
 
         _reprocessamentoRepository = reprocessamentoRepository;
         _ledgerEntryRepository = ledgerEntryRepository;
         _outboxMessageRepository = outboxMessageRepository;
         _unitOfWork = unitOfWork;
         _logger = logger;
-        _clock = clock ?? new SystemClock();
+        _timeProvider = timeProvider;
         _metrics = metrics;
     }
 
@@ -117,7 +117,7 @@ public sealed partial class ProcessarReprocessamentoLancamentosHandler
         }
 
         var previousStatus = reprocessamento.Status;
-        var now = _clock.UtcNow.UtcDateTime;
+        var now = _timeProvider.GetUtcNow().UtcDateTime;
         reprocessamento.MarkProcessing(now);
 
         var startInclusive = reprocessamento.DataInicial.ToDateTime(TimeOnly.MinValue);
@@ -183,7 +183,7 @@ public sealed partial class ProcessarReprocessamentoLancamentosHandler
             cancellationToken);
         if (reprocessamento is not null && !reprocessamento.IsFinal())
         {
-            reprocessamento.Reject(reason, _clock.UtcNow.UtcDateTime);
+            reprocessamento.Reject(reason, _timeProvider.GetUtcNow().UtcDateTime);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
         }
 
@@ -200,7 +200,7 @@ public sealed partial class ProcessarReprocessamentoLancamentosHandler
             cancellationToken);
         if (reprocessamento is not null && !reprocessamento.IsFinal())
         {
-            reprocessamento.Fail(reason, _clock.UtcNow.UtcDateTime);
+            reprocessamento.Fail(reason, _timeProvider.GetUtcNow().UtcDateTime);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
         }
 

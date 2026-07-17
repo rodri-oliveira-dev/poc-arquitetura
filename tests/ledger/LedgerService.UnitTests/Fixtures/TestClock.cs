@@ -1,8 +1,7 @@
-using LedgerService.Application.Abstractions.Time;
 
 namespace LedgerService.UnitTests.Fixtures;
 
-public sealed class TestClock : IClock
+public sealed class TestClock : TimeProvider
 {
     public TestClock(DateTimeOffset? utcNow = null)
     {
@@ -13,4 +12,6 @@ public sealed class TestClock : IClock
     {
         get; set;
     }
+
+    public override DateTimeOffset GetUtcNow() => UtcNow;
 }

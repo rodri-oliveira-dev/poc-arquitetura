@@ -2,7 +2,6 @@ using System.Diagnostics;
 using System.Globalization;
 
 using BalanceService.Application.Abstractions.Persistence;
-using BalanceService.Application.Abstractions.Time;
 using BalanceService.Application.Balances.Queries.Models;
 
 using MediatR;
@@ -17,14 +16,14 @@ public sealed class GetPeriodBalanceHandler : IRequestHandler<GetPeriodBalanceQu
     private const string DefaultCurrency = "BRL";
 
     private readonly IDailyBalanceReadRepository _readRepository;
-    private readonly IClock _clock;
+    private readonly TimeProvider _timeProvider;
 
     public GetPeriodBalanceHandler(
         IDailyBalanceReadRepository readRepository,
-        IClock clock)
+        TimeProvider timeProvider)
     {
         _readRepository = readRepository;
-        _clock = clock;
+        _timeProvider = timeProvider;
     }
 
     public async Task<PeriodBalanceReadModel> Handle(GetPeriodBalanceQuery request, CancellationToken cancellationToken)
@@ -57,6 +56,6 @@ public sealed class GetPeriodBalanceHandler : IRequestHandler<GetPeriodBalanceQu
             TotalDebits: totalDebits,
             NetBalance: totalCredits - totalDebits,
             Items: items,
-            CalculatedAt: _clock.UtcNow);
+            CalculatedAt: _timeProvider.GetUtcNow());
     }
 }

@@ -1,7 +1,6 @@
 using System.Globalization;
 
 using BalanceService.Application.Abstractions.Persistence;
-using BalanceService.Application.Abstractions.Time;
 using BalanceService.Application.Balances.Queries.Models;
 using BalanceService.Application.Balances.Replay;
 using BalanceService.Application.Contracts.Events;
@@ -17,13 +16,8 @@ public sealed class ProjectionRebuildDivergenceReportHandlerTests
 {
     private readonly InMemoryProcessedEventRepository _processedEvents = new();
     private readonly InMemoryDailyBalanceReadRepository _dailyBalances = new();
-    private readonly Mock<IClock> _clock = new(MockBehavior.Strict);
+    private readonly FixedTimeProvider _clock = new(Instant("2026-06-07T12:00:00Z"));
     private readonly Mock<ILogger<ProjectionRebuildDivergenceReportHandler>> _logger = new();
-
-    public ProjectionRebuildDivergenceReportHandlerTests()
-    {
-        _clock.SetupGet(x => x.UtcNow).Returns(Instant("2026-06-07T12:00:00Z"));
-    }
 
     [Fact]
     public async Task Should_report_projection_without_divergence()
@@ -118,7 +112,7 @@ public sealed class ProjectionRebuildDivergenceReportHandlerTests
             source,
             evaluator,
             _dailyBalances,
-            _clock.Object,
+            _clock,
             _logger.Object);
     }
 
@@ -213,6 +207,11 @@ public sealed class ProjectionRebuildDivergenceReportHandlerTests
             int limit,
             CancellationToken cancellationToken = default)
             => Task.FromResult(_candidates);
+    }
+
+    private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => utcNow;
     }
 
     private sealed class InMemoryDailyBalanceReadRepository : IDailyBalanceReadRepository

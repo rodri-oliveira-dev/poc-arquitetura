@@ -5,7 +5,6 @@ using System.Text;
 using Microsoft.Extensions.Options;
 
 using PaymentService.Api.Webhooks;
-using PaymentService.Application.Abstractions.Time;
 using PaymentService.Domain.Payments;
 using PaymentService.Infrastructure.Gateway;
 
@@ -228,8 +227,10 @@ public sealed class StripeWebhookValidatorTests
         return Convert.ToHexString(signature).ToLowerInvariant();
     }
 
-    private sealed class FixedClock(DateTimeOffset utcNow) : IClock
+    private sealed class FixedClock(DateTimeOffset utcNow) : TimeProvider
     {
         public DateTimeOffset UtcNow { get; } = utcNow;
+
+        public override DateTimeOffset GetUtcNow() => UtcNow;
     }
 }

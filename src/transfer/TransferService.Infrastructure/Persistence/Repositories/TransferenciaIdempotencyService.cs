@@ -3,24 +3,23 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 
 using TransferService.Application.Abstractions.Persistence;
-using TransferService.Application.Abstractions.Time;
 using TransferService.Application.Transferencias.Commands;
 
 namespace TransferService.Infrastructure.Persistence.Repositories;
 
-public sealed class TransferenciaIdempotencyService(TransferServiceDbContext context, IClock clock) : ITransferenciaIdempotencyService
+public sealed class TransferenciaIdempotencyService(TransferServiceDbContext context, TimeProvider timeProvider) : ITransferenciaIdempotencyService
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     private readonly TransferServiceDbContext _context = context;
-    private readonly IClock _clock = clock;
+    private readonly TimeProvider _timeProvider = timeProvider;
 
     public async Task<TransferenciaIdempotencyEntry?> GetAsync(
         string sourceMerchantId,
         string idempotencyKey,
         CancellationToken cancellationToken)
     {
-        var now = _clock.UtcNow;
+        var now = _timeProvider.GetUtcNow();
         var record = await _context.IdempotencyRecords
             .AsNoTracking()
             .Where(x =>

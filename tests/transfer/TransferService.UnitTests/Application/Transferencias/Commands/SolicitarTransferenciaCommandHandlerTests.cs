@@ -1,6 +1,5 @@
 using TransferService.Application.Abstractions.Messaging;
 using TransferService.Application.Abstractions.Persistence;
-using TransferService.Application.Abstractions.Time;
 using TransferService.Application.Common.Exceptions;
 using TransferService.Application.Transferencias.Commands;
 using TransferService.Application.Transferencias.Events;
@@ -138,12 +137,14 @@ public sealed class SolicitarTransferenciaCommandHandlerTests
         }
     }
 
-    private sealed class FixedClock(DateTimeOffset utcNow) : IClock
+    private sealed class FixedClock(DateTimeOffset utcNow) : TimeProvider
     {
         public DateTimeOffset UtcNow
         {
             get;
         } = utcNow;
+
+        public override DateTimeOffset GetUtcNow() => UtcNow;
     }
 
     private sealed class FakeTransferenciaSagaRepository : ITransferenciaSagaRepository

@@ -102,7 +102,8 @@ public sealed class ProcessarEstornoLancamentoHandlerTests
                 new OutboxRepo(state),
                 new UnitOfWork()),
             new LedgerReversalPolicy(new EstornoRepo(state), new LedgerRepo(state)),
-            NullLogger<ProcessarEstornoLancamentoHandler>.Instance);
+            NullLogger<ProcessarEstornoLancamentoHandler>.Instance,
+            TimeProvider.System);
 
     private static LedgerEntry NewLedgerEntry(LedgerEntryType type, decimal amount)
         => new("m1", type, amount, DateTime.UtcNow, "Venda", "ext", Guid.NewGuid(), DateTime.UtcNow);

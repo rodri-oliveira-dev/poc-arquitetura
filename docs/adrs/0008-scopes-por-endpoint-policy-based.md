@@ -1,7 +1,7 @@
 # ADR-0008: Autorização por scopes por endpoint (policy-based)
 
 ## Status
-Substituído (ver ADR-0004)
+Substituido (ver ADR-0004)
 
 ## Data
 2026-02-17

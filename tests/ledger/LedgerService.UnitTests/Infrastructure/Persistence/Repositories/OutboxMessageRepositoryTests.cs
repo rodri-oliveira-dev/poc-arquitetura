@@ -16,7 +16,7 @@ public sealed class OutboxMessageRepositoryTests
             .Options;
 
         await using var db = new AppDbContext(options);
-        var repo = new OutboxMessageRepository(db);
+        var repo = new OutboxMessageRepository(db, TimeProvider.System);
 
         var correlationId = Guid.NewGuid();
 
@@ -42,7 +42,7 @@ public sealed class OutboxMessageRepositoryTests
             .Options;
 
         await using var db = new AppDbContext(options);
-        var repo = new OutboxMessageRepository(db);
+        var repo = new OutboxMessageRepository(db, TimeProvider.System);
 
         var msg = new OutboxMessage(
             "LedgerEntry",
@@ -72,7 +72,7 @@ public sealed class OutboxMessageRepositoryTests
             .Options;
 
         await using var db = new AppDbContext(options);
-        var repo = new OutboxMessageRepository(db);
+        var repo = new OutboxMessageRepository(db, TimeProvider.System);
         var correlationId = Guid.NewGuid();
         var msg = new OutboxMessage("LedgerEntry", Guid.NewGuid(), "LedgerEntryCreated", "{}", DateTime.UtcNow, correlationId);
 
@@ -97,7 +97,7 @@ public sealed class OutboxMessageRepositoryTests
             .Options;
 
         await using var db = new AppDbContext(options);
-        var repo = new OutboxMessageRepository(db);
+        var repo = new OutboxMessageRepository(db, TimeProvider.System);
         var correlationId = Guid.NewGuid();
         var msg = new OutboxMessage("LedgerEntry", Guid.NewGuid(), "LedgerEntryCreated", "{}", DateTime.UtcNow, correlationId);
 
@@ -123,7 +123,7 @@ public sealed class OutboxMessageRepositoryTests
             .Options;
 
         await using var db = new AppDbContext(options);
-        var repo = new OutboxMessageRepository(db);
+        var repo = new OutboxMessageRepository(db, TimeProvider.System);
         var msg = new OutboxMessage("LedgerEntry", Guid.NewGuid(), "LedgerEntryCreated.v1", "{}", DateTime.UtcNow, Guid.NewGuid());
 
         await repo.AddAsync(msg, TestContext.Current.CancellationToken);
@@ -168,7 +168,7 @@ public sealed class OutboxMessageRepositoryTests
             .Options;
 
         await using var db = new AppDbContext(options);
-        var repo = new OutboxMessageRepository(db);
+        var repo = new OutboxMessageRepository(db, TimeProvider.System);
         var msg = new OutboxMessage("LedgerEntry", Guid.NewGuid(), "LedgerEntryCreated.v1", "{}", DateTime.UtcNow, Guid.NewGuid());
         msg.MarkProcessed(DateTime.UtcNow);
 
@@ -202,7 +202,7 @@ public sealed class OutboxMessageRepositoryTests
             .Options;
 
         await using var db = new AppDbContext(options);
-        var repo = new OutboxMessageRepository(db);
+        var repo = new OutboxMessageRepository(db, TimeProvider.System);
         var msg = new OutboxMessage("LedgerEntry", Guid.NewGuid(), "LedgerEntryCreated.v1", "{}", DateTime.UtcNow, Guid.NewGuid());
         msg.MarkProcessing("publisher", DateTime.UtcNow.AddMinutes(5));
 
@@ -237,7 +237,7 @@ public sealed class OutboxMessageRepositoryTests
             .Options;
 
         await using var db = new AppDbContext(options);
-        var repo = new OutboxMessageRepository(db);
+        var repo = new OutboxMessageRepository(db, TimeProvider.System);
         var now = DateTime.UtcNow;
         var msg = new OutboxMessage("LedgerEntry", Guid.NewGuid(), "LedgerEntryCreated.v1", "{}", now.AddMinutes(-1), Guid.NewGuid());
 

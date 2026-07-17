@@ -1,7 +1,6 @@
 using System.Globalization;
 
 using BalanceService.Application.Abstractions.Persistence;
-using BalanceService.Application.Abstractions.Time;
 using BalanceService.Application.Balances.Queries;
 using BalanceService.Application.Balances.Queries.Models;
 
@@ -15,15 +14,15 @@ public sealed class GetPeriodBalanceHandlerTests
     public async Task Handle_should_return_zeros_and_default_currency_when_no_items()
     {
         var readRepo = new Mock<IDailyBalanceReadRepository>(MockBehavior.Strict);
-        var clock = new Mock<IClock>(MockBehavior.Strict);
+        var timeProvider = new FixedTimeProvider();
         var now = DateTimeOffset.Parse("2026-02-16T03:00:00Z", CultureInfo.InvariantCulture);
-        clock.SetupGet(x => x.UtcNow).Returns(now);
+        timeProvider.SetUtcNow(now);
 
         var query = new GetPeriodBalanceQuery("m1", new DateOnly(2026, 2, 10), new DateOnly(2026, 2, 12));
         readRepo.Setup(x => x.ListByPeriodAsync(query.MerchantId, query.From, query.To, It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<DailyBalanceReadModel>());
 
-        var sut = new GetPeriodBalanceHandler(readRepo.Object, clock.Object);
+        var sut = new GetPeriodBalanceHandler(readRepo.Object, timeProvider);
 
         var result = await sut.Handle(query, CancellationToken.None);
         Assert.Equal("m1", result.MerchantId);
@@ -34,16 +33,15 @@ public sealed class GetPeriodBalanceHandlerTests
         Assert.Empty(result.Items);
         Assert.Equal(now, result.CalculatedAt);
         readRepo.VerifyAll();
-        clock.VerifyAll();
     }
 
     [Fact]
     public async Task Handle_should_sum_items_and_use_first_currency()
     {
         var readRepo = new Mock<IDailyBalanceReadRepository>(MockBehavior.Strict);
-        var clock = new Mock<IClock>(MockBehavior.Strict);
+        var timeProvider = new FixedTimeProvider();
         var now = DateTimeOffset.Parse("2026-02-16T03:00:00Z", CultureInfo.InvariantCulture);
-        clock.SetupGet(x => x.UtcNow).Returns(now);
+        timeProvider.SetUtcNow(now);
 
         var query = new GetPeriodBalanceQuery("m1", new DateOnly(2026, 2, 10), new DateOnly(2026, 2, 12));
         var items = new[]
@@ -55,7 +53,7 @@ public sealed class GetPeriodBalanceHandlerTests
         readRepo.Setup(x => x.ListByPeriodAsync(query.MerchantId, query.From, query.To, It.IsAny<CancellationToken>()))
             .ReturnsAsync(items);
 
-        var sut = new GetPeriodBalanceHandler(readRepo.Object, clock.Object);
+        var sut = new GetPeriodBalanceHandler(readRepo.Object, timeProvider);
 
         var result = await sut.Handle(query, CancellationToken.None);
         Assert.Equal(10m, result.TotalCredits);
@@ -64,5 +62,14 @@ public sealed class GetPeriodBalanceHandlerTests
         Assert.Equal("USD", result.Currency);
         Assert.Equal(items, result.Items);
         Assert.Equal(now, result.CalculatedAt);
+    }
+
+    private sealed class FixedTimeProvider : TimeProvider
+    {
+        private DateTimeOffset _utcNow = new(2026, 2, 16, 12, 0, 0, TimeSpan.Zero);
+
+        public void SetUtcNow(DateTimeOffset utcNow) => _utcNow = utcNow;
+
+        public override DateTimeOffset GetUtcNow() => _utcNow;
     }
 }

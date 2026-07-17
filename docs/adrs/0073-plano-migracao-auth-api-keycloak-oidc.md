@@ -2,7 +2,9 @@
 
 ## Status
 
-Substituido por [ADR-0074](./0074-keycloak-como-identidade-principal.md)
+Substituido
+
+Substituida por [ADR-0074](./0074-keycloak-como-identidade-principal.md).
 
 ## Contexto
 

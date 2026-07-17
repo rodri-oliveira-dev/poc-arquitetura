@@ -2,7 +2,6 @@ using System.Diagnostics;
 using System.Globalization;
 
 using BalanceService.Application.Abstractions.Persistence;
-using BalanceService.Application.Abstractions.Time;
 using BalanceService.Application.Common.Observability;
 using BalanceService.Application.Idempotency;
 using BalanceService.Application.IntegrationEvents;
@@ -27,7 +26,7 @@ public sealed partial class ApplyLedgerEntryCreatedHandler : IRequestHandler<App
     private readonly IDailyBalanceRepository _dailyBalanceRepository;
     private readonly IProcessedEventRepository _processedEventRepository;
     private readonly IUnitOfWork _unitOfWork;
-    private readonly IClock _clock;
+    private readonly TimeProvider _timeProvider;
     private readonly ILogger<ApplyLedgerEntryCreatedHandler> _logger;
     private readonly BalanceDomainMetrics? _metrics;
 
@@ -35,20 +34,20 @@ public sealed partial class ApplyLedgerEntryCreatedHandler : IRequestHandler<App
         IDailyBalanceRepository dailyBalanceRepository,
         IProcessedEventRepository processedEventRepository,
         IUnitOfWork unitOfWork,
-        IClock clock,
+        TimeProvider timeProvider,
         ILogger<ApplyLedgerEntryCreatedHandler> logger,
         BalanceDomainMetrics? metrics = null)
     {
         ArgumentNullException.ThrowIfNull(dailyBalanceRepository);
         ArgumentNullException.ThrowIfNull(processedEventRepository);
         ArgumentNullException.ThrowIfNull(unitOfWork);
-        ArgumentNullException.ThrowIfNull(clock);
+        ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentNullException.ThrowIfNull(logger);
 
         _dailyBalanceRepository = dailyBalanceRepository;
         _processedEventRepository = processedEventRepository;
         _unitOfWork = unitOfWork;
-        _clock = clock;
+        _timeProvider = timeProvider;
         _logger = logger;
         _metrics = metrics;
     }
@@ -68,7 +67,7 @@ public sealed partial class ApplyLedgerEntryCreatedHandler : IRequestHandler<App
             var movement = LedgerEntryCreatedIntegrationEventMapper.ToBalanceMovement(evt);
             var date = movement.Date;
             var currency = movement.Currency.Code;
-            var now = _clock.UtcNow;
+            var now = _timeProvider.GetUtcNow();
 
             using var logScope = _logger.BeginScope(new Dictionary<string, object?>
             {
