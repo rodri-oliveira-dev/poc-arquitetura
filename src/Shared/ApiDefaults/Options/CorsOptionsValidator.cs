@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 using Microsoft.Extensions.Options;
 
 namespace ApiDefaults.Options;
@@ -40,53 +42,70 @@ internal sealed class CorsOptionsValidator : IValidateOptions<CorsOptions>
     {
         foreach (string origin in options.AllowedOrigins)
         {
-            if (string.IsNullOrWhiteSpace(origin))
-            {
-                failures.Add("Cors:AllowedOrigins must not contain empty values.");
-                continue;
-            }
-
-            if (origin.Contains('*', StringComparison.Ordinal))
-            {
-                failures.Add($"Cors:AllowedOrigins contains insecure wildcard origin '{origin}'. Configure explicit origins.");
-                continue;
-            }
-
-            if (!Uri.TryCreate(origin, UriKind.Absolute, out Uri? uri) ||
-                !uri.IsAbsoluteUri ||
-                string.IsNullOrWhiteSpace(uri.Scheme) ||
-                string.IsNullOrWhiteSpace(uri.Host))
-            {
-                failures.Add($"Cors:AllowedOrigins contains invalid absolute origin '{origin}'.");
-                continue;
-            }
-
-            if (!string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) &&
-                !string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
-            {
-                failures.Add($"Cors:AllowedOrigins origin '{origin}' must use http or https.");
-            }
-
-            if (!string.IsNullOrEmpty(uri.AbsolutePath) && uri.AbsolutePath != "/")
-            {
-                failures.Add($"Cors:AllowedOrigins origin '{origin}' must not include a path.");
-            }
-
-            if (!string.IsNullOrEmpty(uri.Query))
-            {
-                failures.Add($"Cors:AllowedOrigins origin '{origin}' must not include a query string.");
-            }
-
-            if (!string.IsNullOrEmpty(uri.Fragment))
-            {
-                failures.Add($"Cors:AllowedOrigins origin '{origin}' must not include a fragment.");
-            }
+            ValidateOrigin(origin, failures);
         }
 
         if (options.AllowCredentials &&
             options.AllowedOrigins.Any(origin => origin.Trim() == "*"))
         {
             failures.Add("Cors:AllowCredentials cannot be combined with wildcard origins.");
+        }
+    }
+
+    private static void ValidateOrigin(string origin, List<string> failures)
+    {
+        if (string.IsNullOrWhiteSpace(origin))
+        {
+            failures.Add("Cors:AllowedOrigins must not contain empty values.");
+            return;
+        }
+
+        if (origin.Contains('*', StringComparison.Ordinal))
+        {
+            failures.Add($"Cors:AllowedOrigins contains insecure wildcard origin '{origin}'. Configure explicit origins.");
+            return;
+        }
+
+        if (!TryCreateAbsoluteOrigin(origin, out Uri? uri))
+        {
+            failures.Add($"Cors:AllowedOrigins contains invalid absolute origin '{origin}'.");
+            return;
+        }
+
+        ValidateOriginScheme(origin, uri, failures);
+        ValidateOriginComponents(origin, uri, failures);
+    }
+
+    private static bool TryCreateAbsoluteOrigin(string origin, [NotNullWhen(true)] out Uri? uri)
+        => Uri.TryCreate(origin, UriKind.Absolute, out uri) &&
+            uri.IsAbsoluteUri &&
+            !string.IsNullOrWhiteSpace(uri.Scheme) &&
+            !string.IsNullOrWhiteSpace(uri.Host);
+
+    private static void ValidateOriginScheme(string origin, Uri uri, List<string> failures)
+    {
+        if (!string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+        {
+            failures.Add($"Cors:AllowedOrigins origin '{origin}' must use http or https.");
+        }
+    }
+
+    private static void ValidateOriginComponents(string origin, Uri uri, List<string> failures)
+    {
+        if (!string.IsNullOrEmpty(uri.AbsolutePath) && uri.AbsolutePath != "/")
+        {
+            failures.Add($"Cors:AllowedOrigins origin '{origin}' must not include a path.");
+        }
+
+        if (!string.IsNullOrEmpty(uri.Query))
+        {
+            failures.Add($"Cors:AllowedOrigins origin '{origin}' must not include a query string.");
+        }
+
+        if (!string.IsNullOrEmpty(uri.Fragment))
+        {
+            failures.Add($"Cors:AllowedOrigins origin '{origin}' must not include a fragment.");
         }
     }
 
@@ -112,31 +131,26 @@ internal sealed class CorsOptionsValidator : IValidateOptions<CorsOptions>
     {
         foreach (string header in headers)
         {
-            if (string.IsNullOrWhiteSpace(header))
-            {
-                failures.Add($"{sectionName} must not contain empty values.");
-                continue;
-            }
-
-            if (header.Trim() == "*" || !IsToken(header))
+            if (!ValidateHeader(header, sectionName, failures))
             {
                 failures.Add($"{sectionName} contains invalid header '{header}'. Configure explicit HTTP header names.");
             }
         }
     }
 
-    private static bool IsToken(string value)
+    private static bool ValidateHeader(string header, string sectionName, List<string> failures)
     {
-        foreach (char character in value)
+        if (string.IsNullOrWhiteSpace(header))
         {
-            if (!IsTokenCharacter(character))
-            {
-                return false;
-            }
+            failures.Add($"{sectionName} must not contain empty values.");
+            return true;
         }
 
-        return true;
+        return header.Trim() != "*" && IsToken(header);
     }
+
+    private static bool IsToken(string value)
+        => value.All(IsTokenCharacter);
 
     private static bool IsTokenCharacter(char character)
         => char.IsAsciiLetterOrDigit(character) ||
