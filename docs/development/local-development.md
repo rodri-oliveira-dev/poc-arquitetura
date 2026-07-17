@@ -836,7 +836,7 @@ O Nginx open source usa uma lista estatica de upstreams nesta POC. Ele demonstra
 
 As APIs executam `UseForwardedHeaders` no inicio do pipeline para reconhecer `X-Forwarded-For`, `X-Forwarded-Proto` e `X-Forwarded-Host` enviados pelo Nginx. Isso permite que componentes ASP.NET Core vejam o scheme externo `https` e o host publico `.localhost` quando a chamada entra pelo proxy, sem mudar o trafego HTTP interno entre containers.
 
-O overlay `compose.nginx.yaml` habilita explicitamente `ForwardedHeaders__EnableLocalPermissiveMode=true` apenas nos servicos atendidos pelo Nginx local. Esse modo existe porque o IP do container `nginx-edge` e dinamico na rede bridge do Docker Compose. Nao copie essa configuracao para GKE, Kubernetes, Cloud Run, ingress ou ambientes produtivos; nesses ambientes configure `ForwardedHeaders__TrustedProxies__0=<ip-do-proxy>` ou `ForwardedHeaders__TrustedNetworks__0=<cidr-do-ingress>` e mantenha `ForwardedHeaders__EnableLocalPermissiveMode=false`.
+O overlay `compose.nginx.yaml` habilita explicitamente `ForwardedHeaders__EnableLocalPermissiveMode=true` apenas nos servicos atendidos pelo Nginx local. Esse modo existe porque o IP do container `nginx-edge` e dinamico na rede bridge do Docker Compose. Os hosts `.localhost` ficam nos `appsettings.Development.json` das APIs, nao no pacote Shared. Nao copie essa configuracao para GKE, Kubernetes, Cloud Run, ingress ou ambientes produtivos; nesses ambientes configure `ForwardedHeaders__TrustedProxies__0=<ip-do-proxy>` ou `ForwardedHeaders__TrustedNetworks__0=<cidr-do-ingress>`, configure `ForwardedHeaders__AllowedHosts__0=<host-publico-real>` e mantenha `ForwardedHeaders__EnableLocalPermissiveMode=false`. `localhost`, subdominios `.localhost` e loopback nao satisfazem a validacao fora de `Development` ou `Local`.
 
 Exemplo local com Nginx:
 
@@ -844,6 +844,8 @@ Exemplo local com Nginx:
 environment:
   ASPNETCORE_ENVIRONMENT: "Local"
   ForwardedHeaders__EnableLocalPermissiveMode: "true"
+  ForwardedHeaders__AllowedHosts__0: "ledger.localhost"
+  ForwardedHeaders__AllowedHosts__1: "localhost"
 ```
 
 Exemplo nao local com ingress ou load balancer:
@@ -1235,7 +1237,9 @@ Em variaveis de ambiente, use `ApiLimits__MaxRequestBodySizeBytes`, `ApiLimits__
 
 Os limites de rate limiting sao particionados por cliente/subject e merchant
 quando ha JWT autenticado, ou por IP remoto normalizado para endpoints anonimos
-como webhooks. As chaves antigas `RateLimitPermitLimit`,
+como webhooks. Para tokens com usuario final, a chave prioriza `sub` ou
+`ClaimTypes.NameIdentifier` e adiciona `client_id` ou `azp` quando presente; em
+tokens machine-to-machine sem subject, usa `client_id` ou `azp`. As chaves antigas `RateLimitPermitLimit`,
 `RateLimitWindowSeconds` e `RateLimitQueueLimit` continuam como defaults das
 policies; cada policy pode sobrescrever `PermitLimit`, `WindowSeconds` e
 `QueueLimit`. O limite e local a cada replica e nao representa quota global

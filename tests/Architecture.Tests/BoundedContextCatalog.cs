@@ -42,15 +42,7 @@ internal static class BoundedContextCatalog
             "PaymentService",
             "payment",
             hasWorker: true,
-            hasPersistence: true,
-            stripeConceptLayers: new HashSet<ArchitectureLayer>
-            {
-                ArchitectureLayer.Api,
-                ArchitectureLayer.Application,
-                ArchitectureLayer.Domain,
-                ArchitectureLayer.Infrastructure,
-                ArchitectureLayer.Worker
-            }),
+            hasPersistence: true),
 
         Context(
             "IdentityService",
@@ -75,7 +67,6 @@ internal static class BoundedContextCatalog
         bool hasWorker,
         bool hasPersistence,
         IReadOnlySet<MessagingProvider>? allowedMessagingProviders = null,
-        IReadOnlySet<ArchitectureLayer>? stripeConceptLayers = null,
         IReadOnlySet<string>? domainForbiddenTypeNameTerms = null)
     {
         HashSet<ArchitectureLayer> layers =
@@ -99,7 +90,6 @@ internal static class BoundedContextCatalog
             allowedMessagingProviders ?? new HashSet<MessagingProvider>(),
             DefaultInternalReferences(hasWorker),
             DefaultSharedReferences(serviceName, hasWorker),
-            stripeConceptLayers ?? new HashSet<ArchitectureLayer>(),
             domainForbiddenTypeNameTerms ?? new HashSet<string>());
     }
 

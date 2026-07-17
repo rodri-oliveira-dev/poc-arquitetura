@@ -20,16 +20,13 @@ internal static class ApiRateLimitPartitionKeyFactory
             return CreateAnonymousIpKey(context);
         }
 
-        string? clientOrSubject = FirstClaimValue(
-            user,
-            "client_id",
-            "azp",
-            "sub",
-            ClaimTypes.NameIdentifier);
+        string? subject = FirstClaimValue(user, "sub", ClaimTypes.NameIdentifier);
+        string? client = FirstClaimValue(user, "client_id", "azp");
+        string identity = CreateIdentityComponent(subject, client);
 
-        string actor = string.IsNullOrWhiteSpace(clientOrSubject)
+        string actor = string.IsNullOrWhiteSpace(identity)
             ? $"missing-client:{CreateAnonymousIpKey(context)}"
-            : $"client:{Normalize(clientOrSubject)}";
+            : identity;
 
         string merchant = CreateMerchantComponent(user);
 
@@ -55,14 +52,29 @@ internal static class ApiRateLimitPartitionKeyFactory
             return "anonymous_ip";
         }
 
-        return FirstClaimValue(
-            context.User,
-            "client_id",
-            "azp",
-            "sub",
-            ClaimTypes.NameIdentifier) is null
+        return FirstClaimValue(context.User, "sub", ClaimTypes.NameIdentifier, "client_id", "azp") is null
             ? "authenticated_ip_fallback"
             : "authenticated_claims";
+    }
+
+    private static string CreateIdentityComponent(string? subject, string? client)
+    {
+        if (!string.IsNullOrWhiteSpace(subject) && !string.IsNullOrWhiteSpace(client))
+        {
+            return $"subject:{Normalize(subject)}|client:{Normalize(client)}";
+        }
+
+        if (!string.IsNullOrWhiteSpace(subject))
+        {
+            return $"subject:{Normalize(subject)}";
+        }
+
+        if (!string.IsNullOrWhiteSpace(client))
+        {
+            return $"client:{Normalize(client)}";
+        }
+
+        return string.Empty;
     }
 
     private static string CreateMerchantComponent(ClaimsPrincipal user)

@@ -19,6 +19,4 @@ public class ApiDefaultsOptions
     public RateLimitPolicyOptions AdministrativeRateLimit { get; init; } = new();
 
     public RateLimitPolicyOptions AnonymousWebhookRateLimit { get; init; } = new();
-
-    public RateLimitPolicyOptions SwaggerRateLimit { get; init; } = new();
 }

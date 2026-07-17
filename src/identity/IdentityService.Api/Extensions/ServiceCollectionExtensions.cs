@@ -22,7 +22,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(configuration);
         ArgumentNullException.ThrowIfNull(environment);
 
-        services.AddApiDefaults<GlobalExceptionHandler>(configuration, "identity.localhost", "localhost");
+        services.AddApiDefaults<GlobalExceptionHandler>(configuration);
         services.AddIdentityApiSwagger();
 
         services.AddApiJwtBearerAuthentication(

@@ -12,15 +12,15 @@ introduz Redis, banco, cache distribuido ou novo componente de infraestrutura.
 - `authenticated-write`: comandos autenticados.
 - `administrative`: operacoes administrativas.
 - `anonymous-webhook`: webhook anonimo Stripe.
-- `swagger`: policy reservada para documentacao roteada por endpoint em etapa
-  futura.
 - `fixed`: alias legado para escrita autenticada.
 
 ## Estrategia de chave
 
 Endpoints autenticados:
 
-- priorizam `client_id`, `azp`, `sub` e `ClaimTypes.NameIdentifier`;
+- priorizam `sub` ou `ClaimTypes.NameIdentifier` quando ha subject;
+- adicionam `client_id` ou `azp` a chave quando presente;
+- usam `client_id` ou `azp` sozinho para tokens machine-to-machine sem subject;
 - incluem `merchant_id` autorizado quando presente no token;
 - ordenam merchants para manter chave estavel;
 - usam fallback por IP remoto normalizado quando claims de cliente/subject
@@ -36,10 +36,10 @@ Endpoints anonimos:
 
 ## Claims utilizadas
 
-- `client_id`;
-- `azp`;
 - `sub`;
 - `ClaimTypes.NameIdentifier`;
+- `client_id`;
+- `azp`;
 - `merchant_id`;
 - `scope` permanece somente na autorizacao existente, sem mudanca de regra.
 

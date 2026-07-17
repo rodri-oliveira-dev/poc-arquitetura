@@ -1,9 +1,9 @@
 using ApiDefaults.Extensions;
 
-using TransferService.Application;
-using TransferService.Infrastructure;
 using TransferService.Api.Contracts.Responses;
 using TransferService.Api.Middlewares;
+using TransferService.Application;
+using TransferService.Infrastructure;
 
 namespace TransferService.Api.Extensions;
 
@@ -15,7 +15,7 @@ public static class ApiCompositionExtensions
         IHostEnvironment environment)
     {
         services
-            .AddApiDefaults<GlobalExceptionHandler>(configuration, "transfer.localhost", "localhost")
+            .AddApiDefaults<GlobalExceptionHandler>(configuration)
             .AddApiSwagger()
             .AddApiObservability(configuration);
 

@@ -749,7 +749,7 @@ public sealed class AuditRecordsEndpointTests
                     ["Jwt:Audience"] = TestJwtTokenFactory.AuditAudience,
                     ["Jwt:JwksUrl"] = "https://localhost/jwks.json",
                     ["ForwardedHeaders:TrustedProxies:0"] = "127.0.0.1",
-                    ["ForwardedHeaders:AllowedHosts:0"] = "localhost",
+                    ["ForwardedHeaders:AllowedHosts:0"] = "api.example.com",
                     ["Swagger:Enabled"] = "true"
                 });
             });

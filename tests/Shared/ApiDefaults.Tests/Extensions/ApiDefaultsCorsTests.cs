@@ -205,7 +205,7 @@ public sealed class ApiDefaultsCorsTests
         });
         builder.WebHost.UseTestServer();
         builder.Configuration.AddInMemoryCollection(configuration ?? new Dictionary<string, string?>());
-        builder.Services.AddApiDefaults<TestExceptionHandler>(CreateConfiguration(configuration), "localhost");
+        builder.Services.AddApiDefaults<TestExceptionHandler>(CreateConfiguration(configuration));
 
         WebApplication app = builder.Build();
         app.UseApiDefaults();
@@ -222,7 +222,7 @@ public sealed class ApiDefaultsCorsTests
             EnvironmentName = "Test"
         });
         builder.Configuration.AddInMemoryCollection(configuration);
-        builder.Services.AddApiDefaults<TestExceptionHandler>(CreateConfiguration(configuration), "localhost");
+        builder.Services.AddApiDefaults<TestExceptionHandler>(CreateConfiguration(configuration));
 
         using WebApplication app = builder.Build();
 
@@ -280,6 +280,7 @@ public sealed class ApiDefaultsCorsTests
             : new Dictionary<string, string?>(values);
 
         effectiveValues.TryAdd("ForwardedHeaders:TrustedProxies:0", "127.0.0.1");
+        effectiveValues.TryAdd("ForwardedHeaders:AllowedHosts:0", "api.example.com");
 
         return new ConfigurationBuilder()
             .AddInMemoryCollection(effectiveValues)

@@ -8,11 +8,8 @@ internal sealed record BoundedContextDescriptor(
     IReadOnlySet<MessagingProvider> AllowedMessagingProviders,
     IReadOnlyDictionary<ArchitectureLayer, IReadOnlySet<ArchitectureLayer>> AllowedInternalLayerReferences,
     IReadOnlyDictionary<ArchitectureLayer, IReadOnlySet<string>> AllowedSharedProjectReferences,
-    IReadOnlySet<ArchitectureLayer> StripeConceptLayers,
     IReadOnlySet<string> DomainForbiddenTypeNameTerms)
 {
-    public bool HasApi => Layers.Contains(ArchitectureLayer.Api);
-
     public bool HasWorker => Layers.Contains(ArchitectureLayer.Worker);
 
     public string AssemblyName(ArchitectureLayer layer)

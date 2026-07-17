@@ -16,7 +16,7 @@ public static class ApiCompositionExtensions
         IHostEnvironment environment)
     {
         services
-            .AddApiDefaults<GlobalExceptionHandler>(configuration, "payment.localhost", "localhost")
+            .AddApiDefaults<GlobalExceptionHandler>(configuration)
             .AddApiSwagger()
             .AddApiObservability(configuration);
 

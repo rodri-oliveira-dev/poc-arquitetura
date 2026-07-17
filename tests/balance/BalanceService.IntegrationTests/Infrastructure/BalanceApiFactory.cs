@@ -43,7 +43,7 @@ public sealed class BalanceApiFactory : WebApplicationFactory<Program>
                 ["ApiLimits:MaxRequestBodySizeBytes"] = "128",
                 ["ApiLimits:MaxBalancePeriodDays"] = "31",
                 ["ForwardedHeaders:TrustedProxies:0"] = "127.0.0.1",
-                ["ForwardedHeaders:AllowedHosts:0"] = "localhost",
+                ["ForwardedHeaders:AllowedHosts:0"] = "api.example.com",
                 ["Cors:Enabled"] = "true",
                 ["Cors:AllowedOrigins:0"] = "http://localhost:5173",
                 ["Cors:AllowedMethods:0"] = "GET",

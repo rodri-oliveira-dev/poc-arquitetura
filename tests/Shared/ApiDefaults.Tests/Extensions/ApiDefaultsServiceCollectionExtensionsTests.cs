@@ -33,8 +33,7 @@ public sealed class ApiDefaultsServiceCollectionExtensionsTests
         Assert.Throws<ArgumentNullException>("services", () =>
             ApiDefaultsServiceCollectionExtensions.AddApiDefaults<TestExceptionHandler>(
                 null!,
-                configuration,
-                "localhost"));
+                configuration));
     }
 
     [Fact]
@@ -43,16 +42,7 @@ public sealed class ApiDefaultsServiceCollectionExtensionsTests
         IServiceCollection services = CreateHostServices();
 
         Assert.Throws<ArgumentNullException>("configuration", () =>
-            services.AddApiDefaults<TestExceptionHandler>(null!, "localhost"));
-    }
-
-    [Fact]
-    public void AddApiDefaults_WhenForwardedHostsIsNull_ShouldThrow()
-    {
-        IServiceCollection services = CreateHostServices();
-
-        Assert.Throws<ArgumentNullException>("allowedForwardedHosts", () =>
-            services.AddApiDefaults<TestExceptionHandler>(CreateConfiguration(), null!));
+            services.AddApiDefaults<TestExceptionHandler>(null!));
     }
 
     [Fact]
@@ -64,10 +54,12 @@ public sealed class ApiDefaultsServiceCollectionExtensionsTests
             ["ApiLimits:MaxRequestBodySizeBytes"] = "2048",
             ["ApiLimits:RateLimitPermitLimit"] = "7",
             ["ApiLimits:RateLimitWindowSeconds"] = "11",
-            ["ApiLimits:RateLimitQueueLimit"] = "3"
+            ["ApiLimits:RateLimitQueueLimit"] = "3",
+            ["ForwardedHeaders:AllowedHosts:0"] = "api.localhost",
+            ["ForwardedHeaders:AllowedHosts:1"] = "localhost"
         });
 
-        services.AddApiDefaults<TestExceptionHandler>(configuration, "api.localhost", "localhost");
+        services.AddApiDefaults<TestExceptionHandler>(configuration);
 
         using ServiceProvider provider = BuildValidatedProvider(services);
 
@@ -86,10 +78,14 @@ public sealed class ApiDefaultsServiceCollectionExtensionsTests
     public void AddApiDefaults_WhenCalledTwice_ShouldKeepOptionsResolvableAndForwardedHostsConfigured()
     {
         IServiceCollection services = CreateHostServices();
-        IConfiguration configuration = CreateConfiguration();
+        IConfiguration configuration = CreateConfiguration(new Dictionary<string, string?>
+        {
+            ["ForwardedHeaders:AllowedHosts:0"] = "api.localhost",
+            ["ForwardedHeaders:AllowedHosts:1"] = "internal.localhost"
+        });
 
-        services.AddApiDefaults<TestExceptionHandler>(configuration, "api.localhost");
-        services.AddApiDefaults<TestExceptionHandler>(configuration, "internal.localhost");
+        services.AddApiDefaults<TestExceptionHandler>(configuration);
+        services.AddApiDefaults<TestExceptionHandler>(configuration);
 
         using ServiceProvider provider = BuildValidatedProvider(services);
 
@@ -108,10 +104,12 @@ public sealed class ApiDefaultsServiceCollectionExtensionsTests
         IServiceCollection services = CreateHostServices();
         IConfiguration configuration = CreateConfiguration(new Dictionary<string, string?>
         {
-            ["ForwardedHeaders:EnableLocalPermissiveMode"] = "true"
+            ["ForwardedHeaders:EnableLocalPermissiveMode"] = "true",
+            ["ForwardedHeaders:AllowedHosts:0"] = "ledger.localhost",
+            ["ForwardedHeaders:AllowedHosts:1"] = "localhost"
         });
 
-        services.AddApiDefaults<TestExceptionHandler>(configuration, "ledger.localhost", "localhost");
+        services.AddApiDefaults<TestExceptionHandler>(configuration);
 
         using ServiceProvider provider = BuildValidatedProvider(services, "Local");
 
@@ -125,11 +123,57 @@ public sealed class ApiDefaultsServiceCollectionExtensionsTests
     }
 
     [Fact]
+    public void AddApiDefaults_WhenDevelopmentConfiguresLocalHosts_ShouldPopulateAllowedHosts()
+    {
+        IServiceCollection services = CreateHostServices();
+        IConfiguration configuration = CreateConfiguration(new Dictionary<string, string?>
+        {
+            ["ForwardedHeaders:AllowedHosts:0"] = "ledger.localhost",
+            ["ForwardedHeaders:AllowedHosts:1"] = "localhost"
+        });
+
+        services.AddApiDefaults<TestExceptionHandler>(configuration);
+
+        using ServiceProvider provider = BuildValidatedProvider(services, "Development");
+
+        ForwardedHeadersOptions forwarded = provider.GetRequiredService<IOptions<ForwardedHeadersOptions>>().Value;
+        Assert.Contains("ledger.localhost", forwarded.AllowedHosts);
+        Assert.Contains("localhost", forwarded.AllowedHosts);
+    }
+
+    [Fact]
+    public void AddApiDefaults_WhenComposeLocalEnablesPermissiveMode_ShouldAllowLocalForwardedHosts()
+    {
+        IServiceCollection services = CreateHostServices();
+        IConfiguration configuration = CreateConfiguration(new Dictionary<string, string?>
+        {
+            ["ForwardedHeaders:EnableLocalPermissiveMode"] = "true",
+            ["ForwardedHeaders:AllowedHosts:0"] = "balance.localhost",
+            ["ForwardedHeaders:AllowedHosts:1"] = "localhost"
+        });
+
+        services.AddApiDefaults<TestExceptionHandler>(configuration);
+
+        using ServiceProvider provider = BuildValidatedProvider(services, "Development");
+
+        TrustedForwardedHeadersOptions trusted = provider.GetRequiredService<IOptions<TrustedForwardedHeadersOptions>>().Value;
+        ForwardedHeadersOptions forwarded = provider.GetRequiredService<IOptions<ForwardedHeadersOptions>>().Value;
+
+        Assert.True(trusted.EnableLocalPermissiveMode);
+        Assert.Contains("balance.localhost", forwarded.AllowedHosts);
+        Assert.Empty(forwarded.KnownProxies);
+        Assert.Empty(forwarded.KnownIPNetworks);
+    }
+
+    [Fact]
     public void AddApiDefaults_WhenNonLocalEnvironmentHasNoProxyOrNetwork_ShouldFailOptionsValidation()
     {
         IServiceCollection services = CreateHostServices();
 
-        services.AddApiDefaults<TestExceptionHandler>(CreateConfiguration(), "api.example.com");
+        services.AddApiDefaults<TestExceptionHandler>(CreateConfiguration(new Dictionary<string, string?>
+        {
+            ["ForwardedHeaders:AllowedHosts:0"] = "api.example.com"
+        }));
 
         using ServiceProvider provider = BuildValidatedProvider(services, "Production");
 
@@ -139,7 +183,7 @@ public sealed class ApiDefaultsServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddApiDefaults_WhenTrustedProxyIsConfigured_ShouldPopulateKnownProxies()
+    public void AddApiDefaults_WhenNonLocalEnvironmentHasNoAllowedHost_ShouldFailOptionsValidation()
     {
         IServiceCollection services = CreateHostServices();
         IConfiguration configuration = CreateConfiguration(new Dictionary<string, string?>
@@ -147,7 +191,64 @@ public sealed class ApiDefaultsServiceCollectionExtensionsTests
             ["ForwardedHeaders:TrustedProxies:0"] = "10.0.0.10"
         });
 
-        services.AddApiDefaults<TestExceptionHandler>(configuration, "api.example.com");
+        services.AddApiDefaults<TestExceptionHandler>(configuration);
+
+        using ServiceProvider provider = BuildValidatedProvider(services, "Production");
+
+        OptionsValidationException exception = Assert.Throws<OptionsValidationException>(() =>
+            provider.GetRequiredService<IOptions<TrustedForwardedHeadersOptions>>().Value);
+        Assert.Contains("allowed forwarded host", string.Join(" ", exception.Failures));
+    }
+
+    [Fact]
+    public void AddApiDefaults_WhenNonLocalEnvironmentUsesOnlyLocalhost_ShouldFailOptionsValidation()
+    {
+        IServiceCollection services = CreateHostServices();
+        IConfiguration configuration = CreateConfiguration(new Dictionary<string, string?>
+        {
+            ["ForwardedHeaders:TrustedProxies:0"] = "10.0.0.10",
+            ["ForwardedHeaders:AllowedHosts:0"] = "localhost"
+        });
+
+        services.AddApiDefaults<TestExceptionHandler>(configuration);
+
+        using ServiceProvider provider = BuildValidatedProvider(services, "Production");
+
+        OptionsValidationException exception = Assert.Throws<OptionsValidationException>(() =>
+            provider.GetRequiredService<IOptions<TrustedForwardedHeadersOptions>>().Value);
+        Assert.Contains("cannot use local host", string.Join(" ", exception.Failures));
+    }
+
+    [Fact]
+    public void AddApiDefaults_WhenNonLocalEnvironmentUsesLocalhostSubdomain_ShouldFailOptionsValidation()
+    {
+        IServiceCollection services = CreateHostServices();
+        IConfiguration configuration = CreateConfiguration(new Dictionary<string, string?>
+        {
+            ["ForwardedHeaders:TrustedProxies:0"] = "10.0.0.10",
+            ["ForwardedHeaders:AllowedHosts:0"] = "ledger.localhost"
+        });
+
+        services.AddApiDefaults<TestExceptionHandler>(configuration);
+
+        using ServiceProvider provider = BuildValidatedProvider(services, "Production");
+
+        OptionsValidationException exception = Assert.Throws<OptionsValidationException>(() =>
+            provider.GetRequiredService<IOptions<TrustedForwardedHeadersOptions>>().Value);
+        Assert.Contains("cannot use local host", string.Join(" ", exception.Failures));
+    }
+
+    [Fact]
+    public void AddApiDefaults_WhenTrustedProxyIsConfigured_ShouldPopulateKnownProxies()
+    {
+        IServiceCollection services = CreateHostServices();
+        IConfiguration configuration = CreateConfiguration(new Dictionary<string, string?>
+        {
+            ["ForwardedHeaders:TrustedProxies:0"] = "10.0.0.10",
+            ["ForwardedHeaders:AllowedHosts:0"] = "api.example.com"
+        });
+
+        services.AddApiDefaults<TestExceptionHandler>(configuration);
 
         using ServiceProvider provider = BuildValidatedProvider(services, "Production");
 
@@ -162,10 +263,11 @@ public sealed class ApiDefaultsServiceCollectionExtensionsTests
         IServiceCollection services = CreateHostServices();
         IConfiguration configuration = CreateConfiguration(new Dictionary<string, string?>
         {
-            ["ForwardedHeaders:TrustedNetworks:0"] = "10.0.0.0/24"
+            ["ForwardedHeaders:TrustedNetworks:0"] = "10.0.0.0/24",
+            ["ForwardedHeaders:AllowedHosts:0"] = "api.example.com"
         });
 
-        services.AddApiDefaults<TestExceptionHandler>(configuration, "api.example.com");
+        services.AddApiDefaults<TestExceptionHandler>(configuration);
 
         using ServiceProvider provider = BuildValidatedProvider(services, "Production");
 
@@ -181,10 +283,11 @@ public sealed class ApiDefaultsServiceCollectionExtensionsTests
         IServiceCollection services = CreateHostServices();
         IConfiguration configuration = CreateConfiguration(new Dictionary<string, string?>
         {
-            ["ForwardedHeaders:TrustedNetworks:0"] = "10.0.0.0/129"
+            ["ForwardedHeaders:TrustedNetworks:0"] = "10.0.0.0/129",
+            ["ForwardedHeaders:AllowedHosts:0"] = "api.example.com"
         });
 
-        services.AddApiDefaults<TestExceptionHandler>(configuration, "api.example.com");
+        services.AddApiDefaults<TestExceptionHandler>(configuration);
 
         using ServiceProvider provider = BuildValidatedProvider(services, "Production");
 
@@ -198,7 +301,7 @@ public sealed class ApiDefaultsServiceCollectionExtensionsTests
     {
         IServiceCollection services = CreateHostServices();
 
-        services.AddApiDefaults<TestExceptionHandler>(CreateConfiguration(), "localhost");
+        services.AddApiDefaults<TestExceptionHandler>(CreateConfiguration());
 
         using ServiceProvider provider = BuildValidatedProvider(services);
 
@@ -218,7 +321,7 @@ public sealed class ApiDefaultsServiceCollectionExtensionsTests
             ["ApiLimits:AuthenticatedReadRateLimit:PermitLimit"] = "0"
         });
 
-        services.AddApiDefaults<TestExceptionHandler>(configuration, "localhost");
+        services.AddApiDefaults<TestExceptionHandler>(configuration);
 
         using ServiceProvider provider = BuildValidatedProvider(services);
 
@@ -232,7 +335,7 @@ public sealed class ApiDefaultsServiceCollectionExtensionsTests
     {
         IServiceCollection services = CreateHostServices();
 
-        services.AddApiDefaults<TestExceptionHandler>(CreateConfiguration(), "localhost");
+        services.AddApiDefaults<TestExceptionHandler>(CreateConfiguration());
 
         using ServiceProvider provider = BuildValidatedProvider(services);
 

@@ -21,10 +21,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.WebHost.ConfigureApiDefaults();
 
-builder.Services.AddApiDefaults<GlobalExceptionHandler>(
-    builder.Configuration,
-    "api.localhost",
-    "localhost");
+builder.Services.AddApiDefaults<GlobalExceptionHandler>(builder.Configuration);
 
 builder.Services.AddApiJwtBearerAuthentication(
     jwtOptions,
@@ -53,14 +50,16 @@ app.MapApiHealthEndpoints(
 ## Forwarded Headers confiaveis
 
 `AddApiDefaults` configura `X-Forwarded-For`, `X-Forwarded-Proto` e
-`X-Forwarded-Host` com `ForwardLimit = 1`. Os hosts passados para
-`AddApiDefaults` entram em `ForwardedHeaders:AllowedHosts`.
+`X-Forwarded-Host` com `ForwardLimit = 1`. Os hosts aceitos para
+`X-Forwarded-Host` devem vir de `ForwardedHeaders:AllowedHosts`; o pacote
+compartilhado nao injeta dominios locais nem produtivos por codigo.
 
 Para Docker Compose local com Nginx e IP dinamico:
 
 ```json
 {
   "ForwardedHeaders": {
+    "AllowedHosts": [ "api.localhost", "localhost" ],
     "EnableLocalPermissiveMode": true
   }
 }
@@ -81,7 +80,9 @@ Run, ingress ou load balancer, configure proxies ou redes confiaveis:
 ```
 
 Ambientes nao locais falham no startup quando nao informam pelo menos um proxy
-ou CIDR confiavel.
+ou CIDR confiavel e pelo menos um host encaminhado nao local. `localhost`,
+subdominios `.localhost` e enderecos de loopback nao satisfazem a validacao de
+ambientes produtivos.
 
 ## CORS configuravel
 
@@ -126,7 +127,6 @@ Para Swagger/OpenAPI, use `AddApiSwaggerDefaults<TConfigureSwaggerOptions>` e `U
 - `authenticated-write`;
 - `administrative`;
 - `anonymous-webhook`;
-- `swagger`;
 - `fixed` como alias legado de escrita autenticada.
 
 Use `UseRateLimiter()` depois de `UseAuthentication()` e `UseAuthorization()`
@@ -134,9 +134,16 @@ para que as policies autenticadas possam montar a particao com claims do token.
 Health e readiness mapeados por `MapApiHealthEndpoints` continuam com
 `DisableRateLimiting()`.
 
-As chaves autenticadas priorizam `client_id`, `azp`, `sub` e
-`ClaimTypes.NameIdentifier`, incluem `merchant_id` autorizado quando presente e
-usam fallback por IP remoto normalizado quando claims esperadas estao ausentes.
+As chaves autenticadas seguem um modelo misto com predominancia de usuario final
+quando `sub` ou `ClaimTypes.NameIdentifier` existe. A composicao e:
+
+1. `sub` ou `ClaimTypes.NameIdentifier`;
+2. `client_id` ou `azp`, como componente adicional quando presente;
+3. `merchant_id` autorizado quando presente.
+
+Quando nao houver identidade utilizavel, a chave usa fallback por IP remoto
+normalizado, sem cair em uma particao global vazia. Os valores da chave sao
+protegidos por hash e as metricas usam apenas labels de baixa cardinalidade.
 Webhooks anonimos usam `RemoteIpAddress` apos `UseForwardedHeaders`; nao leia
 `X-Forwarded-For` diretamente em aplicacoes.
 

@@ -34,8 +34,8 @@ Superficies analisadas:
 - Endpoint anonimo: webhook Stripe em `POST /api/v1/webhooks/stripe`.
 - Health/readiness: publicos e sem limitacao por padrao.
 - Swagger: documentacao habilitada por ambiente/flag; nao protegida por
-  policy nesta etapa porque e registrada por middleware, nao por endpoint
-  roteado com metadata de rate limiting.
+  policy da API porque e registrada por middleware antes de `UseRateLimiter`,
+  nao por endpoint roteado com metadata de rate limiting.
 
 ## Requisitos verificaveis
 
@@ -49,9 +49,10 @@ Superficies analisadas:
 - Manter compatibilidade das chaves antigas `ApiLimits:RateLimitPermitLimit`,
   `ApiLimits:RateLimitWindowSeconds` e `ApiLimits:RateLimitQueueLimit` como
   defaults.
-- Usar, para endpoints autenticados, composicao estavel de `client_id`, `azp`,
-  `sub` ou `ClaimTypes.NameIdentifier`, com `merchant_id` autorizado quando
-  presente.
+- Usar, para endpoints autenticados, composicao estavel que prioriza `sub` ou
+  `ClaimTypes.NameIdentifier`, adiciona `client_id` ou `azp` quando presente e
+  usa `client_id` ou `azp` sozinho para tokens machine-to-machine sem subject,
+  com `merchant_id` autorizado quando presente.
 - Usar fallback por IP remoto normalizado quando claims de cliente/subject
   estiverem ausentes, sem criar particao vazia compartilhada.
 - Usar, para endpoints anonimos, somente `RemoteIpAddress` depois de

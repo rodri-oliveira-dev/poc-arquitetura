@@ -23,6 +23,17 @@ public sealed class TrustedForwardedHeadersOptionsValidator(
         ValidateNotBlank(options.TrustedNetworks, "ForwardedHeaders:TrustedNetworks", failures);
         ValidateNotBlank(options.AllowedHosts, "ForwardedHeaders:AllowedHosts", failures);
 
+        if (!isLocal)
+        {
+            foreach (string host in options.AllowedHosts)
+            {
+                if (IsLocalForwardedHost(host))
+                {
+                    failures.Add($"ForwardedHeaders:AllowedHosts cannot use local host '{host}' outside Development and Local environments.");
+                }
+            }
+        }
+
         foreach (string proxy in options.TrustedProxies)
         {
             if (!IPAddress.TryParse(proxy, out _))
@@ -56,6 +67,19 @@ public sealed class TrustedForwardedHeadersOptionsValidator(
 
     internal static bool IsLocalEnvironment(IHostEnvironment environment)
         => environment.IsDevelopment() || environment.IsEnvironment("Local");
+
+    private static bool IsLocalForwardedHost(string host)
+    {
+        string normalized = host.Trim().TrimEnd('.');
+
+        if (string.Equals(normalized, "localhost", StringComparison.OrdinalIgnoreCase) ||
+            normalized.EndsWith(".localhost", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return IPAddress.TryParse(normalized, out IPAddress? address) && IPAddress.IsLoopback(address);
+    }
 
     private static void ValidateNotBlank(
         IEnumerable<string> values,

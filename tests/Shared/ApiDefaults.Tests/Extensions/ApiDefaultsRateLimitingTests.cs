@@ -79,6 +79,38 @@ public sealed class ApiDefaultsRateLimitingTests
     }
 
     [Fact]
+    public async Task AuthenticatedReadPolicy_WhenOnlyAuthorizedPartyDiffers_ShouldUseIndependentLimits()
+    {
+        await using WebApplication app = await CreateRateLimitedAppAsync();
+        HttpClient client = app.GetTestClient();
+
+        using HttpResponseMessage azpAFirst = await SendAsync(client, HttpMethod.Get, "/read", authorizedParty: "client-a");
+        using HttpResponseMessage azpASecond = await SendAsync(client, HttpMethod.Get, "/read", authorizedParty: "client-a");
+        using HttpResponseMessage azpB = await SendAsync(client, HttpMethod.Get, "/read", authorizedParty: "client-b");
+
+        Assert.Equal(HttpStatusCode.OK, azpAFirst.StatusCode);
+        Assert.Equal(HttpStatusCode.TooManyRequests, azpASecond.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, azpB.StatusCode);
+    }
+
+    [Fact]
+    public async Task AuthenticatedReadPolicy_WhenSubjectAndAuthorizedPartyExist_ShouldPrioritizeSubjectAndIsolateClient()
+    {
+        await using WebApplication app = await CreateRateLimitedAppAsync();
+        HttpClient client = app.GetTestClient();
+
+        using HttpResponseMessage firstUserFirst = await SendAsync(client, HttpMethod.Get, "/read", subject: "user-a", authorizedParty: "client-a");
+        using HttpResponseMessage firstUserSecond = await SendAsync(client, HttpMethod.Get, "/read", subject: "user-a", authorizedParty: "client-a");
+        using HttpResponseMessage secondUserSameClient = await SendAsync(client, HttpMethod.Get, "/read", subject: "user-b", authorizedParty: "client-a");
+        using HttpResponseMessage sameUserSecondClient = await SendAsync(client, HttpMethod.Get, "/read", subject: "user-a", authorizedParty: "client-b");
+
+        Assert.Equal(HttpStatusCode.OK, firstUserFirst.StatusCode);
+        Assert.Equal(HttpStatusCode.TooManyRequests, firstUserSecond.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, secondUserSameClient.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, sameUserSecondClient.StatusCode);
+    }
+
+    [Fact]
     public async Task AnonymousWebhookPolicy_WhenRemoteIpDiffers_ShouldUseIndependentLimits()
     {
         await using WebApplication app = await CreateRateLimitedAppAsync();
@@ -228,7 +260,7 @@ public sealed class ApiDefaultsRateLimitingTests
             .AddAuthentication("Test")
             .AddScheme<AuthenticationSchemeOptions, HeaderAuthenticationHandler>("Test", _ => { });
         builder.Services.AddAuthorization();
-        builder.Services.AddApiDefaults<TestExceptionHandler>(builder.Configuration, "localhost");
+        builder.Services.AddApiDefaults<TestExceptionHandler>(builder.Configuration);
 
         WebApplication app = builder.Build();
         app.Use((context, next) =>
@@ -262,6 +294,7 @@ public sealed class ApiDefaultsRateLimitingTests
         var configuration = new Dictionary<string, string?>
         {
             ["ForwardedHeaders:TrustedProxies:0"] = "127.0.0.1",
+            ["ForwardedHeaders:AllowedHosts:0"] = "api.example.com",
             ["ApiLimits:RateLimitPermitLimit"] = "1",
             ["ApiLimits:RateLimitWindowSeconds"] = "60",
             ["ApiLimits:RateLimitQueueLimit"] = "0"
@@ -301,6 +334,7 @@ public sealed class ApiDefaultsRateLimitingTests
         string path,
         string? subject = null,
         string? clientId = null,
+        string? authorizedParty = null,
         string? merchantId = null,
         string? remoteIp = null,
         string? forwardedFor = null)
@@ -314,6 +348,11 @@ public sealed class ApiDefaultsRateLimitingTests
         if (clientId is not null)
         {
             request.Headers.Add("X-Test-ClientId", clientId);
+        }
+
+        if (authorizedParty is not null)
+        {
+            request.Headers.Add("X-Test-Azp", authorizedParty);
         }
 
         if (merchantId is not null)
@@ -356,6 +395,11 @@ public sealed class ApiDefaultsRateLimitingTests
             if (Request.Headers.TryGetValue("X-Test-ClientId", out var clientId))
             {
                 claims.Add(new Claim("client_id", clientId.ToString()));
+            }
+
+            if (Request.Headers.TryGetValue("X-Test-Azp", out var authorizedParty))
+            {
+                claims.Add(new Claim("azp", authorizedParty.ToString()));
             }
 
             if (Request.Headers.TryGetValue("X-Test-Merchant", out var merchantId))
