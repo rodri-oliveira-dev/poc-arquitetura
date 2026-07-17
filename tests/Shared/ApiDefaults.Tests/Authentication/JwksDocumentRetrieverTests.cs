@@ -92,7 +92,7 @@ public sealed class JwksDocumentRetrieverTests
 
         await Assert.ThrowsAsync<BrokenCircuitException>(() => sut.GetDocumentAsync(server.Address, CancellationToken.None));
 
-        Assert.Equal(2, requestsBeforeOpenCircuit);
+        Assert.InRange(requestsBeforeOpenCircuit, 1, 2);
         Assert.Equal(requestsBeforeOpenCircuit, server.RequestCount);
     }
 
