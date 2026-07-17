@@ -35,6 +35,8 @@ public sealed class PostgresIdentityApiFactory(string connectionString) : WebApp
                 ["Jwt:Audience"] = TestJwtTokenFactory.IdentityAudience,
                 ["Jwt:JwksUrl"] = "https://localhost/jwks.json",
                 ["ConnectionStrings:DefaultConnection"] = connectionString,
+                ["ForwardedHeaders:TrustedProxies:0"] = "127.0.0.1",
+                ["ForwardedHeaders:AllowedHosts:0"] = "localhost",
                 ["Email:Provider"] = "Mailpit",
                 ["Email:AuthenticationUrl"] = "https://auth.localhost/login"
             });

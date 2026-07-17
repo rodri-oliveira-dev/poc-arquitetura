@@ -137,7 +137,10 @@ internal static class BoundedContextCatalog
         string serviceName,
         bool hasWorker)
     {
-        Dictionary<ArchitectureLayer, IReadOnlySet<string>> references = [];
+        Dictionary<ArchitectureLayer, IReadOnlySet<string>> references = new()
+        {
+            [ArchitectureLayer.Api] = new HashSet<string> { "ApiDefaults.csproj" }
+        };
 
         if (hasWorker && serviceName is "LedgerService" or "BalanceService" or "AuditService")
         {

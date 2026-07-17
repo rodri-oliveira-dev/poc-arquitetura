@@ -42,6 +42,16 @@ public sealed class BalanceApiFactory : WebApplicationFactory<Program>
                 ["Jwt:JwksUrl"] = "https://localhost/jwks.json",
                 ["ApiLimits:MaxRequestBodySizeBytes"] = "128",
                 ["ApiLimits:MaxBalancePeriodDays"] = "31",
+                ["ForwardedHeaders:TrustedProxies:0"] = "127.0.0.1",
+                ["ForwardedHeaders:AllowedHosts:0"] = "localhost",
+                ["Cors:Enabled"] = "true",
+                ["Cors:AllowedOrigins:0"] = "http://localhost:5173",
+                ["Cors:AllowedMethods:0"] = "GET",
+                ["Cors:AllowedMethods:1"] = "POST",
+                ["Cors:AllowedHeaders:0"] = "Authorization",
+                ["Cors:AllowedHeaders:1"] = "Content-Type",
+                ["Cors:AllowedHeaders:2"] = "Idempotency-Key",
+                ["Cors:AllowedHeaders:3"] = "X-Correlation-Id",
                 ["ConnectionStrings:DefaultConnection"] = "Host=unused;Database=ignore;Username=ignore;Password=ignore"
             });
         });

@@ -30,6 +30,8 @@ public sealed class PostgresPaymentApiFactory : WebApplicationFactory<Program>, 
         SetProcessEnvironmentDefault("Jwt__JwksUrl", "https://localhost/jwks.json");
         SetProcessEnvironmentDefault("ApiLimits__MaxRequestBodySizeBytes", "1024");
         SetProcessEnvironmentDefault("ConnectionStrings__DefaultConnection", connectionString);
+        SetProcessEnvironmentDefault("ForwardedHeaders__TrustedProxies__0", "127.0.0.1");
+        SetProcessEnvironmentDefault("ForwardedHeaders__AllowedHosts__0", "localhost");
         SetProcessEnvironmentDefault("PaymentGateway__Stripe__WebhookSigningSecret", StripeWebhookTestData.Secret);
         SetProcessEnvironmentDefault("PaymentGateway__Stripe__WebhookSignatureTolerance", "00:05:00");
     }
@@ -54,6 +56,8 @@ public sealed class PostgresPaymentApiFactory : WebApplicationFactory<Program>, 
                 ["Jwt:Audience"] = TestJwtTokenFactory.PaymentAudience,
                 ["Jwt:JwksUrl"] = "https://localhost/jwks.json",
                 ["ApiLimits:MaxRequestBodySizeBytes"] = "1024",
+                ["ForwardedHeaders:TrustedProxies:0"] = "127.0.0.1",
+                ["ForwardedHeaders:AllowedHosts:0"] = "localhost",
                 ["ConnectionStrings:DefaultConnection"] = _connectionString,
                 ["PaymentGateway:Stripe:WebhookSigningSecret"] = StripeWebhookTestData.Secret,
                 ["PaymentGateway:Stripe:WebhookSignatureTolerance"] = "00:05:00"

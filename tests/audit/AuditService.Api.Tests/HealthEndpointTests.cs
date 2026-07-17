@@ -76,6 +76,8 @@ public sealed class HealthEndpointTests
                     ["Jwt:Issuer"] = TestJwtTokenFactory.KeycloakIssuer,
                     ["Jwt:Audience"] = TestJwtTokenFactory.AuditAudience,
                     ["Jwt:JwksUrl"] = "https://localhost/jwks.json",
+                    ["ForwardedHeaders:TrustedProxies:0"] = "127.0.0.1",
+                    ["ForwardedHeaders:AllowedHosts:0"] = "localhost",
                     ["ConnectionStrings:DefaultConnection"] =
                         "Host=127.0.0.1;Port=1;Database=missing;Username=missing;Password=missing;Timeout=1"
                 });

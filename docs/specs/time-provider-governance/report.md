@@ -87,8 +87,15 @@ Executado com sucesso:
 - `dotnet test .\BalanceService.slnx --configuration Release --no-build --settings .\coverlet.runsettings --filter "FullyQualifiedName!~IntegrationTests"`
 - `dotnet test .\TransferService.slnx --configuration Release --no-build --settings .\coverlet.runsettings --filter "FullyQualifiedName!~IntegrationTests"`
 - `dotnet test .\tests\payment\PaymentService.UnitTests\PaymentService.UnitTests.csproj --configuration Release --no-build --settings .\coverlet.runsettings`
+- `dotnet test .\tests\ledger\LedgerService.IntegrationTests\LedgerService.IntegrationTests.csproj --configuration Release --settings .\coverlet.runsettings`
+- `dotnet test .\tests\balance\BalanceService.IntegrationTests\BalanceService.IntegrationTests.csproj --configuration Release --settings .\coverlet.runsettings`
+- `dotnet test .\tests\transfer\TransferService.IntegrationTests\TransferService.IntegrationTests.csproj --configuration Release --settings .\coverlet.runsettings`
+- `dotnet test .\tests\payment\PaymentService.IntegrationTests\PaymentService.IntegrationTests.csproj --configuration Release --settings .\coverlet.runsettings`
+- `dotnet test .\tests\identity\IdentityService.IntegrationTests\IdentityService.IntegrationTests.csproj --configuration Release --settings .\coverlet.runsettings`
+- `dotnet test .\tests\audit\AuditService.Api.Tests\AuditService.Api.Tests.csproj --configuration Release --settings .\coverlet.runsettings`
+- `dotnet test .\tests\audit\AuditService.Infrastructure.Tests\AuditService.Infrastructure.Tests.csproj --configuration Release --settings .\coverlet.runsettings`
+- `dotnet test .\tests\Architecture.Tests\Architecture.Tests.csproj --configuration Release --settings .\coverlet.runsettings`
 
 Executado com ressalva:
 
-- `dotnet test .\PocArquitetura.slnx --configuration Release --no-build --settings .\coverlet.runsettings` excedeu o timeout local de 5 minutos.
-- Testes de integracao de Ledger, Balance e Transfer falharam ao iniciar as APIs por `ForwardedHeaders must configure at least one trusted proxy or trusted network outside Development and Local environments`, problema de configuracao de ambiente de teste fora deste workstream.
+- `dotnet test .\PocArquitetura.slnx --configuration Release --no-build --settings .\coverlet.runsettings` ainda falhou na execucao agregada paralela por instabilidade da Docker-compatible API/Testcontainers (`Invalid chunk header`) em fixtures PostgreSQL, embora os projetos de integracao afetados tenham passado isoladamente.

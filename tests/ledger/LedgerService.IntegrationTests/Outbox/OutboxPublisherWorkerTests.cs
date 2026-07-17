@@ -274,6 +274,7 @@ public sealed class OutboxPublisherWorkerTests(PostgresLedgerFixture fixture)
                 npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "ledger")));
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<AppDbContext>());
         services.AddScoped<IOutboxMessageRepository, OutboxMessageRepository>();
+        services.AddSingleton(TimeProvider.System);
         services.AddSingleton<OutboxMetrics>();
         services.AddSingleton(publisher);
         services.AddSingleton<IJitterProvider>(new FixedJitterProvider(TimeSpan.Zero));
