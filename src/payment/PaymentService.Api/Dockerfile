@@ -7,6 +7,8 @@ COPY Directory.Packages.props ./
 COPY Directory.Build.props ./
 COPY global.json ./
 COPY src/Shared/ContainerHealthProbe/ContainerHealthProbe.csproj src/Shared/ContainerHealthProbe/
+COPY src/Shared/HttpResilienceDefaults/HttpResilienceDefaults.csproj src/Shared/HttpResilienceDefaults/
+COPY src/Shared/ApiDefaults/ApiDefaults.csproj src/Shared/ApiDefaults/
 COPY src/payment/PaymentService.Api/PaymentService.Api.csproj src/payment/PaymentService.Api/
 COPY src/payment/PaymentService.Application/PaymentService.Application.csproj src/payment/PaymentService.Application/
 COPY src/payment/PaymentService.Domain/PaymentService.Domain.csproj src/payment/PaymentService.Domain/
@@ -22,6 +24,8 @@ COPY src/payment/PaymentService.Application/ ./src/payment/PaymentService.Applic
 COPY src/payment/PaymentService.Domain/ ./src/payment/PaymentService.Domain/
 COPY src/payment/PaymentService.Infrastructure/ ./src/payment/PaymentService.Infrastructure/
 COPY src/Shared/ContainerHealthProbe/ ./src/Shared/ContainerHealthProbe/
+COPY src/Shared/HttpResilienceDefaults/ ./src/Shared/HttpResilienceDefaults/
+COPY src/Shared/ApiDefaults/ ./src/Shared/ApiDefaults/
 
 RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages,sharing=locked \
     dotnet publish src/payment/PaymentService.Api/PaymentService.Api.csproj \
