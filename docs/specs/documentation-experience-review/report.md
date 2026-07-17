@@ -188,10 +188,16 @@ Total analisado apos a criacao desta spec: 263 arquivos Markdown. Revisados dire
 - Stack local padrao executada com `./scripts/local/start-stack.ps1`; migrations, build de imagens e subida dos containers concluidos com sucesso.
 - k6 smoke Kafka executado com `./scripts/performance/run-loadtests.ps1 -Mode smoke-kafka`; checks e thresholds passaram, a Outbox foi publicada, o evento foi projetado no Balance e a DLQ do Balance nao cresceu.
 - OWASP ZAP local executado com `./scripts/security/run-owasp-zap.ps1`; LedgerService.Api e BalanceService.Api terminaram com `FAIL-NEW: 0`, `WARN-NEW: 0`, `INFO: 0` e `PASS: 118` em cada API.
+- Validacao complementar de ambiente executada: Compose, variaveis locais, certificados, ferramentas, `./test.ps1`, k6 ampliado, Nginx HTTPS, observabilidade, Pub/Sub legado, `transfer-fullstack-kafka` e ZAP autenticado com active scan.
+- Nginx HTTPS respondeu 200 para portal, Ledger e Balance via `https://localhost:7443`, `https://ledger.localhost:7443/health` e `https://balance.localhost:7443/health`.
+- ZAP autenticado com active scan terminou sem falhas ou warnings novos em Ledger e Balance.
+- `transfer-fullstack-kafka` completou a Saga em reexecucao, mas o runner falhou no pos-check ao nao encontrar o evento esperado em `transfer.transferencia.solicitada`.
+- Observabilidade subiu parcialmente: Grafana, Jaeger, Alertmanager, Alloy e OTel Collector ficaram disponiveis; Prometheus e Loki falharam por permissao em `tmpfs`.
+- Pub/Sub legado subiu com emulator e `pubsub-init` OK, mas o smoke Ledger -> Balance ficou inconclusivo por backlog de Outbox.
 
 ### Referencias nao verificadas integralmente
 
-- Load tests mais pesados, Nginx local, Pub/Sub legado e active scan do ZAP nao foram executados porque o pedido complementar cobriu stack padrao, k6 smoke Kafka e ZAP baseline local.
+- As validacoes complementares foram executadas ou tentadas. Permanecem nao fechadas integralmente: Prometheus/Loki no overlay de observabilidade, Pub/Sub Ledger -> Balance com estado controlado e o pos-check Kafka do `transfer-fullstack-kafka`.
 
 ## Validacoes executadas
 
@@ -207,6 +213,16 @@ Resultado registrado apos a revisao:
 - `./scripts/local/start-stack.ps1`;
 - `./scripts/performance/run-loadtests.ps1 -Mode smoke-kafka`;
 - `./scripts/security/run-owasp-zap.ps1`.
+- `./test.ps1`;
+- `./scripts/performance/run-loadtests.ps1 -Mode load-kafka`;
+- `./scripts/performance/run-loadtests.ps1 -Mode ledger-load-kafka`;
+- `./scripts/performance/run-loadtests.ps1 -Mode transfer-smoke-kafka`;
+- `./scripts/performance/run-loadtests.ps1 -Mode transfer-load-kafka`;
+- `./scripts/performance/run-loadtests.ps1 -Mode transfer-fullstack-kafka`;
+- `./scripts/security/run-owasp-zap.ps1 -UseAuthentication -ActiveScan`;
+- subida manual do overlay Nginx com `compose.nginx.yaml`;
+- subida manual do overlay de observabilidade com `compose.observability.yaml`;
+- tentativa de Pub/Sub legado com `compose.pubsub.yaml`.
 
 ## Riscos residuais
 
@@ -215,6 +231,11 @@ Resultado registrado apos a revisao:
 - ADRs antigas citam `Auth.Api` como estado vigente da epoca. Isso e historico preservado, mas pode confundir leitores que pulam o indice.
 - Specs SDD antigas podem parecer documentacao atual se acessadas por busca direta; o novo indice reduz o risco, mas nao elimina.
 - Comentarios em codigo e summaries XML nao foram revisados editorialmente nesta etapa.
+- `scripts/local/start-full-stack.ps1` falhou antes da subida por incompatibilidade no `docker ps --format` usado pelo script.
+- `scripts/local/start-stack-pubsub.ps1` falhou ao repassar `-OverlayFile`; a chamada direta ao `start-stack.ps1` funcionou parcialmente, mas excedeu o timeout de validação.
+- Prometheus e Loki precisam de ajuste de permissao/usuario/volume no `tmpfs` local.
+- O smoke Pub/Sub precisa de ambiente controlado ou criterio de drenagem de Outbox para nao depender de backlog historico.
+- O pos-check Kafka do `transfer-fullstack-kafka` precisa ser investigado, porque a Saga completou mas a validacao do topico falhou.
 
 ## Recomendacoes futuras
 
@@ -223,3 +244,4 @@ Resultado registrado apos a revisao:
 3. Revisar `local-development.md` para separar tutorial curto de referencia completa de portas, variaveis e troubleshooting.
 4. Revisar `patterns-catalog.md` para criar sumario executivo e reduzir repeticoes.
 5. Adicionar validacao automatica de links Markdown se o custo de manutencao compensar.
+6. Corrigir os scripts locais e o overlay de observabilidade antes de considerar a experiencia local completa como validada de ponta a ponta.
