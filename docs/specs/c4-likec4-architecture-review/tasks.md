@@ -9,6 +9,7 @@
 - [x] Confirmar que PaymentService e AuditService estao representados conforme implementacao atual.
 - [x] Corrigir drift textual sobre AuditService em `docs/maturity.md`.
 - [x] Adicionar jornadas arquiteturais explicitas em `docs/architecture/README.md`.
+- [x] Adicionar container views por bounded context para drill-down no LikeC4.
 - [x] Criar spec SDD em `docs/specs/c4-likec4-architecture-review/`.
 - [x] Atualizar `docs/README.md` com a nova spec.
 - [x] Executar `npm ci`.

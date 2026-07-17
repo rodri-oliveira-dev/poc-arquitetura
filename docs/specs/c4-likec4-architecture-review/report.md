@@ -8,7 +8,7 @@ Estrategia adotada: validar estaticamente o modelo contra projetos, workers, DbC
 
 Principais divergencias encontradas: `docs/maturity.md` ainda afirmava que o AuditService nao possuia worker/Kafka, mas a implementacao atual possui `AuditService.Worker`, consumer Kafka de `AuditRecordRequested.v1`, DLQ e testes.
 
-Impacto das correcoes: a documentacao textual passa a refletir melhor o estado real de AuditService, a navegacao arquitetural fica mais explicita para diferentes publicos e `systemLandscape` foi simplificada para retirar telemetria do primeiro mapa.
+Impacto das correcoes: a documentacao textual passa a refletir melhor o estado real de AuditService, a navegacao arquitetural fica mais explicita para diferentes publicos, `systemLandscape` foi simplificada para retirar telemetria do primeiro mapa e foram adicionadas container views por bounded context para facilitar drill-down por clique.
 
 ## 2. Inventario
 
@@ -20,7 +20,7 @@ Arquivos LikeC4 encontrados:
 | `docs/architecture/views.c4` | Views de contexto, containers, componentes, dynamic e deployment | Alinhado e legivel por recortes; `systemLandscape` foi simplificada | Corrigir |
 | `docs/architecture/deployment.c4` | Deployment local Docker Compose | Alinhado a services locais | Manter |
 
-Views encontradas: `systemLandscape`, `containers`, `businessContainers`, `integrationContainers`, `platformContainers`, `ledgerBalanceProjectionFlow`, `identityRegistrationFlow`, `kafkaFlow`, `observabilityFlow`, `identityServiceComponents`, `localDeployment`, `ledgerApiComponents`, `ledgerWorkerComponents`, `pubSubLegacyProjectionFlow`, `balanceApiComponents`, `balanceWorkerComponents`, `transferApiComponents`, `transferWorkerComponents`, `transferSagaSuccessFlow`, `transferSagaCompensationFlow`, `identityComponents`, `paymentCreateFlow`, `paymentWebhookInboxFlow`, `paymentLedgerMaterializationFlow`, `paymentRefundFlow`, `paymentApiComponents`, `paymentWorkerComponents`, `auditApiComponents`, `auditWorkerComponents` e `auditKafkaIngestionFlow`.
+Views encontradas: `systemLandscape`, `containers`, `businessContainers`, `identityServiceContainers`, `ledgerContainers`, `balanceContainers`, `transferContainers`, `paymentContainers`, `auditContainers`, `integrationContainers`, `platformContainers`, `ledgerBalanceProjectionFlow`, `identityRegistrationFlow`, `kafkaFlow`, `observabilityFlow`, `identityServiceComponents`, `localDeployment`, `ledgerApiComponents`, `ledgerWorkerComponents`, `pubSubLegacyProjectionFlow`, `balanceApiComponents`, `balanceWorkerComponents`, `transferApiComponents`, `transferWorkerComponents`, `transferSagaSuccessFlow`, `transferSagaCompensationFlow`, `identityComponents`, `paymentCreateFlow`, `paymentWebhookInboxFlow`, `paymentLedgerMaterializationFlow`, `paymentRefundFlow`, `paymentApiComponents`, `paymentWorkerComponents`, `auditApiComponents`, `auditWorkerComponents` e `auditKafkaIngestionFlow`.
 
 Diagramas estaticos relacionados: Mermaid resumido no `README.md` e Mermaid historico em specs, especialmente `docs/specs/payment-stripe/integration-flows.md` e `docs/specs/documentation-experience-review/design.md`. Eles foram classificados como resumo editorial ou historico SDD, nao fonte canonica.
 
@@ -32,6 +32,7 @@ Documentos textuais relacionados: `docs/architecture/README.md`, `docs/architect
 | --- | --- | --- | --- | --- |
 | AuditService.Worker | `docs/maturity.md` dizia que ainda nao havia worker ou Kafka | Existe `AuditService.Worker` com consumer Kafka opcional, DLQ e testes | `src/audit/AuditService.Worker`, `tests/audit/AuditService.Worker.Tests`, `docs/operations/audit-worker.md` | Corrigido em `docs/maturity.md` |
 | `systemLandscape` | Incluia observabilidade e suas relacoes de telemetria no primeiro mapa | Observabilidade e assunto operacional detalhado em `platformContainers` e `observabilityFlow` | PNG exportado indicou excesso visual; views operacionais ja existiam | Removido `include observability` de `systemLandscape` |
+| Drill-down por bounded context | O leitor precisava sair do contexto geral para `businessContainers` ou escolher component views manualmente | Cada bounded context agora possui uma container view dedicada entre contexto e componentes | `views.c4` com `view ... of <bounded context>` e export PNG das views novas | Criadas `identityServiceContainers`, `ledgerContainers`, `balanceContainers`, `transferContainers`, `paymentContainers` e `auditContainers` |
 | Producers de auditoria | Modelo declara ausencia de producers reais | Confirmado: contrato e consumer existem, produtores nos demais dominios ainda nao | `docs/events/README.md`, `docs/development/audit-api.md`, codigo em `src/audit` | Mantido no LikeC4 como estado atual |
 | PaymentService -> Ledger | Modelo mostra chamada HTTP do Worker para Ledger | Confirmado: worker materializa credito/estorno via porta `ILedgerEntryGateway` | `src/payment`, `tests/payment`, `docs/operations/payment-worker.md` | Mantido |
 | Shared | Modelo nao trata Shared como runtime service | Confirmado: Shared sao bibliotecas/projetos referenciados | `src/Shared/*` | Mantido |
@@ -56,7 +57,7 @@ Correcoes de sequencia/direcao: nenhuma correcao nos arquivos `.c4` foi necessar
 ## 6. Niveis C4
 
 - Contexto: `systemLandscape`.
-- Containers: `businessContainers`, `integrationContainers`, `platformContainers`, `containers`.
+- Containers: `businessContainers`, `identityServiceContainers`, `ledgerContainers`, `balanceContainers`, `transferContainers`, `paymentContainers`, `auditContainers`, `integrationContainers`, `platformContainers`, `containers`.
 - Componentes: views por API e Worker dos contexts implementados.
 - Deployment: `localDeployment`.
 - Dynamic views: fluxos de Ledger/Balance, Identity, Transfer, Payment, Pub/Sub legado e Audit.
@@ -64,7 +65,7 @@ Correcoes de sequencia/direcao: nenhuma correcao nos arquivos `.c4` foi necessar
 
 ## 7. Experiencia visual
 
-O modelo ja usa tags semanticas (`api`, `worker`, `database`, `broker`, `topic`, `external`, `identity-provider`, `observability`, `optional`, `future`, `legacy`) e um `styleGroup architectureTheme`. A revisao manteve essa taxonomia, reforcou a documentacao textual de jornadas e simplificou `systemLandscape` ao retirar a stack de observabilidade do primeiro mapa. A inspecao PNG mostrou que as dynamic views de Payment e Audit ficam legiveis; `businessContainers` segue densa, mas adequada como segunda leitura e complementada por views por contexto.
+O modelo ja usa tags semanticas (`api`, `worker`, `database`, `broker`, `topic`, `external`, `identity-provider`, `observability`, `optional`, `future`, `legacy`) e um `styleGroup architectureTheme`. A revisao manteve essa taxonomia, reforcou a documentacao textual de jornadas e simplificou `systemLandscape` ao retirar a stack de observabilidade do primeiro mapa. A inspecao PNG mostrou que as dynamic views de Payment e Audit ficam legiveis; `businessContainers` segue densa, mas adequada como segunda leitura e complementada por views por contexto. As novas container views funcionam como degrau visual entre bounded context e component views.
 
 ## 8. Jornada de leitura
 
@@ -97,7 +98,7 @@ Resultados:
 - `npm run architecture:build`: aprovado, todas as views layoutadas e site estatico gerado em `dist/architecture`.
 - `npx likec4 export json`: aprovado, modelo layoutado exportado para `dist/architecture-model.json`.
 - `npx likec4 export png`: primeira tentativa falhou por ausencia do Chromium headless do Playwright; apos `npx playwright install chromium`, exportacao das 8 views principais aprovou.
-- Inspecao visual: `systemLandscape` inicial estava carregada demais por telemetria e foi simplificada; Payment/Audit dynamic views estavam legiveis; `businessContainers` e densa, mas aceitavel como segunda leitura.
+- Inspecao visual: `systemLandscape` inicial estava carregada demais por telemetria e foi simplificada; Payment/Audit dynamic views estavam legiveis; `businessContainers` e densa, mas aceitavel como segunda leitura; container views novas de Ledger, Payment, Audit e Identity ficaram adequadas como drill-down.
 - `dotnet restore .\PocArquitetura.slnx`: aprovado.
 - `dotnet build .\PocArquitetura.slnx --configuration Release --no-restore`: aprovado com 49 warnings preexistentes, 0 erros.
 - `dotnet test .\tests\Architecture.Tests\Architecture.Tests.csproj --configuration Release --no-build`: aprovado, 67 testes.
