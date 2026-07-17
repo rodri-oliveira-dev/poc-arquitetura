@@ -269,10 +269,12 @@ jobs:
             sonar_report_dir="$ARTIFACTS_ROOT/sonarqube/$context"
             opencover_pattern="$test_results_dir/**/coverage.opencover.xml"
             coverage_summary="$test_results_dir/coverage-report/Summary.json"
+            msbuild_args=()
 
             echo "Running $context validation with $solution"
             if [ -n "$msbuild_properties" ]; then
               echo "MSBuild properties: $msbuild_properties"
+              msbuild_args+=("$msbuild_properties")
             fi
             mkdir -p "$test_results_dir"
             if [ "$sonar_enabled" = "true" ]; then
@@ -283,7 +285,7 @@ jobs:
             dotnet restore "$solution" \
               -p:NuGetAuditMode=all \
               -p:RestoreEnablePackagePruning=true \
-              $msbuild_properties
+              "${msbuild_args[@]}"
 
             dotnet list "$solution" package --vulnerable --include-transitive --no-restore --format json > "$ARTIFACTS_ROOT/nuget-vulnerabilities-$context.json"
             check_nuget_vulnerabilities "$ARTIFACTS_ROOT/nuget-vulnerabilities-$context.json"
@@ -306,7 +308,7 @@ jobs:
                 /d:sonar.qualitygate.wait=true || sonar_begin_exit_code=$?
             fi
 
-            dotnet build "$solution" --configuration "$BUILD_CONFIGURATION" --no-restore $msbuild_properties
+            dotnet build "$solution" --configuration "$BUILD_CONFIGURATION" --no-restore "${msbuild_args[@]}"
 
             dotnet test "$solution" \
               --configuration "$BUILD_CONFIGURATION" \
@@ -315,7 +317,7 @@ jobs:
               --results-directory "$test_results_dir" \
               --collect:"XPlat Code Coverage" \
               --settings ./coverlet.runsettings \
-              $msbuild_properties
+              "${msbuild_args[@]}"
 
             if ! find "$test_results_dir" -name coverage.cobertura.xml -print -quit | grep -q .; then
               echo "Testes de $context finalizaram com sucesso, mas nenhum arquivo coverage.cobertura.xml foi gerado." >&2
