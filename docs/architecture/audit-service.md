@@ -16,11 +16,12 @@ Ele nao substitui logs tecnicos, tracing distribuido, metricas ou Outbox dos
 servicos financeiros. O objetivo e manter uma trilha funcional consultavel e
 estavel para operacoes de negocio, com contrato HTTP canonico e idempotente.
 
-No LikeC4, `AuditService.Application`, `AuditService.Domain` e
-`AuditService.Infrastructure` sao modelados no nivel do bounded context, e nao
-como filhos de `AuditService.Api`. A API HTTP e o Worker Kafka sao
-composition roots separados que referenciam esses assemblies compartilhados; o
-Worker nao depende do container da API.
+No LikeC4, `auditApiComponents` e `auditWorkerComponents` mostram apenas os
+componentes que executam dentro de cada container. `AuditService.Application`,
+`AuditService.Domain`, `AuditService.Infrastructure` e `Shared` aparecem em
+`auditCodeDependencies`, uma visao de referencias de projeto/build. A API HTTP
+e o Worker Kafka sao composition roots separados; o Worker nao depende do
+container da API.
 
 ## Persistencia e schema audit
 
