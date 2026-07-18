@@ -85,20 +85,80 @@ Na pratica:
 Use esta ordem de leitura para onboarding:
 
 1. `systemLandscape`: ecossistema, atores, bounded contexts e externos.
-2. `businessContainers`: executaveis, bancos logicos e relacoes funcionais dos
+2. Container view do bounded context escolhido: `ledgerContainers`,
+   `balanceContainers`, `transferContainers`, `paymentContainers`,
+   `identityServiceContainers` ou `auditContainers`.
+3. `businessContainers`: executaveis, bancos logicos e relacoes funcionais dos
    servicos de negocio.
-3. `integrationContainers`: Kafka, provedores externos, identidade, e-mail e
+4. `integrationContainers`: Kafka, provedores externos, identidade, e-mail e
    chamadas HTTP service-to-service.
-4. Fluxos principais: lancamento, transferencia, compensacao, pagamento, refund
+5. Fluxos principais: lancamento, transferencia, compensacao, pagamento, refund
    e auditoria.
-5. Component view da API ou Worker do servico que sera alterado.
-6. `platformContainers` e `localDeployment`: runtime local, plataforma,
+6. Component view da API ou Worker do servico que sera alterado.
+7. `platformContainers` e `localDeployment`: runtime local, plataforma,
    observabilidade e mapeamento para Compose.
-7. `containers`: referencia expandida quando precisar ver tudo junto.
-8. Markdown complementar, ADRs, specs e runbooks quando precisar de detalhe.
+8. `containers`: referencia expandida quando precisar ver tudo junto.
+9. Markdown complementar, ADRs, specs e runbooks quando precisar de detalhe.
 
 Evite ler todas as views em sequencia como se fossem capitulos. Cada view deve
 ser usada como resposta a uma pergunta.
+
+Na UI gerada do LikeC4, use o clique como drill-down conceitual: clique em um
+bounded context no `systemLandscape` para abrir sua view de containers; clique
+em uma API ou Worker para abrir a component view correspondente; use as dynamic
+views quando a pergunta for sobre a ordem de uma operacao no tempo. Esse caminho
+mantem os niveis C4 separados e evita que um unico diagrama misture ecossistema,
+processos, classes e fluxo.
+
+## Jornadas arquiteturais
+
+### Jornada rapida
+
+Para entender o projeto em cerca de 10 minutos, leia `systemLandscape`,
+`businessContainers`, `ledgerContainers`, `paymentContainers`,
+`ledgerBalanceProjectionFlow`,
+`transferSagaSuccessFlow` e `paymentLedgerMaterializationFlow`. Essa jornada
+mostra o ecossistema, os servicos de negocio e os tres fluxos que mais explicam
+a POC atual.
+
+### Jornada para iniciantes
+
+Comece por esta pagina, leia as secoes "O que e C4 Model", "O que e LikeC4" e
+"Niveis usados neste repositorio", depois abra `systemLandscape`,
+`businessContainers`, a container view de um bounded context e um fluxo dynamic
+por vez. Se um termo aparecer estranho, use `boundaries.md`,
+`patterns-catalog.md`, `docs/development/kafka-outbox.md` e
+`docs/events/README.md` antes de ir para component views.
+
+### Jornada por bounded context
+
+Escolha o servico e siga a view de containers antes da view de componentes:
+Ledger usa `ledgerContainers`, `ledgerApiComponents` e
+`ledgerWorkerComponents`; Balance usa `balanceContainers`,
+`balanceApiComponents` e `balanceWorkerComponents`; Transfer usa
+`transferContainers`, `transferApiComponents` e `transferWorkerComponents`;
+Payment usa `paymentContainers`, `paymentApiComponents` e
+`paymentWorkerComponents`; Identity usa `identityServiceContainers`,
+`identityServiceComponents` e `identityComponents`; Audit usa
+`auditContainers`, `auditApiComponents` e `auditWorkerComponents`.
+
+### Jornada por fluxo
+
+Para seguir uma operacao entre servicos, use as dynamic views: lancamento e
+saldo em `ledgerBalanceProjectionFlow`, cadastro em
+`identityRegistrationFlow`, transferencia em `transferSagaSuccessFlow` ou
+`transferSagaCompensationFlow`, pagamento em `paymentCreateFlow`,
+`paymentWebhookInboxFlow`, `paymentLedgerMaterializationFlow` e
+`paymentRefundFlow`, auditoria em `auditKafkaIngestionFlow` e modo legado em
+`pubSubLegacyProjectionFlow`.
+
+### Jornada operacional
+
+Para runtime e falhas, leia `platformContainers`, `localDeployment`,
+`kafkaFlow`, `observabilityFlow`, `docs/operations/dlq-strategy.md`,
+`docs/operations/replay-strategy.md`, `docs/operations/payment-worker.md` e
+`docs/operations/audit-worker.md`. Essa jornada separa o ambiente local atual
+de baselines futuros descritos em `production-readiness.md`.
 
 ## Niveis usados neste repositorio
 
@@ -210,6 +270,12 @@ continuam explicadas por titulos, tecnologias e descricoes das views.
 | --- | --- | --- | --- |
 | `systemLandscape` | System Context | Inicio da leitura | Quais sistemas, contexts e externos existem no ecossistema |
 | `businessContainers` | Container | Primeira leitura detalhada dos servicos | Quais executaveis, schemas logicos e relacoes funcionais existem por bounded context |
+| `identityServiceContainers` | Container | Aprofundar IdentityService a partir do contexto | Quais containers, dados e externos sustentam cadastro, Keycloak e e-mail |
+| `ledgerContainers` | Container | Aprofundar LedgerService a partir do contexto | Quais containers, dados e topicos sustentam o fato financeiro e Outbox |
+| `balanceContainers` | Container | Aprofundar BalanceService a partir do contexto | Quais containers, dados e topicos sustentam a projecao de saldo |
+| `transferContainers` | Container | Aprofundar TransferService a partir do contexto | Quais containers, dados, chamadas Ledger e topicos sustentam a Saga |
+| `paymentContainers` | Container | Aprofundar PaymentService a partir do contexto | Quais containers, dados e externos sustentam pagamentos, webhooks e materializacao Ledger |
+| `auditContainers` | Container | Aprofundar AuditService a partir do contexto | Quais containers, dados e topicos sustentam auditoria HTTP/Kafka |
 | `integrationContainers` | Container | Entender integracoes entre servicos e externos | Como Kafka, topicos, Keycloak, Stripe, e-mail e chamadas HTTP service-to-service conectam os servicos |
 | `platformContainers` | Container / Runtime | Entender plataforma local sem entrar no deployment fisico | Como Nginx, Keycloak, PostgreSQL compartilhado por schemas, Kafka e observabilidade sustentam o runtime local |
 | `containers` | Container | Referencia expandida, nao primeira leitura | Qual e o mapa completo quando APIs, Workers, schemas, broker, externos e observabilidade precisam aparecer juntos |

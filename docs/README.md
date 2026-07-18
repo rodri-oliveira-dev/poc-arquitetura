@@ -133,6 +133,7 @@ ADRs preservam decisoes historicas. Elas nao devem ser lidas como manual operaci
 Specs registram requisitos, design, tarefas e relatorio de uma mudanca. Elas explicam o processo historico e nao substituem a documentacao principal.
 
 - [Specs SDD](specs)
+- [Revisao C4/LikeC4 da arquitetura](specs/c4-likec4-architecture-review/report.md)
 - [Revisao da experiencia de documentacao](specs/documentation-experience-review/requirements.md)
 
 ### Runbooks

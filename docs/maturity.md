@@ -26,7 +26,7 @@ Status documental atualizado em 2026-07-01. A tabela resume o estado atual do pr
 | Limitacoes conhecidas documentadas | Parcialmente atendido | `docs/reports/aspire-and-owasp-assessment.md`, `docs/architecture/decisions.md`, ADRs propostas | Limitacoes principais seguem registradas, incluindo baseline produtivo, DAST sem gate e thresholds k6 restritos a baseline local, sem declarar SLO produtivo. |
 | Baseline de evolucao produtiva documentado | Parcialmente atendido | `docs/architecture/production-readiness.md` | Baseline recomendado criado como referencia arquitetural. Ele nao declara prontidao produtiva e nao implementa secrets, TLS, Workload Identity, WAF, scan de imagem ou infraestrutura produtiva. |
 | Decisoes arquiteturais registradas | Atendido | `docs/adrs/README.md`, `docs/adrs/*.md` | ADRs cobrem arquitetura, seguranca, CI, observabilidade, workers, Nginx e fluxos assincronos. |
-| AuditService como bounded context | Parcialmente atendido | `src/audit`, `tests/audit`, `docs/development/audit-api.md`, `docs/architecture/audit-service.md`, `docs/adrs/0097-functional-audit-service.md` | O contexto esta documentado e isolado, com schema `audit` e contrato HTTP canonico. Ainda nao ha integracao com Ledger, Balance ou Transfer, worker ou Kafka. |
+| AuditService como bounded context | Parcialmente atendido | `src/audit`, `tests/audit`, `docs/development/audit-api.md`, `docs/architecture/audit-service.md`, `docs/operations/audit-worker.md`, `docs/adrs/0097-functional-audit-service.md` | O contexto esta documentado e isolado, com schema `audit`, contrato HTTP canonico e `AuditService.Worker` Kafka para `AuditRecordRequested.v1`. Ainda nao ha producers reais em Ledger, Balance, Transfer ou Payment. |
 
 ## Pendencias principais
 

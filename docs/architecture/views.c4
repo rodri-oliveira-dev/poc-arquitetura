@@ -76,7 +76,7 @@ views {
 
   view systemLandscape {
     title "System Landscape - poc-arquitetura"
-    description "Mostra os sistemas e atores ao redor da POC. Use esta view para entender o ecossistema sem detalhes de classes, workers internos ou tabelas."
+    description "Mostra os sistemas e atores ao redor da POC. Comece aqui e aprofunde clicando em um bounded context para abrir sua container view dedicada; observabilidade fica em platformContainers e observabilityFlow."
     include customer
     include edge
     include identity
@@ -89,7 +89,6 @@ views {
     include stripe
     include kafka
     include email
-    include observability
     autoLayout LeftRight
   }
 
@@ -153,6 +152,86 @@ views {
     include audit.auditApi
     include audit.auditWorker
     include audit.auditDb
+    autoLayout LeftRight
+  }
+
+  view identityServiceContainers of identityService {
+    title "Container View - IdentityService"
+    description "Aprofundamento do bounded context de identidade. Mostra a API, schema identity, Keycloak e provedores de e-mail; depois siga para identityServiceComponents ou identityRegistrationFlow."
+    include customer
+    include identityService.identityApi
+    include identityService.identityDb
+    include identity.keycloak
+    include email.mailpit
+    include email.resend
+    autoLayout LeftRight
+  }
+
+  view ledgerContainers of ledger {
+    title "Container View - LedgerService"
+    description "Aprofundamento do bounded context dono do fato financeiro. Mostra API, Worker, schema ledger, Keycloak e topicos Kafka principais; depois siga para ledgerApiComponents, ledgerWorkerComponents ou ledgerBalanceProjectionFlow."
+    include customer
+    include ledger.ledgerApi
+    include ledger.ledgerWorker
+    include ledger.ledgerDb
+    include identity.keycloak
+    include kafka.ledgerTopic
+    include kafka.ledgerEstornoTopic
+    include kafka.ledgerReprocessamentoTopic
+    autoLayout LeftRight
+  }
+
+  view balanceContainers of balance {
+    title "Container View - BalanceService"
+    description "Aprofundamento do bounded context de projecao de saldo. Mostra API, Worker, schema balance, Keycloak e consumo Kafka do Ledger; depois siga para balanceApiComponents, balanceWorkerComponents ou ledgerBalanceProjectionFlow."
+    include customer
+    include balance.balanceApi
+    include balance.balanceWorker
+    include balance.balanceDb
+    include identity.keycloak
+    include kafka.ledgerTopic
+    include kafka.ledgerDlq
+    autoLayout LeftRight
+  }
+
+  view transferContainers of transfer {
+    title "Container View - TransferService"
+    description "Aprofundamento da Saga de transferencia. Mostra API, Worker, schema transfer, LedgerService.Api, Keycloak e topicos Kafka da Saga; depois siga para transferApiComponents, transferWorkerComponents ou os fluxos de transferencia."
+    include customer
+    include transfer.transferApi
+    include transfer.transferWorker
+    include transfer.transferDb
+    include ledger.ledgerApi
+    include identity.keycloak
+    include kafka.transferSagaTopics
+    include kafka.transferSagaDlq
+    autoLayout LeftRight
+  }
+
+  view paymentContainers of payment {
+    title "Container View - PaymentService"
+    description "Aprofundamento do contexto de pagamentos externos. Mostra API, Worker, schema payment, Stripe, Keycloak e chamada ao Ledger; depois siga para paymentApiComponents, paymentWorkerComponents ou os fluxos de pagamento/refund."
+    include customer
+    include payment.paymentApi
+    include payment.paymentWorker
+    include payment.paymentDb
+    include stripe.stripeApi
+    include stripe.stripeWebhooks
+    include ledger.ledgerApi
+    include identity.keycloak
+    autoLayout LeftRight
+  }
+
+  view auditContainers of audit {
+    title "Container View - AuditService"
+    description "Aprofundamento do contexto de auditoria funcional. Mostra API, Worker Kafka, schema audit, Keycloak e topicos AuditRecordRequested; depois siga para auditApiComponents, auditWorkerComponents ou auditKafkaIngestionFlow."
+    include customer
+    include audit.auditApi
+    include audit.auditWorker
+    include audit.auditDb
+    include identity.keycloak
+    include kafka.auditRecordTopic
+    include kafka.auditRecordDlq
     autoLayout LeftRight
   }
 
