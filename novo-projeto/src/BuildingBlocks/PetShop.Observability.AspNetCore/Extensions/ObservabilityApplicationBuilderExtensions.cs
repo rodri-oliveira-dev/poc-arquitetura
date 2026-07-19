@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Builder;
+
 using PetShop.Observability.AspNetCore.Middlewares;
 
 namespace PetShop.Observability.AspNetCore.Extensions;
