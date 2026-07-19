@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>PetShop.Observability.AspNetCore</RootNamespace>
+    <AssemblyName>PetShop.Observability.AspNetCore</AssemblyName>
+    <Description>Adapter ASP.NET Core para contexto de correlação, tenant e tracing distribuído.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PetShop.Observability\PetShop.Observability.csproj" />
+  </ItemGroup>
+</Project>
