@@ -1,0 +1,56 @@
+name: codeql-security-analysis
+
+on:
+  push:
+    branches: ["main"]
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "**/*.png"
+      - "**/*.jpg"
+      - "**/*.jpeg"
+      - "**/*.gif"
+      - "**/*.svg"
+      - "**/*.webp"
+  pull_request:
+    branches: ["main"]
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "**/*.png"
+      - "**/*.jpg"
+      - "**/*.jpeg"
+      - "**/*.gif"
+      - "**/*.svg"
+      - "**/*.webp"
+  schedule:
+    - cron: "0 5 * * 1"
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze C# with CodeQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@ed410739ba306e4ebe5e123421a6bd694e494a2b # v4
+        with:
+          languages: csharp
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@ed410739ba306e4ebe5e123421a6bd694e494a2b # v4
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@ed410739ba306e4ebe5e123421a6bd694e494a2b # v4
