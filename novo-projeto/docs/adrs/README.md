@@ -9,6 +9,7 @@ ADRs são históricas. Depois que uma decisão for aceita, não reescreva o arqu
 | ADR | Status | Decisão |
 | --- | --- | --- |
 | [ADR-0001](0001-multitenancy-claim-e-isolamento-por-linha.md) | Aceita | Resolver o tenant pela claim `tenant_id` do token e exigir a coluna `tenant_id` em todas as tabelas de negócio |
+| [ADR-0002](0002-library-propagacao-observabilidade.md) | Aceita | Padronizar correlação HTTP e propagação W3C/multitenant em building blocks agnósticos de mensageira |
 
 ## Convenção
 
