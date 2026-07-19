@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat Code Coverage">
+        <Configuration>
+          <Format>cobertura,opencover</Format>
+          <ExcludeByAttribute>System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverageAttribute,ExcludeFromCodeCoverageAttribute,System.CodeDom.Compiler.GeneratedCodeAttribute,GeneratedCodeAttribute,System.Runtime.CompilerServices.CompilerGeneratedAttribute,CompilerGeneratedAttribute,System.Runtime.CompilerServices.AsyncStateMachineAttribute,AsyncStateMachineAttribute</ExcludeByAttribute>
+          <ExcludeByFile>**/Program.cs,**/Migrations/*.cs,**/*.g.cs,**/*.g.*.cs</ExcludeByFile>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>
