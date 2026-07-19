@@ -28,7 +28,7 @@ public sealed class CorrelationContextMiddleware
         ArgumentNullException.ThrowIfNull(executionContextAccessor);
 
         string correlationId = ResolveOrCreateCorrelationId(context.Request.Headers);
-        string? tenantId = PropagationContextSnapshot.NormalizeOptional(
+        string? tenantId = NormalizeOptional(
             context.User.FindFirst(PropagationHeaderNames.TenantId)?.Value);
 
         Activity? activity = Activity.Current;
@@ -78,5 +78,12 @@ public sealed class CorrelationContextMiddleware
         }
 
         return Guid.NewGuid().ToString();
+    }
+
+    private static string? NormalizeOptional(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value)
+            ? null
+            : value.Trim();
     }
 }
