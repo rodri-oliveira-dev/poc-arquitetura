@@ -1,0 +1,83 @@
+name: dotnet-ci
+
+on:
+  pull_request:
+    branches: ["main"]
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "**/*.png"
+      - "**/*.jpg"
+      - "**/*.jpeg"
+      - "**/*.gif"
+      - "**/*.svg"
+      - "**/*.webp"
+  push:
+    branches: ["main"]
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: true
+  DOTNET_NOLOGO: true
+  BUILD_CONFIGURATION: Release
+
+jobs:
+  build-test:
+    name: Build and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup .NET
+        uses: ./.github/actions/setup-dotnet
+        with:
+          restore-tools: "true"
+
+      - name: Resolve solution
+        id: solution
+        shell: bash
+        run: |
+          set -euo pipefail
+          solution="$(find . -maxdepth 2 -type f \( -name '*.slnx' -o -name '*.sln' \) | sort | head -n 1)"
+          if [ -z "$solution" ]; then
+            echo "No .slnx or .sln file was found." >&2
+            exit 1
+          fi
+          echo "path=$solution" >> "$GITHUB_OUTPUT"
+          echo "Using solution: $solution"
+
+      - name: Restore
+        run: dotnet restore "${{ steps.solution.outputs.path }}" -p:NuGetAuditMode=all -p:RestoreEnablePackagePruning=true
+
+      - name: Check vulnerable packages
+        shell: bash
+        run: |
+          dotnet list "${{ steps.solution.outputs.path }}" package \
+            --vulnerable \
+            --include-transitive \
+            --no-restore
+
+      - name: Build
+        run: dotnet build "${{ steps.solution.outputs.path }}" --configuration "$BUILD_CONFIGURATION" --no-restore
+
+      - name: Test
+        run: >-
+          dotnet test "${{ steps.solution.outputs.path }}"
+          --configuration "$BUILD_CONFIGURATION"
+          --no-build
+          --no-restore
+          --settings ./coverlet.runsettings
+          --collect "XPlat Code Coverage"
