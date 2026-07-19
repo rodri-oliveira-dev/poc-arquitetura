@@ -1,0 +1,16 @@
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+
+  <!--
+    Adicione PackageVersion somente quando o pacote for realmente introduzido.
+    Evite carregar para o novo projeto todas as dependências da POC anterior.
+
+    Exemplo:
+    <ItemGroup>
+      <PackageVersion Include="Nome.Do.Pacote" Version="x.y.z" />
+    </ItemGroup>
+  -->
+</Project>
