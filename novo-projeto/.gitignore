@@ -1,0 +1,59 @@
+# .NET
+bin/
+obj/
+artifacts/
+TestResults/
+coverage/
+.coverage/
+*.trx
+*.coverage
+*.coveragexml
+
+# IDEs
+.vs/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# NuGet
+packages/
+.nuget/
+*.nupkg
+*.snupkg
+
+# Logs and runtime
+logs/
+*.log
+*.pid
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+!.env.local.example
+appsettings.Local.json
+appsettings.*.local.json
+secrets.json
+
+# Containers
+.docker/
+
+# Node/frontend artifacts, useful in a monorepo
+node_modules/
+dist/
+coverage-final.json
+
+# Operating systems
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.swp
