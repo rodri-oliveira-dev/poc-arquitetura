@@ -30,14 +30,14 @@ public sealed class CorrelationIdDelegatingHandlerTests
 
         using HttpResponseMessage response = await client.GetAsync(
             "https://example.test/health",
-            TestContext.Current.CancellationToken);
+            CancellationToken.None);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.NotNull(recordingHandler.Request);
         Assert.True(recordingHandler.Request.Headers.TryGetValues(
             PropagationHeaderNames.HttpCorrelationId,
             out IEnumerable<string>? values));
-        Assert.Equal(correlationId, Assert.Single(values));
+        Assert.Equal(correlationId, Assert.Single(values!));
         Assert.False(recordingHandler.Request.Headers.Contains(PropagationHeaderNames.TenantId));
     }
 
