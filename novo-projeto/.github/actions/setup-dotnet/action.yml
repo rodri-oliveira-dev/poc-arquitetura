@@ -1,0 +1,41 @@
+name: Setup .NET
+description: Setup the repository .NET SDK and NuGet package cache.
+
+inputs:
+  restore-tools:
+    description: Restore local .NET tools after SDK setup.
+    required: false
+    default: "false"
+  cache-key-prefix:
+    description: Prefix used for the NuGet cache key.
+    required: false
+    default: nuget
+
+runs:
+  using: composite
+  steps:
+    - name: Configure NuGet package cache path
+      shell: bash
+      run: echo "NUGET_PACKAGES=${GITHUB_WORKSPACE}/.nuget/packages" >> "$GITHUB_ENV"
+
+    - name: Setup .NET SDK
+      uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3ced7 # v5
+      with:
+        global-json-file: global.json
+
+    - name: Cache NuGet packages
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      with:
+        path: ${{ github.workspace }}/.nuget/packages
+        key: ${{ runner.os }}-${{ inputs.cache-key-prefix }}-${{ hashFiles('**/*.csproj', 'Directory.Packages.props', 'Directory.Build.props', 'global.json', 'dotnet-tools.json', '.config/dotnet-tools.json') }}
+        restore-keys: |
+          ${{ runner.os }}-${{ inputs.cache-key-prefix }}-
+          ${{ runner.os }}-nuget-
+
+    - name: Restore .NET tools
+      if: ${{ inputs.restore-tools == 'true' }}
+      shell: bash
+      run: |
+        if [ -f .config/dotnet-tools.json ] || [ -f dotnet-tools.json ]; then
+          dotnet tool restore
+        fi
