@@ -1,0 +1,48 @@
+#!/usr/bin/env sh
+set -eu
+
+CONFIGURATION="${CONFIGURATION:-Release}"
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+cd "$repo_root"
+
+if ! command -v dotnet >/dev/null 2>&1; then
+  echo "pre-push bloqueado: .NET SDK não encontrado." >&2
+  exit 1
+fi
+
+upstream="$(git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null || true)"
+if [ -n "$upstream" ]; then
+  changed_files="$(git diff --name-only "$upstream"...HEAD)"
+else
+  changed_files="$(git diff --name-only HEAD~1...HEAD 2>/dev/null || git diff --name-only --cached)"
+fi
+
+if [ -n "$changed_files" ]; then
+  impacting="$(printf '%s\n' "$changed_files" | grep -E '(^src/|^tests/|\.cs$|\.csproj$|\.props$|\.targets$|\.slnx?$|^global\.json$|^coverlet\.runsettings$|^\.editorconfig$|^Directory\.(Build|Packages)\.props$)' || true)"
+  if [ -z "$impacting" ]; then
+    echo "pre-push: apenas arquivos não impactantes para .NET; validações locais ignoradas."
+    exit 0
+  fi
+fi
+
+solution="$(find . -maxdepth 2 -type f \( -name '*.slnx' -o -name '*.sln' \) | sort | head -n 1)"
+if [ -z "$solution" ]; then
+  echo "pre-push bloqueado: nenhuma solution .slnx ou .sln encontrada." >&2
+  exit 1
+fi
+
+run() {
+  echo "==> pre-push: $1"
+  shift
+  "$@"
+}
+
+if [ -f .config/dotnet-tools.json ] || [ -f dotnet-tools.json ]; then
+  run "restaurando ferramentas locais" dotnet tool restore
+fi
+
+run "restaurando $solution" dotnet restore "$solution"
+run "compilando $solution" dotnet build "$solution" --configuration "$CONFIGURATION" --no-restore
+run "testando $solution" dotnet test "$solution" --configuration "$CONFIGURATION" --no-build --no-restore
+
+echo "pre-push: validações aprovadas"
