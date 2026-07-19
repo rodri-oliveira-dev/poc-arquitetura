@@ -1,0 +1,82 @@
+# Kit reutilizável para o novo projeto
+
+Esta pasta reúne artefatos portáveis da POC atual para iniciar o backend do novo sistema de atendimento de petshop.
+
+O conteúdo foi revisado para não depender dos bounded contexts, nomes de soluções, tópicos, provedores ou fluxos financeiros da POC anterior. A intenção é copiar **o conteúdo interno desta pasta** para a raiz do novo repositório depois que ele for criado.
+
+## O que está incluído
+
+- `AGENTS.md`: regras globais para agentes de código.
+- `.agents/skills/`: skills reutilizáveis para DDD, .NET, EF Core, testes, cobertura, observabilidade, containers e CI.
+- `.githooks/`: Conventional Commits, restore após merge e validação antes do push.
+- `scripts/setup/`: configuração segura de `core.hooksPath` para Bash e PowerShell.
+- `.github/actions/setup-dotnet/`: action composta para SDK e cache NuGet.
+- `.github/workflows/`: CI .NET inicial, CodeQL e dependency review.
+- `.editorconfig`, `Directory.Build.props`, `Directory.Packages.props`, `global.json` e `coverlet.runsettings`: baseline de desenvolvimento .NET.
+- `.gitignore`, `.gitattributes` e `.dockerignore`: baseline de repositório e containers.
+
+## O que foi deixado de fora
+
+Estes itens da POC anterior não foram copiados porque dependem de decisões ainda não tomadas no novo projeto:
+
+- GCP, Terraform, Cloud Run e Cloud SQL;
+- Nginx e topologia de borda;
+- Kafka, Pub/Sub, Outbox, DLQ e contratos de eventos;
+- workflows de OpenAPI, eventos, publicação NuGet e release;
+- SonarCloud, mutation testing, k6 e OWASP ZAP;
+- arquitetura C4/LikeC4 específica da POC;
+- scripts e configurações ligados aos serviços financeiros existentes.
+
+Esses elementos podem ser incorporados depois, quando houver um requisito real.
+
+## Como usar
+
+1. Crie o novo repositório.
+2. Copie todos os arquivos e diretórios dentro de `novo-projeto/` para a raiz dele.
+3. Crie a solution e os primeiros projetos.
+4. Ajuste o nome e a descrição do projeto no `AGENTS.md`.
+5. Acrescente as versões necessárias ao `Directory.Packages.props` conforme os pacotes forem introduzidos.
+6. Configure os hooks:
+
+```bash
+./scripts/setup/configure-git-hooks.sh
+```
+
+No PowerShell:
+
+```powershell
+./scripts/setup/configure-git-hooks.ps1
+```
+
+7. Confirme a configuração:
+
+```bash
+./scripts/setup/configure-git-hooks.sh --check
+```
+
+## Premissas iniciais
+
+O baseline assume:
+
+- .NET 10;
+- ASP.NET Core;
+- nullable reference types;
+- Central Package Management;
+- backend inicialmente organizado como monólito modular;
+- DDD aplicado somente onde houver linguagem, invariantes e ciclo de vida relevantes;
+- PostgreSQL e EF Core como direção provável, sem obrigar sua adoção antes da modelagem;
+- REST/OpenAPI como integração inicial com o frontend;
+- extração de microsserviços somente quando houver motivo de negócio, escala ou autonomia.
+
+## Próximos passos sugeridos
+
+Depois de criar a solution, a primeira evolução deve ser uma fatia vertical pequena, por exemplo:
+
+1. cadastro de tutor;
+2. cadastro de pet;
+3. cadastro de serviço;
+4. disponibilidade de profissional;
+5. criação de agendamento;
+6. consulta da agenda diária.
+
+Evite instalar toda a infraestrutura da POC anterior antes de existir um problema concreto que a justifique.
