@@ -1,0 +1,140 @@
+# AGENTS.md
+
+## Objetivo
+
+Este repositório contém o backend de uma plataforma de operação e agendamento de atendimentos para petshop.
+
+O projeto deve começar simples, com um monólito modular em .NET, fronteiras de domínio explícitas, PostgreSQL quando a persistência for introduzida, APIs REST/OpenAPI e testes automatizados. Microsserviços, mensageria e infraestrutura adicional só devem ser introduzidos quando houver necessidade concreta.
+
+O trabalho dos agentes deve ser pequeno, correto, reproduzível e coerente com a arquitetura existente. Responda em português, salvo pedido explícito em outro idioma.
+
+## Fontes de verdade
+
+Consulte somente os arquivos relevantes para a tarefa atual:
+
+1. `README.md`;
+2. `docs/README.md`, quando existir;
+3. `docs/adrs/`, quando existir;
+4. `docs/architecture/`, quando existir;
+5. `docs/domain/`, quando existir;
+6. `Directory.Packages.props`;
+7. `Directory.Build.props`;
+8. `.editorconfig`;
+9. `global.json`;
+10. `coverlet.runsettings`;
+11. a solution e os projetos diretamente relacionados à mudança.
+
+Não carregue toda a documentação indiscriminadamente. Localize primeiro o módulo, contrato ou decisão relacionada ao pedido.
+
+## Direção arquitetural inicial
+
+- Comece como monólito modular.
+- Organize código por capacidade de negócio, não por pastas técnicas globais.
+- Módulos candidatos incluem `Customers`, `Pets`, `Scheduling`, `ServiceCatalog`, `Workforce`, `Attendance`, `Billing` e `Notifications`.
+- Esses nomes são hipóteses iniciais, não fronteiras definitivas.
+- Preserve autonomia de modelo, linguagem e persistência entre módulos.
+- Não compartilhe entidades de domínio entre módulos apenas porque possuem campos parecidos.
+- Não crie microsserviço, fila, cache distribuído, gateway ou banco separado sem requisito claro.
+
+## Regras obrigatórias
+
+- Faça a menor mudança possível para resolver o problema.
+- Preserve as fronteiras entre API, Application, Domain e Infrastructure quando essas camadas existirem.
+- Não mova regra de negócio para controller, endpoint, middleware, mapper ou infraestrutura.
+- Não coloque EF Core, SQL, HTTP, mensageria ou configuração técnica no Domain.
+- Não adicione `Version=` em `PackageReference`; use Central Package Management.
+- Não altere migrations existentes sem necessidade explícita.
+- Não introduza segredos no repositório.
+- Não invente URLs, portas, contratos, comandos ou arquitetura.
+- Não altere testes apenas para fazê-los passar.
+- Em refatorações, preserve o comportamento observável existente, salvo quando a tarefa pedir mudança funcional.
+- Não misture refatoração estrutural e mudança funcional sem explicar a necessidade.
+- Use `TimeProvider` para comportamento dependente de tempo que precise ser testável.
+- Propague `CancellationToken` em operações assíncronas relevantes.
+- Atualize documentação quando houver mudança de contrato, arquitetura, setup local ou comportamento importante.
+- Remova arquivos abandonados, vazios ou contendo apenas whitespace antes de concluir.
+
+## Critério de implementação
+
+Não implemente recomendações apenas porque são boas práticas genéricas.
+
+Antes de alterar código, infraestrutura, testes ou documentação, avalie:
+
+- necessidade;
+- problema observável;
+- custo operacional;
+- complexidade adicionada;
+- benefício esperado;
+- risco de manutenção;
+- possibilidade de solução mais simples.
+
+Quando uma recomendação não fizer sentido, registre a decisão em vez de criar uma implementação artificial.
+
+## DDD
+
+- Use DDD tático somente em áreas com linguagem relevante, invariantes, concorrência ou ciclo de vida.
+- Um Aggregate é um limite de consistência, não um espelho de tabela.
+- Prefira métodos que revelem intenção de negócio a setters públicos.
+- Use Value Objects para conceitos importantes, como identificadores, intervalos de horário, duração, status, porte e restrições.
+- Diferencie Domain Events internos de Integration Events.
+- Não crie evento para toda mudança de propriedade.
+- Não use um projeto `Shared` como depósito de conceitos de domínio.
+
+## APIs e contratos
+
+- Endpoints devem permanecer finos.
+- Contratos HTTP não devem expor entidades de persistência.
+- Use códigos HTTP coerentes e Problem Details para erros.
+- Coleções potencialmente grandes devem ter paginação e filtros.
+- O backend deve revalidar regras críticas; o frontend não é fonte de verdade.
+- Concorrência de agenda deve resultar em conflito explícito e tratável.
+- Quando OpenAPI for adotado, mantenha o contrato sincronizado por geração ou validação automatizada.
+
+## EF Core e persistência
+
+Sempre que alterar entidades persistidas, mappings, `DbContext`, índices, constraints, relacionamentos ou tipos de coluna:
+
+1. avalie se a mudança exige migration;
+2. crie nova migration quando houver alteração de schema;
+3. não modifique migrations antigas apenas para organizar;
+4. valide concorrência e constraints no banco quando fizerem parte da regra;
+5. use PostgreSQL real em testes quando SQL, transações, índices ou comportamento do provider forem relevantes.
+
+## Skills dos agentes
+
+Antes de executar uma tarefa especializada, verifique `.agents/skills/` e selecione somente as skills cuja `description` corresponda ao pedido.
+
+As skills complementam este arquivo. Em caso de conflito, as regras deste `AGENTS.md` prevalecem.
+
+## Validação
+
+Execute validações proporcionais ao impacto:
+
+- mudança localizada: teste mais próximo;
+- mudança de módulo: projetos e testes do módulo;
+- mudança transversal: solution agregadora;
+- mudança de persistência: testes com provider real quando necessário;
+- mudança de contrato: testes HTTP e validação OpenAPI quando disponível.
+
+Fluxo base:
+
+```bash
+dotnet tool restore
+dotnet restore ./<Solution>.slnx
+dotnet build ./<Solution>.slnx --configuration Release --no-restore
+dotnet test ./<Solution>.slnx --configuration Release --no-build --no-restore --settings ./coverlet.runsettings
+```
+
+Descubra o nome real da solution; não invente `<Solution>`.
+
+Registre claramente qualquer validação que não possa ser executada e o motivo.
+
+## Git e commits
+
+- Nunca aplique alterações diretamente na branch `main`.
+- Crie ou use uma branch de trabalho relacionada ao objetivo.
+- Não faça push ou abra pull request sem solicitação explícita.
+- Use Conventional Commits: `feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `chore:`, `build:` ou `ci:`.
+- Revise o diff antes de commitar.
+- Não crie commit se houver falha de build ou teste sem registrar claramente o motivo.
+- Evite formatar ou renomear arquivos fora do escopo.
