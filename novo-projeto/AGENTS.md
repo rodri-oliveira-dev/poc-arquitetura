@@ -40,6 +40,19 @@ Não carregue toda a documentação indiscriminadamente. Localize primeiro o mó
 - Não compartilhe entidades de domínio entre módulos apenas porque possuem campos parecidos.
 - Não crie microsserviço, fila, cache distribuído, gateway ou banco separado sem requisito claro.
 
+## Modularização
+
+- Ao criar, dividir, unir, revisar ou refatorar módulos, use `.agents/skills/modular-monolith-dotnet/SKILL.md`.
+- Trate os módulos candidatos como hipóteses que precisam de evidência de coesão, linguagem, ownership e acoplamento.
+- Um módulo deve representar uma capacidade de negócio, não uma entidade CRUD ou uma camada técnica.
+- Mantenha superfície pública pequena e internals inacessíveis a outros módulos sempre que possível.
+- Um módulo não deve consultar tabelas, usar entidades EF Core, receber `DbContext` ou alterar dados pertencentes a outro módulo.
+- Escolha conscientemente entre chamada síncrona, evento, projeção local ou workflow; não use mensageria apenas para esconder acoplamento.
+- Prefira transações dentro de um único módulo e investigue fronteiras quando uma regra exigir escrita atômica em vários módulos.
+- Não imponha uma quantidade fixa de projetos por módulo. Crie assemblies adicionais somente quando produzirem um limite compilável útil.
+- Proteja dependências importantes com fitness functions e testes arquiteturais, incluindo ausência de ciclos e acesso apenas por contratos permitidos.
+- Um módulo ser extraível não significa que deva virar microsserviço agora.
+
 ## Multitenancy
 
 A decisão arquitetural principal está registrada em `docs/adrs/0001-multitenancy-claim-e-isolamento-por-linha.md`.
@@ -157,12 +170,13 @@ As skills complementam este arquivo. Em caso de conflito, as regras deste `AGENT
 Execute validações proporcionais ao impacto:
 
 - mudança localizada: teste mais próximo;
-- mudança de módulo: projetos e testes do módulo;
+- mudança de módulo: projetos, testes funcionais e testes arquiteturais do módulo;
 - mudança transversal: solution agregadora;
 - mudança de persistência: testes com provider real quando necessário;
 - mudança de contrato: testes HTTP e validação OpenAPI quando disponível;
 - mudança em dados de negócio: testes de isolamento entre pelo menos dois tenants;
-- mudança em propagação: testes de continuidade W3C, correlation, tenant e preservação de headers.
+- mudança em propagação: testes de continuidade W3C, correlation, tenant e preservação de headers;
+- mudança de fronteira: testes de ciclos, dependências permitidas, superfície pública e ownership de dados.
 
 Fluxo base:
 
