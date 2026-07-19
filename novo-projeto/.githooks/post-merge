@@ -1,0 +1,26 @@
+#!/usr/bin/env sh
+set -eu
+
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+cd "$repo_root"
+
+if ! command -v dotnet >/dev/null 2>&1; then
+  echo "post-merge: dotnet não encontrado; restore não executado." >&2
+  exit 0
+fi
+
+if [ -f .config/dotnet-tools.json ] || [ -f dotnet-tools.json ]; then
+  echo "==> post-merge: restaurando ferramentas locais"
+  dotnet tool restore
+fi
+
+solution="$(find . -maxdepth 2 -type f \( -name '*.slnx' -o -name '*.sln' \) | sort | head -n 1)"
+
+if [ -z "$solution" ]; then
+  echo "post-merge: nenhuma solution encontrada; restore ignorado."
+  exit 0
+fi
+
+echo "==> post-merge: restaurando $solution"
+dotnet restore "$solution"
+echo "==> post-merge: restore concluído"
