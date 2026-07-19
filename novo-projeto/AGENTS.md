@@ -8,6 +8,8 @@ O projeto deve começar simples, com um monólito modular em .NET, fronteiras de
 
 Todo o sistema é multitenant. Cada tenant representa uma organização de petshop que utiliza a plataforma, e o isolamento entre tenants é uma propriedade obrigatória de segurança e consistência.
 
+Observabilidade distribuída é requisito arquitetural. APIs, workers, futuros serviços e adapters de mensageria devem preservar correlação, contexto W3C e tenant conforme os building blocks e ADRs do projeto.
+
 O trabalho dos agentes deve ser pequeno, correto, reproduzível e coerente com a arquitetura existente. Responda em português, salvo pedido explícito em outro idioma.
 
 ## Fontes de verdade
@@ -56,6 +58,26 @@ A decisão arquitetural principal está registrada em `docs/adrs/0001-multitenan
 - Toda funcionalidade que acesse dados persistidos deve possuir testes de isolamento com pelo menos dois tenants.
 - Operações administrativas cross-tenant exigem fluxo, autorização e auditoria explícitos; nunca devem surgir como exceção informal aos filtros normais.
 - Ao implementar ou revisar código afetado por multitenancy, use `.agents/skills/multitenancy-dotnet/SKILL.md`.
+
+## Observabilidade e propagação
+
+A decisão arquitetural está registrada em `docs/adrs/0002-library-propagacao-observabilidade.md`.
+
+- Use `src/BuildingBlocks/PetShop.Observability/` para propagação agnóstica de transporte e `PetShop.Observability.AspNetCore` somente nas APIs.
+- Não replique helpers de headers, parsing W3C, baggage, correlation ou criação de Activities dentro de cada serviço.
+- `CorrelationId` é independente de `TraceId` e deve continuar disponível mesmo sem Activity amostrada.
+- Em HTTP de saída, use `CorrelationIdDelegatingHandler` para `X-Correlation-Id`; deixe `traceparent`, `tracestate` e `baggage` para a instrumentação padrão do `HttpClient` OpenTelemetry.
+- Não envie `tenant_id` como header HTTP de autoridade. Entre APIs, o tenant continua sendo validado pelo token e pela autorização.
+- Em mensagens e jobs tenant-owned, propague os headers canônicos `correlation_id`, `tenant_id`, `traceparent`, `tracestate` e `baggage`.
+- Adapters Kafka, Pub/Sub ou de outros brokers devem apenas converter headers nativos para pares `string/string`; não devem duplicar a lógica de propagação.
+- Ao gravar Outbox, persista o snapshot do contexto original. O relay deve restaurá-lo como parent, criar uma Activity `Producer` e publicar o contexto do novo span.
+- Consumers devem extrair o contexto, criar uma Activity `Consumer` e abrir o escopo de execução antes de processar a mensagem.
+- Retry, DLQ e replay devem preservar todos os headers de propagação.
+- Mantenha nomes de `ActivitySource`, operações e tags estáveis.
+- Não transporte PII, tokens, segredos ou payloads completos em baggage.
+- Não use `correlation_id`, `tenant_id` ou IDs de negócio como labels de métricas.
+- Cada executável configura `service.name`, sampling, exporter e OTLP; a library não escolhe vendor APM.
+- Ao alterar propagação, tracing, métricas ou configuração OpenTelemetry, use `.agents/skills/configuring-opentelemetry-dotnet/SKILL.md`.
 
 ## Regras obrigatórias
 
@@ -139,7 +161,8 @@ Execute validações proporcionais ao impacto:
 - mudança transversal: solution agregadora;
 - mudança de persistência: testes com provider real quando necessário;
 - mudança de contrato: testes HTTP e validação OpenAPI quando disponível;
-- mudança em dados de negócio: testes de isolamento entre pelo menos dois tenants.
+- mudança em dados de negócio: testes de isolamento entre pelo menos dois tenants;
+- mudança em propagação: testes de continuidade W3C, correlation, tenant e preservação de headers.
 
 Fluxo base:
 
