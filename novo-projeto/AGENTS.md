@@ -6,6 +6,8 @@ Este repositório contém o backend de uma plataforma de operação e agendament
 
 O projeto deve começar simples, com um monólito modular em .NET, fronteiras de domínio explícitas, PostgreSQL quando a persistência for introduzida, APIs REST/OpenAPI e testes automatizados. Microsserviços, mensageria e infraestrutura adicional só devem ser introduzidos quando houver necessidade concreta.
 
+Todo o sistema é multitenant. Cada tenant representa uma organização de petshop que utiliza a plataforma, e o isolamento entre tenants é uma propriedade obrigatória de segurança e consistência.
+
 O trabalho dos agentes deve ser pequeno, correto, reproduzível e coerente com a arquitetura existente. Responda em português, salvo pedido explícito em outro idioma.
 
 ## Fontes de verdade
@@ -35,6 +37,25 @@ Não carregue toda a documentação indiscriminadamente. Localize primeiro o mó
 - Preserve autonomia de modelo, linguagem e persistência entre módulos.
 - Não compartilhe entidades de domínio entre módulos apenas porque possuem campos parecidos.
 - Não crie microsserviço, fila, cache distribuído, gateway ou banco separado sem requisito claro.
+
+## Multitenancy
+
+A decisão arquitetural principal está registrada em `docs/adrs/0001-multitenancy-claim-e-isolamento-por-linha.md`.
+
+- O tenant de uma requisição autenticada deve ser obtido exclusivamente da claim validada `tenant_id` presente no access token.
+- Não aceite o tenant informado livremente pelo cliente em body, query string, rota ou header como fonte de autoridade para operações comuns.
+- Não use tenant padrão, fallback silencioso ou tenant implícito quando a claim estiver ausente ou inválida.
+- Todas as tabelas de negócio devem possuir a coluna obrigatória `tenant_id`.
+- Toda leitura, escrita, alteração e exclusão de dados de negócio deve respeitar o tenant atual.
+- Unicidade que seja local a um tenant deve incluir `tenant_id` no índice ou constraint correspondente.
+- Relacionamentos entre registros pertencentes a tenants devem impedir associação cruzada.
+- O Domain não deve depender de `HttpContext`, claims, JWT ou middleware para descobrir o tenant.
+- O tenant deve ser resolvido na borda confiável e propagado explicitamente para Application e Infrastructure.
+- Jobs, eventos, cache, idempotência, importações, exportações e processos assíncronos devem preservar o tenant quando lidarem com dados de negócio.
+- Logs podem registrar o tenant como contexto estruturado quando necessário, sem expor dados sensíveis. Não use `tenant_id` como label de métrica de alta cardinalidade.
+- Toda funcionalidade que acesse dados persistidos deve possuir testes de isolamento com pelo menos dois tenants.
+- Operações administrativas cross-tenant exigem fluxo, autorização e auditoria explícitos; nunca devem surgir como exceção informal aos filtros normais.
+- Ao implementar ou revisar código afetado por multitenancy, use `.agents/skills/multitenancy-dotnet/SKILL.md`.
 
 ## Regras obrigatórias
 
@@ -98,7 +119,10 @@ Sempre que alterar entidades persistidas, mappings, `DbContext`, índices, const
 2. crie nova migration quando houver alteração de schema;
 3. não modifique migrations antigas apenas para organizar;
 4. valide concorrência e constraints no banco quando fizerem parte da regra;
-5. use PostgreSQL real em testes quando SQL, transações, índices ou comportamento do provider forem relevantes.
+5. use PostgreSQL real em testes quando SQL, transações, índices ou comportamento do provider forem relevantes;
+6. confirme que toda tabela de negócio possui `tenant_id` obrigatório;
+7. confirme que consultas e alterações não permitem acesso cruzado entre tenants;
+8. revise índices únicos e relacionamentos para incluir o limite do tenant quando aplicável.
 
 ## Skills dos agentes
 
@@ -114,7 +138,8 @@ Execute validações proporcionais ao impacto:
 - mudança de módulo: projetos e testes do módulo;
 - mudança transversal: solution agregadora;
 - mudança de persistência: testes com provider real quando necessário;
-- mudança de contrato: testes HTTP e validação OpenAPI quando disponível.
+- mudança de contrato: testes HTTP e validação OpenAPI quando disponível;
+- mudança em dados de negócio: testes de isolamento entre pelo menos dois tenants.
 
 Fluxo base:
 
