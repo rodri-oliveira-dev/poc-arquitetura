@@ -18,7 +18,7 @@ public sealed class DependencyPolicyTests
             .Descendants("PackageVersion")
             .SingleOrDefault(element => (string?)element.Attribute("Include") == CryptographyXmlPackage);
         Assert.NotNull(packageVersion);
-        Assert.Equal("10.0.9", packageVersion!.Attribute("Version")!.Value);
+        Assert.Equal("10.0.10", packageVersion!.Attribute("Version")!.Value);
     }
 
     [Fact]
