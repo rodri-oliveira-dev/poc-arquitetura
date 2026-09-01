@@ -44,11 +44,16 @@ Este e o mapa da documentacao. O [README da raiz](../README.md) apresenta a POC;
 ### Jornada arquitetural
 
 1. [Arquitetura visual e LikeC4](architecture/README.md)
-2. [Boundaries](architecture/boundaries.md)
-3. [Catalogo de padroes](architecture/patterns-catalog.md)
-4. [ADRs](adrs/README.md)
-5. [Baseline de evolucao produtiva](architecture/production-readiness.md)
-6. [Roadmap](roadmap.md)
+2. No LikeC4: `systemLandscape` -> container view do bounded context ->
+   component view do container -> dynamic view do fluxo ->
+   `localCoreDeployment` -> overlay especifico quando necessario.
+3. Para entender referencias de projeto, use as views `*CodeDependencies`
+   somente depois das views de runtime.
+4. [Boundaries](architecture/boundaries.md)
+5. [Catalogo de padroes](architecture/patterns-catalog.md)
+6. [ADRs](adrs/README.md)
+7. [Baseline de evolucao produtiva](architecture/production-readiness.md)
+8. [Roadmap](roadmap.md)
 
 ### Jornada operacional
 
@@ -134,6 +139,7 @@ Specs registram requisitos, design, tarefas e relatorio de uma mudanca. Elas exp
 
 - [Specs SDD](specs)
 - [Revisao C4/LikeC4 da arquitetura](specs/c4-likec4-architecture-review/report.md)
+- [Conclusao semantica C4/LikeC4](specs/c4-likec4-semantic-completion/report.md)
 - [Revisao da experiencia de documentacao](specs/documentation-experience-review/requirements.md)
 
 ### Runbooks

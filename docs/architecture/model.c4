@@ -6,6 +6,7 @@ specification {
   deploymentNode environment
   deploymentNode composeNetwork
   deploymentNode composeService
+  deploymentNode composeResource
 
   tag api
   tag worker
@@ -18,6 +19,7 @@ specification {
   tag optional
   tag future
   tag legacy
+  tag code
 
   element actor {
     style {
@@ -27,12 +29,23 @@ specification {
   element softwareSystem
   element container
   element component
+  element codeModule
 }
 
 model {
   customer = actor "Cliente / Sistema externo" {
     #external
     description "Obtem token no IdP local e chama APIs HTTP para criacao de lancamentos, solicitacao/consulta de estornos, solicitacao/consulta de reprocessamentos, solicitacao/consulta de transferencias e consulta de consolidados."
+  }
+
+  shared = softwareSystem "Shared libraries" {
+    #code
+    description "Bibliotecas compartilhadas de codigo usadas por APIs, Workers e testes. Nao representam processos, containers ou ownership de dominio."
+
+    sharedKernel = codeModule "PocArquitetura.Shared" {
+      #code
+      description "Projetos em src/Shared com building blocks transversais, contratos auxiliares e infraestrutura comum reutilizada por composition roots e adapters."
+    }
   }
 
   observability = softwareSystem "Observabilidade" {
@@ -372,17 +385,32 @@ model {
       transferApiLayer = component "API Layer" {
         description "Controllers versionados, contracts, binders, mappers, Swagger/OpenAPI, JWT/JWKS, policies transfer.write/transfer.read, autorizacao por merchant, correlation id e middlewares. Encaminha POST /api/v1/transferencias e GET /api/v1/transferencias/{transferenciaId} para Application."
       }
+
+      transferCommandHandlers = component "Transfer command handlers" {
+        description "Handlers de Application executados no processo da API para solicitar transferencia, validar idempotencia e registrar Saga/Outbox no schema transfer."
+      }
+
+      transferQueryHandlers = component "Transfer query handlers" {
+        description "Handlers de Application executados no processo da API para consultar status da Saga com autorizacao por merchant."
+      }
+
+      transferPersistence = component "Transfer persistence adapters" {
+        description "TransferServiceDbContext, repositories, idempotency service, UnitOfWork e Outbox writer registrados pela API via Infrastructure."
+      }
     }
 
-    transferApplication = component "TransferService.Application" {
+    transferApplication = codeModule "TransferService.Application" {
+      #code
       description "Assembly compartilhado por TransferService.Api e TransferService.Worker. Contem SolicitarTransferenciaCommandHandler, ObterStatusTransferenciaQueryHandler, validadores, portas ITransferenciaSagaRepository, ITransferenciaIdempotencyService, ITransferenciaOutboxWriter, IUnitOfWork e factories dos eventos Transferencia*.v1."
     }
 
-    transferDomain = component "TransferService.Domain" {
+    transferDomain = codeModule "TransferService.Domain" {
+      #code
       description "Assembly de dominio compartilhado via Application e Infrastructure. Contem aggregate TransferenciaSaga, value objects MerchantId e TransferAmount, status Pending/Processing/DebitCreating/DebitCreated/CreditCreating/Completed/CompensationRequested/Compensated/Failed/Rejected, etapas, retry persistido e lock de processamento."
     }
 
-    transferInfrastructure = component "TransferService.Infrastructure" {
+    transferInfrastructure = codeModule "TransferService.Infrastructure" {
+      #code
       description "Assembly compartilhado por TransferService.Api e TransferService.Worker. Implementa TransferServiceDbContext, schema transfer, migrations, repository com claim FOR UPDATE SKIP LOCKED, idempotencia persistida, Outbox transacional e mapper de metadados Kafka."
     }
 
@@ -438,22 +466,33 @@ model {
       paymentApiLayer = component "API Layer" {
         description "Controllers, contracts, binders, mappers, Swagger, JWT/JWKS, policies payment.write/payment.read/payment.refund, correlation id, webhooks Stripe e middlewares."
       }
+
+      paymentCommandHandlers = component "Payment command/query handlers" {
+        description "Handlers de Application executados no processo da API para criar Payment, consultar estado local, solicitar refund e persistir webhook Stripe na Inbox."
+      }
+
+      paymentPersistence = component "Payment persistence adapters" {
+        description "PaymentDbContext, repositories, idempotency service, Inbox repository e UnitOfWork registrados pela API via Infrastructure."
+      }
+
+      paymentGatewayAdapter = component "Payment gateway adapter" {
+        description "Adapter IPaymentGateway selecionado por configuracao no processo da API: fake local por padrao ou Stripe para PaymentIntent/Refund."
+      }
     }
 
-    paymentApplication = component "PaymentService.Application" {
+    paymentApplication = codeModule "PaymentService.Application" {
+      #code
       description "Assembly compartilhado por PaymentService.Api e PaymentService.Worker. Contem handlers de criacao, consulta, refund, recebimento de webhook, processamento da Inbox e processor Payment/Refund -> Ledger; portas IPaymentRepository, IPaymentIdempotencyService, IPaymentInboxRepository, IUnitOfWork, IPaymentGateway e ILedgerEntryGateway com modelos internos."
     }
 
-    paymentDomain = component "PaymentService.Domain" {
+    paymentDomain = codeModule "PaymentService.Domain" {
+      #code
       description "Assembly de dominio compartilhado via Application e Infrastructure. Contem aggregate Payment com PaymentRefund, value objects PaymentId, RefundId, MerchantId, Money, Currency, ExternalReference, ExternalPaymentReference, LedgerEntryReference e state machines."
     }
 
-    paymentInfrastructure = component "PaymentService.Infrastructure" {
+    paymentInfrastructure = codeModule "PaymentService.Infrastructure" {
+      #code
       description "Assembly compartilhado por PaymentService.Api e PaymentService.Worker. Implementa PaymentDbContext, migrations do schema payment, repositories, idempotencia persistida, Inbox, provider fake, adapter HTTP Stripe PaymentIntent/Refund, LedgerHttpGateway e client credentials para ledger.write."
-    }
-
-    paymentProviderEventMapper = component "StripeInboxProviderEventMapper" {
-      description "Componente de Application usado pelo Worker para traduzir evento Stripe persistido na Inbox para evento interno de provider sem expor tipos Stripe ao dominio."
     }
 
     paymentWorker = container "PaymentService.Worker" {
@@ -467,6 +506,10 @@ model {
 
       paymentInboxWorker = component "PaymentInboxWorkerService" {
         description "BackgroundService que reclama mensagens elegiveis da Inbox, processa lote sequencial, respeita cancellation token e agenda retry ou DeadLetter por mensagem."
+      }
+
+      paymentProviderEventMapper = component "StripeInboxProviderEventMapper" {
+        description "Componente de Application executado pelo Worker para traduzir evento Stripe persistido na Inbox para evento interno de provider sem expor tipos Stripe ao dominio."
       }
 
       paymentLedgerWorker = component "PaymentLedgerWorkerService" {
@@ -500,17 +543,28 @@ model {
       auditApiLayer = component "API Layer" {
         description "Controllers, contracts, Swagger/OpenAPI, JWT/JWKS, policies audit.*, filtros de consulta, ProblemDetails, health/readiness e composition root HTTP."
       }
+
+      auditCommandHandlers = component "Audit command/query handlers" {
+        description "Handlers de Application executados no processo da API para criar registros canonicos, aplicar idempotencia HTTP e consultar trilhas por escopo/merchant."
+      }
+
+      auditPersistence = component "Audit persistence adapters" {
+        description "AuditDbContext, repositories e query services registrados pela API via Infrastructure para o schema audit."
+      }
     }
 
-    auditApplication = component "AuditService.Application" {
+    auditApplication = codeModule "AuditService.Application" {
+      #code
       description "Assembly compartilhado por AuditService.Api e AuditService.Worker. Contem casos de uso de criacao/consulta, idempotencia, validacao canonica, ingestion service e portas de persistencia sem conhecer Ledger, Balance, Transfer ou Payment."
     }
 
-    auditDomain = component "AuditService.Domain" {
+    auditDomain = codeModule "AuditService.Domain" {
+      #code
       description "Assembly de dominio compartilhado via Application e Infrastructure. Contem FunctionalAuditRecord, actor funcional, metadata minimizada, invariantes de operacao, merchant, status, reason e timestamps."
     }
 
-    auditInfrastructure = component "AuditService.Infrastructure" {
+    auditInfrastructure = codeModule "AuditService.Infrastructure" {
+      #code
       description "Assembly compartilhado por AuditService.Api e AuditService.Worker. Implementa AuditDbContext, migrations do schema audit, repositories, idempotencia por Idempotency-Key HTTP e por source_event_id quando a origem for Kafka."
     }
 
@@ -528,12 +582,12 @@ model {
       }
 
       auditRecordProcessor = component "AuditRecordRequestedProcessor" {
-        #optional #future
+        #optional
         description "Processor que desserializa AuditRecordRequested.v1, valida eventType/schemaVersion/payload, mapeia para CreateAuditRecordCommand e trata duplicidade idempotente."
       }
 
       auditDeadLetterPublisher = component "KafkaAuditRecordDeadLetterPublisher" {
-        #optional #future
+        #optional
         description "Producer Kafka da DLQ audit.record.requested.dlq para JSON invalido, contrato incompativel ou conflito definitivo de idempotencia."
       }
     }
@@ -706,13 +760,13 @@ model {
   transfer.transferApi -> identity.keycloak "Baixa/cacheia JWKS e valida JWT offline com iss, aud, scopes e merchant_id" "HTTP cacheado"
   payment.paymentApi -> identity.keycloak "Baixa/cacheia JWKS e valida JWT offline com iss, aud, scopes e merchant_id" "HTTP cacheado"
   audit.auditApi -> identity.keycloak "Baixa/cacheia JWKS e valida JWT offline com iss, aud, scopes e merchant_id" "HTTP cacheado"
-  payment.paymentInfrastructure -> stripe.stripeApi "Cria PaymentIntent e Refund com idempotencia externa deterministica" "HTTPS"
+  payment.paymentApi.paymentGatewayAdapter -> stripe.stripeApi "Cria PaymentIntent e Refund com idempotencia externa deterministica quando PaymentGateway:Provider=Stripe" "HTTPS"
   stripe.stripeWebhooks -> payment.paymentApi "Entrega webhooks Stripe assinados em /api/v1/webhooks/stripe" "HTTPS + Stripe-Signature"
   audit.auditApi -> audit.auditDb "Persiste registros funcionais e idempotencia HTTP" "EF Core"
   audit.auditWorker.auditWorkerComposition -> audit.auditWorker.auditRecordConsumer "Registra consumer quando habilitado" "DI"
   kafka.auditRecordTopic -> audit.auditWorker.auditRecordConsumer "Entrega AuditRecordRequested.v1; ainda sem producers reais" "Kafka"
   audit.auditWorker.auditRecordConsumer -> audit.auditWorker.auditRecordProcessor "Entrega mensagem recebida" "processor"
-  audit.auditWorker.auditRecordProcessor -> audit.auditApplication "Mapeia para CreateAuditRecordCommand" "MediatR"
+  audit.auditWorker.auditRecordProcessor -> audit.auditWorker.auditWorkerComposition "Usa servicos de Application/Infrastructure resolvidos por escopo DI" "DI / MediatR"
   audit.auditWorker.auditRecordProcessor -> audit.auditDb "Persiste auditoria por source_event_id idempotente" "EF Core"
   audit.auditWorker.auditRecordProcessor -> audit.auditWorker.auditDeadLetterPublisher "Classifica falhas definitivas" "DLQ"
   audit.auditWorker.auditDeadLetterPublisher -> kafka.auditRecordDlq "Publica evidencia tecnica minimizada" "Kafka"
@@ -801,15 +855,12 @@ model {
   balance.balanceWorker.balanceWorkerInfrastructure -> balance.balanceWorker.balanceWorkerApplication "Implementa adapters tecnicos"
   balance.balanceWorker.balanceWorkerInfrastructure -> balance.balanceDomain "Mapeia entidades e contrato consumido"
 
-  transfer.transferApiLayer -> transfer.transferApplication "Compoe camada de aplicacao"
-  transfer.transferApplication -> transfer.transferDomain "Pode usar dominio local"
-  transfer.transferInfrastructure -> transfer.transferApplication "Implementa portas de persistencia e Outbox"
-  transfer.transferInfrastructure -> transfer.transferDomain "Mapeia dominio da Saga"
+  transfer.transferApiLayer -> transfer.transferApi.transferCommandHandlers "Envia comandos via MediatR"
+  transfer.transferApiLayer -> transfer.transferApi.transferQueryHandlers "Envia queries via MediatR"
+  transfer.transferApi.transferCommandHandlers -> transfer.transferApi.transferPersistence "Usa portas implementadas por Infrastructure via DI"
+  transfer.transferApi.transferQueryHandlers -> transfer.transferApi.transferPersistence "Le status por repositorios/query services"
   transfer.transferApiLayer -> identity.keycloak "Valida JWT offline por JWKS, audience transfer-api, scopes transfer.write/transfer.read e merchant_id" "JWT/JWKS"
-  transfer.transferApplication -> transfer.transferDb "Persiste solicitacao, idempotencia e Outbox da Saga por portas e Unit of Work" "EF Core via Infrastructure"
-  transfer.transferInfrastructure -> transfer.transferDb "Persiste Saga, idempotencia e Outbox" "EF Core"
-  transfer.transferWorker.transferWorkerComposition -> transfer.transferApplication "Registra Application"
-  transfer.transferWorker.transferWorkerComposition -> transfer.transferInfrastructure "Registra Infrastructure"
+  transfer.transferApi.transferPersistence -> transfer.transferDb "Persiste solicitacao, idempotencia e Outbox da Saga" "EF Core"
   transfer.transferWorker.transferWorkerComposition -> transfer.transferWorker.transferSagaProcessor "Hospeda processor da Saga" "HostedService"
   transfer.transferWorker.transferWorkerComposition -> transfer.transferWorker.transferOutboxPublisher "Hospeda publisher da Outbox" "HostedService"
   transfer.transferWorker.transferWorkerComposition -> transfer.transferWorker.transferLedgerClient "Registra client HTTP resiliente" "DI"
@@ -825,27 +876,56 @@ model {
   transfer.transferWorker.transferKafkaProducer -> kafka.transferSagaTopics "Publica eventos da Saga com transferenciaId como key" "Kafka"
   transfer.transferWorker.transferKafkaProducer -> kafka.transferSagaDlq "Publica payload invalido ou erro definitivo da Outbox" "Kafka DLQ"
 
-  payment.paymentApiLayer -> payment.paymentApplication "Envia comandos e queries via MediatR"
-  payment.paymentApplication -> payment.paymentDomain "Cria Payment e aplica state machine"
-  payment.paymentInfrastructure -> payment.paymentApplication "Implementa portas de persistencia"
-  payment.paymentInfrastructure -> payment.paymentDomain "Mapeia aggregate e value objects"
+  payment.paymentApiLayer -> payment.paymentApi.paymentCommandHandlers "Envia comandos e queries via MediatR"
+  payment.paymentApi.paymentCommandHandlers -> payment.paymentApi.paymentPersistence "Usa repositories, Inbox, idempotencia e UnitOfWork via DI"
+  payment.paymentApi.paymentCommandHandlers -> payment.paymentApi.paymentGatewayAdapter "Chama IPaymentGateway quando cria PaymentIntent ou Refund"
+  payment.paymentApi.paymentPersistence -> payment.paymentDb "Persiste Payment, idempotencia e Inbox" "EF Core"
   payment.paymentApi -> payment.paymentDb "Persiste Payment, registros de idempotencia e Inbox de webhooks" "EF Core"
-  payment.paymentWorker.paymentWorkerComposition -> payment.paymentApplication "Registra Application"
-  payment.paymentWorker.paymentWorkerComposition -> payment.paymentInfrastructure "Registra Infrastructure"
+  payment.paymentWorker.paymentWorkerComposition -> payment.paymentWorker.paymentInboxWorker "Hospeda processamento da Inbox" "HostedService"
+  payment.paymentWorker.paymentWorkerComposition -> payment.paymentWorker.paymentLedgerWorker "Hospeda materializacao Ledger" "HostedService"
   payment.paymentWorker.paymentInboxWorker -> payment.paymentDb "Faz claim da Inbox, atualiza Inbox e Payment na mesma transacao local" "EF Core / SQL"
-  payment.paymentWorker.paymentInboxWorker -> payment.paymentApplication "Envia ProcessPaymentInboxMessageCommand" "MediatR"
+  payment.paymentWorker.paymentInboxWorker -> payment.paymentWorker.paymentProviderEventMapper "Traduz evento Stripe persistido para modelo interno"
   payment.paymentWorker.paymentLedgerWorker -> payment.paymentWorker.paymentLedgerProcessor "Coordena batches de materializacao financeira" "DI"
   payment.paymentWorker.paymentLedgerProcessor -> payment.paymentDb "Faz claim persistido e salva ledgerEntryId/retry/deadletter" "EF Core / SQL"
   payment.paymentWorker.paymentLedgerProcessor -> payment.paymentWorker.ledgerHttpGateway "Chama porta ILedgerEntryGateway" "porta"
   payment.paymentWorker.ledgerHttpGateway -> identity.keycloak "Obtem token client_credentials com scope ledger.write" "HTTP"
   payment.paymentWorker.ledgerHttpGateway -> ledger.ledgerApi "Cria CREDIT e solicita estornos em POST /api/v1/lancamentos/{id}/estornos com Idempotency-Key deterministica" "HTTP + JWT"
-  payment.paymentApplication -> payment.paymentProviderEventMapper "Traduz Inbox para evento interno de provider"
-  payment.paymentProviderEventMapper -> payment.paymentDomain "Entrega evento traduzido para state machine via Application"
+  payment.paymentWorker.paymentProviderEventMapper -> payment.paymentWorker.paymentInboxWorker "Entrega evento traduzido para o handler de processamento" "modelo interno"
 
-  audit.auditApiLayer -> audit.auditApplication "Envia comandos e queries de auditoria"
-  audit.auditApplication -> audit.auditDomain "Cria FunctionalAuditRecord e aplica invariantes"
-  audit.auditInfrastructure -> audit.auditApplication "Implementa persistencia e idempotencia"
-  audit.auditInfrastructure -> audit.auditDomain "Mapeia aggregate e value objects"
-  audit.auditWorker.auditWorkerComposition -> audit.auditApplication "Registra Application"
-  audit.auditWorker.auditWorkerComposition -> audit.auditInfrastructure "Registra Infrastructure"
+  audit.auditApiLayer -> audit.auditApi.auditCommandHandlers "Envia comandos e queries de auditoria"
+  audit.auditApi.auditCommandHandlers -> audit.auditApi.auditPersistence "Usa repositories e query services via DI"
+  audit.auditApi.auditPersistence -> audit.auditDb "Persiste e consulta functional_audit_records" "EF Core"
+  audit.auditWorker.auditWorkerComposition -> audit.auditWorker.auditRecordConsumer "Hospeda consumer Kafka quando habilitado" "HostedService"
+  audit.auditWorker.auditWorkerComposition -> audit.auditWorker.auditRecordProcessor "Registra processor e ingestion services" "DI"
+  audit.auditWorker.auditWorkerComposition -> audit.auditWorker.auditDeadLetterPublisher "Registra producer de DLQ" "DI"
+
+  transfer.transferApi -> transfer.transferApplication "Referencia projeto" "build"
+  transfer.transferWorker -> transfer.transferApplication "Referencia projeto" "build"
+  transfer.transferApplication -> transfer.transferDomain "Referencia projeto" "build"
+  transfer.transferInfrastructure -> transfer.transferApplication "Implementa portas" "build"
+  transfer.transferInfrastructure -> transfer.transferDomain "Mapeia dominio" "build"
+  transfer.transferApi -> transfer.transferInfrastructure "Registra adapters por DI" "build"
+  transfer.transferWorker -> transfer.transferInfrastructure "Registra adapters por DI" "build"
+  transfer.transferApi -> shared.sharedKernel "Usa bibliotecas compartilhadas" "build"
+  transfer.transferWorker -> shared.sharedKernel "Usa bibliotecas compartilhadas" "build"
+
+  payment.paymentApi -> payment.paymentApplication "Referencia projeto" "build"
+  payment.paymentWorker -> payment.paymentApplication "Referencia projeto" "build"
+  payment.paymentApplication -> payment.paymentDomain "Referencia projeto" "build"
+  payment.paymentInfrastructure -> payment.paymentApplication "Implementa portas" "build"
+  payment.paymentInfrastructure -> payment.paymentDomain "Mapeia dominio" "build"
+  payment.paymentApi -> payment.paymentInfrastructure "Registra adapters por DI" "build"
+  payment.paymentWorker -> payment.paymentInfrastructure "Registra adapters por DI" "build"
+  payment.paymentApi -> shared.sharedKernel "Usa bibliotecas compartilhadas" "build"
+  payment.paymentWorker -> shared.sharedKernel "Usa bibliotecas compartilhadas" "build"
+
+  audit.auditApi -> audit.auditApplication "Referencia projeto" "build"
+  audit.auditWorker -> audit.auditApplication "Referencia projeto" "build"
+  audit.auditApplication -> audit.auditDomain "Referencia projeto" "build"
+  audit.auditInfrastructure -> audit.auditApplication "Implementa portas" "build"
+  audit.auditInfrastructure -> audit.auditDomain "Mapeia dominio" "build"
+  audit.auditApi -> audit.auditInfrastructure "Registra adapters por DI" "build"
+  audit.auditWorker -> audit.auditInfrastructure "Registra adapters por DI" "build"
+  audit.auditApi -> shared.sharedKernel "Usa bibliotecas compartilhadas" "build"
+  audit.auditWorker -> shared.sharedKernel "Usa bibliotecas compartilhadas" "build"
 }

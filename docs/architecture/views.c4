@@ -68,6 +68,14 @@ global {
       border dashed
       opacity 75%
     }
+
+    style element.tag = #code {
+      notation "Modulo de codigo / dependencia de build"
+      shape component
+      color muted
+      border dashed
+      opacity 80%
+    }
   }
 }
 
@@ -393,10 +401,80 @@ views {
     autoLayout LeftRight
   }
 
-  deployment view localDeployment {
-    title "Deployment local - Docker Compose"
-    description "Mostra como os elementos logicos da POC sao implantados no ambiente local via Docker Compose."
-    include local.**
+  deployment view localCoreDeployment {
+    title "Deployment local core - compose.yaml padrao"
+    description "Mostra somente o runtime principal do compose.yaml sem profiles ou overlays opcionais: PostgreSQL, Kafka, Keycloak, Mailpit, APIs, Workers principais e init containers necessarios. Nao inclui Nginx, observabilidade nem Pub/Sub legado."
+    include local.pocNet.keycloak
+    include local.pocNet.keycloakIdentityAdminInit
+    include local.pocNet.identityApi
+    include local.pocNet.mailpit
+    include local.pocNet.ledgerApi
+    include local.pocNet.ledgerWorker
+    include local.pocNet.balanceApi
+    include local.pocNet.balanceWorker
+    include local.pocNet.transferApi
+    include local.pocNet.transferWorker
+    include local.pocNet.paymentApi
+    include local.pocNet.paymentWorker
+    include local.pocNet.auditApi
+    include local.pocNet.auditWorker
+    include local.pocNet.postgresDb
+    include local.pocNet.kafkaBroker
+    include local.pocNet.kafkaInitTopics
+    autoLayout LeftRight
+  }
+
+  deployment view localNginxDeployment {
+    title "Deployment local overlay - Nginx"
+    description "Mostra o overlay compose.nginx.yaml: Nginx HTTPS, portal local, certificados e instancias adicionais do Ledger usadas para load balance. O core aparece apenas pelos servicos diretamente roteados."
+    include local.pocNet.nginxCertsInit
+    include local.pocNet.nginxEdge
+    include local.pocNet.ledgerApi
+    include local.pocNet.ledgerApiNginx1
+    include local.pocNet.ledgerApiNginx2
+    include local.pocNet.balanceApi
+    include local.pocNet.transferApi
+    include local.pocNet.paymentApi
+    autoLayout LeftRight
+  }
+
+  deployment view localObservabilityDeployment {
+    title "Deployment local overlay - Observabilidade"
+    description "Mostra o overlay compose.observability.yaml: OpenTelemetry Collector, Jaeger, Prometheus, Loki, Alloy, Grafana, Alertmanager e APIs/Workers como fontes resumidas de telemetria."
+    include local.pocNet.ledgerApi
+    include local.pocNet.ledgerWorker
+    include local.pocNet.balanceApi
+    include local.pocNet.balanceWorker
+    include local.pocNet.transferApi
+    include local.pocNet.transferWorker
+    include local.pocNet.paymentApi
+    include local.pocNet.paymentWorker
+    include local.pocNet.auditApi
+    include local.pocNet.auditWorker
+    include local.pocNet.identityApi
+    include local.pocNet.otelCollector
+    include local.pocNet.jaeger
+    include local.pocNet.prometheus
+    include local.pocNet.loki
+    include local.pocNet.alloy
+    include local.pocNet.alertmanager
+    include local.pocNet.grafana
+    autoLayout LeftRight
+  }
+
+  deployment view localLegacyPubSubDeployment {
+    title "Deployment local alternativo - Pub/Sub legado"
+    description "Mostra o modo legacy-pubsub como alternativa ao fluxo Kafka padrao: emulator, init e Ledger/Balance Workers configurados com Messaging:Provider=PubSub. O overlay remove Kafka/kafka-init e desativa TransferService.Worker e AuditService.Worker, portanto este modo nao executa junto com o fluxo Kafka padrao."
+    include local.pocNet.pubsubEmulator
+    include local.pocNet.pubsubInit
+    include local.pocNet.ledgerWorker
+    include local.pocNet.balanceWorker
+    include local.pocNet.pubsubLedgerEventsTopic
+    include local.pocNet.pubsubBalanceSubscription
+    include local.pocNet.pubsubApplicationDlqTopic
+    include local.pocNet.pubsubApplicationDlqSubscription
+    include local.pocNet.pubsubTechnicalDlqTopic
+    include local.pocNet.pubsubTechnicalDlqSubscription
     autoLayout LeftRight
   }
 
@@ -477,11 +555,11 @@ views {
 
   view transferApiComponents of transfer.transferApi {
     title "Component View - TransferService.Api"
-    description "Mostra a superficie HTTP do TransferService e os assemblies compartilhados que registram Saga, idempotencia e Outbox no schema transfer. Keycloak aparece como emissor/JWKS, nao como regra de dominio."
+    description "Detalha o container TransferService.Api em runtime: superficie HTTP, handlers executados no processo, adapters de persistencia e dependencias externas. Assemblies compartilhados ficam em transferCodeDependencies."
     include transfer.transferApiLayer
-    include transfer.transferApplication
-    include transfer.transferDomain
-    include transfer.transferInfrastructure
+    include transfer.transferApi.transferCommandHandlers
+    include transfer.transferApi.transferQueryHandlers
+    include transfer.transferApi.transferPersistence
     include transfer.transferDb
     include identity.keycloak
     autoLayout LeftRight
@@ -511,9 +589,9 @@ views {
 
     customer -> identity.keycloak "1. Obtem JWT com audience transfer-api, scope transfer.write/transfer.read e merchant_id autorizado"
     customer -> transfer.transferApi.transferApiLayer "2. POST /api/v1/transferencias com JWT, Idempotency-Key UUID e X-Correlation-Id"
-    transfer.transferApi.transferApiLayer -> transfer.transferApplication "3. Envia SolicitarTransferenciaCommand apos validar contrato, scope e merchant de origem"
-    transfer.transferApplication -> transfer.transferDomain "4. Cria TransferenciaSaga Pending/Created e metadados de idempotencia/correlacao"
-    transfer.transferApplication -> transfer.transferDb "5. Persiste Saga, idempotency_records e Outbox TransferenciaSolicitada.v1 na mesma transacao"
+    transfer.transferApi.transferApiLayer -> transfer.transferApi.transferCommandHandlers "3. Envia SolicitarTransferenciaCommand apos validar contrato, scope e merchant de origem"
+    transfer.transferApi.transferCommandHandlers -> transfer.transferApi.transferPersistence "4. Cria TransferenciaSaga Pending/Created e prepara persistencia por portas"
+    transfer.transferApi.transferPersistence -> transfer.transferDb "5. Persiste Saga, idempotency_records e Outbox TransferenciaSolicitada.v1 na mesma transacao"
     transfer.transferApi.transferApiLayer -> customer "6. Retorna 202 Accepted, Location e statusUrl"
     transfer.transferWorker.transferSagaProcessor -> transfer.transferWorker.transferSagaClaim "7. Polling reclama Saga elegivel e aplica lease persistido"
     transfer.transferWorker.transferSagaClaim -> transfer.transferDb "8. Marca Processing e ProcessingLockedUntil"
@@ -527,8 +605,8 @@ views {
     transfer.transferWorker.transferOutboxPublisher -> transfer.transferDb "16. Reclama Outbox Pending/Processing com lease e retry/backoff"
     transfer.transferWorker.transferKafkaProducer -> kafka.transferSagaTopics "17. Publica TransferenciaSolicitada/DebitoCriado/CreditoCriado/Concluida.v1 com key transferenciaId"
     customer -> transfer.transferApi.transferApiLayer "18. GET /api/v1/transferencias/{transferenciaId} com scope transfer.read"
-    transfer.transferApi.transferApiLayer -> transfer.transferApplication "19. Envia ObterStatusTransferenciaQuery e valida merchant autorizado"
-    transfer.transferApplication -> transfer.transferDb "20. Le estado atual da Saga"
+    transfer.transferApi.transferApiLayer -> transfer.transferApi.transferQueryHandlers "19. Envia ObterStatusTransferenciaQuery e valida merchant autorizado"
+    transfer.transferApi.transferQueryHandlers -> transfer.transferDb "20. Le estado atual da Saga"
 
     autoLayout LeftRight
   }
@@ -568,12 +646,12 @@ views {
 
     customer -> identity.keycloak "1. Obtem token Keycloak com audience payment-api e scope payment.write"
     customer -> payment.paymentApi.paymentApiLayer "2. Chama POST /api/v1/payments com JWT, Idempotency-Key e merchant_id; API valida contrato HTTP, scope payment.write e correlation id"
-    payment.paymentApi.paymentApiLayer -> payment.paymentApplication "3. Envia CreatePaymentCommand"
-    payment.paymentApplication -> payment.paymentDb "4. Reserva idempotencia e cria Payment Pending no schema payment"
-    payment.paymentApplication -> payment.paymentInfrastructure "5. Chama IPaymentGateway com modelos internos"
-    payment.paymentInfrastructure -> stripe.stripeApi "6. Cria PaymentIntent quando PaymentGateway:Provider=Stripe"
-    stripe.stripeApi -> payment.paymentInfrastructure "7. Retorna status externo traduzido"
-    payment.paymentApplication -> payment.paymentDb "8. Salva externalPaymentReference e providerStatus"
+    payment.paymentApi.paymentApiLayer -> payment.paymentApi.paymentCommandHandlers "3. Envia CreatePaymentCommand"
+    payment.paymentApi.paymentCommandHandlers -> payment.paymentApi.paymentPersistence "4. Reserva idempotencia e cria Payment Pending no schema payment"
+    payment.paymentApi.paymentCommandHandlers -> payment.paymentApi.paymentGatewayAdapter "5. Chama IPaymentGateway com modelos internos"
+    payment.paymentApi.paymentGatewayAdapter -> stripe.stripeApi "6. Cria PaymentIntent quando PaymentGateway:Provider=Stripe"
+    stripe.stripeApi -> payment.paymentApi.paymentGatewayAdapter "7. Retorna status externo traduzido"
+    payment.paymentApi.paymentPersistence -> payment.paymentDb "8. Salva externalPaymentReference e providerStatus"
     payment.paymentApi.paymentApiLayer -> customer "9. Retorna 202 Accepted e statusUrl sem prometer efeito financeiro"
 
     autoLayout LeftRight
@@ -584,14 +662,13 @@ views {
     description "Estado atual: webhook entra pela API, assinatura e raw body sao validados, evento e persistido na Inbox e o Worker processa assincronamente a state machine."
 
     stripe.stripeWebhooks -> payment.paymentApi.paymentApiLayer "1. Entrega POST /api/v1/webhooks/stripe com Stripe-Signature e raw body; API valida assinatura, timestamp, payload e limite tecnico"
-    payment.paymentApi.paymentApiLayer -> payment.paymentApplication "2. Envia ReceiveStripeWebhookCommand"
-    payment.paymentApplication -> payment.paymentDb "3. Persiste Inbox ou reconhece duplicidade por provider + provider_event_id"
+    payment.paymentApi.paymentApiLayer -> payment.paymentApi.paymentCommandHandlers "2. Envia ReceiveStripeWebhookCommand"
+    payment.paymentApi.paymentCommandHandlers -> payment.paymentDb "3. Persiste Inbox ou reconhece duplicidade por provider + provider_event_id"
     payment.paymentApi.paymentApiLayer -> stripe.stripeWebhooks "4. Responde 2xx apos assinatura valida e persistencia/duplicidade reconhecida"
     payment.paymentWorker.paymentInboxWorker -> payment.paymentDb "5. Faz claim atomico de Inbox Pending/RetryScheduled/lease expirado"
-    payment.paymentWorker.paymentInboxWorker -> payment.paymentApplication "6. Envia ProcessPaymentInboxMessageCommand"
-    payment.paymentApplication -> payment.paymentProviderEventMapper "7. Traduz evento Stripe para modelo interno de provider"
-    payment.paymentApplication -> payment.paymentDomain "8. Aplica state machine monotona de Payment/Refund"
-    payment.paymentApplication -> payment.paymentDb "9. Salva Payment e resultado da Inbox como Processed, Ignored, RetryScheduled ou DeadLetter"
+    payment.paymentWorker.paymentInboxWorker -> payment.paymentWorker.paymentProviderEventMapper "6. Traduz evento Stripe persistido"
+    payment.paymentWorker.paymentProviderEventMapper -> payment.paymentWorker.paymentInboxWorker "7. Retorna modelo interno de provider"
+    payment.paymentWorker.paymentInboxWorker -> payment.paymentDb "8. Aplica state machine e salva Payment/Inbox como Processed, Ignored, RetryScheduled ou DeadLetter"
 
     autoLayout LeftRight
   }
@@ -621,14 +698,14 @@ views {
     description "Estado atual: refund total e implementado; refund parcial, chargeback, dispute, payout, split, Stripe Connect e reconciliacao completa permanecem fora do runtime atual."
 
     customer -> payment.paymentApi.paymentApiLayer "1. Chama POST /api/v1/payments/{paymentId}/refunds com scope payment.refund"
-    payment.paymentApi.paymentApiLayer -> payment.paymentApplication "2. Envia RequestRefundCommand apos validar merchant"
-    payment.paymentApplication -> payment.paymentDb "3. Registra PaymentRefund no aggregate"
-    payment.paymentApplication -> payment.paymentInfrastructure "4. Chama IPaymentGateway para CreateRefundAsync"
-    payment.paymentInfrastructure -> stripe.stripeApi "5. Cria Refund total com idempotencia externa deterministica"
+    payment.paymentApi.paymentApiLayer -> payment.paymentApi.paymentCommandHandlers "2. Envia RequestRefundCommand apos validar merchant"
+    payment.paymentApi.paymentCommandHandlers -> payment.paymentDb "3. Registra PaymentRefund no aggregate"
+    payment.paymentApi.paymentCommandHandlers -> payment.paymentApi.paymentGatewayAdapter "4. Chama IPaymentGateway para CreateRefundAsync"
+    payment.paymentApi.paymentGatewayAdapter -> stripe.stripeApi "5. Cria Refund total com idempotencia externa deterministica"
     payment.paymentApi.paymentApiLayer -> customer "6. Retorna 202 Accepted"
     stripe.stripeWebhooks -> payment.paymentApi.paymentApiLayer "7. Entrega webhook refund.created/refund.updated/refund.failed"
     payment.paymentApi.paymentApiLayer -> payment.paymentDb "8. Persiste evento na Inbox duravel"
-    payment.paymentWorker.paymentInboxWorker -> payment.paymentApplication "9. Processa evento de refund confirmado"
+    payment.paymentWorker.paymentInboxWorker -> payment.paymentDb "9. Processa evento de refund confirmado"
     payment.paymentWorker.paymentLedgerProcessor -> payment.paymentWorker.ledgerHttpGateway "10. Monta estorno com Idempotency-Key deterministica"
     payment.paymentWorker.ledgerHttpGateway -> ledger.ledgerApi "11. Chama POST /api/v1/lancamentos/{ledgerEntryId}/estornos"
     ledger.ledgerApi -> ledger.ledgerDb "12. Registra solicitacao de estorno, idempotencia e Outbox operacional"
@@ -642,11 +719,11 @@ views {
 
   view paymentApiComponents of payment.paymentApi {
     title "Component View - PaymentService.Api"
-    description "Visao estrutural da API: superficie HTTP, assemblies compartilhados, persistencia e externos. O mapper de eventos de provider aparece nos fluxos/Worker onde participa do processamento assincrono."
+    description "Detalha o container PaymentService.Api em runtime: superficie HTTP, handlers, adapters de persistencia e gateway de pagamento selecionado por configuracao. Assemblies compartilhados ficam em paymentCodeDependencies."
     include payment.paymentApiLayer
-    include payment.paymentApplication
-    include payment.paymentDomain
-    include payment.paymentInfrastructure
+    include payment.paymentApi.paymentCommandHandlers
+    include payment.paymentApi.paymentPersistence
+    include payment.paymentApi.paymentGatewayAdapter
     include payment.paymentDb
     include identity.keycloak
     include stripe.stripeApi
@@ -659,7 +736,7 @@ views {
     description "Visao tecnica do Worker: composition root, HostedServices de Inbox e materializacao Ledger, processor, gateway HTTP e persistencia. Assemblies compartilhados nao sao repetidos para evitar mistura de camada com pipeline."
     include payment.paymentWorkerComposition
     include payment.paymentInboxWorker
-    include payment.paymentProviderEventMapper
+    include payment.paymentWorker.paymentProviderEventMapper
     include payment.paymentWorker.paymentLedgerWorker
     include payment.paymentWorker.paymentLedgerProcessor
     include payment.paymentWorker.ledgerHttpGateway
@@ -669,10 +746,10 @@ views {
 
   view auditApiComponents of audit.auditApi {
     title "Component View - AuditService.Api"
+    description "Detalha o container AuditService.Api em runtime: superficie HTTP, handlers de criacao/consulta e adapters de persistencia. Assemblies compartilhados ficam em auditCodeDependencies."
     include audit.auditApiLayer
-    include audit.auditApplication
-    include audit.auditDomain
-    include audit.auditInfrastructure
+    include audit.auditApi.auditCommandHandlers
+    include audit.auditApi.auditPersistence
     include audit.auditDb
     include identity.keycloak
     autoLayout LeftRight
@@ -697,11 +774,47 @@ views {
 
     kafka.auditRecordTopic -> audit.auditWorker.auditRecordConsumer "1. Entrega AuditRecordRequested.v1 quando houver producer habilitado"
     audit.auditWorker.auditRecordConsumer -> audit.auditWorker.auditRecordProcessor "2. Controla retry local e envia mensagem ao processor"
-    audit.auditWorker.auditRecordProcessor -> audit.auditApplication "3. Valida contrato canonico e envia CreateAuditRecordCommand"
-    audit.auditApplication -> audit.auditDb "4. Persiste functional_audit_records com source_event_id idempotente"
+    audit.auditWorker.auditRecordProcessor -> audit.auditWorker.auditWorkerComposition "3. Valida contrato canonico e envia CreateAuditRecordCommand via DI/MediatR"
+    audit.auditWorker.auditRecordProcessor -> audit.auditDb "4. Persiste functional_audit_records com source_event_id idempotente"
     audit.auditWorker.auditRecordProcessor -> audit.auditWorker.auditDeadLetterPublisher "5. Encaminha JSON invalido, contrato incompativel ou conflito definitivo"
     audit.auditWorker.auditDeadLetterPublisher -> kafka.auditRecordDlq "6. Publica DLQ de aplicacao minimizada antes do commit"
 
+    autoLayout LeftRight
+  }
+
+  view transferCodeDependencies of transfer {
+    title "Dependencias de codigo - TransferService"
+    description "Visao estrutural de build, nao uma component view C4 de runtime. Mostra como API e Worker reutilizam Application, Domain, Infrastructure e Shared."
+    include transfer.transferApi
+    include transfer.transferWorker
+    include transfer.transferApplication
+    include transfer.transferDomain
+    include transfer.transferInfrastructure
+    include shared.sharedKernel
+    autoLayout LeftRight
+  }
+
+  view paymentCodeDependencies of payment {
+    title "Dependencias de codigo - PaymentService"
+    description "Visao estrutural de build, nao uma component view C4 de runtime. Mostra como API e Worker reutilizam Application, Domain, Infrastructure e Shared."
+    include payment.paymentApi
+    include payment.paymentWorker
+    include payment.paymentApplication
+    include payment.paymentDomain
+    include payment.paymentInfrastructure
+    include shared.sharedKernel
+    autoLayout LeftRight
+  }
+
+  view auditCodeDependencies of audit {
+    title "Dependencias de codigo - AuditService"
+    description "Visao estrutural de build, nao uma component view C4 de runtime. Mostra como API e Worker reutilizam Application, Domain, Infrastructure e Shared sem tratar assemblies como processos."
+    include audit.auditApi
+    include audit.auditWorker
+    include audit.auditApplication
+    include audit.auditDomain
+    include audit.auditInfrastructure
+    include shared.sharedKernel
     autoLayout LeftRight
   }
 }

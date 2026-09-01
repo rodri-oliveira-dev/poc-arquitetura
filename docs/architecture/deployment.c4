@@ -57,6 +57,11 @@ deployment {
         }
       }
 
+      composeService nginxCertsInit "nginx-certs-init" {
+        technology "OpenSSL / init container"
+        description "Job opcional do overlay compose.nginx.yaml que gera ou prepara certificados locais em infra/nginx/certs antes do Nginx iniciar."
+      }
+
       composeService ledgerApi "ledger-service" {
         technology "Docker container / ASP.NET Core"
         description "Servico Docker Compose que executa a LedgerService.Api."
@@ -240,6 +245,66 @@ deployment {
       composeService pubsubInit "pubsub-init" {
         technology "curl / init container"
         description "Job idempotente do profile legacy-pubsub que cria topic principal, topic de DLQ de aplicacao, subscription do Balance e subscription de inspecao da DLQ de aplicacao no emulator local; nao configura DLQ tecnica nativa."
+      }
+
+      composeResource pubsubLedgerEventsTopic "ledger.ledgerentry.created.local" {
+        technology "Pub/Sub emulator topic"
+        description "Topic principal criado pelo pubsub-init no emulator local para eventos financeiros Ledger no modo legado."
+
+        topic = instanceOf pubsub.ledgerEventsTopic {
+          title "ledger.ledgerentry.created.local"
+          description "Topic Pub/Sub legado usado pelo LedgerService.Worker quando Messaging:Provider=PubSub."
+        }
+      }
+
+      composeResource pubsubBalanceSubscription "balance-service-ledger-events-local" {
+        technology "Pub/Sub emulator subscription"
+        description "Subscription pull criada pelo pubsub-init para o BalanceService.Worker consumir eventos Ledger no modo legado."
+
+        subscription = instanceOf pubsub.balanceSubscription {
+          title "balance-service-ledger-events-local"
+          description "Subscription local do Balance para o topic principal de eventos Ledger."
+        }
+      }
+
+      composeResource pubsubApplicationDlqTopic "ledger.ledgerentry.created.dlq.local" {
+        technology "Pub/Sub emulator topic"
+        description "Topic de DLQ de aplicacao criado pelo pubsub-init para mensagens invalidas ou nao recuperaveis no modo legado."
+
+        topic = instanceOf pubsub.applicationDlqTopic {
+          title "ledger.ledgerentry.created.dlq.local"
+          description "DLQ de aplicacao Pub/Sub legado publicada pelo BalanceService.Worker."
+        }
+      }
+
+      composeResource pubsubApplicationDlqSubscription "ledger-events-application-dlq-inspection-local" {
+        technology "Pub/Sub emulator subscription"
+        description "Subscription de inspecao da DLQ de aplicacao criada pelo pubsub-init no emulator local."
+
+        subscription = instanceOf pubsub.applicationDlqSubscription {
+          title "ledger-events-application-dlq-inspection-local"
+          description "Subscription local para inspecao operacional da DLQ de aplicacao Pub/Sub."
+        }
+      }
+
+      composeResource pubsubTechnicalDlqTopic "ledger.ledgerentry.created-technical-dlq.*" {
+        technology "Pub/Sub real topic"
+        description "Recurso de DLQ tecnica documentado apenas para Pub/Sub real/Terraform; o emulator local nao cria essa policy nativa."
+
+        topic = instanceOf pubsub.technicalDlqTopic {
+          title "ledger.ledgerentry.created-technical-dlq.*"
+          description "DLQ tecnica nativa quando provisionada fora do emulator local."
+        }
+      }
+
+      composeResource pubsubTechnicalDlqSubscription "ledger-events-technical-dlq-inspection-*" {
+        technology "Pub/Sub real subscription"
+        description "Subscription de inspecao da DLQ tecnica em Pub/Sub real; nao e criada pelo compose local."
+
+        subscription = instanceOf pubsub.technicalDlqSubscription {
+          title "ledger-events-technical-dlq-inspection-*"
+          description "Subscription de inspecao operacional da DLQ tecnica em Pub/Sub real."
+        }
       }
 
       composeService jaeger "jaeger" {

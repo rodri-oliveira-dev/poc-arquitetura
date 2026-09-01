@@ -154,7 +154,7 @@ OBSERVABILITY=true ./scripts/local/start-stack.sh
 | Rapida, 10 a 15 min | Este README -> [FAQ](docs/faq.md) -> [Maturidade](docs/maturity.md) -> [Arquitetura](docs/architecture/README.md) |
 | Iniciante | Este README -> [docs/README.md](docs/README.md) -> [Boundaries](docs/architecture/boundaries.md) -> [Catalogo de padroes](docs/architecture/patterns-catalog.md) -> [Mensageria, Outbox e DLQ](docs/development/kafka-outbox.md) |
 | Desenvolvedor | [Desenvolvimento local](docs/development/local-development.md) -> [Autenticacao](docs/development/authentication.md) -> guias de API em `docs/development/*-api.md` -> [Testes e cobertura](docs/development/test-coverage.md) |
-| Arquitetural | [Arquitetura](docs/architecture/README.md) -> [ADRs](docs/adrs/README.md) -> [Production readiness](docs/architecture/production-readiness.md) -> [Roadmap](docs/roadmap.md) |
+| Arquitetural | [Arquitetura](docs/architecture/README.md): `systemLandscape` -> container view -> component view -> dynamic view -> `localCoreDeployment` -> overlay quando necessario -> [ADRs](docs/adrs/README.md) |
 | Operacional | [Observabilidade](docs/observability.md) -> [Runbook de recuperacao](docs/operations/event-recovery-runbook.md) -> [DLQ](docs/operations/dlq-strategy.md) -> [Replay](docs/operations/replay-strategy.md) |
 
 O indice completo fica em [docs/README.md](docs/README.md). A documentacao visual LikeC4 publicada fica em <https://rodri-oliveira-dev.github.io/poc-arquitetura/>.

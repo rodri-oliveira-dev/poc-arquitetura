@@ -88,17 +88,16 @@ Use esta ordem de leitura para onboarding:
 2. Container view do bounded context escolhido: `ledgerContainers`,
    `balanceContainers`, `transferContainers`, `paymentContainers`,
    `identityServiceContainers` ou `auditContainers`.
-3. `businessContainers`: executaveis, bancos logicos e relacoes funcionais dos
-   servicos de negocio.
-4. `integrationContainers`: Kafka, provedores externos, identidade, e-mail e
-   chamadas HTTP service-to-service.
-5. Fluxos principais: lancamento, transferencia, compensacao, pagamento, refund
-   e auditoria.
-6. Component view da API ou Worker do servico que sera alterado.
-7. `platformContainers` e `localDeployment`: runtime local, plataforma,
-   observabilidade e mapeamento para Compose.
-8. `containers`: referencia expandida quando precisar ver tudo junto.
-9. Markdown complementar, ADRs, specs e runbooks quando precisar de detalhe.
+3. Component view da API ou Worker especifico que sera alterado.
+4. Dynamic view do fluxo investigado: lancamento, transferencia, compensacao,
+   pagamento, refund, auditoria ou Pub/Sub legado.
+5. `localCoreDeployment`: runtime padrao do `compose.yaml`.
+6. Deployment de overlay apenas quando necessario: `localNginxDeployment`,
+   `localObservabilityDeployment` ou `localLegacyPubSubDeployment`.
+7. Para perguntas sobre codigo, leia `transferCodeDependencies`,
+   `paymentCodeDependencies` ou `auditCodeDependencies` depois das views de
+   runtime.
+8. Markdown complementar, ADRs, specs e runbooks quando precisar de detalhe.
 
 Evite ler todas as views em sequencia como se fossem capitulos. Cada view deve
 ser usada como resposta a uma pergunta.
@@ -154,7 +153,9 @@ saldo em `ledgerBalanceProjectionFlow`, cadastro em
 
 ### Jornada operacional
 
-Para runtime e falhas, leia `platformContainers`, `localDeployment`,
+Para runtime e falhas, leia `platformContainers`, `localCoreDeployment`,
+`localNginxDeployment`, `localObservabilityDeployment`,
+`localLegacyPubSubDeployment`,
 `kafkaFlow`, `observabilityFlow`, `docs/operations/dlq-strategy.md`,
 `docs/operations/replay-strategy.md`, `docs/operations/payment-worker.md` e
 `docs/operations/audit-worker.md`. Essa jornada separa o ambiente local atual
@@ -177,19 +178,24 @@ um PostgreSQL compartilhado quando as migrations correspondentes sao aplicadas.
 
 ### Component
 
-Mostra componentes internos relevantes de um container ou bounded context,
-respeitando camadas: `Api`, `Application`, `Domain`, `Infrastructure` e
-`Worker`. Quando `Application`, `Domain` ou `Infrastructure` sao assemblies
-compartilhados por API e Worker, a view deve deixar claro que eles nao pertencem
-ao processo HTTP nem sao implantados como servicos separados. Nao deve
-substituir o codigo nem listar classes sem decisao arquitetural envolvida.
+Mostra componentes internos relevantes de um container especifico. Um
+componente C4 e uma unidade estrutural significativa dentro de um container; nao
+e sinonimo de projeto, assembly, namespace, pasta ou classe. A component view
+de uma API detalha o que executa no processo HTTP. A component view de um Worker
+detalha o que executa no processo sem HTTP.
+
+`Application`, `Domain` e `Infrastructure` podem ser assemblies compartilhados
+por API e Worker. Isso nao significa que executem como processos separados nem
+que pertencam simultaneamente a dois containers. Quando a pergunta for sobre
+referencias de projeto, use as views `*CodeDependencies`, que sao visoes
+estruturais de build e nao component views C4 de runtime.
 
 As component views seguem duas granularidades:
 
-- **Estrutural**: usada principalmente para APIs. Mostra superficie HTTP,
-  camadas/assemblies, persistencia e externos relevantes. Evita listar classes
-  concretas como `DbContext`, templates e adapters quando isso nao responder a
-  pergunta da view.
+- **Estrutural de runtime**: usada principalmente para APIs. Mostra superficie
+  HTTP, handlers/services principais, adapters de persistencia e externos
+  relevantes do processo. Evita listar classes concretas quando isso nao
+  responder a pergunta da view.
 - **Tecnica de pipeline**: usada principalmente para Workers. Mostra
   composition root, HostedServices, processors, ports, adapters, topicos e
   persistencia envolvidos no fluxo operacional. Nao repete camadas genericas
@@ -197,8 +203,6 @@ As component views seguem duas granularidades:
 
 Use componentes internos com estes papeis:
 
-- **Camadas arquiteturais**: `API Layer`, `Application`, `Domain` e
-  `Infrastructure` aparecem em views estruturais.
 - **Casos de uso**: aparecem como handlers/services de Application quando a
   decisao arquitetural ou o fluxo exigir essa precisao.
 - **Ports**: interfaces como `IOutboxMessagePublisher` aparecem quando ajudam a
@@ -221,8 +225,12 @@ idempotencia, Inbox, Outbox, retry, DLQ e chamadas entre contexts.
 
 ### Operational / Runtime
 
-Mostra runtime local, mensageria, observabilidade e deployment. Use para
-diagnostico operacional e para distinguir Compose local de arquitetura logica.
+Mostra runtime local, mensageria, observabilidade e deployment. Uma deployment
+view mostra uma configuracao de execucao especifica. Overlays mutuamente
+exclusivos ou opt-in nao devem aparecer junto com o core como se todos
+executassem simultaneamente. Use `localCoreDeployment` primeiro; use as views de
+Nginx, observabilidade ou Pub/Sub legado somente quando estiver investigando
+aquele cenario.
 
 ## Convencao visual
 
@@ -244,6 +252,7 @@ ajuda/legenda da UI gerada.
 | `optional` | Elemento habilitado por configuracao, profile ou overlay | Borda dotted, opacidade reduzida |
 | `future` | Elemento modelado, mas ainda nao integrado ao fluxo principal | Muted, borda dotted, opacidade reduzida |
 | `legacy` | Alternativa legada ainda executavel explicitamente | Borda dashed, opacidade reduzida |
+| `code` | Modulo de codigo ou dependencia de build, fora do runtime C4 | Component muted, borda dashed |
 
 Cores indicam familias, mas nao sao a unica fonte de significado: APIs,
 Workers, bancos, brokers/topicos e IdP usam formas diferentes; estados
@@ -254,9 +263,10 @@ fluxo principal.
 
 Elementos atuais do runtime padrao devem aparecer sem `future` e sem `legacy`.
 Kafka e o broker padrao dos fluxos principais. Pub/Sub fica marcado como
-`legacy` e `optional`. O caminho Kafka de auditoria fica marcado como
-`optional`/`future` enquanto nao houver producers reais em Ledger, Balance,
-Transfer ou Payment.
+`legacy` e `optional`. O consumer, processor e publisher de DLQ do
+AuditService.Worker sao runtime implementado; o que permanece `future` sao
+producers reais de `AuditRecordRequested.v1` nos demais bounded contexts ou
+integracoes propostas ainda sem implementacao.
 
 Limitacao da versao atual: o projeto usa LikeC4 `1.58.0`. As notations de view
 existem e foram usadas como legenda visual, mas o proprio LikeC4 ainda trata
@@ -284,26 +294,32 @@ continuam explicadas por titulos, tecnologias e descricoes das views.
 | `kafkaFlow` | Operational / Runtime | Entender mensageria assincrona padrao | Onde Kafka e usado por Ledger, Balance, Transfer e auditoria |
 | `pubSubLegacyProjectionFlow` | Operational / Runtime | Diagnosticar o modo Pub/Sub legado | Como Ledger publica e Balance consome via Pub/Sub quando `Messaging:Provider=PubSub` |
 | `observabilityFlow` | Operational / Observability | Entender telemetria local | Como APIs, Workers, Collector, Jaeger, Prometheus, Loki, Alloy, Alertmanager e Grafana se conectam |
-| `localDeployment` | Deployment / Runtime | Entender Docker Compose local | Quais servicos do Compose atual existem e a que elementos logicos correspondem |
+| `localCoreDeployment` | Deployment / Runtime | Entender o Compose padrao | Quais servicos do core sobem sem profiles ou overlays |
+| `localNginxDeployment` | Deployment / Overlay | Investigar borda local HTTPS | Como Nginx, portal, certificados e replicas adicionais do Ledger se conectam ao core |
+| `localObservabilityDeployment` | Deployment / Overlay | Investigar telemetria local | Como Collector, Jaeger, Prometheus, Loki, Alloy, Grafana e Alertmanager recebem dados das APIs/Workers |
+| `localLegacyPubSubDeployment` | Deployment / Alternativo legado | Investigar modo Pub/Sub | Como emulator, init e Ledger/Balance Workers rodam com `Messaging:Provider=PubSub`, sem Kafka/Audit Worker nesse modo |
 | `ledgerApiComponents` | Component | Revisar LedgerService.Api | Como HTTP, Application, Domain, Infrastructure e schema ledger se separam |
 | `ledgerWorkerComponents` | Component / Pipeline tecnico | Revisar LedgerService.Worker | Como Outbox Kafka, estornos, reprocessamento, processors, ports, adapters, topicos e persistencia ficam no Worker |
 | `balanceApiComponents` | Component | Revisar BalanceService.Api | Como a API consulta a projecao sem criar fatos financeiros |
 | `balanceWorkerComponents` | Component / Pipeline tecnico | Revisar BalanceService.Worker | Como consumer, mapper, processor, porta de DLQ, topicos e schema balance projetam eventos do Ledger |
-| `transferApiComponents` | Component | Revisar TransferService.Api | Como HTTP, Application, Domain, Infrastructure, idempotencia, Outbox, schema transfer e Keycloak se conectam sem regra de Saga no controller |
+| `transferApiComponents` | Component | Revisar TransferService.Api | Como HTTP, handlers, persistencia, schema transfer e Keycloak se conectam sem regra de Saga no controller |
 | `transferWorkerComponents` | Component | Revisar TransferService.Worker | Como o Worker reclama Sagas, chama Ledger com client credentials, aplica retry/backoff/compensacao e publica Outbox Kafka/DLQ |
+| `transferCodeDependencies` | Codigo / Build | Entender referencias de projeto do Transfer | Como API e Worker reutilizam Application, Domain, Infrastructure e Shared sem representar assemblies como processos |
 | `transferSagaSuccessFlow` | Dynamic / Flow | Entender transferencia concluida | Como Transfer registra a Saga, cria debito/credito no Ledger, publica eventos de Saga Kafka e permite consulta de status |
 | `transferSagaCompensationFlow` | Dynamic / Flow | Entender falha compensavel | Como falha no credito apos debito gera solicitacao de estorno no Ledger, evento de compensacao solicitada e possivel falha definitiva |
 | `identityServiceComponents` | Component / Estrutural | Revisar IdentityService.Api | Como superficie HTTP, camadas, persistencia, Keycloak e e-mail se conectam |
 | `identityComponents` | Component | Revisar Keycloak local | Quais partes do IdP local importado importam para autenticacao |
-| `paymentApiComponents` | Component / Estrutural | Revisar PaymentService.Api | Como controllers usam Application/Domain/Infrastructure compartilhadas sem transformar essas bibliotecas em parte exclusiva da API |
+| `paymentApiComponents` | Component / Estrutural | Revisar PaymentService.Api | Como HTTP, handlers, persistencia, gateway de pagamento e externos rodam no processo da API |
 | `paymentWorkerComponents` | Component / Pipeline tecnico | Revisar PaymentService.Worker | Como Inbox, mapper de provider, materializacao no Ledger, processor, gateway HTTP e schema payment rodam fora da API |
+| `paymentCodeDependencies` | Codigo / Build | Entender referencias de projeto do Payment | Como API e Worker reutilizam Application, Domain, Infrastructure e Shared sem representar assemblies como processos |
 | `paymentCreateFlow` | Dynamic / Flow | Entender criacao de Payment | Como cliente, PaymentService.Api, provider externo e schema payment interagem |
 | `paymentWebhookInboxFlow` | Dynamic / Flow | Entender webhooks Stripe | Como Stripe entra pela API, e persistido na Inbox e processado pelo Worker |
 | `paymentLedgerMaterializationFlow` | Dynamic / Flow | Entender Payment -> Ledger -> Balance | Como pagamento confirmado vira lancamento Ledger e saldo projetado |
 | `paymentRefundFlow` | Dynamic / Flow | Entender refund total | Como refund Stripe vira estorno Ledger e evento compensatorio para Balance |
-| `auditApiComponents` | Component | Revisar AuditService.Api | Como o contrato HTTP canonico usa Application/Domain/Infrastructure compartilhadas para persistir registros no schema audit |
+| `auditApiComponents` | Component | Revisar AuditService.Api | Como HTTP, handlers e persistencia rodam no processo da API para criar/consultar registros no schema audit |
 | `auditWorkerComponents` | Component / Pipeline tecnico | Revisar AuditService.Worker | Como o consumer Kafka processa AuditRecordRequested.v1 sem depender do container da API |
 | `auditKafkaIngestionFlow` | Dynamic / Flow | Entender auditoria assincrona | Como o Worker consome auditoria no Compose padrao enquanto os demais dominios ainda nao publicam producers reais |
+| `auditCodeDependencies` | Codigo / Build | Entender referencias de projeto do Audit | Como API e Worker reutilizam Application, Domain, Infrastructure e Shared sem representar assemblies como processos |
 
 ## Principais bounded contexts
 
@@ -334,10 +350,11 @@ processada pelo Worker, que chama LedgerService.Api para materializar credito ou
 estorno. Payment nao grava Ledger DB, nao grava Balance DB e nao publica evento
 financeiro direto no Kafka.
 
-No modelo LikeC4, `PaymentService.Application`, `PaymentService.Domain` e
-`PaymentService.Infrastructure` aparecem no nivel do bounded context para evitar
-ownership visual enganoso: API e Worker sao processos separados que referenciam
-essas bibliotecas, nao ha dependencia do Worker no container HTTP.
+No modelo LikeC4, `paymentApiComponents` e `paymentWorkerComponents` mostram
+somente componentes que executam no respectivo processo. As referencias de
+projeto para `PaymentService.Application`, `PaymentService.Domain`,
+`PaymentService.Infrastructure` e `Shared` ficam em `paymentCodeDependencies`,
+uma visao de build, nao de runtime.
 
 No ambiente local padrao, `payment-service` e `payment-worker` sobem pelo
 `compose.yaml` apos as migrations do schema `payment` serem aplicadas pelos
@@ -356,10 +373,11 @@ registros no schema `audit`. O Worker Kafka consome `AuditRecordRequested.v1`
 no Compose padrao, mas Ledger, Balance, Transfer e Payment ainda nao publicam
 eventos reais de auditoria.
 
-No modelo LikeC4, `AuditService.Application`, `AuditService.Domain` e
-`AuditService.Infrastructure` tambem aparecem no nivel do bounded context. Isso
-representa os assemblies compartilhados por `AuditService.Api` e
-`AuditService.Worker`, sem sugerir que o Worker dependa da API.
+No modelo LikeC4, `auditApiComponents` e `auditWorkerComponents` mostram
+somente componentes que executam no respectivo processo. As referencias de
+projeto para `AuditService.Application`, `AuditService.Domain`,
+`AuditService.Infrastructure` e `Shared` ficam em `auditCodeDependencies`, uma
+visao de build, nao de runtime.
 
 No ambiente local padrao, `audit-service` e `audit-worker` sobem pelo
 `compose.yaml` apos as migrations do schema `audit` serem aplicadas pelos
