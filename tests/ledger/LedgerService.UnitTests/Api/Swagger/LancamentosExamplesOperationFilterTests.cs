@@ -49,7 +49,7 @@ public sealed class LancamentosExamplesOperationFilterTests
         {
             RequestBody = new OpenApiRequestBody
             {
-                Content = new Dictionary<string, OpenApiMediaType>
+                Content = new Dictionary<string, IOpenApiMediaType>
                 {
                     ["application/json"] = new OpenApiMediaType()
                 }
@@ -66,7 +66,7 @@ public sealed class LancamentosExamplesOperationFilterTests
     {
         return new OpenApiResponse
         {
-            Content = new Dictionary<string, OpenApiMediaType>
+            Content = new Dictionary<string, IOpenApiMediaType>
             {
                 ["application/json"] = new OpenApiMediaType()
             }
