@@ -18,7 +18,7 @@ public sealed class DependencyPolicyTests
             .Descendants("PackageVersion")
             .SingleOrDefault(element => (string?)element.Attribute("Include") == CryptographyXmlPackage);
         Assert.NotNull(packageVersion);
-        Assert.Equal("10.0.10", packageVersion!.Attribute("Version")!.Value);
+        Assert.Equal("10.0.12", packageVersion!.Attribute("Version")!.Value);
     }
 
     [Fact]
@@ -31,7 +31,7 @@ public sealed class DependencyPolicyTests
             .Descendants("PackageVersion")
             .SingleOrDefault(element => (string?)element.Attribute("Include") == OpenTelemetryApiPackage);
         Assert.NotNull(packageVersion);
-        Assert.Equal("1.16.0", packageVersion!.Attribute("Version")!.Value);
+        Assert.Equal("1.18.0", packageVersion!.Attribute("Version")!.Value);
     }
 
     [Fact]
