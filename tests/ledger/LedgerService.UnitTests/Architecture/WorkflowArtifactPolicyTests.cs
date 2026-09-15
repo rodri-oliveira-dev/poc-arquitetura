@@ -571,7 +571,7 @@ public sealed partial class WorkflowArtifactPolicyTests
         return nextStepStart < 0 ? workflow[stepStart..] : workflow[stepStart..nextStepStart];
     }
 
-    [GeneratedRegex(@"uses:\s*actions/upload-artifact@[0-9a-f]{40}\s*#\s*v4[\s\S]*?(?=\n\s{6}- name:|\z)", RegexOptions.Multiline)]
+    [GeneratedRegex(@"uses:\s*actions/upload-artifact@[0-9a-f]{40}\s*#\s*v\d+(?:\.\d+){0,2}[\s\S]*?(?=\n\s{6}- name:|\z)", RegexOptions.Multiline)]
     private static partial Regex UploadArtifactStepRegex();
 
     [GeneratedRegex(@"^\s*uses:\s+(?<target>(?!\.{1,2}/|docker://)[^\s@#]+)@(?<ref>[^\s#]+)(?:\s*#\s*(?<comment>\S+))?", RegexOptions.Multiline)]
