@@ -20,9 +20,11 @@ public sealed class LancamentosExamplesOperationFilter : IOperationFilter
             return;
         }
 
-        if (operation.RequestBody?.Content.TryGetValue("application/json", out var requestMediaType) == true)
+        if (operation.RequestBody?.Content is { } requestContent &&
+            requestContent.TryGetValue("application/json", out var requestMediaType) &&
+            requestMediaType is OpenApiMediaType concreteRequestMediaType)
         {
-            requestMediaType!.Example = new JsonObject
+            concreteRequestMediaType.Example = new JsonObject
             {
                 ["merchantId"] = "tese",
                 ["type"] = "CREDIT",
@@ -72,9 +74,15 @@ public sealed class LancamentosExamplesOperationFilter : IOperationFilter
     {
         mediaType = null!;
 
-        if (!operation.Responses.TryGetValue(statusCode.ToString(CultureInfo.InvariantCulture), out var response))
+        if (!operation.Responses.TryGetValue(statusCode.ToString(CultureInfo.InvariantCulture), out var response) ||
+            response.Content is null ||
+            !response.Content.TryGetValue("application/json", out var responseMediaType) ||
+            responseMediaType is not OpenApiMediaType concreteMediaType)
+        {
             return false;
+        }
 
-        return response.Content.TryGetValue("application/json", out mediaType!);
+        mediaType = concreteMediaType;
+        return true;
     }
 }
