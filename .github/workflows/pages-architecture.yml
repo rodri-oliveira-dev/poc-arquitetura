@@ -34,7 +34,7 @@ jobs:
         uses: actions/configure-pages@1f0c5cde4bc74cd7e1254d0cb4de8d49e9068c7d # v4
 
       - name: Build LikeC4 site
-        uses: likec4/actions@464a72a3e72dc548966fe42c0743a13649556e8a # v1
+        uses: likec4/actions@d36a6b8c87c1d540a3737302808755db435183b0 # v1
         with:
           action: build
           path: docs/architecture
