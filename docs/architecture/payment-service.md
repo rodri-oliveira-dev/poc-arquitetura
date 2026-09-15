@@ -84,10 +84,11 @@ financeiro aceito/criado pelo Ledger (`Completed`).
   Domain e roda o processor Payment -> Ledger. Ele nao referencia a API, nao
   expoe controllers e nao integra diretamente com Balance.
 
-No LikeC4, `PaymentService.Application`, `PaymentService.Domain` e
-`PaymentService.Infrastructure` sao modelados no nivel do bounded context, e nao
-como filhos de `PaymentService.Api`. Essa leitura segue a estrutura fisica dos
-projetos: API e Worker sao composition roots distintos que referenciam as mesmas
+No LikeC4, `paymentApiComponents` e `paymentWorkerComponents` mostram apenas os
+componentes que executam dentro de cada container. `PaymentService.Application`,
+`PaymentService.Domain`, `PaymentService.Infrastructure` e `Shared` aparecem em
+`paymentCodeDependencies`, uma visao de referencias de projeto/build. API e
+Worker continuam composition roots distintos que reutilizam as mesmas
 bibliotecas compartilhadas.
 
 ## Persistencia

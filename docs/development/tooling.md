@@ -174,7 +174,10 @@ npm ci
 dotnet build ./PocArquitetura.slnx --configuration Release
 ./scripts/contracts/openapi/generate.sh
 npm run openapi:lint
+npx likec4 validate docs/architecture
 npm run architecture:build
+npx likec4 export json
+npx likec4 export png
 ```
 
 No PowerShell, troque a geracao por:
@@ -182,3 +185,9 @@ No PowerShell, troque a geracao por:
 ```powershell
 ./scripts/contracts/openapi/generate.ps1
 ```
+
+Ao revisar LikeC4, leia `localCoreDeployment` como runtime padrao do
+`compose.yaml`. `localNginxDeployment`, `localObservabilityDeployment` e
+`localLegacyPubSubDeployment` sao overlays/cenarios especificos e devem ser
+inspecionados separadamente. Component views mostram runtime de um container;
+views `*CodeDependencies` mostram referencias de projeto.

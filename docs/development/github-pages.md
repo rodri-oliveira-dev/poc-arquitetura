@@ -39,6 +39,7 @@ Comando para gerar o site estatico:
 
 ```bash
 npm ci
+npx likec4 validate docs/architecture
 npm run architecture:build
 ```
 
@@ -54,9 +55,15 @@ npx likec4 start docs/architecture
 
 Antes de enviar alteracoes de arquitetura:
 
-1. Gere o site localmente com `npm ci` e `npm run architecture:build`.
-2. Confirme que os arquivos `*.c4` continuam parseando sem erro.
-3. Abra um pull request para que o workflow `architecture-pages` valide o build.
+1. Gere o site localmente com `npm ci`, `npx likec4 validate docs/architecture`
+   e `npm run architecture:build`.
+2. Exporte PNGs com `npx likec4 export png` quando alterar views e inspecione
+   legibilidade, sobreposicao, setas cruzadas e distincao entre core, overlay,
+   legado e futuro.
+3. Leia `localCoreDeployment` como runtime padrao. Use
+   `localNginxDeployment`, `localObservabilityDeployment` e
+   `localLegacyPubSubDeployment` apenas para os respectivos cenarios.
+4. Abra um pull request para que o workflow `architecture-pages` valide o build.
 
 ## GitHub Pages
 
