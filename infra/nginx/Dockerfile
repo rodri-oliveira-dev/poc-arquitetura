@@ -1,4 +1,4 @@
-FROM alpine:3.22
+FROM alpine:3.24
 
 RUN apk add --no-cache nginx nginx-mod-http-headers-more \
     && mkdir -p /run/nginx /usr/share/nginx/html /var/log/nginx /var/lib/nginx/tmp \
