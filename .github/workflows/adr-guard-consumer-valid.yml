@@ -1,0 +1,46 @@
+name: ADR Guard external consumer - valid
+
+on:
+  push:
+    branches:
+      - test/adr-guard-action-49
+
+permissions:
+  contents: read
+
+jobs:
+  default-path:
+    name: ADR Guard default path
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Validate default docs/adr path
+        uses: rodri-oliveira-dev/adr-guard@f2eb5a749977d925b6cf7602c24340e9e79c58ef
+        with:
+          version: 0.1.12
+
+      - name: Assert check is read-only
+        run: git diff --exit-code -- docs/adr
+
+  custom-path:
+    name: ADR Guard custom path
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Validate custom ADR directory
+        uses: rodri-oliveira-dev/adr-guard@f2eb5a749977d925b6cf7602c24340e9e79c58ef
+        with:
+          path: .adr-guard-consumer/custom
+          command: check
+          version: 0.1.12
+
+      - name: Assert check is read-only
+        run: git diff --exit-code -- .adr-guard-consumer/custom

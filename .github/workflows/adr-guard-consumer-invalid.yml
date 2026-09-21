@@ -1,0 +1,26 @@
+name: ADR Guard external consumer - invalid
+
+on:
+  push:
+    branches:
+      - test/adr-guard-action-49
+
+permissions:
+  contents: read
+
+jobs:
+  invalid-adr:
+    name: ADR Guard invalid ADR
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Validate intentionally invalid ADR
+        uses: rodri-oliveira-dev/adr-guard@f2eb5a749977d925b6cf7602c24340e9e79c58ef
+        with:
+          path: .adr-guard-consumer/invalid
+          command: check
+          version: 0.1.12
