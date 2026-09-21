@@ -12,4 +12,4 @@ The valid workflow exercises:
 
 The invalid workflow intentionally validates an ADR without a `Decision` section and is expected to fail with `ADR005`.
 
-This is **pre-release evidence only**. The workflow currently pins ADR Guard source commit `f2eb5a749977d925b6cf7602c24340e9e79c58ef` and runtime image `0.1.12`. After ADR Guard publishes a real production Action tag, this branch must be updated to `uses: rodri-oliveira-dev/adr-guard@v1` with no explicit `version` input, rerun, and only then can the external-adoption acceptance criteria be considered complete.
+This is **pre-release evidence only**. The workflow currently pins ADR Guard source commit `d1d164b5b70014e8101f7843c7cde13d7a19ae9f` and runtime image `0.1.12`. After ADR Guard publishes a real production Action tag, this branch must be updated to `uses: rodri-oliveira-dev/adr-guard@v1` with no explicit `version` input, rerun, and only then can the external-adoption acceptance criteria be considered complete.

@@ -19,7 +19,7 @@ jobs:
           persist-credentials: false
 
       - name: Validate intentionally invalid ADR
-        uses: rodri-oliveira-dev/adr-guard@f2eb5a749977d925b6cf7602c24340e9e79c58ef
+        uses: rodri-oliveira-dev/adr-guard@d1d164b5b70014e8101f7843c7cde13d7a19ae9f
         with:
           path: .adr-guard-consumer/invalid
           command: check
