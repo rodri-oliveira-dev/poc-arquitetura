@@ -31,7 +31,12 @@ public sealed class DependencyPolicyTests
             .Descendants("PackageVersion")
             .SingleOrDefault(element => (string?)element.Attribute("Include") == OpenTelemetryApiPackage);
         Assert.NotNull(packageVersion);
-        var actualVersion = Version.Parse(packageVersion!.Attribute("Version")!.Value);\n        var minimumSafeVersion = new Version(1, 18, 0);\n\n        Assert.True(\n            actualVersion >= minimumSafeVersion,\n            $"Expected {OpenTelemetryApiPackage} to be at least {minimumSafeVersion}, but found {actualVersion}.");
+        var actualVersion = Version.Parse(packageVersion!.Attribute("Version")!.Value);
+        var minimumSafeVersion = new Version(1, 18, 0);
+
+        Assert.True(
+            actualVersion >= minimumSafeVersion,
+            $"Expected {OpenTelemetryApiPackage} to be at least {minimumSafeVersion}, but found {actualVersion}.");
     }
 
     [Fact]
