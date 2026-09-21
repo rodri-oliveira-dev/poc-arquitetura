@@ -22,7 +22,7 @@ public sealed class DependencyPolicyTests
     }
 
     [Fact]
-    public void Vulnerable_opentelemetry_api_override_should_use_fixed_version()
+    public void Vulnerable_opentelemetry_api_override_should_use_fixed_or_later_version()
     {
         var repositoryRoot = GetRepositoryRoot();
         var packages = XDocument.Load(Path.Combine(repositoryRoot.FullName, "Directory.Packages.props"));
@@ -31,7 +31,12 @@ public sealed class DependencyPolicyTests
             .Descendants("PackageVersion")
             .SingleOrDefault(element => (string?)element.Attribute("Include") == OpenTelemetryApiPackage);
         Assert.NotNull(packageVersion);
-        Assert.Equal("1.18.0", packageVersion!.Attribute("Version")!.Value);
+        var actualVersion = Version.Parse(packageVersion!.Attribute("Version")!.Value);
+        var minimumSafeVersion = new Version(1, 18, 0);
+
+        Assert.True(
+            actualVersion >= minimumSafeVersion,
+            $"Expected {OpenTelemetryApiPackage} to be at least {minimumSafeVersion}, but found {actualVersion}.");
     }
 
     [Fact]

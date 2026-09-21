@@ -117,7 +117,7 @@ jobs:
 
     steps:
       - name: Checkout package source
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           fetch-depth: 0
@@ -361,7 +361,7 @@ jobs:
 
     steps:
       - name: Download Shared NuGet packages
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: shared-nuget-packages
           path: ${{ env.PACKAGE_OUTPUT_DIR }}
