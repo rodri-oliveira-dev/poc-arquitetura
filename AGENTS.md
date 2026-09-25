@@ -111,6 +111,8 @@ Antes de executar uma tarefa especializada, verifique as skills disponiveis em `
 
 As skills complementam este arquivo e devem conter os procedimentos detalhados de cada especialidade. Evite carregar ou combinar skills sem relacao direta com a tarefa. Em caso de conflito, as regras deste `AGENTS.md` prevalecem.
 
+Para tarefas de Docker/Compose, use `docker-compose-container-baseline` como politica especifica deste repositorio. Combine, quando relevante, `docker-build-strategies`, `docker-compose-patterns` e `docker-destructive-guardrails` como orientacao upstream complementar. Em caso de conflito, a baseline local prevalece.
+
 ## Validacao
 
 Execute validacoes proporcionais ao impacto:
