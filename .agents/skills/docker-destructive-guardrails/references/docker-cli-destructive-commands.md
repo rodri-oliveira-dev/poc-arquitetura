@@ -117,7 +117,7 @@ docker network rm -f <name>
 docker network prune
 ```
 
-- Removes every user-defined bridge/overlay network not currently attached to a running container. Networks with static IP assignments, custom subnets, or `external: true` references from stopped-but-not-deleted Compose projects are deleted along with that configuration.
+- Removes user-defined networks that are not referenced by any container. A network referenced by a stopped container remains in use from Docker's perspective and is not pruned. Review the unused-network set before confirming a sweep.
 
 **Safer alternative**: remove a specific network by name with `docker network rm <name>` above, once confirmed unused.
 
