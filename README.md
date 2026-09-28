@@ -205,4 +205,4 @@ Para avaliar evolução produtiva, leia [baseline de evolução produtiva](docs/
 
 ## Contribuição e segurança
 
-Leia [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md) e [AGENTS.md](AGENTS.md) antes de propor mudanças. Mudancas em contratos HTTP exigem regenerar `docs/openapi`; mudanças arquiteturais relevantes devem atualizar a documentação correspondente e, quando houver decisão nova, registrar ADR.
+Leia [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md) e [AGENTS.md](AGENTS.md) antes de propor mudanças. Mudanças em contratos HTTP exigem regenerar `docs/openapi`; mudanças arquiteturais relevantes devem atualizar a documentação correspondente e, quando houver decisão nova, registrar ADR.
