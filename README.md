@@ -6,18 +6,18 @@
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=rodri-oliveira-dev_poc-arquitetura&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=rodri-oliveira-dev_poc-arquitetura)
 [![Architecture Docs](https://img.shields.io/github/actions/workflow/status/rodri-oliveira-dev/poc-arquitetura/pages-architecture.yml?branch=main&label=architecture%20docs)](https://rodri-oliveira-dev.github.io/poc-arquitetura/)
 
-POC educacional de microservicos em .NET para estudar arquitetura de software com codigo real: Clean Architecture, DDD, PostgreSQL, Kafka, Outbox, Inbox, JWT/JWKS com Keycloak, observabilidade, seguranca, contratos e testes automatizados.
+POC educacional de microserviços em .NET para estudar arquitetura de software com código real: Clean Architecture, DDD, PostgreSQL, Kafka, Outbox, Inbox, JWT/JWKS com Keycloak, observabilidade, segurança, contratos e testes automatizados.
 
-Ela demonstra um problema comum em sistemas financeiros: registrar fatos de forma transacional, publicar eventos com confiabilidade, projetar saldos em outro servico e operar falhas sem esconder consistencia eventual. O repositorio tambem mostra contextos de identidade, transferencia, pagamento externo e auditoria funcional para exercitar trade-offs de integracao.
+Ela demonstra um problema comum em sistemas financeiros: registrar fatos de forma transacional, publicar eventos com confiabilidade, projetar saldos em outro serviço e operar falhas sem esconder consistência eventual. O repositório também mostra contextos de identidade, transferência, pagamento externo e auditoria funcional para exercitar trade-offs de integração.
 
-Este projeto e util para:
+Este projeto é útil para:
 
-- quem esta aprendendo arquitetura e quer ver os conceitos aplicados;
+- quem está aprendendo arquitetura e quer ver os conceitos aplicados;
 - desenvolvedores .NET que querem executar, testar e alterar uma stack local;
-- arquitetos que querem avaliar decisoes, limites e riscos;
-- avaliadores tecnicos que querem entender a proposta rapidamente.
+- arquitetos que querem avaliar decisões, limites e riscos;
+- avaliadores técnicos que querem entender a proposta rapidamente.
 
-## Visao Geral
+## Visão geral
 
 ```mermaid
 flowchart LR
@@ -55,36 +55,36 @@ flowchart LR
     AuditWorker --> AuditDb
 ```
 
-No modo local padrao, Kafka e o transporte principal dos workers de Ledger, Balance, Transfer e Audit. Pub/Sub permanece como alternativa explicita/legada apenas para Ledger/Balance. O `PaymentService` nao publica eventos financeiros diretamente: depois de confirmar um pagamento, o worker chama o `LedgerService.Api`, e o Balance continua sendo atualizado pelos eventos do Ledger.
+No modo local padrão, Kafka é o transporte principal dos workers de Ledger, Balance, Transfer e Audit. Pub/Sub permanece como alternativa explícita/legada apenas para Ledger/Balance. O `PaymentService` não publica eventos financeiros diretamente: depois de confirmar um pagamento, o worker chama o `LedgerService.Api`, e o Balance continua sendo atualizado pelos eventos do Ledger.
 
-## O Que Voce Aprende
+## O que você aprende
 
 - Como separar escrita (`Ledger`) e leitura (`Balance`) sem perder rastreabilidade.
-- Por que Outbox ajuda quando banco e broker precisam andar juntos sem transacao distribuida.
-- Como Inbox deduplica webhooks externos antes do processamento assincrono.
-- Como idempotencia protege retries HTTP, webhooks e consumidores.
-- Como uma Saga orquestrada coordena transferencia entre merchants.
-- Como JWT/JWKS, scopes e autorizacao por merchant aparecem nas APIs.
-- Como health, readiness, logs, traces, metricas, DLQ e replay entram na operacao.
-- Como ADRs, specs SDD, contratos e runbooks sustentam decisoes ao longo do tempo.
+- Por que Outbox ajuda quando banco e broker precisam andar juntos sem transação distribuída.
+- Como Inbox deduplica webhooks externos antes do processamento assíncrono.
+- Como idempotência protege retries HTTP, webhooks e consumidores.
+- Como uma Saga orquestrada coordena transferência entre merchants.
+- Como JWT/JWKS, scopes e autorização por merchant aparecem nas APIs.
+- Como health, readiness, logs, traces, métricas, DLQ e replay entram na operação.
+- Como ADRs, specs SDD, contratos e runbooks sustentam decisões ao longo do tempo.
 
-## Bounded Contexts
+## Bounded contexts
 
-| Contexto | Papel no laboratorio |
+| Contexto | Papel no laboratório |
 | --- | --- |
 | `LedgerService` | Fonte de verdade dos fatos financeiros, Outbox, estornos e reprocessamentos. |
-| `BalanceService` | Projecao de saldo consumindo eventos do Ledger. |
-| `TransferService` | Saga de transferencia entre merchants, Kafka-only. |
-| `PaymentService` | Pagamentos externos, ACL Stripe/fake provider, webhook assinado, Inbox e materializacao no Ledger. |
-| `IdentityService` | Cadastro de usuarios, vinculo local, `MerchantId`, Keycloak Admin API e e-mail local. |
-| `AuditService` | Auditoria funcional por HTTP e consumer Kafka de `AuditRecordRequested.v1`; os demais dominios ainda nao publicam eventos reais de auditoria. |
-| `Auth.Api` | Legado preservado no repositorio para rastreabilidade historica; Keycloak e o emissor principal da stack local. |
+| `BalanceService` | Projeção de saldo consumindo eventos do Ledger. |
+| `TransferService` | Saga de transferência entre merchants, Kafka-only. |
+| `PaymentService` | Pagamentos externos, ACL Stripe/fake provider, webhook assinado, Inbox e materialização no Ledger. |
+| `IdentityService` | Cadastro de usuários, vínculo local, `MerchantId`, Keycloak Admin API e e-mail local. |
+| `AuditService` | Auditoria funcional por HTTP e consumer Kafka de `AuditRecordRequested.v1`; os demais domínios ainda não publicam eventos reais de auditoria. |
+| `Auth.Api` | Legado preservado no repositório para rastreabilidade histórica; Keycloak é o emissor principal da stack local. |
 
-Os servicos seguem a separacao `Api`, `Application`, `Domain`, `Infrastructure` e, quando aplicavel, `Worker`. A explicacao das fronteiras fica em [docs/architecture/boundaries.md](docs/architecture/boundaries.md).
+Os serviços seguem a separação `Api`, `Application`, `Domain`, `Infrastructure` e, quando aplicável, `Worker`. A explicação das fronteiras fica em [docs/architecture/boundaries.md](docs/architecture/boundaries.md).
 
 ## Quickstart
 
-Pre-requisitos: .NET SDK conforme [global.json](global.json), CLI `docker` com `docker compose` e uma Docker-compatible API acessivel.
+Pré-requisitos: .NET SDK conforme [global.json](global.json), CLI `docker` com `docker compose` e uma Docker-compatible API acessível.
 
 Valide build e testes:
 
@@ -123,48 +123,48 @@ No Linux/macOS:
 OBSERVABILITY=true ./scripts/local/start-stack.sh
 ```
 
-## Exemplos De Fluxo
+## Exemplos de fluxo
 
-**Lancamento financeiro**
+**Lançamento financeiro**
 
 1. `LedgerService.Api` recebe o comando HTTP.
-2. Ledger grava o fato e a mensagem de Outbox na mesma transacao.
+2. Ledger grava o fato e a mensagem de Outbox na mesma transação.
 3. `LedgerService.Worker` publica no Kafka.
-4. `BalanceService.Worker` consome, aplica idempotencia e atualiza a projecao.
+4. `BalanceService.Worker` consome, aplica idempotência e atualiza a projeção.
 5. `BalanceService.Api` consulta o saldo materializado.
 
 **Pagamento externo**
 
 1. `PaymentService.Api` cria o pagamento no provider fake ou Stripe por uma ACL.
-2. Webhooks Stripe entram por endpoint assinado e sao persistidos na Inbox.
+2. Webhooks Stripe entram por endpoint assinado e são persistidos na Inbox.
 3. `PaymentService.Worker` processa a Inbox com retry e lease.
-4. Pagamentos confirmados viram lancamentos no Ledger por chamada HTTP idempotente.
+4. Pagamentos confirmados viram lançamentos no Ledger por chamada HTTP idempotente.
 
-**Transferencia**
+**Transferência**
 
 1. `TransferService.Api` registra a Saga.
-2. `TransferService.Worker` chama Ledger para debito e credito.
-3. Falha apos debito dispara compensacao por estorno no Ledger.
-4. Eventos da Saga sao publicados no Kafka para rastreabilidade operacional.
+2. `TransferService.Worker` chama Ledger para débito e crédito.
+3. Falha após débito dispara compensação por estorno no Ledger.
+4. Eventos da Saga são publicados no Kafka para rastreabilidade operacional.
 
-## Jornada De Leitura
+## Jornada de leitura
 
 | Jornada | Ordem recomendada |
 | --- | --- |
-| Rapida, 10 a 15 min | Este README -> [FAQ](docs/faq.md) -> [Maturidade](docs/maturity.md) -> [Arquitetura](docs/architecture/README.md) |
-| Iniciante | Este README -> [docs/README.md](docs/README.md) -> [Boundaries](docs/architecture/boundaries.md) -> [Catalogo de padroes](docs/architecture/patterns-catalog.md) -> [Mensageria, Outbox e DLQ](docs/development/kafka-outbox.md) |
-| Desenvolvedor | [Desenvolvimento local](docs/development/local-development.md) -> [Autenticacao](docs/development/authentication.md) -> guias de API em `docs/development/*-api.md` -> [Testes e cobertura](docs/development/test-coverage.md) |
-| Arquitetural | [Arquitetura](docs/architecture/README.md): `systemLandscape` -> container view -> component view -> dynamic view -> `localCoreDeployment` -> overlay quando necessario -> [ADRs](docs/adrs/README.md) |
-| Operacional | [Observabilidade](docs/observability.md) -> [Runbook de recuperacao](docs/operations/event-recovery-runbook.md) -> [DLQ](docs/operations/dlq-strategy.md) -> [Replay](docs/operations/replay-strategy.md) |
+| Rápida, 10 a 15 min | Este README -> [FAQ](docs/faq.md) -> [Maturidade](docs/maturity.md) -> [Arquitetura](docs/architecture/README.md) |
+| Iniciante | Este README -> [docs/README.md](docs/README.md) -> [Boundaries](docs/architecture/boundaries.md) -> [Catálogo de padrões](docs/architecture/patterns-catalog.md) -> [Mensageria, Outbox e DLQ](docs/development/kafka-outbox.md) |
+| Desenvolvedor | [Desenvolvimento local](docs/development/local-development.md) -> [Autenticação](docs/development/authentication.md) -> guias de API em `docs/development/*-api.md` -> [Testes e cobertura](docs/development/test-coverage.md) |
+| Arquitetural | [Arquitetura](docs/architecture/README.md): `systemLandscape` -> container view -> component view -> dynamic view -> `localCoreDeployment` -> overlay quando necessário -> [ADRs](docs/adrs/README.md) |
+| Operacional | [Observabilidade](docs/observability.md) -> [Runbook de recuperação](docs/operations/event-recovery-runbook.md) -> [DLQ](docs/operations/dlq-strategy.md) -> [Replay](docs/operations/replay-strategy.md) |
 
-O indice completo fica em [docs/README.md](docs/README.md). A documentacao visual LikeC4 publicada fica em <https://rodri-oliveira-dev.github.io/poc-arquitetura/>.
+O índice completo fica em [docs/README.md](docs/README.md). A documentação visual LikeC4 publicada fica em <https://rodri-oliveira-dev.github.io/poc-arquitetura/>.
 
-## Documentos Principais
+## Documentos principais
 
 - [Arquitetura](docs/architecture/README.md)
-- [Catalogo de padroes](docs/architecture/patterns-catalog.md)
+- [Catálogo de padrões](docs/architecture/patterns-catalog.md)
 - [Desenvolvimento local](docs/development/local-development.md)
-- [Autenticacao e autorizacao](docs/development/authentication.md)
+- [Autenticação e autorização](docs/development/authentication.md)
 - [Mensageria, Outbox e DLQ](docs/development/kafka-outbox.md)
 - [Eventos](docs/events/README.md)
 - [Contratos OpenAPI](docs/openapi)
@@ -175,27 +175,27 @@ O indice completo fica em [docs/README.md](docs/README.md). A documentacao visua
 - [Maturidade](docs/maturity.md)
 - [Roadmap](docs/roadmap.md)
 
-## Limites Da POC
+## Limites da POC
 
-Esta POC nao deve ser lida como pronta para producao. Ela e um laboratorio local, com varias decisoes deliberadamente proporcionais ao estudo:
+Esta POC não deve ser lida como pronta para produção. Ela é um laboratório local, com várias decisões deliberadamente proporcionais ao estudo:
 
-- secrets locais ficam fora do Git, mas nao ha secret store produtivo;
-- Kafka local e o caminho padrao; Pub/Sub e legado/opt-in para Ledger/Balance;
-- rate limiting e local a cada replica;
-- Nginx, observabilidade, SonarQube e k6 sao overlays opcionais;
-- nao ha redrive publico versionado para todas as DLQs;
-- `AuditService.Worker` consome o contrato canonico, mas os demais dominios ainda nao produzem auditoria funcional real;
-- `IdentityService` cria usuarios no Keycloak e compensa falhas conhecidas, mas envio de e-mail ainda nao usa Outbox duravel;
-- referencias ao `Auth.Api` sao historicas ou de compatibilidade; Keycloak e a identidade principal.
+- secrets locais ficam fora do Git, mas não há secret store produtivo;
+- Kafka local é o caminho padrão; Pub/Sub e legado/opt-in para Ledger/Balance;
+- rate limiting é local a cada réplica;
+- Nginx, observabilidade, SonarQube e k6 são overlays opcionais;
+- não há redrive público versionado para todas as DLQs;
+- `AuditService.Worker` consome o contrato canônico, mas os demais domínios ainda não produzem auditoria funcional real;
+- `IdentityService` cria usuários no Keycloak e compensa falhas conhecidas, mas envio de e-mail ainda não usa Outbox durável;
+- referências ao `Auth.Api` são históricas ou de compatibilidade; Keycloak é a identidade principal.
 
-Para avaliar evolucao produtiva, leia [baseline de evolucao produtiva](docs/architecture/production-readiness.md).
+Para avaliar evolução produtiva, leia [baseline de evolução produtiva](docs/architecture/production-readiness.md).
 
-## Comandos Uteis
+## Comandos úteis
 
 | Tarefa | Comando |
 | --- | --- |
 | Testes com cobertura e gate | `./test.ps1` ou `./test.sh` |
-| Stack local padrao | `./scripts/local/start-stack.ps1` ou `./scripts/local/start-stack.sh` |
+| Stack local padrão | `./scripts/local/start-stack.ps1` ou `./scripts/local/start-stack.sh` |
 | Stack completa com Nginx | `./scripts/local/start-full-stack.ps1` ou `./scripts/local/start-full-stack.sh` |
 | Pub/Sub legado | `./scripts/local/start-stack-pubsub.ps1` ou `./scripts/local/start-stack-pubsub.sh` |
 | Gerar OpenAPI | `./scripts/contracts/openapi/generate.ps1` ou `./scripts/contracts/openapi/generate.sh` |
@@ -203,6 +203,6 @@ Para avaliar evolucao produtiva, leia [baseline de evolucao produtiva](docs/arch
 | Gerar LikeC4 | `npm run architecture:build` |
 | Load test smoke Kafka | `./scripts/performance/run-loadtests.ps1 -Mode smoke-kafka` ou `./scripts/performance/run-loadtests.sh smoke-kafka` |
 
-## Contribuicao E Seguranca
+## Contribuição e segurança
 
-Leia [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md) e [AGENTS.md](AGENTS.md) antes de propor mudancas. Mudancas em contratos HTTP exigem regenerar `docs/openapi`; mudancas arquiteturais relevantes devem atualizar a documentacao correspondente e, quando houver decisao nova, registrar ADR.
+Leia [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md) e [AGENTS.md](AGENTS.md) antes de propor mudanças. Mudanças em contratos HTTP exigem regenerar `docs/openapi`; mudanças arquiteturais relevantes devem atualizar a documentação correspondente e, quando houver decisão nova, registrar ADR.
