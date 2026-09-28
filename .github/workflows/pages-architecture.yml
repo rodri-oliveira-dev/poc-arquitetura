@@ -31,7 +31,7 @@ jobs:
 
       - name: Configure Pages
         id: pages
-        uses: actions/configure-pages@1f0c5cde4bc74cd7e1254d0cb4de8d49e9068c7d # v4
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
 
       - name: Build LikeC4 site
         uses: likec4/actions@d36a6b8c87c1d540a3737302808755db435183b0 # v1
