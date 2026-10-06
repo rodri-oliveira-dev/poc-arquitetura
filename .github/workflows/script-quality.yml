@@ -298,7 +298,7 @@ jobs:
             echo "  contents: read"
             echo "jobs:"
             echo "  validate:"
-            echo "    runs-on: ubuntu-latest"
+            printf '    runs-on: $%s\n' "{{ vars.RUNNER_OS || 'ubuntu-26.04' }}"
             echo "    steps:"
             for action_file in "${action_files[@]}"; do
               action_dir="$(dirname "$action_file")"
