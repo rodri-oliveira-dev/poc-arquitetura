@@ -23,7 +23,7 @@ jobs:
   analyzer-recommendations:
     name: Run analyzer recommendations
     if: ${{ github.event.pull_request.draft == false }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.RUNNER_OS || 'ubuntu-26.04' }}
     timeout-minutes: 20
 
     steps:

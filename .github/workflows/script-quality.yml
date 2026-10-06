@@ -36,7 +36,7 @@ env:
 jobs:
   detect-impact:
     name: Detect script and workflow quality impact
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.RUNNER_OS || 'ubuntu-26.04' }}
     timeout-minutes: 5
 
     outputs:
@@ -110,7 +110,7 @@ jobs:
     name: Validate scripts
     needs: detect-impact
     if: ${{ needs.detect-impact.outputs.run_scripts == 'true' }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.RUNNER_OS || 'ubuntu-26.04' }}
     timeout-minutes: 15
 
     steps:
@@ -240,7 +240,7 @@ jobs:
     name: Validate workflows and composite actions
     needs: detect-impact
     if: ${{ needs.detect-impact.outputs.run_workflows == 'true' }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.RUNNER_OS || 'ubuntu-26.04' }}
     timeout-minutes: 10
 
     steps:
@@ -298,7 +298,7 @@ jobs:
             echo "  contents: read"
             echo "jobs:"
             echo "  validate:"
-            echo "    runs-on: ubuntu-latest"
+            echo "    runs-on: ${{ vars.RUNNER_OS || 'ubuntu-26.04' }}"
             echo "    steps:"
             for action_file in "${action_files[@]}"; do
               action_dir="$(dirname "$action_file")"

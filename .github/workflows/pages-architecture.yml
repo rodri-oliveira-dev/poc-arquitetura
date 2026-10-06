@@ -20,7 +20,7 @@ concurrency:
 jobs:
   build:
     name: Build architecture site
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.RUNNER_OS || 'ubuntu-26.04' }}
     timeout-minutes: 10
     permissions:
       contents: read
@@ -51,7 +51,7 @@ jobs:
     name: Deploy architecture site
     if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.RUNNER_OS || 'ubuntu-26.04' }}
     timeout-minutes: 10
     permissions:
       contents: read

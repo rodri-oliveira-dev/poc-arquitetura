@@ -54,7 +54,7 @@ env:
 jobs:
   container-policy:
     name: Validate container policy
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.RUNNER_OS || 'ubuntu-26.04' }}
     timeout-minutes: 15
 
     steps:
@@ -84,7 +84,7 @@ jobs:
 
   container-build:
     name: Build Compose images
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.RUNNER_OS || 'ubuntu-26.04' }}
     needs: container-policy
     timeout-minutes: 30
 
