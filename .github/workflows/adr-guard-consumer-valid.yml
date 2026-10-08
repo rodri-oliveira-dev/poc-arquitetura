@@ -19,9 +19,8 @@ jobs:
           persist-credentials: false
 
       - name: Validate default docs/adr path
-        uses: rodri-oliveira-dev/adr-guard@d1d164b5b70014e8101f7843c7cde13d7a19ae9f
+        uses: rodri-oliveira-dev/adr-guard@v1
         with:
-          version: 0.1.12
 
       - name: Assert check is read-only
         run: git diff --exit-code -- docs/adr
@@ -36,11 +35,10 @@ jobs:
           persist-credentials: false
 
       - name: Validate custom ADR directory
-        uses: rodri-oliveira-dev/adr-guard@d1d164b5b70014e8101f7843c7cde13d7a19ae9f
+        uses: rodri-oliveira-dev/adr-guard@v1
         with:
           path: .adr-guard-consumer/custom
           command: check
-          version: 0.1.12
 
       - name: Assert check is read-only
         run: git diff --exit-code -- .adr-guard-consumer/custom
