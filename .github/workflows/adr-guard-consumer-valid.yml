@@ -20,7 +20,6 @@ jobs:
 
       - name: Validate default docs/adr path
         uses: rodri-oliveira-dev/adr-guard@v1
-        with:
 
       - name: Assert check is read-only
         run: git diff --exit-code -- docs/adr
