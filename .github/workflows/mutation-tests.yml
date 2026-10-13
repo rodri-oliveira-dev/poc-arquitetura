@@ -63,7 +63,7 @@ jobs:
 
       - name: Upload Stryker report - LedgerService.Application
         if: ${{ always() }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: stryker-ledger-service-application
           path: tests/ledger/LedgerService.UnitTests/StrykerOutput/**/reports/mutation-report.html
@@ -76,7 +76,7 @@ jobs:
 
       - name: Upload Stryker report - BalanceService.Application
         if: ${{ always() }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: stryker-balance-service-application
           path: tests/balance/BalanceService.UnitTests/StrykerOutput/**/reports/mutation-report.html
