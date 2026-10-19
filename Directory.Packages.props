@@ -13,9 +13,9 @@
     <!-- API versioning / Swagger -->
     <PackageVersion Include="Asp.Versioning.Mvc" Version="10.2.1" />
     <PackageVersion Include="Asp.Versioning.Mvc.ApiExplorer" Version="10.2.1" />
-    <PackageVersion Include="Swashbuckle.AspNetCore" Version="10.3.0" />
-    <PackageVersion Include="Swashbuckle.AspNetCore.Annotations" Version="10.3.0" />
-    <PackageVersion Include="Microsoft.OpenApi" Version="2.12.2" />
+    <PackageVersion Include="Swashbuckle.AspNetCore" Version="10.3.1" />
+    <PackageVersion Include="Swashbuckle.AspNetCore.Annotations" Version="10.3.1" />
+    <PackageVersion Include="Microsoft.OpenApi" Version="2.13.0" />
 
     <!-- Auth/JWT -->
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.13" />
