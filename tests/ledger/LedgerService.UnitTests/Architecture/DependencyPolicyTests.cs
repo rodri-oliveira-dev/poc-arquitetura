@@ -18,7 +18,12 @@ public sealed class DependencyPolicyTests
             .Descendants("PackageVersion")
             .SingleOrDefault(element => (string?)element.Attribute("Include") == CryptographyXmlPackage);
         Assert.NotNull(packageVersion);
-        Assert.Equal("10.0.12", packageVersion!.Attribute("Version")!.Value);
+        var actualVersion = Version.Parse(packageVersion!.Attribute("Version")!.Value);
+        var minimumSafeVersion = new Version(10, 0, 12);
+
+        Assert.True(
+            actualVersion >= minimumSafeVersion,
+            $"Expected {CryptographyXmlPackage} to be at least {minimumSafeVersion}, but found {actualVersion}.");
     }
 
     [Fact]
