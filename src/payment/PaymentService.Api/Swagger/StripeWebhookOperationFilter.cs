@@ -31,7 +31,7 @@ public sealed class StripeWebhookOperationFilter : IOperationFilter
         {
             Required = true,
             Description = "Raw JSON body enviado pela Stripe. A assinatura deve ser calculada sobre estes bytes sem normalizacao.",
-            Content = new Dictionary<string, OpenApiMediaType>
+            Content = new Dictionary<string, IOpenApiMediaType>
             {
                 {
                     "application/json",
