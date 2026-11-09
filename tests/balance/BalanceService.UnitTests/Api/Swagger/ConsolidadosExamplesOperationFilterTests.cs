@@ -72,7 +72,7 @@ public sealed class ConsolidadosExamplesOperationFilterTests
     {
         return new OpenApiResponse
         {
-            Content = new Dictionary<string, OpenApiMediaType>
+            Content = new Dictionary<string, IOpenApiMediaType>
             {
                 ["application/json"] = new OpenApiMediaType()
             }
