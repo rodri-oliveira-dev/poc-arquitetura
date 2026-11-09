@@ -16,6 +16,10 @@ updates:
     directory: "/"
     patterns:
       - "*"
+    ignore:
+      # Swashbuckle 10.x utiliza Microsoft.OpenApi 2.x.
+      - dependency-name: "Microsoft.OpenApi"
+        update-types: ["version-update:semver-major"]
     multi-ecosystem-group: "weekly-dependencies"
 
   - package-ecosystem: "github-actions"

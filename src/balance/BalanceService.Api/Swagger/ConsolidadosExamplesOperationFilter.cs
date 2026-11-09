@@ -122,13 +122,6 @@ public sealed class ConsolidadosExamplesOperationFilter : IOperationFilter
         if (!operation.Responses.TryGetValue(statusCode.ToString(CultureInfo.InvariantCulture), out var response))
             return false;
 
-        if (response.Content.TryGetValue("application/json", out var jsonMediaType) &&
-            jsonMediaType is OpenApiMediaType concreteMediaType)
-        {
-            mediaType = concreteMediaType;
-            return true;
-        }
-
-        return false;
+        return response.Content.TryGetValue("application/json", out mediaType!);
     }
 }
