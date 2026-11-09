@@ -157,7 +157,7 @@ public sealed class OpenApiContractQualityDocumentFilterTests
                     Schema = new OpenApiSchema { Type = JsonSchemaType.String }
                 }
             },
-            Content = new Dictionary<string, OpenApiMediaType>
+            Content = new Dictionary<string, IOpenApiMediaType>
             {
                 ["text/plain"] = new OpenApiMediaType
                 {
