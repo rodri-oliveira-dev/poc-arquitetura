@@ -20,6 +20,13 @@ updates:
       # Swashbuckle 10.x utiliza Microsoft.OpenApi 2.x.
       - dependency-name: "Microsoft.OpenApi"
         update-types: ["version-update:semver-major"]
+      # Swagger 11 requires an explicit Microsoft.OpenApi 3.x migration.
+      - dependency-name: "Swashbuckle.AspNetCore"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Swashbuckle.AspNetCore.Annotations"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "swashbuckle.aspnetcore.cli"
+        update-types: ["version-update:semver-major"]
     multi-ecosystem-group: "weekly-dependencies"
 
   - package-ecosystem: "github-actions"
