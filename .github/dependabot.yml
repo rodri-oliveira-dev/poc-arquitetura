@@ -25,6 +25,8 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "Swashbuckle.AspNetCore.Annotations"
         update-types: ["version-update:semver-major"]
+      - dependency-name: "swashbuckle.aspnetcore.cli"
+        update-types: ["version-update:semver-major"]
     multi-ecosystem-group: "weekly-dependencies"
 
   - package-ecosystem: "github-actions"
