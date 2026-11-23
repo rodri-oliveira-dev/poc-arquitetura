@@ -10,7 +10,7 @@
       "rollForward": false
     },
     "dotnet-reportgenerator-globaltool": {
-      "version": "5.6.0",
+      "version": "5.6.1",
       "commands": [
         "reportgenerator"
       ],
@@ -24,7 +24,7 @@
       "rollForward": false
     },
     "gitversion.tool": {
-      "version": "6.8.2",
+      "version": "7.0.1",
       "commands": [
         "dotnet-gitversion"
       ],
