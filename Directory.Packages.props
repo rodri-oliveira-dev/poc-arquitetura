@@ -15,7 +15,7 @@
     <PackageVersion Include="Asp.Versioning.Mvc.ApiExplorer" Version="10.2.1" />
     <PackageVersion Include="Swashbuckle.AspNetCore" Version="10.3.1" />
     <PackageVersion Include="Swashbuckle.AspNetCore.Annotations" Version="10.3.1" />
-    <PackageVersion Include="Microsoft.OpenApi" Version="2.13.0" />
+    <PackageVersion Include="Microsoft.OpenApi" Version="2.13.1" />
 
     <!-- Auth/JWT -->
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.15" />
@@ -42,8 +42,8 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.15" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.15" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.15" />
-    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
-    <PackageVersion Include="Resend" Version="0.26.0" />
+    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.4" />
+    <PackageVersion Include="Resend" Version="0.27.0" />
 
     <!-- Extensions abstractions -->
     <PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="11.0.0" />
@@ -59,7 +59,7 @@
 
     <!-- Messaging -->
     <PackageVersion Include="Confluent.Kafka" Version="2.16.0" />
-    <PackageVersion Include="Google.Cloud.PubSub.V1" Version="3.39.0" />
+    <PackageVersion Include="Google.Cloud.PubSub.V1" Version="3.40.0" />
 
     <!-- Security overrides -->
     <!-- Patch for GHSA-x33c-w48q-qrgc (transitive package pinned by direct references). -->
@@ -74,8 +74,8 @@
     <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.1" />
     <PackageVersion Include="coverlet.collector" Version="10.1.1" />
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.15" />
-    <PackageVersion Include="Testcontainers" Version="4.16.0" />
-    <PackageVersion Include="Testcontainers.PostgreSql" Version="4.16.0" />
+    <PackageVersion Include="Testcontainers" Version="4.17.0" />
+    <PackageVersion Include="Testcontainers.PostgreSql" Version="4.17.0" />
     <PackageVersion Include="TngTech.ArchUnitNET.xUnitV3" Version="0.13.5" />
 
     <!-- Tools / YAML parsing -->
