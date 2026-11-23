@@ -19,6 +19,7 @@ Padrão de arquivo sugerido: `NNNN-titulo-curto.md` (ex.: `0005-outbox-at-least-
 
 | ADR                                                                   | Status      | Resumo                                                                                           |
 | --------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------ |
+| [ADR-0112](./0112-reversao-temporaria-gitversion-tool-ci.md) | Aceito | Reverte temporariamente o GitVersion.Tool 7.0.1 para 6.8.2 apos falha no restore de ferramentas locais, mantendo a estrategia SemVer da ADR-0048. |
 | [ADR-0111](./0111-consistencia-cancelamento-cadastro-identity-service.md) | Aceito | Refina o cadastro do IdentityService para compensar Keycloak em cancelamentos pos-efeito externo com token proprio e timeout. |
 | [ADR-0110](./0110-sonarqube-cloud-projeto-unico-agregado.md) | Aceito | Consolida o SonarQube Cloud em um unico projeto agregado e mantem Shared sem analise Sonar propria. |
 | [ADR-0109](./0109-setup-explicito-git-hooks-locais.md) | Aceito | Substitui instalacao de hooks durante build por setup local explicito, seguro e idempotente. |
